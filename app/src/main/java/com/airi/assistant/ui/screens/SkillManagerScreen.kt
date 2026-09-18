@@ -10,6 +10,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -134,315 +137,122 @@ fun SkillManagerScreen(
         }
     }
 
+    val activeCount = officialSkills.count { it.isEnabled && it.isConnected } +
+        customSkills.count { skillRegistry.isCustomSkillAvailable(it) }
+    val totalCount = officialSkills.size + customSkills.size
+    val connectedCount = officialSkills.count { it.isConnected }
+
     Scaffold(
         containerColor = AiriTheme.background,
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = AiriTheme.background.copy(alpha = 0.95f)
+                    containerColor = AiriTheme.background
                 ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            tint = AiriTheme.onBackground
-                        )
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.back), tint = AiriTheme.onBackground)
                     }
                 },
                 title = {
-                    Column {
-                        Text(
-                            stringResource(R.string.skill_title),
-                            color = AiriTheme.onBackground,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-                        val activeCount = officialSkills.count { it.isEnabled && it.isConnected } +
-                            customSkills.count { skillRegistry.isCustomSkillAvailable(it) }
-                        val totalCount  = officialSkills.size + customSkills.size
-                        Text(
-                            "$totalCount skills · $activeCount active",
-                            color = AiriTheme.onBackground.copy(0.45f),
-                            fontSize = 11.sp
-                        )
+                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        Text(stringResource(R.string.skill_title), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                        Text(stringResource(R.string.skill_official_section), color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
                     }
                 },
                 actions = {
-                    Box {
-                        IconButton(onClick = { showAddMenu = true }) {
-                            Icon(
-                                Icons.Default.Add,
-                                contentDescription = stringResource(R.string.cd_add_skill),
-                                tint = CosmicAccent
-                            )
+                    IconButton(onClick = { showAddMenu = true }) {
+                        Surface(shape = AIRIShapes.pill, color = CosmicAccent.copy(alpha = 0.14f)) {
+                            Icon(Icons.Default.Add, stringResource(R.string.cd_add_skill), tint = CosmicAccent, modifier = Modifier.padding(8.dp))
                         }
-                        DropdownMenu(
-                            expanded         = showAddMenu,
-                            onDismissRequest = { showAddMenu = false }
-                        ) {
-                            AddOption(Icons.Outlined.Edit, stringResource(R.string.skill_menu_create)) {
-                                showAddMenu = false; onCreate()
-                            }
-                            AddOption(Icons.Outlined.FolderOpen, stringResource(R.string.skill_menu_import_storage)) {
-                                showAddMenu = false
-                                importSource = ImportSource.STORAGE
-                                filePicker.launch("application/json")
-                            }
-                            AddOption(Icons.Outlined.Code, stringResource(R.string.skill_menu_import_github)) {
-                                showAddMenu = false; importSource = ImportSource.GITHUB
-                            }
-                            AddOption(Icons.Outlined.AutoAwesome, stringResource(R.string.skill_menu_create_with_airi)) {
-                                showAddMenu = false; importSource = ImportSource.AI
-                            }
-                        }
+                    }
+                    DropdownMenu(expanded = showAddMenu, onDismissRequest = { showAddMenu = false }) {
+                        AddOption(Icons.Outlined.Edit, stringResource(R.string.skill_menu_create)) { showAddMenu = false; onCreate() }
+                        AddOption(Icons.Outlined.FolderOpen, stringResource(R.string.skill_menu_import_storage)) { showAddMenu = false; importSource = ImportSource.STORAGE; filePicker.launch("application/json") }
+                        AddOption(Icons.Outlined.Code, stringResource(R.string.skill_menu_import_github)) { showAddMenu = false; importSource = ImportSource.GITHUB }
+                        AddOption(Icons.Outlined.AutoAwesome, stringResource(R.string.skill_menu_create_with_airi)) { showAddMenu = false; importSource = ImportSource.AI }
                     }
                 }
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
+        Column(Modifier.fillMaxSize().padding(padding)) {
             errorMessage?.let { msg ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(SemanticError.copy(0.15f))
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Outlined.Warning, null, tint = SemanticError, modifier = Modifier.size(16.dp))
-                    Text(msg, color = SemanticError, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { errorMessage = null }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Outlined.Close, null, tint = SemanticError)
+                Surface(color = SemanticError.copy(alpha = 0.13f), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), shape = AIRIShapes.md) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Outlined.Warning, null, tint = SemanticError, modifier = Modifier.size(18.dp))
+                        Text(msg, color = SemanticError, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        IconButton(onClick = { errorMessage = null }, modifier = Modifier.size(28.dp)) { Icon(Icons.Outlined.Close, null, tint = SemanticError) }
                     }
                 }
             }
             if (importSource == ImportSource.GITHUB) {
-                GitHubImportDialog(
-                    isImporting = isImporting,
-                    onDismiss   = { importSource = null },
-                    onImport    = { rawUrl ->
-                        scope.launch {
-                            withContext(Dispatchers.Main) { isImporting = true }
-                            val result = withContext(Dispatchers.IO) {
-                                GitHubSkillImporter.importFromUrl(rawUrl)
-                            }
-                            withContext(Dispatchers.Main) {
-                                isImporting = false
-                                if (result.success && result.skill != null && result.manifest != null) {
-                                    val registered = skillRegistry.registerDynamicFromManifest(
-                                        manifest = result.manifest,
-                                        endpoint = result.skill.config.endpoint,
-                                        method = result.skill.config.method,
-                                        bodyTemplate = result.skill.config.bodyTemplate
-                                    )
-                                    if (!registered) {
-                                        errorMessage = context.getString(R.string.skill_import_github_failed, "The skill endpoint could not be registered.")
-                                        return@withContext
-                                    }
-                                    reload()
-                                    importSource = null
-                                    if (result.warnings.isNotEmpty()) {
-                                        errorMessage = "Imported with ${result.warnings.size} warning(s): " +
-                                            result.warnings.take(2).joinToString("; ")
-                                    }
-                                } else {
-                                    errorMessage = context.getString(
-                                        R.string.skill_import_github_failed,
-                                        result.errors.take(3).joinToString("; ")
-                                    )
-                                    importSource = null
-                                }
-                            }
-                        }
+                GitHubImportDialog(isImporting, { importSource = null }) { rawUrl ->
+                    scope.launch {
+                        isImporting = true
+                        val result = withContext(Dispatchers.IO) { GitHubSkillImporter.importFromUrl(rawUrl) }
+                        isImporting = false
+                        if (result.success && result.skill != null && result.manifest != null) {
+                            val registered = skillRegistry.registerDynamicFromManifest(result.manifest, result.skill.config.endpoint, result.skill.config.method, result.skill.config.bodyTemplate)
+                            if (!registered) errorMessage = context.getString(R.string.skill_import_github_failed, "The skill endpoint could not be registered.")
+                            else { reload(); importSource = null; if (result.warnings.isNotEmpty()) errorMessage = "Imported with ${result.warnings.size} warning(s): " + result.warnings.take(2).joinToString("; ") }
+                        } else { errorMessage = context.getString(R.string.skill_import_github_failed, result.errors.take(3).joinToString("; ")); importSource = null }
                     }
-                )
+                }
             }
             if (importSource == ImportSource.AI) {
-                AiSkillCreateDialog(
-                    onDismiss = { importSource = null },
-                    onCreate  = { name, description, endpoint ->
-                        val skill = CustomSkill(
-                            id          = UUID.randomUUID().toString(),
-                            name        = name,
-                            description = description,
-                            type        = SkillType.API,
-                            config      = SkillConfig(
-                                endpoint     = endpoint,
-                                method       = "POST",
-                                bodyTemplate = "{\"input\": \"{{input}}\"}"
-                            ),
-                            createdAt   = System.currentTimeMillis()
-                        )
-                        val registered = skillRegistry.registerDynamicFromManifest(
-                            manifest = skill.toManifest(),
-                            endpoint = skill.config.endpoint,
-                            method = skill.config.method,
-                            bodyTemplate = skill.config.bodyTemplate
-                        )
-                        if (registered) {
-                            reload()
-                            importSource = null
-                        } else {
-                            errorMessage = context.getString(R.string.skill_invalid_manifest)
-                        }
-                    }
-                )
-            }
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) IconButton(onClick = { searchQuery = "" }) {
-                        Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.terminal_close_search_cd))
-                    }
-                },
-                placeholder = { Text(stringResource(R.string.skill_search_hint)) },
-                shape = AIRIShapes.pill,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = CosmicAccent,
-                    unfocusedBorderColor = AiriTheme.outline,
-                    focusedLeadingIconColor = CosmicAccent
-                )
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf(
-                    R.string.skill_filter_all,
-                    R.string.skill_filter_connected,
-                    R.string.skill_filter_external
-                ).forEachIndexed { index, labelRes ->
-                    FilterChip(
-                        selected = selectedFilter == index,
-                        onClick = { selectedFilter = index },
-                        label = { Text(stringResource(labelRes), fontSize = 12.sp) },
-                        leadingIcon = if (selectedFilter == index) {
-                            { Icon(Icons.Outlined.Check, null, modifier = Modifier.size(14.dp)) }
-                        } else null,
-                        shape = AIRIShapes.pill,
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CosmicAccent.copy(alpha = 0.18f),
-                            selectedLabelColor = CosmicAccent,
-                            selectedLeadingIconColor = CosmicAccent
-                        )
+                AiSkillCreateDialog({ importSource = null }) { name, description, endpoint ->
+                    val skill = CustomSkill(
+                        id = UUID.randomUUID().toString(),
+                        name = name,
+                        description = description,
+                        type = SkillType.API,
+                        config = SkillConfig(endpoint = endpoint, method = "POST", bodyTemplate = "{\"input\": \"{{input}}\"}"),
+                        createdAt = System.currentTimeMillis()
                     )
+                    if (skillRegistry.registerDynamicFromManifest(skill.toManifest(), endpoint, skill.config.method, skill.config.bodyTemplate)) { reload(); importSource = null } else errorMessage = context.getString(R.string.skill_invalid_manifest)
                 }
             }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                categories.forEach { category ->
-                    FilterChip(
-                        selected = selectedCategory == category,
-                        onClick = { selectedCategory = category },
-                        label = { Text(category.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 11.sp) },
-                        shape = AIRIShapes.pill,
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CosmicAccent.copy(alpha = 0.18f),
-                            selectedLabelColor = CosmicAccent
-                        )
-                    )
-                }
-            }
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 14.dp)
-            ) {
-                item(key = "official_header") {
-                    Text(
-                        stringResource(R.string.skill_official_section),
-                        color      = AiriTheme.onBackground.copy(0.45f),
-                        fontSize   = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier   = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
-                    )
-                }
 
-                items(filteredOfficialSkills, key = { "official_${it.name}" }) { info ->
-                    OfficialSkillCard(
-                        info     = info,
-                        onClick  = { onOpenOfficial(info.name) },
-                        onToggle = { enabled ->
-                            skillRegistry.setSkillEnabled(info.name, enabled)
-                            reload()
-                        }
-                    )
-                }
-                item(key = "custom_header") {
-                    Spacer(Modifier.height(6.dp))
-                    Row(
-                        modifier  = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 4.dp, vertical = 4.dp),
-                        verticalAlignment     = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            stringResource(R.string.skill_custom_section),
-                            color      = AiriTheme.onBackground.copy(0.45f),
-                            fontSize   = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (customSkills.isEmpty()) {
-                            TextButton(
-                                onClick = onCreate,
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                            ) {
-                                Text(
-                                    stringResource(R.string.skill_create_button),
-                                    color    = CosmicAccent,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+                SkillHeroCard(totalCount, activeCount, connectedCount, onCreate)
+                Spacer(Modifier.height(14.dp))
+                OutlinedTextField(
+                    value = searchQuery, onValueChange = { searchQuery = it },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    leadingIcon = { Icon(Icons.Outlined.Search, null) },
+                    trailingIcon = { if (searchQuery.isNotEmpty()) IconButton({ searchQuery = "" }) { Icon(Icons.Outlined.Close, stringResource(R.string.terminal_close_search_cd)) } },
+                    placeholder = { Text(stringResource(R.string.skill_search_hint)) }, shape = AIRIShapes.lg,
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = AiriTheme.outline, focusedContainerColor = AiriTheme.surface, unfocusedContainerColor = AiriTheme.surface)
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(R.string.skill_filter_all, R.string.skill_filter_connected, R.string.skill_filter_external).forEachIndexed { index, res ->
+                        SkillFilterChip(stringResource(res), selectedFilter == index) { selectedFilter = index }
                     }
                 }
-
-                if (customSkills.isEmpty()) {
-                    item(key = "custom_empty") {
-                        Text(
-                            stringResource(R.string.skill_no_skills_desc),
-                            color    = AiriTheme.onBackground.copy(0.35f),
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                        )
-                    }
-                } else {
-                    items(customSkills, key = { it.id }) { skill ->
-                        SkillCard(
-                            skill    = skill,
-                            onClick  = { onEdit(skill.id) },
-                            onDelete = {
-                                repository.deleteSkill(skill.id)
-                                reload()
-                            }
-                        )
-                    }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    categories.forEach { category -> SkillFilterChip(category.lowercase().replaceFirstChar { it.uppercase() }, selectedCategory == category) { selectedCategory = category } }
                 }
+                Spacer(Modifier.height(18.dp))
+                SkillSectionHeader(stringResource(R.string.skill_official_section), filteredOfficialSkills.size)
+                Spacer(Modifier.height(8.dp))
+                filteredOfficialSkills.forEach { info ->
+                    OfficialSkillCard(info, { onOpenOfficial(info.name) }) { enabled -> skillRegistry.setSkillEnabled(info.name, enabled); reload() }
+                    Spacer(Modifier.height(10.dp))
+                }
+                Spacer(Modifier.height(8.dp))
+                SkillSectionHeader(stringResource(R.string.skill_custom_section), customSkills.size)
+                Spacer(Modifier.height(8.dp))
+                if (customSkills.isEmpty()) EmptySkillsCard(onCreate) else customSkills.forEach { skill ->
+                    SkillCard(skill, { onEdit(skill.id) }) { repository.deleteSkill(skill.id); reload() }
+                    Spacer(Modifier.height(10.dp))
+                }
+                Spacer(Modifier.height(24.dp))
             }
         }
     }
-}
 @Composable
 private fun AddOption(icon: ImageVector, label: String, onClick: () -> Unit) {
     DropdownMenuItem(
@@ -461,198 +271,101 @@ private fun AddOption(icon: ImageVector, label: String, onClick: () -> Unit) {
  *   note and have their Switch disabled — they can't be activated without setup.
  */
 @Composable
-private fun OfficialSkillCard(
-    info:     SkillRegistry.SkillInfo,
-    onClick:  () -> Unit,
-    onToggle: (Boolean) -> Unit
-) {
+private fun SkillHeroCard(total: Int, active: Int, connected: Int, onCreate: () -> Unit) {
+    Surface(shape = AIRIShapes.xl, color = AiriTheme.surface, tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.background(Brush.linearGradient(listOf(CosmicAccent.copy(0.20f), AiriTheme.surface, AiriTheme.surface))).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("✦", color = CosmicAccent, fontSize = 28.sp)
+                    Text(stringResource(R.string.skill_title), color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                    Text(stringResource(R.string.skill_no_skills_desc), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                Icon(Icons.Outlined.AutoAwesome, null, tint = CosmicAccent.copy(0.75f), modifier = Modifier.size(42.dp).padding(5.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SkillStat(total.toString(), stringResource(R.string.skill_official_section))
+                SkillStat(active.toString(), stringResource(R.string.skill_filter_connected))
+                SkillStat(connected.toString(), stringResource(R.string.skill_connector_required))
+            }
+            Button(onClick = onCreate, modifier = Modifier.fillMaxWidth(), shape = AIRIShapes.lg, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)) {
+                Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.skill_create_button), fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable private fun SkillStat(value: String, label: String) {
+    Column(Modifier.weight(1f).clip(AIRIShapes.md).background(AiriTheme.onSurface.copy(alpha = 0.06f)).padding(vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        Text(label, color = AiriTheme.onSurfaceVariant, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable private fun SkillFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(selected = selected, onClick = onClick, label = { Text(label, fontSize = 12.sp) }, leadingIcon = if (selected) ({ Icon(Icons.Outlined.Check, null, Modifier.size(14.dp)) }) else null, shape = AIRIShapes.pill, colors = FilterChipDefaults.filterChipColors(containerColor = AiriTheme.surface, labelColor = AiriTheme.onSurfaceVariant, selectedContainerColor = CosmicAccent.copy(0.16f), selectedLabelColor = CosmicAccent, selectedLeadingIconColor = CosmicAccent), border = FilterChipDefaults.filterChipBorder(true, selected, AiriTheme.outline, CosmicAccent.copy(0.5f)))
+}
+
+@Composable private fun SkillSectionHeader(title: String, count: Int) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(title, color = AiriTheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Surface(shape = AIRIShapes.pill, color = CosmicAccent.copy(0.12f)) { Text(count.toString(), color = CosmicAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)) }
+    }
+}
+
+@Composable private fun EmptySkillsCard(onCreate: () -> Unit) {
+    Surface(shape = AIRIShapes.lg, color = AiriTheme.surface, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(Icons.Outlined.Extension, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(34.dp))
+            Text(stringResource(R.string.skill_no_skills_desc), color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+            TextButton(onClick = onCreate) { Text(stringResource(R.string.skill_create_button), color = CosmicAccent) }
+        }
+    }
+}
+
+@Composable private fun OfficialSkillCard(info: SkillRegistry.SkillInfo, onClick: () -> Unit, onToggle: (Boolean) -> Unit) {
     val entry = remember(info.name) { OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.name } }
-    val displayName = entry?.manifest?.name
-        ?: info.name.split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-    val emoji          = entry?.manifest?.iconEmoji ?: ""
+    val displayName = entry?.manifest?.name ?: info.name.split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+    val emoji = entry?.manifest?.iconEmoji?.ifBlank { "✦" } ?: "✦"
     val needsConnector = !info.isConnected
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(AIRIShapes.md)
-            .clickable(onClick = onClick)
-            .background(AiriTheme.surface)
-            .border(1.dp, AiriTheme.onSurface.copy(if (needsConnector) 0.04f else 0.07f), AIRIShapes.md)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(emoji, fontSize = 22.sp, modifier = Modifier.width(38.dp))
-
-        Column(
-            modifier              = Modifier.weight(1f),
-            verticalArrangement   = Arrangement.spacedBy(3.dp)
-        ) {
-            Row(
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    displayName,
-                    color      = if (needsConnector) AiriTheme.onBackground.copy(0.45f)
-                                 else AiriTheme.onBackground,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize   = 14.sp,
-                    maxLines   = 1,
-                    overflow   = TextOverflow.Ellipsis
-                )
-                if (needsConnector) {
-                    Surface(
-                        shape = AIRIShapes.pill,
-                        color = AiriTheme.outline
-                    ) {
-                        Text(
-                            stringResource(R.string.skill_connector_required),
-                            color    = AiriTheme.onBackground.copy(0.35f),
-                            fontSize = 9.sp,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
+    Surface(shape = AIRIShapes.xl, color = AiriTheme.surface, tonalElevation = if (info.isEnabled) 3.dp else 1.dp, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Surface(shape = AIRIShapes.lg, color = if (info.isEnabled) CosmicAccent.copy(0.16f) else AiriTheme.onSurface.copy(0.07f), modifier = Modifier.size(50.dp)) { Box(contentAlignment = Alignment.Center) { Text(emoji, fontSize = 25.sp) } }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(displayName, color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        if (needsConnector) Surface(shape = AIRIShapes.pill, color = SemanticWarn.copy(0.14f)) { Text(stringResource(R.string.skill_connector_required), color = SemanticWarn, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)) }
                     }
-                } else {
-                    Surface(
-                        shape = AIRIShapes.pill,
-                        color = CosmicAccent.copy(alpha = 0.14f)
-                    ) {
-                        Text(
-                            stringResource(R.string.skill_official_badge),
-                            color    = CosmicAccent,
-                            fontSize = 9.sp,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
+                    Text(info.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
+                if (!needsConnector) Switch(checked = info.isEnabled, onCheckedChange = onToggle, colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = CosmicAccent, uncheckedThumbColor = AiriTheme.onSurfaceVariant, uncheckedTrackColor = AiriTheme.outline))
             }
-            Text(
-                info.description,
-                color    = AiriTheme.onBackground.copy(if (needsConnector) 0.35f else 0.5f),
-                fontSize = 12.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = AIRIShapes.pill,
-                    color = if (info.executionKind == SkillRegistry.ExecutionKind.LOCAL)
-                        SemanticSuccess.copy(alpha = 0.12f) else CosmicAccent.copy(alpha = 0.12f)
-                ) {
-                    Text(
-                        stringResource(
-                            if (info.executionKind == SkillRegistry.ExecutionKind.LOCAL)
-                                R.string.skill_type_local else R.string.skill_type_cloud
-                        ),
-                        color = if (info.executionKind == SkillRegistry.ExecutionKind.LOCAL) SemanticSuccess else CosmicAccent,
-                        fontSize = 9.sp,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-                if (info.requiredPermissions.isNotEmpty()) {
-                    Text(
-                        stringResource(R.string.skill_permissions, info.requiredPermissions.joinToString(", ")),
-                        color = AiriTheme.onSurfaceVariant,
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                Surface(shape = AIRIShapes.pill, color = if (info.executionKind == SkillRegistry.ExecutionKind.LOCAL) SemanticSuccess.copy(0.13f) else CosmicAccent.copy(0.13f)) { Text(stringResource(if (info.executionKind == SkillRegistry.ExecutionKind.LOCAL) R.string.skill_type_local else R.string.skill_type_cloud), color = if (info.executionKind == SkillRegistry.ExecutionKind.LOCAL) SemanticSuccess else CosmicAccent, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) }
+                Text("v${info.version} · ${info.author}", color = AiriTheme.onSurfaceVariant.copy(0.75f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.weight(1f))
+                Icon(Icons.Outlined.ChevronLeft, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
             }
-            if (info.author.isNotBlank()) {
-                Text(
-                    "v${info.version} · ${info.author}",
-                    color    = AiriTheme.onBackground.copy(0.25f),
-                    fontSize = 10.sp
-                )
-            }
-        }
-
-        Spacer(Modifier.width(8.dp))
-
-        if (!needsConnector) {
-            Switch(
-                checked         = info.isEnabled,
-                onCheckedChange = onToggle,
-                colors          = SwitchDefaults.colors(
-                    checkedThumbColor   = AiriTheme.onSurface,
-                    checkedTrackColor   = CosmicAccent,
-                    uncheckedThumbColor = AiriTheme.onBackground.copy(0.35f),
-                    uncheckedTrackColor = AiriTheme.onSurface.copy(0.1f)
-                )
-            )
         }
     }
 }
-@Composable
-private fun SkillCard(
-    skill:    CustomSkill,
-    onClick:  () -> Unit,
-    onDelete: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(AIRIShapes.md)
-            .background(AiriTheme.surface)
-            .border(1.dp, AiriTheme.onSurface.copy(0.07f), AIRIShapes.md)
-            .clickable(onClick = onClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(
-            modifier              = Modifier.weight(1f),
-            verticalArrangement   = Arrangement.spacedBy(4.dp)
-        ) {
-            Row(
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    skill.name,
-                    color      = AiriTheme.onBackground,
-                    fontWeight = FontWeight.Bold,
-                    fontSize   = 15.sp,
-                    maxLines   = 1,
-                    overflow   = TextOverflow.Ellipsis
-                )
-                Surface(
-                    shape = AIRIShapes.pill,
-                    color = CosmicAccent.copy(alpha = 0.14f)
-                ) {
-                    Text(
-                        skill.type.name,
-                        color    = CosmicAccent,
-                        fontSize = 10.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
-                }
+
+@Composable private fun SkillCard(skill: CustomSkill, onClick: () -> Unit, onDelete: () -> Unit) {
+    Surface(shape = AIRIShapes.xl, color = AiriTheme.surface, tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Row(Modifier.padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = AIRIShapes.lg, color = CosmicAccent.copy(0.14f), modifier = Modifier.size(48.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Extension, null, tint = CosmicAccent, modifier = Modifier.size(24.dp)) } }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(skill.name, color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(skill.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(skill.type.name, color = CosmicAccent, fontSize = 10.sp)
             }
-            Text(
-                skill.description,
-                color    = AiriTheme.onBackground.copy(0.55f),
-                fontSize = 13.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                skill.config.endpoint,
-                color    = AiriTheme.onBackground.copy(0.3f),
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        IconButton(onClick = onDelete) {
-            Icon(
-                Icons.Outlined.Delete,
-                contentDescription = stringResource(R.string.cd_delete),
-                tint = Color(0xFFFF6B6B)
-            )
+            IconButton(onClick = onDelete) { Icon(Icons.Outlined.DeleteOutline, stringResource(R.string.cd_delete), tint = SemanticError) }
         }
     }
 }
+
 @Composable
 private fun GitHubImportDialog(
     isImporting: Boolean,

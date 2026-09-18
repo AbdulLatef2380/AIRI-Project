@@ -2026,7 +2026,7 @@
     <string name="skill_official_badge">OFFICIAL</string>
     <string name="skill_connector_required">Connector required</string>
     <string name="brave_enabled">Enabled — real web results + page content</string>
-    <string name="brave_fallback">Not configured — using DDG fallback (~30% coverage)</string>
+    <string name="brave_fallback">Not configured — using DDG fallback (~30%% coverage)</string>
 
     <string name="skill_invalid_manifest">The skill name, description, or endpoint is not valid.</string>
     <string name="skill_step_identity">Identity</string>

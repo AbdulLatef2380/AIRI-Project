@@ -1695,7 +1695,7 @@
     <string name="skill_official_badge">OFICIAL</string>
     <string name="skill_connector_required">Requiere un conector</string>
     <string name="brave_enabled">Activado — resultados web reales y contenido de páginas</string>
-    <string name="brave_fallback">Sin configurar — usando el respaldo DDG (cobertura ~30%)</string>
+    <string name="brave_fallback">Sin configurar — usando el respaldo DDG (cobertura ~30%%)</string>
     <string name="skill_invalid_manifest">El nombre, la descripción o el endpoint no son válidos.</string>
     <string name="skill_step_identity">Identidad</string>
     <string name="skill_step_tools">Herramientas</string>

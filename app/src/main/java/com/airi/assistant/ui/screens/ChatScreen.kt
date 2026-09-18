@@ -3099,6 +3099,14 @@ fun AiriChatInputBar(
                 )
             }
             val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+            val attachmentDescription = stringResource(R.string.attach)
+            val voiceInputDescription = stringResource(R.string.voice_input)
+            val connectorsDescription = stringResource(R.string.connectors_title)
+            val mainActionDescription = stringResource(if (showSend) R.string.send else R.string.voice_input)
+            val mainScale = animateFloatAsState(
+                targetValue = if (showSend || isGenerating || isDispatchingAttachment) 1f else 0.95f,
+                label = "composer_action_scale"
+            ).value
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 8.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,

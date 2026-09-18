@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -284,9 +285,9 @@ private fun SkillHeroCard(total: Int, active: Int, connected: Int, onCreate: () 
                 Icon(Icons.Outlined.AutoAwesome, null, tint = CosmicAccent.copy(0.75f), modifier = Modifier.size(42.dp).padding(5.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SkillStat(total.toString(), stringResource(R.string.skill_official_section))
-                SkillStat(active.toString(), stringResource(R.string.skill_filter_connected))
-                SkillStat(connected.toString(), stringResource(R.string.skill_connector_required))
+                SkillStat(total.toString(), stringResource(R.string.skill_official_section), Modifier.weight(1f))
+                SkillStat(active.toString(), stringResource(R.string.skill_filter_connected), Modifier.weight(1f))
+                SkillStat(connected.toString(), stringResource(R.string.skill_connector_required), Modifier.weight(1f))
             }
             Button(onClick = onCreate, modifier = Modifier.fillMaxWidth(), shape = AIRIShapes.lg, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)) {
                 Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.skill_create_button), fontWeight = FontWeight.Bold)
@@ -295,8 +296,8 @@ private fun SkillHeroCard(total: Int, active: Int, connected: Int, onCreate: () 
     }
 }
 
-@Composable private fun SkillStat(value: String, label: String) {
-    Column(Modifier.weight(1f).clip(AIRIShapes.md).background(AiriTheme.onSurface.copy(alpha = 0.06f)).padding(vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+@Composable private fun SkillStat(value: String, label: String, modifier: Modifier = Modifier) {
+    Column(modifier.clip(AIRIShapes.md).background(AiriTheme.onSurface.copy(alpha = 0.06f)).padding(vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(value, color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 17.sp)
         Text(label, color = AiriTheme.onSurfaceVariant, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }

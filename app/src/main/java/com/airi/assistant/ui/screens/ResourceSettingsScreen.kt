@@ -55,12 +55,12 @@ fun ResourceSettingsScreen(onBack: () -> Unit) {
                 Column(Modifier.weight(1f)) { Text("✦", color = CosmicAccent, fontSize = 28.sp); Text("AIRI Resource Center", color = AiriTheme.onSurface, fontSize = 24.sp, fontWeight = FontWeight.Bold); Text("Device-aware storage and memory control", color = AiriTheme.onSurfaceVariant, fontSize = 12.sp) }
                 Surface(shape = AIRIShapes.pill, color = status.copy(alpha = .14f)) { Row(Modifier.padding(horizontal = 9.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Outlined.CheckCircle, null, tint = status, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)); Text(if (status == SemanticSuccess) "Healthy" else "Attention", color = status, fontSize = 11.sp, fontWeight = FontWeight.Bold) } }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { MetricTile("AIRI", s.storageUsedBytes.asResourceSize(), "managed"); MetricTile("Device", s.deviceFreeBytes.asResourceSize(), "free"); MetricTile("RAM", s.processPssBytes.asResourceSize(), "process PSS") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { MetricTile("AIRI", s.storageUsedBytes.asResourceSize(), "managed", Modifier.weight(1f)); MetricTile("Device", s.deviceFreeBytes.asResourceSize(), "free", Modifier.weight(1f)); MetricTile("RAM", s.processPssBytes.asResourceSize(), "process PSS", Modifier.weight(1f)) }
         }
     }
 }
 
-@Composable private fun MetricTile(title: String, value: String, caption: String) { Column(Modifier.weight(1f).background(AiriTheme.onSurface.copy(.05f), AIRIShapes.md).padding(10.dp)) { Text(title, color = AiriTheme.onSurfaceVariant, fontSize = 10.sp); Text(value, color = AiriTheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text(caption, color = AiriTheme.onSurfaceVariant, fontSize = 9.sp) } }
+@Composable private fun MetricTile(title: String, value: String, caption: String, modifier: Modifier = Modifier) { Column(modifier.background(AiriTheme.onSurface.copy(.05f), AIRIShapes.md).padding(10.dp)) { Text(title, color = AiriTheme.onSurfaceVariant, fontSize = 10.sp); Text(value, color = AiriTheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold); Text(caption, color = AiriTheme.onSurfaceVariant, fontSize = 9.sp) } }
 
 @Composable private fun DeviceProfile(s: ResourceBudgetManager.Snapshot) {
     ResourceSection(Icons.Outlined.PhoneAndroid, "Device profile") { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { ResourceLine("Android", "${Build.VERSION.RELEASE} · API ${Build.VERSION.SDK_INT}"); ResourceLine("CPU", "${s.cpuCores} cores · ${Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown ABI"}"); ResourceLine("Storage", "${s.deviceTotalBytes.asResourceSize()} total · ${s.deviceFreeBytes.asResourceSize()} available"); ResourceLine("Memory", "${s.totalRamBytes.asResourceSize()} total · ${s.availableRamBytes.asResourceSize()} available") } }

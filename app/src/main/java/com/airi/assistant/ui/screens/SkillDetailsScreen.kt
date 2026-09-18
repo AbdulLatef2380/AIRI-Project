@@ -1,5 +1,7 @@
 package com.airi.assistant.ui.screens
 
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row

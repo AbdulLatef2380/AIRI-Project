@@ -59,6 +59,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -3096,153 +3098,147 @@ fun AiriChatInputBar(
                     }
                 )
             }
+            val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 8.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Send / LiveChat / Stop circle button
-                val mainScale = if (!showSend && voiceState != VoiceSessionState.IDLE) micPulse.value else 1f
-                val mainActionDescription = when {
-                    isGenerating -> stringResource(R.string.cd_cancel_generation)
-                    isDispatchingAttachment -> stringResource(R.string.attachment_preparing)
-                    showSend -> stringResource(R.string.cd_send_message)
-                    else -> stringResource(R.string.cd_start_voice_chat)
-                }
-                val attachmentDescription = stringResource(R.string.cd_add_attachment)
-                val voiceInputDescription = stringResource(R.string.cd_start_voice_input)
-                val connectorsDescription = stringResource(R.string.cd_open_connectors)
-                // Start-side utility group: attachment and microphone.
-                Row(
-                    modifier = Modifier.semantics { contentDescription = "Composer utilities" },
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                // Attach is always available, including while composing.
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .shadow(4.dp, CircleShape, ambientColor = CosmicAccent.copy(alpha = 0.28f), spotColor = CosmicAccent.copy(alpha = 0.24f))
-                        .clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(CosmicAccent.copy(alpha = 0.24f), SurfaceFloating)))
-                        .border(1.dp, CosmicAccent.copy(alpha = 0.42f), CircleShape)
-                        .semantics {
-                            contentDescription = attachmentDescription
-                            role = Role.Button
-                        }
-                        .clickable(enabled = !isInteractionLocked) { showAttachPopup = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Add,
-                        attachmentDescription,
-                        tint = AiriTheme.onBackground.copy(if (!isInteractionLocked) 0.7f else 0.3f),
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-                // Mic remains available while composing.
-                // Keep the microphone available while composing text or attachments.
-                // Live voice chat is represented by the main action button only when
-                // the composer is empty; typing changes that button to Send.
-                AnimatedVisibility(visible = !isGenerating, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
-                    Box(
-                        modifier = Modifier.size(36.dp).clip(CircleShape)
-                            .semantics {
-                                contentDescription = voiceInputDescription
-                                role = Role.Button
-                            }
-                            .clickable(enabled = isInferenceReady) { onMicClick() },
-                        contentAlignment = Alignment.Center
+                // Keep the two action pairs anchored to opposite edges. The pair
+                // containing connectors and send/live stays on the reading side,
+                // while attachment and microphone stay on the opposite side.
+                // The pair order mirrors with the app language, without changing
+                // the action semantics or any runtime/security configuration.
+                val utilities = @Composable {
+                    Row(
+                        modifier = Modifier.semantics { contentDescription = "Composer utilities" },
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (voiceState != VoiceSessionState.IDLE) {
-                            Box(modifier = Modifier.size((28 * micPulse.value).dp).clip(CircleShape).background(CosmicAccent.copy(0.18f)))
-                        }
-                        Icon(Icons.Outlined.Mic, voiceInputDescription,
-                            tint = when (voiceState) {
-                                VoiceSessionState.IDLE -> if (isInferenceReady) Color.White.copy(0.70f) else Color.White.copy(0.30f)
-                                else -> CosmicAccent
-                            },
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-                // End-side action group: connector and the primary send/live/stop action.
-                Row(
-                    modifier = Modifier.semantics { contentDescription = "Composer actions" },
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                // Connector badge — tapping opens the real Connectors screen.
-                if (!isGenerating) {
-                    Box(
-                        modifier = Modifier
-                            .clip(AIRIShapes.xl)
-                            .background(AiriTheme.surfaceVariant)
-                            .border(1.dp, Color.White.copy(0.12f), AIRIShapes.xl)
-                            .semantics {
-                                contentDescription = connectorsDescription
-                                role = Role.Button
-                            }
-                            .clickable { onNavigate(AiriRoute.CONNECTORS) }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Outlined.Hub, null, tint = CosmicAccent, modifier = Modifier.size(14.dp))
-                            Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = AiriTheme.onBackground.copy(0.45f), modifier = Modifier.size(12.dp))
-                        }
-                    }
-                }
-                }
-                Box(
-                    modifier = Modifier.size(40.dp).graphicsLayer { scaleX = mainScale; scaleY = mainScale }
-                        .shadow(if (isInferenceReady) 12.dp else 0.dp, CircleShape, ambientColor = CosmicAccent.copy(0.5f), spotColor = CosmicAccent.copy(0.6f))
-                        .clip(CircleShape)
-                        .background(when {
-                            isGenerating -> Color(0xFFFF6B6B)
-                            isDispatchingAttachment -> CosmicAccent
-                            isInferenceReady || showSend -> CosmicAccent
-                            else -> CosmicAccent.copy(0.30f)
-                        })
-                        .semantics { contentDescription = mainActionDescription; role = Role.Button }
-                        .clickable(enabled = isInferenceReady || isInteractionLocked) {
-                            when {
-                                isGenerating -> onCancel()
-                                showSend && canSend -> {
-                                    onSend(text) {
-                                        text = ""
-                                        onDraftTextChanged("")
-                                    }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .shadow(4.dp, CircleShape, ambientColor = CosmicAccent.copy(alpha = 0.28f), spotColor = CosmicAccent.copy(alpha = 0.24f))
+                                .clip(CircleShape)
+                                .background(Brush.linearGradient(listOf(CosmicAccent.copy(alpha = 0.24f), SurfaceFloating)))
+                                .border(1.dp, CosmicAccent.copy(alpha = 0.42f), CircleShape)
+                                .semantics {
+                                    contentDescription = attachmentDescription
+                                    role = Role.Button
                                 }
-                                !showSend -> onVoiceChatClick()
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    AnimatedContent(
-                        targetState = when {
-                            isGenerating -> "stop"
-                            isDispatchingAttachment -> "preparing"
-                            showSend     -> "send"
-                            else         -> "live"
-                        },
-                        transitionSpec = {
-                            (fadeIn(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) + scaleIn(initialScale = 0.7f)) togetherWith
-                            (fadeOut(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) + scaleOut(targetScale = 0.7f))
-                        },
-                        label = "main_btn"
-                    ) { state ->
-                        when (state) {
-                            "stop" -> Icon(Icons.Default.Stop, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
-                            "preparing" -> CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                color = AiriTheme.onBackground,
-                                strokeWidth = 2.dp,
+                                .clickable(enabled = !isInteractionLocked) { showAttachPopup = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Add,
+                                attachmentDescription,
+                                tint = AiriTheme.onBackground.copy(if (!isInteractionLocked) 0.7f else 0.3f),
+                                modifier = Modifier.size(22.dp),
                             )
-                            "send" -> Icon(Icons.Default.ArrowUpward, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
-                            else -> Icon(Icons.Default.GraphicEq, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                        }
+                        AnimatedVisibility(visible = !isGenerating, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
+                            Box(
+                                modifier = Modifier.size(36.dp).clip(CircleShape)
+                                    .semantics {
+                                        contentDescription = voiceInputDescription
+                                        role = Role.Button
+                                    }
+                                    .clickable(enabled = isInferenceReady) { onMicClick() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (voiceState != VoiceSessionState.IDLE) {
+                                    Box(modifier = Modifier.size((28 * micPulse.value).dp).clip(CircleShape).background(CosmicAccent.copy(0.18f)))
+                                }
+                                Icon(Icons.Outlined.Mic, voiceInputDescription,
+                                    tint = when (voiceState) {
+                                        VoiceSessionState.IDLE -> if (isInferenceReady) Color.White.copy(0.70f) else Color.White.copy(0.30f)
+                                        else -> CosmicAccent
+                                    },
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
                 }
+                val actions = @Composable {
+                    Row(
+                        modifier = Modifier.semantics { contentDescription = "Composer actions" },
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (!isGenerating) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(AIRIShapes.xl)
+                                    .background(AiriTheme.surfaceVariant)
+                                    .border(1.dp, Color.White.copy(0.12f), AIRIShapes.xl)
+                                    .semantics {
+                                        contentDescription = connectorsDescription
+                                        role = Role.Button
+                                    }
+                                    .clickable { onNavigate(AiriRoute.CONNECTORS) }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Icon(Icons.Outlined.Hub, null, tint = CosmicAccent, modifier = Modifier.size(14.dp))
+                                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = AiriTheme.onBackground.copy(0.45f), modifier = Modifier.size(12.dp))
+                                }
+                            }
+                        }
+                        Box(
+                            modifier = Modifier.size(40.dp).graphicsLayer { scaleX = mainScale; scaleY = mainScale }
+                                .shadow(if (isInferenceReady) 12.dp else 0.dp, CircleShape, ambientColor = CosmicAccent.copy(0.5f), spotColor = CosmicAccent.copy(0.6f))
+                                .clip(CircleShape)
+                                .background(when {
+                                    isGenerating -> Color(0xFFFF6B6B)
+                                    isDispatchingAttachment -> CosmicAccent
+                                    isInferenceReady || showSend -> CosmicAccent
+                                    else -> CosmicAccent.copy(0.30f)
+                                })
+                                .semantics { contentDescription = mainActionDescription; role = Role.Button }
+                                .clickable(enabled = isInferenceReady || isInteractionLocked) {
+                                    when {
+                                        isGenerating -> onCancel()
+                                        showSend && canSend -> {
+                                            onSend(text) {
+                                                text = ""
+                                                onDraftTextChanged("")
+                                            }
+                                        }
+                                        !showSend -> onVoiceChatClick()
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AnimatedContent(
+                                targetState = when {
+                                    isGenerating -> "stop"
+                                    isDispatchingAttachment -> "preparing"
+                                    showSend -> "send"
+                                    else -> "live"
+                                },
+                                transitionSpec = {
+                                    (fadeIn(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) + scaleIn(initialScale = 0.7f)) togetherWith
+                                    (fadeOut(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) + scaleOut(targetScale = 0.7f))
+                                },
+                                label = "main_btn"
+                            ) { state ->
+                                when (state) {
+                                    "stop" -> Icon(Icons.Default.Stop, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                                    "preparing" -> CircularProgressIndicator(modifier = Modifier.size(18.dp), color = AiriTheme.onBackground, strokeWidth = 2.dp)
+                                    "send" -> Icon(Icons.Default.ArrowUpward, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                                    else -> Icon(Icons.Default.GraphicEq, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+                if (isRtl) {
+                    actions()
+                    utilities()
+                } else {
+                    utilities()
+                    actions()
                 }
             }
         }

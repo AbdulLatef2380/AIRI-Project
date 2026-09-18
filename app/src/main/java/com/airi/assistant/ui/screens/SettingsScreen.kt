@@ -52,8 +52,8 @@ import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicBlack
 import androidx.compose.material3.MaterialTheme
-import com.airi.assistant.ui.theme.SurfaceCard
-import com.airi.assistant.ui.theme.SurfaceRaised
+import com.airi.assistant.ui.theme.AiriTheme.surface
+import com.airi.assistant.ui.theme.AiriTheme.surfaceVariant
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.util.ChatImporter

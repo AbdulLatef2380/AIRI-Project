@@ -1715,4 +1715,10 @@
     <string name="resource_cpu_target">CPU 警告目标：%1$d%%</string>
     <string name="resource_nearly_exhausted">警告：资源即将耗尽。请删除未使用的模型或数据，或增加预算后再继续。</string>
     <string name="resource_runtime_limits">Android 操作系统控制实际内存和 CPU 调度。这些设置是 AIRI 的安全运行时限制，不是对系统资源的预留。</string>
+
+    <string name="model_activated">模型 %1$s 已启用</string>
+    <string name="model_connected">模型 %1$s 已连接</string>
+    <string name="model_key_saved">已保存 %1$s 的密钥</string>
+    <string name="resource_storage_used">已使用 %1$s，共 %2$s（%3$d%%）</string>
+    <string name="resource_processor_cores_text">可用处理器核心数：%1$d。该值用于指导 AIRI 的运行时选择，Android 仍控制调度。</string>
 </resources>

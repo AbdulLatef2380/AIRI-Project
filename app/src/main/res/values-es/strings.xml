@@ -1715,4 +1715,10 @@
     <string name="resource_cpu_target">Objetivo de CPU: %1$d%%</string>
     <string name="resource_nearly_exhausted">Advertencia: los recursos están casi agotados. Elimina modelos o datos sin usar o aumenta el presupuesto antes de continuar.</string>
     <string name="resource_runtime_limits">Android controla la RAM real y la planificación de la CPU. Estos ajustes son límites seguros de ejecución de AIRI, no una reserva de recursos del sistema.</string>
+
+    <string name="model_activated">Modelo %1$s activado</string>
+    <string name="model_connected">Modelo %1$s conectado</string>
+    <string name="model_key_saved">Clave de %1$s guardada</string>
+    <string name="resource_storage_used">%1$s usados de %2$s (%3$d%%)</string>
+    <string name="resource_processor_cores_text">Hay %1$d núcleos de procesador disponibles. Este valor guía las opciones de AIRI; Android sigue controlando la planificación.</string>
 </resources>

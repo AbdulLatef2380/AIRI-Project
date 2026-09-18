@@ -47,7 +47,7 @@ import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicBlack
-import com.airi.assistant.ui.theme.SurfaceCard
+import com.airi.assistant.ui.theme.AiriTheme.surface
 import java.text.DateFormat
 import java.util.Date
 

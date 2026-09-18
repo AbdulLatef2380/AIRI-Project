@@ -1947,4 +1947,10 @@
     <string name="resource_cpu_target">هدف تحذير المعالج: %1$d%%</string>
     <string name="resource_nearly_exhausted">تحذير: الموارد على وشك النفاد. احذف النماذج أو البيانات غير المستخدمة أو زد الميزانية قبل المتابعة.</string>
     <string name="resource_runtime_limits">يتحكم نظام Android في الذاكرة الفعلية وجدولة المعالج. تُطبق هذه الإعدادات كحدود آمنة لوقت تشغيل AIRI وليست حجزاً لموارد النظام.</string>
+
+    <string name="model_activated">تم تفعيل النموذج %1$s</string>
+    <string name="model_connected">تم اتصال النموذج %1$s</string>
+    <string name="model_key_saved">تم حفظ مفتاح %1$s</string>
+    <string name="resource_storage_used">المستخدم %1$s من %2$s (%3$d%%)</string>
+    <string name="resource_processor_cores_text">يتوفر %1$d من أنوية المعالج. توجه هذه القيمة اختيارات وقت تشغيل AIRI، بينما يظل Android متحكماً في الجدولة.</string>
 </resources>

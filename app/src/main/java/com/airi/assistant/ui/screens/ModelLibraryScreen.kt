@@ -174,7 +174,7 @@ fun ModelLibraryScreen(
                             scope.launch {
                                 viewModel.activateBuiltinProvider(config)
                                 activeProv = config
-                                snackbar.showSnackbar("${config.displayLabel} activated", duration = SnackbarDuration.Short)
+                                snackbar.showSnackbar(context.getString(R.string.model_activated, config.displayLabel), duration = SnackbarDuration.Short)
                             }
                         } else {
                             keyDialog = config
@@ -239,7 +239,7 @@ fun ModelLibraryScreen(
                     viewModel.activateBuiltinProvider(config)
                     activeProv = config
                     keyDialog  = null
-                    snackbar.showSnackbar("${config.displayLabel} connected", duration = SnackbarDuration.Short)
+                    snackbar.showSnackbar(context.getString(R.string.model_connected, config.displayLabel), duration = SnackbarDuration.Short)
                 }
             }
         )
@@ -253,7 +253,7 @@ fun ModelLibraryScreen(
                 runCatching { com.airi.assistant.core.ServiceLocator.secureApiKeyStore.saveKey(provider, key) }
                 keyDialogProvider = null
                 scope.launch {
-                    snackbar.showSnackbar("${provider.displayName} key saved", duration = SnackbarDuration.Short)
+                    snackbar.showSnackbar(context.getString(R.string.model_key_saved, provider.displayName), duration = SnackbarDuration.Short)
                 }
             }
         )

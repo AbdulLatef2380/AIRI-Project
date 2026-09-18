@@ -104,7 +104,7 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
                 VersionChip(label = stringResource(R.string.about_build),   value = BuildConfig.VERSION_CODE.toString())
             }
 
-            Divider(color = DividerColor)
+            Divider(color = AiriTheme.outline)
 
             // Info cards
             AboutInfoCard(
@@ -128,7 +128,7 @@ fun AboutScreen(onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
                 body   = stringResource(R.string.about_stack_body)
             )
 
-            Divider(color = DividerColor)
+            Divider(color = AiriTheme.outline)
 
             // Navigation links — Technical Details and Licenses route to AppInfoScreen;
             // Privacy Policy opens the canonical URL in the system browser.
@@ -166,7 +166,7 @@ private fun VersionChip(label: String, value: String) {
     Surface(
         shape  = AIRIShapes.xl,
         color  = AiriTheme.surfaceVariant,
-        border = BorderStroke(0.5.dp, DividerColor)
+        border = BorderStroke(0.5.dp, AiriTheme.outline)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
@@ -184,7 +184,7 @@ private fun AboutInfoCard(icon: ImageVector, title: String, body: String) {
     Surface(
         shape    = AIRIShapes.md,
         color    = AiriTheme.surfaceVariant,
-        border   = BorderStroke(0.5.dp, DividerColor),
+        border   = BorderStroke(0.5.dp, AiriTheme.outline),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(

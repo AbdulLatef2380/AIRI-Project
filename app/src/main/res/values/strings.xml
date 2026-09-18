@@ -2048,4 +2048,10 @@
     <string name="resource_cpu_target">CPU warning target: %1$d%%</string>
     <string name="resource_nearly_exhausted">Warning: resources are nearly exhausted. Delete unused models/data or increase the budget before continuing.</string>
     <string name="resource_runtime_limits">The Android operating system controls actual RAM and CPU scheduling. These settings are applied as safe AIRI runtime limits, not as a reservation of system resources.</string>
+
+    <string name="model_activated">Model %1$s activated</string>
+    <string name="model_connected">Model %1$s connected</string>
+    <string name="model_key_saved">Key for %1$s saved</string>
+    <string name="resource_storage_used">%1$s used of %2$s (%3$d%%)</string>
+    <string name="resource_processor_cores_text">%1$d processor cores available. This value guides AIRI runtime choices; Android still controls scheduling.</string>
 </resources>

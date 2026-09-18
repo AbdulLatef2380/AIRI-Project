@@ -34,8 +34,8 @@ import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SemanticError
 import com.airi.assistant.ui.theme.SemanticSuccess
 import com.airi.assistant.ui.theme.SemanticWarn
-import com.airi.assistant.ui.theme.SurfaceFloating
-import com.airi.assistant.ui.theme.SurfaceRaised
+import com.airi.assistant.ui.theme.AiriTheme.surface
+import com.airi.assistant.ui.theme.AiriTheme.surfaceVariant
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.voice.VoicePipelineState
 import java.text.SimpleDateFormat

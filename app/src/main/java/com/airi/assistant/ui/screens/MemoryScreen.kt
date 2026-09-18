@@ -149,7 +149,7 @@ fun MemoryScreen(
                     maxLines = 8,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = CosmicAccent,
-                        unfocusedBorderColor = DividerColor,
+                        unfocusedBorderColor = AiriTheme.outline,
                         focusedTextColor = AiriTheme.onSurface,
                         unfocusedTextColor = AiriTheme.onSurface
                     )
@@ -240,7 +240,7 @@ fun MemoryScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)
                     )
                 }
-                Divider(color = DividerColor)
+                Divider(color = AiriTheme.outline)
             }
         }
     ) { padding ->
@@ -345,14 +345,14 @@ private fun MemoryEntryCard(
     Surface(
         shape  = AIRIShapes.md,
         color  = AiriTheme.surfaceVariant,
-        border = BorderStroke(0.5.dp, DividerColor),
+        border = BorderStroke(0.5.dp, AiriTheme.outline),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(
                     modifier = Modifier.size(22.dp).clip(CircleShape)
-                        .background(if (isUser) CosmicAccent.copy(0.20f) else SurfaceHighlight),
+                        .background(if (isUser) CosmicAccent.copy(0.20f) else AiriTheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -370,7 +370,7 @@ private fun MemoryEntryCard(
                 )
                 Surface(
                     shape = RoundedCornerShape(5.dp),
-                    color = if (msg.isMemory) CosmicAccent.copy(alpha = 0.14f) else SurfaceHighlight
+                    color = if (msg.isMemory) CosmicAccent.copy(alpha = 0.14f) else AiriTheme.surfaceVariant
                 ) {
                     Text(
                         if (msg.isMemory) stringResource(R.string.memory_badge_long_term) else stringResource(R.string.memory_badge_context),
@@ -458,7 +458,7 @@ private fun SearchBar(
     Surface(
         shape  = AIRIShapes.md,
         color  = AiriTheme.surfaceVariant,
-        border = BorderStroke(0.5.dp, if (query.isNotBlank()) CosmicAccent.copy(0.35f) else DividerColor),
+        border = BorderStroke(0.5.dp, if (query.isNotBlank()) CosmicAccent.copy(0.35f) else AiriTheme.outline),
         modifier = modifier
     ) {
         Row(

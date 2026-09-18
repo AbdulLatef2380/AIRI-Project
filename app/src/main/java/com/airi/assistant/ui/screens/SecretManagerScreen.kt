@@ -122,7 +122,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
     deletingProjectGitHubSecret.takeIf { it && projectId != null }?.let {
         AlertDialog(
             onDismissRequest = { deletingProjectGitHubSecret = false },
-            containerColor = SurfaceFloating,
+            containerColor = AiriTheme.surface,
             shape = AIRIShapes.xl,
             icon = { Icon(Icons.Outlined.Delete, null, tint = SemanticError, modifier = Modifier.size(28.dp)) },
             title = { Text(stringResource(R.string.secret_project_delete_title), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
@@ -152,7 +152,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
     editingProjectGitHubSecret.takeIf { it && projectId != null }?.let {
         AlertDialog(
             onDismissRequest = { editingProjectGitHubSecret = false; projectSecretText = ""; showProjectSecret = false },
-            containerColor = SurfaceFloating,
+            containerColor = AiriTheme.surface,
             shape = AIRIShapes.xl,
             icon = { Icon(Icons.Outlined.Key, null, tint = CosmicAccent, modifier = Modifier.size(28.dp)) },
             title = { Text(stringResource(R.string.secret_project_github_pat), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
@@ -222,7 +222,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
     showDeleteFor?.let { provider ->
         AlertDialog(
             onDismissRequest = { showDeleteFor = null },
-            containerColor   = SurfaceFloating,
+            containerColor   = AiriTheme.surface,
             shape            = AIRIShapes.xl,
             icon = {
                 Icon(Icons.Outlined.Delete, null, tint = SemanticError, modifier = Modifier.size(28.dp))
@@ -266,7 +266,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
     editingProvider?.let { provider ->
         AlertDialog(
             onDismissRequest = { editingProvider = null; editText = ""; showKey = false },
-            containerColor   = SurfaceFloating,
+            containerColor   = AiriTheme.surface,
             shape            = AIRIShapes.xl,
             icon = {
                 Box(
@@ -407,7 +407,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
                     )
                     Surface(
                         shape = AIRIShapes.md,
-                        color = SurfaceRaised,
+                        color = AiriTheme.surfaceVariant,
                         border = BorderStroke(0.5.dp, if (projectGitHubConfigured) CosmicAccent.copy(0.22f) else AiriTheme.outline.copy(0.25f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -501,7 +501,7 @@ private fun SecretKeyCard(
 ) {
     Surface(
         shape    = AIRIShapes.md,
-        color    = SurfaceRaised,
+        color    = AiriTheme.surfaceVariant,
         border   = BorderStroke(0.5.dp, if (isSet) CosmicAccent.copy(0.18f) else AiriTheme.outline.copy(0.25f)),
         modifier = Modifier.fillMaxWidth()
     ) {

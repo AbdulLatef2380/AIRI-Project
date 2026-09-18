@@ -1695,7 +1695,7 @@
     <string name="skill_official_badge">官方</string>
     <string name="skill_connector_required">需要连接器</string>
     <string name="brave_enabled">已启用 — 真实网页结果和页面内容</string>
-    <string name="brave_fallback">未配置 — 使用 DDG 备用方案（覆盖率约 30%）</string>
+    <string name="brave_fallback">未配置 — 使用 DDG 备用方案（覆盖率约 30%%）</string>
     <string name="skill_invalid_manifest">技能名称、描述或端点无效。</string>
     <string name="skill_step_identity">身份</string>
     <string name="skill_step_tools">工具</string>

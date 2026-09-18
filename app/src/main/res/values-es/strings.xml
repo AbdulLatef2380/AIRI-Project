@@ -1676,7 +1676,7 @@
     <string name="skill_version_required">Versión *</string>
     <string name="skill_version_hint">1.0.0 — debe seguir semver</string>
     <string name="skill_license">Licencia</string>
-    <string name="skill_license_hint">MIT, Apache-2.0, etc.</string>
+    <string name="skill_license_hint">MIT, Apache-2.0, etcétera.</string>
     <string name="skill_repository_url">URL del repositorio</string>
     <string name="skill_tags">Etiquetas</string>
     <string name="skill_tags_hint">separadas por comas: búsqueda, web, noticias</string>

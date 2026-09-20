@@ -1721,4 +1721,6 @@
     <string name="model_key_saved">Clave de %1$s guardada</string>
     <string name="resource_storage_used">%1$s usados de %2$s (%3$d%%)</string>
     <string name="resource_processor_cores_text">Hay %1$d núcleos de procesador disponibles. Este valor guía las opciones de AIRI; Android sigue controlando la planificación.</string>
+    <string name="attachment_capability_unavailable">El modelo actual no puede procesar este tipo de archivo adjunto. Elige un modelo compatible o elimina el archivo.</string>
+    <string name="attachment_capability_unknown">AIRI no pudo verificar si el modelo actual admite este archivo adjunto. Elige un modelo compatible o verifica la compatibilidad antes de reintentarlo.</string>
 </resources>

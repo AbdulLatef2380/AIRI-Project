@@ -14,9 +14,7 @@ enum class Capability {
 
 enum class CapabilityStatus { SUPPORTED, UNSUPPORTED, SUPPORTED_WITH_LIMITS, UNKNOWN, TEMPORARILY_UNAVAILABLE }
 enum class CapabilityConfidence { VERIFIED, DECLARED, INFERRED, UNKNOWN }
-en
 enum class AttachmentRequirement { TEXT, IMAGE, VIDEO, AUDIO, DOCUMENT, PDF }
-en
 enum class CompatibilityDecision { ALLOW, ALLOW_WITH_WARNING, BLOCK, ROUTE_TO_COMPATIBLE_MODEL }
 
 data class CapabilityLimit(
@@ -70,10 +68,10 @@ object ModelCapabilityEngine {
             Capability.DOCUMENT_INPUT to CapabilityStatus.SUPPORTED,
             Capability.PDF_INPUT to CapabilityStatus.UNKNOWN,
             Capability.OCR to if (declaredVision) CapabilityStatus.UNKNOWN else CapabilityStatus.UNSUPPORTED,
-            Capability.TOOL_CALLING to if (capabilities.toolCalling) CapabilityStatus.DECLARED else CapabilityStatus.UNKNOWN,
+            Capability.TOOL_CALLING to if (capabilities.toolCalling) CapabilityStatus.SUPPORTED else CapabilityStatus.UNKNOWN,
             Capability.STREAMING to CapabilityStatus.SUPPORTED,
-            Capability.STRUCTURED_OUTPUT to CapabilityStatus.DECLARED,
-            Capability.JSON_OUTPUT to CapabilityStatus.DECLARED,
+            Capability.STRUCTURED_OUTPUT to CapabilityStatus.SUPPORTED,
+            Capability.JSON_OUTPUT to CapabilityStatus.SUPPORTED,
             Capability.LONG_CONTEXT to if (model.contextSize >= 8192) CapabilityStatus.SUPPORTED else CapabilityStatus.SUPPORTED_WITH_LIMITS
         )
         val runtime = base.toMutableMap().apply {

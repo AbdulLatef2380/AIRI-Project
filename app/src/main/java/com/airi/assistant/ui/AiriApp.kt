@@ -18,8 +18,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -204,8 +206,13 @@ fun AiriApp() {
 
     // Chat is "active" (has messages) — bottom nav hides during active conversation
     var chatIsActive by remember { mutableStateOf(false) }
+    var bottomNavRevealed by rememberSaveable { mutableStateOf(false) }
 
-    val showBottomNav = currentRoute in bottomNavRoutes && !chatIsActive
+    LaunchedEffect(currentRoute) {
+        bottomNavRevealed = currentRoute != AiriRoute.CHAT
+    }
+    val showBottomNav = currentRoute in bottomNavRoutes &&
+        (currentRoute != AiriRoute.CHAT || bottomNavRevealed)
 
     // Check if the user has any usable API key configured
     // Note: local model presence is checked via SecureApiKeyStore since
@@ -376,6 +383,8 @@ fun AiriApp() {
                         ChatScreen(
                             viewModel = chatViewModel,
                             onChatActiveChanged = { active -> chatIsActive = active },
+                            bottomNavVisible = bottomNavRevealed,
+                            onBottomNavToggle = { bottomNavRevealed = !bottomNavRevealed },
                             onNavigate = { route ->
                                 navController.navigate(route) { launchSingleTop = true }
                             },

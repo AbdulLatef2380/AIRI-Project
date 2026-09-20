@@ -56,6 +56,7 @@ class GeminiAdapter(
 
         var conn: HttpURLConnection? = null
         val fullText       = StringBuilder()
+        var lastPayload    = ""
         var promptTokens   = 0
         var completeTokens = 0
         val startMs        = System.currentTimeMillis()
@@ -90,11 +91,13 @@ class GeminiAdapter(
                     if (!raw.startsWith("data:")) continue
                     val payload = raw.removePrefix("data:").trim()
                     if (payload.isBlank() || payload == "[DONE]") continue
+                    lastPayload = payload
                     if (payload.contains("\"error\"")) {
+                        val mapped = CloudErrorMapper.map(200, payload)
                         return@withContext CloudProviderAdapter.AdapterResult.Failure(
-                            error = "Gemini stream error",
-                            errorType = CloudErrorType.SERVER_ERROR,
-                            retryable = payload.contains("503") || payload.contains("overload"),
+                            error = mapped.message,
+                            errorType = mapped.type,
+                            retryable = mapped.retryable,
                             httpCode = 200
                         )
                     }
@@ -105,10 +108,11 @@ class GeminiAdapter(
             }
 
             if (fullText.isBlank()) {
+                val mapped = CloudErrorMapper.map(200, lastPayload)
                 return@withContext CloudProviderAdapter.AdapterResult.Failure(
-                    error = "Provider returned no text",
-                    errorType = CloudErrorType.UNKNOWN,
-                    retryable = false,
+                    error = if (mapped.type == CloudErrorType.UNKNOWN) "Provider returned no text" else mapped.message,
+                    errorType = mapped.type,
+                    retryable = mapped.retryable,
                     httpCode = 200
                 )
             }

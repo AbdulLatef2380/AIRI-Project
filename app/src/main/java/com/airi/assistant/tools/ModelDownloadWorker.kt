@@ -59,10 +59,20 @@ class ModelDownloadWorker(
         val expectedSha = inputData.getString(KEY_EXPECTED_SHA256) // optional
         val expectedSize = inputData.getLong(KEY_EXPECTED_SIZE, -1L)
 
+        val parsedUrl = runCatching { URL(url) }.getOrNull()
+            ?: return@withContext fail("invalid url")
+        if (parsedUrl.protocol !in setOf("https")) return@withContext fail("only https downloads are allowed")
+        if (fileName != File(fileName).name || fileName.contains("..") || !fileName.endsWith(".gguf", true)) {
+            return@withContext fail("unsafe model filename")
+        }
         val modelsRoot = applicationContext.getExternalFilesDir(null) ?: applicationContext.filesDir
         val modelsDir = File(modelsRoot, "models").apply { mkdirs() }
-        val finalFile = File(modelsDir, fileName)
-        val partFile  = File(modelsDir, "$fileName.part")
+        val finalFile = File(modelsDir, fileName).canonicalFile
+        val partFile  = File(modelsDir, "$fileName.part").canonicalFile
+        val rootPath = modelsDir.canonicalFile.path + File.separator
+        if (!finalFile.path.startsWith(rootPath) || !partFile.path.startsWith(rootPath)) {
+            return@withContext fail("model path escaped storage root")
+        }
         val resumeFrom = if (partFile.exists()) partFile.length() else 0L
 
         Log.i(
@@ -145,6 +155,14 @@ class ModelDownloadWorker(
                 return false
             }
             if (resuming) {
+                val range = conn.getHeaderField("Content-Range")
+                val rangeStart = Regex("bytes\\s+(\\d+)-\\d+/(?:\\d+|\\*)", RegexOption.IGNORE_CASE)
+                    .find(range.orEmpty())?.groupValues?.getOrNull(1)?.toLongOrNull()
+                if (rangeStart != resumeFrom) {
+                    runCatching { partFile.delete() }
+                    Log.w("AIRI_DOWNLOAD", "DOWNLOAD_RANGE_MISMATCH expected=$resumeFrom actual=$range")
+                    return false
+                }
                 Log.i("AIRI", "DOWNLOAD_RESUMED fileName=${partFile.name} from=$resumeFrom")
             } else if (resumeFrom > 0) {
                 // Server didn't honour Range — restart from scratch.

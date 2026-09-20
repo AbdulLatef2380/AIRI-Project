@@ -640,12 +640,40 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun loadEmbeddingFromUri(context: Context, uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Persist to an internal copy so the Uri doesn't expire
+                // Persist to an internal, atomic copy so the Uri doesn't expire
+                // and a process death cannot leave the active embedding path
+                // pointing at a truncated file.
                 val fileName = "embedding_model.gguf"
                 val dest = java.io.File(context.filesDir, fileName)
+                val temp = java.io.File(context.filesDir, ".${fileName}.part")
+                temp.delete()
+                var copied = 0L
                 context.contentResolver.openInputStream(uri)?.use { input ->
-                    dest.outputStream().use { output -> input.copyTo(output) }
+                    java.io.FileOutputStream(temp, false).use { output ->
+                        val buffer = ByteArray(1024 * 1024)
+                        while (true) {
+                            val n = input.read(buffer)
+                            if (n < 0) break
+                            output.write(buffer, 0, n)
+                            copied += n
+                        }
+                        output.fd.sync()
+                    }
+                } ?: error("Cannot open embedding URI")
+                if (copied < 100_000_000L || temp.length() != copied) {
+                    temp.delete()
+                    error("Embedding file is incomplete: $copied bytes")
                 }
+                java.io.RandomAccessFile(temp, "r").use { raf ->
+                    val magic = ByteArray(4)
+                    raf.readFully(magic)
+                    if (magic.decodeToString() != "GGUF") {
+                        temp.delete()
+                        error("Selected embedding file is not GGUF")
+                    }
+                }
+                if (dest.exists() && !dest.delete()) error("Cannot replace old embedding model")
+                if (!temp.renameTo(dest)) error("Cannot commit embedding model")
                 val ok = llamaManager.loadEmbeddingFromPath(dest.absolutePath)
                 _embeddingModelReady.value = ok
                 _embeddingModelPath.value  = if (ok) dest.absolutePath else null

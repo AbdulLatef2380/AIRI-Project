@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * In-memory registry of [Connector]s. Single source of truth for what
@@ -26,6 +27,8 @@ class ConnectorRegistry(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) {
     private val store = ConcurrentHashMap<String, Connector>()
+    private val registrationOrder = ConcurrentHashMap<String, Long>()
+    private val sequence = AtomicLong(0L)
 
     private val _meta = MutableStateFlow<List<ConnectorMeta>>(emptyList())
     /** Observable list of all registered connectors' metadata, in
@@ -35,11 +38,13 @@ class ConnectorRegistry(
     fun register(connector: Connector) {
         require(connector.id.isNotBlank()) { "Connector id must not be blank" }
         store[connector.id] = connector
+        registrationOrder.putIfAbsent(connector.id, sequence.getAndIncrement())
         recomputeMeta()
     }
 
     fun unregister(id: String) {
         val removed = store.remove(id) ?: return
+        registrationOrder.remove(id)
         // Best-effort disconnect; failure is logged by the connector itself.
         scope.launch { runCatching { removed.disconnect() } }
         recomputeMeta()
@@ -47,10 +52,11 @@ class ConnectorRegistry(
 
     fun get(id: String): Connector? = store[id]
 
-    fun all(): List<Connector> = store.values.toList()
+    fun all(): List<Connector> = store.values.sortedBy { registrationOrder[it.id] ?: Long.MAX_VALUE }
 
     fun byType(type: ConnectorType): List<Connector> =
         store.values.filter { it.type == type }
+            .sortedBy { registrationOrder[it.id] ?: Long.MAX_VALUE }
 
     /** Convenience: connect every registered connector in parallel.
      *  Failures are isolated per connector (one bad connect does not
@@ -62,6 +68,6 @@ class ConnectorRegistry(
     }
 
     private fun recomputeMeta() {
-        _meta.value = store.values.map { it.meta() }
+        _meta.value = all().map { it.meta() }
     }
 }

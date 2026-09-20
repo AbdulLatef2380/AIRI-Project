@@ -79,10 +79,16 @@ class CloudBackend(
         get() {
             val guard = NetworkGuard.evaluate(prefs)
             if (guard is NetworkGuard.Decision.Block) return false
-            val provider = prefs.preferredProvider.takeUnless { it == CloudProvider.BRAVE }
-                ?: CloudProvider.GEMINI
-            val adapter = CloudAdapterFactory.create(provider, context)
-            return adapter.isAvailable
+            // Availability is a capability of the failover chain, not only of
+            // the preferred provider. Previously a missing Gemini key made the
+            // whole cloud backend unavailable even when OpenAI/OpenRouter had a
+            // valid key, so RuntimeRouter never got a chance to fail over.
+            val providers = buildList {
+                add(prefs.preferredProvider.takeUnless { it == CloudProvider.BRAVE }
+                    ?: CloudProvider.GEMINI)
+                FAILOVER_PRIORITY.forEach { if (it !in this) add(it) }
+            }
+            return providers.any { CloudAdapterFactory.create(it, context).isAvailable }
         }
 
     override suspend fun generateStream(
@@ -137,6 +143,11 @@ class CloudBackend(
 
             var promptTok = 0
             var compTok = 0
+            // Do not emit provider output until the attempt succeeds. A retry
+            // or provider failover after partial SSE output would otherwise
+            // append the same prefix twice (or mix two providers in one bubble).
+            // This deliberately trades token-by-token UI latency for response
+            // integrity, which is essential for a stable release build.
 
             val result = RetryPolicy.withRetry(maxAttempts = MAX_RETRIES) { attempt ->
                 if (cancelRequested.get()) {
@@ -155,7 +166,7 @@ class CloudBackend(
                 compTok = 0
                 adapter.streamGenerate(
                     request = request,
-                    onToken = { token -> onToken(token) },
+                    onToken = { /* buffered by the adapter result; emit only after success */ },
                     onUsage = { p, c -> promptTok = p; compTok = c }
                 )
             }
@@ -170,6 +181,7 @@ class CloudBackend(
 
             when (result) {
                 is CloudProviderAdapter.AdapterResult.Success -> {
+                    if (result.fullText.isNotBlank()) onToken(result.fullText)
                     val totalTokens = promptTok + compTok
                     if (totalTokens > 0) {
                         prefs.recordCloudTokens(totalTokens)

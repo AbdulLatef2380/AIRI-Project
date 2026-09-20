@@ -156,14 +156,14 @@ object EmbeddedProviderConfig {
             badgeColor   = 0xFF4285F4
         ),
 
-        // ── FREE: OpenRouter (many free models including Google, Meta) ────
+        // ── FREE: OpenRouter (current free models) ────────────────────────
         ProviderConfig(
             id           = "openrouter_gemini_flash",
             provider     = CloudProvider.OPENROUTER,
-            displayLabel = "OpenRouter · Gemini Flash",
-            description  = "Route to Gemini 2.0 Flash via OpenRouter. Free with account.",
+            displayLabel = "OpenRouter · Qwen 3.8 27B",
+            description  = "Current free multilingual route via OpenRouter. Free account required.",
             tier         = ProviderTier.FREE_SIGNUP,
-            defaultModel = "google/gemini-2.0-flash-exp:free",
+            defaultModel = "qwen/qwen3.8-27b:free",
             baseUrl      = "https://openrouter.ai/api/v1",
             signupUrl    = "https://openrouter.ai/keys",
             keyPrefsKey  = KEY_OR_KEY,

@@ -8,11 +8,25 @@ import com.airi.assistant.domain.error.AppError
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.skill.SkillService
 
-class ToolExecutor(private val context: Context) {
+class ToolExecutor(
+    private val context: Context,
+    private val agentId: String = "agent_loop"
+) {
 
     private val registry = ToolRegistry(context)
+    private val firewall = ServiceLocator.executionFirewall
 
     suspend fun execute(toolCall: ToolCall): ToolResult {
+        try {
+            firewall.guard(agentId, toolCall.toolName)
+        } catch (e: SecurityException) {
+            val error = AppError.PermissionDenied(
+                permission = toolCall.toolName,
+                message = "Tool '${toolCall.toolName}' is not permitted for agent '$agentId'."
+            )
+            AppErrorHandler.log(error)
+            return ToolResult(false, "", AppErrorHandler.toUserMessage(error))
+        }
         val networkService = runCatching { ServiceLocator.networkService }.getOrNull()
         val isOnline = networkService?.isOnline() ?: registry.isNetworkAvailable()
 

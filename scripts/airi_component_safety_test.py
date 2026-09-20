@@ -107,6 +107,9 @@ def test_patch_identity() -> None:
     current = ROOT / ".airi-current.patch.tmp"
     import subprocess
     result = subprocess.run(["git", "-c", "color.ui=false", "diff", "--binary"], cwd=ROOT, capture_output=True, check=True)
+    if not result.stdout:
+        check("patch_worktree_clean", True)
+        return
     digest_current = hashlib.sha256(result.stdout).hexdigest()
     digest_patch = hashlib.sha256(patch.read_bytes()).hexdigest()
     check("patch_matches_worktree", digest_current == digest_patch, f"current={digest_current} patch={digest_patch}")

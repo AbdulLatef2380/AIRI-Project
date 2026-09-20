@@ -185,6 +185,7 @@ fun ChatScreen(
     val streamingText by viewModel.streamingText.collectAsState()
     val agentState    by viewModel.agentState.collectAsState()
     val modelState    by viewModel.modelState.collectAsState()
+    val capabilityDescriptor = remember(modelState) { viewModel.currentCapabilityDescriptor() }
     val agentMode     by viewModel.agentMode.collectAsState()
     val smartReplies  by viewModel.smartReplies.collectAsState()
     val attachmentDispatchInFlight by viewModel.attachmentDispatchInFlight.collectAsState()
@@ -864,6 +865,8 @@ fun ChatScreen(
                                         AttachmentDispatchFailure.GENERATION_IN_PROGRESS -> R.string.attachment_generation_in_progress
                                         AttachmentDispatchFailure.SESSION_CHANGED -> R.string.attachment_session_changed
                                         AttachmentDispatchFailure.VISION_UNAVAILABLE -> R.string.attachment_vision_unavailable
+                                        AttachmentDispatchFailure.CAPABILITY_UNAVAILABLE -> R.string.attachment_capability_unavailable
+                                        AttachmentDispatchFailure.CAPABILITY_UNKNOWN -> R.string.attachment_capability_unknown
                                         AttachmentDispatchFailure.STAGING_FAILED -> R.string.attachment_staging_failed
                                     }
                                     scope.launch { snackbarHost.showSnackbar(context.getString(messageRes)) }
@@ -979,7 +982,8 @@ fun ChatScreen(
                         )
                     },
                     bottomNavVisible = bottomNavVisible,
-                    onBottomNavToggle = onBottomNavToggle
+                    onBottomNavToggle = onBottomNavToggle,
+                    imageInputEnabled = capabilityDescriptor.isReady(com.airi.assistant.execution.Capability.IMAGE_UNDERSTANDING)
                 )
             }
         }
@@ -2646,7 +2650,8 @@ fun AiriChatInputBar(
     onKnowledgeQueryChanged: (String) -> Unit = {},
 
     attachments: List<ChatAttachment> = emptyList(),
-    onRemoveAttachment: (String) -> Unit = {}
+    onRemoveAttachment: (String) -> Unit = {},
+    imageInputEnabled: Boolean = true
 ) {
     val context          = LocalContext.current
     var showAttachPopup by remember { mutableStateOf(false) }
@@ -3343,12 +3348,14 @@ fun AiriChatInputBar(
                 ) {
                     AttachCard(
                         icon = Icons.Outlined.Image,
-                        label = stringResource(R.string.attach_image),
+                        label = if (imageInputEnabled) stringResource(R.string.attach_image) else stringResource(R.string.attachment_capability_unavailable),
+                        enabled = imageInputEnabled,
                         modifier = Modifier.weight(1f)
                     ) { showAttachPopup = false; onPickImage() }
                     AttachCard(
                         icon = Icons.Outlined.CameraAlt,
                         label = stringResource(R.string.attach_camera),
+                        enabled = imageInputEnabled,
                         modifier = Modifier.weight(1f)
                     ) { showAttachPopup = false; onTakePhoto() }
                     AttachCard(
@@ -3492,6 +3499,7 @@ private fun WakeActionSheet(
 private fun AttachCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -3500,15 +3508,15 @@ private fun AttachCard(
             .clip(AIRIShapes.md)
             .background(AiriTheme.surfaceVariant)
             .border(1.dp, AiriTheme.outline.copy(alpha = 0.9f), AIRIShapes.md)
-            .clickable { onClick() }
+            .clickable(enabled = enabled) { onClick() }
             .padding(vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Icon(icon, contentDescription = label, tint = CosmicAccent, modifier = Modifier.size(26.dp))
+        Icon(icon, contentDescription = label, tint = if (enabled) CosmicAccent else AiriTheme.onSurfaceVariant, modifier = Modifier.size(26.dp))
         Text(
             text = label,
-            color = AiriTheme.onSurface,
+            color = if (enabled) AiriTheme.onSurface else AiriTheme.onSurfaceVariant,
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,

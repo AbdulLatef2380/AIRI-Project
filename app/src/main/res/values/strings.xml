@@ -1795,6 +1795,8 @@
     <string name="attachment_generation_in_progress">Wait for the current response to finish. Your attachments were kept.</string>
     <string name="attachment_session_changed">The conversation changed while the attachments were being prepared. They were kept in the original conversation; return there and try again.</string>
     <string name="attachment_vision_unavailable">A vision-ready model is required to analyze this image. Your attachment was kept; choose a vision model and try again.</string>
+    <string name="attachment_capability_unavailable">The current model cannot process this attachment type. Choose a compatible model or remove the attachment.</string>
+    <string name="attachment_capability_unknown">AIRI could not verify whether the current model supports this attachment. Choose a compatible model or verify it before retrying.</string>
     <string name="attachment_staging_failed">We couldn\'t prepare one or more attachments. They were kept so you can try again.</string>
     <string name="attachment_preparing">Preparing attachments</string>
     <string name="chat_how_can_help_name">How can I help, %1$s?</string>

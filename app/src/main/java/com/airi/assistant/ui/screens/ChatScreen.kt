@@ -115,6 +115,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
 
@@ -157,6 +159,8 @@ private fun resolveAttachmentMetadata(
 fun ChatScreen(
     viewModel: ChatViewModel,
     onChatActiveChanged: (Boolean) -> Unit = {},
+    bottomNavVisible: Boolean = false,
+    onBottomNavToggle: () -> Unit = {},
     onNavigate: (String) -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
@@ -973,7 +977,9 @@ fun ChatScreen(
                         viewModel.updateComposerAttachments(
                             pendingAttachments.filterNot { it.id == uid || it.uid == uid }
                         )
-                    }
+                    },
+                    bottomNavVisible = bottomNavVisible,
+                    onBottomNavToggle = onBottomNavToggle
                 )
             }
         }
@@ -2051,54 +2057,9 @@ fun ChatMessageList(
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
                 )
-                if (!isModelReady && !isCloudReady) {
-                    Spacer(Modifier.height(24.dp))
-                    Button(
-                        onClick = onOpenModels,
-                        shape = AIRIShapes.xl,
-                        colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent, contentColor = Color.White),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
-                    ) {
-                        Icon(Icons.Outlined.Memory, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.model_gallery), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    }
-                }
-                // Suggestion chips — quick starter prompts
-                Spacer(Modifier.height(28.dp))
-                val suggestions = listOf(
-                    R.string.chat_starter_email_label to R.string.chat_starter_email_prompt,
-                    R.string.chat_starter_data_label to R.string.chat_starter_data_prompt,
-                    R.string.chat_starter_ideas_label to R.string.chat_starter_ideas_prompt,
-                    R.string.chat_starter_research_label to R.string.chat_starter_research_prompt,
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    suggestions.chunked(2).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            row.forEach { (labelRes, promptRes) ->
-                                val prompt = stringResource(promptRes)
-                                Surface(
-                                    onClick = { onSuggestionClick(prompt) },
-                                    modifier = Modifier.weight(1f),
-                                    shape = AIRIShapes.md,
-                                    color = AiriTheme.surfaceVariant,
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        0.5.dp, AiriTheme.outline.copy(alpha = 0.50f)
-                                    )
-                                ) {
-                                    Text(
-                                        text = stringResource(labelRes),
-                                        fontSize = 12.sp,
-                                        color = AiriTheme.onSurface.copy(alpha = 0.80f),
-                                        fontWeight = FontWeight.Medium,
-                                        lineHeight = 17.sp,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                // Deliberately empty action area: the welcome state contains
+                // only the greeting/tagline. Actions remain available through
+                // the composer and navigation, not as central starter cards.
                 Spacer(Modifier.height(32.dp))
             }
         }
@@ -2697,6 +2658,7 @@ fun AiriChatInputBar(
         if (text != draftText) text = draftText
     }
     var isExpanded by remember { mutableStateOf(false) }
+    var showFullScreenEditor by rememberSaveable { mutableStateOf(false) }
     val isInferenceReady = modelState.isModelReady || modelState.isCloudReady
     val isInteractionLocked = isGenerating || isDispatchingAttachment
     val canSend = (text.isNotBlank() || attachments.isNotEmpty()) && isInferenceReady && !modelState.isModelLoading && !isInteractionLocked
@@ -2743,6 +2705,64 @@ fun AiriChatInputBar(
         }
     }
     val showSend = isTyping || attachments.isNotEmpty() || isInteractionLocked
+
+    if (showFullScreenEditor) {
+        Dialog(
+            onDismissRequest = { showFullScreenEditor = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize().imePadding(),
+                color = AiriTheme.background
+            ) {
+                Column(modifier = Modifier.fillMaxSize().padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.chat_assign_task_hint),
+                            color = AiriTheme.onSurfaceVariant,
+                            fontSize = 14.sp
+                        )
+                        TextButton(onClick = { showFullScreenEditor = false }) {
+                            Text(stringResource(android.R.string.ok), color = CosmicAccent)
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    BasicTextField(
+                        value = text,
+                        onValueChange = {
+                            text = it
+                            onDraftTextChanged(it)
+                        },
+                        enabled = isInferenceReady && !isInteractionLocked,
+                        modifier = Modifier.fillMaxSize(),
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            color = AiriTheme.onBackground,
+                            fontSize = 17.sp,
+                            lineHeight = 25.sp,
+                            textAlign = TextAlign.Start
+                        ),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(CosmicAccent),
+                        decorationBox = { inner ->
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                if (text.isEmpty()) {
+                                    Text(
+                                        text = stringResource(R.string.chat_assign_task_hint),
+                                        color = AiriTheme.onBackground.copy(0.35f),
+                                        fontSize = 17.sp
+                                    )
+                                }
+                                inner()
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
 
     val micPulse = remember { androidx.compose.animation.core.Animatable(1f) }
     LaunchedEffect(voiceState) {
@@ -3035,6 +3055,20 @@ fun AiriChatInputBar(
                         modifier = Modifier.size(18.dp)
                     )
                 }
+                IconButton(
+                    onClick = { showFullScreenEditor = true },
+                    modifier = Modifier.size(32.dp).semantics {
+                        contentDescription = "Open full-screen editor"
+                        role = Role.Button
+                    }
+                ) {
+                    Icon(
+                        Icons.Outlined.Fullscreen,
+                        contentDescription = null,
+                        tint = AiriTheme.onBackground.copy(0.45f),
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
             }
             Box(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
@@ -3066,7 +3100,7 @@ fun AiriChatInputBar(
                     enabled = isInferenceReady && !isInteractionLocked,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 32.dp, max = if (isExpanded) 180.dp else 60.dp)
+                        .heightIn(min = 28.dp, max = if (isExpanded) 180.dp else 44.dp)
                         .onFocusChanged { state ->
                             // Propagate focus change upward so toolbar collapses
                             onFocusChanged(state.isFocused)
@@ -3076,7 +3110,7 @@ fun AiriChatInputBar(
                         textAlign = TextAlign.Start
                     ),
                     cursorBrush = androidx.compose.ui.graphics.SolidColor(CosmicAccent),
-                    maxLines = if (isExpanded) 8 else 3,
+                    maxLines = if (isExpanded) 8 else 2,
                     decorationBox = { inner ->
                         Box {
                             if (text.isEmpty()) {

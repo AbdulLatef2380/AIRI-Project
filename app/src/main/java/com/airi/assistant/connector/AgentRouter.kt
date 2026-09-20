@@ -1,6 +1,7 @@
 package com.airi.assistant.connector
 
 import com.airi.assistant.core.intent.IntentType
+import kotlinx.coroutines.withTimeout
 
 /**
  * AgentRouter — picks the right [Connector] for a given [IntentType] +
@@ -60,7 +61,15 @@ class AgentRouter(
                 text   = text,
                 params = params,
             )
-            val out = connector.execute(input)
+            val out = try {
+                withTimeout(CONNECTOR_TIMEOUT_MS) { connector.execute(input) }
+            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                ConnectorOutput.Failure(
+                    code = "connector_timeout",
+                    message = "Connector '${connector.id}' timed out",
+                    retryable = true
+                )
+            }
             attempts += Attempt(connector.id, out)
 
             when (out) {
@@ -156,4 +165,8 @@ class AgentRouter(
         val output: ConnectorOutput,
         val attempts: List<Attempt>,
     )
+
+    private companion object {
+        const val CONNECTOR_TIMEOUT_MS = 45_000L
+    }
 }

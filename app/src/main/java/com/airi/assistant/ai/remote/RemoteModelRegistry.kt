@@ -40,26 +40,28 @@ object RemoteModelRegistry {
     }
 
     /**
-     * One-time idempotent migration: replace the stale OpenRouter model ID
-     * google/gemini-2.0-flash-001 with the current supported ID
-     * google/gemini-2.0-flash-exp:free in every persisted [RemoteModel] entry.
+     * One-time idempotent migration: replace retired OpenRouter Gemini 2.0 IDs
+     * with the current free route in every persisted [RemoteModel] entry.
      *
      * Runs synchronously inside [init] before any caller can read the registry.
      * Safe to call on subsequent launches — exits immediately if no stale entries exist.
      */
     private fun migrateStaleModelNames() {
-        val stale       = "google/gemini-2.0-flash-001"
-        val replacement = "google/gemini-2.0-flash-exp:free"
+        val staleIds = setOf(
+            "google/gemini-2.0-flash-001",
+            "google/gemini-2.0-flash-exp:free"
+        )
+        val replacement = "qwen/qwen3.8-27b:free"
         val list = getAll()
         // B-07: Skip custom user-defined endpoints; only migrate first-party model names.
-        val affected = list.filter { it.name == stale && !it.isCustomEndpoint }
+        val affected = list.filter { it.name in staleIds && !it.isCustomEndpoint }
         if (affected.isEmpty()) return
         val migrated = list.map { m ->
-            if (m.name == stale && !m.isCustomEndpoint) m.copy(name = replacement) else m
+            if (m.name in staleIds && !m.isCustomEndpoint) m.copy(name = replacement) else m
         }
         prefs.edit().putString(KEY_MODELS, serializeList(migrated)).apply()
         android.util.Log.i("AIRI_Registry",
-            "migrateStaleModelNames: replaced $stale → $replacement in ${affected.size} entry(s): " +
+            "migrateStaleModelNames: replaced retired Gemini IDs → $replacement in ${affected.size} entry(s): " +
             affected.joinToString { it.id })
     }
 

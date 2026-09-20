@@ -117,10 +117,11 @@ open class OpenAIAdapter(
 
                     if (payload.contains("\"error\"")) {
                         val message = extractErrorMessage(payload)
+                        val mapped = CloudErrorMapper.map(200, message)
                         streamError = CloudProviderAdapter.AdapterResult.Failure(
-                            error = "Provider stream error: $message",
-                            errorType = CloudErrorType.SERVER_ERROR,
-                            retryable = message.containsAny("overload", "tempor", "try again"),
+                            error = mapped.message,
+                            errorType = mapped.type,
+                            retryable = mapped.retryable,
                             httpCode = 200
                         )
                         break

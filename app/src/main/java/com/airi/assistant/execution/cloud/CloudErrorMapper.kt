@@ -32,6 +32,10 @@ object CloudErrorMapper {
         httpCode == 400 && body.hasContextErr   -> MappedError(CloudErrorType.CONTEXT_LENGTH,  false, "Prompt exceeds model context window")
         httpCode == 400 && body.hasSafetyErr    -> MappedError(CloudErrorType.CONTENT_FILTERED, false, "Content policy violation")
         httpCode == 400                         -> MappedError(CloudErrorType.INVALID_REQUEST,  false, "Provider rejected the request (HTTP 400)")
+        httpCode in 200..299 && body.hasContextErr -> MappedError(CloudErrorType.CONTEXT_LENGTH, false, "Prompt exceeds model context window")
+        httpCode in 200..299 && body.hasSafetyErr -> MappedError(CloudErrorType.CONTENT_FILTERED, false, "Content policy violation")
+        httpCode in 200..299 && body.containsAny("overload", "temporarily unavailable", "try again") ->
+            MappedError(CloudErrorType.SERVER_ERROR, true, "Provider is temporarily unavailable")
         httpCode in 200..299                    -> MappedError(CloudErrorType.UNKNOWN,          false, "Unexpected success code in error path: $httpCode")
         else                                    -> MappedError(CloudErrorType.UNKNOWN,          false, "Provider request failed (HTTP $httpCode)")
     }

@@ -36,9 +36,20 @@ internal object ToolPermissionPolicy {
         "accessibility_scroll" to ScopedPermissionRegistry.AgentPermission.ACCESSIBILITY_ACTIONS,
         "intent_launch" to ScopedPermissionRegistry.AgentPermission.TRIGGER_INTENT,
         "spawn_subagent" to ScopedPermissionRegistry.AgentPermission.SPAWN_SUBAGENT,
-        "cloud_sync" to ScopedPermissionRegistry.AgentPermission.CLOUD_SYNC
+        "cloud_sync" to ScopedPermissionRegistry.AgentPermission.CLOUD_SYNC,
+        "github_get_user" to ScopedPermissionRegistry.AgentPermission.CALL_GITHUB_API,
+        "github_get_repos" to ScopedPermissionRegistry.AgentPermission.CALL_GITHUB_API,
+        "telegram_send_message" to ScopedPermissionRegistry.AgentPermission.CALL_TELEGRAM_API,
+        "gmail_list_emails" to ScopedPermissionRegistry.AgentPermission.READ_FILES,
+        "drive_search_file" to ScopedPermissionRegistry.AgentPermission.READ_FILES,
+        "calendar_next_events" to ScopedPermissionRegistry.AgentPermission.READ_CALENDAR
     )
 
-    fun permissionFor(toolName: String): ScopedPermissionRegistry.AgentPermission? =
-        permissions[toolName.trim().lowercase()]
+    fun permissionFor(toolName: String): ScopedPermissionRegistry.AgentPermission? {
+        val normalized = toolName.trim().lowercase()
+        if (normalized.startsWith("custom_skill_")) {
+            return ScopedPermissionRegistry.AgentPermission.MANAGE_SKILLS
+        }
+        return permissions[normalized]
+    }
 }

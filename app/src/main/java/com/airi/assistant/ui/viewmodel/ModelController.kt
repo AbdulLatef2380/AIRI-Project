@@ -115,32 +115,55 @@ internal class ModelController(
             downloadedModelPath      = downloadManager.getModelFile().absolutePath,
             availableModels          = ModelManager.getAllModels()
         )
-        ModelManager.load(model, onProgress = { percent ->
-            if (ModelLoadRequestPolicy.shouldApply(requestId, loadRequestSequence.get())) {
-                modelState.value = modelState.value.copy(loadProgress = percent)
+        // Native llama.cpp mmaps the GGUF for the lifetime of the context. A
+        // path in shared Downloads/Documents can become invalid under scoped
+        // storage, removable-media changes, or provider-backed Files apps.
+        // Materialize external selections into an app-specific persistent file
+        // before JNI sees them. This also makes model loading deterministic
+        // after process recreation and avoids mmap crashes from revoked paths.
+        viewModelScope.launch(Dispatchers.IO) {
+            val nativeModel = materializeForNative(model, file)
+            if (nativeModel == null) {
+                withContext(Dispatchers.Main) {
+                    if (ModelLoadRequestPolicy.shouldApply(requestId, loadRequestSequence.get())) {
+                        modelState.value = modelState.value.copy(
+                            isModelLoading = false,
+                            isModelReady = false,
+                            loadError = "Could not copy model into app storage",
+                            loadErrorType = LoadErrorType.LOAD_FAILED,
+                            loadProgress = -1
+                        )
+                    }
+                }
+                return@launch
             }
-        }) { success ->
+            withContext(Dispatchers.Main) {
+                ModelManager.load(nativeModel, onProgress = { percent ->
+                    if (ModelLoadRequestPolicy.shouldApply(requestId, loadRequestSequence.get())) {
+                        modelState.value = modelState.value.copy(loadProgress = percent)
+                    }
+                }) { success ->
             if (!ModelLoadRequestPolicy.shouldApply(requestId, loadRequestSequence.get())) {
-                Log.i(TAG, "Ignoring stale model-load callback request=$requestId model=${model.name}")
+                Log.i(TAG, "Ignoring stale model-load callback request=$requestId model=${nativeModel.name}")
             } else if (success) {
                 val loadMs = System.currentTimeMillis() - loadStart
                 perfPrefs.edit().putLong("last_model_load_ms", loadMs).apply()
-                AnalyticsService.modelLoaded(model.name, loadMs)
+                AnalyticsService.modelLoaded(nativeModel.name, loadMs)
                 preferences.edit()
-                    .putString(KEY_MODEL_ID,   model.id)
-                    .putString(KEY_MODEL_PATH, model.path)
+                    .putString(KEY_MODEL_ID,   nativeModel.id)
+                    .putString(KEY_MODEL_PATH, nativeModel.path)
                     .apply()
                 persistRegistry()
-                Log.i(TAG,      "LOAD_SUCCESS name=${model.name} loadMs=$loadMs")
-                Log.i(PROOF_TAG,"MODEL_LOAD_SUCCESS name=${model.name} type=${model.type.label} loadMs=${loadMs}ms")
+                Log.i(TAG,      "LOAD_SUCCESS name=${nativeModel.name} loadMs=$loadMs")
+                Log.i(PROOF_TAG,"MODEL_LOAD_SUCCESS name=${nativeModel.name} type=${nativeModel.type.label} loadMs=${loadMs}ms")
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck(
-                    "MODEL_LOAD", true, "path=${model.path} loadMs=$loadMs"
+                    "MODEL_LOAD", true, "path=${nativeModel.path} loadMs=$loadMs"
                 )
                 modelLoadedAtMs = System.currentTimeMillis()
                 RuntimeEventLog.post(
                     subsystem = "MODEL",
                     severity  = EventSeverity.INFO,
-                    reason    = "Loaded: ${model.name} (${model.type.label}) in ${loadMs}ms"
+                    reason    = "Loaded: ${nativeModel.name} (${nativeModel.type.label}) in ${loadMs}ms"
                 )
                 runtimeSupervisor.stop()
                 runtimeSupervisor.start()
@@ -148,13 +171,13 @@ internal class ModelController(
             } else {
                 val failure = llamaManager.getLastLoadFailure() ?: "native inference engine returned failure"
                 Log.e(TAG,      "LOAD_FAILED reason=$failure")
-                Log.e(PROOF_TAG,"MODEL_LOAD_FAILURE name=${model.name} reason=$failure")
+                Log.e(TAG,"MODEL_LOAD_FAILURE name=${nativeModel.name} reason=$failure")
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck(
                     "MODEL_LOAD", false, failure
                 )
             }
             if (ModelLoadRequestPolicy.shouldApply(requestId, loadRequestSequence.get())) {
-                val newCaps = if (success) ModelCapabilities.detect(model)
+                val newCaps = if (success) ModelCapabilities.detect(nativeModel)
                               else ModelCapabilities.textOnlyFallback()
                 modelState.value = modelState.value.copy(
                     isModelLoading = false,
@@ -166,10 +189,48 @@ internal class ModelController(
                     availableModels = ModelManager.getAllModels(),
                     capabilities   = newCaps
                 )
-                if (success) autoLoadVisionProjectorIfPresent(model)
+                if (success) autoLoadVisionProjectorIfPresent(nativeModel)
+            }
+                }
             }
         }
     }
+
+    private suspend fun materializeForNative(model: ModelInfo, source: File): ModelInfo? =
+        withContext(Dispatchers.IO) {
+            val appFiles = listOfNotNull(appContext.filesDir, appContext.getExternalFilesDir(null))
+                .map { runCatching { it.canonicalFile }.getOrNull() }
+                .filterNotNull()
+            val sourceCanonical = runCatching { source.canonicalFile }.getOrNull() ?: return@withContext null
+            if (appFiles.any { sourceCanonical.path == it.path || sourceCanonical.path.startsWith(it.path + File.separator) }) {
+                return@withContext model
+            }
+            if (!sourceCanonical.isFile || !sourceCanonical.canRead()) return@withContext null
+            val targetDir = File(appContext.filesDir, "imported_models").apply { mkdirs() }
+            val stableName = "${source.nameWithoutExtension}_${source.length()}_${source.path.hashCode().toUInt().toString(16)}.gguf"
+            val target = File(targetDir, stableName)
+            if (!target.exists() || target.length() != source.length()) {
+                val temp = File(targetDir, "$stableName.part")
+                runCatching {
+                    source.inputStream().buffered(1024 * 1024).use { input ->
+                        temp.outputStream().buffered(1024 * 1024).use { output -> input.copyTo(output) }
+                    }
+                    if (temp.length() != source.length()) error("copied model size mismatch")
+                    if (!temp.renameTo(target)) error("cannot commit copied model")
+                }.onFailure {
+                    temp.delete()
+                    Log.e(TAG, "MODEL_IMPORT_FAILED source=${source.path} reason=${it.message}")
+                    return@withContext null
+                }
+            }
+            val validation = ModelValidator.validate(target, appContext, model.ramRequiredMb)
+            if (validation !is ValidationResult.Valid) {
+                Log.e(TAG, "MODEL_IMPORT_INVALID target=${target.path} result=$validation")
+                return@withContext null
+            }
+            Log.i(TAG, "MODEL_IMPORT_STABLE_PATH source=${source.path} target=${target.path} bytes=${target.length()}")
+            model.copy(path = target.absolutePath, id = target.absolutePath, fileName = target.name, size = target.length())
+        }
 
     internal fun autoLoadVisionProjectorIfPresent(model: ModelInfo) {
         viewModelScope.launch(Dispatchers.IO) {

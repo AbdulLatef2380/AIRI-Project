@@ -105,6 +105,10 @@ import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.CloudProvider
  import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.ExecutionRequest
+import com.airi.assistant.execution.ModelCapabilityEngine
+import com.airi.assistant.execution.ModelCapabilityDescriptor
+import com.airi.assistant.execution.AttachmentRequirement
+import com.airi.assistant.execution.CompatibilityDecision
 import com.airi.assistant.execution.HybridOrchestrator
 import com.airi.assistant.execution.PrivacyLevel
 import com.airi.assistant.execution.accounting.TokenAccountant
@@ -2734,6 +2738,38 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        // Final capability admission happens before any attachment is copied or
+        // reaches a local/cloud executor. Unknown and runtime-unavailable
+        // capabilities fail closed rather than becoming a provider 400.
+        val descriptor = currentCapabilityDescriptor()
+        val incompatible = attachments.firstNotNullOfOrNull { attachment ->
+            val requirement = when (attachment.contentType) {
+                AttachmentPolicy.ContentType.IMAGE -> AttachmentRequirement.IMAGE
+                AttachmentPolicy.ContentType.VIDEO -> AttachmentRequirement.VIDEO
+                AttachmentPolicy.ContentType.TEXT -> AttachmentRequirement.DOCUMENT
+                AttachmentPolicy.ContentType.DOCUMENT, AttachmentPolicy.ContentType.FILE ->
+                    if (attachment.normalizedMimeType == "application/pdf") AttachmentRequirement.PDF else AttachmentRequirement.DOCUMENT
+            }
+            val result = ModelCapabilityEngine.check(
+                descriptor = descriptor,
+                requirement = requirement,
+                mimeType = attachment.normalizedMimeType,
+                sizeBytes = attachment.sizeBytes,
+                count = attachments.count { it.contentType == attachment.contentType }
+            )
+            if (result.decision == CompatibilityDecision.BLOCK || result.decision == CompatibilityDecision.ALLOW_WITH_WARNING) result else null
+        }
+        if (incompatible != null) {
+            Log.w("AIRI_CAPABILITY", "blocked attachment capability=${incompatible.capability} status=${incompatible.status} model=${descriptor.modelId}")
+            onRejected(
+                when (incompatible.status) {
+                    com.airi.assistant.execution.CapabilityStatus.UNKNOWN -> AttachmentDispatchFailure.CAPABILITY_UNKNOWN
+                    else -> if (incompatible.capability == com.airi.assistant.execution.Capability.IMAGE_UNDERSTANDING) AttachmentDispatchFailure.VISION_UNAVAILABLE else AttachmentDispatchFailure.CAPABILITY_UNAVAILABLE
+                }
+            )
+            return
+        }
+
         val sessionAtDispatch = _currentSessionId.value
         _attachmentDispatchInFlight.value = true
         viewModelScope.launch {
@@ -2924,6 +2960,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         return context.toString().trim()
+    }
+
+    fun currentCapabilityDescriptor(): ModelCapabilityDescriptor {
+        val state = _modelState.value
+        val local = ModelRegistry.getById(state.selectedModelId)
+        return if (state.isModelReady && local != null) {
+            ModelCapabilityEngine.fromLocal(
+                model = local,
+                capabilities = state.capabilities,
+                mmprojLoaded = runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
+            )
+        } else if (state.isCloudReady && state.activeCloudProvider != null) {
+            ModelCapabilityEngine.fromCloud(state.activeCloudProvider, state.cloudModelName)
+        } else {
+            ModelCapabilityEngine.fromCloud(CloudProvider.CUSTOM, "")
+        }
     }
 
     private fun supportsVisionModel(provider: CloudProvider, modelName: String): Boolean {

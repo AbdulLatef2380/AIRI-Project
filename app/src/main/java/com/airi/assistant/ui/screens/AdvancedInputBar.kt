@@ -104,6 +104,7 @@ fun AdvancedChatInputBar(
     onRemoveAttachment:     (String) -> Unit        = {}
     ,bottomNavVisible:      Boolean                 = false
     ,onBottomNavToggle:     () -> Unit              = {}
+    ,imageInputEnabled:     Boolean                 = true
 ) {
     // Track focus state to collapse toolbar when idle
     var hasFocus by remember { mutableStateOf(false) }
@@ -191,6 +192,7 @@ fun AdvancedChatInputBar(
             onKnowledgeQueryChanged  = onKnowledgeQueryChanged,
             attachments             = attachments,
             onRemoveAttachment      = onRemoveAttachment
+            ,imageInputEnabled      = imageInputEnabled
         )
     }
 }

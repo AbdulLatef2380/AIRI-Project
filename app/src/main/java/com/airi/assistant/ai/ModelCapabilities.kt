@@ -49,6 +49,12 @@ data class ModelCapabilities(
             "smolvlm"
         )
 
+        /** Declared multimodal architecture; runtime readiness is checked separately. */
+        fun declaresVision(modelInfo: ModelInfo): Boolean {
+            val haystack = (modelInfo.fileName + "|" + modelInfo.name).lowercase()
+            return VISION_TAGS.any { it in haystack }
+        }
+
         // Architectures that are typically embedding-only models. A normal
         // chat LLM CAN also produce embeddings via llama_get_embeddings,
         // but the dedicated embedding GGUFs return a meaningful pooled

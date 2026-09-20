@@ -72,6 +72,8 @@ def test_source_invariants() -> None:
     chat_ui = text("app/src/main/java/com/airi/assistant/ui/screens/ChatScreen.kt")
     input_ui = text("app/src/main/java/com/airi/assistant/ui/screens/AdvancedInputBar.kt")
     app_ui = text("app/src/main/java/com/airi/assistant/ui/AiriApp.kt")
+    capability_engine = text("app/src/main/java/com/airi/assistant/execution/ModelCapabilityEngine.kt")
+    capability_tests = text("app/src/test/java/com/airi/assistant/execution/ModelCapabilityEngineTest.kt")
 
     check("cloud_checks_all_fallbacks", "providers.any" in cloud and "FAILOVER_PRIORITY" in cloud)
     check("cloud_emits_only_success", "emit only after success" in cloud and "onToken(result.fullText)" in cloud)
@@ -97,6 +99,12 @@ def test_source_invariants() -> None:
     check("compact_composer_default", "max = if (isExpanded) 180.dp else 44.dp" in chat_ui)
     check("navigation_handle_exists", "onBottomNavToggle" in input_ui and "detectVerticalDragGestures" in input_ui)
     check("navigation_hidden_by_default", "rememberSaveable { mutableStateOf(false) }" in app_ui and "bottomNavRevealed" in app_ui)
+    check("capability_engine_single_source", "enum class CapabilityStatus" in capability_engine and "object ModelCapabilityEngine" in capability_engine)
+    check("declared_runtime_separated", "declared: Map<Capability, CapabilityStatus>" in capability_engine and "runtime: Map<Capability, CapabilityStatus>" in capability_engine)
+    check("local_mmproj_runtime_gate", "mmprojLoaded" in capability_engine and "TEMPORARILY_UNAVAILABLE" in capability_engine)
+    check("cloud_exact_model_resolution", "fromCloud(provider: CloudProvider, modelId: String)" in capability_engine)
+    check("request_level_capability_guard", "currentCapabilityDescriptor()" in text("app/src/main/java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt") and "ModelCapabilityEngine.check" in text("app/src/main/java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt"))
+    check("capability_unit_tests", "declaredVisionWithoutProjectorIsUnavailable" in capability_tests and "cloudUsesExactModelId" in capability_tests)
 
 
 def test_patch_identity() -> None:

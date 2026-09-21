@@ -41,6 +41,14 @@ data class ExecutionRequest(
 
     val estimatedTotalTokens: Int get() = estimatedPromptTokens + maxTokens
 
+    /** Ensures every request entering a backend has a traceable identity. */
+    fun withResolvedIdentity(): ExecutionRequest =
+        if (identity != null) this else copy(
+            identity = ExecutionIdentity(
+                sessionId = ChatExecutionIdentityContract.normalizeSessionId(sessionTag),
+            )
+        )
+
     val requirementSummary: String get() = buildString {
         append("streaming=$requiresStreaming")
         if (requiresVision)           append(" vision=true")

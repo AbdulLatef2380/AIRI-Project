@@ -2,6 +2,7 @@ package com.airi.assistant.execution.diagnostics
 
 import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.ExecOrigin
+import com.airi.assistant.execution.ExecutionLifecycleState
 import com.airi.assistant.execution.cloud.CloudErrorType
 
 /**
@@ -23,6 +24,8 @@ data class ExecutionDiagnosticsState(
     val activeBackend:    String     = "none",   // "local_llama", "cloud", "none"
     val activeProvider:   CloudProvider? = null,  // Non-null when activeBackend == "cloud"
     val activeOrigin:     ExecOrigin  = ExecOrigin.NONE,
+    val lifecycleState:   ExecutionLifecycleState = ExecutionLifecycleState.IDLE,
+    val activeExecutionId: String = "",
 
     // ── Latest turn metrics ───────────────────────────────────────────────────
     val lastPromptTokens:      Int    = 0,
@@ -56,8 +59,11 @@ data class ExecTransitionEvent(
     val fromBackend: String,
     val toBackend:   String,
     val reason:      String,
-    val origin:      ExecOrigin
+    val origin:      ExecOrigin,
+    val executionId: String = ""
 ) {
+    val eventId: String get() = if (executionId.isBlank()) "transition:$timestampMs" else "$executionId:transition:$timestampMs"
+
     val formattedTime: String get() {
         val sdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
         return sdf.format(java.util.Date(timestampMs))

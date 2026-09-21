@@ -16,6 +16,8 @@ import com.airi.assistant.execution.cloud.RetryPolicy
 import com.airi.assistant.execution.network.NetworkGuard
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 
 /**
@@ -57,9 +59,11 @@ class CloudBackend(
     private val _errorCount    = java.util.concurrent.atomic.AtomicInteger(0)
     private val _totalLatencyMs = java.util.concurrent.atomic.AtomicLong(0)
     private val cancelRequested = java.util.concurrent.atomic.AtomicBoolean(false)
+    @Volatile private var activeRequestJob: Job? = null
 
     override fun cancelStream() {
         cancelRequested.set(true)
+        activeRequestJob?.cancel(kotlinx.coroutines.CancellationException("Cloud request cancelled"))
         RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.INFO, "Cloud cancellation requested")
     }
 
@@ -98,6 +102,8 @@ class CloudBackend(
         onError: suspend (String) -> Unit
     ) {
         cancelRequested.set(false)
+        activeRequestJob = currentCoroutineContext()[Job]
+        try {
         when (val guard = NetworkGuard.evaluate(prefs)) {
             is NetworkGuard.Decision.Block -> { onError("Network blocked: ${guard.reason}"); return }
             NetworkGuard.Decision.Allow -> {}
@@ -213,7 +219,20 @@ class CloudBackend(
                         TAG,
                         "CloudBackend failure provider=${provider.name} type=${result.errorType} http=${result.httpCode} errorChars=${result.error.length}"
                     )
-                    // Continue to next provider in failover chain
+                    // Permanent failures identify a bad request/configuration/model;
+                    // failing over would hide the actionable cause and can violate
+                    // the user's selected-provider contract.
+                    if (!result.retryable && result.errorType !in setOf(
+                            CloudErrorType.CONNECTION_LOST,
+                            CloudErrorType.TIMEOUT,
+                            CloudErrorType.SERVER_ERROR,
+                            CloudErrorType.RATE_LIMITED
+                        )
+                    ) {
+                        onError(lastError)
+                        return
+                    }
+                    // Continue to next provider only for transient failures.
                 }
             }
         }
@@ -227,6 +246,9 @@ class CloudBackend(
         
         _errorCount.incrementAndGet(); _globalErrorCount.incrementAndGet()
         onError(lastError)
+        } finally {
+            activeRequestJob = null
+        }
     }
 
     override suspend fun generate(request: ExecutionRequest): ExecutionResult =

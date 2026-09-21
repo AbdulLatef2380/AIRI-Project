@@ -26,8 +26,8 @@ import com.airi.assistant.ui.util.MarkdownText
  *    injected via [LanguageRuntimeManager.isolateLatinRuns]
  *  - The outer [DirectionalContent] wrapper sets the correct LayoutDirection
  *    so Compose layout (alignment, icon mirroring) matches the text
- *  - Streaming text is stable: direction is re-derived on each recomposition
- *    but only the final AnnotatedString allocation is expensive
+ *  - Streaming text is re-evaluated as content grows, preventing an English
+ *    prefix from locking a later Arabic response into LTR (or vice versa).
  */
 @Composable
 fun BidiAwareMarkdownRenderer(
@@ -35,7 +35,7 @@ fun BidiAwareMarkdownRenderer(
     modifier: Modifier = Modifier,
     isStreaming: Boolean = false
 ) {
-    val direction = remember(text.take(80)) {   // key on first 80 chars — stable during streaming
+    val direction = remember(text) {
         LanguageRuntimeManager.analyseDirection(text)
     }
     val layoutDir = LanguageRuntimeManager.toLayoutDirection(direction)

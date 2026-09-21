@@ -214,6 +214,14 @@ data class AgentState(
     )
 }
 
+/** A failed execution projection for UI only; it is never conversation history. */
+data class ExecutionErrorProjection(
+    val executionId: String,
+    val message: String,
+    val detail: String = "",
+    val occurredAtMs: Long = System.currentTimeMillis(),
+)
+
 enum class ExecutionStage {
     IDLE, PLANNING, EXECUTING, RECOVERING, REFLECTING, COMPLETED, FAILED, CANCELLED
 }
@@ -595,6 +603,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _agentState = MutableStateFlow(AgentState())
     val agentState: StateFlow<AgentState> = _agentState.asStateFlow()
+    private val _lastExecutionError = MutableStateFlow<ExecutionErrorProjection?>(null)
+    val lastExecutionError: StateFlow<ExecutionErrorProjection?> = _lastExecutionError.asStateFlow()
+    fun clearExecutionError() { _lastExecutionError.value = null }
 
     // ── Context Reset Warning ─────────────────────────────────────────────────
     // Emits a non-null reason string whenever the active context window is
@@ -1563,6 +1574,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // The composer stays disabled while an execution owns the stream. This
         // guard also protects programmatic callers from queuing a second request.
         if (_agentState.value.isWorking) return false
+        _lastExecutionError.value = null
         // ── Long-text-to-file conversion (3000+ chars) ────────────────────────
         // When the user pastes/sends very long text (e.g. code, articles, logs),
         // convert it to a .txt file attachment instead of embedding it inline.
@@ -2012,15 +2024,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     // backend reason so provider/model failures are diagnosable
                     // instead of appearing as an indistinguishable retry loop.
                     val detail = e.message?.trim()?.take(240).orEmpty()
-                    val errMsg = appContext.getString(R.string.err_generation_failed) +
-                        detail.takeIf { it.isNotBlank() }?.let { "\n$it" }.orEmpty()
-                    val errRec = memoryManager.recordChatMessage(
-                        sessionId = sessionId,
-                        role = "assistant",
-                        content = errMsg,
-                        projectId = activeProjectId
+                    _lastExecutionError.value = ExecutionErrorProjection(
+                        executionId = "generation-$generationId",
+                        message = appContext.getString(R.string.err_generation_failed),
+                        detail = detail,
                     )
-                    _messages.update { it + ChatMessage(errMsg, isUser = false, id = errRec.id) }
                 }
             } finally {
                 if (!isCurrentGeneration(generationId)) return@launch
@@ -2723,11 +2731,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val localVisionReady = _modelState.value.capabilities.vision &&
+        val localAllowed = execModePrefs.effectiveMode != ExecutionMode.CLOUD_ONLY
+        val cloudAllowed = execModePrefs.effectiveMode != ExecutionMode.LOCAL_ONLY
+        val localVisionReady = localAllowed && _modelState.value.capabilities.vision &&
             runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
         val cloudProvider = _modelState.value.activeCloudProvider
-        val cloudVisionReady = _modelState.value.isCloudReady &&
-            cloudProvider != null && supportsVisionModel(cloudProvider, _modelState.value.cloudModelName)
+        val cloudDescriptor = cloudProvider?.let {
+            ModelCapabilityEngine.fromCloud(it, _modelState.value.cloudModelName)
+        }
+        val cloudVisionReady = cloudAllowed && _modelState.value.isCloudReady &&
+            cloudDescriptor?.isReady(com.airi.assistant.execution.Capability.VISION) == true
         val visionReady = localVisionReady || cloudVisionReady
         val preflightFailure = AttachmentDispatchPolicy.preflight(
             modelLoading = _modelState.value.isModelLoading,
@@ -2741,9 +2754,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Final capability admission happens before any attachment is copied or
-        // reaches a local/cloud executor. Unknown and runtime-unavailable
-        // capabilities fail closed rather than becoming a provider 400.
-        val descriptor = currentCapabilityDescriptor()
+        // reaches a local/cloud executor. Evaluate every policy-allowed runtime:
+        // a local text-only model must not hide a compatible cloud vision model
+        // in HYBRID/CLOUD mode, while UNKNOWN remains fail-closed.
+        val candidateDescriptors = buildList {
+            val state = _modelState.value
+            val local = ModelRegistry.getById(state.selectedModelId)
+            if (localAllowed && state.isModelReady && local != null) add(
+                ModelCapabilityEngine.fromLocal(
+                    model = local,
+                    capabilities = state.capabilities,
+                    mmprojLoaded = runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false),
+                    availableRamMb = runCatching { DeviceProfiler.profile(appContext).availableRamMb }.getOrNull(),
+                    modelAvailable = state.isModelReady,
+                )
+            )
+            if (cloudAllowed && state.isCloudReady && state.activeCloudProvider != null) add(
+                ModelCapabilityEngine.fromCloud(state.activeCloudProvider, state.cloudModelName)
+            )
+            if (isEmpty()) add(ModelCapabilityEngine.fromCloud(CloudProvider.CUSTOM, ""))
+        }
         val incompatible = attachments.firstNotNullOfOrNull { attachment ->
             val requirement = when (attachment.contentType) {
                 AttachmentPolicy.ContentType.IMAGE -> AttachmentRequirement.IMAGE
@@ -2752,17 +2782,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 AttachmentPolicy.ContentType.DOCUMENT, AttachmentPolicy.ContentType.FILE ->
                     if (attachment.normalizedMimeType == "application/pdf") AttachmentRequirement.PDF else AttachmentRequirement.DOCUMENT
             }
-            val result = ModelCapabilityEngine.check(
-                descriptor = descriptor,
-                requirement = requirement,
-                mimeType = attachment.normalizedMimeType,
-                sizeBytes = attachment.sizeBytes,
-                count = attachments.count { it.contentType == attachment.contentType }
-            )
-            if (result.decision == CompatibilityDecision.BLOCK || result.decision == CompatibilityDecision.ALLOW_WITH_WARNING) result else null
+            val results = candidateDescriptors.map { descriptor ->
+                ModelCapabilityEngine.check(
+                    descriptor = descriptor,
+                    requirement = requirement,
+                    mimeType = attachment.normalizedMimeType,
+                    sizeBytes = attachment.sizeBytes,
+                    count = attachments.count { it.contentType == attachment.contentType }
+                )
+            }
+            if (results.any { it.decision == CompatibilityDecision.ALLOW }) null else results.first()
         }
         if (incompatible != null) {
-            Log.w("AIRI_CAPABILITY", "blocked attachment capability=${incompatible.capability} status=${incompatible.status} model=${descriptor.modelId}")
+            Log.w("AIRI_CAPABILITY", "blocked attachment capability=${incompatible.capability} status=${incompatible.status} candidates=${candidateDescriptors.size}")
             onRejected(
                 when (incompatible.status) {
                     com.airi.assistant.execution.CapabilityStatus.UNKNOWN -> AttachmentDispatchFailure.CAPABILITY_UNKNOWN
@@ -2982,21 +3014,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun supportsVisionModel(provider: CloudProvider, modelName: String): Boolean {
-        val model = modelName.lowercase().substringAfterLast('/').trim()
-        return when (provider) {
-            CloudProvider.GEMINI -> model.startsWith("gemini-")
-            CloudProvider.OPENAI -> model.contains("gpt-4o") || model.contains("gpt-4.1") ||
-                model.contains("gpt-4.5") || model.contains("o1") || model.contains("o3") || model.contains("o4")
-            CloudProvider.OPENROUTER -> model.contains("gemini") || model.contains("gpt-4") ||
-                model.contains("claude-3") || model.contains("qwen-vl") || model.contains("llava") ||
-                model.contains("vision")
-            CloudProvider.CUSTOM -> model.contains("vision") || model.contains("-vl") ||
-                model.contains("llava") || model.contains("qwen2.5-vl")
-            else -> false
-        }
-    }
-
     private fun visionImagePart(attachment: ChatAttachment): ExecutionRequest.ImagePart? {
         val path = attachment.persistedPath ?: return null
         val file = File(path)
@@ -3016,6 +3033,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         if (_modelState.value.isModelLoading || _agentState.value.isWorking) return
+        _lastExecutionError.value = null
 
         // ── : Privacy gate enforcement ─────────────────────────────────
         // generateWithImage always uses the local llama.cpp runtime (no cloud path
@@ -3144,9 +3162,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             if (rgbBundle == null) {
-                _messages.update {
-                    it + ChatMessage(appContext.getString(R.string.err_image_process_failed), isUser = false)
-                }
+                _lastExecutionError.value = ExecutionErrorProjection(
+                    executionId = "generation-$generationId",
+                    message = appContext.getString(R.string.err_image_process_failed),
+                )
                 finishGeneration(generationId)
                 return@launch
             }
@@ -3158,6 +3177,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val visionPrompt = trimmedInput.ifBlank { "Describe this image in detail." }
 
             val visionStart = System.currentTimeMillis()
+            val visionTerminalGuard = com.airi.assistant.execution.TerminalDeliveryGuard()
             llamaManager.generateWithImage(
                 prompt    = visionPrompt,
                 rgb888    = rgb888,
@@ -3169,6 +3189,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     Log.i("AIRI",
                         "VISION_REPLY_DELIVERED elapsed_ms=$elapsed reply_len=${fullText.length}")
                     viewModelScope.launch {
+                        if (!visionTerminalGuard.tryDeliver()) return@launch
                         if (!isCurrentGeneration(generationId)) return@launch
                         if (_isCancelled.get()) {
                             finishGeneration(generationId)
@@ -3191,14 +3212,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 onError = { errMsg ->
                     Log.w("AIRI", "VISION_REPLY_FAILED errorChars=${errMsg.length}")
                     viewModelScope.launch {
+                        if (!visionTerminalGuard.tryDeliver()) return@launch
                         if (!isCurrentGeneration(generationId)) return@launch
                         if (_isCancelled.get()) {
                             finishGeneration(generationId)
                             return@launch
                         }
-                        _messages.update {
-                            it + ChatMessage(appContext.getString(R.string.err_image_analyze_failed), isUser = false)
-                        }
+                        _lastExecutionError.value = ExecutionErrorProjection(
+                            executionId = "generation-$generationId",
+                            message = appContext.getString(R.string.err_image_analyze_failed),
+                            detail = errMsg,
+                        )
                         finishGeneration(generationId)
                     }
                 }

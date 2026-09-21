@@ -37,6 +37,7 @@ class LlamaManager(private val context: Context) {
 
     private var isLoaded = false
     private var lastLoadFailure: String? = null
+    private var loadedModelPath: String? = null
 
     // ── Native-call serialization (, finding D) ────────────────────────
     // The KV cache, sampler, and llama_context in LlamaBridge.cpp are file-scope
@@ -56,6 +57,8 @@ class LlamaManager(private val context: Context) {
 
     /** Canonical prior history supplied by the caller (excludes the current turn). */
     private val chatHistory = mutableListOf<ChatMessage>()
+    /** In-memory context snapshot retained across an explicit unload/reload. */
+    private var reloadHistorySnapshot: List<ChatMessage> = emptyList()
     // Bug B fix (was: 6). With 6 messages of typical Arabic content the
     // cold-restart replay (sys + 6 msgs ≈ 1500-2000 tokens) takes 30-90s on
     // mid-range CPUs and was tripping ERR_FIRST_TOKEN_TIMEOUT after a few
@@ -498,6 +501,8 @@ class LlamaManager(private val context: Context) {
                     }
                 )
                 isLoaded = true
+                loadedModelPath = modelFile.absolutePath
+                restoreReloadHistory()
                 // SPRINT 1: Capture live nCtx immediately after model load.
                 // This is the first point where getNCtx() returns a valid value
                 // reflecting the actual loaded model's context window.
@@ -533,6 +538,8 @@ class LlamaManager(private val context: Context) {
                     }
                 isLoaded = (result == "LOAD_SUCCESS" || result == "Success")
                 if (isLoaded) {
+                    loadedModelPath = modelFile.absolutePath
+                    restoreReloadHistory()
                     // SPRINT 1: Also capture live nCtx on the legacy load path.
                     contextBudget = ContextBudget.fromNative()
                     Log.i(TAG,
@@ -567,6 +574,7 @@ class LlamaManager(private val context: Context) {
     }
 
     fun getLastLoadFailure(): String? = lastLoadFailure
+    fun getLoadedModelPath(): String? = loadedModelPath
 
     /**
      * , finding E (revised after source audit):
@@ -595,11 +603,11 @@ class LlamaManager(private val context: Context) {
         // this flag every callback and will exit on the next tick.
         cancelRequested.set(true)
         runCatching { LlamaNative.cancel() }
-
         scope.launch {
             // We're now serialized behind any in-flight generate(), so it's
             // safe to touch native state.
             try {
+                reloadHistorySnapshot = chatHistory.toList()
                 if (LlamaNative.isAvailable()) {
                     runCatching { LlamaNative.resetSession() }
                         .onSuccess { Log.i("AIRI", "UNLOAD_KV_CLEARED") }
@@ -607,6 +615,7 @@ class LlamaManager(private val context: Context) {
                 }
             } finally {
                 isLoaded = false
+                loadedModelPath = null
                 chatHistory.clear()
                 invalidateSession()
                 Log.i("AIRI",
@@ -623,6 +632,14 @@ class LlamaManager(private val context: Context) {
                 }
             }
         }
+    }
+
+    private fun restoreReloadHistory() {
+        if (reloadHistorySnapshot.isEmpty()) return
+        chatHistory.clear()
+        chatHistory.addAll(trimContext(reloadHistorySnapshot))
+        reloadHistorySnapshot = emptyList()
+        Log.i(TAG, "CONTEXT_REBUILT_AFTER_RELOAD turns=${chatHistory.size}")
     }
 
     fun setHistory(messages: List<ChatMessage>) {

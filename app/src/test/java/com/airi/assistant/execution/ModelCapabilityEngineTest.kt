@@ -37,4 +37,35 @@ class ModelCapabilityEngineTest {
         assertEquals(CapabilityStatus.UNKNOWN, custom.status(Capability.IMAGE_UNDERSTANDING))
         assertTrue(custom.confidence == CapabilityConfidence.UNKNOWN)
     }
+
+    @Test fun capabilityIsNotFeasibility() {
+        val model = local("llama-7b").copy(ramRequiredMb = 4096)
+        val descriptor = ModelCapabilityEngine.fromLocal(
+            model,
+            textCaps,
+            mmprojLoaded = false,
+            availableRamMb = 1800,
+        )
+        assertEquals(CapabilityStatus.SUPPORTED, descriptor.status(Capability.TEXT_INPUT))
+        assertEquals(ModelAvailability.AVAILABLE, descriptor.readiness.availability)
+        assertEquals(ModelFeasibility.INSUFFICIENT_RESOURCES, descriptor.readiness.feasibility)
+        assertEquals(
+            CompatibilityDecision.BLOCK,
+            ModelCapabilityEngine.check(descriptor, AttachmentRequirement.TEXT, "text/plain", 10).decision,
+        )
+    }
+
+    @Test fun unavailableModelBlocksBeforeAttachmentCapability() {
+        val descriptor = ModelCapabilityEngine.fromLocal(
+            local("llama-3.1-8b"),
+            textCaps,
+            mmprojLoaded = false,
+            modelAvailable = false,
+        )
+        assertEquals(ModelAvailability.UNAVAILABLE, descriptor.readiness.availability)
+        assertEquals(
+            CompatibilityDecision.BLOCK,
+            ModelCapabilityEngine.check(descriptor, AttachmentRequirement.TEXT, "text/plain", 10).decision,
+        )
+    }
 }

@@ -2969,7 +2969,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             ModelCapabilityEngine.fromLocal(
                 model = local,
                 capabilities = state.capabilities,
-                mmprojLoaded = runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
+                mmprojLoaded = runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false),
+                availableRamMb = runCatching { DeviceProfiler.profile(appContext).availableRamMb }.getOrNull(),
+                modelAvailable = state.isModelReady,
             )
         } else if (state.isCloudReady && state.activeCloudProvider != null) {
             ModelCapabilityEngine.fromCloud(state.activeCloudProvider, state.cloudModelName)

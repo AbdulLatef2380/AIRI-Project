@@ -103,6 +103,8 @@ def test_source_invariants() -> None:
     check("declared_runtime_separated", "declared: Map<Capability, CapabilityStatus>" in capability_engine and "runtime: Map<Capability, CapabilityStatus>" in capability_engine)
     check("local_mmproj_runtime_gate", "mmprojLoaded" in capability_engine and "TEMPORARILY_UNAVAILABLE" in capability_engine)
     check("cloud_exact_model_resolution", "fromCloud(provider: CloudProvider, modelId: String)" in capability_engine)
+    check("capability_availability_feasibility_separated", "enum class ModelAvailability" in capability_engine and "enum class ModelFeasibility" in capability_engine and "readiness: ModelReadiness" in capability_engine)
+    check("resource_gate_before_execution", "INSUFFICIENT_RESOURCES" in capability_engine and "ModelAvailability.UNAVAILABLE" in capability_engine and "CompatibilityDecision.BLOCK" in capability_engine)
     check("request_level_capability_guard", "currentCapabilityDescriptor()" in text("app/src/main/java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt") and "ModelCapabilityEngine.check" in text("app/src/main/java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt"))
     check("capability_unit_tests", "declaredVisionWithoutProjectorIsUnavailable" in capability_tests and "cloudUsesExactModelId" in capability_tests)
 

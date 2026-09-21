@@ -16,6 +16,14 @@ enum class CapabilityStatus { SUPPORTED, UNSUPPORTED, SUPPORTED_WITH_LIMITS, UNK
 enum class CapabilityConfidence { VERIFIED, DECLARED, INFERRED, UNKNOWN }
 enum class AttachmentRequirement { TEXT, IMAGE, VIDEO, AUDIO, DOCUMENT, PDF }
 enum class CompatibilityDecision { ALLOW, ALLOW_WITH_WARNING, BLOCK, ROUTE_TO_COMPATIBLE_MODEL }
+enum class ModelAvailability { AVAILABLE, UNAVAILABLE, UNKNOWN }
+enum class ModelFeasibility { FEASIBLE, INSUFFICIENT_RESOURCES, UNKNOWN }
+
+data class ModelReadiness(
+    val availability: ModelAvailability = ModelAvailability.UNKNOWN,
+    val feasibility: ModelFeasibility = ModelFeasibility.UNKNOWN,
+    val reason: String = ""
+)
 
 data class CapabilityLimit(
     val maxImages: Int? = null,
@@ -33,7 +41,8 @@ data class ModelCapabilityDescriptor(
     val runtime: Map<Capability, CapabilityStatus>,
     val confidence: CapabilityConfidence,
     val limits: CapabilityLimit = CapabilityLimit(),
-    val explanation: String = ""
+    val explanation: String = "",
+    val readiness: ModelReadiness = ModelReadiness()
 ) {
     fun status(capability: Capability): CapabilityStatus =
         runtime[capability] ?: declared[capability] ?: CapabilityStatus.UNKNOWN
@@ -51,7 +60,13 @@ data class AttachmentCompatibility(
 )
 
 object ModelCapabilityEngine {
-    fun fromLocal(model: ModelInfo, capabilities: ModelCapabilities, mmprojLoaded: Boolean): ModelCapabilityDescriptor {
+    fun fromLocal(
+        model: ModelInfo,
+        capabilities: ModelCapabilities,
+        mmprojLoaded: Boolean,
+        availableRamMb: Int? = null,
+        modelAvailable: Boolean = true,
+    ): ModelCapabilityDescriptor {
         val declaredVision = ModelCapabilities.declaresVision(model)
         val runtimeVision = when {
             !declaredVision -> CapabilityStatus.UNSUPPORTED
@@ -79,6 +94,16 @@ object ModelCapabilityEngine {
             put(Capability.IMAGE_UNDERSTANDING, runtimeVision)
             put(Capability.VISION, runtimeVision)
         }
+        val feasibility = when {
+            model.ramRequiredMb <= 0 || availableRamMb == null -> ModelFeasibility.UNKNOWN
+            availableRamMb >= model.ramRequiredMb -> ModelFeasibility.FEASIBLE
+            else -> ModelFeasibility.INSUFFICIENT_RESOURCES
+        }
+        val readinessReason = when {
+            !modelAvailable -> "النموذج غير متاح في مسار التخزين الحالي."
+            feasibility == ModelFeasibility.INSUFFICIENT_RESOURCES -> "الذاكرة المتاحة أقل من متطلبات النموذج المعروفة."
+            else -> ""
+        }
         return ModelCapabilityDescriptor(
             modelId = model.id,
             displayName = model.name,
@@ -88,7 +113,12 @@ object ModelCapabilityEngine {
             runtime = runtime,
             confidence = if (declaredVision) CapabilityConfidence.DECLARED else CapabilityConfidence.VERIFIED,
             limits = CapabilityLimit(maxImages = if (runtimeVision == CapabilityStatus.SUPPORTED) 1 else null, maxFileSizeBytes = 12L * 1024L * 1024L),
-            explanation = if (declaredVision && runtimeVision != CapabilityStatus.SUPPORTED) "يتطلب هذا النموذج multimodal projector صالحًا ومحمّلًا." else ""
+            explanation = if (declaredVision && runtimeVision != CapabilityStatus.SUPPORTED) "يتطلب هذا النموذج multimodal projector صالحًا ومحمّلًا." else "",
+            readiness = ModelReadiness(
+                availability = if (modelAvailable) ModelAvailability.AVAILABLE else ModelAvailability.UNAVAILABLE,
+                feasibility = feasibility,
+                reason = readinessReason,
+            )
         )
     }
 
@@ -122,7 +152,11 @@ object ModelCapabilityEngine {
             runtime = values,
             confidence = if (provider == CloudProvider.CUSTOM) CapabilityConfidence.UNKNOWN else CapabilityConfidence.VERIFIED,
             limits = CapabilityLimit(maxImages = if (vision) 4 else null, maxFileSizeBytes = 12L * 1024L * 1024L),
-            explanation = if (vision) "تم التعرف على capability حسب model ID المحدد." else "هذا model ID لا يعلن دعم الصور في كتالوج AIRI الحالي."
+            explanation = if (vision) "تم التعرف على capability حسب model ID المحدد." else "هذا model ID لا يعلن دعم الصور في كتالوج AIRI الحالي.",
+            readiness = ModelReadiness(
+                availability = if (exact.isBlank()) ModelAvailability.UNKNOWN else ModelAvailability.AVAILABLE,
+                feasibility = ModelFeasibility.UNKNOWN,
+            )
         )
     }
 
@@ -141,6 +175,8 @@ object ModelCapabilityEngine {
         val tooMany = limit.maxImages?.let { count > it } == true
         val unsupportedMime = limit.supportedMimeTypes.isNotEmpty() && mimeType != null && mimeType !in limit.supportedMimeTypes
         val reason = when {
+            descriptor.readiness.availability == ModelAvailability.UNAVAILABLE -> descriptor.readiness.reason.ifBlank { "النموذج غير متاح حاليًا." }
+            descriptor.readiness.feasibility == ModelFeasibility.INSUFFICIENT_RESOURCES -> descriptor.readiness.reason.ifBlank { "موارد الجهاز غير كافية لتشغيل النموذج بأمان." }
             tooLarge -> "حجم المرفق يتجاوز الحد المعروف للنموذج."
             tooMany -> "عدد الصور يتجاوز الحد المعروف للنموذج."
             unsupportedMime -> "نوع MIME غير مدعوم لهذا النموذج."
@@ -150,7 +186,9 @@ object ModelCapabilityEngine {
             else -> ""
         }
         val decision = when {
-            tooLarge || tooMany || unsupportedMime || status == CapabilityStatus.UNSUPPORTED || status == CapabilityStatus.TEMPORARILY_UNAVAILABLE -> CompatibilityDecision.BLOCK
+            descriptor.readiness.availability == ModelAvailability.UNAVAILABLE ||
+                descriptor.readiness.feasibility == ModelFeasibility.INSUFFICIENT_RESOURCES ||
+                tooLarge || tooMany || unsupportedMime || status == CapabilityStatus.UNSUPPORTED || status == CapabilityStatus.TEMPORARILY_UNAVAILABLE -> CompatibilityDecision.BLOCK
             status == CapabilityStatus.UNKNOWN -> CompatibilityDecision.ALLOW_WITH_WARNING
             status == CapabilityStatus.SUPPORTED_WITH_LIMITS -> CompatibilityDecision.ALLOW_WITH_WARNING
             else -> CompatibilityDecision.ALLOW

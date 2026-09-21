@@ -9,6 +9,7 @@ This patch hardens the shared execution boundary used by `main` and `cp-foundati
 | Area | Change | Verification |
 |---|---|---|
 | Request identity | Added `ExecutionIdentity` with request, session, execution, and deterministic tool-call correlation identifiers. | `ExecutionIntegrityTest.identityKeepsSessionAndBuildsDistinctToolCalls` |
+| ChatViewModel ↔ AgentLoop identity | Added `ChatExecutionIdentityContract`; ChatViewModel normalizes the active session before dispatch and AgentLoop creates every request identity from the same contract. | `chatViewModelAndAgentLoopShareTheSameNormalizedSessionIdentity`, `blankChatSessionUsesSafeNonBlankBoundaryValue`, and `retryRequestPreservesIdentityWhilePromptMayChange` |
 | Lifecycle | Added a deterministic execution lifecycle state machine with explicit terminal states and illegal-transition rejection. | `ExecutionIntegrityTest.stateMachineAllowsNormalLifecycleAndExactlyOneTerminalState` and `stateMachineRejectsIllegalSkip` |
 | Terminal delivery | Added a thread-safe exactly-once terminal callback guard and applied it in `HybridOrchestrator`. | `ExecutionIntegrityTest.terminalDeliveryIsExactlyOnce` |
 | Tool idempotency | Added a per-execution tool ledger keyed by execution, tool, arguments hash, and parent step; integrated it into `AgentLoop`. | `ExecutionIntegrityTest.toolLedgerBlocksOnlyExactDuplicateAndAllowsChangedArguments` |

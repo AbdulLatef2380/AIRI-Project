@@ -1866,7 +1866,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     tools        = activeTools,
                     queryType    = queryType,
                     modelId      = selectedModelIdAtDispatch,
-                    sessionId    = sessionId,
+                    sessionId    = com.airi.assistant.execution.ChatExecutionIdentityContract
+                        .normalizeSessionId(sessionId),
                     visionParts  = visionParts,
                     onToken      = token@{ tok ->
                         if (!isCurrentGeneration(generationId) || _isCancelled.get()) return@token

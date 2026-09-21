@@ -12,6 +12,7 @@ import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.ExecutionIdentity
+import com.airi.assistant.execution.ChatExecutionIdentityContract
 import com.airi.assistant.execution.ToolCallFingerprint
 import com.airi.assistant.execution.ToolCallLedger
 import com.airi.assistant.execution.stableArgumentsHash
@@ -130,10 +131,7 @@ Do not mix tool_call JSON with prose in the same message.
         val history      = mutableListOf<ConversationTurn>()
         var stepsUsed    = 0
         val executionId   = UUID.randomUUID().toString()
-        val requestIdentity = ExecutionIdentity(
-            sessionId = sessionId.ifBlank { "session-unknown" },
-            executionId = executionId,
-        )
+        val requestIdentity = ChatExecutionIdentityContract.create(sessionId, executionId)
         val toolLedger = ToolCallLedger()
         var isPlanPublished = false
         var durableExecutionContext: AgentLoopExecutionContext? = null

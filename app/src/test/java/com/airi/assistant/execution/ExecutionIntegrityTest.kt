@@ -1,9 +1,9 @@
 package com.airi.assistant.execution
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
 
 class ExecutionIntegrityTest {
     @Test
@@ -15,6 +15,35 @@ class ExecutionIntegrityTest {
         assertTrue(identity.executionId.startsWith("exec-"))
         assertTrue(first != second)
         assertTrue(first.contains(identity.executionId))
+    }
+
+    @Test
+    fun chatViewModelAndAgentLoopShareTheSameNormalizedSessionIdentity() {
+        val chatSessionId = ChatExecutionIdentityContract.normalizeSessionId("  chat-session-42  ")
+        val identity = ChatExecutionIdentityContract.create(chatSessionId, "execution-42")
+
+        assertEquals("chat-session-42", chatSessionId)
+        assertEquals("chat-session-42", identity.sessionId)
+        assertEquals("execution-42", identity.executionId)
+    }
+
+    @Test
+    fun blankChatSessionUsesSafeNonBlankBoundaryValue() {
+        val identity = ChatExecutionIdentityContract.create("  ", "execution-blank-session")
+
+        assertEquals(ChatExecutionIdentityContract.UNKNOWN_SESSION, identity.sessionId)
+        assertTrue(identity.sessionId.isNotBlank())
+    }
+
+    @Test
+    fun retryRequestPreservesIdentityWhilePromptMayChange() {
+        val identity = ChatExecutionIdentityContract.create("chat-session-7", "execution-7")
+        val firstRequest = ExecutionRequest(prompt = "first", identity = identity)
+        val retryRequest = firstRequest.copy(prompt = "retry with reduced context")
+
+        assertEquals(identity, firstRequest.identity)
+        assertEquals(identity, retryRequest.identity)
+        assertEquals("retry with reduced context", retryRequest.prompt)
     }
 
     @Test

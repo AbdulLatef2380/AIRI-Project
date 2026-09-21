@@ -84,7 +84,8 @@ object RoutingPolicy {
         val fallbackEnabled = prefs.offlineFallbackEnabled
 
         // ── Rule 1 + 2 + 3: hard local gates ─────────────────────────────────
-        if (mode == ExecutionMode.LOCAL_ONLY ||
+        if (!request.allowCloud ||
+            mode == ExecutionMode.LOCAL_ONLY ||
             privacy == PrivacyLevel.MAXIMUM ||
             !prefs.internetPermissionGranted) {
             return Selection(listOf(local), "LOCAL_ONLY / privacy=MAXIMUM / no internet permission", DecisionReason.HARD_LOCAL_GATE)

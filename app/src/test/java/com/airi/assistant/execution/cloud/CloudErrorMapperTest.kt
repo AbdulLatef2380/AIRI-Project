@@ -33,4 +33,24 @@ class CloudErrorMapperTest {
         assertTrue(mapped.message.contains("context window"))
         assertFalse(mapped.message.contains("local context"))
     }
+
+    @Test
+    fun permanentClientErrorsAreNotRetryable() {
+        assertEquals(CloudErrorType.INVALID_REQUEST, CloudErrorMapper.map(400, "bad syntax").type)
+        assertEquals(CloudErrorType.UNAUTHORIZED, CloudErrorMapper.map(401, "invalid key").type)
+        assertEquals(CloudErrorType.UNAUTHORIZED, CloudErrorMapper.map(403, "permission denied").type)
+        assertEquals(CloudErrorType.MODEL_NOT_FOUND, CloudErrorMapper.map(404, "model not found").type)
+        assertFalse(CloudErrorMapper.map(400, "bad syntax").retryable)
+        assertFalse(CloudErrorMapper.map(404, "model not found").retryable)
+    }
+
+    @Test
+    fun transientErrorsAreRetryableAndQuotaIsNot() {
+        assertTrue(CloudErrorMapper.map(408, "timeout").retryable)
+        assertTrue(CloudErrorMapper.map(429, "rate limit exceeded").retryable)
+        assertFalse(CloudErrorMapper.map(429, "quota exceeded").retryable)
+        assertTrue(CloudErrorMapper.map(500, "server").retryable)
+        assertTrue(CloudErrorMapper.map(503, "unavailable").retryable)
+        assertTrue(CloudErrorMapper.map(504, "gateway timeout").retryable)
+    }
 }

@@ -136,9 +136,12 @@ class HybridOrchestrator(
         onError:    suspend (String, ExecOrigin)       -> Unit
     ) = executionLock.withLock {
         val genId = generationGate.beginGeneration()
+        val terminalGuard = TerminalDeliveryGuard()
 
         RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.INFO,
-            "gen#$genId EXECUTE ${request.queryType.name} mode=${prefs.effectiveMode.name} " +
+            "gen#$genId request=${request.identity?.requestId ?: "unidentified"} " +
+            "execution=${request.identity?.executionId ?: "unidentified"} " +
+            "EXECUTE ${request.queryType.name} mode=${prefs.effectiveMode.name} " +
             "tokens_est=${request.estimatedPromptTokens}")
 
         updateDiagnostics { copy(isStreaming = true, activeBackend = "routing") }
@@ -246,7 +249,7 @@ class HybridOrchestrator(
                     }
                 },
                 onComplete = { fullText, latencyMs ->
-                    if (generationGate.accepts(genId) && !completionDelivered && fullText.isNotBlank()) {
+                    if (generationGate.accepts(genId) && !completionDelivered && fullText.isNotBlank() && terminalGuard.tryDeliver()) {
                         completionDelivered = true
                         backendSucceeded = true
                         updateDiagnostics { copy(
@@ -285,7 +288,7 @@ class HybridOrchestrator(
         updateDiagnostics { copy(isStreaming = false, lastErrorMessage = lastError) }
         RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.ERROR,
             "gen#$genId All backends failed. Last: ${lastError.take(80)}")
-        onError(lastError, lastOrigin)
+        if (terminalGuard.tryDeliver()) onError(lastError, lastOrigin)
     }
 
     // ── Privacy gate ──────────────────────────────────────────────────────────

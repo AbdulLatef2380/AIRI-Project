@@ -11,6 +11,10 @@ import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.execution.ExecutionRequest
+import com.airi.assistant.execution.ExecutionIdentity
+import com.airi.assistant.execution.ToolCallFingerprint
+import com.airi.assistant.execution.ToolCallLedger
+import com.airi.assistant.execution.stableArgumentsHash
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.HybridOrchestrator
 import com.airi.assistant.ui.viewmodel.AgentState
@@ -115,6 +119,7 @@ Do not mix tool_call JSON with prose in the same message.
         tools:          List<ToolSchema>,
         queryType:     QueryType              = QueryType.UNKNOWN,
         modelId:        String                 = "",
+        sessionId:      String                 = "",
         visionParts:    List<com.airi.assistant.execution.ExecutionRequest.ImagePart> = emptyList(),
         onToken:        suspend (String) -> Unit,
         onStepComplete: suspend (StepEvent) -> String? = { null },
@@ -125,13 +130,18 @@ Do not mix tool_call JSON with prose in the same message.
         val history      = mutableListOf<ConversationTurn>()
         var stepsUsed    = 0
         val executionId   = UUID.randomUUID().toString()
+        val requestIdentity = ExecutionIdentity(
+            sessionId = sessionId.ifBlank { "session-unknown" },
+            executionId = executionId,
+        )
+        val toolLedger = ToolCallLedger()
         var isPlanPublished = false
         var durableExecutionContext: AgentLoopExecutionContext? = null
         var activeToolTrace: ActiveToolTrace? = null
 
         // If no tools provided, single-pass inference
         if (tools.isEmpty()) {
-            val response = callLLM(input, systemPrompt, history, tools, queryType, modelId, visionParts, onToken)
+            val response = callLLM(input, systemPrompt, history, tools, queryType, modelId, visionParts, onToken, requestIdentity)
             return LoopResult(response, 1, emptyList())
         }
 
@@ -163,7 +173,8 @@ Do not mix tool_call JSON with prose in the same message.
                     onToken       = { tok ->
                         tokenBuffer.append(tok)
                         onToken(tok)
-                    }
+                    },
+                    identity      = requestIdentity,
                 )
 
                 Log.d(TAG, "Agent step completed: step=$stepsUsed responseChars=${rawResponse.length}")
@@ -193,7 +204,8 @@ Do not mix tool_call JSON with prose in the same message.
                             queryType      = queryType,
                             modelId = modelId,
                             visionParts = visionParts,
-                            onToken        = {}   // don't stream retry to UI
+                            onToken        = {},   // don't stream retry to UI
+                            identity       = requestIdentity,
                         )
                     } catch (e: Exception) {
                         Log.w(TAG, "Tool call retry callLLM failed: ${e.message}")
@@ -219,6 +231,16 @@ Do not mix tool_call JSON with prose in the same message.
                 val toolName = toolCall.first
                 val toolArgs = toolCall.second
                 toolsInvoked.add(toolName)
+                val toolStepId = "tool_${stepsUsed}_$toolName"
+                val toolFingerprint = ToolCallFingerprint(
+                    executionId = executionId,
+                    toolName = toolName,
+                    argumentsHash = stableArgumentsHash(
+                        toolArgs.toSortedMap().entries.joinToString("&") { "${it.key}=${it.value}" }
+                    ),
+                    parentStepId = toolStepId,
+                )
+                val duplicateToolCall = !toolLedger.shouldExecute(toolFingerprint)
 
                 Log.i(TAG, "AIRI TOOL_CALL step=$stepsUsed tool=$toolName args=${toolArgs.keys.joinToString()}")
                 if (!isPlanPublished) {
@@ -230,7 +252,6 @@ Do not mix tool_call JSON with prose in the same message.
                     )
                     isPlanPublished = true
                 }
-                val toolStepId = "tool_${stepsUsed}_$toolName"
                 val toolStartedAtMs = System.currentTimeMillis()
                 ExecutionStatusBus.onWaveStarted(
                     nodeIds = listOf(toolStepId),
@@ -265,7 +286,10 @@ Do not mix tool_call JSON with prose in the same message.
                     toolName = toolName,
                     hasDurableExecutionContext = durableExecutionContext != null
                 )
-                val toolResult = when (sideEffectDecision) {
+                val toolResult = if (duplicateToolCall) {
+                    Log.w(TAG, "AIRI TOOL_DUPLICATE_BLOCKED execution=$executionId tool=$toolName step=$toolStepId")
+                    ToolDispatcher.ToolResult.Error("Duplicate tool call blocked for this execution step.")
+                } else when (sideEffectDecision) {
                     AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED -> {
                         Log.w(TAG, "AIRI TOOL_BLOCKED_NO_DURABLE_CONTEXT tool=$toolName")
                         ToolDispatcher.ToolResult.Error(AgentLoopSideEffectPolicy.blockedMessage(toolName))
@@ -344,6 +368,9 @@ Do not mix tool_call JSON with prose in the same message.
                     )
                 }
 
+                if (toolResult is ToolDispatcher.ToolResult.Success) {
+                    toolLedger.markCompleted(toolFingerprint)
+                }
                 activeToolTrace = null
                 Log.i(TAG, "AIRI TOOL_RESULT tool=$toolName success=${toolResult is ToolDispatcher.ToolResult.Success} len=${resultText.length}")
 
@@ -380,7 +407,7 @@ Do not mix tool_call JSON with prose in the same message.
             // Exhausted step budget — ask LLM to summarise what it has
             Log.w(TAG, "AgentLoop exhausted $MAX_STEPS steps — asking LLM to summarise")
             history.add(ConversationTurn.User("You have reached your step limit. Summarise what you have done and what the final answer is."))
-            val summary = callLLM("", fullSystemPrompt, history, emptyList(), queryType, modelId, visionParts, onToken)
+            val summary = callLLM("", fullSystemPrompt, history, emptyList(), queryType, modelId, visionParts, onToken, requestIdentity)
             ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
             return LoopResult(summary, stepsUsed, toolsInvoked)
 
@@ -411,7 +438,8 @@ Do not mix tool_call JSON with prose in the same message.
         queryType:      QueryType = QueryType.UNKNOWN,
         modelId:        String = "",
         visionParts:   List<com.airi.assistant.execution.ExecutionRequest.ImagePart> = emptyList(),
-        onToken:       suspend (String) -> Unit
+        onToken:       suspend (String) -> Unit,
+        identity:      ExecutionIdentity,
     ): String {
         // Build the full prompt from history
         val fullPrompt = when {
@@ -457,6 +485,7 @@ Do not mix tool_call JSON with prose in the same message.
                 requestedModelId      = modelId,
                 requiresVision        = visionParts.isNotEmpty(),
                 imageParts            = visionParts,
+                identity              = identity,
 
                 conversationHistory   = history.mapNotNull { turn ->
                     when (turn) {

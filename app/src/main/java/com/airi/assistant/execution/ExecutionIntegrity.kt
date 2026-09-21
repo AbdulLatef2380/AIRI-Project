@@ -22,6 +22,20 @@ data class ExecutionIdentity(
     }
 }
 
+/** Boundary contract shared by ChatViewModel and AgentLoop. */
+object ChatExecutionIdentityContract {
+    const val UNKNOWN_SESSION = "session-unknown"
+
+    fun normalizeSessionId(sessionId: String): String =
+        sessionId.trim().ifBlank { UNKNOWN_SESSION }
+
+    fun create(sessionId: String, executionId: String): ExecutionIdentity =
+        ExecutionIdentity(
+            sessionId = normalizeSessionId(sessionId),
+            executionId = executionId,
+        )
+}
+
 enum class ExecutionLifecycleState {
     IDLE, PREPARING, VALIDATING, PREPARING_CONTEXT, WAITING_PERMISSION,
     EXECUTING, STREAMING, TOOL_EXECUTION, WAITING_TOOL,

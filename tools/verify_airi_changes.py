@@ -2,7 +2,11 @@ from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
 
-roots = [Path('/home/ubuntu/AIRI-main'), Path('/home/ubuntu/AIRI-cp')]
+current_root = Path(__file__).resolve().parents[1]
+roots = [current_root]
+main_root = current_root.parent / 'AIRI-main'
+if main_root.exists() and main_root != current_root:
+    roots.append(main_root)
 for root in roots:
     for p in (root/'app/src/main/res').glob('values*/strings.xml'):
         ET.parse(p)
@@ -13,8 +17,9 @@ for root in roots:
         root/'app/src/main/java/com/airi/assistant/agent/loop/AgentLoop.kt',
         root/'app/src/main/java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt',
     ]:
+        assert p.exists(), p
         text = p.read_text()
-        assert p.exists() and text.strip(), p
+        assert text.strip(), p
     req = (root/'app/src/main/java/com/airi/assistant/execution/ExecutionRequest.kt').read_text()
     gem = (root/'app/src/main/java/com/airi/assistant/execution/cloud/GeminiAdapter.kt').read_text()
     oai = (root/'app/src/main/java/com/airi/assistant/execution/cloud/OpenAIAdapter.kt').read_text()

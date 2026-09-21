@@ -105,7 +105,7 @@ import androidx.fragment.app.FragmentActivity
 import kotlinx.coroutines.launch
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import com.airi.assistant.ui.util.MarkdownText
+import com.airi.assistant.ui.text.BidiAwareMarkdownRenderer
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -2216,10 +2216,10 @@ fun UserBubble(
                     if (displayText.isNotBlank() || imageUri == null) {
                         if (isSelectingText) {
                             SelectionContainer {
-                                Text(text = displayText, color = AiriTheme.onBackground, fontSize = 15.sp, lineHeight = 23.sp)
+                                BidiAwareMarkdownRenderer(text = displayText)
                             }
                         } else {
-                            Text(text = displayText, color = AiriTheme.onBackground, fontSize = 15.sp, lineHeight = 23.sp)
+                            BidiAwareMarkdownRenderer(text = displayText)
                         }
                     }
                 }
@@ -2344,10 +2344,10 @@ fun AiBubble(
                     ) {
                         if (isSelectingText) {
                             SelectionContainer {
-                                MarkdownText(rawText = text, modifier = Modifier.fillMaxWidth(), baseFontSp = 15f, lineHeightSp = 23f)
+                                BidiAwareMarkdownRenderer(text = text, modifier = Modifier.fillMaxWidth())
                             }
                         } else {
-                            MarkdownText(rawText = text, modifier = Modifier.fillMaxWidth(), baseFontSp = 15f, lineHeightSp = 23f)
+                            BidiAwareMarkdownRenderer(text = text, modifier = Modifier.fillMaxWidth())
                         }
                     }
 
@@ -2517,12 +2517,10 @@ fun AiStreamingBubble(text: String) {
                 .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text       = text,
-                    color      = AiriTheme.onBackground.copy(alpha = if (isThinkingStage) 0.50f else 0.93f),
-                    fontSize   = 15.sp, lineHeight = 23.sp,
-                    fontStyle  = if (isThinkingStage) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
-                    modifier   = Modifier.weight(1f, fill = false)
+                BidiAwareMarkdownRenderer(
+                    text = text,
+                    modifier = Modifier.weight(1f, fill = false),
+                    isStreaming = true,
                 )
                 if (!isThinkingStage) BlinkingCursor()
             }

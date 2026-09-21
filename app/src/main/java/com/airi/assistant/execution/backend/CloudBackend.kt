@@ -282,6 +282,7 @@ class CloudBackend(
     private fun buildUserErrorMessage(type: CloudErrorType, raw: String, provider: CloudProvider): String =
         when (type) {
             CloudErrorType.UNAUTHORIZED     -> "Invalid API key for ${provider.displayName}. Check Settings → API Keys."
+            CloudErrorType.MODEL_NOT_FOUND  -> "The selected model is not available at ${provider.displayName}. Choose another model."
             CloudErrorType.QUOTA_EXCEEDED   -> "${provider.displayName} quota exhausted. Check your billing dashboard."
             CloudErrorType.RATE_LIMITED     -> "${provider.displayName} is rate-limiting requests. Please wait a moment."
             CloudErrorType.CONTEXT_LENGTH   -> "Prompt too long for ${provider.displayName}. Try a shorter message."

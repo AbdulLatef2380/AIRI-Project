@@ -30,7 +30,11 @@ data class ExecutionRequest(
     val requestedModelId:         String     = "",
     val conversationHistory:      List<ConversationTurn> = emptyList(),
     /** Inline image parts for providers that support vision (base64, no file paths). */
-    val imageParts:               List<ImagePart> = emptyList()
+    val imageParts:               List<ImagePart> = emptyList(),
+    /** Correlation identity; generated at the request boundary and preserved downstream. */
+    val identity:                 ExecutionIdentity? = null,
+    /** Explicit privacy/routing boundary for this request. */
+    val allowCloud:               Boolean = true,
 ) {
     data class ConversationTurn(val role: String, val content: String)
     data class ImagePart(val mimeType: String, val base64Data: String)

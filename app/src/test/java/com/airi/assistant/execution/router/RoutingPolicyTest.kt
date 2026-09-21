@@ -32,6 +32,23 @@ class RoutingPolicyTest {
     }
 
     @Test
+    fun requestPrivacyBoundaryBlocksCloudEvenInHybrid() {
+        val local = backend("local", ExecOrigin.LOCAL, available = true, CapabilityProfile.LOCAL_CPU)
+        val cloud = backend("cloud", ExecOrigin.CLOUD, available = true, CapabilityProfile.CLOUD_STREAMING)
+
+        val selection = RoutingPolicy.select(
+            request = ExecutionRequest(prompt = "private", allowCloud = false),
+            signals = signals(online = true),
+            prefs = prefs(mode = ExecutionMode.HYBRID),
+            local = local,
+            cloud = cloud
+        )
+
+        assertEquals(listOf(local), selection.backends)
+        assertEquals(RoutingPolicy.DecisionReason.HARD_LOCAL_GATE, selection.reason)
+    }
+
+    @Test
     fun cloudOnlyOnlineSelectsCloudThenLocalFallback() {
         val local = backend("local", ExecOrigin.LOCAL, available = true, CapabilityProfile.LOCAL_CPU)
         val cloud = backend("cloud", ExecOrigin.CLOUD, available = true, CapabilityProfile.CLOUD_STREAMING)

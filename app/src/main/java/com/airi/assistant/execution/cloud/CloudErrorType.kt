@@ -24,6 +24,7 @@ enum class CloudErrorType {
     RATE_LIMITED,       // 429 — requests-per-minute exceeded, retry after delay
     QUOTA_EXCEEDED,     // 429 with billing signal or 402 — daily/monthly limit
     UNAUTHORIZED,       // 401 / 403 — invalid or missing API key
+    MODEL_NOT_FOUND,    // 404 — model or endpoint does not exist
     SERVER_ERROR,       // 5xx — transient provider failure
     TIMEOUT,            // Network or read timeout
     CONNECTION_LOST,    // Mid-stream TCP disconnect (httpCode = -2)

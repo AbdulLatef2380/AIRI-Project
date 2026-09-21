@@ -119,10 +119,12 @@ class LocalLlamaBackend(
         val requestedModelId = request.requestedModelId
         val loadedModelId = ModelManager.getCurrent()?.id.orEmpty()
         if (requestedModelId.isNotBlank() && requestedModelId != loadedModelId) {
-            // The native loaded model is authoritative. A stale selection can
-            // survive a model switch or process recreation; rejecting here made
-            // an otherwise healthy local model look unavailable to the agent.
-            Log.w(TAG, "stale model binding requested=$requestedModelId loaded=$loadedModelId; using loaded model")
+            // Never silently execute the user's request on a different model.
+            // The caller may route to a compatible backend or surface a precise
+            // model-reload action instead of corrupting model ownership.
+            Log.w(TAG, "model binding mismatch requested=$requestedModelId loaded=$loadedModelId")
+            onError("Selected model is not loaded; reload the selected model before retrying.")
+            return
         }
         val startMs  = System.currentTimeMillis()
         val fullText = StringBuilder()

@@ -1,5 +1,7 @@
 package com.airi.assistant.execution
 
+import com.airi.assistant.core.ExecutionTraceEvent
+import com.airi.assistant.core.ExecutionTraceKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -47,6 +49,37 @@ class ExecutionIntegrityTest {
     }
 
     @Test
+    fun backendBoundaryResolvesIdentityForLegacyAnonymousRequests() {
+        val request = ExecutionRequest(
+            prompt = "hello",
+            sessionTag = "  session-from-legacy-call  ",
+        )
+
+        val resolved = request.withResolvedIdentity()
+
+        assertTrue(resolved.identity != null)
+        assertEquals("session-from-legacy-call", resolved.identity?.sessionId)
+        assertTrue(resolved.identity?.requestId?.startsWith("req-") == true)
+        assertTrue(resolved.identity?.executionId?.startsWith("exec-") == true)
+    }
+
+    @Test
+    fun correlationIdsAreStableAndScopedToExecution() {
+        val event = ExecutionTraceEvent(
+            executionId = "exec-events",
+            sequence = 1L,
+            timestampMs = 100L,
+            kind = ExecutionTraceKind.COMPLETED,
+            summary = "done",
+        )
+
+        assertEquals("exec-events:event:1", event.eventId)
+        assertEquals("exec-events:delivery:1", event.deliveryId)
+        assertTrue(event.eventId != event.deliveryId)
+        assertTrue(event.eventId.startsWith(event.executionId))
+    }
+
+    @Test
     fun stateMachineAllowsNormalLifecycleAndExactlyOneTerminalState() {
         val machine = ExecutionStateMachine()
         assertTrue(machine.transition(ExecutionLifecycleState.PREPARING))
@@ -65,6 +98,17 @@ class ExecutionIntegrityTest {
         val machine = ExecutionStateMachine()
         assertFalse(machine.transition(ExecutionLifecycleState.STREAMING))
         assertEquals(ExecutionLifecycleState.IDLE, machine.state)
+    }
+
+    @Test
+    fun cancellationIsTerminalAndCannotBeReplacedBySuccessOrFailure() {
+        val machine = ExecutionStateMachine()
+        assertTrue(machine.transition(ExecutionLifecycleState.PREPARING))
+        assertTrue(machine.transition(ExecutionLifecycleState.VALIDATING))
+        assertTrue(machine.terminal(ExecutionLifecycleState.CANCELLED))
+        assertFalse(machine.terminal(ExecutionLifecycleState.COMPLETED))
+        assertFalse(machine.terminal(ExecutionLifecycleState.FAILED))
+        assertEquals(ExecutionLifecycleState.CANCELLED, machine.state)
     }
 
     @Test

@@ -137,20 +137,46 @@ class HybridOrchestrator(
     ) = executionLock.withLock {
         val genId = generationGate.beginGeneration()
         val terminalGuard = TerminalDeliveryGuard()
+        val ownedRequest = request.withResolvedIdentity()
+        val lifecycle = ExecutionStateMachine()
+        lifecycle.transition(ExecutionLifecycleState.PREPARING)
+        fun move(next: ExecutionLifecycleState) {
+            if (lifecycle.transition(next) || lifecycle.state == next) {
+                updateDiagnostics {
+                    copy(
+                        lifecycleState = lifecycle.state,
+                        activeExecutionId = ownedRequest.identity?.executionId.orEmpty()
+                    )
+                }
+            }
+        }
+        suspend fun cancelAndThrow(stage: String): Nothing {
+            move(ExecutionLifecycleState.CANCELLED)
+            if (terminalGuard.tryDeliver()) onError("Request cancelled", ExecOrigin.NONE)
+            throw generationCancelled(stage)
+        }
 
         RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.INFO,
-            "gen#$genId request=${request.identity?.requestId ?: "unidentified"} " +
-            "execution=${request.identity?.executionId ?: "unidentified"} " +
-            "EXECUTE ${request.queryType.name} mode=${prefs.effectiveMode.name} " +
-            "tokens_est=${request.estimatedPromptTokens}")
+            "gen#$genId request=${ownedRequest.identity?.requestId} " +
+            "execution=${ownedRequest.identity?.executionId} " +
+            "EXECUTE ${ownedRequest.queryType.name} mode=${prefs.effectiveMode.name} " +
+            "tokens_est=${ownedRequest.estimatedPromptTokens}")
 
-        updateDiagnostics { copy(isStreaming = true, activeBackend = "routing") }
+        updateDiagnostics {
+            copy(
+                isStreaming = true,
+                activeBackend = "routing",
+                activeExecutionId = ownedRequest.identity?.executionId.orEmpty(),
+                lifecycleState = lifecycle.state
+            )
+        }
+        move(ExecutionLifecycleState.VALIDATING)
 
         // ── Step 1: Route ──────────────────────────────────────────────────
-        val decision = router.route(request, context)
+        val decision = router.route(ownedRequest, context)
 
         if (generationGate.isCancelled()) {
-            throw generationCancelled("after routing")
+            cancelAndThrow("after routing")
         }
 
         // ── Step 2: Evaluate one sanitized cloud copy for every cloud attempt ──
@@ -158,10 +184,11 @@ class HybridOrchestrator(
         // fallback. Prepare the cloud copy once, then skip blocked cloud attempts
         // without preventing a local primary from running.
         val cloudRequest = if (decision.allBackends.any { it.origin.isCloudBound() }) {
-            applyPrivacyGate(genId, request)
+            applyPrivacyGate(genId, ownedRequest)
         } else {
-            request
+            ownedRequest
         }
+        move(ExecutionLifecycleState.PREPARING_CONTEXT)
 
         // ── Step 3: Execute primary → fallbacks ───────────────────────────
         val allBackends = decision.allBackends
@@ -170,16 +197,18 @@ class HybridOrchestrator(
             decision.fallbacks.none { it.origin == ExecOrigin.LOCAL && it.isAvailable }
         ) {
             val message = "No network connection is available and no local fallback model is loaded."
+            move(ExecutionLifecycleState.FAILED)
             updateDiagnostics { copy(isStreaming = false, lastErrorMessage = message) }
-            onError(message, ExecOrigin.NONE)
+            if (terminalGuard.tryDeliver()) onError(message, ExecOrigin.NONE)
             return@withLock
         }
         var lastError   = "No eligible execution backend is available."
         var lastOrigin  = decision.primary.origin
+        move(ExecutionLifecycleState.EXECUTING)
 
         for ((idx, backend) in allBackends.withIndex()) {
             if (generationGate.isCancelled()) {
-                throw generationCancelled("during execution on ${backend.id}")
+                cancelAndThrow("during execution on ${backend.id}")
             }
 
             if (!backend.isAvailable) {
@@ -198,12 +227,12 @@ class HybridOrchestrator(
             }
 
             val isFallback = idx > 0
-            val req = if (backend.origin.isCloudBound()) cloudRequest!! else request
+            val req = if (backend.origin.isCloudBound()) cloudRequest!! else ownedRequest
 
             if (isFallback) {
                 sessionFallbackCount++
                 val prevId = allBackends[idx - 1].id
-                recordTransition(prevId, backend.id, lastError, backend.origin)
+                recordTransition(prevId, backend.id, lastError, backend.origin, ownedRequest.identity!!.executionId)
                 RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.WARN,
                     "gen#$genId FALLBACK ${allBackends[idx-1].id} → ${backend.id} reason=${lastError.take(60)}")
                 updateDiagnostics { copy(
@@ -241,10 +270,12 @@ class HybridOrchestrator(
             val streamStart      = System.currentTimeMillis()
 
             activeBackend_ = backend
-            backend.generateStream(
+            try {
+                backend.generateStream(
                 request    = req,
                 onToken    = { token ->
                     if (generationGate.accepts(genId)) {
+                        move(ExecutionLifecycleState.STREAMING)
                         onToken(token)
                     }
                 },
@@ -252,6 +283,7 @@ class HybridOrchestrator(
                     if (generationGate.accepts(genId) && !completionDelivered && fullText.isNotBlank() && terminalGuard.tryDeliver()) {
                         completionDelivered = true
                         backendSucceeded = true
+                        move(ExecutionLifecycleState.COMPLETED)
                         updateDiagnostics { copy(
                             isStreaming          = false,
                             lastStreamDurationMs = System.currentTimeMillis() - streamStart,
@@ -269,11 +301,15 @@ class HybridOrchestrator(
                         "gen#$genId ${backend.id} failed: ${error.take(80)}")
                     updateDiagnostics { copy(lastErrorMessage = error.take(100)) }
                 }
-            )
+                )
+            } catch (_: CancellationException) {
+                activeBackend_ = null
+                cancelAndThrow("backend ${backend.id} coroutine cancellation")
+            }
 
             if (generationGate.isCancelled()) {
                 activeBackend_ = null
-                throw generationCancelled("after backend ${backend.id}")
+                cancelAndThrow("after backend ${backend.id}")
             }
             if (backendSucceeded) {
                 activeBackend_ = null
@@ -283,8 +319,9 @@ class HybridOrchestrator(
         }
 
         // All backends exhausted.
-        if (generationGate.isCancelled()) throw generationCancelled("after backend attempts")
+        if (generationGate.isCancelled()) cancelAndThrow("after backend attempts")
         activeBackend_ = null
+        move(ExecutionLifecycleState.FAILED)
         updateDiagnostics { copy(isStreaming = false, lastErrorMessage = lastError) }
         RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.ERROR,
             "gen#$genId All backends failed. Last: ${lastError.take(80)}")
@@ -376,13 +413,14 @@ class HybridOrchestrator(
     // ── Transition history ───────────────────────────────────────────────────
 
 
-    private fun recordTransition(from: String, to: String, reason: String, origin: ExecOrigin) {
+    private fun recordTransition(from: String, to: String, reason: String, origin: ExecOrigin, executionId: String) {
         val event = ExecTransitionEvent(
             timestampMs = System.currentTimeMillis(),
             fromBackend = from,
             toBackend   = to,
             reason      = reason.take(80),
-            origin      = origin
+            origin      = origin,
+            executionId = executionId,
         )
         if (transitionHistory.size >= MAX_HISTORY) transitionHistory.removeFirst()
         transitionHistory.addLast(event)

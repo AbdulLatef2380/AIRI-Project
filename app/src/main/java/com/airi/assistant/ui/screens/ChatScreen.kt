@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1475,7 +1476,6 @@ private fun AiriChatTopBar(
                     )
                     Text(
                         text = when {
-                            agentState.isWorking      -> stringResource(R.string.generating)
                             modelState.isModelReady   -> modelState.selectedModelName
                             modelState.isCloudReady   -> modelState.cloudModelName.ifBlank { "Airi Cloud" }
                             modelState.isModelLoading -> stringResource(R.string.loading_model)
@@ -1621,15 +1621,6 @@ private fun AiriChatTopBar(
                                 onClick = onExportChat,
                             )
                         }
-                        // : Templates entry — was unreachable; now wired to AiriRoute.TEMPLATES
-                        DropdownMenuItem(
-                            text  = { Text(stringResource(R.string.chat_templates_title), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = CosmicAccent) },
-                            onClick = {
-                                onDismissDropdown()
-                                onNavigate(AiriRoute.TEMPLATES)
-                            }
-                        )
                     }
                 }
                 IconButton(onClick = onToggleDropdown) {
@@ -2079,34 +2070,40 @@ fun ChatMessageList(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 if (streamingText.isNotEmpty() && isGenerating) {
-                    item(key = "streaming") { AiStreamingBubble(text = streamingText) }
+                    item(key = "streaming", contentType = "streaming") {
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                            AiStreamingBubble(text = streamingText)
+                        }
+                    }
                 }
-                itemsIndexed(reversedMessages, key = { _, msg -> msg.uid }) { index, msg ->
+                itemsIndexed(reversedMessages, key = { _, msg -> msg.uid }, contentType = { _, msg -> if (msg.isUser) "user" else "assistant" }) { index, msg ->
                     val prevMsg = reversedMessages.getOrNull(index + 1)
-                    val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
-                    if (msg.isUser) {
-                        UserBubble(
-                            text               = msg.text,
-                            imageUri           = msg.imageUri,
-                            voiceRecordingPath = msg.voiceRecordingPath,
-                            voiceDurationMs    = msg.voiceDurationMs,
-                            onEdit             = { onEditMessage(msg.text) },
-                            onDelete           = { onDeleteMessage(msg) }
-                        )
-                    } else {
-                        AiBubble(
-                            text            = msg.text,
-                            agentTag        = msg.agentTag,
-                            traceId         = msg.traceId,
-                            hideAvatar      = hideAvatar,
-                            onShare         = onShareAiResponse,
-                            onSpeak         = onSpeak,
-                            execOrigin      = msg.execOrigin,
-                            onFeedback      = { liked -> onFeedback(msg.uid, liked) },
-                            onExportPdf     = onExportPdf,
-                            onExportMarkdown = onExportMarkdown,
-                            initialFeedback = msg.feedback
-                        )
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                        val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
+                        if (msg.isUser) {
+                            UserBubble(
+                                text               = msg.text,
+                                imageUri           = msg.imageUri,
+                                voiceRecordingPath = msg.voiceRecordingPath,
+                                voiceDurationMs    = msg.voiceDurationMs,
+                                onEdit             = { onEditMessage(msg.text) },
+                                onDelete           = { onDeleteMessage(msg) }
+                            )
+                        } else {
+                            AiBubble(
+                                text            = msg.text,
+                                agentTag        = msg.agentTag,
+                                traceId         = msg.traceId,
+                                hideAvatar      = hideAvatar,
+                                onShare         = onShareAiResponse,
+                                onSpeak         = onSpeak,
+                                execOrigin      = msg.execOrigin,
+                                onFeedback      = { liked -> onFeedback(msg.uid, liked) },
+                                onExportPdf     = onExportPdf,
+                                onExportMarkdown = onExportMarkdown,
+                                initialFeedback = msg.feedback
+                            )
+                        }
                     }
                 }
             }
@@ -2516,15 +2513,50 @@ fun AiStreamingBubble(text: String) {
                 .border(0.5.dp, AiriTheme.outline, AIRIShapes.aiBubble)
                 .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                BidiAwareMarkdownRenderer(
-                    text = text,
-                    modifier = Modifier.weight(1f, fill = false),
-                    isStreaming = true,
-                )
-                if (!isThinkingStage) BlinkingCursor()
+            if (isThinkingStage) {
+                AiriThinkingIndicator()
+            } else {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    BidiAwareMarkdownRenderer(
+                        text = text,
+                        modifier = Modifier.weight(1f, fill = false),
+                        isStreaming = true,
+                    )
+                    BlinkingCursor()
+                }
             }
-            // AiriThinkingPulse removed — ThinkingAnimation bubble is the single indicator
+        }
+    }
+}
+
+@Composable
+private fun AiriThinkingIndicator() {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "airi_thinking")
+    val alpha by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(850),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "airi_thinking_alpha",
+    )
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Image(
+            painter = painterResource(R.drawable.ic_launcher_fg),
+            contentDescription = "AIRI يفكر",
+            modifier = Modifier.size(24.dp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            repeat(3) { index ->
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .graphicsLayer { this.alpha = if (index == 1) alpha else alpha * 0.72f }
+                        .clip(CircleShape)
+                        .background(CosmicAccent),
+                )
+            }
         }
     }
 }
@@ -3058,19 +3090,21 @@ fun AiriChatInputBar(
                         modifier = Modifier.size(18.dp)
                     )
                 }
-                IconButton(
-                    onClick = { showFullScreenEditor = true },
-                    modifier = Modifier.size(32.dp).semantics {
-                        contentDescription = "Open full-screen editor"
-                        role = Role.Button
+                if (text.lineSequence().count() >= 5) {
+                    IconButton(
+                        onClick = { showFullScreenEditor = true },
+                        modifier = Modifier.size(32.dp).semantics {
+                            contentDescription = "Open full-screen editor"
+                            role = Role.Button
+                        }
+                    ) {
+                        Icon(
+                            Icons.Outlined.Fullscreen,
+                            contentDescription = null,
+                            tint = AiriTheme.onBackground.copy(0.45f),
+                            modifier = Modifier.size(17.dp)
+                        )
                     }
-                ) {
-                    Icon(
-                        Icons.Outlined.Fullscreen,
-                        contentDescription = null,
-                        tint = AiriTheme.onBackground.copy(0.45f),
-                        modifier = Modifier.size(17.dp)
-                    )
                 }
             }
             Box(
@@ -3103,7 +3137,7 @@ fun AiriChatInputBar(
                     enabled = isInferenceReady && !isInteractionLocked,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 28.dp, max = if (isExpanded) 180.dp else 44.dp)
+                        .heightIn(min = 28.dp, max = if (isExpanded) 180.dp else 40.dp)
                         .onFocusChanged { state ->
                             // Propagate focus change upward so toolbar collapses
                             onFocusChanged(state.isFocused)
@@ -3113,7 +3147,7 @@ fun AiriChatInputBar(
                         textAlign = TextAlign.Start
                     ),
                     cursorBrush = androidx.compose.ui.graphics.SolidColor(CosmicAccent),
-                    maxLines = if (isExpanded) 8 else 2,
+                    maxLines = if (isExpanded) 8 else 5,
                     decorationBox = { inner ->
                         Box {
                             if (text.isEmpty()) {
@@ -3135,7 +3169,6 @@ fun AiriChatInputBar(
                     }
                 )
             }
-            val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
             val attachmentDescription = stringResource(R.string.attach)
             val voiceInputDescription = stringResource(R.string.voice_input)
             val connectorsDescription = stringResource(R.string.connectors_title)
@@ -3144,8 +3177,9 @@ fun AiriChatInputBar(
                 targetValue = if (showSend || isGenerating || isDispatchingAttachment) 1f else 0.95f,
                 label = "composer_action_scale"
             ).value
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 8.dp, bottom = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 8.dp, bottom = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -3278,13 +3312,9 @@ fun AiriChatInputBar(
                         }
                     }
                 }
-                if (isRtl) {
-                    actions()
-                    utilities()
-                } else {
-                    utilities()
-                    actions()
-                }
+                utilities()
+                actions()
+            }
             }
         }
 
@@ -3593,7 +3623,9 @@ fun AiriDrawer(
     ModalDrawerSheet(
         drawerContainerColor = AiriTheme.surface,
         drawerContentColor   = AiriTheme.onSurface,
-        modifier = Modifier.width(300.dp)
+        modifier = Modifier
+            .width(300.dp)
+            .clip(RoundedCornerShape(topEnd = 18.dp, bottomEnd = 18.dp))
     ) {
         Box(modifier = Modifier.fillMaxHeight()) {
             Column(modifier = Modifier.fillMaxWidth().padding(bottom = 112.dp).verticalScroll(rememberScrollState())) {

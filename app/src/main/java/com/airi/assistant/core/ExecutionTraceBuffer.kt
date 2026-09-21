@@ -69,7 +69,12 @@ data class ExecutionTraceEvent(
     val actionId: String? = null,
     /** Elapsed execution time when a terminal tool event provides it. */
     val durationMs: Long? = null,
-)
+) {
+    /** Stable correlation key for this ordered event within one execution. */
+    val eventId: String get() = "$executionId:event:$sequence"
+    /** Stable terminal delivery key; non-terminal events still have a deterministic value. */
+    val deliveryId: String get() = "$executionId:delivery:$sequence"
+}
 
 enum class ExecutionTraceKind {
     PLANNING,

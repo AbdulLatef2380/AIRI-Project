@@ -167,16 +167,16 @@ def test_cloud_protocols() -> dict[str, int]:
         raise Failure("empty Gemini stream was accepted")
     url = "https://generativelanguage.googleapis.com/v1beta/models/x:streamGenerateContent?alt=sse"
     check("key=" not in url and "x-goog-api-key" not in url, "Gemini key leaked into URL contract")
-    # Contract test for the exact Gemini multimodal wire shape: image input is
-    # a sibling part using inlineData, not an OpenAI image_url object.
+    # Contract test for the exact Gemini REST multimodal wire shape: image input
+    # is a sibling part using inline_data, not an OpenAI image_url object.
     gemini_part = {
         "role": "user",
         "parts": [
             {"text": "ما في الصورة؟"},
-            {"inlineData": {"mimeType": "image/jpeg", "data": "AA=="}},
+            {"inline_data": {"mime_type": "image/jpeg", "data": "AA=="}},
         ],
     }
-    check("inlineData" in gemini_part["parts"][1], "Gemini image part is missing inlineData")
+    check("inline_data" in gemini_part["parts"][1], "Gemini image part is missing inline_data")
     check("image_url" not in json.dumps(gemini_part), "OpenAI image_url leaked into Gemini payload")
     return {"openai_tokens": 2, "gemini_tokens": 2, "multimodal_parts": 1, "early_eof_rejections": 1, "empty_stream_rejections": 1}
 

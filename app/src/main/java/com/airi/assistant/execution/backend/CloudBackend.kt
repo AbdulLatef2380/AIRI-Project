@@ -16,8 +16,6 @@ import com.airi.assistant.execution.cloud.RetryPolicy
 import com.airi.assistant.execution.network.NetworkGuard
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 
 /**
@@ -58,14 +56,6 @@ class CloudBackend(
     private val _requestCount  = java.util.concurrent.atomic.AtomicInteger(0)
     private val _errorCount    = java.util.concurrent.atomic.AtomicInteger(0)
     private val _totalLatencyMs = java.util.concurrent.atomic.AtomicLong(0)
-    private val cancelRequested = java.util.concurrent.atomic.AtomicBoolean(false)
-    @Volatile private var activeRequestJob: Job? = null
-
-    override fun cancelStream() {
-        cancelRequested.set(true)
-        activeRequestJob?.cancel(kotlinx.coroutines.CancellationException("Cloud request cancelled"))
-        RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.INFO, "Cloud cancellation requested")
-    }
 
     data class NetworkStats(
         val requestCount: Int,
@@ -83,16 +73,8 @@ class CloudBackend(
         get() {
             val guard = NetworkGuard.evaluate(prefs)
             if (guard is NetworkGuard.Decision.Block) return false
-            // Availability is a capability of the failover chain, not only of
-            // the preferred provider. Previously a missing Gemini key made the
-            // whole cloud backend unavailable even when OpenAI/OpenRouter had a
-            // valid key, so RuntimeRouter never got a chance to fail over.
-            val providers = buildList {
-                add(prefs.preferredProvider.takeUnless { it == CloudProvider.BRAVE }
-                    ?: CloudProvider.GEMINI)
-                FAILOVER_PRIORITY.forEach { if (it !in this) add(it) }
-            }
-            return providers.any { CloudAdapterFactory.create(it, context).isAvailable }
+            val adapter = CloudAdapterFactory.create(prefs.preferredProvider, context)
+            return adapter.isAvailable
         }
 
     override suspend fun generateStream(
@@ -101,9 +83,6 @@ class CloudBackend(
         onComplete: suspend (String, Long) -> Unit,
         onError: suspend (String) -> Unit
     ) {
-        cancelRequested.set(false)
-        activeRequestJob = currentCoroutineContext()[Job]
-        try {
         when (val guard = NetworkGuard.evaluate(prefs)) {
             is NetworkGuard.Decision.Block -> { onError("Network blocked: ${guard.reason}"); return }
             NetworkGuard.Decision.Allow -> {}
@@ -111,8 +90,7 @@ class CloudBackend(
 
         // ── Build provider priority list for this request ─────────────────────
         // Primary provider first, then available fallback providers in priority order.
-        val primary = prefs.preferredProvider.takeUnless { it == CloudProvider.BRAVE }
-            ?: CloudProvider.GEMINI
+        val primary = prefs.preferredProvider
         val providerQueue = buildList {
             add(primary)
             FAILOVER_PRIORITY.filter { it != primary }.forEach { fallback ->
@@ -127,10 +105,6 @@ class CloudBackend(
         _requestCount.incrementAndGet(); _globalRequestCount.incrementAndGet()
 
         for ((attemptIdx, provider) in providerQueue.withIndex()) {
-            if (cancelRequested.get()) {
-                onError("Cancelled")
-                return
-            }
             val isFallback = attemptIdx > 0
             if (isFallback) {
                 RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.WARN,
@@ -149,45 +123,39 @@ class CloudBackend(
 
             var promptTok = 0
             var compTok = 0
-            // Do not emit provider output until the attempt succeeds. A retry
-            // or provider failover after partial SSE output would otherwise
-            // append the same prefix twice (or mix two providers in one bubble).
-            // This deliberately trades token-by-token UI latency for response
-            // integrity, which is essential for a stable release build.
+            // Once a streaming attempt has emitted text, the UI cannot retract it.
+            // Retrying that attempt (or failing over to another provider) would
+            // append a second copy of the response to the same bubble. Keep the
+            // retry contract strict: retries are allowed only before the first
+            // token is delivered.
+            var emittedInAttempt = false
 
             val result = RetryPolicy.withRetry(maxAttempts = MAX_RETRIES) { attempt ->
-                if (cancelRequested.get()) {
-                    return@withRetry CloudProviderAdapter.AdapterResult.Failure(
-                        error = "Cancelled",
-                        errorType = CloudErrorType.CANCELLED,
-                        retryable = false,
-                        httpCode = -3,
-                    )
-                }
                 if (attempt > 0) {
                     RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.WARN,
                         "Retry attempt $attempt/${MAX_RETRIES - 1} for ${provider.displayName}")
                 }
                 promptTok = 0
                 compTok = 0
+                emittedInAttempt = false
                 adapter.streamGenerate(
                     request = request,
-                    onToken = { /* buffered by the adapter result; emit only after success */ },
+                    onToken = { token ->
+                        emittedInAttempt = true
+                        onToken(token)
+                    },
                     onUsage = { p, c -> promptTok = p; compTok = c }
-                )
-            }
-
-            if (cancelRequested.get() ||
-                (result is CloudProviderAdapter.AdapterResult.Failure &&
-                    result.errorType == CloudErrorType.CANCELLED)
-            ) {
-                onError("Cancelled")
-                return
+                ).let { outcome ->
+                    if (outcome is CloudProviderAdapter.AdapterResult.Failure && emittedInAttempt) {
+                        outcome.copy(retryable = false)
+                    } else {
+                        outcome
+                    }
+                }
             }
 
             when (result) {
                 is CloudProviderAdapter.AdapterResult.Success -> {
-                    if (result.fullText.isNotBlank()) onToken(result.fullText)
                     val totalTokens = promptTok + compTok
                     if (totalTokens > 0) {
                         prefs.recordCloudTokens(totalTokens)
@@ -219,20 +187,15 @@ class CloudBackend(
                         TAG,
                         "CloudBackend failure provider=${provider.name} type=${result.errorType} http=${result.httpCode} errorChars=${result.error.length}"
                     )
-                    // Permanent failures identify a bad request/configuration/model;
-                    // failing over would hide the actionable cause and can violate
-                    // the user's selected-provider contract.
-                    if (!result.retryable && result.errorType !in setOf(
-                            CloudErrorType.CONNECTION_LOST,
-                            CloudErrorType.TIMEOUT,
-                            CloudErrorType.SERVER_ERROR,
-                            CloudErrorType.RATE_LIMITED
-                        )
-                    ) {
-                        onError(lastError)
+                    // A provider has already emitted content into the current
+                    // response bubble. Do not fail over and append a second
+                    // provider's answer to it; surface one explicit partial
+                    // response error instead.
+                    if (emittedInAttempt) {
+                        onError("${lastError} (partial response discarded; retry manually)")
                         return
                     }
-                    // Continue to next provider only for transient failures.
+                    // Continue to next provider in failover chain
                 }
             }
         }
@@ -246,29 +209,17 @@ class CloudBackend(
         
         _errorCount.incrementAndGet(); _globalErrorCount.incrementAndGet()
         onError(lastError)
-        } finally {
-            activeRequestJob = null
-        }
     }
 
     override suspend fun generate(request: ExecutionRequest): ExecutionResult =
         withContext(Dispatchers.IO) {
-            if (cancelRequested.get()) {
-                return@withContext ExecutionResult.Failure(
-                    error = "Cancelled",
-                    origin = ExecOrigin.CLOUD,
-                    retryable = false,
-                    code = "cancelled",
-                )
-            }
             when (val guard = NetworkGuard.evaluate(prefs)) {
                 is NetworkGuard.Decision.Block -> ExecutionResult.Failure(
                     error = guard.reason, origin = ExecOrigin.CLOUD,
                     retryable = false, code = "network_blocked"
                 )
                 NetworkGuard.Decision.Allow -> {
-                    val provider = prefs.preferredProvider.takeUnless { it == CloudProvider.BRAVE }
-                        ?: CloudProvider.GEMINI
+                    val provider = prefs.preferredProvider
                     val adapter = CloudAdapterFactory.create(provider, context, request)
                     if (!adapter.isAvailable) {
                         return@withContext ExecutionResult.Failure(
@@ -304,7 +255,6 @@ class CloudBackend(
     private fun buildUserErrorMessage(type: CloudErrorType, raw: String, provider: CloudProvider): String =
         when (type) {
             CloudErrorType.UNAUTHORIZED     -> "Invalid API key for ${provider.displayName}. Check Settings → API Keys."
-            CloudErrorType.MODEL_NOT_FOUND  -> "The selected model is not available at ${provider.displayName}. Choose another model."
             CloudErrorType.QUOTA_EXCEEDED   -> "${provider.displayName} quota exhausted. Check your billing dashboard."
             CloudErrorType.RATE_LIMITED     -> "${provider.displayName} is rate-limiting requests. Please wait a moment."
             CloudErrorType.CONTEXT_LENGTH   -> "Prompt too long for ${provider.displayName}. Try a shorter message."

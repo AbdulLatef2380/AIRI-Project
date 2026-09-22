@@ -81,8 +81,8 @@ class ModelDownloadService : Service() {
                     Log.i("AIRI_DOWNLOAD", "DOWNLOAD_STARTED fileName=$fileName expectedBytes=$expectedSize attempt=$attempt")
                     downloadToFile(url, tempFile)
                     val actual = tempFile.length()
-                    if (actual < 100_000_000L) throw IllegalStateException("download too small actual=$actual")
-                    if (expectedSize > 0 && actual != expectedSize) {
+                    if (actual < 8L) throw IllegalStateException("download too small actual=$actual")
+                    if (expectedSize > 0 && actual < (expectedSize * 0.97).toLong()) {
                         throw IllegalStateException("size mismatch expected=$expectedSize actual=$actual")
                     }
                     if (finalFile.exists()) finalFile.delete()

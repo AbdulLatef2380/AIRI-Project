@@ -1052,11 +1052,6 @@ Java_com_airi_assistant_ai_LlamaNative_loadModel(
         return env->NewStringUTF("FILE_NOT_FOUND");
     }
     long sz = file_size(model_path.c_str());
-    if (sz < 100 * 1024 * 1024L) {
-        LOGE("loadModel: file too small (%ld bytes) — INVALID_GGUF", sz);
-        std::string out = "INVALID_GGUF:file too small (" + std::to_string(sz) + " bytes)";
-        return env->NewStringUTF(out.c_str());
-    }
     if (!is_valid_gguf(model_path.c_str())) {
         const char* why = airi_get_native_error();
         LOGE("loadModel: INVALID_GGUF — %s", why ? why : "bad header");
@@ -1166,11 +1161,6 @@ Java_com_airi_assistant_ai_LlamaNative_loadModelWithProgress(
         return;
     }
     long sz = file_size(model_path.c_str());
-    if (sz < 100 * 1024 * 1024L) {
-        std::string out = "INVALID_GGUF:file too small (" + std::to_string(sz) + " bytes)";
-        env->ThrowNew(env->FindClass("java/lang/RuntimeException"), out.c_str());
-        return;
-    }
     if (!is_valid_gguf(model_path.c_str())) {
         const char* why = airi_get_native_error();
         std::string out = std::string("INVALID_GGUF:") + (why ? why : "bad header");

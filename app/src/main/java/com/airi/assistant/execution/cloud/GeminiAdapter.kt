@@ -11,7 +11,6 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 
 /**
  * Gemini streaming adapter — multi-turn REST implementation.
@@ -25,7 +24,7 @@ import java.net.URLEncoder
  */
 class GeminiAdapter(
     private val keyStore: SecureApiKeyStore,
-    private val model:    String = "gemini-3.8-flash"
+    private val model:    String = "gemini-2.0-flash"
 ) : CloudProviderAdapter {
 
     override val providerId: String = "gemini"
@@ -44,11 +43,10 @@ class GeminiAdapter(
                 retryable = false
             )
 
-        // API keys may contain characters that must be URL encoded.  Passing the
-        // raw value breaks otherwise valid keys and is reported by Gemini as a
-        // generic request/response failure.
-        val encodedKey = URLEncoder.encode(apiKey, Charsets.UTF_8.name())
-        val url  = "$BASE_URL/models/$model:streamGenerateContent?alt=sse&key=$encodedKey"
+        // Keep credentials out of URLs: proxies, access logs and diagnostics
+        // commonly retain request URLs. Gemini documents x-goog-api-key as the
+        // header form for API-key authentication.
+        val url  = "$BASE_URL/models/$model:streamGenerateContent?alt=sse"
         val body = buildRequestBody(request)
 
         Log.d(TAG, "streamGenerate model=$model " +
@@ -56,7 +54,6 @@ class GeminiAdapter(
 
         var conn: HttpURLConnection? = null
         val fullText       = StringBuilder()
-        var lastPayload    = ""
         var promptTokens   = 0
         var completeTokens = 0
         val startMs        = System.currentTimeMillis()
@@ -69,6 +66,7 @@ class GeminiAdapter(
                 doOutput       = true
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("Accept", "text/event-stream")
+                setRequestProperty("x-goog-api-key", apiKey)
             }
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
@@ -84,6 +82,7 @@ class GeminiAdapter(
             }
 
             BufferedReader(InputStreamReader(conn.inputStream)).use { reader ->
+                var sawData = false
                 var line: String?
                 while (reader.readLine().also { line = it } != null) {
                     ensureActive()
@@ -91,31 +90,21 @@ class GeminiAdapter(
                     if (!raw.startsWith("data:")) continue
                     val payload = raw.removePrefix("data:").trim()
                     if (payload.isBlank() || payload == "[DONE]") continue
-                    lastPayload = payload
-                    if (payload.contains("\"error\"")) {
-                        val mapped = CloudErrorMapper.map(200, payload)
-                        return@withContext CloudProviderAdapter.AdapterResult.Failure(
-                            error = mapped.message,
-                            errorType = mapped.type,
-                            retryable = mapped.retryable,
-                            httpCode = 200
-                        )
-                    }
+                    sawData = true
                     val token = extractToken(payload)
                     if (token.isNotEmpty()) { fullText.append(token); onToken(token) }
                     extractUsage(payload)?.let { (p, c) -> promptTokens = p; completeTokens = c }
                 }
+                if (!sawData || fullText.isEmpty()) {
+                    return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                        error = "Gemini stream ended without content",
+                        errorType = CloudErrorType.CONNECTION_LOST,
+                        retryable = true,
+                        httpCode = -2
+                    )
+                }
             }
 
-            if (fullText.isBlank()) {
-                val mapped = CloudErrorMapper.map(200, lastPayload)
-                return@withContext CloudProviderAdapter.AdapterResult.Failure(
-                    error = if (mapped.type == CloudErrorType.UNKNOWN) "Provider returned no text" else mapped.message,
-                    errorType = mapped.type,
-                    retryable = mapped.retryable,
-                    httpCode = 200
-                )
-            }
             onUsage(promptTokens, completeTokens)
             val latency = System.currentTimeMillis() - startMs
             Log.i(TAG, "complete: ${fullText.length} chars ${promptTokens}p+${completeTokens}c ${latency}ms")
@@ -124,7 +113,7 @@ class GeminiAdapter(
                 promptTokens = promptTokens, completionTokens = completeTokens
             )
         } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
+            CloudProviderAdapter.AdapterResult.Failure("Cancelled", CloudErrorType.CANCELLED, false, -3)
         } catch (e: java.net.SocketTimeoutException) {
             val m = CloudErrorMapper.map(-1, e.message ?: "timeout")
             CloudProviderAdapter.AdapterResult.Failure(m.message, m.type, m.retryable, -1)
@@ -156,15 +145,7 @@ class GeminiAdapter(
         if (!first) append(",")
         append("{\"role\":\"user\",\"parts\":[{\"text\":")
         append(jsonString(req.prompt))
-        append("}")
-        req.imageParts.forEach { image ->
-            append(",{\"inline_data\":{\"mime_type\":")
-            append(jsonString(image.mimeType.ifBlank { "image/jpeg" }))
-            append(",\"data\":")
-            append(jsonString(image.base64Data))
-            append("}}")
-        }
-        append("]},")
+        append("}]},")
         append("\"generationConfig\":{\"maxOutputTokens\":${req.maxTokens},\"temperature\":${req.temperature}}")
         append("}")
     }

@@ -2177,13 +2177,16 @@ fun UserBubble(
         enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) +
                 slideInHorizontally(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.NORMAL)) { it / 5 }
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
             Box {
                 Column(
                     modifier = Modifier
                         .widthIn(max = 320.dp)
                         .clip(AIRIShapes.userBubble)
-                        .background(UserBubbleSurface)
+                        // User messages use a raised neutral surface, not the
+                        // brand-blue action color. This matches established AI
+                        // chat patterns and adapts automatically to light/dark.
+                        .background(AiriTheme.surfaceVariant)
                         .then(bubbleGesture)
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     horizontalAlignment = Alignment.End
@@ -2211,9 +2214,17 @@ fun UserBubble(
                     if (displayText.isNotBlank() || imageUri == null) {
 CompositionLocalProvider(LocalLayoutDirection provides textDirection) {
                             if (isSelectingText) {
-                                SelectionContainer { BidiAwareMarkdownRenderer(text = displayText) }
+                                SelectionContainer {
+                                    BidiAwareMarkdownRenderer(
+                                        text = displayText,
+                                        textColor = AiriTheme.onSurface
+                                    )
+                                }
                             } else {
-                                BidiAwareMarkdownRenderer(text = displayText)
+                                BidiAwareMarkdownRenderer(
+                                    text = displayText,
+                                    textColor = AiriTheme.onSurface
+                                )
                             }
                         }
                     }
@@ -2389,16 +2400,20 @@ CompositionLocalProvider(LocalLayoutDirection provides textDirection) {
                 // Action row
                 Row(modifier = Modifier.padding(start = 2.dp, top = 1.dp), verticalAlignment = Alignment.CenterVertically) {
                     // Speak
-                    IconButton(onClick = { onSpeak(text) }, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Outlined.VolumeUp, contentDescription = null, tint = AiriTheme.outline, modifier = Modifier.size(14.dp))
+                    IconButton(onClick = { onSpeak(text) }, modifier = Modifier.size(38.dp)) {
+                        Icon(Icons.Outlined.VolumeUp, contentDescription = "Read aloud", tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
+                    }
+                    // More actions
+                    IconButton(onClick = { showContextMenu = true }, modifier = Modifier.size(38.dp)) {
+                        Icon(Icons.Outlined.MoreHoriz, contentDescription = "More actions", tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
                     }
                     // Copy
                     IconButton(onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
-                    }, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Outlined.ContentCopy, contentDescription = null, tint = AiriTheme.outline, modifier = Modifier.size(14.dp))
+                    }, modifier = Modifier.size(38.dp)) {
+                        Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy", tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
                     }
                     // Persisted thumbs up/down — initialized from DB feedback column.
                     var liked    by remember { mutableStateOf(initialFeedback == 1) }
@@ -2408,20 +2423,20 @@ CompositionLocalProvider(LocalLayoutDirection provides textDirection) {
                         val newDisliked = !disliked
                         disliked = newDisliked; if (newDisliked) liked = false
                         onFeedback(false)
-                    }, modifier = Modifier.size(30.dp)) {
+                    }, modifier = Modifier.size(38.dp)) {
                         Icon(Icons.Outlined.ThumbDown, contentDescription = null,
                             tint = if (disliked) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.35f),
-                            modifier = Modifier.size(14.dp))
+                            modifier = Modifier.size(20.dp))
                     }
                     IconButton(onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         val newLiked = !liked
                         liked = newLiked; if (newLiked) disliked = false
                         onFeedback(true)
-                    }, modifier = Modifier.size(30.dp)) {
+                    }, modifier = Modifier.size(38.dp)) {
                         Icon(Icons.Outlined.ThumbUp, contentDescription = null,
                             tint = if (liked) CosmicAccent else Color.White.copy(alpha = 0.35f),
-                            modifier = Modifier.size(14.dp))
+                            modifier = Modifier.size(20.dp))
                     }
                 }
 

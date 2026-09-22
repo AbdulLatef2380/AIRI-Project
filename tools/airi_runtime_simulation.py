@@ -167,7 +167,18 @@ def test_cloud_protocols() -> dict[str, int]:
         raise Failure("empty Gemini stream was accepted")
     url = "https://generativelanguage.googleapis.com/v1beta/models/x:streamGenerateContent?alt=sse"
     check("key=" not in url and "x-goog-api-key" not in url, "Gemini key leaked into URL contract")
-    return {"openai_tokens": 2, "gemini_tokens": 2, "early_eof_rejections": 1, "empty_stream_rejections": 1}
+    # Contract test for the exact Gemini multimodal wire shape: image input is
+    # a sibling part using inlineData, not an OpenAI image_url object.
+    gemini_part = {
+        "role": "user",
+        "parts": [
+            {"text": "ما في الصورة؟"},
+            {"inlineData": {"mimeType": "image/jpeg", "data": "AA=="}},
+        ],
+    }
+    check("inlineData" in gemini_part["parts"][1], "Gemini image part is missing inlineData")
+    check("image_url" not in json.dumps(gemini_part), "OpenAI image_url leaked into Gemini payload")
+    return {"openai_tokens": 2, "gemini_tokens": 2, "multimodal_parts": 1, "early_eof_rejections": 1, "empty_stream_rejections": 1}
 
 
 def test_ui_contract() -> dict[str, int]:
@@ -183,11 +194,13 @@ def test_ui_contract() -> dict[str, int]:
     check(".clip(RoundedCornerShape(4.dp, 18.dp" not in ai_block, "assistant response still has a rounded bubble")
     check(".padding(horizontal = 14.dp, vertical = 12.dp)" not in ai_block, "assistant response still has bubble padding")
     check("BidiAwareMarkdownRenderer" in ai_block, "assistant response lost readable renderer")
-    check(".background(UserBubbleSurface)" in source[user_at:ai_at], "user bubble surface is missing")
+    check(".background(AiriTheme.surfaceVariant)" in source[user_at:ai_at], "theme-aware user bubble surface is missing")
+    check("Arrangement.Start" in source[user_at:ai_at], "user bubble is not placed like the reference layout")
     stream_at = source.index("fun AiStreamingBubble")
     stream_block = source[stream_at:source.index("private fun AiriThinkingDots", stream_at)]
     check("AIRIShapes.aiBubble" not in stream_block and "AiriTheme.surfaceVariant" not in stream_block, "streaming response still has a bubble")
-    return {"assistant_open_surface": 1, "user_filled_surface": 1, "direction_contract": 1}
+    check("Icons.Outlined.MoreHoriz" in ai_block, "response more-actions control is missing")
+    return {"assistant_open_surface": 1, "user_filled_surface": 1, "direction_contract": 1, "response_actions": 5}
 
 
 def main() -> None:

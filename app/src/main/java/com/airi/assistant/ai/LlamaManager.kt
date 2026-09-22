@@ -523,6 +523,10 @@ class LlamaManager(private val context: Context) {
                 
                 // sidecar so the unified attach flow can do real vision
                 // inference without the user touching a separate button.
+                // Await projector discovery/load before onReady. Previously this
+                // was fire-and-forget, so ChatViewModel could inspect capabilities
+                // in the gap and report vision as unavailable even when a valid
+                // sidecar was present beside the model.
                 maybeAutoLoadMmproj(modelFile.absolutePath)
                 
                 // GGUF so the Memory pipeline produces real pooled vectors
@@ -1877,52 +1881,39 @@ class LlamaManager(private val context: Context) {
      * Always emits AIRI MMPROJ_AUTOLOAD_* tags so the decision is
      * visible from logcat without enabling verbose logs.
      */
-    fun maybeAutoLoadMmproj(modelPath: String) {
+    suspend fun maybeAutoLoadMmproj(modelPath: String) {
         if (!isLoaded) {
             Log.i("AIRI", "MMPROJ_AUTOLOAD_SKIPPED reason=model_not_loaded")
             return
         }
-        scope.launch {
-            try {
-                if (runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)) {
-                    Log.i("AIRI", "MMPROJ_AUTOLOAD_SKIPPED reason=already_loaded")
-                    return@launch
-                }
-                val parent = File(modelPath).parentFile ?: run {
-                    Log.i("AIRI", "MMPROJ_AUTOLOAD_SKIPPED reason=no_parent_dir")
-                    return@launch
-                }
-                val candidates = parent.listFiles { f ->
-                    val n = f.name.lowercase()
-                    f.isFile && n.endsWith(".gguf") &&
-                        (n.contains("mmproj") || n.contains("mm-proj") || n.contains("projector"))
-                }?.toList().orEmpty()
-                if (candidates.isEmpty()) {
-                    Log.i("AIRI",
-                        "MMPROJ_AUTOLOAD_SKIPPED reason=no_sidecar_in dir=${parent.absolutePath}")
-                    return@launch
-                }
-                // Prefer f16 over q4 if multiple are present.
-                val pick = candidates.sortedByDescending { f ->
-                    val n = f.name.lowercase(); when {
-                        "f16" in n  -> 3
-                        "f32" in n  -> 2
-                        "q8" in n   -> 1
-                        else        -> 0
-                    }
-                }.first()
-                Log.i("AIRI",
-                    "MMPROJ_AUTOLOAD_REQUESTED path=${pick.absolutePath} " +
-                    "candidates=${candidates.size}")
-                val ok = runCatching { LlamaNative.loadMmproj(pick.absolutePath) }
-                    .getOrElse { e ->
-                        Log.e(TAG, "MMPROJ_AUTOLOAD threw: ${e.message}", e); false
-                    }
-                Log.i("AIRI", "MMPROJ_AUTOLOAD_RESULT ok=$ok")
-            } catch (e: Throwable) {
-                Log.w(TAG, "maybeAutoLoadMmproj failed: ${e.message}")
-                Log.i("AIRI", "MMPROJ_AUTOLOAD_FAILED ${e.javaClass.simpleName}: ${e.message}")
+        try {
+            if (runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)) {
+                Log.i("AIRI", "MMPROJ_AUTOLOAD_SKIPPED reason=already_loaded")
+                return
             }
+            val parent = File(modelPath).parentFile ?: run {
+                Log.i("AIRI", "MMPROJ_AUTOLOAD_SKIPPED reason=no_parent_dir")
+                return
+            }
+            // Accept the common sibling layout and one nested projector folder.
+            val pool = parent.listFiles().orEmpty().toList() +
+                parent.listFiles { it.isDirectory }.orEmpty().flatMap { it.listFiles().orEmpty().toList() }
+            val pick = MmprojCandidatePolicy.select(pool) ?: run {
+                Log.i("AIRI",
+                    "MMPROJ_AUTOLOAD_SKIPPED reason=no_sidecar_in dir=${parent.absolutePath}")
+                return
+            }
+            Log.i("AIRI",
+                "MMPROJ_AUTOLOAD_REQUESTED path=${pick.absolutePath} " +
+                "candidates=${pool.count(MmprojCandidatePolicy::isCandidate)}")
+            val ok = runCatching { LlamaNative.loadMmproj(pick.absolutePath) }
+                .getOrElse { e ->
+                    Log.e(TAG, "MMPROJ_AUTOLOAD threw: ${e.message}", e); false
+                }
+            Log.i("AIRI", "MMPROJ_AUTOLOAD_RESULT ok=$ok ready=${runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)}")
+        } catch (e: Throwable) {
+            Log.w(TAG, "maybeAutoLoadMmproj failed: ${e.message}")
+            Log.i("AIRI", "MMPROJ_AUTOLOAD_FAILED ${e.javaClass.simpleName}: ${e.message}")
         }
     }
 

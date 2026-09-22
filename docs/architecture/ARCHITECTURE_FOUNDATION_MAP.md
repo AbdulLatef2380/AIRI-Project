@@ -14,6 +14,7 @@ This map records the repository-aware implementation decision for the architectu
 | Execution lifecycle | `HybridOrchestrator`, `ExecutionIntegrity`, `ExecutionStatusBus`, diagnostics | Integrated with identity, cancellation, terminal guard, event correlation, and stale-generation protection. | Preserve existing ownership. |
 | Trace and UI | typed trace buffer, diagnostics, activity bus, Compose chat list | Operational trace is retained; raw hidden reasoning is not exposed. Streaming and persisted messages are separate keyed list items. | Add UI/device tests where infrastructure exists; no global event bus. |
 | AIRI identity/about behavior | `PromptService` and new `AiriIdentityProfile` | Newly completed as a canonical, capability-aware prompt contract. It activates only for identity/about questions and uses the current descriptor. | Keep one source of truth; do not create a separate chatbot. |
+| Local vision runtime readiness | `LlamaManager`, `MmprojCandidatePolicy`, `ModelCapabilityEngine`, `ChatViewModel` | Closed. Projector discovery is now deterministic, supports a sibling or one-level nested projector directory, prefers higher-fidelity quantisation, and is awaited before `onReady`. Capability inspection cannot observe the model in the old fire-and-forget gap. | If no valid projector exists, remain explicitly unavailable and preserve the cloud-compatible candidate path; never claim local vision readiness without `LlamaNative.isMmprojLoaded()`. |
 
 ## Explicit non-goals
 
@@ -36,6 +37,7 @@ This sprint does not rebuild scheduling, skills, permissions, memory, RAG, the r
 | Canonical origin and no invented biography | `AiriIdentityProfileTest.identityPromptStatesOriginAndDoesNotInventBiography` |
 | Runtime artifact truthfulness | `AiriIdentityProfileTest.unavailableVisionIsDescribedAsNotReady` |
 | Non-identity isolation | `AiriIdentityProfileTest.nonIdentityInputDoesNotReceiveIdentityInjection` |
+| mmproj file filtering and deterministic selection | `MmprojCandidatePolicyTest` |
 
 ## Remaining external verification
 

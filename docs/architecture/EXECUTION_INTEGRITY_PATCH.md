@@ -39,6 +39,12 @@ The repository-aware foundation map is recorded in [`ARCHITECTURE_FOUNDATION_MAP
 
 The remaining explicit product gap was completed with `AiriIdentityProfile`. It is a small pure contract consumed by the existing `PromptService` path through `ChatViewModel`. It activates only for identity/about questions, states the required origin accurately, refuses invented biography, and derives model/vision statements from the current `ModelCapabilityDescriptor`. It is not a separate chatbot and it does not claim a feature merely because the product has a corresponding screen or class.
 
+### Vision readiness gap closure
+
+The previous vision path had a real timing flaw: `maybeAutoLoadMmproj()` launched a detached coroutine and `loadModel()` called `onReady(true)` immediately afterward. This allowed `ChatViewModel` to inspect a valid vision model during the short interval before its projector had loaded and report `TEMPORARILY_UNAVAILABLE`. The loader is now suspendable and awaited before `onReady`, so capability inspection observes the post-load state.
+
+Projector discovery is centralized in `MmprojCandidatePolicy`. It accepts only real `.gguf` projector candidates, recognizes `mmproj`, `mm-proj`, and `projector` naming conventions, searches the model directory plus one nested directory, removes duplicate paths, and deterministically prefers F16, then F32, Q8, Q5, and stable filename order. The final state is still verified with `LlamaNative.isMmprojLoaded()`. If no valid sidecar exists or native loading fails, AIRI remains explicitly unavailable locally and can still use an actually compatible cloud candidate when the execution/privacy mode allows it; it never claims local vision support without the runtime artifact.
+
 ## Validation performed
 
 The following checks passed on `cp-foundation` after the reliability changes and after the UI changes:
@@ -50,6 +56,8 @@ The following checks passed on `cp-foundation` after the reliability changes and
 - `:app:testDebugUnitTest`: **BUILD SUCCESSFUL** using JDK 17, Android SDK 36, NDK `25.2.9519653`, in-process Kotlin compilation, and two Gradle workers.
 - Targeted `LanguageRuntimeManagerTest`: **BUILD SUCCESSFUL**.
 - Targeted `AiriIdentityProfileTest` and `ModelCapabilityEngineTest`: **BUILD SUCCESSFUL**.
+- Targeted `MmprojCandidatePolicyTest`: **BUILD SUCCESSFUL**.
+- `:app:compileDebugKotlin` after the synchronous mmproj change: **BUILD SUCCESSFUL**.
 - The final post-UI full application unit-test run compiled the changed `ChatScreen.kt`, KSP sources, and unit-test sources successfully and completed `testDebugUnitTest` with exit code 0.
 
 The build produced only pre-existing Compose deprecation warnings for `Divider` and a few non-mirrored icons; these are warnings, not test or compilation failures, and are outside the requested behavior changes.

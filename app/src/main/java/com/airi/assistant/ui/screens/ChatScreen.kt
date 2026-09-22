@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -120,6 +121,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
+
+private fun chatTextDirection(text: String): LayoutDirection =
+    if (Regex("[\\u0590-\\u08FF]").containsMatchIn(text)) LayoutDirection.Rtl else LayoutDirection.Ltr
 
 private data class AttachmentMetadata(
     val displayName: String,
@@ -2213,12 +2217,12 @@ fun UserBubble(
                         if (displayText.isNotBlank()) Spacer(Modifier.height(8.dp))
                     }
                     if (displayText.isNotBlank() || imageUri == null) {
-                        if (isSelectingText) {
-                            SelectionContainer {
+                        CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection(displayText)) {
+                            if (isSelectingText) {
+                                SelectionContainer { BidiAwareMarkdownRenderer(text = displayText) }
+                            } else {
                                 BidiAwareMarkdownRenderer(text = displayText)
                             }
-                        } else {
-                            BidiAwareMarkdownRenderer(text = displayText)
                         }
                     }
                 }
@@ -2294,6 +2298,7 @@ fun AiBubble(
     var traceExpanded by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
     var isSelectingText by remember { mutableStateOf(false) }
+    val textDirection = remember(text) { chatTextDirection(text) }
     val responseGesture = if (isSelectingText) {
         Modifier
     } else {
@@ -2315,7 +2320,7 @@ fun AiBubble(
                 slideInVertically(animationSpec = androidx.compose.animation.core.tween(240)) { it / 5 }
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(end = 44.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
             horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.Top
         ) {
@@ -2335,18 +2340,15 @@ fun AiBubble(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                            .background(AiriTheme.surfaceVariant)
-                            .border(1.dp, AiriTheme.outline, RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
                             .then(responseGesture)
-                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                            .padding(horizontal = 2.dp, vertical = 2.dp)
                     ) {
-                        if (isSelectingText) {
-                            SelectionContainer {
+                        CompositionLocalProvider(LocalLayoutDirection provides textDirection) {
+                            if (isSelectingText) {
+                                SelectionContainer { BidiAwareMarkdownRenderer(text = text, modifier = Modifier.fillMaxWidth()) }
+                            } else {
                                 BidiAwareMarkdownRenderer(text = text, modifier = Modifier.fillMaxWidth())
                             }
-                        } else {
-                            BidiAwareMarkdownRenderer(text = text, modifier = Modifier.fillMaxWidth())
                         }
                     }
 
@@ -2508,22 +2510,14 @@ fun AiStreamingBubble(text: String) {
             modifier = Modifier.size(30.dp)
         )
         Spacer(Modifier.width(8.dp))
-        Column(
-            modifier = Modifier.fillMaxWidth()
-                .clip(AIRIShapes.aiBubble)
-                .background(AiriTheme.surfaceVariant)
-                .border(0.5.dp, AiriTheme.outline, AIRIShapes.aiBubble)
-                .padding(horizontal = 14.dp, vertical = 12.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(start = 2.dp, top = 1.dp)) {
             if (isThinkingStage) {
-                AiriThinkingIndicator()
+                AiriThinkingDots()
             } else {
                 Row(verticalAlignment = Alignment.Bottom) {
-                    BidiAwareMarkdownRenderer(
-                        text = text,
-                        modifier = Modifier.weight(1f, fill = false),
-                        isStreaming = true,
-                    )
+                    CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection(text)) {
+                        BidiAwareMarkdownRenderer(text = text, modifier = Modifier.fillMaxWidth(), isStreaming = true)
+                    }
                     BlinkingCursor()
                 }
             }
@@ -2532,33 +2526,22 @@ fun AiStreamingBubble(text: String) {
 }
 
 @Composable
-private fun AiriThinkingIndicator() {
+private fun AiriThinkingDots() {
     val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "airi_thinking")
-    val alpha by transition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            animation = androidx.compose.animation.core.tween(850),
-            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
-        ),
-        label = "airi_thinking_alpha",
-    )
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Image(
-            painter = painterResource(R.drawable.ic_launcher_fg),
-            contentDescription = "AIRI يفكر",
-            modifier = Modifier.size(24.dp),
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            repeat(3) { index ->
-                Box(
-                    modifier = Modifier
-                        .size(5.dp)
-                        .graphicsLayer { this.alpha = if (index == 1) alpha else alpha * 0.72f }
-                        .clip(CircleShape)
-                        .background(CosmicAccent),
-                )
-            }
+    Row(
+        modifier = Modifier.semantics { contentDescription = "AIRI is generating a response" }.padding(vertical = 7.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(3) { index ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.28f, targetValue = 0.95f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    animation = androidx.compose.animation.core.tween(520, delayMillis = index * 150),
+                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                ), label = "thinking_dot_$index"
+            )
+            Box(modifier = Modifier.size(7.dp).graphicsLayer { this.alpha = alpha }.clip(CircleShape).background(CosmicAccent))
         }
     }
 }

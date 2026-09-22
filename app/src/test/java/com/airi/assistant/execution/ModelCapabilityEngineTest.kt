@@ -68,4 +68,28 @@ class ModelCapabilityEngineTest {
             ModelCapabilityEngine.check(descriptor, AttachmentRequirement.TEXT, "text/plain", 10).decision,
         )
     }
+
+    @Test fun sufficientResourcesAreFeasible() {
+        val descriptor = ModelCapabilityEngine.fromLocal(
+            local("llama-3.1-8b").copy(ramRequiredMb = 2048),
+            textCaps,
+            mmprojLoaded = false,
+            availableRamMb = 4096,
+        )
+        assertEquals(ModelFeasibility.FEASIBLE, descriptor.readiness.feasibility)
+        assertEquals(
+            CompatibilityDecision.ALLOW,
+            ModelCapabilityEngine.check(descriptor, AttachmentRequirement.TEXT, "text/plain", 10).decision,
+        )
+    }
+
+    @Test fun unknownResourcesRemainUnknownInsteadOfClaimingFeasibility() {
+        val descriptor = ModelCapabilityEngine.fromLocal(
+            local("llama-3.1-8b").copy(ramRequiredMb = 2048),
+            textCaps,
+            mmprojLoaded = false,
+            availableRamMb = null,
+        )
+        assertEquals(ModelFeasibility.UNKNOWN, descriptor.readiness.feasibility)
+    }
 }

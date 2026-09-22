@@ -33,6 +33,12 @@ This patch hardens the shared execution boundary used by `main` and `cp-foundati
 | 6. Thinking indicator | The English `generation`-style streaming placeholder is replaced by an AIRI avatar plus animated dots. The indicator is visual and localized through the existing generation state rather than exposing raw English lifecycle text. |
 | 7. Duplicate templates option and drawer shape | The duplicate Templates menu entry was removed while the Switch Model action remains. The side drawer now has a restrained rounded trailing edge rather than a fully rectangular edge. |
 
+## Architecture foundation completion
+
+The repository-aware foundation map is recorded in [`ARCHITECTURE_FOUNDATION_MAP.md`](ARCHITECTURE_FOUNDATION_MAP.md). The audit confirmed that capability resolution, attachment admission, resource budgeting, context assembly, privacy boundaries, routing, execution, and trace already have owners in AIRI. No parallel router, memory manager, event bus, or execution engine was introduced.
+
+The remaining explicit product gap was completed with `AiriIdentityProfile`. It is a small pure contract consumed by the existing `PromptService` path through `ChatViewModel`. It activates only for identity/about questions, states the required origin accurately, refuses invented biography, and derives model/vision statements from the current `ModelCapabilityDescriptor`. It is not a separate chatbot and it does not claim a feature merely because the product has a corresponding screen or class.
+
 ## Validation performed
 
 The following checks passed on `cp-foundation` after the reliability changes and after the UI changes:
@@ -43,6 +49,7 @@ The following checks passed on `cp-foundation` after the reliability changes and
 - `git diff --check`: passed.
 - `:app:testDebugUnitTest`: **BUILD SUCCESSFUL** using JDK 17, Android SDK 36, NDK `25.2.9519653`, in-process Kotlin compilation, and two Gradle workers.
 - Targeted `LanguageRuntimeManagerTest`: **BUILD SUCCESSFUL**.
+- Targeted `AiriIdentityProfileTest` and `ModelCapabilityEngineTest`: **BUILD SUCCESSFUL**.
 - The final post-UI full application unit-test run compiled the changed `ChatScreen.kt`, KSP sources, and unit-test sources successfully and completed `testDebugUnitTest` with exit code 0.
 
 The build produced only pre-existing Compose deprecation warnings for `Divider` and a few non-mirrored icons; these are warnings, not test or compilation failures, and are outside the requested behavior changes.

@@ -119,6 +119,7 @@ import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.execution.router.RuntimeRouter
 import com.airi.assistant.execution.security.SecureApiKeyStore
 import com.airi.assistant.voice.VoskModelManager
+import com.airi.assistant.product.AiriIdentityProfile
 import com.airi.assistant.ui.activity.AgentActivityBus
 
 data class ChatMessage(
@@ -2077,13 +2078,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         queryType:     QueryType       = QueryType.UNKNOWN,
         ragContext:    String          = "",
         memorySummary: String          = "",
+        identityContext: String       = "",
         // SPRINT 2: when true, AgentLoop will append its own structured tool schemas
         // so PromptService must NOT inject the narrative skill block (duplication fix).
         hasAgentTools: Boolean         = false
     ): String = promptService.buildSystemPromptWithContext(
         modePrompt      = _agentMode.value.prompt,
         responseStyle   = _responseStyle.value,
-        customPrompt    = _systemPrompt.value.trim(),
+        customPrompt    = listOf(_systemPrompt.value.trim(), identityContext.trim())
+            .filter { it.isNotBlank() }
+            .joinToString("\n\n"),
         performanceMode = perfMode,
         queryType       = queryType,
         ragContextBlock = ragContext,
@@ -2102,8 +2106,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         hasAgentTools: Boolean  = false
     ): String {
         // queryType no longer gates execution; it's logged for telemetry only.
-        // Always build the full effective system prompt with RAG context injected.
-        return buildEffectiveSystemPrompt(perfMode, queryType, ragContext, memorySummary, hasAgentTools)
+        // Identity facts are injected only for identity/about questions and are
+        // derived from the current capability descriptor.
+        val identityContext = AiriIdentityProfile.promptContext(input, currentCapabilityDescriptor())
+        return buildEffectiveSystemPrompt(
+            perfMode = perfMode,
+            queryType = queryType,
+            ragContext = ragContext,
+            memorySummary = memorySummary,
+            identityContext = identityContext,
+            hasAgentTools = hasAgentTools,
+        )
     }
 
     private fun recordGenerationStats(elapsedMs: Long, tokenCount: Int) {

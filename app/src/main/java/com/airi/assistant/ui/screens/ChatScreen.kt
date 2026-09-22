@@ -53,12 +53,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -105,6 +107,10 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
+
+/** Paragraph direction: Arabic/Hebrew RTL; English, Chinese and code LTR. */
+private fun chatTextDirection(text: String): LayoutDirection =
+    if (Regex("[\\u0590-\\u08FF]").containsMatchIn(text)) LayoutDirection.Rtl else LayoutDirection.Ltr
 
 private data class AttachmentMetadata(
     val displayName: String,
@@ -888,16 +894,9 @@ fun ChatScreen(
                     .align(Alignment.BottomStart)
                     .padding(start = 60.dp, bottom = 8.dp)
             ) {
-                Surface(
-                    shape = AIRIShapes.md,
-                    color = AiBubbleSurface,
-                    border = androidx.compose.foundation.BorderStroke(0.5.dp, AiBubbleBorder),
-                ) {
-                    com.airi.assistant.ui.components.ThinkingAnimation(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
-                        stageText = agentState.currentAction.takeIf { it.isNotBlank() }
-                    )
-                }
+                // Thinking is state, not a message: keep it outside any bubble
+                // and use only a subtle animated affordance until the first token.
+                AiriThinkingDots()
             }
             // Shown when the user is in live/duplex voice mode
             if (liveChatActiveRef.value || voiceState != VoiceSessionState.IDLE) {
@@ -2066,6 +2065,7 @@ fun UserBubble(
         if (imageUri != null) text.replace(Regex("""\s*\n*\[image:[^\]]*\]\s*$"""), "").trim()
         else text
     }
+    val textDirection = remember(displayText) { chatTextDirection(displayText) }
     val context = LocalContext.current
     val haptic  = LocalHapticFeedback.current
 
@@ -2126,12 +2126,14 @@ fun UserBubble(
                         if (displayText.isNotBlank()) Spacer(Modifier.height(8.dp))
                     }
                     if (displayText.isNotBlank() || imageUri == null) {
-                        if (isSelectingText) {
-                            SelectionContainer {
-                                Text(text = displayText, color = AiriTheme.onBackground, fontSize = 15.sp, lineHeight = 23.sp)
+                        CompositionLocalProvider(LocalLayoutDirection provides textDirection) {
+                            if (isSelectingText) {
+                                SelectionContainer {
+                                    Text(text = displayText, color = AiriTheme.onBackground, fontSize = 15.sp, lineHeight = 23.sp, textAlign = TextAlign.Start)
+                                }
+                            } else {
+                                Text(text = displayText, color = AiriTheme.onBackground, fontSize = 15.sp, lineHeight = 23.sp, textAlign = TextAlign.Start)
                             }
-                        } else {
-                            Text(text = displayText, color = AiriTheme.onBackground, fontSize = 15.sp, lineHeight = 23.sp)
                         }
                     }
                 }
@@ -2218,6 +2220,7 @@ fun AiBubble(
             }
         )
     }
+    val textDirection = remember(text) { chatTextDirection(text) }
 
     val transition = remember {
         androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
@@ -2228,7 +2231,7 @@ fun AiBubble(
                 slideInVertically(animationSpec = androidx.compose.animation.core.tween(240)) { it / 5 }
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(end = 44.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
             horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.Top
         ) {
@@ -2248,23 +2251,22 @@ fun AiBubble(
                 Spacer(Modifier.width(36.dp))
             }
 
-            Column(modifier = Modifier.widthIn(max = 360.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().widthIn(max = 680.dp)) {
                 Box {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
-                            .background(AiBubbleSurface)
-                            .border(1.dp, AiBubbleBorder, RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp))
                             .then(responseGesture)
-                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                            .padding(horizontal = 2.dp, vertical = 2.dp)
                     ) {
-                        if (isSelectingText) {
-                            SelectionContainer {
+                        CompositionLocalProvider(LocalLayoutDirection provides textDirection) {
+                            if (isSelectingText) {
+                                SelectionContainer {
+                                    MarkdownText(rawText = text, modifier = Modifier.fillMaxWidth(), baseFontSp = 15f, lineHeightSp = 23f)
+                                }
+                            } else {
                                 MarkdownText(rawText = text, modifier = Modifier.fillMaxWidth(), baseFontSp = 15f, lineHeightSp = 23f)
                             }
-                        } else {
-                            MarkdownText(rawText = text, modifier = Modifier.fillMaxWidth(), baseFontSp = 15f, lineHeightSp = 23f)
                         }
                     }
 
@@ -2414,9 +2416,9 @@ fun AiBubble(
 
 @Composable
 fun AiStreamingBubble(text: String) {
-    val isThinkingStage = text in setOf("Thinking...", "Analyzing...", "Planning...", "Generating...", "Preparing...", "Reasoning...")
+    val isThinkingStage = text.trim() in setOf("Thinking...", "Analyzing...", "Planning...", "Generating...", "Preparing...", "Reasoning...")
     Row(
-        modifier = Modifier.fillMaxWidth().padding(end = 44.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.Top
     ) {
@@ -2443,24 +2445,48 @@ fun AiStreamingBubble(text: String) {
             )
         }
         Spacer(Modifier.width(8.dp))
-        Column(
-            modifier = Modifier.fillMaxWidth()
-                .clip(AIRIShapes.aiBubble)
-                .background(AiBubbleSurface)
-                .border(0.5.dp, AiBubbleBorder, AIRIShapes.aiBubble)
-                .padding(horizontal = 14.dp, vertical = 12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text       = text,
-                    color      = AiriTheme.onBackground.copy(alpha = if (isThinkingStage) 0.50f else 0.93f),
-                    fontSize   = 15.sp, lineHeight = 23.sp,
-                    fontStyle  = if (isThinkingStage) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
-                    modifier   = Modifier.weight(1f, fill = false)
-                )
-                if (!isThinkingStage) BlinkingCursor()
+        Column(modifier = Modifier.fillMaxWidth().padding(start = 2.dp, top = 1.dp)) {
+            if (isThinkingStage) {
+                AiriThinkingDots()
+            } else {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection(text)) {
+                        MarkdownText(rawText = text, modifier = Modifier.fillMaxWidth(), baseFontSp = 15f, lineHeightSp = 23f)
+                    }
+                    BlinkingCursor()
+                }
             }
-            // AiriThinkingPulse removed — ThinkingAnimation bubble is the single indicator
+        }
+    }
+}
+
+@Composable
+private fun AiriThinkingDots() {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "airi_thinking")
+    Row(
+        modifier = Modifier
+            .semantics { contentDescription = "AIRI is generating a response" }
+            .padding(vertical = 7.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(3) { index ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.28f,
+                targetValue = 0.95f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    animation = androidx.compose.animation.core.tween(520, delayMillis = index * 150),
+                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                ),
+                label = "thinking_dot_$index"
+            )
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .graphicsLayer { this.alpha = alpha }
+                    .clip(CircleShape)
+                    .background(CosmicAccent)
+            )
         }
     }
 }

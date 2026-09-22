@@ -50,6 +50,7 @@ jobs:
 
     - name: Verify source contracts and localization
       run: |
+        python3 tools/airi_runtime_simulation.py
         python3 tools/verify_core_changes.py
         python3 scripts/airi_localization_health.py --strict
         git diff --check

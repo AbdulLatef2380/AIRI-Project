@@ -11,7 +11,6 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 
 /**
  * Gemini streaming adapter — multi-turn REST implementation.
@@ -44,11 +43,9 @@ class GeminiAdapter(
                 retryable = false
             )
 
-        // API keys may contain characters that must be URL encoded.  Passing the
-        // raw value breaks otherwise valid keys and is reported by Gemini as a
-        // generic request/response failure.
-        val encodedKey = URLEncoder.encode(apiKey, Charsets.UTF_8.name())
-        val url  = "$BASE_URL/models/$model:streamGenerateContent?alt=sse&key=$encodedKey"
+        // Keep credentials out of URLs: proxies, logs and diagnostics commonly
+        // retain request URLs. Gemini supports x-goog-api-key authentication.
+        val url  = "$BASE_URL/models/$model:streamGenerateContent?alt=sse"
         val body = buildRequestBody(request)
 
         Log.d(TAG, "streamGenerate model=$model " +
@@ -69,6 +66,7 @@ class GeminiAdapter(
                 doOutput       = true
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("Accept", "text/event-stream")
+                setRequestProperty("x-goog-api-key", apiKey)
             }
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 

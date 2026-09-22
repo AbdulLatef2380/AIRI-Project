@@ -8,6 +8,15 @@ readonly GRADLE_ARGS=(
   :app:connectedDebugAndroidTest
   --stacktrace
 )
+readonly TEST_TIMEOUT_SECONDS=900
+
+dump_diagnostics() {
+  echo "===== instrumentation diagnostics =====" >&2
+  adb devices -l >&2 || true
+  adb shell getprop >&2 || true
+  adb shell ps -A >&2 || true
+  adb logcat -d -t 400 >&2 || true
+}
 
 wait_for_package_manager() {
   local attempt
@@ -22,7 +31,8 @@ wait_for_package_manager() {
 }
 
 run_tests() {
-  ./gradlew "${GRADLE_ARGS[@]}"
+  timeout --signal=TERM --kill-after=30s "${TEST_TIMEOUT_SECONDS}s" \
+    ./gradlew "${GRADLE_ARGS[@]}"
 }
 
 ./gradlew --stop || true
@@ -35,8 +45,15 @@ if run_tests; then
   exit 0
 fi
 
-echo "Instrumentation attempt failed; reconnecting ADB for one environment retry." >&2
+echo "Instrumentation attempt failed or timed out; collecting diagnostics." >&2
+dump_diagnostics
+echo "Reconnecting ADB for one bounded environment retry." >&2
 adb reconnect
 adb wait-for-device
 wait_for_package_manager
-run_tests
+if run_tests; then
+  exit 0
+fi
+echo "Instrumentation retry failed or timed out; collecting final diagnostics." >&2
+dump_diagnostics
+exit 1

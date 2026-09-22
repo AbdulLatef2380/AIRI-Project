@@ -154,8 +154,9 @@ class GeminiAdapter(
         if (!first) append(",")
         append("{\"role\":\"user\",\"parts\":[{\"text\":")
         append(jsonString(req.prompt))
-        append("}")
         req.imageParts.forEach { image ->
+            // Gemini REST expects snake_case inline_data parts. An OpenAI
+            // image_url object is not valid Gemini request JSON.
             append(",{\"inline_data\":{\"mime_type\":")
             append(jsonString(image.mimeType.ifBlank { "image/jpeg" }))
             append(",\"data\":")

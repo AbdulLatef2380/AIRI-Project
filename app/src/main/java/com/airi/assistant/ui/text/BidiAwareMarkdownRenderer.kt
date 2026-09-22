@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -14,6 +15,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.LayoutDirection
+import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.util.MarkdownText
 
 /**
@@ -33,7 +35,8 @@ import com.airi.assistant.ui.util.MarkdownText
 fun BidiAwareMarkdownRenderer(
     text: String,
     modifier: Modifier = Modifier,
-    isStreaming: Boolean = false
+    isStreaming: Boolean = false,
+    textColor: Color = AiriTheme.onSurface.copy(alpha = 0.93f)
 ) {
     val direction = remember(text) {
         LanguageRuntimeManager.analyseDirection(text)
@@ -52,7 +55,8 @@ fun BidiAwareMarkdownRenderer(
     CompositionLocalProvider(LocalLayoutDirection provides layoutDir) {
         MarkdownText(
             rawText  = processedText,
-            modifier = modifier.fillMaxWidth()
+            modifier = modifier.fillMaxWidth(),
+            textColor = textColor
         )
     }
 }

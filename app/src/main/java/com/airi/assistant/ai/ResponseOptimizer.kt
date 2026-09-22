@@ -61,15 +61,17 @@ object ResponseOptimizer {
                 "Hello! What's on your mind?",
                 "Hey! Ready to help — what do you need?",
                 "Hi! Ask me anything.",
-                "أهلاً! كيف أستطيع مساعدتك؟"
+                "أهلاً! كيف أستطيع مساعدتك اليوم؟",
+                "مرحباً! كيف يمكنني مساعدتك؟"
             )
         ),
         FastEntry(
             listOf("how are you", "كيف حالك", "كيف الحال", "عامل إيه"),
             pick(
-                "Doing great and ready to help! What's on your mind?",
+                "I'm doing great, thanks for asking! What's on your mind?",
                 "All good here! What can I help you with?",
-                "Ready and sharp! What do you need?"
+                "Ready and sharp! What do you need?",
+                "أنا بخير، شكراً لسؤالك. كيف يمكنني مساعدتك؟"
             )
         ),
         FastEntry(
@@ -79,7 +81,8 @@ object ResponseOptimizer {
                 "Happy to help! Anything else?",
                 "Anytime! What else can I do for you?",
                 "Of course! Feel free to ask anything.",
-                "عفواً! هل تحتاج أي مساعدة أخرى؟"
+                "عفواً! هل تحتاج أي مساعدة أخرى؟",
+                "على الرحب والسعة! هل تحتاج إلى شيء آخر؟"
             )
         ),
         FastEntry(
@@ -87,7 +90,8 @@ object ResponseOptimizer {
                    "offline", "no internet", "internet connection"),
             pick(
                 "I can work offline for many tasks, but some features may need internet or cloud services.",
-                "Many core features work on-device, and optional online features may use the internet."
+                "Many core features work on-device, and optional online features may use the internet.",
+                "يمكنني العمل دون اتصال في مهام كثيرة، لكن بعض الميزات تحتاج إلى الإنترنت أو الخدمات السحابية."
             )
         ),
         FastEntry(
@@ -95,7 +99,8 @@ object ResponseOptimizer {
             pick(
                 "I can answer questions, write code, analyze text, summarize, translate, brainstorm, and more, with a mix of local and optional cloud features.",
                 "I can help with coding, writing, Q&A, analysis, translations, and creative tasks. What would you like?",
-                "Ask me anything: code, writing, summaries, explanations, math, and more."
+                "Ask me anything: code, writing, summaries, explanations, math, and more.",
+                "أستطيع الإجابة عن الأسئلة وكتابة الكود وتحليل النصوص والتلخيص والترجمة والمساعدة في المهام الإبداعية."
             )
         )
     )
@@ -156,7 +161,17 @@ object ResponseOptimizer {
                 }
             }
             if (matched) {
-                val reply = entry.replies.random()()
+                // Never answer an Arabic or CJK prompt with a random English
+                // canned reply. If no localized shortcut exists, return null so
+                // the real model can answer in the user's language.
+                val isArabic = raw.any { it in '\u0600'..'\u06FF' }
+                val isCjk = raw.any { it in '\u4E00'..'\u9FFF' }
+                val replyFactory = when {
+                    isArabic -> entry.replies.firstOrNull { it().any { c -> c in '\u0600'..'\u06FF' } }
+                    isCjk -> null
+                    else -> entry.replies.firstOrNull { !it().any { c -> c in '\u0600'..'\u06FF' } }
+                } ?: return null
+                val reply = replyFactory()
                 if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "fast_response matched len=${input.length} reply_len=${reply.length}")
                 Log.i("AIRI", "FAST_PATH_HIT input_len=${input.length} reply_len=${reply.length}")
                 return reply

@@ -107,13 +107,18 @@ open class OpenAIAdapter(
 
             // ── Parse SSE stream ───────────────────────────────────────────
             BufferedReader(InputStreamReader(conn.inputStream)).use { reader ->
+                var sawDone = false
                 var line: String?
                 while (reader.readLine().also { line = it } != null) {
                     ensureActive()   // Cooperative cancellation
                     val raw = line!!.trim()
                     if (!raw.startsWith("data:")) continue
                     val payload = raw.removePrefix("data:").trim()
-                    if (payload == "[DONE]" || payload.isBlank()) continue
+                    if (payload == "[DONE]") {
+                        sawDone = true
+                        break
+                    }
+                    if (payload.isBlank()) continue
 
                     if (payload.contains("\"error\"")) {
                         val message = extractErrorMessage(payload)
@@ -139,6 +144,14 @@ open class OpenAIAdapter(
                         promptTokens   = p
                         completeTokens = c
                     }
+                }
+                if (!sawDone) {
+                    return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                        error = "OpenAI stream ended before [DONE]",
+                        errorType = CloudErrorType.CONNECTION_LOST,
+                        retryable = fullText.isEmpty(),
+                        httpCode = -2
+                    )
                 }
             }
 

@@ -12,6 +12,9 @@ import com.airi.assistant.execution.ExecutionResult
 import com.airi.assistant.execution.accounting.TokenAccountant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.Job
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Local llama.cpp runtime backend.
@@ -131,6 +134,14 @@ class LocalLlamaBackend(
 
         // Use an unlimited Channel to bridge non-suspend LlamaManager callbacks
         // back to this suspend caller without blocking any thread.
+        val finished = AtomicBoolean(false)
+        currentCoroutineContext()[Job]?.invokeOnCompletion { cause ->
+            if (cause != null && finished.compareAndSet(false, true)) {
+                // The native engine outlives the caller coroutine. Cancel it
+                // when the UI/agent stops collecting the stream.
+                llamaManager.cancelStream()
+            }
+        }
         val events = Channel<LlamaEvent>(Channel.UNLIMITED)
 
         try {
@@ -171,6 +182,7 @@ class LocalLlamaBackend(
             when (event) {
                 is LlamaEvent.Token    -> onToken(event.value)
                 is LlamaEvent.Complete -> {
+                    finished.set(true)
                     
                     // since nativeTokenCount is not surfaced through this interface.
                     tokenAccountant?.let { accountant ->
@@ -186,7 +198,10 @@ class LocalLlamaBackend(
                     }
                     onComplete(event.text, event.latency)
                 }
-                is LlamaEvent.Error    -> onError(event.message)
+                is LlamaEvent.Error    -> {
+                    finished.set(true)
+                    onError(event.message)
+                }
             }
         }
     }

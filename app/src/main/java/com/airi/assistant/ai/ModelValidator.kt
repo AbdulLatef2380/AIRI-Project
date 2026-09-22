@@ -17,7 +17,7 @@ sealed class ValidationResult {
 
 object ModelValidator {
     private val GGUF_MAGIC = byteArrayOf(0x47, 0x47, 0x55, 0x46)
-    private const val MIN_SIZE_BYTES = 100_000_000L
+    private const val MIN_HEADER_BYTES = 8L
     private const val TAG = "AIRI_MODEL"
 
     data class Inspection(
@@ -27,12 +27,12 @@ object ModelValidator {
         val readable: Boolean
     )
 
-    fun validate(file: File, context: Context, ramRequiredMb: Int = 0): ValidationResult {
+    fun validate(file: File, context: Context?, ramRequiredMb: Int = 0): ValidationResult {
         if (!file.exists()) return ValidationResult.FileNotFound
-        if (file.length() < MIN_SIZE_BYTES) return ValidationResult.TooSmall
-        if (!hasGgufHeader(file)) return ValidationResult.InvalidFormat
+        if (file.length() < MIN_HEADER_BYTES) return ValidationResult.TooSmall
+        if (!hasSupportedGgufHeader(file)) return ValidationResult.InvalidFormat
         if (ramRequiredMb > 0) {
-            val availableMb = getAvailableRamMb(context)
+            val availableMb = context?.let(::getAvailableRamMb) ?: Long.MAX_VALUE
             if (availableMb < ramRequiredMb) {
                 return ValidationResult.InsufficientRam(ramRequiredMb.toLong(), availableMb)
             }
@@ -49,11 +49,14 @@ object ModelValidator {
         return Inspection(file.length(), version, architecture, readable)
     }
 
-    private fun hasGgufHeader(file: File): Boolean {
+    private fun hasSupportedGgufHeader(file: File): Boolean {
         return try {
-            val header = ByteArray(4)
+            val header = ByteArray(8)
             file.inputStream().use { it.read(header) }
-            header.contentEquals(GGUF_MAGIC)
+            if (!header.copyOfRange(0, 4).contentEquals(GGUF_MAGIC)) return false
+            val version = ByteBuffer.wrap(header, 4, 4).order(ByteOrder.LITTLE_ENDIAN).int
+            // GGUF v2 and v3 are the versions supported by current llama.cpp.
+            version == 2 || version == 3
         } catch (e: Exception) {
             false
         }

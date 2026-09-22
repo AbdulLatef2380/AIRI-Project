@@ -43,7 +43,10 @@ class GeminiAdapter(
                 retryable = false
             )
 
-        val url  = "$BASE_URL/models/$model:streamGenerateContent?alt=sse&key=$apiKey"
+        // Keep credentials out of URLs: proxies, access logs and diagnostics
+        // commonly retain request URLs. Gemini documents x-goog-api-key as the
+        // header form for API-key authentication.
+        val url  = "$BASE_URL/models/$model:streamGenerateContent?alt=sse"
         val body = buildRequestBody(request)
 
         Log.d(TAG, "streamGenerate model=$model " +
@@ -63,6 +66,7 @@ class GeminiAdapter(
                 doOutput       = true
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("Accept", "text/event-stream")
+                setRequestProperty("x-goog-api-key", apiKey)
             }
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
@@ -78,6 +82,7 @@ class GeminiAdapter(
             }
 
             BufferedReader(InputStreamReader(conn.inputStream)).use { reader ->
+                var sawData = false
                 var line: String?
                 while (reader.readLine().also { line = it } != null) {
                     ensureActive()
@@ -85,9 +90,18 @@ class GeminiAdapter(
                     if (!raw.startsWith("data:")) continue
                     val payload = raw.removePrefix("data:").trim()
                     if (payload.isBlank() || payload == "[DONE]") continue
+                    sawData = true
                     val token = extractToken(payload)
                     if (token.isNotEmpty()) { fullText.append(token); onToken(token) }
                     extractUsage(payload)?.let { (p, c) -> promptTokens = p; completeTokens = c }
+                }
+                if (!sawData || fullText.isEmpty()) {
+                    return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                        error = "Gemini stream ended without content",
+                        errorType = CloudErrorType.CONNECTION_LOST,
+                        retryable = true,
+                        httpCode = -2
+                    )
                 }
             }
 

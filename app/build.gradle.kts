@@ -105,6 +105,11 @@ android {
             // Apply signing config when keystore env vars are present (CI / release engineer).
             // Absent → unsigned APK (local dev / fork builds with no secrets).
             signingConfigs.findByName("release")?.let { signingConfig = it }
+            // Keep full native symbols for the release symbol archive. Without
+            // this, llama.cpp/JNI tombstones lose file/line information.
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
 
             // Crashlytics mapping file upload is controlled via the
             // com.google.firebase.crashlytics Gradle plugin at task execution time.

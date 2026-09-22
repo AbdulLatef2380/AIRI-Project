@@ -2096,7 +2096,9 @@ fun UserBubble(
             Box {
                 Column(
                     modifier = Modifier
-                        .widthIn(max = 320.dp)
+                        // Keep user turns visually dominant like the reference
+                        // layout while still leaving a comfortable edge inset.
+                        .widthIn(max = 360.dp)
                         .clip(AIRIShapes.userBubble)
                         .background(UserBubbleSurface)
                         .then(bubbleGesture)
@@ -2246,7 +2248,7 @@ fun AiBubble(
                 Spacer(Modifier.width(36.dp))
             }
 
-            Column {
+            Column(modifier = Modifier.widthIn(max = 360.dp)) {
                 Box {
                     Box(
                         modifier = Modifier

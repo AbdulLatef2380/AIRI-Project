@@ -123,6 +123,12 @@ class CloudBackend(
 
             var promptTok = 0
             var compTok = 0
+            // Once a streaming attempt has emitted text, the UI cannot retract it.
+            // Retrying that attempt (or failing over to another provider) would
+            // append a second copy of the response to the same bubble. Keep the
+            // retry contract strict: retries are allowed only before the first
+            // token is delivered.
+            var emittedInAttempt = false
 
             val result = RetryPolicy.withRetry(maxAttempts = MAX_RETRIES) { attempt ->
                 if (attempt > 0) {
@@ -131,11 +137,21 @@ class CloudBackend(
                 }
                 promptTok = 0
                 compTok = 0
+                emittedInAttempt = false
                 adapter.streamGenerate(
                     request = request,
-                    onToken = { token -> onToken(token) },
+                    onToken = { token ->
+                        emittedInAttempt = true
+                        onToken(token)
+                    },
                     onUsage = { p, c -> promptTok = p; compTok = c }
-                )
+                ).let { outcome ->
+                    if (outcome is CloudProviderAdapter.AdapterResult.Failure && emittedInAttempt) {
+                        outcome.copy(retryable = false)
+                    } else {
+                        outcome
+                    }
+                }
             }
 
             when (result) {
@@ -171,6 +187,14 @@ class CloudBackend(
                         TAG,
                         "CloudBackend failure provider=${provider.name} type=${result.errorType} http=${result.httpCode} errorChars=${result.error.length}"
                     )
+                    // A provider has already emitted content into the current
+                    // response bubble. Do not fail over and append a second
+                    // provider's answer to it; surface one explicit partial
+                    // response error instead.
+                    if (emittedInAttempt) {
+                        onError("${lastError} (partial response discarded; retry manually)")
+                        return
+                    }
                     // Continue to next provider in failover chain
                 }
             }

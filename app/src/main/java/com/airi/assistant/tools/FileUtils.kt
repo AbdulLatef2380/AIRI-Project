@@ -17,7 +17,7 @@ data class ModelImportCopyResult(
 
 object FileUtils {
     private const val TAG = "AIRI_STORAGE"
-    private const val MIN_MODEL_BYTES = 100_000_000L
+    private const val MIN_GGUF_HEADER_BYTES = 8L
 
     fun copyToInternalStorage(context: Context, uri: Uri): String {
         return copyModelFromSaf(context, uri).file.absolutePath
@@ -33,29 +33,46 @@ object FileUtils {
         val modelsDir = File(context.filesDir, "models").apply {
             if (!exists() && !mkdirs()) throw IOException("Cannot create internal models directory")
         }
-        val destFile = File(modelsDir, safeName)
+        // Never truncate an existing destination in place. The active llama.cpp
+        // model is mmap'ed, and FileOutputStream(dest, false) would invalidate
+        // that mapping while the native context can still read it, producing a
+        // process-level SIGBUS instead of a catchable Kotlin exception. Use a
+        // fresh filename for every import and publish it only after the copy is
+        // complete.
+        val base = File(modelsDir, safeName)
+        val destFile = if (!base.exists()) base else {
+            val stem = base.nameWithoutExtension
+            val ext = base.extension.takeIf { it.isNotBlank() }?.let { ".${it}" }.orEmpty()
+            File(modelsDir, "${stem}_${System.currentTimeMillis()}$ext")
+        }
+        val tempFile = File(modelsDir, ".${destFile.name}.part")
         val expectedSize = querySize(context, uri)
         var copiedBytes = 0L
-        resolver.openInputStream(uri)?.use { input ->
-            FileOutputStream(destFile, false).use { output ->
-                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                while (true) {
-                    val read = input.read(buffer)
-                    if (read == -1) break
-                    output.write(buffer, 0, read)
-                    copiedBytes += read
+        try {
+            resolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(tempFile, false).use { output ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read == -1) break
+                        output.write(buffer, 0, read)
+                        copiedBytes += read
+                    }
+                    output.fd.sync()
                 }
-                output.fd.sync()
-            }
-        } ?: throw IOException("Cannot open selected model URI for reading")
+            } ?: throw IOException("Cannot open selected model URI for reading")
 
-        if (expectedSize > 0 && copiedBytes != expectedSize) {
-            destFile.delete()
-            throw IOException("Model copy incomplete expected=$expectedSize copied=$copiedBytes")
-        }
-        if (!destFile.exists() || destFile.length() < MIN_MODEL_BYTES) {
-            destFile.delete()
-            throw IOException("Model file invalid or incomplete size=${destFile.length()}")
+            if (expectedSize > 0 && copiedBytes != expectedSize) {
+                throw IOException("Model copy incomplete expected=$expectedSize copied=$copiedBytes")
+            }
+            if (!tempFile.exists() || tempFile.length() < MIN_GGUF_HEADER_BYTES) {
+                throw IOException("Model file invalid or incomplete size=${tempFile.length()}")
+            }
+            if (!tempFile.renameTo(destFile)) {
+                throw IOException("Cannot publish imported model atomically")
+            }
+        } finally {
+            tempFile.delete()
         }
         Log.i(TAG, "IMPORT_COPY_SUCCESS uri=$uri dest=${destFile.absolutePath} expected=$expectedSize copied=$copiedBytes")
         return ModelImportCopyResult(destFile, expectedSize, copiedBytes)

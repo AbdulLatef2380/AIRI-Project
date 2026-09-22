@@ -259,6 +259,7 @@ class CloudBackend(
             CloudErrorType.RATE_LIMITED     -> "${provider.displayName} is rate-limiting requests. Please wait a moment."
             CloudErrorType.CONTEXT_LENGTH   -> "Prompt too long for ${provider.displayName}. Try a shorter message."
             CloudErrorType.CONTENT_FILTERED -> "Your message was filtered by ${provider.displayName}'s safety policy."
+            CloudErrorType.MODEL_NOT_FOUND  -> "The selected model is unavailable at ${provider.displayName}. Check the model settings."
             CloudErrorType.TIMEOUT          -> "${provider.displayName} timed out. Check your internet connection."
             CloudErrorType.CONNECTION_LOST  -> "Connection to ${provider.displayName} was lost mid-stream."
             CloudErrorType.CANCELLED        -> "Request cancelled."

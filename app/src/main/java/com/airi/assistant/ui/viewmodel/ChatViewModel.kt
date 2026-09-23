@@ -52,6 +52,7 @@ import com.airi.assistant.core.ServiceLocator
 // AgentService import removed — no longer used in sendMessage after agent-first migration
 import com.airi.core.attachments.AttachmentPolicy
 import com.airi.assistant.domain.ChatAttachment
+import com.airi.assistant.domain.LongTextAttachmentPolicy
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
@@ -1554,12 +1555,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return InputDirectives(remaining, skillId, knowledgeId)
     }
 
-        // Long-text file conversion threshold: messages over this length are
-    // automatically saved as a text file and attached to the conversation
-    // instead of being sent as raw text. This prevents context overflow
-    // and keeps the token budget manageable.
-    private val LONG_TEXT_THRESHOLD = 3000
-
     fun sendMessage(input: String): Boolean =
         sendMessageInternal(input, allowLongTextConversion = true)
 
@@ -1579,11 +1574,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // guard also protects programmatic callers from queuing a second request.
         if (_agentState.value.isWorking) return false
         _lastExecutionError.value = null
-        // ── Long-text-to-file conversion (3000+ chars) ────────────────────────
+        // ── Long-text-to-file conversion (3000+ chars or 40+ lines) ───────────
         // When the user pastes/sends very long text (e.g. code, articles, logs),
         // convert it to a .txt file attachment instead of embedding it inline.
         // This prevents token overflow and keeps the conversation manageable.
-        if (allowLongTextConversion && trimmedInput.length >= LONG_TEXT_THRESHOLD) {
+        if (allowLongTextConversion && LongTextAttachmentPolicy.shouldAutoConvert(trimmedInput)) {
             val file = File(appContext.cacheDir, "chat_attachments")
             file.mkdirs()
             val fileName = "pasted_${System.currentTimeMillis()}.txt"
@@ -1605,7 +1600,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             uri = fileUri,
                             displayName = fileName,
                             mimeType = "text/plain",
-                            sizeBytes = trimmedInput.toByteArray(Charsets.UTF_8).size.toLong()
+                            sizeBytes = LongTextAttachmentPolicy.utf8SizeBytes(trimmedInput)
                         )
                     )
                 )

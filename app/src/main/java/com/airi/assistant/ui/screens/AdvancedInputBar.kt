@@ -14,7 +14,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,7 +27,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -132,31 +130,6 @@ fun AdvancedChatInputBar(
                 onPickFile        = onPickFile,
                 onDismiss         = { toolbarDismissed = true }
             )
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .pointerInput(bottomNavVisible) {
-                    detectVerticalDragGestures { _, dragAmount ->
-                        if (kotlin.math.abs(dragAmount) >= 8f) onBottomNavToggle()
-                    }
-                },
-            horizontalArrangement = Arrangement.Start
-        ) {
-            IconButton(
-                onClick = onBottomNavToggle,
-                modifier = Modifier.size(28.dp).semantics {
-                    contentDescription = if (bottomNavVisible) "Hide navigation" else "Show navigation"
-                    role = Role.Button
-                }
-            ) {
-                Icon(
-                    if (bottomNavVisible) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                    contentDescription = null,
-                    tint = AiriTheme.onSurfaceVariant.copy(alpha = 0.75f),
-                    modifier = Modifier.size(18.dp)
-                )
-            }
         }
         AiriChatInputBar(
             modelState              = modelState,

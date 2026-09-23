@@ -545,22 +545,28 @@ class SkillRegistry(private val context: Context) {
     }
 
     fun getAllSkillInfos(): List<SkillInfo> = buildList {
-        // ── Always-available official skills ─────────────────────────────────
-        add(SkillInfo("web_search",      "Search the web for current information",           true, isSkillEnabled("web_search"), version = "1.1.0", author = "AIRI Official", executionKind = ExecutionKind.CLOUD))
-        add(SkillInfo("website_reader",  "Fetch and read content from web pages",             true, isSkillEnabled("website_reader"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD))
-        add(SkillInfo("research_agent",  "Deep research using multiple web sources",         true, isSkillEnabled("research_agent"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD))
-        add(SkillInfo("translator",      "Translate text between any languages",             true, isSkillEnabled("translator"), author = "AIRI Official", executionKind = ExecutionKind.LOCAL))
-        add(SkillInfo("code_assistant",  "Write, explain, review, and debug code",           true, isSkillEnabled("code_assistant"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD))
-        add(SkillInfo("task_planner",    "Break down goals into step-by-step plans",         true, isSkillEnabled("task_planner"), author = "AIRI Official", executionKind = ExecutionKind.LOCAL))
-        add(SkillInfo("memory_manager",  "Search and save to AIRI's persistent memory",      true, isSkillEnabled("memory_manager"), author = "AIRI Official", executionKind = ExecutionKind.LOCAL, requiredPermissions = listOf("AIRI memory")))
-        add(SkillInfo("document_reader", "Read text documents stored on device",             true, isSkillEnabled("document_reader"), author = "AIRI Official", executionKind = ExecutionKind.LOCAL, requiredPermissions = listOf("Files selected by you")))
-        add(SkillInfo("file_manager",    "List and search files in device storage",         true, isSkillEnabled("file_manager"), author = "AIRI Official", executionKind = ExecutionKind.LOCAL, requiredPermissions = listOf("Files selected by you")))
-        // ── Connector-backed skills ───────────────────────────────────────────
-        add(SkillInfo("github_guardian", "Check GitHub repositories and profile", secureStorage.isGithubConnected(), isSkillEnabled("github_guardian"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD, requiredPermissions = listOf("GitHub account authorization")))
-        add(SkillInfo("telegram_messenger", "Send messages via Telegram bot", secureStorage.isTelegramConnected(), isSkillEnabled("telegram_messenger"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD, requiredPermissions = listOf("Telegram bot authorization")))
-        add(SkillInfo("gmail_assistant", "Read and summarize Gmail emails", secureStorage.isGoogleConnected(), isSkillEnabled("gmail_assistant"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD, requiredPermissions = listOf("Google account authorization")))
-        add(SkillInfo("drive_search", "Search files in Google Drive", secureStorage.isGoogleConnected(), isSkillEnabled("drive_search"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD, requiredPermissions = listOf("Google account authorization")))
-        add(SkillInfo("calendar_events", "Get upcoming Google Calendar events", secureStorage.isGoogleConnected(), isSkillEnabled("calendar_events"), author = "AIRI Official", executionKind = ExecutionKind.CLOUD, requiredPermissions = listOf("Google Calendar access")))
+        // ── Official catalog is the single discovery source ────────────────────
+        addAll(OfficialSkillLibrary.ALL.map { entry ->
+            val dependencies = entry.manifest.dependencies
+            val connected = when {
+                "connector:github" in dependencies -> secureStorage.isGithubConnected()
+                "connector:telegram" in dependencies -> secureStorage.isTelegramConnected()
+                "connector:google" in dependencies -> secureStorage.isGoogleConnected()
+                else -> true
+            }
+            SkillInfo(
+                id = entry.manifest.id,
+                name = entry.manifest.id,
+                description = entry.manifest.description,
+                isConnected = connected,
+                isEnabled = isSkillEnabled(entry.manifest.id),
+                version = entry.manifest.version,
+                dependencies = entry.manifest.dependencies,
+                author = entry.manifest.author,
+                executionKind = if (entry.manifest.modelAccess == SkillModelAccess.NONE) ExecutionKind.LOCAL else ExecutionKind.CLOUD,
+                requiredPermissions = entry.manifest.permissions
+            )
+        })
         // ── Custom / user-installed skills ────────────────────────────────────
         addAll(customSkillRepository.getAllSkills().map { skill ->
             SkillInfo(

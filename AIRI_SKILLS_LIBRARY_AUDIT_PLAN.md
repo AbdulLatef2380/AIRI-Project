@@ -87,3 +87,11 @@
 تم تنفيذ عقد metadata المتوافق للخلف في `AiriSkill` و`SkillManifest` مع JSON round-trip، وإضافة API موحد للبحث والفئات والمهارات المفعلة والقدرات، وتصحيح فلترة الفئات بالـID، وتوطين رسائل الاستيراد والتحقق، وإظهار metadata الأمن والتنفيذ في شاشة التفاصيل، وإضافة اختبار JVM مستقل للعقد.
 
 التحقق الساكن نجح: لا توجد فروقات whitespace، ولا أسماء موارد مكررة، ولا بقيت رسائل التحقق الإنجليزية الصلبة في المسارات التي عولجت. تعذر تشغيل Gradle محليًا قبل compilation بسبب غياب Android SDK في Sandbox؛ لذلك لم يتم الادعاء بنجاح البناء.
+
+## المرحلة الثانية — الدفعة الأولى المنفذة
+
+أضيفت 11 executor رسمية حقيقية model-backed عبر `ModelUtilitySkill`: `summarizer`, `email_drafter`, `text_rewriter`, `sentiment_analyzer`, `json_extractor`, `decision_matrix`, `study_tutor`, `interview_coach`, `sql_assistant`, `meeting_agenda`، و`requirements_extractor`.
+
+كل executor يملك كلمات توجيه عربية وإنجليزية، input/output contract، system policy، أمثلة، limitations، score مستقل، وإرجاعًا صريحًا للفشل عند غياب `SkillContext` أو النموذج. لا تنفذ مهارات البريد أو SQL أي إجراء خارجي: الأولى تصيغ فقط، والثانية تكتب أو تشرح فقط ولا تشغّل الاستعلام.
+
+تم ربط الدفعة تلقائيًا بـ`OfficialSkillLibrary` و`SkillRegistry` حتى تظهر في الاكتشاف والفلترة والتفعيل والـPlanner بنفس المصدر الرسمي، مع اختبار uniqueness/routing/execution/failure.

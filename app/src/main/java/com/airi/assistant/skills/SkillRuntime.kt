@@ -7,6 +7,7 @@ import com.airi.assistant.ai.skills.AiriSkillOrchestrator
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.ai.skills.SkillResult
+import com.airi.assistant.ai.skills.SkillResultVerifier
 import com.airi.assistant.agent.sandbox.SandboxExecutor
 import com.airi.assistant.agent.sandbox.SandboxManager
 import com.airi.assistant.connector.ConnectorRuntimeManager
@@ -93,6 +94,9 @@ class SkillRuntime(
         // 1. Check if a specific skill was requested
         if (preferredSkillId != null) {
             dynamicSkills[preferredSkillId]?.let { return it }
+            skillRegistry.getAvailableSkills()
+                .firstOrNull { it.skillId.equals(preferredSkillId, ignoreCase = true) }
+                ?.let { return it }
         }
 
         // 2. Score dynamic skills
@@ -114,7 +118,10 @@ class SkillRuntime(
         if (match != null) {
             // Look up the AiriSkill by name from the registry
             return skillRegistry.getAvailableSkills()
-                .firstOrNull { it.name.equals(match.descriptor.skillId, ignoreCase = true) }
+                .firstOrNull {
+                    it.skillId.equals(match.descriptor.skillId, ignoreCase = true) ||
+                        it.name.equals(match.descriptor.skillId, ignoreCase = true)
+                }
         }
         return null
     }
@@ -135,7 +142,10 @@ class SkillRuntime(
         AgentActivityBus.emit("Running skill: ${skill.name}", ActivityCategory.TOOL)
 
         return try {
-            val result = withTimeout(timeoutMs) { skill.execute(params) }
+            val result = SkillResultVerifier.verify(
+                skill,
+                withTimeout(timeoutMs) { skill.execute(params) }
+            )
 
             trackEnd(key, result.data)
             AgentActivityBus.emit(

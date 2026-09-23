@@ -43,7 +43,7 @@ object OfficialSkillLibrary {
         val factory:  (Context) -> AiriSkill
     )
 
-    val ALL: List<OfficialEntry> = listOf(
+    val ALL: List<OfficialEntry> = (listOf(
 
         // ── Search ────────────────────────────────────────────────────────────
 
@@ -362,7 +362,26 @@ object OfficialSkillLibrary {
             tier    = Tier.CONNECTOR,
             factory = ::TelegramMessengerSkill
         )
-    ) + ModelUtilitySkill.SPECS.map(::modelEntry) + AdvancedModelSkill.SPECS.map(::advancedEntry) + EngineeringQualitySkill.SPECS.map(::qualityEntry) + DefensiveEngineeringSkill.SPECS.map(::defensiveEngineeringEntry)
+    ) + ModelUtilitySkill.SPECS.map(::modelEntry) + AdvancedModelSkill.SPECS.map(::advancedEntry) + EngineeringQualitySkill.SPECS.map(::qualityEntry) + DefensiveEngineeringSkill.SPECS.map(::defensiveEngineeringEntry)).map(::normalizeEntry)
+
+    /** Fill safe, derived metadata for legacy built-ins without changing their runtime contract. */
+    private fun normalizeEntry(entry: OfficialEntry): OfficialEntry {
+        val manifest = entry.manifest
+        val input = if (manifest.inputSchema.isNotEmpty()) manifest.inputSchema
+        else manifest.tools.flatMap { it.parameters.keys }.associateWith { "string" }
+        val output = if (manifest.outputSchema.isNotEmpty()) manifest.outputSchema
+        else mapOf("result" to "string")
+        return entry.copy(
+            manifest = manifest.copy(
+                displayName = manifest.displayName.ifBlank { manifest.name },
+                inputSchema = input.ifEmpty { mapOf("input" to "string") },
+                outputSchema = output,
+                instructions = manifest.instructions.ifBlank { manifest.description },
+                examples = manifest.examples.ifEmpty { listOf("Use ${manifest.name}") },
+                limitations = manifest.limitations.ifEmpty { listOf("Results depend on the supplied input and available permissions.") }
+            )
+        )
+    }
 
     private fun modelEntry(spec: ModelUtilitySkill.Spec): OfficialEntry = OfficialEntry(
         manifest = SkillManifest(

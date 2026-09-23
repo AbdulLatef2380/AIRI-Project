@@ -139,7 +139,10 @@ class SkillToolBridge(
         }
 
         return try {
-            val result   = withTimeout(TIMEOUT_MS) { skill.execute(params) }
+            val result   = SkillResultVerifier.verify(
+                skill,
+                withTimeout(TIMEOUT_MS) { skill.execute(params) }
+            )
             val elapsedMs = System.currentTimeMillis() - invokeStart
 
             if (result.success) {

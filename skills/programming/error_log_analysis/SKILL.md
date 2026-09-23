@@ -1,3 +1,8 @@
+---
+name: error_log_analysis
+description: Documentation and execution contract for Error Log Analysis.
+---
+
 # Error Log Analysis
 
 ## Description

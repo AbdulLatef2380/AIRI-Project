@@ -1,3 +1,8 @@
+---
+name: documentation_generation
+description: Documentation and execution contract for Documentation Generation.
+---
+
 # Documentation Generation
 
 ## Description

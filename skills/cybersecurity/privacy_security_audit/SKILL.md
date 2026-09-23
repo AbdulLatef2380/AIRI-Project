@@ -1,3 +1,8 @@
+---
+name: privacy_security_audit
+description: Documentation and execution contract for Privacy and Security Audit.
+---
+
 # Privacy and Security Audit
 
 ## Description

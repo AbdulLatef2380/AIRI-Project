@@ -1,3 +1,8 @@
+---
+name: security_log_analysis
+description: Documentation and execution contract for Security Log Analysis.
+---
+
 # Security Log Analysis
 
 ## Description

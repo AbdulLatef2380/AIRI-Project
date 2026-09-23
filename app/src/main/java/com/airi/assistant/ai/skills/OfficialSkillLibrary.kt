@@ -2,6 +2,7 @@ package com.airi.assistant.ai.skills
 
 import android.content.Context
 import com.airi.assistant.ai.skills.impl.CalendarEventsSkill
+import com.airi.assistant.ai.skills.impl.AdvancedModelSkill
 import com.airi.assistant.ai.skills.impl.CodeAssistantSkill
 import com.airi.assistant.ai.skills.impl.DocumentReaderSkill
 import com.airi.assistant.ai.skills.impl.DriveSearchSkill
@@ -359,7 +360,7 @@ object OfficialSkillLibrary {
             tier    = Tier.CONNECTOR,
             factory = ::TelegramMessengerSkill
         )
-    ) + ModelUtilitySkill.SPECS.map(::modelEntry)
+    ) + ModelUtilitySkill.SPECS.map(::modelEntry) + AdvancedModelSkill.SPECS.map(::advancedEntry)
 
     private fun modelEntry(spec: ModelUtilitySkill.Spec): OfficialEntry = OfficialEntry(
         manifest = SkillManifest(
@@ -383,6 +384,31 @@ object OfficialSkillLibrary {
         ),
         tier = Tier.AI,
         factory = { ModelUtilitySkill(spec) }
+    )
+
+    private fun advancedEntry(spec: AdvancedModelSkill.Spec): OfficialEntry = OfficialEntry(
+        manifest = SkillManifest(
+            id = spec.id,
+            name = spec.name,
+            description = spec.description,
+            version = "1.0.0",
+            author = "AIRI Official",
+            category = spec.category,
+            isOfficial = true,
+            memoryAccess = SkillMemoryAccess.NONE,
+            modelAccess = SkillModelAccess.CHAT,
+            tools = listOf(SkillManifest.ToolDef(spec.id, spec.description, mapOf("input" to SkillManifest.ParamDef("string", "Task input")))),
+            tags = spec.keywords,
+            inputSchema = mapOf("input" to "string"),
+            outputSchema = mapOf("result" to "string", "stages" to "integer"),
+            instructions = spec.stages.joinToString(" ") { it.instruction },
+            examples = spec.examples,
+            limitations = spec.limitations,
+            riskLevel = SkillRiskLevel.MEDIUM,
+            supportsStreaming = false
+        ),
+        tier = Tier.AI,
+        factory = { AdvancedModelSkill(spec) }
     )
 
     /** Get the manifest for a skill by its ID. */

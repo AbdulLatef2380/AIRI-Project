@@ -95,3 +95,11 @@
 كل executor يملك كلمات توجيه عربية وإنجليزية، input/output contract، system policy، أمثلة، limitations، score مستقل، وإرجاعًا صريحًا للفشل عند غياب `SkillContext` أو النموذج. لا تنفذ مهارات البريد أو SQL أي إجراء خارجي: الأولى تصيغ فقط، والثانية تكتب أو تشرح فقط ولا تشغّل الاستعلام.
 
 تم ربط الدفعة تلقائيًا بـ`OfficialSkillLibrary` و`SkillRegistry` حتى تظهر في الاكتشاف والفلترة والتفعيل والـPlanner بنفس المصدر الرسمي، مع اختبار uniqueness/routing/execution/failure.
+
+## المرحلة الثانية — الدفعة الثانية المتقدمة
+
+أضيفت ثماني مهارات متقدمة متعددة المراحل عبر `AdvancedModelSkill`: `fact_checker`, `code_review_advanced`, `data_insight_advanced`, `security_threat_model`, `test_strategy`, `architecture_advisor`, `prompt_evaluator`, و`incident_analyzer`.
+
+كل مهارة تنفذ مرحلتين أو أكثر عبر `SkillModelBridge`: استخراج/تحليل أولي، ثم تحقق أو مقارنة أو صياغة نهائية. يتم تمرير مخرجات كل مرحلة إلى المرحلة التالية، وتتوقف السلسلة بفشل صريح عند فشل أي مرحلة أو غياب النموذج. لا تنفذ هذه المهارات إجراءات خارجية، ولا تدعي تصفح مصادر أو تشغيل كود أو اختبارات.
+
+تمت إضافة manifests وأدوات وقيود ومخاطر `MEDIUM` واختبارات للسلسلة كاملة، وتم إصلاح فشل CI السابق في عقد `UserBubble` بإعادة `Arrangement.Start` المطلوبة من محاكاة الواجهة. محاكاة `tools/airi_runtime_simulation.py` مرت بحالة `PASS` بعد الإصلاح.

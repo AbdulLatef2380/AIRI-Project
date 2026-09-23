@@ -2192,7 +2192,7 @@ fun UserBubble(
         enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) +
                 slideInHorizontally(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.NORMAL)) { it / 5 }
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
             Box {
                 Box {
                     Column(

@@ -9,6 +9,7 @@ import com.airi.assistant.ai.skills.impl.FileManagerSkill
 import com.airi.assistant.ai.skills.impl.GithubGuardianSkill
 import com.airi.assistant.ai.skills.impl.GmailAssistantSkill
 import com.airi.assistant.ai.skills.impl.MemoryManagerSkill
+import com.airi.assistant.ai.skills.impl.ModelUtilitySkill
 import com.airi.assistant.ai.skills.impl.ResearchAgentSkill
 import com.airi.assistant.ai.skills.impl.TaskPlannerSkill
 import com.airi.assistant.ai.skills.impl.TelegramMessengerSkill
@@ -358,6 +359,30 @@ object OfficialSkillLibrary {
             tier    = Tier.CONNECTOR,
             factory = ::TelegramMessengerSkill
         )
+    ) + ModelUtilitySkill.SPECS.map(::modelEntry)
+
+    private fun modelEntry(spec: ModelUtilitySkill.Spec): OfficialEntry = OfficialEntry(
+        manifest = SkillManifest(
+            id = spec.id,
+            name = spec.name,
+            description = spec.description,
+            version = "1.0.0",
+            author = "AIRI Official",
+            category = spec.category,
+            isOfficial = true,
+            memoryAccess = SkillMemoryAccess.NONE,
+            modelAccess = SkillModelAccess.CHAT,
+            tools = listOf(SkillManifest.ToolDef(spec.id, spec.description, spec.parameters.mapValues { (key, type) -> SkillManifest.ParamDef(type, key, key == "input") })),
+            tags = spec.keywords,
+            inputSchema = spec.parameters,
+            outputSchema = mapOf("result" to "string"),
+            instructions = spec.instructions,
+            examples = spec.examples,
+            limitations = spec.limitations,
+            supportsStreaming = false
+        ),
+        tier = Tier.AI,
+        factory = { ModelUtilitySkill(spec) }
     )
 
     /** Get the manifest for a skill by its ID. */

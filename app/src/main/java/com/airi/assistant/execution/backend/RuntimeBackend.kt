@@ -25,6 +25,8 @@ interface RuntimeBackend {
     val capabilities: CapabilityProfile
     val origin: ExecOrigin
     val isAvailable: Boolean
+    /** Human-readable identity of the backend/provider that produced the last success. */
+    val sourceLabel: String get() = displayName
 
     /**
      * Signal cancellation of any in-flight [generateStream] call.

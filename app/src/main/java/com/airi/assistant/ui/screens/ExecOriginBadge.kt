@@ -58,6 +58,7 @@ private val HybridBadgeColor = Color(0xFFAB47BC)  // purple
 @Composable
 fun ExecOriginBadge(
     origin:   ExecOrigin,
+    source:   String? = null,
     modifier: Modifier = Modifier,
     showDot:  Boolean  = false
 ) {
@@ -85,7 +86,7 @@ fun ExecOriginBadge(
         ExecOrigin.NONE   -> return
     }
     val icon = spec.icon
-    val label = spec.label
+    val label = source?.takeIf { it.isNotBlank() }?.let { "${spec.label} · ${it.take(42)}" } ?: spec.label
     val bgColor = spec.bgColor
     val textColor = spec.textColor
 

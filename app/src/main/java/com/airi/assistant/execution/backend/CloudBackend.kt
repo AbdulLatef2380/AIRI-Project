@@ -53,6 +53,8 @@ class CloudBackend(
     override val displayName: String = "Cloud"
     override val capabilities: CapabilityProfile = CapabilityProfile.CLOUD_STREAMING
     override val origin: ExecOrigin = ExecOrigin.CLOUD
+    @Volatile private var successfulProviderLabel: String = "Cloud provider (unresolved)"
+    override val sourceLabel: String get() = successfulProviderLabel
 
     
     private val _requestCount  = java.util.concurrent.atomic.AtomicInteger(0)
@@ -191,6 +193,7 @@ class CloudBackend(
 
             when (result) {
                 is CloudProviderAdapter.AdapterResult.Success -> {
+                    successfulProviderLabel = "${provider.displayName} · ${request.requestedModelId.ifBlank { "configured model" }}"
                     if (result.fullText.isNotBlank()) onToken(result.fullText)
                     val totalTokens = promptTok + compTok
                     if (totalTokens > 0) {

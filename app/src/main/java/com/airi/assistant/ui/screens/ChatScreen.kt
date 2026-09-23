@@ -1023,22 +1023,18 @@ fun ChatScreen(
             // : Thinking animation — shown between send and first streaming token.
             // Replaces the frozen-UI gap that users see during local LLM inference (2–15 s).
             // Condition: agent is working BUT no streamed text yet (first token hasn't arrived).
-            AnimatedVisibility(
-                visible = agentState.isWorking && streamingText.isEmpty(),
-                enter   = fadeIn(),
-                exit    = fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 60.dp, bottom = 8.dp)
-            ) {
+            if (agentState.isWorking && streamingText.isEmpty()) {
                 Surface(
-                    shape = AIRIShapes.md,
-                    color = AiBubbleSurface,
-                    border = androidx.compose.foundation.BorderStroke(0.5.dp, AiBubbleBorder),
+                    shape = AIRIShapes.pill,
+                    color = AiriTheme.surfaceVariant.copy(alpha = 0.94f),
+                    border = androidx.compose.foundation.BorderStroke(0.5.dp, AiriTheme.outline.copy(alpha = 0.45f)),
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
                 ) {
-                    com.airi.assistant.ui.components.ThinkingAnimation(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
-                        stageText = agentState.currentAction.takeIf { it.isNotBlank() }
+                    Text(
+                        text = agentState.currentAction.takeIf { it.isNotBlank() } ?: stringResource(R.string.generating),
+                        color = AiriTheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                     )
                 }
             }
@@ -1999,7 +1995,7 @@ fun ChatMessageList(
                 )
                 Spacer(Modifier.height(28.dp))
                 Image(
-                    painter = painterResource(R.drawable.ic_launcher_fg),
+                    painter = painterResource(R.mipmap.ic_launcher_foreground),
                     contentDescription = "AIRI",
                     modifier = Modifier
                         .size(28.dp)
@@ -2093,6 +2089,7 @@ fun ChatMessageList(
                                 onShare         = onShareAiResponse,
                                 onSpeak         = onSpeak,
                                 execOrigin      = msg.execOrigin,
+                                executionSource = msg.executionSource,
                                 onFeedback      = { liked -> onFeedback(msg.uid, liked) },
                                 onExportPdf     = onExportPdf,
                                 onExportMarkdown = onExportMarkdown,
@@ -2174,7 +2171,7 @@ fun UserBubble(
         enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) +
                 slideInHorizontally(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.NORMAL)) { it / 5 }
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             Box {
                 Box {
                     Column(
@@ -2183,7 +2180,7 @@ fun UserBubble(
                             .then(
                                 when (ChatPresentationPolicy.classifyLength(displayText)) {
                                     ChatPresentationPolicy.MessageLength.SHORT,
-                                    ChatPresentationPolicy.MessageLength.MEDIUM -> Modifier.wrapContentWidth()
+                                    ChatPresentationPolicy.MessageLength.MEDIUM -> Modifier.wrapContentWidth(Alignment.End)
                                     ChatPresentationPolicy.MessageLength.LONG,
                                     ChatPresentationPolicy.MessageLength.VERY_LONG ->
                                         Modifier.fillMaxWidth(ChatPresentationPolicy.userBubbleFraction(displayText))
@@ -2290,6 +2287,7 @@ fun AiBubble(
     onShare: (String) -> Unit = {},
     onSpeak: (String) -> Unit = {},
     execOrigin: com.airi.assistant.execution.ExecOrigin = com.airi.assistant.execution.ExecOrigin.NONE,
+    executionSource: String? = null,
     
     initialFeedback: Int = 0,
     
@@ -2334,7 +2332,7 @@ fun AiBubble(
         ) {
             if (!hideAvatar) {
                 Image(
-                    painter = painterResource(R.drawable.ic_launcher_fg),
+                    painter = painterResource(R.mipmap.ic_launcher_foreground),
                     contentDescription = "AIRI",
                     modifier = Modifier.size(28.dp)
                 )
@@ -2501,7 +2499,7 @@ fun AiBubble(
                 }
                 if (execOrigin.isVisible) {
                     Spacer(Modifier.height(3.dp))
-                    ExecOriginBadge(origin = execOrigin)
+                    ExecOriginBadge(origin = execOrigin, source = executionSource)
                 }
             }
         }
@@ -2517,7 +2515,7 @@ fun AiStreamingBubble(text: String) {
         verticalAlignment = Alignment.Top
     ) {
         Image(
-            painter = painterResource(R.drawable.ic_launcher_fg),
+            painter = painterResource(R.mipmap.ic_launcher_foreground),
             contentDescription = "AIRI",
             modifier = Modifier.size(30.dp)
         )
@@ -2689,7 +2687,8 @@ fun AiriChatInputBar(
     LaunchedEffect(draftText) {
         if (text != draftText) text = draftText
     }
-    var isExpanded by remember { mutableStateOf(false) }
+    // The chat composer is intentionally compact; full-screen editing remains
+    // available for long text without permanently consuming the chat viewport.
     var showFullScreenEditor by rememberSaveable { mutableStateOf(false) }
     val isInferenceReady = modelState.isModelReady || modelState.isCloudReady
     val isInteractionLocked = isGenerating || isDispatchingAttachment
@@ -3076,18 +3075,7 @@ fun AiriChatInputBar(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.End
             ) {
-                val expansionDescription = stringResource(
-                    if (isExpanded) R.string.cd_collapse_input else R.string.cd_expand_input
-                )
                 val fullScreenEditorDescription = stringResource(R.string.expand)
-                IconButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.size(48.dp)) {
-                    Icon(
-                        if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                        expansionDescription,
-                        tint = AiriTheme.onBackground.copy(0.45f),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
                 if (text.lineSequence().count() >= 5) {
                     IconButton(
                         onClick = { showFullScreenEditor = true },
@@ -3135,7 +3123,7 @@ fun AiriChatInputBar(
                     enabled = isInferenceReady && !isInteractionLocked,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 28.dp, max = if (isExpanded) 180.dp else 40.dp)
+                        .heightIn(min = 28.dp, max = 88.dp)
                         .onFocusChanged { state ->
                             // Propagate focus change upward so toolbar collapses
                             onFocusChanged(state.isFocused)
@@ -3145,7 +3133,7 @@ fun AiriChatInputBar(
                         textAlign = TextAlign.Start
                     ),
                     cursorBrush = androidx.compose.ui.graphics.SolidColor(CosmicAccent),
-                    maxLines = if (isExpanded) 8 else 5,
+                    maxLines = 3,
                     decorationBox = { inner ->
                         Box {
                             if (text.isEmpty()) {

@@ -118,6 +118,7 @@ import com.airi.assistant.execution.diagnostics.ExecutionDiagnosticsState
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.execution.router.RuntimeRouter
 import com.airi.assistant.execution.security.SecureApiKeyStore
+import com.airi.assistant.ai.LanguagePolicy
 import com.airi.assistant.voice.VoskModelManager
 import com.airi.assistant.product.AiriIdentityProfile
 import com.airi.assistant.ui.activity.AgentActivityBus
@@ -161,6 +162,8 @@ data class ChatMessage(
      * Used by [ExecOriginBadge] in the chat UI — AIRI never hides origin.
      */
     val execOrigin: ExecOrigin = ExecOrigin.NONE,
+    /** Backend identity captured from the successful execution, never from the picker label. */
+    val executionSource: String? = null,
     /**
      * Optional voice recording path for voice messages.
      * When non-null, the UI renders a VoiceMessageBubble with audio playback
@@ -1672,7 +1675,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         activeGenerationId = generationId
         viewModelScope.launch {
             if (!isCurrentGeneration(generationId)) return@launch
-            _agentState.value = AgentState(isWorking = true, currentAction = "Preparing response…")
+            _agentState.value = AgentState(isWorking = true, currentAction = appContext.getString(R.string.generating))
             _generationPhase.value = GenerationPhase.PREFILL
             _isGenerating.value = true
             generationStartMs = System.currentTimeMillis()
@@ -1777,7 +1780,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     content = fastHit,
                     projectId = activeProjectId
                 )
-                _messages.update { it + ChatMessage(fastHit, isUser = false, id = fastMsg.id) }
+                _messages.update {
+                    it + ChatMessage(
+                        fastHit, isUser = false, id = fastMsg.id,
+                        execOrigin = ExecOrigin.LOCAL,
+                        executionSource = "AIRI fast path (local)"
+                    )
+                }
                 _smartReplies.value = ResponseOptimizer.generateSuggestions(fastHit)
                 streamAccumulator.setLength(0); _streamingText.value = ""
                 finishGeneration(generationId)
@@ -1790,7 +1799,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (!isCurrentGeneration(generationId)) return@launch
             _isCancelled.set(false)
 
-            _agentState.update { it.copy(currentAction = "Generating…") }
+            _agentState.update { it.copy(currentAction = appContext.getString(R.string.generating)) }
             _streamingText.value = ""
 
             // ── Agent execution ───────────────────────────────────────────────
@@ -1977,7 +1986,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             text       = loopResult.finalAnswer,
                             isUser     = false,
                             id         = assistantMsg.id,
-                            execOrigin = _lastExecOrigin.value
+                            execOrigin = _lastExecOrigin.value,
+                            executionSource = hybridOrchestrator.lastExecutionSource
                         )
                     }
                     // Record inference outcome for adaptive intelligence
@@ -2116,7 +2126,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             memorySummary = memorySummary,
             identityContext = identityContext,
             hasAgentTools = hasAgentTools,
-        )
+        ) + "\n\nLANGUAGE CONTRACT (highest priority):\n" +
+            LanguagePolicy.responseInstruction(input)
     }
 
     private fun recordGenerationStats(elapsedMs: Long, tokenCount: Int) {
@@ -3147,7 +3158,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 finishGeneration(generationId)
                 return@launch
             }
-            _agentState.value = AgentState(isWorking = true, currentAction = "Preparing image…")
+            _agentState.value = AgentState(isWorking = true, currentAction = appContext.getString(R.string.generating))
             _generationPhase.value = GenerationPhase.PREFILL
             _isGenerating.value = true
             _isCancelled.set(false)
@@ -3180,7 +3191,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             subscriptionManager.recordMessage()
             AnalyticsService.messageSent()
 
-            _agentState.update { it.copy(currentAction = "Analyzing image…") }
+            _agentState.update { it.copy(currentAction = appContext.getString(R.string.generating)) }
             _streamingText.value = ""
 
             // ── Bitmap prep (off the main thread) ────────────────────────

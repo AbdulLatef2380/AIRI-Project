@@ -24,11 +24,11 @@ internal object ChatPresentationPolicy {
         if (rawId.isBlank()) return if (isLocal) "Local" else if (isCloud) "Cloud" else "Auto"
         val normalized = rawId.lowercase()
         return when {
+            isLocal -> "Local Llama"
             normalized.contains("gemini") -> "Gemini Flash"
             normalized.contains("claude") -> "Claude"
             normalized.contains("llama") -> "Local Llama"
             normalized.contains("openai") || normalized.contains("gpt") -> "OpenAI"
-            isLocal -> "Local"
             isCloud -> "Cloud"
             else -> "Auto"
         }

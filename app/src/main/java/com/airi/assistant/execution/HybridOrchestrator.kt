@@ -89,6 +89,9 @@ class HybridOrchestrator(
      */
     /** Tracks the currently executing backend so cancel() can reach its native cancel path. */
     @Volatile private var activeBackend_: RuntimeBackend? = null
+    /** Last successful backend identity; valid until the next completed generation. */
+    @Volatile var lastExecutionSource: String = "Unresolved"
+        private set
 
     /**
      * Signal cancellation. Propagates to the active backend's own cancellation
@@ -273,6 +276,7 @@ class HybridOrchestrator(
             val attemptBuffer = StringBuilder()
 
             activeBackend_ = backend
+            if (idx == 0) lastExecutionSource = "${backend.displayName} (pending)"
             try {
                 backend.generateStream(
                 request    = req,
@@ -286,6 +290,7 @@ class HybridOrchestrator(
                     if (generationGate.accepts(genId) && !completionDelivered && committedText.isNotBlank() && terminalGuard.tryDeliver()) {
                         completionDelivered = true
                         backendSucceeded = true
+                        lastExecutionSource = backend.sourceLabel
                         move(ExecutionLifecycleState.STREAMING)
                         updateDiagnostics { copy(
                             isStreaming          = false,

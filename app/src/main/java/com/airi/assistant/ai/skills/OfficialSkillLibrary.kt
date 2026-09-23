@@ -5,6 +5,7 @@ import com.airi.assistant.ai.skills.impl.CalendarEventsSkill
 import com.airi.assistant.ai.skills.impl.AdvancedModelSkill
 import com.airi.assistant.ai.skills.impl.CodeAssistantSkill
 import com.airi.assistant.ai.skills.impl.DocumentReaderSkill
+import com.airi.assistant.ai.skills.impl.DefensiveEngineeringSkill
 import com.airi.assistant.ai.skills.impl.EngineeringQualitySkill
 import com.airi.assistant.ai.skills.impl.DriveSearchSkill
 import com.airi.assistant.ai.skills.impl.FileManagerSkill
@@ -361,7 +362,7 @@ object OfficialSkillLibrary {
             tier    = Tier.CONNECTOR,
             factory = ::TelegramMessengerSkill
         )
-    ) + ModelUtilitySkill.SPECS.map(::modelEntry) + AdvancedModelSkill.SPECS.map(::advancedEntry) + EngineeringQualitySkill.SPECS.map(::qualityEntry)
+    ) + ModelUtilitySkill.SPECS.map(::modelEntry) + AdvancedModelSkill.SPECS.map(::advancedEntry) + EngineeringQualitySkill.SPECS.map(::qualityEntry) + DefensiveEngineeringSkill.SPECS.map(::defensiveEngineeringEntry)
 
     private fun modelEntry(spec: ModelUtilitySkill.Spec): OfficialEntry = OfficialEntry(
         manifest = SkillManifest(
@@ -435,6 +436,34 @@ object OfficialSkillLibrary {
         ),
         tier = Tier.AI,
         factory = { EngineeringQualitySkill(spec) }
+    )
+
+    private fun defensiveEngineeringEntry(spec: DefensiveEngineeringSkill.Spec): OfficialEntry = OfficialEntry(
+        manifest = SkillManifest(
+            id = spec.id,
+            name = spec.name,
+            description = spec.description,
+            version = "1.0.0",
+            author = "AIRI Official",
+            category = spec.category,
+            isOfficial = true,
+            memoryAccess = SkillMemoryAccess.NONE,
+            modelAccess = SkillModelAccess.CHAT,
+            permissions = emptyList(),
+            tools = listOf(SkillManifest.ToolDef(spec.id, spec.description, mapOf("input" to SkillManifest.ParamDef("string", "Source, logs, configuration, or report")))),
+            tags = spec.keywords + if (spec.defensive) listOf("defensive", "authorized", "analysis-only") else emptyList(),
+            inputSchema = mapOf("input" to "string"),
+            outputSchema = mapOf("findings" to "string", "safe_actions" to "string", "verification" to "string"),
+            instructions = spec.stages.joinToString(" ") { it.instruction },
+            examples = spec.examples,
+            limitations = spec.limitations,
+            riskLevel = if (spec.defensive) SkillRiskLevel.MEDIUM else SkillRiskLevel.LOW,
+            requiresConfirmation = false,
+            supportsStreaming = false,
+            supportsAttachments = false
+        ),
+        tier = Tier.AI,
+        factory = { DefensiveEngineeringSkill(spec) }
     )
 
     /** Get the manifest for a skill by its ID. */

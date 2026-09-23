@@ -1,3 +1,8 @@
+---
+name: test_generation
+description: Documentation and execution contract for Test Generation.
+---
+
 # Test Generation
 
 ## Description

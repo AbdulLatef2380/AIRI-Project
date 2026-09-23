@@ -1,3 +1,8 @@
+---
+name: security_documentation
+description: Documentation and execution contract for Security Documentation.
+---
+
 # Security Documentation
 
 ## Description

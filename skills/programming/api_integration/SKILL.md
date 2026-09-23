@@ -1,3 +1,8 @@
+---
+name: api_integration
+description: Documentation and execution contract for API Integration Planner.
+---
+
 # API Integration Planner
 
 ## Description

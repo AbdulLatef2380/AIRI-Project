@@ -1,3 +1,8 @@
+---
+name: secure_configuration_review
+description: Documentation and execution contract for Secure Configuration Review.
+---
+
 # Secure Configuration Review
 
 ## Description

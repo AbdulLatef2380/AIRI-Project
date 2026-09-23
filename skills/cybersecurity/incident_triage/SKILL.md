@@ -1,3 +1,8 @@
+---
+name: incident_triage
+description: Documentation and execution contract for Incident Triage.
+---
+
 # Incident Triage
 
 ## Description

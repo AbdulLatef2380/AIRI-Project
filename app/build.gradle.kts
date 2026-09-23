@@ -246,6 +246,9 @@ dependencies {
     // 20.7.0 retains the legacy GoogleSignIn APIs used by the current login UI.
     implementation("com.google.android.gms:play-services-auth:20.7.0")
 
+    // On-device Latin OCR for PDF/image attachments; no network call is required.
+    implementation("com.google.mlkit:text-recognition:16.0.0")
+
     // Secure Storage (EncryptedSharedPreferences)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 

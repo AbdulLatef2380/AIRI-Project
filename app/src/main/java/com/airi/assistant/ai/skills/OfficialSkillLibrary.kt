@@ -5,6 +5,7 @@ import com.airi.assistant.ai.skills.impl.CalendarEventsSkill
 import com.airi.assistant.ai.skills.impl.AdvancedModelSkill
 import com.airi.assistant.ai.skills.impl.CodeAssistantSkill
 import com.airi.assistant.ai.skills.impl.DocumentReaderSkill
+import com.airi.assistant.ai.skills.impl.DocumentAnalysisSkill
 import com.airi.assistant.ai.skills.impl.DefensiveEngineeringSkill
 import com.airi.assistant.ai.skills.impl.EngineeringQualitySkill
 import com.airi.assistant.ai.skills.impl.DriveSearchSkill
@@ -14,6 +15,7 @@ import com.airi.assistant.ai.skills.impl.GmailAssistantSkill
 import com.airi.assistant.ai.skills.impl.MemoryManagerSkill
 import com.airi.assistant.ai.skills.impl.ModelUtilitySkill
 import com.airi.assistant.ai.skills.impl.ResearchAgentSkill
+import com.airi.assistant.ai.skills.impl.ReminderPlanningSkill
 import com.airi.assistant.ai.skills.impl.TaskPlannerSkill
 import com.airi.assistant.ai.skills.impl.TelegramMessengerSkill
 import com.airi.assistant.ai.skills.impl.TranslatorSkill
@@ -361,6 +363,56 @@ object OfficialSkillLibrary {
             ),
             tier    = Tier.CONNECTOR,
             factory = ::TelegramMessengerSkill
+        ),
+        OfficialEntry(
+            manifest = SkillManifest(
+                id = "pdf_analysis",
+                name = "PDF Analysis",
+                description = "Extract bounded text and page metadata from PDF documents on-device",
+                version = "1.0.0",
+                author = "AIRI Official",
+                category = "DOCUMENTS",
+                isOfficial = true,
+                modelAccess = SkillModelAccess.NONE,
+                tags = listOf("pdf", "document", "pages", "extract", "تحليل pdf"),
+                tools = listOf(SkillManifest.ToolDef("pdf_analysis", "Analyze a PDF URI", mapOf("uri" to SkillManifest.ParamDef("string", "Content URI"))))
+            ),
+            tier = Tier.SYSTEM,
+            factory = { context -> DocumentAnalysisSkill(context, DocumentAnalysisSkill.Mode.PDF) }
+        ),
+        OfficialEntry(
+            manifest = SkillManifest(
+                id = "ocr_analysis",
+                name = "OCR Analysis",
+                description = "Recognize Latin text from images or rendered PDF pages on-device",
+                version = "1.0.0",
+                author = "AIRI Official",
+                category = "DOCUMENTS",
+                isOfficial = true,
+                modelAccess = SkillModelAccess.NONE,
+                tags = listOf("ocr", "scan", "image", "text recognition", "التعرف الضوئي"),
+                tools = listOf(SkillManifest.ToolDef("ocr_analysis", "Recognize text from an image URI", mapOf("uri" to SkillManifest.ParamDef("string", "Content URI"))))
+            ),
+            tier = Tier.SYSTEM,
+            factory = { context -> DocumentAnalysisSkill(context, DocumentAnalysisSkill.Mode.OCR) }
+        ),
+        OfficialEntry(
+            manifest = SkillManifest(
+                id = "reminder_planning",
+                name = "Reminder Planning",
+                description = "Parse and schedule one-shot reminders or timers behind explicit confirmation",
+                version = "1.0.0",
+                author = "AIRI Official",
+                category = "PRODUCTIVITY",
+                isOfficial = true,
+                modelAccess = SkillModelAccess.NONE,
+                tags = listOf("reminder", "alarm", "timer", "schedule", "تذكير", "منبه"),
+                riskLevel = SkillRiskLevel.MEDIUM,
+                requiresConfirmation = true,
+                tools = listOf(SkillManifest.ToolDef("reminder_planning", "Preview or schedule a reminder", mapOf("input" to SkillManifest.ParamDef("string", "Reminder text"))))
+            ),
+            tier = Tier.SYSTEM,
+            factory = ::ReminderPlanningSkill
         )
     ) + ModelUtilitySkill.SPECS.map(::modelEntry) + AdvancedModelSkill.SPECS.map(::advancedEntry) + EngineeringQualitySkill.SPECS.map(::qualityEntry) + DefensiveEngineeringSkill.SPECS.map(::defensiveEngineeringEntry)).map(::normalizeEntry)
 

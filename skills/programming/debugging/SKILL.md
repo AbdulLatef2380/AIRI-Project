@@ -1,3 +1,8 @@
+---
+name: debugging
+description: Documentation and execution contract for Debugging Assistant.
+---
+
 # Debugging Assistant
 
 ## Description

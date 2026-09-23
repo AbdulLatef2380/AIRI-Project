@@ -1,3 +1,8 @@
+---
+name: network_security_analysis
+description: Documentation and execution contract for Network Security Analysis.
+---
+
 # Network Security Analysis
 
 ## Description

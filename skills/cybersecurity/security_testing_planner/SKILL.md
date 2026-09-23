@@ -1,3 +1,8 @@
+---
+name: security_testing_planner
+description: Documentation and execution contract for Security Testing Planner.
+---
+
 # Security Testing Planner
 
 ## Description

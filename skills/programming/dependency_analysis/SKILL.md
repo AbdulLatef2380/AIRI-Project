@@ -1,3 +1,8 @@
+---
+name: dependency_analysis
+description: Documentation and execution contract for Dependency Analysis.
+---
+
 # Dependency Analysis
 
 ## Description

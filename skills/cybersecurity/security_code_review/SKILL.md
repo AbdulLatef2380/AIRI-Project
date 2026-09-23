@@ -1,3 +1,8 @@
+---
+name: security_code_review
+description: Documentation and execution contract for Security Code Review.
+---
+
 # Security Code Review
 
 ## Description

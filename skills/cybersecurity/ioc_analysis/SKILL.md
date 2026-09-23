@@ -1,3 +1,8 @@
+---
+name: ioc_analysis
+description: Documentation and execution contract for IOC Analysis.
+---
+
 # IOC Analysis
 
 ## Description

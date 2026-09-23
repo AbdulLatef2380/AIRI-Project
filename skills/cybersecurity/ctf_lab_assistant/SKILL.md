@@ -1,3 +1,8 @@
+---
+name: ctf_lab_assistant
+description: Documentation and execution contract for CTF and Lab Assistant.
+---
+
 # CTF and Lab Assistant
 
 ## Description

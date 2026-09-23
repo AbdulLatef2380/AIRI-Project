@@ -13,6 +13,7 @@ import com.airi.core.planning.PlanStep
 import com.airi.assistant.agent.planning.RecoveryDecision
 import com.airi.assistant.agent.planning.TypedPlanGraph
 import com.airi.assistant.agent.reflection.ExecutionReflector
+import com.airi.assistant.agent.reflection.FinalAnswerVerifier
 import com.airi.assistant.agent.reflection.PlanQualityScorer
 import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgentContext
@@ -82,7 +83,9 @@ class UnifiedCognitiveLoop {
         private const val MIN_PLAN_CONFIDENCE = 0.35f
     }
 
-    val planGenerator = PlanGenerator()
+    val planGenerator: PlanGenerator by lazy {
+        runCatching { ServiceLocator.planGenerator }.getOrElse { PlanGenerator() }
+    }
 
     private val outcomeScorer: SkillOutcomeScorer?
         by lazy { runCatching { ServiceLocator.skillOutcomeScorer }.getOrNull() }
@@ -91,6 +94,9 @@ class UnifiedCognitiveLoop {
 
     private val planQualityScorer = PlanQualityScorer()
     private val reflector         = ExecutionReflector()
+    private val plannerAdaptationEngine by lazy {
+        runCatching { ServiceLocator.plannerAdaptationEngine }.getOrNull()
+    }
 
     /**
      * Optional LLM delegate provider injected by [ChatViewModel] after construction.
@@ -120,6 +126,7 @@ class UnifiedCognitiveLoop {
      */
     suspend fun process(input: BrainInput, llmResponse: String): CognitiveResult {
         val worldState = captureWorldState()
+        plannerAdaptationEngine?.applyToGenerator(planGenerator)
         val actionPlan = planGenerator.createActionPlanFromLLM(llmResponse, input.text)
         return executeActionPlan(actionPlan, worldState)
     }
@@ -327,9 +334,14 @@ class UnifiedCognitiveLoop {
         ExecutionStatusBus.onReflecting(executionId = graph.goalId)
         val reflection = reflector.reflect(nodeResults, finalSnapshot)
         Log.i(TAG, "REFLECTION confidence=${reflection.executionConfidence} critiqueChars=${reflection.critiqueText.length}")
+        plannerAdaptationEngine?.ingest(reflection, nodeResults, graph.goalId)
+        val finalVerification = FinalAnswerVerifier.verify(nodeResults, finalSnapshot)
+        if (!finalVerification.verified) {
+            Log.w(TAG, "FINAL_ANSWER_VERIFICATION_FAILED issues=${finalVerification.issues}")
+        }
 
         // ── : Signal graph completion to UI ────────────────────────────
-        val graphSuccess = finalSnapshot.failedNodes == 0
+        val graphSuccess = finalSnapshot.failedNodes == 0 && finalVerification.verified
         ExecutionStatusBus.onGraphCompleted(graphSuccess, executionId = graph.goalId)
 
         return GraphExecutionResult(
@@ -338,7 +350,8 @@ class UnifiedCognitiveLoop {
             nodeResults   = nodeResults,
             graphSnapshot = finalSnapshot,
             workspace     = workspace,
-            reflection    = reflection
+            reflection    = reflection,
+            verification  = finalVerification
         )
     }
 
@@ -347,6 +360,7 @@ class UnifiedCognitiveLoop {
     private suspend fun processPercept(input: CognitiveInput): CognitiveResult {
         val worldState = captureWorldState()
         val promptJson = buildPromptJson(input)
+        plannerAdaptationEngine?.applyToGenerator(planGenerator)
         val actionPlan = planGenerator.createDAGPlanFromLLM(promptJson, input.primaryText)
         return executeActionPlan(actionPlan, worldState)
     }
@@ -514,7 +528,20 @@ class UnifiedCognitiveLoop {
     }
 
     private fun repatchNode(graph: TypedPlanGraph, node: GoalNode, reason: String): Boolean {
-        graph.patchNode(node.id, node.activeAction, node.activeParams)
+        val replanCount = node.activeParams["replan_attempt"]?.toIntOrNull() ?: 0
+        if (replanCount >= 2) {
+            Log.w(TAG, "GRAPH_REPLAN_LIMIT id=${node.id}")
+            return false
+        }
+        graph.patchNode(
+            node.id,
+            node.activeAction,
+            node.activeParams + mapOf(
+                "replanned" to "true",
+                "replan_attempt" to (replanCount + 1).toString(),
+                "replan_reason" to reason.take(160)
+            )
+        )
         return true
     }
 
@@ -545,6 +572,7 @@ data class GraphExecutionResult(
     val graphSnapshot:   com.airi.assistant.agent.planning.GraphSnapshot,
     val workspace:       SandboxWorkspace,
     val reflection:      com.airi.assistant.agent.reflection.ReflectionReport? = null,
+    val verification:    com.airi.assistant.agent.reflection.FinalAnswerVerification? = null,
     val rejectionReason: String? = null
 )
 

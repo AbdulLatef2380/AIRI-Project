@@ -113,3 +113,41 @@
 6. إكمال التوطين للرسائل والحالات الجديدة في جميع اللغات المدعومة.
 
 لا تعتبر مكتبة Skills مكتملة 100% قبل إغلاق هذه العناصر وتشغيل build/tests في بيئة Android كاملة.
+
+
+## الجولة الثانية: توثيق كامل وتنفيذ D/E/F
+
+في الجولة الثانية تم تدقيق المصدر مرة أخرى، وتبين أن عدد المداخل الرسمية الفعلية قبل الإضافات كان 61 لا 64؛ الرقم السابق كان تقديرًا غير دقيق بسبب اختلاف صيغ تعريف `DefensiveEngineeringSkill`. بعد إضافة وظائف الجولة الحالية أصبح الكتالوج الرسمي يحتوي **63 مدخلًا رسميًا**، بينما يحتوي المستودع **72 ملف `SKILL.md`**؛ والفرق التسعة هي توثيقات مهارات دفاعية/برمجية موجودة كمكتبة توثيق مستقلة وليست مداخل built-in في `OfficialSkillLibrary`.
+
+تم إنشاء التوثيق آليًا من IDs وmetadata المصدرية، مع منع الكتابة فوق الملفات الموجودة، وبذلك كل من المداخل الرسمية الحالية له ملف توثيق قابل للمراجعة.
+
+### D: PDF وOCR
+
+أضيف `DocumentAnalysisSkill` بمسارين:
+
+- `pdf_analysis`: يستخدم `PdfRenderer` لعد الصفحات وقراءة نصوص PDF النصية ضمن حد 25MB وحدود صفحات/حروف.
+- `ocr_analysis`: يستخدم ML Kit on-device Latin text recognition على الصور أو الصفحات المرسومة من PDF.
+
+النتائج تحمل طريقة التنفيذ وعدد الصفحات/الأحرف، ولا تدّعي دعم OCR العربي من خلال recognizer لاتيني. الصفحات الممسوحة تُوجّه إلى OCR بدل إرجاع نجاح زائف من PDF text extraction.
+
+### E: الإنتاجية والأتمتة
+
+أضيفت مهارات model-backed حقيقية لـ:
+
+- `meeting_summarizer`: قرارات، إجراءات، مالكون، تواريخ، وأسئلة غير محسومة.
+- `checklist_generator`.
+- `daily_task_organizer`.
+- `email_drafter` كان موجودًا، وتم الحفاظ على قيده الصريح بأنه لا يرسل البريد.
+- `reminder_planning`: parsing للوقت/المدة، preview أولًا، وجدولة Alarm/Timer فقط عند `confirmed=true`، مع `requiresConfirmation=true` وtool dangerous.
+
+### F: دورة Agent
+
+أضيف:
+
+- `final_answer_verification` و`replanning_strategy` كمهارات رسمية model-backed.
+- `FinalAnswerVerifier` كـexecution-level gate داخل `UnifiedCognitiveLoop`.
+- ربط `PlannerAdaptationEngine` قبل توليد الخطط وبعد reflection، بحيث تُحفظ نتائج الفشل وتؤثر في التخطيط اللاحق.
+- إعادة تخطيط محدودة تلقائيًا عند `RequestReplan` مع `replan_attempt` وحد أقصى لمحاولتين، وتسجيل سبب إعادة التخطيط داخل params.
+- `GraphExecutionResult.verification` حتى تصل نتيجة التحقق إلى مستهلكي الحلقة بدل بقائها في logcat فقط.
+
+تظل بوابة التحقق بوابة تنفيذية لا مُثبتًا للحقيقة؛ التحقق الواقعي يتطلب evidence أو مصادر، ولذلك لا يتم تحويل الغموض إلى نجاح.

@@ -1,3 +1,8 @@
+---
+name: git_workflow
+description: Documentation and execution contract for Git Workflow Assistant.
+---
+
 # Git Workflow Assistant
 
 ## Description

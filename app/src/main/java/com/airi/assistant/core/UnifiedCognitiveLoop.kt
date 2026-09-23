@@ -337,8 +337,14 @@ class UnifiedCognitiveLoop {
         plannerAdaptationEngine?.ingest(reflection, nodeResults, graph.goalId)
         val finalVerification = FinalAnswerVerifier.verify(nodeResults, finalSnapshot)
         if (!finalVerification.verified) {
-            Log.w(TAG, "FINAL_ANSWER_VERIFICATION_FAILED issues=${finalVerification.issues}")
+            Log.i(TAG, "FINAL_ANSWER_VERIFICATION_FAILED issues=${finalVerification.issues}")
         }
+        ExecutionStatusBus.onFinalAnswerVerified(
+            verified = finalVerification.verified,
+            issueCount = finalVerification.issues.size,
+            details = finalVerification.issues,
+            executionId = graph.goalId
+        )
 
         // ── : Signal graph completion to UI ────────────────────────────
         val graphSuccess = finalSnapshot.failedNodes == 0 && finalVerification.verified

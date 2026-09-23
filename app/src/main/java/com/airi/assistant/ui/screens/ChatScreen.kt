@@ -95,6 +95,7 @@ import com.airi.assistant.ui.viewmodel.AttachmentDispatchFailure
 import com.airi.assistant.ui.viewmodel.ChatInputSuggestion
 import com.airi.assistant.ui.viewmodel.ChatMessage
 import com.airi.assistant.ui.viewmodel.ChatViewModel
+import com.airi.assistant.ui.viewmodel.FinalAnswerUiState
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.airi.assistant.ui.viewmodel.ModelUiState
@@ -1004,6 +1005,7 @@ fun ChatScreen(
                 messages      = messages,
                 streamingText = streamingText,
                 isGenerating  = agentState.isWorking,
+                finalAnswerVerification = agentState.finalAnswerVerification,
                 isModelReady  = modelState.isModelReady,
                 isCloudReady  = modelState.isCloudReady,
                 onOpenModels  = { onNavigate(AiriRoute.MODELS) },
@@ -1942,6 +1944,7 @@ fun ChatMessageList(
     messages: List<ChatMessage>,
     streamingText: String,
     isGenerating: Boolean,
+    finalAnswerVerification: FinalAnswerUiState? = null,
     isModelReady: Boolean = false,
     isCloudReady: Boolean = false,
     onOpenModels: () -> Unit = {},
@@ -2088,6 +2091,11 @@ fun ChatMessageList(
                         }
                     }
                 }
+                if (finalAnswerVerification != null && !isGenerating) {
+                    item(key = "final_answer_verification", contentType = "verification") {
+                        FinalAnswerVerificationBadge(finalAnswerVerification)
+                    }
+                }
                 itemsIndexed(reversedMessages, key = { _, msg -> msg.uid }, contentType = { _, msg -> if (msg.isUser) "user" else "assistant" }) { index, msg ->
                     val prevMsg = reversedMessages.getOrNull(index + 1)
                     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
@@ -2125,6 +2133,68 @@ fun ChatMessageList(
                 onClick  = { scope.launch { listState.animateScrollToItem(0) } },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun FinalAnswerVerificationBadge(state: FinalAnswerUiState) {
+    var expanded by rememberSaveable(state.verified, state.issueCount) { mutableStateOf(false) }
+    val positive = state.verified
+    val title = if (positive) "تمت مراجعة الإجابة" else "تحتاج الإجابة إلى مراجعة إضافية"
+    val subtitle = if (positive) {
+        "فحص سريع للاكتمال قبل العرض"
+    } else {
+        "قد توجد نقاط غير مكتملة؛ يمكنك مراجعة التفاصيل"
+    }
+    val tint = if (positive) Color(0xFF7AD9A1) else Color(0xFFFFC266)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(tint.copy(alpha = 0.08f))
+            .clickable { expanded = !expanded }
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = if (positive) Icons.Outlined.CheckCircle else Icons.Outlined.Info,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, color = AiriTheme.onSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(subtitle, color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
+            }
+            Icon(
+                imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                contentDescription = "عرض التفاصيل",
+                tint = AiriTheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        AnimatedVisibility(visible = expanded) {
+            Column(Modifier.padding(start = 24.dp, top = 6.dp)) {
+                if (state.details.isEmpty()) {
+                    Text(
+                        "لا توجد ملاحظات إضافية.",
+                        color = AiriTheme.onSurfaceVariant,
+                        fontSize = 11.sp
+                    )
+                } else {
+                    state.details.forEach { detail ->
+                        Text(
+                            "• ${detail.take(160)}",
+                            color = AiriTheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(vertical = 1.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }

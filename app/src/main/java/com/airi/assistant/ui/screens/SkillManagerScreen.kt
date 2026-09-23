@@ -99,14 +99,14 @@ fun SkillManagerScreen(
             2 -> !info.isConnected
             else -> true
         }
-        val category = OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.name }
+        val category = OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.id }
             ?.manifest?.category ?: "OTHER"
         val matchesCategory = selectedCategory == "ALL" || category == selectedCategory
         matchesSearch && matchesFilter && matchesCategory
     }
     val categories = remember(officialSkills) {
         listOf("ALL") + officialSkills.mapNotNull { info ->
-            OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.name }?.manifest?.category
+            OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.id }?.manifest?.category
         }.distinct().sorted()
     }
     LaunchedEffect(categories) {
@@ -128,7 +128,7 @@ fun SkillManagerScreen(
                         method = skill.config.method,
                         bodyTemplate = skill.config.bodyTemplate
                     )
-                ) { "The skill manifest or endpoint is not valid." }
+                ) { context.getString(R.string.skill_error_manifest_endpoint) }
                 withContext(Dispatchers.Main) { reload(); importSource = null }
             }.onFailure { e ->
                 withContext(Dispatchers.Main) {
@@ -195,8 +195,18 @@ fun SkillManagerScreen(
                         isImporting = false
                         if (result.success && result.skill != null && result.manifest != null) {
                             val registered = skillRegistry.registerDynamicFromManifest(result.manifest, result.skill.config.endpoint, result.skill.config.method, result.skill.config.bodyTemplate)
-                            if (!registered) errorMessage = context.getString(R.string.skill_import_github_failed, "The skill endpoint could not be registered.")
-                            else { reload(); importSource = null; if (result.warnings.isNotEmpty()) errorMessage = "Imported with ${result.warnings.size} warning(s): " + result.warnings.take(2).joinToString("; ") }
+                            if (!registered) errorMessage = context.getString(R.string.skill_import_github_failed, context.getString(R.string.skill_error_endpoint_register))
+                            else {
+                                reload()
+                                importSource = null
+                                if (result.warnings.isNotEmpty()) {
+                                    errorMessage = context.getString(
+                                        R.string.skill_import_warnings,
+                                        result.warnings.size,
+                                        result.warnings.take(2).joinToString("; ")
+                                    )
+                                }
+                            }
                         } else { errorMessage = context.getString(R.string.skill_import_github_failed, result.errors.take(3).joinToString("; ")); importSource = null }
                     }
                 }
@@ -234,13 +244,20 @@ fun SkillManagerScreen(
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    categories.forEach { category -> SkillFilterChip(category.lowercase().replaceFirstChar { it.uppercase() }, selectedCategory == category) { selectedCategory = category } }
+                    categories.forEach { category ->
+                        val label = when (category) {
+                            "ALL" -> stringResource(R.string.skill_category_all)
+                            "OTHER" -> stringResource(R.string.skill_category_other)
+                            else -> category.lowercase().replaceFirstChar { it.uppercase() }
+                        }
+                        SkillFilterChip(label, selectedCategory == category) { selectedCategory = category }
+                    }
                 }
                 Spacer(Modifier.height(18.dp))
                 SkillSectionHeader(stringResource(R.string.skill_official_section), filteredOfficialSkills.size)
                 Spacer(Modifier.height(8.dp))
                 filteredOfficialSkills.forEach { info ->
-                    OfficialSkillCard(info, { onOpenOfficial(info.name) }) { enabled -> skillRegistry.setSkillEnabled(info.name, enabled); reload() }
+                    OfficialSkillCard(info, { onOpenOfficial(info.id) }) { enabled -> skillRegistry.setSkillEnabled(info.id, enabled); reload() }
                     Spacer(Modifier.height(10.dp))
                 }
                 Spacer(Modifier.height(8.dp))

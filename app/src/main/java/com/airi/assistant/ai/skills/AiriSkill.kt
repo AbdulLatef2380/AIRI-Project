@@ -21,6 +21,9 @@ interface AiriSkill {
     /** Display name shown in the UI. */
     val name: String
 
+    /** Explicit display-name alias for manifests and future localized catalogs. */
+    val displayName: String get() = name
+
     /** Human-readable description. Used by the model for skill selection. */
     val description: String
 
@@ -59,6 +62,17 @@ interface AiriSkill {
 
     /** Parameter schema advertised to the model prompt. */
     val parameters: Map<String, String> get() = emptyMap()
+
+    /** Type-safe metadata fields shared by built-in and imported skills. */
+    val inputSchema: Map<String, String> get() = parameters
+    val outputSchema: Map<String, String> get() = emptyMap()
+    val instructions: String get() = description
+    val examples: List<String> get() = emptyList()
+    val limitations: List<String> get() = emptyList()
+    val riskLevel: SkillRiskLevel get() = SkillRiskLevel.LOW
+    val requiresConfirmation: Boolean get() = false
+    val supportsStreaming: Boolean get() = false
+    val supportsAttachments: Boolean get() = false
 
     /** Other skill IDs this skill depends on. */
     val dependencies: List<String> get() = emptyList()
@@ -102,3 +116,5 @@ data class SkillParamDef(
     val description: String = "",
     val required:    Boolean = true
 )
+
+enum class SkillRiskLevel { LOW, MEDIUM, HIGH, CRITICAL }

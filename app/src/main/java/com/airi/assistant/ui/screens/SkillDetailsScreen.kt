@@ -115,6 +115,23 @@ fun SkillDetailsScreen(
                     if (manifest.dependencies.isNotEmpty()) Text(stringResource(R.string.skill_details_requirements, manifest.dependencies.joinToString()), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
                 }
             }
+            Surface(shape = AIRIShapes.lg, color = AiriTheme.surface, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.skill_details_security), color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    val riskLabel = when (manifest.riskLevel) {
+                        com.airi.assistant.ai.skills.SkillRiskLevel.LOW -> stringResource(R.string.skill_risk_low)
+                        com.airi.assistant.ai.skills.SkillRiskLevel.MEDIUM -> stringResource(R.string.skill_risk_medium)
+                        com.airi.assistant.ai.skills.SkillRiskLevel.HIGH -> stringResource(R.string.skill_risk_high)
+                        com.airi.assistant.ai.skills.SkillRiskLevel.CRITICAL -> stringResource(R.string.skill_risk_critical)
+                    }
+                    Text(stringResource(R.string.skill_risk_level, riskLabel), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    Text(stringResource(R.string.skill_details_permissions, manifest.permissions.joinToString().ifBlank { "—" }), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    Text(stringResource(R.string.skill_details_tools, manifest.tools.map { it.name }.joinToString().ifBlank { "—" }), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    if (manifest.requiresConfirmation) Text(stringResource(R.string.skill_requires_confirmation), color = SemanticWarn, fontSize = 12.sp)
+                    if (manifest.supportsStreaming) Text(stringResource(R.string.skill_supports_streaming), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    if (manifest.supportsAttachments) Text(stringResource(R.string.skill_supports_attachments), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                }
+            }
             Text(stringResource(R.string.skill_capabilities), color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 17.sp)
             manifest.tools.forEach { tool ->
                 Surface(shape = AIRIShapes.lg, color = AiriTheme.surface, modifier = Modifier.fillMaxWidth()) {

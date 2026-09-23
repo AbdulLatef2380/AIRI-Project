@@ -452,6 +452,59 @@ class SkillRegistry(private val context: Context) {
     fun isCustomSkillAvailable(skill: CustomSkill): Boolean =
         isSkillEnabled(skill.id) && hasRunnableEndpoint(skill)
 
+    /** Canonical discovery API used by UI and planners; callers must not maintain parallel lists. */
+    fun findById(skillId: String): SkillInfo? =
+        getAllSkillInfos().firstOrNull { it.id == skillId || it.name == skillId }
+
+    fun search(query: String): List<SkillInfo> {
+        val normalized = query.trim()
+        if (normalized.isBlank()) return getAllSkillInfos()
+        return getAllSkillInfos().filter { info ->
+            info.id.contains(normalized, ignoreCase = true) ||
+                info.name.contains(normalized, ignoreCase = true) ||
+                info.description.contains(normalized, ignoreCase = true)
+        }
+    }
+
+    fun enabledSkills(): List<SkillInfo> = getAllSkillInfos().filter { it.isEnabled }
+
+    fun connectedSkills(): List<SkillInfo> = getAllSkillInfos().filter { it.isConnected }
+
+    fun byCategory(category: String): List<SkillInfo> {
+        val normalized = category.trim()
+        if (normalized.isBlank() || normalized.equals("ALL", ignoreCase = true)) return getAllSkillInfos()
+        val officialIds = OfficialSkillLibrary.ALL
+            .filter { it.manifest.category.equals(normalized, ignoreCase = true) }
+            .map { it.manifest.id }
+            .toSet()
+        return getAllSkillInfos().filter { it.id in officialIds }
+    }
+
+    fun requiredCapabilities(skillId: String): SkillCapabilitySummary? {
+        val manifest = OfficialSkillLibrary.manifestFor(skillId) ?: return null
+        return SkillCapabilitySummary(
+            skillId = manifest.id,
+            permissions = manifest.permissions,
+            tools = manifest.tools.map { it.name },
+            dependencies = manifest.dependencies,
+            riskLevel = manifest.riskLevel,
+            requiresConfirmation = manifest.requiresConfirmation,
+            supportsStreaming = manifest.supportsStreaming,
+            supportsAttachments = manifest.supportsAttachments
+        )
+    }
+
+    data class SkillCapabilitySummary(
+        val skillId: String,
+        val permissions: List<String>,
+        val tools: List<String>,
+        val dependencies: List<String>,
+        val riskLevel: SkillRiskLevel,
+        val requiresConfirmation: Boolean,
+        val supportsStreaming: Boolean,
+        val supportsAttachments: Boolean
+    )
+
     private fun isValidDynamicManifest(manifest: SkillManifest): Boolean =
         manifest.id.matches(Regex("^[a-z][a-z0-9_-]{2,63}$")) &&
             manifest.name.trim().length in 3..80 &&

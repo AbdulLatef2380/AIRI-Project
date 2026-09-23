@@ -133,12 +133,12 @@ fun SkillCreationWizardScreen(onBack: () -> Unit) {
     }
 
     fun validate(): String? {
-        if (name.isBlank()) return "Skill name is required"
-        if (description.isBlank()) return "Description is required"
-        if (description.length < 10) return "Description must be at least 10 characters"
+        if (name.isBlank()) return context.getString(R.string.skill_validation_name_required)
+        if (description.isBlank()) return context.getString(R.string.skill_validation_description_required)
+        if (description.length < 10) return context.getString(R.string.skill_validation_description_length)
         val semver = Regex("""^\d+\.\d+\.\d+(-[\w.]+)?$""")
-        if (!semver.matches(version.trim())) return "Version must be semver (e.g. 1.0.0)"
-        if (author.isBlank()) return "Author is required"
+        if (!semver.matches(version.trim())) return context.getString(R.string.skill_validation_version)
+        if (author.isBlank()) return context.getString(R.string.skill_validation_author)
         return null
     }
 

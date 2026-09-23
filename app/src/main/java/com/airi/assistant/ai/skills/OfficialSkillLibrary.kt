@@ -5,6 +5,7 @@ import com.airi.assistant.ai.skills.impl.CalendarEventsSkill
 import com.airi.assistant.ai.skills.impl.AdvancedModelSkill
 import com.airi.assistant.ai.skills.impl.CodeAssistantSkill
 import com.airi.assistant.ai.skills.impl.DocumentReaderSkill
+import com.airi.assistant.ai.skills.impl.EngineeringQualitySkill
 import com.airi.assistant.ai.skills.impl.DriveSearchSkill
 import com.airi.assistant.ai.skills.impl.FileManagerSkill
 import com.airi.assistant.ai.skills.impl.GithubGuardianSkill
@@ -360,7 +361,7 @@ object OfficialSkillLibrary {
             tier    = Tier.CONNECTOR,
             factory = ::TelegramMessengerSkill
         )
-    ) + ModelUtilitySkill.SPECS.map(::modelEntry) + AdvancedModelSkill.SPECS.map(::advancedEntry)
+    ) + ModelUtilitySkill.SPECS.map(::modelEntry) + AdvancedModelSkill.SPECS.map(::advancedEntry) + EngineeringQualitySkill.SPECS.map(::qualityEntry)
 
     private fun modelEntry(spec: ModelUtilitySkill.Spec): OfficialEntry = OfficialEntry(
         manifest = SkillManifest(
@@ -409,6 +410,31 @@ object OfficialSkillLibrary {
         ),
         tier = Tier.AI,
         factory = { AdvancedModelSkill(spec) }
+    )
+
+    private fun qualityEntry(spec: EngineeringQualitySkill.Spec): OfficialEntry = OfficialEntry(
+        manifest = SkillManifest(
+            id = spec.id,
+            name = spec.name,
+            description = spec.description,
+            version = "1.0.0",
+            author = "AIRI Official",
+            category = spec.category,
+            isOfficial = true,
+            memoryAccess = SkillMemoryAccess.NONE,
+            modelAccess = SkillModelAccess.CHAT,
+            tools = listOf(SkillManifest.ToolDef(spec.id, spec.description, mapOf("input" to SkillManifest.ParamDef("string", "Code, metrics, or design input")))),
+            tags = spec.keywords,
+            inputSchema = mapOf("input" to "string"),
+            outputSchema = mapOf("findings" to "string", "verification_tests" to "string"),
+            instructions = spec.stages.joinToString(" ") { it.instruction },
+            examples = spec.examples,
+            limitations = spec.limitations,
+            riskLevel = SkillRiskLevel.LOW,
+            supportsStreaming = false
+        ),
+        tier = Tier.AI,
+        factory = { EngineeringQualitySkill(spec) }
     )
 
     /** Get the manifest for a skill by its ID. */

@@ -103,3 +103,13 @@
 كل مهارة تنفذ مرحلتين أو أكثر عبر `SkillModelBridge`: استخراج/تحليل أولي، ثم تحقق أو مقارنة أو صياغة نهائية. يتم تمرير مخرجات كل مرحلة إلى المرحلة التالية، وتتوقف السلسلة بفشل صريح عند فشل أي مرحلة أو غياب النموذج. لا تنفذ هذه المهارات إجراءات خارجية، ولا تدعي تصفح مصادر أو تشغيل كود أو اختبارات.
 
 تمت إضافة manifests وأدوات وقيود ومخاطر `MEDIUM` واختبارات للسلسلة كاملة، وتم إصلاح فشل CI السابق في عقد `UserBubble` بإعادة `Arrangement.Start` المطلوبة من محاكاة الواجهة. محاكاة `tools/airi_runtime_simulation.py` مرت بحالة `PASS` بعد الإصلاح.
+
+## المرحلة الثالثة — مهارات الأداء وجودة الكود
+
+أضيفت ثماني مهارات مخصصة عبر `EngineeringQualitySkill`: `performance_profiler`, `memory_leak_auditor`, `startup_latency_auditor`, `compose_recomposition_auditor`, `concurrency_auditor`, `complexity_reducer`, `api_quality_reviewer`, و`refactoring_planner`.
+
+كل مهارة تستخدم ثلاث مراحل: جرد الأدلة، ترتيب findings مع severity/confidence/evidence، ثم خطة إصلاح واختبار تحقق. التعليمات تمنع اختراع benchmark أو trace أو measured value، وتوضح أن التحليل لا يشغّل الكود ولا يثبت غياب كل التسريبات أو السباقات دون أدوات القياس المناسبة.
+
+تمت إضافة اختبارات routing، اختلاف مجالات PERFORMANCE وQUALITY، chaining للمراحل الثلاث، تمرير الأدلة بين المراحل، والفشل الصريح عند توقف مرحلة أو غياب النموذج.
+
+أثناء تدقيق CI للدفعة الثانية ظهر فشل localization parity مستقل: 21 مفتاحًا ناقصًا في `values-es` و`values-zh`. أضيفت الترجمات المطلوبة، وأصبح الفحص المحلي يثبت صفر مفاتيح ناقصة في `values-ar` و`values-es` و`values-zh`، مع مرور runtime simulation بحالة `PASS`.

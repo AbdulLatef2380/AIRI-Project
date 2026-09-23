@@ -234,14 +234,7 @@ class DocumentAnalysisSkill(
     }
 
     private fun extractLiteralPdfText(file: File, maxChars: Int): String {
-        val bytes = file.readBytes().take(8 * 1024 * 1024).toByteArray()
-        val raw = bytes.toString(Charsets.ISO_8859_1)
-        val matches = Regex("\\(([^()\\\\]{1,2000})\\)").findAll(raw)
-        return matches.map { it.groupValues[1] }
-            .filter { it.any(Char::isLetterOrDigit) }
-            .joinToString(" ")
-            .replace(Regex("\\s+"), " ")
-            .take(maxChars)
+        return PdfLiteralTextExtractor.extract(file, maxChars)
     }
 
     private fun failure(message: String, started: Long) = SkillResult(

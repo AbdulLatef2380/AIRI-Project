@@ -32,6 +32,20 @@ class ModelUtilitySkillTest {
     }
 
     @Test
+    fun productivityBatchHasSafeDraftAndSummarizationContracts() {
+        val byId = ModelUtilitySkill.SPECS.associateBy { it.id }
+        listOf("meeting_summarizer", "checklist_generator", "daily_task_organizer", "email_drafter")
+            .forEach { id ->
+                val spec = byId[id] ?: error("Missing productivity skill: $id")
+                assertTrue(spec.parameters.containsKey("input"))
+                assertTrue(spec.outputContract.isNotBlank())
+                assertTrue(spec.limitations.isNotEmpty())
+            }
+        assertTrue(byId.getValue("email_drafter").limitations.any { it.contains("never sends") })
+        assertTrue(byId.getValue("daily_task_organizer").limitations.any { it.contains("calendar") })
+    }
+
+    @Test
     fun executionUsesActiveModelBridgeAndReturnsMetadata() = runBlocking {
         val skill = ModelUtilitySkill(ModelUtilitySkill.SPECS.first())
         val result = skill.execute(

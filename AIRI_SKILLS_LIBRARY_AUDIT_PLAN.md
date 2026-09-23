@@ -113,3 +113,19 @@
 تمت إضافة اختبارات routing، اختلاف مجالات PERFORMANCE وQUALITY، chaining للمراحل الثلاث، تمرير الأدلة بين المراحل، والفشل الصريح عند توقف مرحلة أو غياب النموذج.
 
 أثناء تدقيق CI للدفعة الثانية ظهر فشل localization parity مستقل: 21 مفتاحًا ناقصًا في `values-es` و`values-zh`. أضيفت الترجمات المطلوبة، وأصبح الفحص المحلي يثبت صفر مفاتيح ناقصة في `values-ar` و`values-es` و`values-zh`، مع مرور runtime simulation بحالة `PASS`.
+
+## الدفعة الرابعة — Programming & Software Engineering + Cybersecurity الدفاعية
+
+أعيدت قراءة المرفق كاملًا، وتمت مطابقة البنود مع المهارات السابقة قبل الإضافة. تم استبعاد المهارات الموجودة أو المغطاة فعليًا: `Code Generation` و`Code Explanation` عبر `CodeAssistantSkill`، و`Code Review` عبر `code_review_advanced`، و`Refactoring` عبر `complexity_reducer`، و`Architecture Analysis` عبر `architecture_advisor`، و`Performance Analysis` عبر `performance_profiler`، و`Threat Modeling` عبر `security_threat_model`. كما بقيت مهارات البحث والوثائق والموصلات الحالية دون إعادة بناء.
+
+أضيفت 23 مهارة جديدة حقيقية عبر `DefensiveEngineeringSkill`، منها 9 برمجية: `debugging`, `test_generation`, `unit_test_analysis`, `dependency_analysis`, `api_integration`, `git_workflow`, `repository_analysis`, `error_log_analysis`, و`documentation_generation`.
+
+وأضيفت 14 مهارة أمنية دفاعية: `security_code_review`, `vulnerability_analysis`, `dependency_vulnerability_check`, `secure_configuration_review`, `owasp_analysis`, `incident_triage`, `security_log_analysis`, `ioc_analysis`, `malware_report_analysis`, `security_documentation`, `ctf_lab_assistant`, `network_security_analysis`, `security_testing_planner`, و`privacy_security_audit`.
+
+كل مهارة مسجلة في `OfficialSkillLibrary` و`SkillRegistry` مع metadata type-safe، input/output schemas، instructions، examples، limitations، routing keywords، risk level، required tools، واختبارات failure. كل مهارة تنفذ ثلاث مراحل: inventory، findings، ثم safe action/verification. لا تنفذ هذه المهارات أوامر أو اتصالات أو scans أو تغييرات مستودع.
+
+طبقة الأمن الدفاعي مفروضة داخل executor وsystem prompt وmetadata: لا استغلال، لا payloads، لا credential theft، لا persistence أو evasion أو exfiltration، ولا استهداف لأنظمة غير مصرّح بها. `CTF/Lab Assistant` محصور في sandbox أو lab مصرح به، و`Security Testing Planner` تخطيط غير تدميري مع stop conditions ولا ينفذ الاختبار.
+
+أضيف `SKILL.md` مستقل لكل مهارة جديدة داخل `skills/programming/` و`skills/cybersecurity/`، ويحتوي الوصف والغرض والاستخدام والمدخلات والمخرجات والتدفق والقيود والاعتبارات الأمنية والمهارات المرتبطة والإصدار.
+
+قبل الدفعة، أصلح verifier فشل CI في `Android CI release gate`: كان يتوقع workflow قديمًا يرفع تقارير وأدلة متعددة رغم اعتماد APK-only artifact، كما احتوى predicate متناقضًا على instrumentation. أصبح `tools/verify_core_changes.py` يمر بـ `88/88` ويتحقق من رفع `debug.apk` و`release.apk` فقط مع بقاء instrumentation وrelease signing gate.

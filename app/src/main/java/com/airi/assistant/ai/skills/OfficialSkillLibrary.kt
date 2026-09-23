@@ -412,7 +412,11 @@ object OfficialSkillLibrary {
                 tags = listOf("reminder", "alarm", "timer", "schedule", "تذكير", "منبه"),
                 riskLevel = SkillRiskLevel.MEDIUM,
                 requiresConfirmation = true,
-                tools = listOf(SkillManifest.ToolDef("reminder_planning", "Preview or schedule a reminder", mapOf("input" to SkillManifest.ParamDef("string", "Reminder text"))))
+                tools = listOf(SkillManifest.ToolDef("reminder_planning", "Preview or schedule a reminder", mapOf(
+                    "input" to SkillManifest.ParamDef("string", "Reminder text"),
+                    "confirmed" to SkillManifest.ParamDef("boolean", "Explicit scheduling confirmation"),
+                    "message" to SkillManifest.ParamDef("string", "Reminder label")
+                )))
             ),
             tier = Tier.SYSTEM,
             factory = ::ReminderPlanningSkill

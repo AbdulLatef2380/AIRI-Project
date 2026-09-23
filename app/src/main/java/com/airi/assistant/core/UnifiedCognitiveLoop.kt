@@ -1,6 +1,8 @@
 package com.airi.assistant.core
 
 import android.util.Log
+import com.airi.assistant.ai.skills.SkillRegistry
+import com.airi.assistant.ai.skills.SkillToolBridge
 import com.airi.assistant.BuildConfig
 import com.airi.assistant.agent.execution.command.CommandResult
 import com.airi.assistant.agent.execution.command.CommandRouter
@@ -97,6 +99,10 @@ class UnifiedCognitiveLoop {
     private val plannerAdaptationEngine by lazy {
         runCatching { ServiceLocator.plannerAdaptationEngine }.getOrNull()
     }
+    private val cognitiveSkillBridge by lazy {
+        ServiceLocator.context?.let { SkillToolBridge(it, SkillRegistry(it)) }
+    }
+    private val directCognitiveSkills = setOf("pdf_analysis", "ocr_analysis")
 
     /**
      * Optional LLM delegate provider injected by [ChatViewModel] after construction.
@@ -383,7 +389,11 @@ class UnifiedCognitiveLoop {
         }
         val results = mutableListOf<StepResult>()
         for (step in actionPlan.steps) {
-            val result = CommandRouter.execute(step)
+            val result = when (step) {
+                is PlanStep.Custom -> executeDirectCognitiveSkill(step.action, step.parameters)
+                    ?: CommandRouter.execute(step)
+                else -> CommandRouter.execute(step)
+            }
             results.add(StepResult(step, result))
             outcomeScorer?.record(
                 skillName   = step::class.simpleName ?: "step",
@@ -413,6 +423,7 @@ class UnifiedCognitiveLoop {
      * for defence-in-depth.
      */
     private suspend fun runNode(node: GoalNode): CommandResult {
+        executeDirectCognitiveSkill(node)?.let { return it }
         val routingInput = buildString {
             append(node.activeAction.replace('_', ' '))
             if (node.activeParams.isNotEmpty()) {
@@ -506,6 +517,30 @@ class UnifiedCognitiveLoop {
         return CommandRouter.execute(
             PlanStep.Custom(node.id, node.activeAction, node.activeParams, node.dependsOn, node.expectedOutcome)
         )
+    }
+
+    /**
+     * Document skills are deterministic local capabilities and must not be
+     * downgraded to a generic SubAgent/CommandRouter fallback. Routing them
+     * through the same SkillToolBridge used by AgentLoop keeps permissions,
+     * result verification, timeout, and metadata contracts identical.
+     */
+    private suspend fun executeDirectCognitiveSkill(node: GoalNode): CommandResult? {
+        return executeDirectCognitiveSkill(node.activeAction, node.activeParams)
+    }
+
+    private suspend fun executeDirectCognitiveSkill(
+        action: String,
+        params: Map<String, String>
+    ): CommandResult? {
+        val skillId = action.removePrefix("skill_").lowercase()
+        if (skillId !in directCognitiveSkills) return null
+        val bridge = cognitiveSkillBridge
+            ?: return CommandResult(false, "Cognitive skill bridge is unavailable.")
+        val output = bridge.invoke("skill_$skillId", params)
+        val failed = output.startsWith("Skill '") || output.startsWith("No skill found")
+        Log.i(TAG, "UCL_COGNITIVE_SKILL skill=$skillId success=${!failed} outputChars=${output.length}")
+        return CommandResult(!failed, output)
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

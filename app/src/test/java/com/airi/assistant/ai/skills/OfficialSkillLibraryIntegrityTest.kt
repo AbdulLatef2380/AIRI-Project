@@ -42,4 +42,16 @@ class OfficialSkillLibraryIntegrityTest {
         assertTrue(ids.contains("fact_checker"))
         assertTrue(ids.contains("test_strategy"))
     }
+
+    @Test
+    fun documentAndProductivityExecutionContractsAreRegistered() {
+        val entries = OfficialSkillLibrary.ALL.associateBy { it.manifest.id }
+        listOf("pdf_analysis", "ocr_analysis", "meeting_summarizer", "checklist_generator", "daily_task_organizer", "email_drafter", "reminder_planning")
+            .forEach { assertTrue("Missing catalog entry: $it", entries.containsKey(it)) }
+        val reminder = entries.getValue("reminder_planning").manifest
+        assertTrue(reminder.requiresConfirmation)
+        val reminderParams = reminder.tools.flatMap { it.parameters.keys }.toSet()
+        assertTrue(reminderParams.containsAll(setOf("input", "confirmed", "message")))
+        assertTrue(entries.getValue("ocr_analysis").manifest.tools.flatMap { it.parameters.keys }.contains("language"))
+    }
 }

@@ -75,6 +75,17 @@ class ProductivityAgent(
         val type = detectType(input.lowercase())
         emit(AgentEvent.Progress("Action type: ${type.displayName}", 20, "classify"))
 
+        // Alarm/timer writes must use reminder_planning through SkillToolBridge.
+        // That path previews first and requires an explicit confirmed=true flag;
+        // this legacy sub-agent has no task-owned approval context.
+        if (type == ProductivityType.ALARM_REMINDER || type == ProductivityType.TIMER) {
+            emit(AgentEvent.Failed(
+                reason = "Scheduling requires the reminder_planning skill and explicit user confirmation.",
+                recoverable = false
+            ))
+            return@flow
+        }
+
         val events: Flow<AgentEvent> = when (type) {
             ProductivityType.CALENDAR_READ  -> executeCalendarRead(input, context)
             ProductivityType.CALENDAR_WRITE -> executeCalendarWrite(input, context)

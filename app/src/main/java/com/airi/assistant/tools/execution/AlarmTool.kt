@@ -173,31 +173,7 @@ class AlarmTool(private val context: Context) {
      * Returns null if unparseable.
      */
     fun parseTime(input: String): Pair<Int, Int>? {
-        val normalized = input.lowercase().trim()
-        return when {
-            normalized == "noon"     -> 12 to 0
-            normalized == "midnight" -> 0  to 0
-            else -> {
-                val amPm  = Regex("""(\d{1,2})(?::(\d{2}))?\s*(am|pm)""").find(normalized)
-                val hour24 = Regex("""(\d{1,2}):(\d{2})""").find(normalized)
-                when {
-                    amPm != null -> {
-                        var h = amPm.groupValues[1].toIntOrNull() ?: return null
-                        val m = amPm.groupValues[2].toIntOrNull() ?: 0
-                        val suffix = amPm.groupValues[3]
-                        if (suffix == "pm" && h != 12) h += 12
-                        if (suffix == "am" && h == 12) h = 0
-                        if (h in 0..23 && m in 0..59) h to m else null
-                    }
-                    hour24 != null -> {
-                        val h = hour24.groupValues[1].toIntOrNull() ?: return null
-                        val m = hour24.groupValues[2].toIntOrNull() ?: return null
-                        if (h in 0..23 && m in 0..59) h to m else null
-                    }
-                    else -> null
-                }
-            }
-        }
+        return ReminderTimeParser.parseTime(input)
     }
 
     /**
@@ -205,15 +181,7 @@ class AlarmTool(private val context: Context) {
      * Supports: "5 minutes", "30 seconds", "1 hour", "1h30m", "90s".
      */
     fun parseDuration(input: String): Int? {
-        val norm = input.lowercase().trim()
-        var seconds = 0
-        val hourMatch   = Regex("""(\d+)\s*(?:h|hour|hours)""").find(norm)
-        val minuteMatch = Regex("""(\d+)\s*(?:m|min|minute|minutes)""").find(norm)
-        val secondMatch = Regex("""(\d+)\s*(?:s|sec|second|seconds)""").find(norm)
-        hourMatch?.let   { seconds += (it.groupValues[1].toIntOrNull() ?: 0) * 3600 }
-        minuteMatch?.let { seconds += (it.groupValues[1].toIntOrNull() ?: 0) * 60   }
-        secondMatch?.let { seconds += (it.groupValues[1].toIntOrNull() ?: 0)         }
-        return if (seconds > 0) seconds else null
+        return ReminderTimeParser.parseDuration(input)
     }
 
     // ─────────────────────────────────────────────────────────────────────────

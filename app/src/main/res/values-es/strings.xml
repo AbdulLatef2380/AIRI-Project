@@ -1726,4 +1726,25 @@
     <string name="feedback_helpful">Respuesta útil</string>
     <string name="feedback_not_helpful">Respuesta no útil</string>
     <string name="cd_scroll_to_bottom">Desplazarse al final de la conversación</string>
+    <string name="skill_category_all">Todas</string>
+    <string name="skill_category_other">Otra</string>
+    <string name="skill_details_permissions">Permisos: %1$s</string>
+    <string name="skill_details_security">Seguridad y ejecución</string>
+    <string name="skill_details_tools">Herramientas requeridas: %1$s</string>
+    <string name="skill_error_endpoint_register">No se pudo registrar el endpoint de la habilidad.</string>
+    <string name="skill_error_manifest_endpoint">El manifiesto o endpoint de la habilidad no es válido.</string>
+    <string name="skill_import_warnings">Importada con %1$d advertencia(s): %2$s</string>
+    <string name="skill_requires_confirmation">Requiere confirmación</string>
+    <string name="skill_risk_critical">Crítico</string>
+    <string name="skill_risk_high">Alto</string>
+    <string name="skill_risk_level">Nivel de riesgo: %1$s</string>
+    <string name="skill_risk_low">Bajo</string>
+    <string name="skill_risk_medium">Medio</string>
+    <string name="skill_supports_attachments">Admite archivos adjuntos</string>
+    <string name="skill_supports_streaming">Admite streaming</string>
+    <string name="skill_validation_author">El autor es obligatorio</string>
+    <string name="skill_validation_description_length">La descripción debe tener al menos 10 caracteres</string>
+    <string name="skill_validation_description_required">La descripción es obligatoria</string>
+    <string name="skill_validation_name_required">El nombre de la habilidad es obligatorio</string>
+    <string name="skill_validation_version">La versión debe seguir semver (p. ej., 1.0.0)</string>
 </resources>

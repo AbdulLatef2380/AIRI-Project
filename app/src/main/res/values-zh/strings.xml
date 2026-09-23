@@ -1726,4 +1726,25 @@
     <string name="feedback_helpful">有帮助的回答</string>
     <string name="feedback_not_helpful">没有帮助的回答</string>
     <string name="cd_scroll_to_bottom">滚动到对话底部</string>
+    <string name="skill_category_all">全部</string>
+    <string name="skill_category_other">其他</string>
+    <string name="skill_details_permissions">权限：%1$s</string>
+    <string name="skill_details_security">安全与执行</string>
+    <string name="skill_details_tools">所需工具：%1$s</string>
+    <string name="skill_error_endpoint_register">技能端点注册失败。</string>
+    <string name="skill_error_manifest_endpoint">技能清单或端点无效。</string>
+    <string name="skill_import_warnings">导入时有 %1$d 个警告：%2$s</string>
+    <string name="skill_requires_confirmation">需要确认</string>
+    <string name="skill_risk_critical">严重</string>
+    <string name="skill_risk_high">高</string>
+    <string name="skill_risk_level">风险等级：%1$s</string>
+    <string name="skill_risk_low">低</string>
+    <string name="skill_risk_medium">中</string>
+    <string name="skill_supports_attachments">支持附件</string>
+    <string name="skill_supports_streaming">支持流式传输</string>
+    <string name="skill_validation_author">作者为必填项</string>
+    <string name="skill_validation_description_length">描述至少需要 10 个字符</string>
+    <string name="skill_validation_description_required">描述为必填项</string>
+    <string name="skill_validation_name_required">技能名称为必填项</string>
+    <string name="skill_validation_version">版本必须符合 semver（例如 1.0.0）</string>
 </resources>

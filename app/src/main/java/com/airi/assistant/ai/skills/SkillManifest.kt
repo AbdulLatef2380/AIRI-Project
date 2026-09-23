@@ -80,7 +80,17 @@ data class SkillManifest(
     /** Skill homepage (marketing / documentation landing page). */
     val homepage:          String?            = null,
     /** HTTPS API endpoint invoked by the runtime for dynamically installed skills. */
-    val endpoint:          String?            = null
+    val endpoint:          String?            = null,
+    val displayName:       String             = name,
+    val inputSchema:       Map<String, String> = emptyMap(),
+    val outputSchema:      Map<String, String> = emptyMap(),
+    val instructions:      String             = description,
+    val examples:          List<String>       = emptyList(),
+    val limitations:       List<String>       = emptyList(),
+    val riskLevel:         SkillRiskLevel     = SkillRiskLevel.LOW,
+    val requiresConfirmation: Boolean         = false,
+    val supportsStreaming: Boolean            = false,
+    val supportsAttachments: Boolean          = false
 ) {
     data class ToolDef(
         val name:        String,
@@ -143,6 +153,16 @@ data class SkillManifest(
         endpoint?.let   { put("endpoint",    it) }
         entrypoint?.let    { put("entrypoint",      it) }
         repositoryUrl?.let { put("repository_url",  it) }
+        put("display_name", displayName)
+        put("input_schema", JSONObject(inputSchema))
+        put("output_schema", JSONObject(outputSchema))
+        put("instructions", instructions)
+        put("examples", JSONArray(examples))
+        put("limitations", JSONArray(limitations))
+        put("risk_level", riskLevel.name.lowercase())
+        put("requires_confirmation", requiresConfirmation)
+        put("supports_streaming", supportsStreaming)
+        put("supports_attachments", supportsAttachments)
     }
 
     companion object {
@@ -185,6 +205,11 @@ data class SkillManifest(
                 return (0 until arr.length()).map { arr.getString(it) }
             }
 
+            fun parseStringMap(obj: JSONObject?): Map<String, String> {
+                if (obj == null) return emptyMap()
+                return obj.keys().asSequence().associateWith { key -> obj.optString(key) }
+            }
+
             return SkillManifest(
                 id                = json.getString("id"),
                 name              = json.getString("name"),
@@ -218,7 +243,17 @@ data class SkillManifest(
                 supportUrl        = json.optString("support_url").ifBlank { null },
                 changelog         = json.optString("changelog").ifBlank { null },
                 homepage          = json.optString("homepage").ifBlank { null },
-                endpoint          = json.optString("endpoint").ifBlank { null }
+                endpoint          = json.optString("endpoint").ifBlank { null },
+                displayName       = json.optString("display_name", json.optString("name")),
+                inputSchema       = parseStringMap(json.optJSONObject("input_schema")),
+                outputSchema      = parseStringMap(json.optJSONObject("output_schema")),
+                instructions      = json.optString("instructions", json.optString("description")),
+                examples          = parseStringList(json.optJSONArray("examples")),
+                limitations      = parseStringList(json.optJSONArray("limitations")),
+                riskLevel         = runCatching { SkillRiskLevel.valueOf(json.optString("risk_level", "LOW").uppercase()) }.getOrDefault(SkillRiskLevel.LOW),
+                requiresConfirmation = json.optBoolean("requires_confirmation", false),
+                supportsStreaming = json.optBoolean("supports_streaming", false),
+                supportsAttachments = json.optBoolean("supports_attachments", false)
             )
         }
 

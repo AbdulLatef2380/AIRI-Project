@@ -11,7 +11,7 @@ Official AIRI skill for ocr analysis.
 
 ## Purpose
 
-Provide a reusable, evidence-first workflow through AIRI's typed skill contract. The implementation and manifest in `app/src/main/java/com/airi/assistant/ai/skills` are the source of truth for runtime behavior.
+Provide bounded on-device OCR through AIRI's typed skill contract. Latin text uses ML Kit; Arabic uses Tesseract4Android with the bundled `ara.traineddata` model. The implementation and manifest in `app/src/main/java/com/airi/assistant/ai/skills` are the source of truth for runtime behavior.
 
 ## When to use
 
@@ -27,7 +27,7 @@ Use only the tools declared by the skill manifest and exposed through `SkillTool
 
 ## Inputs
 
-Provide the user request plus the evidence or attachment references required by the manifest `inputSchema`. Keep URIs, credentials, and sensitive content scoped to the current project and session.
+Provide the attachment URI and optionally `language=auto`, `language=latin`, or `language=arabic`. Keep URIs, credentials, and sensitive content scoped to the current project and session.
 
 ## Outputs
 
@@ -44,11 +44,12 @@ Return the manifest-defined `outputSchema`, preserve evidence boundaries, identi
 ## Examples
 
 - Ask AIRI to ocr analysis using supplied evidence.
+- Ask AIRI to read Arabic text from an attached image with `language=arabic`.
 - Provide a bounded file, transcript, repository excerpt, or structured request and request a verifiable result.
 
 ## Limitations
 
-This skill analyzes supplied evidence only and does not claim to execute commands, tests, scans, or external changes.
+Arabic accuracy depends on image quality, script direction, font, columns, and diacritics. Mixed Arabic/Latin layouts currently use the requested primary language. The skill analyzes supplied evidence only, never uploads it, and does not claim to execute commands, tests, scans, or external changes.
 
 ## Security considerations
 

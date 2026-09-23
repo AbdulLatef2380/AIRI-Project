@@ -210,7 +210,9 @@ data class AgentState(
     // call ChatViewModel.confirmAccessibilityAction(approved) before the
     // AndroidAgent proceeds. The agent suspends on a CompletableDeferred.
     // Null = no pending confirmation request.
-    val confirmationRequest:    ConfirmationRequest? = null
+    val confirmationRequest:    ConfirmationRequest? = null,
+    /** Compact, user-facing post-execution verification state. */
+    val finalAnswerVerification: FinalAnswerUiState? = null
 ) {
     data class ConfirmationRequest(
         val actionDisplayName: String,
@@ -218,6 +220,13 @@ data class AgentState(
         val isDestructive:     Boolean = true
     )
 }
+
+/** Deliberately non-technical UI copy for the final execution check. */
+data class FinalAnswerUiState(
+    val verified: Boolean,
+    val issueCount: Int = 0,
+    val details: List<String> = emptyList()
+)
 
 /** A failed execution projection for UI only; it is never conversation history. */
 data class ExecutionErrorProjection(

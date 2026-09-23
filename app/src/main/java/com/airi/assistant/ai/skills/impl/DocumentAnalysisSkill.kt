@@ -16,6 +16,7 @@ import com.airi.assistant.ai.skills.SkillToolDefinition
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.googlecode.tesseract.android.TessBaseAPI
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -28,8 +29,8 @@ import kotlin.coroutines.resume
  * PDF analysis uses Android PdfRenderer for page counting/rendering and a
  * bounded literal-text extractor for text-based PDFs. OCR uses ML Kit's
  * on-device Latin recognizer over rendered PDF pages or image attachments.
- * Arabic OCR is reported as unsupported by this recognizer instead of being
- * silently mislabeled as successful.
+ * Arabic OCR uses a bundled Tesseract model when requested or when Latin OCR
+ * returns no text; the fallback remains local and bounded.
  */
 class DocumentAnalysisSkill(
     private val context: Context,
@@ -54,7 +55,8 @@ class DocumentAnalysisSkill(
     override val parameters = mapOf(
         "uri" to "string — content URI",
         "maxPages" to "int — default 8",
-        "maxChars" to "int — default 12000"
+        "maxChars" to "int — default 12000",
+        "language" to "string — auto, latin, or arabic"
     )
     override val inputSchema = parameters
     override val outputSchema = mapOf(
@@ -65,14 +67,15 @@ class DocumentAnalysisSkill(
     override val instructions = if (mode == Mode.PDF)
         "Analyze only the supplied PDF URI. Bound pages and output size; preserve unknowns."
     else
-        "Run bounded on-device Latin OCR over the supplied image or PDF URI."
+        "Run bounded on-device OCR; use the Arabic model when requested."
     override val examples = listOf(
         if (mode == Mode.PDF) "Analyze this PDF and extract its readable text" else "OCR this attached image"
     )
     override val limitations = listOf(
         "Requires a readable content URI and bounded input size.",
         "PDF text extraction is conservative; scanned pages require OCR.",
-        "The bundled ML Kit recognizer is Latin-focused and does not claim Arabic OCR support."
+        "Arabic uses the bundled Tesseract model and may be less accurate on complex layouts.",
+        "Mixed Arabic/Latin documents use the requested primary language."
     )
     override val toolDefinitions = listOf(
         SkillToolDefinition(
@@ -81,7 +84,8 @@ class DocumentAnalysisSkill(
             parameters = mapOf(
                 "uri" to SkillParamDef("string", "Content URI", true),
                 "maxPages" to SkillParamDef("integer", "Maximum pages", false),
-                "maxChars" to SkillParamDef("integer", "Maximum output characters", false)
+                "maxChars" to SkillParamDef("integer", "Maximum output characters", false),
+                "language" to SkillParamDef("string", "auto, latin, or arabic", false)
             )
         )
     )
@@ -104,9 +108,10 @@ class DocumentAnalysisSkill(
         val uri = Uri.parse(uriString)
         val maxPages = ((params["maxPages"] as? String)?.toIntOrNull() ?: 8).coerceIn(1, 20)
         val maxChars = ((params["maxChars"] as? String)?.toIntOrNull() ?: 12_000).coerceIn(500, 50_000)
+        val language = (params["language"] as? String).orEmpty().lowercase()
         return@withContext runCatching {
             if (mode == Mode.PDF) analyzePdf(uri, maxPages, maxChars, started)
-            else analyzeImageOrPdf(uri, maxPages, maxChars, started)
+            else analyzeImageOrPdf(uri, maxPages, maxChars, language, started)
         }.getOrElse { failure("Document analysis failed: ${it.message ?: "unreadable input"}", started) }
     }
 
@@ -135,7 +140,7 @@ class DocumentAnalysisSkill(
         )
     }
 
-    private suspend fun analyzeImageOrPdf(uri: Uri, maxPages: Int, maxChars: Int, started: Long): SkillResult {
+    private suspend fun analyzeImageOrPdf(uri: Uri, maxPages: Int, maxChars: Int, language: String, started: Long): SkillResult {
         val mime = context.contentResolver.getType(uri).orEmpty()
         val text = if (mime == "application/pdf" || uri.toString().lowercase().contains(".pdf")) {
             val temp = copyToCache(uri)
@@ -149,14 +154,14 @@ class DocumentAnalysisSkill(
                 page.close()
                 bitmap
             }
-            val result = pages.joinToString("\n\n") { recognize(it) }
+            val result = pages.joinToString("\n\n") { recognize(it, language) }
             pages.forEach { it.recycle() }
             renderer.close(); descriptor.close(); temp.delete()
             result
         } else {
             val bitmap = context.contentResolver.openInputStream(uri)?.use(BitmapFactory::decodeStream)
                 ?: return failure("Image could not be decoded.", started)
-            val result = recognize(bitmap)
+            val result = recognize(bitmap, language)
             bitmap.recycle()
             result
         }
@@ -164,14 +169,24 @@ class DocumentAnalysisSkill(
         return SkillResult(
             success = bounded.isNotBlank(),
             data = bounded,
-            error = if (bounded.isBlank()) "No Latin text was recognized." else null,
+            error = if (bounded.isBlank()) "No text was recognized." else null,
             skillName = skillId,
             executionMs = System.currentTimeMillis() - started,
-            metadata = mapOf("method" to "mlkit_on_device_latin", "chars" to bounded.length.toString())
+            metadata = mapOf(
+                "method" to if (language in ARABIC_LANGUAGES) "tesseract4android_on_device_arabic" else "mlkit_latin_with_arabic_fallback",
+                "language" to if (language in ARABIC_LANGUAGES) "ara" else "auto",
+                "chars" to bounded.length.toString()
+            )
         )
     }
 
-    private suspend fun recognize(bitmap: Bitmap): String = suspendCancellableCoroutine { continuation ->
+    private suspend fun recognize(bitmap: Bitmap, language: String): String {
+        if (language in ARABIC_LANGUAGES) return recognizeArabic(bitmap)
+        val latin = recognizeLatin(bitmap)
+        return latin.ifBlank { recognizeArabic(bitmap) }
+    }
+
+    private suspend fun recognizeLatin(bitmap: Bitmap): String = suspendCancellableCoroutine { continuation ->
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         recognizer.process(InputImage.fromBitmap(bitmap, 0))
             .addOnSuccessListener { result ->
@@ -182,6 +197,30 @@ class DocumentAnalysisSkill(
                 recognizer.close()
                 if (continuation.isActive) continuation.resume("")
             }
+    }
+
+    private fun recognizeArabic(bitmap: Bitmap): String = runCatching {
+        val dataRoot = File(context.filesDir, "tesseract").apply { mkdirs() }
+        val tessData = File(dataRoot, "tessdata").apply { mkdirs() }
+        val model = File(tessData, "ara.traineddata")
+        if (!model.exists() || model.length() < 100_000L) {
+            context.assets.open("tessdata/ara.traineddata").use { input ->
+                model.outputStream().use { output -> input.copyTo(output) }
+            }
+        }
+        val tess = TessBaseAPI()
+        if (!tess.init(dataRoot.absolutePath, "ara")) {
+            tess.recycle()
+            return@runCatching ""
+        }
+        tess.setImage(bitmap)
+        val text = tess.getUTF8Text().orEmpty()
+        tess.recycle()
+        text.trim()
+    }.getOrDefault("")
+
+    companion object {
+        private val ARABIC_LANGUAGES = setOf("ar", "ara", "arabic", "عربي", "العربية")
     }
 
     private fun copyToCache(uri: Uri): File {

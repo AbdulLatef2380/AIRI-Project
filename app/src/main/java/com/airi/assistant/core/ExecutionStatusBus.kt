@@ -5,6 +5,7 @@ import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.runtime.profiler.FlowPressureMonitor
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.ExecutionStage
+import com.airi.assistant.ui.viewmodel.FinalAnswerUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -242,6 +243,25 @@ object ExecutionStatusBus {
                 if (success) "Execution completed" else "Execution failed")
         }
         Log.i(TAG, "EXEC_STATUS ${stage.name}")
+    }
+
+    /** Publishes a compact, user-safe final verification result for ChatScreen. */
+    fun onFinalAnswerVerified(
+        verified: Boolean,
+        issueCount: Int,
+        details: List<String> = emptyList(),
+        executionId: String = ""
+    ) {
+        _status.update { current ->
+            if (!belongsToActiveExecution(current, executionId)) return@update current
+            current.copy(
+                finalAnswerVerification = FinalAnswerUiState(
+                    verified = verified,
+                    issueCount = issueCount.coerceAtLeast(0),
+                    details = details.take(3).map { it.take(160) }
+                )
+            )
+        }
     }
 
     /** Signal explicit user or lifecycle cancellation of the active graph. */

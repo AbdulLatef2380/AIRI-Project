@@ -391,7 +391,10 @@ object OfficialSkillLibrary {
                 isOfficial = true,
                 modelAccess = SkillModelAccess.NONE,
                 tags = listOf("ocr", "scan", "image", "text recognition", "التعرف الضوئي"),
-                tools = listOf(SkillManifest.ToolDef("ocr_analysis", "Recognize text from an image URI", mapOf("uri" to SkillManifest.ParamDef("string", "Content URI"))))
+                tools = listOf(SkillManifest.ToolDef("ocr_analysis", "Recognize text from an image URI", mapOf(
+                    "uri" to SkillManifest.ParamDef("string", "Content URI"),
+                    "language" to SkillManifest.ParamDef("string", "auto, latin, or arabic")
+                )))
             ),
             tier = Tier.SYSTEM,
             factory = { context -> DocumentAnalysisSkill(context, DocumentAnalysisSkill.Mode.OCR) }

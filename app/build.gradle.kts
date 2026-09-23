@@ -248,6 +248,8 @@ dependencies {
 
     // On-device Latin OCR for PDF/image attachments; no network call is required.
     implementation("com.google.mlkit:text-recognition:16.0.0")
+    // Arabic OCR fallback; language data is bundled under assets/tessdata.
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
 
     // Secure Storage (EncryptedSharedPreferences)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")

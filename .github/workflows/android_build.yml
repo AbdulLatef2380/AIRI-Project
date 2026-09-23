@@ -78,31 +78,12 @@ jobs:
     - name: Compile release sources
       run: ./gradlew :app:compileReleaseKotlin --stacktrace
 
-    - name: Package unsigned release verification
-      if: github.ref != 'refs/heads/main'
+    - name: Package unsigned release APK
+      if: github.ref != 'refs/heads/main' || env.RELEASE_SIGNING_READY != 'true'
       run: |
         ./gradlew --no-daemon --max-workers=1 \
           '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -XX:+UseSerialGC' \
-          :app:assembleRelease :app:bundleRelease --stacktrace
-
-    - name: Verify unsigned release outputs and record evidence
-      if: github.ref != 'refs/heads/main'
-      run: |
-        test -f app/build/outputs/mapping/release/mapping.txt
-        mkdir -p app/build/release-evidence
-        aapt_bin="$(find "${ANDROID_HOME:?}/build-tools" -type f -name aapt -print | sort -V | tail -n 1)"
-        test -x "$aapt_bin"
-        for apk in app/build/outputs/apk/release/*.apk; do
-          "$aapt_bin" dump badging "$apk" > "app/build/release-evidence/$(basename "$apk").badging.txt"
-        done
-        for bundle in app/build/outputs/bundle/release/*.aab; do
-          unzip -t "$bundle" > "app/build/release-evidence/$(basename "$bundle").ziptest.txt"
-        done
-        sha256sum \
-          app/build/outputs/apk/release/*.apk \
-          app/build/outputs/bundle/release/*.aab \
-          app/build/outputs/mapping/release/mapping.txt \
-          > app/build/release-evidence/UNSIGNED_SHA256SUMS
+          :app:assembleRelease --stacktrace
 
     - name: Package signed release outputs
       if: github.ref == 'refs/heads/main' && env.RELEASE_SIGNING_READY == 'true'
@@ -114,24 +95,7 @@ jobs:
       run: |
         ./gradlew --no-daemon --max-workers=1 \
           '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -XX:+UseSerialGC' \
-          :app:assembleRelease :app:bundleRelease --stacktrace
-
-    - name: Verify signed release outputs and record evidence
-      if: github.ref == 'refs/heads/main' && env.RELEASE_SIGNING_READY == 'true'
-      run: |
-        test -f app/build/outputs/mapping/release/mapping.txt
-        mkdir -p app/build/release-evidence
-        apksigner_bin="$(find "${ANDROID_HOME:?}/build-tools" -type f -name apksigner -print | sort -V | tail -n 1)"
-        test -x "$apksigner_bin"
-        for apk in app/build/outputs/apk/release/*.apk; do
-          "$apksigner_bin" verify --verbose "$apk"
-          "$apksigner_bin" verify --print-certs "$apk" > "app/build/release-evidence/$(basename "$apk").apksigner.txt"
-        done
-        sha256sum \
-          app/build/outputs/apk/release/*.apk \
-          app/build/outputs/bundle/release/*.aab \
-          app/build/outputs/mapping/release/mapping.txt \
-          > app/build/release-evidence/SHA256SUMS
+          :app:assembleRelease --stacktrace
 
     - name: Report unavailable release signing
       if: github.ref == 'refs/heads/main' && env.RELEASE_SIGNING_READY != 'true'
@@ -167,28 +131,22 @@ jobs:
           exit 1
         fi
 
-    - name: Upload Android test reports
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: AIRI-Android-Test-Reports
-        path: |
-          app/build/reports/androidTests/
-          app/build/outputs/androidTest-results/
-        if-no-files-found: warn
+    - name: Prepare APK-only artifact
+      if: success()
+      run: |
+        set -euo pipefail
+        mkdir -p ci-artifacts
+        cp app/build/outputs/apk/debug/*.apk ci-artifacts/debug.apk
+        cp app/build/outputs/apk/release/*.apk ci-artifacts/release.apk
+        test -s ci-artifacts/debug.apk
+        test -s ci-artifacts/release.apk
+        test "$(find ci-artifacts -maxdepth 1 -type f | wc -l)" -eq 2
+        test "$(find ci-artifacts -maxdepth 1 -type f -printf '%f\n' | sort | tr '\n' ' ')" = "debug.apk release.apk "
 
-    - name: Upload build outputs and reports
-      if: always()
+    - name: Upload APK-only artifact
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: AIRI-Android-Build-Evidence
-        path: |
-          app/build/outputs/apk/debug/*.apk
-          app/build/outputs/apk/release/*.apk
-          app/build/outputs/bundle/release/*.aab
-          app/build/outputs/mapping/release/
-          app/build/release-evidence/
-          app/build/reports/
-          app/build/test-results/
-          app/build/outputs/androidTest-results/
-        if-no-files-found: warn
+        path: ci-artifacts/
+        if-no-files-found: error

@@ -104,6 +104,10 @@ class CloudBackend(
         cancelRequested.set(false)
         activeRequestJob = currentCoroutineContext()[Job]
         try {
+        if (!capabilities.canFit(request)) {
+            onError("Cloud context budget exceeded before request dispatch")
+            return
+        }
         when (val guard = NetworkGuard.evaluate(prefs)) {
             is NetworkGuard.Decision.Block -> { onError("Network blocked: ${guard.reason}"); return }
             NetworkGuard.Decision.Allow -> {}
@@ -259,6 +263,14 @@ class CloudBackend(
                     origin = ExecOrigin.CLOUD,
                     retryable = false,
                     code = "cancelled",
+                )
+            }
+            if (!capabilities.canFit(request)) {
+                return@withContext ExecutionResult.Failure(
+                    error = "Cloud context budget exceeded before request dispatch",
+                    origin = ExecOrigin.CLOUD,
+                    retryable = false,
+                    code = "context_limit",
                 )
             }
             when (val guard = NetworkGuard.evaluate(prefs)) {

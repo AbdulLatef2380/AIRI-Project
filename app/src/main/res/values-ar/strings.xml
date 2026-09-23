@@ -1530,6 +1530,9 @@
     <string name="cd_open_connectors">فتح الموصلات</string>
     <string name="cd_expand_input">توسيع أدوات الإدخال</string>
     <string name="cd_collapse_input">طي أدوات الإدخال</string>
+    <string name="feedback_helpful">مفيد</string>
+    <string name="feedback_not_helpful">غير مفيد</string>
+    <string name="cd_scroll_to_bottom">التمرير إلى أحدث رسالة</string>
 
     <!-- Zapier OAuth -->
     <string name="zapier_auth_description">يستخدم Zapier بروتوكول OAuth 2.0. عند الاتصال ستفتح صفحة تفويض Zapier في المتصفح.</string>

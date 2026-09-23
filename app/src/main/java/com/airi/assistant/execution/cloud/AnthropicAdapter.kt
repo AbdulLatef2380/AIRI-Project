@@ -6,6 +6,8 @@ import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.security.SecureApiKeyStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -77,6 +79,7 @@ class AnthropicAdapter(
                 setRequestProperty("x-api-key",          apiKey)
                 setRequestProperty("anthropic-version",  ANTHROPIC_VERSION)
             }
+            currentCoroutineContext()[Job]?.invokeOnCompletion { conn?.disconnect() }
 
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
@@ -94,8 +97,9 @@ class AnthropicAdapter(
             }
 
             var currentEventType = ""
+            var sawMessageStop = false
 
-            BufferedReader(InputStreamReader(conn.inputStream)).use { reader ->
+            BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { reader ->
                 var line: String?
                 // Label the loop so inner `when` branches can `continue` it without
                 // accidentally exiting the enclosing `use` lambda.
@@ -127,11 +131,23 @@ class AnthropicAdapter(
                                     completeTokens = extractIntField(payload, "output_tokens") ?: completeTokens
                                 }
                                 // message_stop signals end of stream — exit the use block cleanly.
-                                "message_stop" -> return@use
+                                "message_stop" -> {
+                                    sawMessageStop = true
+                                    return@use
+                                }
                             }
                         }
                     }
                 }
+            }
+
+            if (!sawMessageStop) {
+                return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                    error = "Anthropic stream ended before message_stop",
+                    errorType = CloudErrorType.CONNECTION_LOST,
+                    retryable = fullText.isEmpty(),
+                    httpCode = -2,
+                )
             }
 
             val latency = System.currentTimeMillis() - startMs

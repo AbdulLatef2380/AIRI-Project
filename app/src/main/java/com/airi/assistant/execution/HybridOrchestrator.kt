@@ -268,6 +268,9 @@ class HybridOrchestrator(
             var backendSucceeded = false
             var completionDelivered = false
             val streamStart      = System.currentTimeMillis()
+            // Keep each attempt isolated until terminal success so a failed
+            // backend cannot be concatenated with its fallback response.
+            val attemptBuffer = StringBuilder()
 
             activeBackend_ = backend
             try {
@@ -275,15 +278,15 @@ class HybridOrchestrator(
                 request    = req,
                 onToken    = { token ->
                     if (generationGate.accepts(genId)) {
-                        move(ExecutionLifecycleState.STREAMING)
-                        onToken(token)
+                        attemptBuffer.append(token)
                     }
                 },
                 onComplete = { fullText, latencyMs ->
-                    if (generationGate.accepts(genId) && !completionDelivered && fullText.isNotBlank() && terminalGuard.tryDeliver()) {
+                    val committedText = fullText.ifBlank { attemptBuffer.toString() }
+                    if (generationGate.accepts(genId) && !completionDelivered && committedText.isNotBlank() && terminalGuard.tryDeliver()) {
                         completionDelivered = true
                         backendSucceeded = true
-                        move(ExecutionLifecycleState.COMPLETED)
+                        move(ExecutionLifecycleState.STREAMING)
                         updateDiagnostics { copy(
                             isStreaming          = false,
                             lastStreamDurationMs = System.currentTimeMillis() - streamStart,
@@ -291,7 +294,9 @@ class HybridOrchestrator(
                         )}
                         RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.INFO,
                             "gen#$genId ${backend.id} OK latency=${latencyMs}ms")
-                        onComplete(fullText, latencyMs, backend.origin)
+                        onToken(committedText)
+                        move(ExecutionLifecycleState.COMPLETED)
+                        onComplete(committedText, latencyMs, backend.origin)
                     }
                 },
                 onError    = { error ->

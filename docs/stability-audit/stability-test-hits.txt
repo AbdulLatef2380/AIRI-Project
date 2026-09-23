@@ -1,0 +1,144 @@
+app/src/test/java/com/airi/assistant/voice/LiveVoiceSessionTest.kt:9:    fun legalTurnFlowReachesIdleAfterCompletion() {
+app/src/test/java/com/airi/assistant/agent/orchestrator/ProductionAgentOrchestratorCancellationTest.kt:13:    fun cancelAll_replacesCancelledScopeForFuturePlans() {
+app/src/test/java/com/airi/assistant/agent/orchestrator/ProductionAgentOrchestratorCancellationTest.kt:21:        orchestrator.cancelAll()
+app/src/test/java/com/airi/assistant/ui/viewmodel/GoogleIntegrationSignInPolicyTest.kt:19:            GoogleIntegrationSignInPolicy.cancelledFeedback(),
+app/src/test/java/com/airi/assistant/ui/viewmodel/GoogleIntegrationSignInPolicyTest.kt:28:            GoogleIntegrationSignInPolicy.cancelledFeedback()
+app/src/test/java/com/airi/assistant/ui/viewmodel/ChatComposerDraftPolicyTest.kt:3:import com.airi.assistant.domain.ChatAttachment
+app/src/test/java/com/airi/assistant/ui/viewmodel/ChatComposerDraftPolicyTest.kt:30:        val attachment = ChatAttachment(
+app/src/test/java/com/airi/assistant/ui/viewmodel/ChatComposerDraftPolicyTest.kt:31:            kind = ChatAttachment.Kind.FILE,
+app/src/test/java/com/airi/assistant/ui/viewmodel/ChatComposerDraftPolicyTest.kt:35:        val drafts = ChatComposerDraftPolicy.replaceAttachments(
+app/src/test/java/com/airi/assistant/ui/viewmodel/ChatComposerDraftPolicyTest.kt:42:        assertEquals(emptyList<ChatAttachment>(), ChatComposerDraftPolicy.current(drafts, "session-b").attachments)
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:7:class AttachmentDispatchPolicyTest {
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:12:            AttachmentDispatchFailure.MODEL_LOADING,
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:13:            AttachmentDispatchPolicy.preflight(
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:25:            AttachmentDispatchFailure.GENERATION_IN_PROGRESS,
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:26:            AttachmentDispatchPolicy.preflight(
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:36:    fun visualAttachmentRequiresAVisionReadyModel() {
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:38:            AttachmentDispatchFailure.VISION_UNAVAILABLE,
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:39:            AttachmentDispatchPolicy.preflight(
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:47:            AttachmentDispatchPolicy.preflight(
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:59:            AttachmentDispatchFailure.SESSION_CHANGED,
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:60:            AttachmentDispatchPolicy.sessionOwnership(
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:66:            AttachmentDispatchPolicy.sessionOwnership(
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:76:            AttachmentDispatchFailure.SESSION_CHANGED,
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:77:            AttachmentDispatchPolicy.sessionOwnership(
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:83:            AttachmentDispatchFailure.SESSION_CHANGED,
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:84:            AttachmentDispatchPolicy.sessionOwnership(
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:94:            AttachmentDispatchFailure.STAGING_FAILED,
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:95:            AttachmentDispatchPolicy.afterStaging(allAttachmentsPersisted = false),
+app/src/test/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchPolicyTest.kt:97:        assertNull(AttachmentDispatchPolicy.afterStaging(allAttachmentsPersisted = true))
+app/src/test/java/com/airi/assistant/ui/text/LanguageRuntimeManagerTest.kt:11:        assertEquals(LanguageRuntimeManager.DominantDirection.LTR, LanguageRuntimeManager.analyseDirection("Provider error 429"))
+app/src/test/java/com/airi/assistant/ui/text/LanguageRuntimeManagerTest.kt:12:        assertEquals(LanguageRuntimeManager.DominantDirection.MIXED, LanguageRuntimeManager.analyseDirection("تعذر الاتصال بـ Gemini"))
+app/src/test/java/com/airi/assistant/ui/text/LanguageRuntimeManagerTest.kt:17:        val input = "تعذر الاتصال بـ Provider: Gemini HTTP 429"
+app/src/test/java/com/airi/assistant/ui/text/LanguageRuntimeManagerTest.kt:20:        assertTrue(formatted.contains("\u2066Provider"))
+app/src/test/java/com/airi/assistant/ui/text/LanguageRuntimeManagerTest.kt:21:        assertTrue(formatted.contains("\u2066Gemini"))
+app/src/test/java/com/airi/assistant/ui/text/LanguageRuntimeManagerTest.kt:23:        assertEquals(input, LanguageRuntimeManager.stripBidiMarks(formatted))
+app/src/test/java/com/airi/assistant/ui/text/LanguageRuntimeManagerTest.kt:27:    fun punctuationAndIdentifiersRemainPresentAfterBidiProcessing() {
+app/src/test/java/com/airi/assistant/ui/text/LanguageRuntimeManagerTest.kt:35:        assertEquals(input, LanguageRuntimeManager.stripBidiMarks(formatted))
+app/src/test/java/com/airi/assistant/agent/durable/DurableTaskProductKernelTest.kt:406:        val cancelled = sampleTask()
+app/src/test/java/com/airi/assistant/agent/durable/DurableTaskProductKernelTest.kt:407:            .beginRun("run-cancel", "collect", nowMs = 3_000L)
+app/src/test/java/com/airi/assistant/agent/durable/DurableTaskProductKernelTest.kt:408:            .cancel(nowMs = 3_100L)
+app/src/test/java/com/airi/assistant/agent/durable/DurableTaskProductKernelTest.kt:410:        assertEquals(DurableTaskStatus.CANCELLED, cancelled.status)
+app/src/test/java/com/airi/assistant/agent/durable/DurableTaskProductKernelTest.kt:411:        assertEquals(TaskRunStatus.CANCELLED, cancelled.runs.single().status)
+app/src/test/java/com/airi/assistant/agent/durable/DurableTaskProductKernelTest.kt:412:        assertFalse(cancelled.canRetry)
+app/src/test/java/com/airi/assistant/ui/screens/ChatPresentationPolicyTest.kt:20:    @Test fun mixedTextUsesContentAwareBidiDirection() {
+app/src/test/java/com/airi/assistant/ui/screens/ChatPresentationPolicyTest.kt:37:    @Test fun rawProviderIdsGetHumanLabels() {
+app/src/test/java/com/airi/assistant/ui/screens/ChatPresentationPolicyTest.kt:38:        assertEquals("Gemini Flash", ChatPresentationPolicy.humanModelLabel("gemini-3.8-flash", false, true))
+app/src/test/java/com/airi/assistant/ui/screens/LoginFeedbackPolicyTest.kt:10:    fun cancelledGoogleResultRemainsAnExplicitCancellation() {
+app/src/test/java/com/airi/assistant/ui/screens/LoginFeedbackPolicyTest.kt:13:            LoginFeedbackPolicy.googleProviderResult(wasCancelled = true, hasIdToken = true),
+app/src/test/java/com/airi/assistant/ui/screens/LoginFeedbackPolicyTest.kt:25:            LoginFeedbackPolicy.googleProviderResult(wasCancelled = false, hasIdToken = false),
+app/src/test/java/com/airi/assistant/ui/screens/LoginFeedbackPolicyTest.kt:27:        assertNull(LoginFeedbackPolicy.googleProviderResult(wasCancelled = false, hasIdToken = true))
+app/src/test/java/com/airi/assistant/ui/plan/TaskExecutionTrackerTest.kt:61:        val cancelled = TaskExecutionTracker()
+app/src/test/java/com/airi/assistant/ui/plan/TaskExecutionTrackerTest.kt:62:        cancelled.onExecutionState(planState("cancelled", ExecutionStage.PLANNING))
+app/src/test/java/com/airi/assistant/ui/plan/TaskExecutionTrackerTest.kt:63:        cancelled.onExecutionState(planState("cancelled", ExecutionStage.EXECUTING, "node", "Read file"))
+app/src/test/java/com/airi/assistant/ui/plan/TaskExecutionTrackerTest.kt:64:        cancelled.onExecutionState(planState("cancelled", ExecutionStage.CANCELLED))
+app/src/test/java/com/airi/assistant/ui/plan/TaskExecutionTrackerTest.kt:65:        assertTrue(cancelled.steps.value.all { it.status == PlanStepStatus.CANCELLED })
+app/src/test/java/com/airi/assistant/execution/cloud/OpenRouterAdapterTest.kt:27:    fun automaticSelectionNeverReturnsRetiredGemini20FreeId() {
+app/src/test/java/com/airi/assistant/execution/cloud/CloudErrorMapperTest.kt:11:    fun genericProviderBodiesNeverAppearInMappedMessage() {
+app/src/test/java/com/airi/assistant/execution/cloud/CloudErrorMapperTest.kt:43:        assertFalse(CloudErrorMapper.map(400, "bad syntax").retryable)
+app/src/test/java/com/airi/assistant/execution/cloud/CloudErrorMapperTest.kt:44:        assertFalse(CloudErrorMapper.map(404, "model not found").retryable)
+app/src/test/java/com/airi/assistant/execution/cloud/CloudErrorMapperTest.kt:49:        assertTrue(CloudErrorMapper.map(408, "timeout").retryable)
+app/src/test/java/com/airi/assistant/execution/cloud/CloudErrorMapperTest.kt:50:        assertTrue(CloudErrorMapper.map(429, "rate limit exceeded").retryable)
+app/src/test/java/com/airi/assistant/execution/cloud/CloudErrorMapperTest.kt:51:        assertFalse(CloudErrorMapper.map(429, "quota exceeded").retryable)
+app/src/test/java/com/airi/assistant/execution/cloud/CloudErrorMapperTest.kt:52:        assertTrue(CloudErrorMapper.map(500, "server").retryable)
+app/src/test/java/com/airi/assistant/execution/cloud/CloudErrorMapperTest.kt:53:        assertTrue(CloudErrorMapper.map(503, "unavailable").retryable)
+app/src/test/java/com/airi/assistant/execution/cloud/CloudErrorMapperTest.kt:54:        assertTrue(CloudErrorMapper.map(504, "gateway timeout").retryable)
+app/src/test/java/com/airi/assistant/execution/ModelCapabilityEngineTest.kt:18:        assertEquals(CompatibilityDecision.BLOCK, ModelCapabilityEngine.check(d, AttachmentRequirement.IMAGE, "image/jpeg", 100).decision)
+app/src/test/java/com/airi/assistant/execution/ModelCapabilityEngineTest.kt:19:        assertEquals(CompatibilityDecision.ALLOW, ModelCapabilityEngine.check(d, AttachmentRequirement.TEXT, "text/plain", 100).decision)
+app/src/test/java/com/airi/assistant/execution/ModelCapabilityEngineTest.kt:25:        assertEquals(CompatibilityDecision.BLOCK, ModelCapabilityEngine.check(d, AttachmentRequirement.IMAGE, "image/jpeg", 100).decision)
+app/src/test/java/com/airi/assistant/execution/ModelCapabilityEngineTest.kt:30:        assertEquals(CompatibilityDecision.ALLOW, ModelCapabilityEngine.check(d, AttachmentRequirement.IMAGE, "image/jpeg", 100).decision)
+app/src/test/java/com/airi/assistant/execution/ModelCapabilityEngineTest.kt:34:        val gemini = ModelCapabilityEngine.fromCloud(CloudProvider.GEMINI, "gemini-2.5-flash")
+app/src/test/java/com/airi/assistant/execution/ModelCapabilityEngineTest.kt:36:        val custom = ModelCapabilityEngine.fromCloud(CloudProvider.CUSTOM, "my-model")
+app/src/test/java/com/airi/assistant/execution/ModelCapabilityEngineTest.kt:54:            ModelCapabilityEngine.check(descriptor, AttachmentRequirement.TEXT, "text/plain", 10).decision,
+app/src/test/java/com/airi/assistant/execution/ModelCapabilityEngineTest.kt:58:    @Test fun unavailableModelBlocksBeforeAttachmentCapability() {
+app/src/test/java/com/airi/assistant/execution/ModelCapabilityEngineTest.kt:68:            ModelCapabilityEngine.check(descriptor, AttachmentRequirement.TEXT, "text/plain", 10).decision,
+app/src/test/java/com/airi/assistant/execution/ModelCapabilityEngineTest.kt:82:            ModelCapabilityEngine.check(descriptor, AttachmentRequirement.TEXT, "text/plain", 10).decision,
+app/src/test/java/com/airi/assistant/ui/activity/GlobalAgentEventDispatcherTest.kt:27:    fun mapAppEvent_redactsProviderControlledErrorAndGenericInfo() {
+app/src/test/java/com/airi/assistant/execution/ExecutionIntegrityTest.kt:41:    fun retryRequestPreservesIdentityWhilePromptMayChange() {
+app/src/test/java/com/airi/assistant/execution/ExecutionIntegrityTest.kt:44:        val retryRequest = firstRequest.copy(prompt = "retry with reduced context")
+app/src/test/java/com/airi/assistant/execution/ExecutionIntegrityTest.kt:47:        assertEquals(identity, retryRequest.identity)
+app/src/test/java/com/airi/assistant/execution/ExecutionIntegrityTest.kt:48:        assertEquals("retry with reduced context", retryRequest.prompt)
+app/src/test/java/com/airi/assistant/execution/ExecutionIntegrityTest.kt:104:    fun cancellationIsTerminalAndCannotBeReplacedBySuccessOrFailure() {
+app/src/test/java/com/airi/assistant/execution/router/RoutingPolicyTest.kt:11:import com.airi.assistant.execution.backend.RuntimeBackend
+app/src/test/java/com/airi/assistant/execution/router/RoutingPolicyTest.kt:203:    ) : RuntimeBackend {
+app/src/test/java/com/airi/assistant/execution/ExecutionGenerationGateTest.kt:15:        gate.cancel()
+app/src/test/java/com/airi/assistant/execution/ExecutionGenerationGateTest.kt:34:        gate.cancel()
+app/src/test/java/com/airi/assistant/domain/release/ReleaseScopePolicyTest.kt:14:    fun externalAutomationIntegrationsRemainDisabledWithoutProviderEvidence() {
+app/src/test/java/com/airi/assistant/profile/DeleteAccountPolicyTest.kt:9: * Tests that: dialog must be shown, cancel does not delete, confirmation
+app/src/test/java/com/airi/assistant/profile/DeleteAccountPolicyTest.kt:28:    fun `cancel in confirmation dialog does not trigger deletion`() {
+app/src/test/java/com/airi/assistant/profile/DeleteAccountPolicyTest.kt:31:        // Simulate cancel click inside dialog
+app/src/test/java/com/airi/assistant/profile/DeleteAccountPolicyTest.kt:40:        var deletionFlowStarted = false
+app/src/test/java/com/airi/assistant/profile/DeleteAccountPolicyTest.kt:42:        val onConfirmDelete = { deletionFlowStarted = true }
+app/src/test/java/com/airi/assistant/profile/DeleteAccountPolicyTest.kt:45:        assertTrue("Confirmed deletion must start the deletion flow", deletionFlowStarted)
+app/src/test/java/com/airi/assistant/domain/AttachmentPolicyTest.kt:6:class AttachmentPolicyTest {
+app/src/test/java/com/airi/assistant/domain/AttachmentPolicyTest.kt:10:        val attachment = ChatAttachment(
+app/src/test/java/com/airi/assistant/domain/AttachmentPolicyTest.kt:11:            kind = ChatAttachment.Kind.FILE,
+app/src/test/java/com/airi/assistant/domain/AttachmentPolicyTest.kt:25:    fun videoAttachmentKeepsVideoContentType() {
+app/src/test/java/com/airi/assistant/domain/AttachmentPolicyTest.kt:26:        val attachment = ChatAttachment(
+app/src/test/java/com/airi/assistant/domain/AttachmentPolicyTest.kt:27:            kind = ChatAttachment.Kind.VIDEO,
+app/src/test/java/com/airi/assistant/domain/AttachmentPolicyTest.kt:32:        assertTrue(attachment.contentType == com.airi.core.attachments.AttachmentPolicy.ContentType.VIDEO)
+app/src/test/java/com/airi/assistant/domain/AttachmentPolicyTest.kt:38:        val attachment = ChatAttachment(
+app/src/test/java/com/airi/assistant/domain/AttachmentPolicyTest.kt:39:            kind = ChatAttachment.Kind.FILE,
+app/src/test/java/com/airi/assistant/profile/AccountOwnershipPolicyTest.kt:134:    // ── Delete-account: cancel must not delete ────────────────────────────────
+app/src/test/java/com/airi/assistant/profile/AccountOwnershipPolicyTest.kt:137:    fun `cancel flag starts as false and prevents deletion`() {
+app/src/test/java/com/airi/assistant/profile/AccountOwnershipPolicyTest.kt:139:        var cancelled         = false
+app/src/test/java/com/airi/assistant/profile/AccountOwnershipPolicyTest.kt:141:        // Simulates dialog: cancel sets flag, no delete fires
+app/src/test/java/com/airi/assistant/profile/AccountOwnershipPolicyTest.kt:142:        cancelled = true
+app/src/test/java/com/airi/assistant/profile/AccountOwnershipPolicyTest.kt:143:        if (!cancelled) {
+app/src/test/java/com/airi/assistant/connector/app/GitHubConnectorProjectSecretTest.kt:33:            legacyCredentialProvider = { _, _ ->
+app/src/test/java/com/airi/assistant/connector/app/GitHubConnectorProjectSecretTest.kt:58:            legacyCredentialProvider = { _, _ ->
+app/src/test/java/com/airi/assistant/connector/app/GitHubConnectorProjectSecretTest.kt:84:            legacyCredentialProvider = { _, _ ->
+app/src/test/java/com/airi/assistant/ai/context/ContextCompressionPolicyTest.kt:7:class ContextCompressionPolicyTest {
+app/src/test/java/com/airi/assistant/ai/context/ContextCompressionPolicyTest.kt:12:        val compressed = ContextCompressionPolicy.compressMessages(longHistory, maxRecent = 5)
+app/src/test/java/com/airi/assistant/connector/ConnectorRuntimeManagerTest.kt:4:import kotlinx.coroutines.flow.MutableStateFlow
+app/src/test/java/com/airi/assistant/connector/ConnectorRuntimeManagerTest.kt:57:        private val stateFlow = MutableStateFlow(ConnectorState(connected = true, healthy = true))
+app/src/test/java/com/airi/assistant/connector/ConnectorRuntimeManagerTest.kt:61:        override fun state() = stateFlow
+app/src/test/java/com/airi/assistant/connector/ConnectorRuntimeManagerTest.kt:62:        override suspend fun connect() = stateFlow.value
+app/src/test/java/com/airi/assistant/connector/ConnectorRuntimeManagerTest.kt:63:        override suspend fun disconnect() { stateFlow.value = ConnectorState(false, false) }
+app/src/test/java/com/airi/assistant/connector/ConnectorRuntimeManagerTest.kt:85:        private val stateFlow = MutableStateFlow(
+app/src/test/java/com/airi/assistant/connector/ConnectorRuntimeManagerTest.kt:92:        override fun state() = stateFlow
+app/src/test/java/com/airi/assistant/connector/ConnectorRuntimeManagerTest.kt:95:            stateFlow.value = ConnectorState(connected = true, healthy = true)
+app/src/test/java/com/airi/assistant/connector/ConnectorRuntimeManagerTest.kt:96:            return stateFlow.value
+app/src/test/java/com/airi/assistant/connector/ConnectorRuntimeManagerTest.kt:99:            stateFlow.value = ConnectorState(connected = false, healthy = false)
+app/src/androidTest/java/com/airi/assistant/workspace/ProjectResourceIsolationTest.kt:4:import androidx.test.core.app.ApplicationProvider
+app/src/androidTest/java/com/airi/assistant/workspace/ProjectResourceIsolationTest.kt:21:    private val context: Context = ApplicationProvider.getApplicationContext()
+app/src/androidTest/java/com/airi/assistant/memory/MemoryDaoInsertIdTest.kt:4:import androidx.test.core.app.ApplicationProvider
+app/src/androidTest/java/com/airi/assistant/memory/MemoryDaoInsertIdTest.kt:23:            ApplicationProvider.getApplicationContext(),
+app/src/androidTest/java/com/airi/assistant/memory/AiriDatabaseMigrationTest.kt:5:import androidx.test.core.app.ApplicationProvider
+app/src/androidTest/java/com/airi/assistant/memory/AiriDatabaseMigrationTest.kt:20:    private val context: Context = ApplicationProvider.getApplicationContext()
+app/src/androidTest/java/com/airi/assistant/execution/security/SecureApiKeyStoreInstrumentedTest.kt:3:import androidx.test.core.app.ApplicationProvider
+app/src/androidTest/java/com/airi/assistant/execution/security/SecureApiKeyStoreInstrumentedTest.kt:5:import com.airi.assistant.execution.CloudProvider
+app/src/androidTest/java/com/airi/assistant/execution/security/SecureApiKeyStoreInstrumentedTest.kt:16:    private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+app/src/androidTest/java/com/airi/assistant/execution/security/SecureApiKeyStoreInstrumentedTest.kt:23:            clearKey(CloudProvider.OPENAI)
+app/src/androidTest/java/com/airi/assistant/execution/security/SecureApiKeyStoreInstrumentedTest.kt:32:        firstStore.saveKey(CloudProvider.OPENAI, "  test-key-one  ")
+app/src/androidTest/java/com/airi/assistant/execution/security/SecureApiKeyStoreInstrumentedTest.kt:33:        assertEquals("test-key-one", firstStore.getKey(CloudProvider.OPENAI))
+app/src/androidTest/java/com/airi/assistant/execution/security/SecureApiKeyStoreInstrumentedTest.kt:36:        assertEquals("test-key-one", restoredStore.getKey(CloudProvider.OPENAI))
+app/src/androidTest/java/com/airi/assistant/execution/security/SecureApiKeyStoreInstrumentedTest.kt:38:        restoredStore.saveKey(CloudProvider.OPENAI, "test-key-two")
+app/src/androidTest/java/com/airi/assistant/execution/security/SecureApiKeyStoreInstrumentedTest.kt:39:        assertEquals("test-key-two", SecureApiKeyStore(context).getKey(CloudProvider.OPENAI))
+app/src/androidTest/java/com/airi/assistant/execution/security/SecureApiKeyStoreInstrumentedTest.kt:41:        restoredStore.saveKey(CloudProvider.OPENAI, "   ")
+app/src/androidTest/java/com/airi/assistant/execution/security/SecureApiKeyStoreInstrumentedTest.kt:42:        assertNull(SecureApiKeyStore(context).getKey(CloudProvider.OPENAI))
+app/src/androidTest/java/com/airi/assistant/execution/security/SecureApiKeyStoreInstrumentedTest.kt:43:        assertFalse(SecureApiKeyStore(context).hasKey(CloudProvider.OPENAI))
+app/src/androidTest/java/com/airi/assistant/workspace/ProjectFileApprovalRecoveryTest.kt:4:import androidx.test.core.app.ApplicationProvider
+app/src/androidTest/java/com/airi/assistant/workspace/ProjectFileApprovalRecoveryTest.kt:29:    private val context: Context = ApplicationProvider.getApplicationContext()
+app/src/androidTest/java/com/airi/assistant/ui/plan/PlanSnapshotStoreInstrumentedTest.kt:3:import androidx.test.core.app.ApplicationProvider
+app/src/androidTest/java/com/airi/assistant/ui/plan/PlanSnapshotStoreInstrumentedTest.kt:15:        val context = ApplicationProvider.getApplicationContext<android.content.Context>()

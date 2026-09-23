@@ -6,6 +6,8 @@ import com.airi.assistant.execution.security.SecureApiKeyStore
 import com.airi.assistant.execution.CloudProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -68,6 +70,9 @@ class GeminiAdapter(
                 setRequestProperty("Accept", "text/event-stream")
                 setRequestProperty("x-goog-api-key", apiKey)
             }
+            // readLine() blocks independently of coroutine cancellation; close
+            // this request's connection when its owning job is cancelled.
+            currentCoroutineContext()[Job]?.invokeOnCompletion { conn?.disconnect() }
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
             val httpCode = conn.responseCode
@@ -81,7 +86,8 @@ class GeminiAdapter(
                 )
             }
 
-            BufferedReader(InputStreamReader(conn.inputStream)).use { reader ->
+            var sawTerminal = false
+            BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { reader ->
                 var line: String?
                 while (reader.readLine().also { line = it } != null) {
                     ensureActive()
@@ -90,6 +96,7 @@ class GeminiAdapter(
                     val payload = raw.removePrefix("data:").trim()
                     if (payload.isBlank() || payload == "[DONE]") continue
                     lastPayload = payload
+                    if (payload.contains("\"finishReason\":\"")) sawTerminal = true
                     if (payload.contains("\"error\"")) {
                         val mapped = CloudErrorMapper.map(200, payload)
                         return@withContext CloudProviderAdapter.AdapterResult.Failure(
@@ -103,6 +110,15 @@ class GeminiAdapter(
                     if (token.isNotEmpty()) { fullText.append(token); onToken(token) }
                     extractUsage(payload)?.let { (p, c) -> promptTokens = p; completeTokens = c }
                 }
+            }
+
+            if (!sawTerminal) {
+                return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                    error = "Gemini stream ended before a terminal finish reason",
+                    errorType = CloudErrorType.CONNECTION_LOST,
+                    retryable = fullText.isEmpty(),
+                    httpCode = -2,
+                )
             }
 
             if (fullText.isBlank()) {

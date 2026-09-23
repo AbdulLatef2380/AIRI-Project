@@ -52,4 +52,13 @@ class AttachmentPolicyTest {
         assertFalse(AttachmentPolicy.isSameSource("content://provider/document/42", "content://provider/document/43"))
         assertFalse(AttachmentPolicy.isSameSource(null, "content://provider/document/42"))
     }
+
+    @Test
+    fun normalizesMimeCaseAndParametersWithoutChangingTheMediaType() {
+        assertEquals("image/png", AttachmentPolicy.normalizedMimeType(" IMAGE/PNG; charset=binary "))
+        assertEquals(
+            AttachmentPolicy.ContentType.IMAGE,
+            AttachmentPolicy.contentType("IMAGE/PNG; charset=binary", "picture.png")
+        )
+    }
 }

@@ -1723,4 +1723,7 @@
     <string name="resource_processor_cores_text">Hay %1$d núcleos de procesador disponibles. Este valor guía las opciones de AIRI; Android sigue controlando la planificación.</string>
     <string name="attachment_capability_unavailable">El modelo actual no puede procesar este tipo de archivo adjunto. Elige un modelo compatible o elimina el archivo.</string>
     <string name="attachment_capability_unknown">AIRI no pudo verificar si el modelo actual admite este archivo adjunto. Elige un modelo compatible o verifica la compatibilidad antes de reintentarlo.</string>
+    <string name="feedback_helpful">Respuesta útil</string>
+    <string name="feedback_not_helpful">Respuesta no útil</string>
+    <string name="cd_scroll_to_bottom">Desplazarse al final de la conversación</string>
 </resources>

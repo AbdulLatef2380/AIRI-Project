@@ -1631,6 +1631,9 @@
     <string name="cd_open_connectors">Open connectors</string>
     <string name="cd_expand_input">Expand input tools</string>
     <string name="cd_collapse_input">Collapse input tools</string>
+    <string name="feedback_helpful">Helpful</string>
+    <string name="feedback_not_helpful">Not helpful</string>
+    <string name="cd_scroll_to_bottom">Scroll to latest message</string>
 
     <!-- Zapier OAuth -->
     <string name="zapier_auth_description">Zapier uses OAuth 2.0. Connecting opens Zapier’s authorization page in your browser.</string>

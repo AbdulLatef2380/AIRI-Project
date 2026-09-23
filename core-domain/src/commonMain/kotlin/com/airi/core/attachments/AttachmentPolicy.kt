@@ -51,6 +51,7 @@ object AttachmentPolicy {
     }
 
     fun normalizedMimeType(value: String?): String = value.orEmpty()
+        .substringBefore(';')
         .trim()
         .lowercase()
         .takeIf { MIME_PATTERN.matches(it) }

@@ -54,7 +54,31 @@ data class CapabilityProfile(
         if (request.requiresLongContext    && !supportsLongContext)     return false
         if (request.requiresOffline        && !supportsOffline)        return false
         if (request.requiresStructuredOutput && !supportsStructuredOutput) return false
+        // An unknown estimate (0) is allowed for legacy callers, but once the
+        // request carries an estimate, reject it before dispatch rather than
+        // waiting for a native prefill or provider 400/context error.
+        if (!canFit(request)) return false
         return true
+    }
+
+    /**
+     * Admission check for the complete request budget.
+     *
+     * The estimate includes prompt/history/tools supplied by the caller,
+     * requested output, a safety reserve for templates/markers, and a
+     * conservative image allowance when vision data is present. Image token
+     * pricing is provider-specific; this deliberately fails closed for small
+     * local contexts instead of pretending that base64 is free.
+     */
+    fun canFit(request: ExecutionRequest, reserveTokens: Int = 128): Boolean {
+        if (request.estimatedPromptTokens <= 0) return true
+        val imageTokens = request.imageParts.sumOf { part ->
+            (part.base64Data.length / 16).coerceAtLeast(256)
+        }
+        val total = request.estimatedPromptTokens.toLong() +
+            request.maxTokens.coerceAtLeast(0).toLong() +
+            reserveTokens.coerceAtLeast(0).toLong() + imageTokens
+        return total <= maxContextTokens.toLong()
     }
 
     companion object {

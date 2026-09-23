@@ -2835,19 +2835,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     .take(80)
                     .ifBlank { "file" }
                 val destFile = File(attachDir, "${att.uid}_$safeName")
+                val tempFile = File(attachDir, ".${att.uid}_$safeName.part")
+                if (destFile.exists() && destFile.length() == 0L) destFile.delete()
                 if (!destFile.exists()) {
+                    tempFile.delete()
                     when {
                         att.uri != null -> appContext.contentResolver.openInputStream(att.uri)?.use { input ->
-                            destFile.outputStream().use { out -> input.copyTo(out) }
+                            tempFile.outputStream().use { out -> input.copyTo(out) }
                         }
-                        att.bitmap != null -> destFile.outputStream().use { output ->
+                        att.bitmap != null -> tempFile.outputStream().use { output ->
                             check(att.bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)) {
                                 "Camera image could not be encoded"
                             }
                         }
                     }
+                    if ((att.uri != null || att.bitmap != null) && tempFile.exists()) {
+                        check(tempFile.length() in 1L..AttachmentPolicy.MAX_ATTACHMENT_BYTES) { "Attachment is too large" }
+                        check(tempFile.renameTo(destFile)) { "Attachment could not be committed" }
+                    }
                 }
                 if (!destFile.exists() || destFile.length() == 0L) {
+                    tempFile.delete()
                     destFile.delete()
                     return@runCatching null
                 }
@@ -3032,10 +3040,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val file = File(path)
         if (!file.exists() || file.length() <= 0L || file.length() > 12L * 1024L * 1024L) return null
         val bytes = runCatching { file.readBytes() }.getOrNull() ?: return null
+        val detectedMime = detectImageMime(bytes) ?: return null
+        val declaredMime = attachment.normalizedMimeType.takeIf { it.startsWith("image/") }
+        // The bytes are authoritative. Never relabel PNG/WebP/HEIC bytes as
+        // JPEG just because a provider returned an empty or malformed MIME.
+        if (declaredMime != null && declaredMime != detectedMime) return null
         return ExecutionRequest.ImagePart(
-            mimeType = attachment.mimeType?.takeIf { it.startsWith("image/") } ?: "image/jpeg",
+            mimeType = detectedMime,
             base64Data = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
         )
+    }
+
+    private fun detectImageMime(bytes: ByteArray): String? = when {
+        bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() && bytes[2] == 0xFF.toByte() -> "image/jpeg"
+        bytes.size >= 8 && bytes.copyOfRange(0, 8).contentEquals(
+            byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+        ) -> "image/png"
+        bytes.size >= 6 && String(bytes, 0, 6, Charsets.US_ASCII) in setOf("GIF87a", "GIF89a") -> "image/gif"
+        bytes.size >= 12 && String(bytes, 0, 4, Charsets.US_ASCII) == "RIFF" &&
+            String(bytes, 8, 12, Charsets.US_ASCII) == "WEBP" -> "image/webp"
+        bytes.size >= 12 && String(bytes, 4, 8, Charsets.US_ASCII) == "ftyp" &&
+            String(bytes, 8, 12, Charsets.US_ASCII) in setOf("heic", "heix", "hevc", "hevx") -> "image/heic"
+        else -> null
     }
 
     fun sendMessageWithImage(input: String, imageUri: Uri?, capturedBitmap: Bitmap?) {

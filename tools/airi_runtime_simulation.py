@@ -183,7 +183,9 @@ def test_cloud_protocols() -> dict[str, int]:
 
 def test_ui_contract() -> dict[str, int]:
     source = Path("app/src/main/java/com/airi/assistant/ui/screens/ChatScreen.kt").read_text()
-    check("private fun chatTextDirection" in source, "per-message direction helper missing")
+    policy = Path("app/src/main/java/com/airi/assistant/ui/screens/ChatPresentationPolicy.kt").read_text()
+    contract_source = source + "\n" + policy
+    check("fun chatTextDirection" in contract_source, "per-message direction helper missing")
     check("CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection" in source, "message direction is not applied")
     check("private fun AiriThinkingDots" in source, "thinking indicator missing")
     check("BidiAwareMarkdownRenderer" in source, "Markdown/code renderer missing")

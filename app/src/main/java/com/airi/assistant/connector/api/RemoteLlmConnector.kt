@@ -6,6 +6,7 @@ import com.airi.assistant.connector.ConnectorMeta
 import com.airi.assistant.connector.ConnectorOutput
 import com.airi.assistant.connector.ConnectorState
 import com.airi.assistant.connector.ConnectorType
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -73,6 +74,13 @@ class RemoteLlmConnector(
     }
 
     override suspend fun execute(input: ConnectorInput): ConnectorOutput {
+        if (!_state.value.connected) {
+            return ConnectorOutput.Failure(
+                code = "not_connected",
+                message = "Remote LLM connector is disconnected",
+                retryable = false,
+            )
+        }
         if (input.action !in ACCEPTED_ACTIONS) {
             return ConnectorOutput.Failure(
                 code = "unknown_action",
@@ -91,20 +99,18 @@ class RemoteLlmConnector(
 
         for (provider in providers) {
             if (!provider.isConfigured()) continue
-            // `runCatching` already returns Result<String>. The previous
-            // `.getOrElse { Result.failure(...) }` collapsed the type to
-            // Any (mix of String and Result<String>) and lost `.onSuccess`
-            // / `.onFailure`. Use the Result<T> directly.
-            val result: Result<String> = runCatching {
-                provider.complete(input.text, input.params)
-            }
-            result.onSuccess { text ->
+            try {
+                val text = provider.complete(input.text, input.params)
                 return ConnectorOutput.Success(
                     text = text,
                     data = mapOf("provider" to provider.label),
                     durationMs = System.currentTimeMillis() - started,
                 )
-            }.onFailure { e ->
+            } catch (e: CancellationException) {
+                // Never convert user/job cancellation into a provider failure;
+                // doing so would incorrectly advance the fallback chain.
+                throw e
+            } catch (e: Throwable) {
                 lastFailure = ConnectorOutput.Failure(
                     code = "provider_error",
                     message = "${provider.label}: ${e.message ?: e.javaClass.simpleName}",

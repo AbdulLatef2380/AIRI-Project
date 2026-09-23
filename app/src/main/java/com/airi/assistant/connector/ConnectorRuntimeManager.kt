@@ -6,6 +6,7 @@ import com.airi.assistant.ui.activity.ActivitySeverity
 import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +43,11 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             AgentActivityBus.emit("'$connectorId' timed out after ${timeoutMs}ms", ActivityCategory.CONNECTOR, ActivitySeverity.WARN)
             ConnectorOutput.Failure("timeout", "Timed out after ${timeoutMs}ms", retryable = true)
+        } catch (e: CancellationException) {
+            // Cancellation is a control-flow signal, never a retryable connector
+            // failure. Re-throw it so ViewModel/agent cancellation reaches the
+            // transport and the inflight action is cleaned up by finally.
+            throw e
         } catch (e: Exception) {
             ConnectorOutput.Failure("runtime_error", e.message ?: "Unknown error")
         } finally { trackEnd(key) }
@@ -63,7 +69,13 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
     private suspend fun executeWithRetry(connector: Connector, input: ConnectorInput, maxRetries: Int): ConnectorOutput {
         var last: ConnectorOutput = ConnectorOutput.Failure("not_started", "Never executed")
         for (attempt in 0..maxRetries) {
-            last = runCatching { connector.execute(input) }.getOrElse { e -> ConnectorOutput.Failure("exception", e.message ?: "Exception", retryable = true) }
+            last = try {
+                connector.execute(input)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                ConnectorOutput.Failure("exception", e.message ?: "Exception", retryable = true)
+            }
             when {
                 last is ConnectorOutput.Success   -> { AgentActivityBus.emit(" '${connector.id}' ${input.action}", ActivityCategory.CONNECTOR); return last }
                 last is ConnectorOutput.Streaming -> return last

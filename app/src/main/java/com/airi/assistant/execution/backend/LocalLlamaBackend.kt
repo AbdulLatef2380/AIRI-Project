@@ -119,6 +119,10 @@ class LocalLlamaBackend(
             onError("LocalLlamaBackend: no model loaded")
             return
         }
+        if (!capabilities.canFit(request)) {
+            onError("Local context budget exceeded before generation")
+            return
+        }
         val requestedModelId = request.requestedModelId
         val loadedModelId = ModelManager.getCurrent()?.id.orEmpty()
         if (requestedModelId.isNotBlank() && requestedModelId != loadedModelId) {
@@ -223,6 +227,14 @@ class LocalLlamaBackend(
                 code      = "not_loaded"
             )
         }
+        if (!capabilities.canFit(request)) {
+            return ExecutionResult.Failure(
+                error = "Local context budget exceeded before generation",
+                origin = ExecOrigin.LOCAL,
+                retryable = false,
+                code = "context_limit",
+            )
+        }
         val requestedModelId = request.requestedModelId
         val loadedModelId = ModelManager.getCurrent()?.id.orEmpty()
         if (requestedModelId.isNotBlank() && requestedModelId != loadedModelId) {
@@ -232,6 +244,20 @@ class LocalLlamaBackend(
         val startMs  = System.currentTimeMillis()
         val fullText = StringBuilder()
         val deferred = CompletableDeferred<ExecutionResult>()
+        val terminal = AtomicBoolean(false)
+
+        currentCoroutineContext()[Job]?.invokeOnCompletion { cause ->
+            if (cause != null && terminal.compareAndSet(false, true)) {
+                // CompletableDeferred cancellation alone cannot interrupt the
+                // native decode. Propagate it to llama.cpp and reject any late
+                // callback from the old generation.
+                llamaManager.cancelStream()
+                deferred.cancel(
+                    cause as? kotlinx.coroutines.CancellationException
+                        ?: kotlinx.coroutines.CancellationException("Local generation cancelled", cause)
+                )
+            }
+        }
 
         try {
             llamaManager.generateStream(
@@ -243,6 +269,7 @@ class LocalLlamaBackend(
                 timeoutMs      = 90_000L,
                 onToken        = { token -> fullText.append(token) },
                 onComplete     = { _ ->
+                    if (!terminal.compareAndSet(false, true)) return@generateStream
                     val latencyMs = System.currentTimeMillis() - startMs
                     deferred.complete(ExecutionResult.Success(
                         fullText   = fullText.toString(),
@@ -253,6 +280,7 @@ class LocalLlamaBackend(
                     ))
                 },
                 onError        = { error ->
+                    if (!terminal.compareAndSet(false, true)) return@generateStream
                     deferred.complete(ExecutionResult.Failure(
                         error  = error,
                         origin = ExecOrigin.LOCAL,

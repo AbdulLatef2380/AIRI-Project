@@ -61,7 +61,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -120,9 +119,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
-
-private fun chatTextDirection(text: String): LayoutDirection =
-    if (Regex("[\\u0590-\\u08FF]").containsMatchIn(text)) LayoutDirection.Rtl else LayoutDirection.Ltr
 
 private data class AttachmentMetadata(
     val displayName: String,
@@ -1415,36 +1411,12 @@ private fun AiriChatTopBar(
             containerColor = AiriTheme.background.copy(alpha = 0.92f)
         ),
         navigationIcon = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = 12.dp)
-            ) {
-                // Plan badge — tapping opens the matching Free/Pro screen.
-                Box(
-                    modifier = Modifier
-                        .clip(AIRIShapes.pill)
-                        .background(if (planLabel == "Pro") SemanticSuccess.copy(alpha = 0.12f) else AiriTheme.surfaceVariant)
-                        .border(0.5.dp, if (planLabel == "Pro") SemanticSuccess.copy(alpha = 0.40f) else AiriTheme.outline, AIRIShapes.pill)
-                        .clickable { onPointsClick() }
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Icon(
-                            Icons.Outlined.Bolt,
-                            contentDescription = null,
-                            tint = if (planLabel == "Pro") SemanticSuccess else AiriTheme.onSurfaceVariant,
-                            modifier = Modifier.size(11.dp)
-                        )
-                        Text(
-                            text = planLabel,
-                            color = if (planLabel == "Pro") SemanticSuccess else AiriTheme.onSurface,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-0.3).sp
-                        )
-                    }
-                }
-            }
+            Text(
+                text = "AIRI",
+                color = AiriTheme.onBackground,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 16.dp),
+            )
         },
         title = {
             // Center model selector pill
@@ -1479,10 +1451,14 @@ private fun AiriChatTopBar(
                     )
                     Text(
                         text = when {
-                            modelState.isModelReady   -> modelState.selectedModelName
-                            modelState.isCloudReady   -> modelState.cloudModelName.ifBlank { "Airi Cloud" }
                             modelState.isModelLoading -> stringResource(R.string.loading_model)
-                            else                      -> stringResource(R.string.no_model_active)
+                            modelState.isModelReady || modelState.isCloudReady ->
+                                ChatPresentationPolicy.humanModelLabel(
+                                    rawId = if (modelState.isModelReady) modelState.selectedModelId else modelState.cloudModelName,
+                                    isLocal = modelState.isModelReady,
+                                    isCloud = modelState.isCloudReady,
+                                )
+                            else -> stringResource(R.string.no_model_active)
                         },
                         color = AiriTheme.onBackground.copy(alpha = 0.92f),
                         fontSize = 13.sp,
@@ -1966,7 +1942,11 @@ fun ChatMessageList(
     val listState = rememberLazyListState()
     val scope     = rememberCoroutineScope()
     val reversedMessages = remember(messages) { messages.reversed() }
-    val isPinnedToBottom by remember { derivedStateOf { listState.firstVisibleItemIndex <= 1 } }
+    val isPinnedToBottom by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < 48
+        }
+    }
     var lastScrolledStreamLen by remember { mutableStateOf(0) }
 
     LaunchedEffect(messages.size) {
@@ -2009,7 +1989,7 @@ fun ChatMessageList(
                     label = "idle_alpha"
                 )
                 val orbScale by infinite.animateFloat(
-                    initialValue = 0.95f,
+                    initialValue  = 0.95f,
                     targetValue  = 1.05f,
                     animationSpec = androidx.compose.animation.core.infiniteRepeatable(
                         animation  = androidx.compose.animation.core.tween(2800, easing = androidx.compose.animation.core.FastOutSlowInEasing),
@@ -2018,6 +1998,18 @@ fun ChatMessageList(
                     label = "idle_scale"
                 )
                 Spacer(Modifier.height(28.dp))
+                Image(
+                    painter = painterResource(R.drawable.ic_launcher_fg),
+                    contentDescription = "AIRI",
+                    modifier = Modifier
+                        .size(28.dp)
+                        .graphicsLayer {
+                            alpha = orbAlpha
+                            scaleX = orbScale
+                            scaleY = orbScale
+                        }
+                )
+                Spacer(Modifier.height(12.dp))
                 val greetings = listOf(
                     "مرحباً، أنا AIRI. ماذا سنفعل اليوم؟",
                     "أهلاً بك. ما الجديد الذي تريد إنجازه؟",
@@ -2184,20 +2176,25 @@ fun UserBubble(
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
             Box {
-                Column(
-                    modifier = Modifier
-                        // Keep user turns visually dominant like the reference
-                        // layout while still leaving a comfortable edge inset.
-                        .widthIn(max = 360.dp)
-                        .clip(AIRIShapes.userBubble)
-                        // User messages use a raised neutral surface, not the
-                        // brand-blue action color. This matches established AI
-                        // chat patterns and adapts automatically to light/dark.
-                        .background(AiriTheme.surfaceVariant)
-                        .then(bubbleGesture)
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    horizontalAlignment = Alignment.End
-                ) {
+                Box {
+                    Column(
+                        modifier = Modifier
+                            .widthIn(max = 640.dp)
+                            .then(
+                                when (ChatPresentationPolicy.classifyLength(displayText)) {
+                                    ChatPresentationPolicy.MessageLength.SHORT,
+                                    ChatPresentationPolicy.MessageLength.MEDIUM -> Modifier.wrapContentWidth()
+                                    ChatPresentationPolicy.MessageLength.LONG,
+                                    ChatPresentationPolicy.MessageLength.VERY_LONG ->
+                                        Modifier.fillMaxWidth(ChatPresentationPolicy.userBubbleFraction(displayText))
+                                }
+                            )
+                            .clip(AIRIShapes.userBubble)
+                            .background(AiriTheme.surfaceVariant)
+                            .then(bubbleGesture)
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalAlignment = Alignment.End
+                    ) {
                     // Voice message display
                     if (voiceRecordingPath != null && voiceDurationMs > 0) {
                         com.airi.assistant.ui.components.VoiceMessageBubble(
@@ -2234,6 +2231,7 @@ fun UserBubble(
                                 )
                             }
                         }
+                    }
                     }
                 }
 
@@ -2345,7 +2343,7 @@ fun AiBubble(
                 Spacer(Modifier.width(36.dp))
             }
 
-            Column(modifier = Modifier.widthIn(max = 360.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().widthIn(max = 800.dp)) {
                 Box {
                     Box(
                         modifier = Modifier
@@ -2406,20 +2404,20 @@ fun AiBubble(
                 // Action row
                 Row(modifier = Modifier.padding(start = 2.dp, top = 1.dp), verticalAlignment = Alignment.CenterVertically) {
                     // Speak
-                    IconButton(onClick = { onSpeak(text) }, modifier = Modifier.size(38.dp)) {
-                        Icon(Icons.Outlined.VolumeUp, contentDescription = "Read aloud", tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
+                    IconButton(onClick = { onSpeak(text) }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Outlined.VolumeUp, contentDescription = stringResource(R.string.speak_to_airi), tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
                     }
                     // More actions
-                    IconButton(onClick = { showContextMenu = true }, modifier = Modifier.size(38.dp)) {
-                        Icon(Icons.Outlined.MoreHoriz, contentDescription = "More actions", tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
+                    IconButton(onClick = { showContextMenu = true }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Outlined.MoreHoriz, contentDescription = stringResource(R.string.more_options), tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
                     }
                     // Copy
                     IconButton(onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
-                    }, modifier = Modifier.size(38.dp)) {
-                        Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy", tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
+                    }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.copy), tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
                     }
                     // Persisted thumbs up/down — initialized from DB feedback column.
                     var liked    by remember { mutableStateOf(initialFeedback == 1) }
@@ -2429,8 +2427,8 @@ fun AiBubble(
                         val newDisliked = !disliked
                         disliked = newDisliked; if (newDisliked) liked = false
                         onFeedback(false)
-                    }, modifier = Modifier.size(38.dp)) {
-                        Icon(Icons.Outlined.ThumbDown, contentDescription = null,
+                    }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Outlined.ThumbDown, contentDescription = stringResource(R.string.feedback_not_helpful),
                             tint = if (disliked) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.35f),
                             modifier = Modifier.size(20.dp))
                     }
@@ -2439,8 +2437,8 @@ fun AiBubble(
                         val newLiked = !liked
                         liked = newLiked; if (newLiked) disliked = false
                         onFeedback(true)
-                    }, modifier = Modifier.size(38.dp)) {
-                        Icon(Icons.Outlined.ThumbUp, contentDescription = null,
+                    }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Outlined.ThumbUp, contentDescription = stringResource(R.string.feedback_helpful),
                             tint = if (liked) CosmicAccent else Color.White.copy(alpha = 0.35f),
                             modifier = Modifier.size(20.dp))
                     }
@@ -2614,11 +2612,11 @@ private fun AttachmentChip(
         IconButton(
             onClick = onRemove,
             enabled = isRemovalEnabled,
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(48.dp),
         ) {
             Icon(
                 Icons.Default.Close,
-                contentDescription = null,
+                contentDescription = stringResource(R.string.remove),
                 tint = AiriTheme.onBackground.copy(if (isRemovalEnabled) 0.7f else 0.3f),
                 modifier = Modifier.size(16.dp),
             )
@@ -3081,7 +3079,8 @@ fun AiriChatInputBar(
                 val expansionDescription = stringResource(
                     if (isExpanded) R.string.cd_collapse_input else R.string.cd_expand_input
                 )
-                IconButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.size(32.dp)) {
+                val fullScreenEditorDescription = stringResource(R.string.expand)
+                IconButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.size(48.dp)) {
                     Icon(
                         if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
                         expansionDescription,
@@ -3092,8 +3091,8 @@ fun AiriChatInputBar(
                 if (text.lineSequence().count() >= 5) {
                     IconButton(
                         onClick = { showFullScreenEditor = true },
-                        modifier = Modifier.size(32.dp).semantics {
-                            contentDescription = "Open full-screen editor"
+                        modifier = Modifier.size(48.dp).semantics {
+                            contentDescription = fullScreenEditorDescription
                             role = Role.Button
                         }
                     ) {
@@ -3157,7 +3156,7 @@ fun AiriChatInputBar(
                                         modelState.isModelLoading -> stringResource(R.string.model_is_loading)
                                         else                      -> stringResource(R.string.chat_assign_task_hint)
                                     },
-                                    color = AiriTheme.onBackground.copy(0.35f),
+                                    color = AiriTheme.onSurfaceVariant.copy(0.82f),
                                     fontSize = 15.sp,
                                     modifier = Modifier.fillMaxWidth(),
                                     textAlign = TextAlign.Start
@@ -3176,7 +3175,7 @@ fun AiriChatInputBar(
                 targetValue = if (showSend || isGenerating || isDispatchingAttachment) 1f else 0.95f,
                 label = "composer_action_scale"
             ).value
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            CompositionLocalProvider(LocalLayoutDirection provides LocalLayoutDirection.current) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 8.dp, bottom = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -3195,7 +3194,7 @@ fun AiriChatInputBar(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(48.dp)
                                 .shadow(4.dp, CircleShape, ambientColor = CosmicAccent.copy(alpha = 0.28f), spotColor = CosmicAccent.copy(alpha = 0.24f))
                                 .clip(CircleShape)
                                 .background(Brush.linearGradient(listOf(CosmicAccent.copy(alpha = 0.24f), AiriTheme.surface)))
@@ -3216,7 +3215,7 @@ fun AiriChatInputBar(
                         }
                         AnimatedVisibility(visible = !isGenerating, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
                             Box(
-                                modifier = Modifier.size(36.dp).clip(CircleShape)
+                                modifier = Modifier.size(48.dp).clip(CircleShape)
                                     .semantics {
                                         contentDescription = voiceInputDescription
                                         role = Role.Button
@@ -3264,7 +3263,7 @@ fun AiriChatInputBar(
                             }
                         }
                         Box(
-                            modifier = Modifier.size(40.dp).graphicsLayer { scaleX = mainScale; scaleY = mainScale }
+                            modifier = Modifier.size(48.dp).graphicsLayer { scaleX = mainScale; scaleY = mainScale }
                                 .shadow(if (isInferenceReady) 12.dp else 0.dp, CircleShape, ambientColor = CosmicAccent.copy(0.5f), spotColor = CosmicAccent.copy(0.6f))
                                 .clip(CircleShape)
                                 .background(when {
@@ -3799,6 +3798,7 @@ private fun VoiceWaveformBars(active: Boolean, color: Color, barCount: Int = 5, 
 
 @Composable
 private fun ScrollToBottomFab(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val scrollToBottomDescription = stringResource(R.string.cd_scroll_to_bottom)
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) + scaleIn(
@@ -3813,7 +3813,7 @@ private fun ScrollToBottomFab(visible: Boolean, onClick: () -> Unit, modifier: M
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(48.dp)
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
@@ -3821,6 +3821,10 @@ private fun ScrollToBottomFab(visible: Boolean, onClick: () -> Unit, modifier: M
                     )
                 )
                 .shadow(8.dp, CircleShape, ambientColor = CosmicAccent, spotColor = CosmicAccent)
+                .semantics {
+                    contentDescription = scrollToBottomDescription
+                    role = Role.Button
+                }
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {

@@ -6,6 +6,8 @@ import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.security.SecureApiKeyStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -89,6 +91,9 @@ open class OpenAIAdapter(
                 setRequestProperty("Authorization", "Bearer $apiKey")
                 applyExtraHeaders(this)
             }
+            // HttpURLConnection.readLine() is blocking; coroutine cancellation
+            // alone does not interrupt it. Close this exact attempt's socket.
+            currentCoroutineContext()[Job]?.invokeOnCompletion { conn?.disconnect() }
 
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
@@ -106,7 +111,7 @@ open class OpenAIAdapter(
             }
 
             // ── Parse SSE stream ───────────────────────────────────────────
-            BufferedReader(InputStreamReader(conn.inputStream)).use { reader ->
+            BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { reader ->
                 var sawDone = false
                 var line: String?
                 while (reader.readLine().also { line = it } != null) {

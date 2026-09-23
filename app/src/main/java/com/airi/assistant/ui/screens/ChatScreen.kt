@@ -1030,12 +1030,22 @@ fun ChatScreen(
                     border = androidx.compose.foundation.BorderStroke(0.5.dp, AiriTheme.outline.copy(alpha = 0.45f)),
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
                 ) {
-                    Text(
-                        text = agentState.currentAction.takeIf { it.isNotBlank() } ?: stringResource(R.string.generating),
-                        color = AiriTheme.onSurfaceVariant,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(R.mipmap.ic_launcher_foreground),
+                            contentDescription = "AIRI",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(5.dp))
+                        Text(
+                            text = agentState.currentAction.takeIf { it.isNotBlank() } ?: stringResource(R.string.generating),
+                            color = AiriTheme.onSurfaceVariant,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
             }
             // Shown when the user is in live/duplex voice mode
@@ -2304,6 +2314,8 @@ fun AiBubble(
     var traceExpanded by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
     var isSelectingText by remember { mutableStateOf(false) }
+    var showFullscreenViewer by remember { mutableStateOf(false) }
+    val hasRichContent = remember(text) { ChatRichContentPolicy.needsFullscreen(text) }
     val textDirection = remember(text) { chatTextDirection(text) }
     val responseGesture = if (isSelectingText) {
         Modifier
@@ -2385,6 +2397,13 @@ fun AiBubble(
                             leadingIcon = { Icon(Icons.Outlined.Share, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
                             onClick = { showContextMenu = false; onShare(text) }
                         )
+                        if (hasRichContent) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.expand), color = AiriTheme.onBackground) },
+                                leadingIcon = { Icon(Icons.Outlined.OpenInFull, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                                onClick = { showContextMenu = false; showFullscreenViewer = true }
+                            )
+                        }
                         Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
                         DropdownMenuItem(
                             text = { Text("Export as PDF", color = AiriTheme.onBackground) },
@@ -2416,6 +2435,11 @@ fun AiBubble(
                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
                     }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.copy), tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
+                    }
+                    if (hasRichContent) {
+                        IconButton(onClick = { showFullscreenViewer = true }, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Outlined.OpenInFull, contentDescription = stringResource(R.string.expand), tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
+                        }
                     }
                     // Persisted thumbs up/down — initialized from DB feedback column.
                     var liked    by remember { mutableStateOf(initialFeedback == 1) }
@@ -2500,6 +2524,70 @@ fun AiBubble(
                 if (execOrigin.isVisible) {
                     Spacer(Modifier.height(3.dp))
                     ExecOriginBadge(origin = execOrigin, source = executionSource)
+                }
+            }
+        }
+    }
+    if (showFullscreenViewer) {
+        FullscreenResponseViewer(
+            text = text,
+            onDismiss = { showFullscreenViewer = false },
+            onShare = { onShare(text); showFullscreenViewer = false }
+        )
+    }
+}
+
+@Composable
+private fun FullscreenResponseViewer(
+    text: String,
+    onDismiss: () -> Unit,
+    onShare: () -> Unit
+) {
+    val context = LocalContext.current
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            shape = AIRIShapes.lg,
+            color = AiriTheme.background,
+            tonalElevation = 6.dp
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = stringResource(R.string.expand),
+                        color = AiriTheme.onBackground,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Row {
+                        IconButton(onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
+                        }) {
+                            Icon(Icons.Outlined.ContentCopy, stringResource(R.string.copy), tint = AiriTheme.onBackground)
+                        }
+                        IconButton(onClick = onShare) {
+                            Icon(Icons.Outlined.Share, stringResource(R.string.share), tint = AiriTheme.onBackground)
+                        }
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Outlined.Close, stringResource(R.string.close), tint = AiriTheme.onBackground)
+                        }
+                    }
+                }
+                Divider(color = AiriTheme.outline.copy(alpha = 0.22f))
+                SelectionContainer {
+                    CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection(text)) {
+                        BidiAwareMarkdownRenderer(
+                            text = text,
+                            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp)
+                        )
+                    }
                 }
             }
         }

@@ -52,6 +52,7 @@ import com.airi.assistant.core.ServiceLocator
 // AgentService import removed — no longer used in sendMessage after agent-first migration
 import com.airi.core.attachments.AttachmentPolicy
 import com.airi.assistant.domain.ChatAttachment
+import com.airi.assistant.domain.ConversationTitlePolicy
 import com.airi.assistant.domain.LongTextAttachmentPolicy
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.event.AppEvent
@@ -1518,7 +1519,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (normalized.isBlank() || sessionId.isBlank()) return
         viewModelScope.launch {
             memoryManager.renameSession(sessionId, normalized)
+            val manualTitles = preferences.getStringSet(KEY_MANUAL_TITLE_SESSIONS, emptySet()).orEmpty() + sessionId
+            preferences.edit().putStringSet(KEY_MANUAL_TITLE_SESSIONS, manualTitles).apply()
             refreshSessions()
+        }
+    }
+
+    /** Titles are generated only after a successful assistant response is stored. */
+    private suspend fun autoTitleAfterSuccessfulResponse(sessionId: String, firstUserText: String) {
+        if (sessionId.isBlank() || firstUserText.isBlank()) return
+        val done = preferences.getStringSet(KEY_AUTO_TITLE_SESSIONS, emptySet()).orEmpty()
+        val manuallyNamed = preferences.getStringSet(KEY_MANUAL_TITLE_SESSIONS, emptySet()).orEmpty()
+        if (sessionId in done || sessionId in manuallyNamed) return
+        runCatching {
+            val session = memoryManager.getAllSessions().firstOrNull { it.id == sessionId } ?: return
+            val defaultTitles = setOf("New Chat", "New chat", "Chat", "محادثة جديدة")
+            if (session.title !in defaultTitles) return
+            val title = ConversationTitlePolicy.generate(firstUserText)
+            if (title.isBlank() || title in defaultTitles) return
+            memoryManager.renameSession(sessionId, title)
+            preferences.edit().putStringSet(KEY_AUTO_TITLE_SESSIONS, done + sessionId).apply()
+            Log.i("AIRI_HISTORY", "AUTO_TITLE_CREATED session=$sessionId")
+        }.onFailure { error ->
+            Log.w("AIRI_HISTORY", "AUTO_TITLE_FAILED session=$sessionId type=${error.javaClass.simpleName}")
         }
     }
 
@@ -1762,7 +1785,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 attachmentJson = attachmentJson,
                 projectId = activeProjectId
             )
-            if (wasEmpty) memoryManager.renameSession(sessionId, trimmedInput.take(48))
             subscriptionManager.recordMessage()
             AnalyticsService.messageSent()
             if (RetentionManager.getTotalMessages() == 0) {
@@ -1843,6 +1865,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         executionSource = "AIRI fast path (local)"
                     )
                 }
+                if (wasEmpty) autoTitleAfterSuccessfulResponse(sessionId, trimmedInput)
                 _smartReplies.value = ResponseOptimizer.generateSuggestions(fastHit)
                 streamAccumulator.setLength(0); _streamingText.value = ""
                 finishGeneration(generationId)
@@ -2046,6 +2069,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             executionSource = hybridOrchestrator.lastExecutionSource
                         )
                     }
+                    if (wasEmpty) autoTitleAfterSuccessfulResponse(sessionId, trimmedInput)
                     // Record inference outcome for adaptive intelligence
                     runCatching {
                         val isCloud = _lastExecOrigin.value == ExecOrigin.CLOUD
@@ -3234,7 +3258,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 attachmentJson = attachmentJson,
                 projectId = activeProjectId
             )
-            if (wasEmpty) memoryManager.renameSession(sessionId, "Image: ${attachmentName.take(40)}")
             _messages.update {
                 it + ChatMessage(
                     text = userMarker,
@@ -3310,6 +3333,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _messages.update {
                             it + ChatMessage(fullText, isUser = false, id = asstMsg.id)
                         }
+                        if (wasEmpty) autoTitleAfterSuccessfulResponse(sessionId, visionPrompt)
                         finishGeneration(generationId)
                         refreshSessions()
                         refreshPowerLevel()
@@ -3920,6 +3944,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // KEY_MODEL_ID, KEY_MODEL_PATH, KEY_MODEL_REGISTRY, KEY_SCANNED_IDS
         // moved to ModelController (iewModel decomposition).
         const val KEY_SESSION_ID = "current_session_id"
+        const val KEY_AUTO_TITLE_SESSIONS = "auto_title_sessions"
+        const val KEY_MANUAL_TITLE_SESSIONS = "manual_title_sessions"
 
         const val SLOW_GENERATION_WARN_MS = 10_000L
         const val SEMANTIC_BUDGET_PCT     = 20

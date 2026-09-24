@@ -604,6 +604,12 @@ fun ChatScreen(
     }
 
     val pendingAttachments = currentComposerDraft?.attachments.orEmpty()
+    val recentAttachmentPrefs = remember {
+        context.getSharedPreferences("airi_recent_attachment", android.content.Context.MODE_PRIVATE)
+    }
+    var recentFileUri by remember {
+        mutableStateOf(recentAttachmentPrefs.getString("uri", null))
+    }
 
     fun addAttachment(att: ChatAttachment) {
         if (pendingAttachments.any { existing ->
@@ -632,6 +638,14 @@ fun ChatScreen(
     }
 
     fun stageUriAttachment(uri: Uri, kind: ChatAttachment.Kind, fallbackName: String) {
+        if (kind == ChatAttachment.Kind.FILE) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+        }
         val metadata = resolveAttachmentMetadata(context, uri, fallbackName)
         addAttachment(
             ChatAttachment(
@@ -642,6 +656,10 @@ fun ChatScreen(
                 sizeBytes = metadata.sizeBytes
             )
         )
+        if (kind == ChatAttachment.Kind.FILE) {
+            recentFileUri = uri.toString()
+            recentAttachmentPrefs.edit().putString("uri", recentFileUri).apply()
+        }
     }
 
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -667,6 +685,7 @@ fun ChatScreen(
     }
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) cameraLauncher.launch(null)
+        else scope.launch { snackbarHost.showSnackbar(context.getString(R.string.camera_permission_denied)) }
     }
 
     // Converted long prompts arrive from the ViewModel as a URI and must be
@@ -875,6 +894,20 @@ fun ChatScreen(
                     onPickVideo   = { videoPicker.launch("video/*") },
                     onPickText    = { textPicker.launch(arrayOf("text/*", "application/json", "application/xml")) },
                     onPickFile    = { filePicker.launch(arrayOf("*/*")) },
+                    onPickRecentFile = {
+                        val uri = recentFileUri?.let(Uri::parse)
+                        val readable = uri != null && runCatching {
+                            context.contentResolver.openInputStream(uri)?.use { }
+                            true
+                        }.getOrDefault(false)
+                        if (uri != null && readable) {
+                            stageUriAttachment(uri, ChatAttachment.Kind.FILE, "recent file")
+                        } else {
+                            recentFileUri = null
+                            recentAttachmentPrefs.edit().remove("uri").apply()
+                            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.no_recent_files)) }
+                        }
+                    },
                     onOpenPromptBuilder = { onNavigate(AiriRoute.PROMPT_BUILDER) },
                     onTakePhoto   = {
                         when {
@@ -2852,6 +2885,7 @@ fun AiriChatInputBar(
     onPickVideo: () -> Unit = {},
     onPickText: () -> Unit = {},
     onPickFile: () -> Unit = {},
+    onPickRecentFile: () -> Unit = {},
     onTakePhoto: () -> Unit = {},
     onMicClick: () -> Unit,
     onVoiceChatClick: () -> Unit,
@@ -3545,7 +3579,7 @@ fun AiriChatInputBar(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
-                AttachListRow(Icons.Outlined.Description, stringResource(R.string.attach_recent_files)) { showAttachPopup = false; onPickFile() }
+                AttachListRow(Icons.Outlined.Description, stringResource(R.string.attach_recent_files)) { showAttachPopup = false; onPickRecentFile() }
                 AttachListRow(Icons.Outlined.EventNote, stringResource(R.string.attach_recent_tasks)) { showAttachPopup = false; onNavigate(AiriRoute.AGENT_TASKS) }
                 AttachListRow(Icons.Outlined.StarBorder, stringResource(R.string.attach_skills)) { showAttachPopup = false; onNavigate(AiriRoute.SKILL_MANAGER) }
                 AttachListRow(Icons.Outlined.EditNote, stringResource(R.string.prompt_builder_shortcut)) { showAttachPopup = false; onNavigate(AiriRoute.PROMPT_BUILDER) }

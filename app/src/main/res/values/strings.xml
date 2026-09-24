@@ -1478,6 +1478,8 @@
     <string name="connectors_status_connected">Connected</string>
     <string name="connectors_status_needs_attention">Needs attention</string>
     <string name="connectors_status_disconnected">Disconnected</string>
+    <string name="connectors_status_coming_soon">Coming Soon</string>
+    <string name="connectors_status_configuration_required">Configuration required</string>
     <string name="connectors_manage_authorization">Manage authorization</string>
     <string name="connectors_tab_apps">Apps</string>
     <string name="connectors_tab_device">Device</string>

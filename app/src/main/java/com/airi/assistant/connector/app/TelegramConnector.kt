@@ -15,6 +15,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /**
@@ -102,11 +103,16 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
     }
 
     override suspend fun disconnect() {
+        secureStorage.clearTelegramToken()
+        secureStorage.saveTelegramConnected(false)
         _state.value = ConnectorState(connected = false, statusLine = "Disconnected")
     }
 
     override suspend fun execute(input: ConnectorInput): ConnectorOutput =
         withContext(Dispatchers.IO) {
+        if (!_state.value.connected) {
+            return@withContext ConnectorOutput.Failure("not_connected", "Telegram is disconnected. Connect before executing an action.")
+        }
         val token = secureStorage.getTelegramToken()
             ?: return@withContext ConnectorOutput.Failure(
                 "not_connected", "Telegram bot token not configured. Connect in Integrations."
@@ -126,7 +132,7 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
                     sendMessage(token, chatId, text)
                 }
                 "get_updates" -> {
-                    val limit = input.params["limit"]?.toIntOrNull() ?: 10
+                    val limit = (input.params["limit"]?.toIntOrNull() ?: 10).coerceIn(1, 100)
                     getUpdates(token, limit)
                 }
                 "get_chat_info" -> {
@@ -145,7 +151,7 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
             ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
         } catch (e: Exception) {
             Log.e(TAG, "Telegram execute failed: ${e.message}")
-            ConnectorOutput.Failure("api_error", e.message ?: "Telegram API error", retryable = true)
+            ConnectorOutput.Failure("api_error", (e.message ?: "Telegram API error").replace(token, "[REDACTED]"), retryable = false)
         }
     }
 
@@ -155,7 +161,6 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
         val payload = JSONObject().apply {
             put("chat_id",    chatId)
             put("text",       text)
-            put("parse_mode", "Markdown")
         }.toString()
         val body    = payload.toRequestBody("application/json".toMediaType())
         val request = Request.Builder()
@@ -163,8 +168,9 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
             .post(body)
             .header("Content-Type", "application/json")
             .build()
-        val resp = http.newCall(request).execute()
-        val json = JSONObject(resp.body?.string() ?: "{}")
+        val json = http.newCall(request).execute().use { resp ->
+            JSONObject(resp.body?.string() ?: "{}")
+        }
         if (!json.optBoolean("ok", false)) {
             throw Exception(json.optString("description", "sendMessage failed"))
         }
@@ -173,7 +179,7 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
     }
 
     private fun getUpdates(token: String, limit: Int): String {
-        val json = get(token, "getUpdates?limit=$limit&allowed_updates=[\"message\"]")
+        val json = get(token, "getUpdates?limit=${limit.coerceIn(1, 100)}&allowed_updates=%5B%22message%22%5D")
         if (!json.optBoolean("ok", false)) {
             throw Exception(json.optString("description", "getUpdates failed"))
         }
@@ -194,7 +200,7 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
     }
 
     private fun getChatInfo(token: String, chatId: String): String {
-        val json = get(token, "getChat?chat_id=$chatId")
+        val json = get(token, "getChat?chat_id=${encode(chatId)}")
         if (!json.optBoolean("ok", false)) {
             throw Exception(json.optString("description", "getChat failed"))
         }
@@ -213,7 +219,10 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
     private fun get(token: String, method: String): JSONObject {
         val url      = "$API$token/$method"
         val request  = Request.Builder().url(url).build()
-        val response = http.newCall(request).execute()
-        return JSONObject(response.body?.string() ?: "{}")
+        return http.newCall(request).execute().use { response ->
+            JSONObject(response.body?.string() ?: "{}")
+        }
     }
+
+    private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
 }

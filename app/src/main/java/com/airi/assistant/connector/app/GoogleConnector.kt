@@ -50,7 +50,18 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
         description = description,
         type        = type,
         iconUrl     = null,
-        tags        = listOf("google", "gmail", "calendar", "drive", "email")
+        tags        = listOf("google", "gmail", "calendar", "drive", "email"),
+        provider = "Google",
+        category = "Google",
+        authenticationType = ConnectorAuthenticationType.OAUTH2,
+        capabilities = listOf(
+            ConnectorCapability("email.read", "Read authorized Gmail messages"),
+            ConnectorCapability("calendar.read", "Read upcoming Calendar events"),
+            ConnectorCapability("drive.read", "Search authorized Drive files"),
+        ),
+        availability = ConnectorAvailability.PARTIAL,
+        website = "https://www.google.com",
+        documentationUrl = "https://developers.google.com/identity/protocols/oauth2",
     )
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 

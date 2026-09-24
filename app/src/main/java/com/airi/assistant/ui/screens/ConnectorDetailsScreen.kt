@@ -36,10 +36,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.airi.assistant.R
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.viewmodel.ConnectorsViewModel
+import com.airi.assistant.connector.ConnectorAvailability
 import kotlinx.coroutines.launch
 
 private fun connectorDetailIcon(id: String) = when {
@@ -74,6 +77,7 @@ fun ConnectorDetailsScreen(
     val presentation = remember(row.meta) { row.meta.presentation() }
     val isConnected = row.state.connected
     val isHealthy = row.state.healthy
+    val isComingSoon = row.meta.availability == ConnectorAvailability.COMING_SOON
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
@@ -102,13 +106,21 @@ fun ConnectorDetailsScreen(
             Text(row.meta.name, fontSize = 24.sp, color = AiriTheme.onSurface)
             Text(row.meta.description, fontSize = 15.sp, color = AiriTheme.onSurfaceVariant)
             Text("${presentation.category} · ${presentation.version}", fontSize = 12.sp, color = CosmicAccent)
+            row.meta.provider?.let { Text("Service provider: $it", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant) }
 
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Text("What this connector does", fontSize = 17.sp)
                     Text("${presentation.projectAccess}.", color = AiriTheme.onSurfaceVariant)
                     Text("Model dependency: ${presentation.modelDependency}.", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
-                    Text("Status: ${if (isConnected && isHealthy) "Connected and healthy" else if (isConnected) "Connected, needs attention" else "Not connected"}", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+                    Text("Status: ${when {
+                        isComingSoon -> stringResource(R.string.connectors_status_coming_soon)
+                        isConnected && isHealthy -> "Connected and healthy"
+                        isConnected -> "Connected, needs attention"
+                        row.meta.availability == ConnectorAvailability.PARTIAL -> stringResource(R.string.connectors_status_configuration_required)
+                        else -> "Not connected"
+                    }}", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+                    Text("Authentication: ${row.meta.authenticationType ?: "Not declared"}", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
                     if (row.state.statusLine.isNotBlank()) Text(row.state.statusLine, fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
                     if (row.meta.tags.isNotEmpty()) Text("Tags: ${row.meta.tags.joinToString()}", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
                 }
@@ -121,17 +133,29 @@ fun ConnectorDetailsScreen(
                 }
             }
 
+            if (row.meta.capabilities.isNotEmpty()) {
+                Text("Capabilities and permissions", fontSize = 17.sp)
+                row.meta.capabilities.forEach { capability ->
+                    Text(
+                        "${capability.id} · ${capability.permission}${if (capability.requiresConfirmation) " · confirmation required" else ""}",
+                        color = AiriTheme.onSurfaceVariant,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = {
                         if (isConnected) viewModel.disconnect(connectorId) else viewModel.connect(connectorId)
                         scope.launch { snackbar.showSnackbar(if (isConnected) "Disconnect requested" else "Connection requested") }
                     },
+                    enabled = !isComingSoon,
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Outlined.CheckCircle, contentDescription = null)
                     Spacer(Modifier.padding(3.dp))
-                    Text(if (isConnected) "Disconnect" else "Connect")
+                    Text(if (isComingSoon) stringResource(R.string.connectors_status_coming_soon) else if (isConnected) "Disconnect" else "Connect")
                 }
                 OutlinedButton(
                     onClick = {

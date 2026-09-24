@@ -34,6 +34,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airi.assistant.connector.ConnectorType
+import com.airi.assistant.connector.ConnectorAvailability
 import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
@@ -101,6 +102,8 @@ fun ConnectorsScreen(
             (searchQuery.isBlank() ||
                 row.meta.name.contains(searchQuery, ignoreCase = true) ||
                 row.meta.description.contains(searchQuery, ignoreCase = true) ||
+                row.meta.provider.orEmpty().contains(searchQuery, ignoreCase = true) ||
+                row.meta.capabilities.any { it.id.contains(searchQuery, ignoreCase = true) || it.description.contains(searchQuery, ignoreCase = true) } ||
                 row.meta.tags.any { it.contains(searchQuery, ignoreCase = true) })
     }
     val connectedCount = allItems.count { it.state.connected && it.state.healthy }
@@ -368,6 +371,8 @@ private fun ConnectorCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val isConnected = row.state.connected
+    val isComingSoon = row.meta.availability == ConnectorAvailability.COMING_SOON
+    val isPartial = row.meta.availability == ConnectorAvailability.PARTIAL
     val isReady = isConnected && row.state.healthy
     val needsAttention = isConnected && !row.state.healthy
     val statusColor = when {
@@ -378,6 +383,8 @@ private fun ConnectorCard(
     val statusLabel = when {
         isReady -> stringResource(R.string.connectors_status_connected)
         needsAttention -> stringResource(R.string.connectors_status_needs_attention)
+        isComingSoon -> stringResource(R.string.connectors_status_coming_soon)
+        isPartial -> stringResource(R.string.connectors_status_configuration_required)
         else -> stringResource(R.string.connectors_status_disconnected)
     }
 
@@ -445,6 +452,7 @@ private fun ConnectorCard(
                 // Connect / Disconnect toggle
                 Switch(
                     checked  = isConnected,
+                    enabled = !isComingSoon,
                     onCheckedChange = { if (it) onConnect() else onDisconnect() },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor       = AiriTheme.onSurface,

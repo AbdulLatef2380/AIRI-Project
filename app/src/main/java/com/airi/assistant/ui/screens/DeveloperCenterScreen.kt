@@ -164,13 +164,13 @@ private fun ConnectorsTab() {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(modifier = Modifier.size(9.dp).clip(CircleShape)
-                        .background(if (entry.isConnected) SemanticSuccess else SemanticError))
+                        .background(if (entry.isConnected && entry.isHealthy) SemanticSuccess else SemanticError))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(entry.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
                         Text(
-                            if (entry.isConnected) "Online" else (entry.errorMessage?.take(50) ?: "Offline"),
+                            if (entry.isConnected && entry.isHealthy) "Online" else (entry.errorMessage?.take(50) ?: if (entry.isConnected) "Needs attention" else "Offline"),
                             fontSize = 11.sp,
-                            color = if (entry.isConnected) SemanticSuccess.copy(0.8f) else SemanticError.copy(0.7f)
+                            color = if (entry.isConnected && entry.isHealthy) SemanticSuccess.copy(0.8f) else SemanticError.copy(0.7f)
                         )
                     }
                     Text(entry.connectorId, fontSize = 10.sp, color = AiriTheme.outline.copy(alpha = 0.25f), fontFamily = FontFamily.Monospace)

@@ -233,3 +233,28 @@ Chat / Agent / Skill
 الطبقة ليست فاشلة؛ لديها أساس يمكن البناء عليه، وGitHub يقدم نموذجًا جيدًا لمسار approval وownership. لكن يجب تعميم هذا النموذج بدل إضافة موصلات منفردة بسياسات مختلفة.
 
 هذه المراجعة تقرير فهم وتحديد فجوات فقط؛ لم تُجرَ تعديلات على كود Connectors في هذه الجولة.
+
+
+## الجولة التنفيذية الحالية
+
+تم تنفيذ الجولة الأولى من خطة C1–C3 بشكل قابل للمراجعة:
+
+- أضيف `ConnectorDefinition` مركزي يحدد المزود، الفئة، نوع المصادقة، capabilities، scopes، permissions، status، القيود، والروابط الرسمية المبدئية.
+- أضيف Catalog صادق يضم **35 Connector فريدًا**. الحالات الحالية: `PARTIAL` للموصلات التي لها مسار AIRI قائم لكنه يحتاج إعدادًا/اختبارًا مزودًا، و`COMING_SOON` للموصلات التي لا يوجد لها adapter تنفيذي.
+- أصبح `ConnectorRegistry` يوفر `catalogMeta` و`catalogSearch` و`catalogFilter` وقراءة capabilities والصلاحيات دون تسجيل إدخالات Coming Soon كموصلات قابلة للتنفيذ.
+- أصبحت شاشة Connectors تعرض الكتالوج، وتبحث في الاسم والوصف والمزود والفئة والـtags والـcapabilities، وتمنع زر الاتصال للمدخلات Coming Soon.
+- أصبحت صفحة التفاصيل تعرض المزود ونوع المصادقة والحالة والـcapabilities ومستوى الصلاحية ومتطلب التأكيد.
+- أضيف توثيق `CONNECTOR.md` لكل واحد من الإدخالات الـ35.
+- أزيلت Google tool stubs؛ Gmail وCalendar وDrive tools أصبحت adapters تستدعي `GoogleConnector` عبر `ConnectorRuntimeManager` بدل إرجاع فشل ثابت.
+- أصبح `ConnectorRuntimeManager` يستخدم invocation sequence ذريًا، وتحديثًا متزامنًا لـinflight state، ولا يعيد محاولة timeout ذي نتيجة غير معروفة تلقائيًا.
+- أصبح `ConnectorHealthMonitor` يميز connected عن healthy، ويملك `stop()`، ويأخذ snapshot متزامنة بمهلات منفصلة.
+- أصبح `ConnectorAuthManager` يرفض blank tokens ويمسح refresh/expiry القديمة عند التحديث.
+- أصبح Telegram يغلق HTTP responses، يفرض حدودًا، يمسح token عند disconnect، ويرفض التنفيذ بعد disconnect، ولا يعيد محاولة نتائج API الغامضة تلقائيًا.
+- أصبح GitHub يمسح PAT من `ConnectorAuthManager` عند disconnect.
+- اجتازت البوابات الساكنة `88/88`، وفحص XML، وبناء عقد Kotlin المستقل `connector_contract_compile=PASS`.
+
+### حدود مثبتة لم تُدّعَ كنجاح
+
+اختبارات Android/Gradle الكاملة لم تُنفذ في بيئة العمل الحالية لأن Android SDK غير موجود (`SDK location not found`). لذلك لا يوجد ادعاء بأن APK أو UI compiled بالكامل في هذه الجولة. كما لم تُنفذ اختبارات provider حقيقية أو OAuth credentialed-device؛ هذه تتطلب إعداد OAuth apps وredirect URIs وcredentials اختبارية معزولة. ستبقى الموصلات في `PARTIAL` أو `COMING_SOON` حتى تتوفر تلك الأدلة.
+
+لا توجد في هذه الجولة أي محاولة لتجاوز تسجيل دخول، CAPTCHA، سياسات مزود، صلاحيات حساب، أو حماية خارجية، ولا توجد أسرار حقيقية في المستودع أو الاختبارات.

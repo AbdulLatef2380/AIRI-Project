@@ -134,6 +134,8 @@ class SecureStorage(context: Context) {
 
     fun getTelegramToken(): String? = prefs.getString(KEY_TELEGRAM_TOKEN, null)
 
+    fun clearTelegramToken() = prefs.edit().remove(KEY_TELEGRAM_TOKEN).apply()
+
     fun saveTelegramConnected(connected: Boolean, username: String = "") {
         prefs.edit()
             .putBoolean(KEY_TELEGRAM_CONNECTED, connected)

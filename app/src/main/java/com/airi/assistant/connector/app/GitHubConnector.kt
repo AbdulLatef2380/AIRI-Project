@@ -61,7 +61,10 @@ class GitHubConnector(
         _state.value
     }
 
-    override suspend fun disconnect() { _state.value = ConnectorState(false, statusLine = "Disconnected") }
+    override suspend fun disconnect() {
+        authManager?.clearCredential(id, "pat")
+        _state.value = ConnectorState(false, statusLine = "Disconnected")
+    }
 
     override suspend fun execute(input: ConnectorInput): ConnectorOutput = withContext(Dispatchers.IO) {
         when (val mutation = GitHubMutationPolicy.evaluate(input.action)) {

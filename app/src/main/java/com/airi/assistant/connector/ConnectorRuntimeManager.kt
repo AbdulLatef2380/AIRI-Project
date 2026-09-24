@@ -13,7 +13,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
     private val TAG = "ConnectorRuntimeManager"
@@ -21,12 +24,17 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
     data class InflightAction(val connectorId: String, val action: String, val startedMs: Long = System.currentTimeMillis())
 
     private val inflight = ConcurrentHashMap<String, InflightAction>()
+    private val invocationSequence = AtomicLong(0L)
+    private val inflightMutex = Mutex()
     private val _inflightActions = MutableStateFlow<List<InflightAction>>(emptyList())
     val inflightActions: StateFlow<List<InflightAction>> = _inflightActions.asStateFlow()
     suspend fun execute(connectorId: String, input: ConnectorInput, maxRetries: Int = 2, timeoutMs: Long = 20_000L): ConnectorOutput {
+        require(connectorId.isNotBlank()) { "connectorId must not be blank" }
+        require(input.action.isNotBlank()) { "connector action must not be blank" }
+        require(timeoutMs > 0L) { "timeoutMs must be positive" }
         val connector = registry.get(connectorId)
             ?: return ConnectorOutput.Failure("not_found", "Connector '$connectorId' not registered")
-        val key = "${connectorId}::${input.action}_${System.currentTimeMillis()}"
+        val key = "${connectorId}::${input.action}#${invocationSequence.incrementAndGet()}"
         trackStart(key, InflightAction(connectorId, input.action))
         AgentActivityBus.emit("Executing '$connectorId' → ${input.action}", ActivityCategory.CONNECTOR)
         return try {
@@ -42,7 +50,9 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
             }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             AgentActivityBus.emit("'$connectorId' timed out after ${timeoutMs}ms", ActivityCategory.CONNECTOR, ActivitySeverity.WARN)
-            ConnectorOutput.Failure("timeout", "Timed out after ${timeoutMs}ms", retryable = true)
+            // A timeout has an unknown outcome. Retrying blindly can duplicate a
+            // mutation, so callers must opt into a contract-specific retry.
+            ConnectorOutput.Failure("timeout", "Timed out after ${timeoutMs}ms; outcome is unknown", retryable = false)
         } catch (e: CancellationException) {
             // Cancellation is a control-flow signal, never a retryable connector
             // failure. Re-throw it so ViewModel/agent cancellation reaches the
@@ -94,8 +104,15 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
         return last
     }
 
-    private fun trackStart(key: String, action: InflightAction) { inflight[key] = action; _inflightActions.value = inflight.values.toList() }
-    private fun trackEnd(key: String) { inflight.remove(key); _inflightActions.value = inflight.values.toList() }
+    private suspend fun trackStart(key: String, action: InflightAction) = inflightMutex.withLock {
+        inflight[key] = action
+        _inflightActions.value = inflight.values.toList()
+    }
+
+    private suspend fun trackEnd(key: String) = inflightMutex.withLock {
+        inflight.remove(key)
+        _inflightActions.value = inflight.values.toList()
+    }
 
     private companion object {
         const val MAX_RETRIES = 3

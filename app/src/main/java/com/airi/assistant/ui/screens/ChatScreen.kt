@@ -11,7 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.CancellationSignal
 import android.provider.OpenableColumns
-import android.util.Size
+import android.util.Size as AndroidSize
 import android.media.projection.MediaProjectionManager
 import androidx.compose.runtime.DisposableEffect
 import com.airi.assistant.voice.VoskEngine
@@ -2785,7 +2785,7 @@ private fun AttachmentChip(
                             runCatching {
                                 context.contentResolver.loadThumbnail(
                                     videoUri,
-                                    Size(112, 112),
+                                    AndroidSize(112, 112),
                                     CancellationSignal()
                                 )
                             }.getOrNull()

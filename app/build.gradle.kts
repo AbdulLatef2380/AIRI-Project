@@ -182,6 +182,9 @@ dependencies {
 
     // Testing
     testImplementation("junit:junit:4.13.2")
+    // Android framework org.json methods are stubs in local JVM tests.
+    // Use the JVM implementation so manifest round-trip tests execute real JSON.
+    testImplementation("org.json:json:20240303")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test:core:1.5.0")
     androidTestImplementation("androidx.test:runner:1.5.2")

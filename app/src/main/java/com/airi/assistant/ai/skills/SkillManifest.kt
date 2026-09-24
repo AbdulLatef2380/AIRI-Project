@@ -234,7 +234,8 @@ data class SkillManifest(
                 return values
             }
 
-            return SkillManifest(
+            return try {
+                SkillManifest(
                 id                = normalized.getString("id"),
                 name              = normalized.getString("name"),
                 description       = json.optString("description"),
@@ -277,8 +278,12 @@ data class SkillManifest(
                 riskLevel         = runCatching { SkillRiskLevel.valueOf(json.optString("risk_level", "LOW").uppercase()) }.getOrDefault(SkillRiskLevel.LOW),
                 requiresConfirmation = json.optBoolean("requires_confirmation", false),
                 supportsStreaming = json.optBoolean("supports_streaming", false),
-                supportsAttachments = json.optBoolean("supports_attachments", false)
-            )
+                    supportsAttachments = json.optBoolean("supports_attachments", false)
+                )
+            } catch (error: Exception) {
+                println("SkillManifest.fromJson failed: ${error::class.java.name}: ${error.message}")
+                throw error
+            }
         }
 
         fun fromJsonString(jsonString: String): SkillManifest? =

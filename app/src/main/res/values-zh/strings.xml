@@ -1167,6 +1167,8 @@
     <string name="connectors_status_connected">已连接</string>
     <string name="connectors_status_needs_attention">需要处理</string>
     <string name="connectors_status_disconnected">已断开连接</string>
+    <string name="connectors_status_coming_soon">即将推出</string>
+    <string name="connectors_status_configuration_required">需要配置</string>
     <string name="connectors_manage_authorization">管理授权</string>
     <string name="connectors_tab_apps">Apps</string>
     <string name="connectors_tab_device">Device</string>

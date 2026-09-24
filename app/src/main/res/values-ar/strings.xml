@@ -1398,6 +1398,8 @@
     <string name="connectors_status_connected">متصل</string>
     <string name="connectors_status_needs_attention">يحتاج متابعة</string>
     <string name="connectors_status_disconnected">غير متصل</string>
+    <string name="connectors_status_coming_soon">قريبًا</string>
+    <string name="connectors_status_configuration_required">يتطلب إعدادًا</string>
     <string name="connectors_manage_authorization">إدارة التفويض</string>
     <string name="connectors_tab_apps">التطبيقات</string>
     <string name="connectors_tab_device">الجهاز</string>

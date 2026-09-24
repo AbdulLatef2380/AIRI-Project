@@ -16,7 +16,7 @@ data class ConnectorPresentation(
  * It never invents provider-specific permissions, actions, or capabilities.
  */
 fun ConnectorMeta.presentation(): ConnectorPresentation {
-    val category = when (type) {
+    val category = this.category ?: when (type) {
         ConnectorType.API -> "AI & APIs"
         ConnectorType.APP -> "Apps & Services"
         ConnectorType.LOCAL -> "Device & Local"

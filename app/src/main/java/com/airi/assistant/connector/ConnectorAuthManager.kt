@@ -45,7 +45,9 @@ class ConnectorAuthManager(context: Context) {
     ): Boolean = updateSecurePreferences { editor ->
         editor.putString(key(connectorId, "access_token"), accessToken)
         if (refreshToken != null) editor.putString(key(connectorId, "refresh_token"), refreshToken)
+        else editor.remove(key(connectorId, "refresh_token"))
         if (expiresAtMs != null) editor.putLong(key(connectorId, "expires_at"), expiresAtMs)
+        else editor.remove(key(connectorId, "expires_at"))
     }
 
     fun getToken(connectorId: String): String? =
@@ -56,8 +58,9 @@ class ConnectorAuthManager(context: Context) {
 
     fun isTokenValid(connectorId: String): Boolean {
         val token = getToken(connectorId) ?: return false
+        if (token.isBlank()) return false
         val expiresAtMillis = securePreferences?.getLong(key(connectorId, "expires_at"), -1L) ?: return false
-        return if (expiresAtMillis == -1L) token.isNotBlank() else System.currentTimeMillis() < expiresAtMillis
+        return expiresAtMillis == -1L || System.currentTimeMillis() < expiresAtMillis
     }
 
     fun revokeToken(connectorId: String): Boolean = updateSecurePreferences { editor ->

@@ -102,6 +102,15 @@ data class ConnectorMeta(
     val iconUrl: String? = null,
     /** Optional tags for search / categorization. */
     val tags: List<String> = emptyList(),
+    /** Optional catalog enrichment. Defaults preserve legacy connectors. */
+    val provider: String? = null,
+    val category: String? = null,
+    val authenticationType: ConnectorAuthenticationType? = null,
+    val capabilities: List<ConnectorCapability> = emptyList(),
+    val availability: ConnectorAvailability = ConnectorAvailability.READY,
+    val website: String? = null,
+    val privacyPolicyUrl: String? = null,
+    val documentationUrl: String? = null,
 )
 
 /**

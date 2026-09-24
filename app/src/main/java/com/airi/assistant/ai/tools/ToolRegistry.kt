@@ -4,6 +4,10 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.connector.ConnectorInput
+import com.airi.assistant.connector.ConnectorOutput
+import com.airi.assistant.connector.ConnectorRuntimeManager
+import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.customskill.CustomSkill
 import com.airi.assistant.domain.customskill.CustomSkillExecutor
 import com.airi.assistant.domain.customskill.CustomSkillRepository
@@ -27,9 +31,11 @@ class ToolRegistry(private val context: Context) {
             tools.add(TelegramSendMessageTool(secureStorage, telegramService))
         }
         if (secureStorage.isGoogleConnected()) {
-            tools.add(GmailListEmailsTool())
-            tools.add(DriveSearchFileTool())
-            tools.add(CalendarNextEventsTool())
+            // These tools are adapters over the registered GoogleConnector. They
+            // must never become independent API clients or success-shaped stubs.
+            tools.add(GmailListEmailsTool(ServiceLocator.connectorRuntimeManager))
+            tools.add(DriveSearchFileTool(ServiceLocator.connectorRuntimeManager))
+            tools.add(CalendarNextEventsTool(ServiceLocator.connectorRuntimeManager))
         }
         customSkillRepository.getAllSkills().forEach { skill ->
             tools.add(CustomSkillTool(context, skill))
@@ -187,7 +193,7 @@ private class TelegramSendMessageTool(
 
 // ─── Google: Gmail List ────────────────────────────────────────────────────────
 
-private class GmailListEmailsTool : Tool {
+private class GmailListEmailsTool(private val runtime: ConnectorRuntimeManager) : Tool {
     override val name = "gmail_list_emails"
     override val description = "List recent Gmail emails (requires OAuth access token)"
     override val parameters: Map<String, String> = mapOf(
@@ -195,17 +201,12 @@ private class GmailListEmailsTool : Tool {
     )
 
     override suspend fun execute(params: Map<String, String>): ToolResult =
-        ToolResult(
-            success = false,
-            data = "",
-            error = "Gmail API access requires a full OAuth access token. " +
-                    "Re-connect Google and request offline access to enable this tool."
-        )
+        runtime.execute("google", ConnectorInput("gmail_list", params = params)).toToolResult()
 }
 
 // ─── Google: Drive Search ─────────────────────────────────────────────────────
 
-private class DriveSearchFileTool : Tool {
+private class DriveSearchFileTool(private val runtime: ConnectorRuntimeManager) : Tool {
     override val name = "drive_search_file"
     override val description = "Search for files in Google Drive (requires OAuth access token)"
     override val parameters: Map<String, String> = mapOf(
@@ -213,17 +214,12 @@ private class DriveSearchFileTool : Tool {
     )
 
     override suspend fun execute(params: Map<String, String>): ToolResult =
-        ToolResult(
-            success = false,
-            data = "",
-            error = "Drive API access requires a full OAuth access token. " +
-                    "Re-connect Google and request offline access to enable this tool."
-        )
+        runtime.execute("google", ConnectorInput("drive_search", params = params)).toToolResult()
 }
 
 // ─── Google: Calendar Events ──────────────────────────────────────────────────
 
-private class CalendarNextEventsTool : Tool {
+private class CalendarNextEventsTool(private val runtime: ConnectorRuntimeManager) : Tool {
     override val name = "calendar_next_events"
     override val description = "Get upcoming Google Calendar events (requires OAuth access token)"
     override val parameters: Map<String, String> = mapOf(
@@ -231,10 +227,12 @@ private class CalendarNextEventsTool : Tool {
     )
 
     override suspend fun execute(params: Map<String, String>): ToolResult =
-        ToolResult(
-            success = false,
-            data = "",
-            error = "Calendar API access requires a full OAuth access token. " +
-                    "Re-connect Google and request offline access to enable this tool."
-        )
+        runtime.execute("google", ConnectorInput("calendar_list", params = params)).toToolResult()
+}
+
+private fun ConnectorOutput.toToolResult(): ToolResult = when (this) {
+    is ConnectorOutput.Success -> ToolResult(true, text, null)
+    is ConnectorOutput.Failure -> ToolResult(false, "", message)
+    is ConnectorOutput.ApprovalRequired -> ToolResult(false, "", message)
+    is ConnectorOutput.Streaming -> ToolResult(false, "", "Streaming output is not supported by this tool adapter")
 }

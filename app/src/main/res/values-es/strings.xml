@@ -1167,6 +1167,8 @@
     <string name="connectors_status_connected">Conectado</string>
     <string name="connectors_status_needs_attention">Requiere atención</string>
     <string name="connectors_status_disconnected">Desconectado</string>
+    <string name="connectors_status_coming_soon">Próximamente</string>
+    <string name="connectors_status_configuration_required">Configuración necesaria</string>
     <string name="connectors_manage_authorization">Gestionar autorización</string>
     <string name="connectors_tab_apps">Apps</string>
     <string name="connectors_tab_device">Device</string>

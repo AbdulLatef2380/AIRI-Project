@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.airi.assistant.connector.ConnectorMeta
 import com.airi.assistant.connector.ConnectorState
 import com.airi.assistant.connector.ConnectorType
+import com.airi.assistant.connector.ConnectorAvailability
 import com.airi.assistant.core.ServiceLocator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,8 +40,8 @@ class ConnectorsViewModel(application: Application) : AndroidViewModel(applicati
         // replaces the previous state subscriptions. This keeps the UI live when
         // a connector changes authorization or health without being re-registered.
         viewModelScope.launch {
-            registry.meta.collectLatest { metas ->
-                observeItems(metas).collect { rows ->
+            registry.meta.collectLatest {
+                observeItems(registry.catalogMeta()).collect { rows ->
                     _items.value = rows
                 }
             }
@@ -53,6 +54,7 @@ class ConnectorsViewModel(application: Application) : AndroidViewModel(applicati
 
     fun connect(id: String) {
         val connector = registry.get(id) ?: return
+        if (registry.catalogMeta().firstOrNull { it.id == id }?.availability == ConnectorAvailability.COMING_SOON) return
         viewModelScope.launch {
             runCatching { connector.connect() }
         }

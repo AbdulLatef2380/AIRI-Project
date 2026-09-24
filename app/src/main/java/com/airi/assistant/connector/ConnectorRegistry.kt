@@ -35,6 +35,38 @@ class ConnectorRegistry(
      *  insertion order. UI subscribes to this for the Connectors screen. */
     val meta: StateFlow<List<ConnectorMeta>> = _meta.asStateFlow()
 
+    /** Catalog entries remain discoverable, but only registered adapters are executable. */
+    fun catalogMeta(): List<ConnectorMeta> {
+        val catalogIds = OfficialConnectorCatalog.all.mapTo(mutableSetOf()) { it.id }
+        val catalogEntries = OfficialConnectorCatalog.all.map { definition ->
+            get(definition.id)?.meta()?.withCatalogDefinition(definition)
+                ?: definition.toConnectorMeta()
+        }
+        val liveOnly = meta.value.filterNot { it.id in catalogIds }.map { item ->
+            if (item.type == ConnectorType.APP && item.availability == ConnectorAvailability.READY) {
+                item.copy(availability = ConnectorAvailability.PARTIAL)
+            } else item
+        }
+        return catalogEntries + liveOnly
+    }
+
+    fun catalogSearch(query: String): List<ConnectorMeta> {
+        val q = query.trim()
+        if (q.isEmpty()) return catalogMeta()
+        return catalogMeta().filter { item ->
+            listOf(item.id, item.name, item.description, item.provider.orEmpty(), item.category.orEmpty())
+                .any { it.contains(q, ignoreCase = true) } ||
+                item.tags.any { it.contains(q, ignoreCase = true) } ||
+                item.capabilities.any { it.id.contains(q, ignoreCase = true) }
+        }
+    }
+
+    fun catalogFilter(category: String? = null, availability: ConnectorAvailability? = null): List<ConnectorMeta> =
+        catalogMeta().filter { item ->
+            (category == null || item.category.equals(category, ignoreCase = true)) &&
+                (availability == null || item.availability == availability)
+        }
+
     fun register(connector: Connector) {
         require(connector.id.isNotBlank()) { "Connector id must not be blank" }
         store[connector.id] = connector
@@ -57,6 +89,35 @@ class ConnectorRegistry(
     fun byType(type: ConnectorType): List<Connector> =
         store.values.filter { it.type == type }
             .sortedBy { registrationOrder[it.id] ?: Long.MAX_VALUE }
+
+    /** Search live metadata without exposing connector credentials or instances. */
+    fun search(query: String): List<ConnectorMeta> {
+        val q = query.trim()
+        if (q.isEmpty()) return meta.value
+        return meta.value.filter { item ->
+            listOf(item.id, item.name, item.description, item.provider.orEmpty(), item.category.orEmpty())
+                .any { it.contains(q, ignoreCase = true) } ||
+                item.tags.any { it.contains(q, ignoreCase = true) } ||
+                item.capabilities.any { it.id.contains(q, ignoreCase = true) }
+        }
+    }
+
+    fun filter(category: String? = null, availability: ConnectorAvailability? = null): List<ConnectorMeta> =
+        meta.value.filter { item ->
+            (category == null || item.category.equals(category, ignoreCase = true)) &&
+                (availability == null || item.availability == availability)
+        }
+
+    fun getCapabilities(id: String): List<ConnectorCapability> =
+        get(id)?.meta()?.capabilities.orEmpty()
+
+    fun getConnectionState(id: String): ConnectorState? = get(id)?.state()?.value
+
+    fun getAuthenticationType(id: String): ConnectorAuthenticationType? =
+        get(id)?.meta()?.authenticationType
+
+    fun getRequiredPermissions(id: String): List<ConnectorPermissionLevel> =
+        get(id)?.meta()?.capabilities.orEmpty().map { it.permission }.distinct()
 
     /** Convenience: connect every registered connector in parallel.
      *  Failures are isolated per connector (one bad connect does not

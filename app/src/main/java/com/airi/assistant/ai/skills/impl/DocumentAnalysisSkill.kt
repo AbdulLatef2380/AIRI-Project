@@ -154,7 +154,12 @@ class DocumentAnalysisSkill(
                 page.close()
                 bitmap
             }
-            val result = pages.joinToString("\n\n") { recognize(it, language) }
+            val result = buildString {
+                pages.forEachIndexed { index, bitmap ->
+                    if (index > 0) append("\n\n")
+                    append(recognize(bitmap, language))
+                }
+            }
             pages.forEach { it.recycle() }
             renderer.close(); descriptor.close(); temp.delete()
             result

@@ -126,6 +126,8 @@
     <string name="pick_file">Pick file</string>
     <string name="take_photo">Take photo</string>
     <string name="photo_captured">Photo captured</string>
+    <string name="camera_permission_denied">Camera permission was denied</string>
+    <string name="no_recent_files">No recent files</string>
     <string name="menu">Menu</string>
     <string name="app_agent_title">AIRI • Assistant</string>
     <!--

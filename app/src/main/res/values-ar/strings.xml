@@ -312,6 +312,8 @@
     <!-- Take photo / camera -->
     <string name="take_photo">التقاط صورة</string>
     <string name="photo_captured">تم التقاط الصورة</string>
+    <string name="camera_permission_denied">تم رفض إذن الكاميرا</string>
+    <string name="no_recent_files">لا توجد ملفات حديثة</string>
     <!-- Sign in / account -->
     <string name="sign_in">تسجيل الدخول</string>
     <string name="create_account">إنشاء حساب</string>

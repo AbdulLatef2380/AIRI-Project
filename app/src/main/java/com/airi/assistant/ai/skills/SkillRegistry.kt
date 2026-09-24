@@ -48,170 +48,41 @@ class SkillRegistry(private val context: Context) {
     }
 
     private fun registerOrchestrationDescriptors() {
-        val descriptors = listOf(
-            // ── Official skills ───────────────────────────────────────────────
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "web_search",
-                displayName = "Web Search",
-                description = "Search the web for current information, news, facts",
-                keywords    = listOf("search", "find", "look up", "google", "web", "internet", "news", "latest", "what is", "who is", "how to", "current"),
-                intents     = listOf("search for", "look up", "find information", "google", "web search"),
-                offlineOk   = false,
-                priorityBias = 0.80f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "website_reader",
-                displayName = "Website Reader",
-                description = "Fetch and read content from any web page URL",
-                keywords    = listOf("read", "fetch", "open url", "visit", "content from", "http", "https", "www"),
-                intents     = listOf("read page", "fetch url", "open website", "read content"),
-                offlineOk   = false,
-                priorityBias = 0.75f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "research_agent",
-                displayName = "Research Agent",
-                description = "Deep research: search multiple sources and synthesize",
-                keywords    = listOf("research", "investigate", "deep dive", "analysis", "analyze", "comprehensive", "report"),
-                intents     = listOf("research", "deep dive", "investigate topic", "write a report"),
-                offlineOk   = false,
-                priorityBias = 0.85f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "translator",
-                displayName = "Translator",
-                description = "Translate text between any languages",
-                keywords    = listOf("translate", "translation", "in french", "in spanish", "in arabic", "in german", "in chinese", "to english"),
-                intents     = listOf("translate", "how do you say", "translate to"),
-                offlineOk   = false,
-                priorityBias = 0.85f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "code_assistant",
-                displayName = "Code Assistant",
-                description = "Write, explain, review, debug, and refactor code",
-                keywords    = listOf("code", "program", "function", "class", "debug", "bug", "kotlin", "python", "javascript", "java", "implement", "refactor"),
-                intents     = listOf("write code", "debug", "explain code", "review code", "refactor"),
-                offlineOk   = false,
-                priorityBias = 0.80f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "task_planner",
-                displayName = "Task Planner",
-                description = "Break down goals into actionable step-by-step plans",
-                keywords    = listOf("plan", "planning", "roadmap", "steps", "organize", "schedule", "project", "milestone", "checklist"),
-                intents     = listOf("plan", "create roadmap", "break down task", "organize project"),
-                offlineOk   = false,
-                priorityBias = 0.75f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "memory_manager",
-                displayName = "Memory Manager",
-                description = "Search, recall, and save information to persistent memory",
-                keywords    = listOf("remember", "recall", "memory", "save to memory", "what did i", "do you remember", "previously"),
-                intents     = listOf("remember", "recall from memory", "save to memory"),
-                offlineOk   = true,
-                priorityBias = 0.70f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "document_reader",
-                displayName = "Document Reader",
-                description = "Read and extract text from documents on device",
-                keywords    = listOf("read document", "open file", "document", "pdf", "text file", "read file", "content of"),
-                intents     = listOf("read document", "open file", "extract text"),
-                offlineOk   = true,
-                priorityBias = 0.70f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "file_manager",
-                displayName = "File Manager",
-                description = "List, search, and inspect files in device storage",
-                keywords    = listOf("files", "folder", "directory", "storage", "downloads", "documents", "list files", "search files"),
-                intents     = listOf("list files", "find file", "show storage", "search files"),
-                offlineOk   = true,
-                priorityBias = 0.65f
-            ),
-            // ── Connector skills ──────────────────────────────────────────────
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "github_guardian",
-                displayName = "GitHub Guardian",
-                description = "Read GitHub repos, profile, stars, issues, activity",
-                keywords    = listOf("github", "repo", "repository", "commit", "code", "stars", "pull", "issue"),
-                intents     = listOf("check github", "show repos", "read code", "list issues"),
-                offlineOk   = false,
-                connectorIds = listOf("github"),
-                priorityBias = 0.75f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "gmail_assistant",
-                displayName = "Gmail Assistant",
-                description = "Read, summarize, and manage Gmail emails",
-                keywords    = listOf("email", "gmail", "inbox", "mail", "message", "unread", "draft"),
-                intents     = listOf("read email", "check inbox", "summarize email", "send mail"),
-                offlineOk   = false,
-                connectorIds = listOf("google"),
-                priorityBias = 0.80f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "drive_search",
-                displayName = "Drive Search",
-                description = "Search and retrieve Google Drive files",
-                keywords    = listOf("drive", "file", "document", "spreadsheet", "folder", "cloud storage"),
-                intents     = listOf("find file", "search drive", "open document", "list files"),
-                offlineOk   = false,
-                connectorIds = listOf("google"),
-                priorityBias = 0.70f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "calendar_events",
-                displayName = "Calendar Events",
-                description = "Check and create Google Calendar events and schedule",
-                keywords    = listOf("calendar", "event", "meeting", "schedule", "appointment", "tomorrow", "today"),
-                intents     = listOf("check calendar", "schedule meeting", "what do I have", "upcoming events"),
-                offlineOk   = false,
-                connectorIds = listOf("google"),
-                permissions  = listOf(Manifest.permission.READ_CALENDAR),
-                priorityBias = 0.85f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "telegram_messenger",
-                displayName = "Telegram Messenger",
-                description = "Send Telegram messages and notifications",
-                keywords    = listOf("telegram", "message", "notify", "send", "chat"),
-                intents     = listOf("send telegram", "message someone", "notify via telegram"),
-                offlineOk   = false,
-                connectorIds = listOf("telegram"),
-                priorityBias = 0.65f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "alarm_tool",
-                displayName = "Alarm & Reminder",
-                description = "Set alarms, timers, and reminders",
-                keywords    = listOf("alarm", "reminder", "timer", "wake", "alert", "notify"),
-                intents     = listOf("set alarm", "remind me", "wake me up", "set timer"),
-                offlineOk   = true,
-                priorityBias = 0.90f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "search_tool",
-                displayName = "Web Search",
-                description = "Search the web for current information",
-                keywords    = listOf("search", "find", "look up", "google", "web", "internet", "news", "latest"),
-                intents     = listOf("search for", "look up", "find information", "what is"),
-                offlineOk   = false,
-                priorityBias = 0.70f
-            ),
-            AiriSkillOrchestrator.SkillDescriptor(
-                skillId     = "notes_tool",
-                displayName = "Notes",
-                description = "Create and manage notes",
-                keywords    = listOf("note", "write down", "save", "remember", "jot"),
-                intents     = listOf("take note", "save note", "write note", "remember this"),
-                offlineOk   = true,
-                priorityBias = 0.75f
+        // OfficialSkillLibrary is the canonical source. A second hand-written
+        // descriptor list previously caused catalog-only IDs and omitted batches.
+        OfficialSkillLibrary.ALL.forEach { entry ->
+            val manifest = entry.manifest
+            val connectorIds = manifest.dependencies
+                .filter { it.startsWith("connector:") }
+                .map { it.removePrefix("connector:") }
+            val keywords = (manifest.tags +
+                manifest.id.replace('_', ' ').split(' ') +
+                manifest.name.split(' '))
+                .map { it.trim().lowercase() }
+                .filter { it.length > 2 }
+                .distinct()
+            AiriSkillOrchestrator.register(
+                AiriSkillOrchestrator.SkillDescriptor(
+                    skillId = manifest.id,
+                    displayName = manifest.displayName,
+                    description = manifest.description,
+                    keywords = keywords,
+                    intents = manifest.examples + listOf(
+                        manifest.displayName,
+                        manifest.id.replace('_', ' ')
+                    ),
+                    offlineOk = manifest.modelAccess == SkillModelAccess.NONE &&
+                        manifest.category !in setOf("SEARCH", "COMMUNICATION", "DATA"),
+                    connectorIds = connectorIds,
+                    permissions = manifest.permissions,
+                    priorityBias = when (manifest.riskLevel) {
+                        SkillRiskLevel.LOW -> 0.70f
+                        SkillRiskLevel.MEDIUM -> 0.60f
+                        SkillRiskLevel.HIGH, SkillRiskLevel.CRITICAL -> 0.50f
+                    }
+                )
             )
-        )
-        descriptors.forEach { AiriSkillOrchestrator.register(it) }
+        }
     }
 
     fun isSkillEnabled(skillName: String): Boolean =
@@ -222,31 +93,16 @@ class SkillRegistry(private val context: Context) {
     }
 
     fun getAvailableSkills(): List<AiriSkill> {
-        val skills = mutableListOf<AiriSkill>()
-
-        // ── Always-available official skills ─────────────────────────────────
-        if (isSkillEnabled("web_search"))       skills.add(WebSearchSkill(context))
-        if (isSkillEnabled("website_reader"))   skills.add(WebsiteReaderSkill(context))
-        if (isSkillEnabled("research_agent"))   skills.add(ResearchAgentSkill(context))
-        if (isSkillEnabled("translator"))       skills.add(TranslatorSkill(context))
-        if (isSkillEnabled("code_assistant"))   skills.add(CodeAssistantSkill(context))
-        if (isSkillEnabled("task_planner"))     skills.add(TaskPlannerSkill(context))
-        if (isSkillEnabled("memory_manager"))   skills.add(MemoryManagerSkill(context))
-        if (isSkillEnabled("document_reader"))  skills.add(DocumentReaderSkill(context))
-        if (isSkillEnabled("file_manager"))     skills.add(FileManagerSkill(context))
-
-        // ── Connector-backed skills ───────────────────────────────────────────
-        if (secureStorage.isGithubConnected() && isSkillEnabled("github_guardian")) {
-            skills.add(GithubGuardianSkill(context))
-        }
-        if (secureStorage.isTelegramConnected() && isSkillEnabled("telegram_messenger")) {
-            skills.add(TelegramMessengerSkill(context))
-        }
-        if (secureStorage.isGoogleConnected()) {
-            if (isSkillEnabled("gmail_assistant")) skills.add(GmailAssistantSkill(context))
-            if (isSkillEnabled("drive_search"))    skills.add(DriveSearchSkill(context))
-            if (isSkillEnabled("calendar_events")) skills.add(CalendarEventsSkill(context))
-        }
+        // OfficialSkillLibrary is the single runtime source. Every official
+        // manifest has a factory, so discovery, enablement, routing, tool
+        // schemas, and execution use one canonical ID set.
+        val skills = OfficialSkillLibrary.ALL
+            .filter { entry ->
+                isSkillEnabled(entry.manifest.id) &&
+                    areRuntimeDependenciesAvailable(entry.manifest.dependencies)
+            }
+            .mapNotNull { entry -> runCatching { entry.factory(context) }.getOrNull() }
+            .toMutableList()
 
         // ── Custom / marketplace-installed skills (Phase B fix) ───────────────
         // Without this block, installed marketplace skills were listed in the system
@@ -262,6 +118,16 @@ class SkillRegistry(private val context: Context) {
         return skills
     }
 
+    private fun areRuntimeDependenciesAvailable(dependencies: List<String>): Boolean =
+        dependencies.filter { it.startsWith("connector:") }.all { dependency ->
+            when (dependency.removePrefix("connector:")) {
+                "github" -> secureStorage.isGithubConnected()
+                "telegram" -> secureStorage.isTelegramConnected()
+                "google" -> secureStorage.isGoogleConnected()
+                else -> false
+            }
+        }
+
     data class SkillInfo(
         val name:         String,
         val description:  String,
@@ -270,8 +136,14 @@ class SkillRegistry(private val context: Context) {
         val version:      String       = "1.0.0",
         val dependencies: List<String> = emptyList(),
         val author:       String       = "builtin",
-        val id:           String       = name
+        val id:           String       = name,
+        /** Whether execution stays on-device or requires a remote service. */
+        val executionKind: ExecutionKind = ExecutionKind.LOCAL,
+        /** Human-readable Android/service permissions shown before enabling. */
+        val requiredPermissions: List<String> = emptyList()
     )
+
+    enum class ExecutionKind { LOCAL, CLOUD }
 
     // ── Version registry (persisted in SharedPreferences) ─────────────────────
 
@@ -446,6 +318,59 @@ class SkillRegistry(private val context: Context) {
     fun isCustomSkillAvailable(skill: CustomSkill): Boolean =
         isSkillEnabled(skill.id) && hasRunnableEndpoint(skill)
 
+    /** Canonical discovery API used by UI and planners; callers must not maintain parallel lists. */
+    fun findById(skillId: String): SkillInfo? =
+        getAllSkillInfos().firstOrNull { it.id == skillId || it.name == skillId }
+
+    fun search(query: String): List<SkillInfo> {
+        val normalized = query.trim()
+        if (normalized.isBlank()) return getAllSkillInfos()
+        return getAllSkillInfos().filter { info ->
+            info.id.contains(normalized, ignoreCase = true) ||
+                info.name.contains(normalized, ignoreCase = true) ||
+                info.description.contains(normalized, ignoreCase = true)
+        }
+    }
+
+    fun enabledSkills(): List<SkillInfo> = getAllSkillInfos().filter { it.isEnabled }
+
+    fun connectedSkills(): List<SkillInfo> = getAllSkillInfos().filter { it.isConnected }
+
+    fun byCategory(category: String): List<SkillInfo> {
+        val normalized = category.trim()
+        if (normalized.isBlank() || normalized.equals("ALL", ignoreCase = true)) return getAllSkillInfos()
+        return getAllSkillInfos().filter { info ->
+            OfficialSkillLibrary.manifestFor(info.id)
+                ?.category
+                ?.equals(normalized, ignoreCase = true) == true
+        }
+    }
+
+    fun requiredCapabilities(skillId: String): SkillCapabilitySummary? {
+        val manifest = OfficialSkillLibrary.manifestFor(skillId) ?: return null
+        return SkillCapabilitySummary(
+            skillId = manifest.id,
+            permissions = manifest.permissions,
+            tools = manifest.tools.map { it.name },
+            dependencies = manifest.dependencies,
+            riskLevel = manifest.riskLevel,
+            requiresConfirmation = manifest.requiresConfirmation,
+            supportsStreaming = manifest.supportsStreaming,
+            supportsAttachments = manifest.supportsAttachments
+        )
+    }
+
+    data class SkillCapabilitySummary(
+        val skillId: String,
+        val permissions: List<String>,
+        val tools: List<String>,
+        val dependencies: List<String>,
+        val riskLevel: SkillRiskLevel,
+        val requiresConfirmation: Boolean,
+        val supportsStreaming: Boolean,
+        val supportsAttachments: Boolean
+    )
+
     private fun isValidDynamicManifest(manifest: SkillManifest): Boolean =
         manifest.id.matches(Regex("^[a-z][a-z0-9_-]{2,63}$")) &&
             manifest.name.trim().length in 3..80 &&
@@ -486,22 +411,28 @@ class SkillRegistry(private val context: Context) {
     }
 
     fun getAllSkillInfos(): List<SkillInfo> = buildList {
-        // ── Always-available official skills ─────────────────────────────────
-        add(SkillInfo("web_search",      "Search the web for current information",           isConnected = true,  isEnabled = isSkillEnabled("web_search"),      version = "1.1.0", author = "AIRI Official"))
-        add(SkillInfo("website_reader",  "Fetch and read content from web pages",            isConnected = true,  isEnabled = isSkillEnabled("website_reader"),  version = "1.0.0", author = "AIRI Official"))
-        add(SkillInfo("research_agent",  "Deep research using multiple web sources",         isConnected = true,  isEnabled = isSkillEnabled("research_agent"),  version = "1.0.0", author = "AIRI Official"))
-        add(SkillInfo("translator",      "Translate text between any languages",             isConnected = true,  isEnabled = isSkillEnabled("translator"),      version = "1.0.0", author = "AIRI Official"))
-        add(SkillInfo("code_assistant",  "Write, explain, review, and debug code",          isConnected = true,  isEnabled = isSkillEnabled("code_assistant"),  version = "1.0.0", author = "AIRI Official"))
-        add(SkillInfo("task_planner",    "Break down goals into step-by-step plans",        isConnected = true,  isEnabled = isSkillEnabled("task_planner"),    version = "1.0.0", author = "AIRI Official"))
-        add(SkillInfo("memory_manager",  "Search and save to AIRI's persistent memory",     isConnected = true,  isEnabled = isSkillEnabled("memory_manager"),  version = "1.0.0", author = "AIRI Official"))
-        add(SkillInfo("document_reader", "Read text documents stored on device",            isConnected = true,  isEnabled = isSkillEnabled("document_reader"), version = "1.0.0", author = "AIRI Official"))
-        add(SkillInfo("file_manager",    "List and search files in device storage",         isConnected = true,  isEnabled = isSkillEnabled("file_manager"),    version = "1.0.0", author = "AIRI Official"))
-        // ── Connector-backed skills ───────────────────────────────────────────
-        add(SkillInfo("github_guardian",    "Check GitHub repositories and profile",        isConnected = secureStorage.isGithubConnected(),   isEnabled = isSkillEnabled("github_guardian"),    author = "AIRI Official"))
-        add(SkillInfo("telegram_messenger", "Send messages via Telegram bot",               isConnected = secureStorage.isTelegramConnected(), isEnabled = isSkillEnabled("telegram_messenger"), author = "AIRI Official"))
-        add(SkillInfo("gmail_assistant",    "Read and summarize Gmail emails",              isConnected = secureStorage.isGoogleConnected(),   isEnabled = isSkillEnabled("gmail_assistant"),    author = "AIRI Official"))
-        add(SkillInfo("drive_search",       "Search files in Google Drive",                 isConnected = secureStorage.isGoogleConnected(),   isEnabled = isSkillEnabled("drive_search"),       author = "AIRI Official"))
-        add(SkillInfo("calendar_events",    "Get upcoming Google Calendar events",          isConnected = secureStorage.isGoogleConnected(),   isEnabled = isSkillEnabled("calendar_events"),    author = "AIRI Official"))
+        // ── Official catalog is the single discovery source ────────────────────
+        addAll(OfficialSkillLibrary.ALL.map { entry ->
+            val dependencies = entry.manifest.dependencies
+            val connected = when {
+                "connector:github" in dependencies -> secureStorage.isGithubConnected()
+                "connector:telegram" in dependencies -> secureStorage.isTelegramConnected()
+                "connector:google" in dependencies -> secureStorage.isGoogleConnected()
+                else -> true
+            }
+            SkillInfo(
+                id = entry.manifest.id,
+                name = entry.manifest.displayName,
+                description = entry.manifest.description,
+                isConnected = connected,
+                isEnabled = isSkillEnabled(entry.manifest.id),
+                version = entry.manifest.version,
+                dependencies = entry.manifest.dependencies,
+                author = entry.manifest.author,
+                executionKind = if (entry.manifest.modelAccess == SkillModelAccess.NONE) ExecutionKind.LOCAL else ExecutionKind.CLOUD,
+                requiredPermissions = entry.manifest.permissions
+            )
+        })
         // ── Custom / user-installed skills ────────────────────────────────────
         addAll(customSkillRepository.getAllSkills().map { skill ->
             SkillInfo(

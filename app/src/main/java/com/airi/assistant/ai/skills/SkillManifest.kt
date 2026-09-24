@@ -136,7 +136,8 @@ data class SkillManifest(
                 })
             }
         }
-        return JSONObject().apply {
+        return try {
+            JSONObject().apply {
         put("id",                   id)
         put("name",                 name)
         put("description",          description)
@@ -175,6 +176,11 @@ data class SkillManifest(
         put("requires_confirmation", requiresConfirmation)
         put("supports_streaming", supportsStreaming)
         put("supports_attachments", supportsAttachments)
+            }
+        } catch (error: Exception) {
+            println("SkillManifest.toJson failed: ${error::class.java.name}: ${error.message}")
+            error.printStackTrace()
+            throw error
         }
     }
 

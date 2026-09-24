@@ -180,6 +180,8 @@ data class SkillManifest(
 
     companion object {
         fun fromJson(json: JSONObject): SkillManifest {
+            // Normalize objects created by different platform org.json versions.
+            val normalized = JSONObject(json.toString())
             fun parseTools(arr: JSONArray?): List<ToolDef> {
                 if (arr == null) return emptyList()
                 return (0 until arr.length()).map { i ->
@@ -215,37 +217,45 @@ data class SkillManifest(
 
             fun parseStringList(arr: JSONArray?): List<String> {
                 if (arr == null) return emptyList()
-                return (0 until arr.length()).map { arr.getString(it) }
+                return buildList(arr.length()) {
+                    for (index in 0 until arr.length()) add(arr.optString(index))
+                }
             }
 
             fun parseStringMap(obj: JSONObject?): Map<String, String> {
                 if (obj == null) return emptyMap()
-                return obj.keys().asSequence().associateWith { key -> obj.optString(key) }
+                val values = linkedMapOf<String, String>()
+                val keys = obj.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    values[key] = obj.optString(key)
+                }
+                return values
             }
 
             return SkillManifest(
-                id                = json.getString("id"),
-                name              = json.getString("name"),
+                id                = normalized.getString("id"),
+                name              = normalized.getString("name"),
                 description       = json.optString("description"),
                 version           = json.optString("version", "1.0.0"),
                 author            = json.optString("author", "Unknown"),
                 category          = json.optString("category", "UTILITY"),
                 isOfficial        = json.optBoolean("is_official"),
                 iconEmoji         = json.optString("icon_emoji", ""),
-                permissions       = parseStringList(json.optJSONArray("permissions")),
+                permissions       = parseStringList(normalized.optJSONArray("permissions")),
                 memoryAccess      = runCatching {
-                    SkillMemoryAccess.valueOf(json.optString("memory_access", "NONE").uppercase())
+                    SkillMemoryAccess.valueOf(normalized.optString("memory_access", "NONE").uppercase())
                 }.getOrDefault(SkillMemoryAccess.NONE),
                 modelAccess       = runCatching {
-                    SkillModelAccess.valueOf(json.optString("model_access", "NONE").uppercase())
+                    SkillModelAccess.valueOf(normalized.optString("model_access", "NONE").uppercase())
                 }.getOrDefault(SkillModelAccess.NONE),
-                dependencies      = parseStringList(json.optJSONArray("dependencies")),
-                tools             = parseTools(json.optJSONArray("tools")),
+                dependencies      = parseStringList(normalized.optJSONArray("dependencies")),
+                tools             = parseTools(normalized.optJSONArray("tools")),
                 configuration     = parseConfig(json.optJSONObject("configuration")),
                 entrypoint        = json.optString("entrypoint").ifBlank { null },
                 repositoryUrl     = json.optString("repository_url").ifBlank { null },
                 license           = json.optString("license", "MIT"),
-                tags              = parseStringList(json.optJSONArray("tags")),
+                tags              = parseStringList(normalized.optJSONArray("tags")),
                 // Extended fields
                 airiMinVersion    = json.optString("airi_min_version", "1.0.0"),
                 airiTargetVersion = json.optString("airi_target_version", "1.0.0"),
@@ -258,11 +268,11 @@ data class SkillManifest(
                 homepage          = json.optString("homepage").ifBlank { null },
                 endpoint          = json.optString("endpoint").ifBlank { null },
                 displayName       = json.optString("display_name", json.optString("name")),
-                inputSchema       = parseStringMap(json.optJSONObject("input_schema")),
-                outputSchema      = parseStringMap(json.optJSONObject("output_schema")),
+                inputSchema       = parseStringMap(normalized.optJSONObject("input_schema")),
+                outputSchema      = parseStringMap(normalized.optJSONObject("output_schema")),
                 instructions      = json.optString("instructions", json.optString("description")),
-                examples          = parseStringList(json.optJSONArray("examples")),
-                limitations      = parseStringList(json.optJSONArray("limitations")),
+                examples          = parseStringList(normalized.optJSONArray("examples")),
+                limitations      = parseStringList(normalized.optJSONArray("limitations")),
                 riskLevel         = runCatching { SkillRiskLevel.valueOf(json.optString("risk_level", "LOW").uppercase()) }.getOrDefault(SkillRiskLevel.LOW),
                 requiresConfirmation = json.optBoolean("requires_confirmation", false),
                 supportsStreaming = json.optBoolean("supports_streaming", false),

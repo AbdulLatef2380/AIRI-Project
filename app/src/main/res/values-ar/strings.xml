@@ -461,6 +461,8 @@
     <string name="model_settings_icon">إعدادات النموذج</string>
     <string name="expand">توسيع</string>
     <string name="collapse">طي</string>
+    <string name="show_more">عرض المزيد</string>
+    <string name="show_less">عرض أقل</string>
     <!-- File/image pick feedback -->
     <string name="file_selected_name">تم اختيار الملف: %1$s</string>
     <string name="image_selected_vision_soon">إرفاق الصور غير مُفعَّل في هذه النسخة</string>

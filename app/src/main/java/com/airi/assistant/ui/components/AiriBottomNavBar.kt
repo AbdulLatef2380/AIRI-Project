@@ -1,11 +1,5 @@
 package com.airi.assistant.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -83,11 +77,7 @@ fun AiriBottomNavBar(
         AiriNavItem(AiriNavTab.NEW,      Icons.Outlined.Forum, R.string.nav_new),
     )
 
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(220)) + slideInVertically(tween(220)) { it },
-        exit  = fadeOut(tween(180)) + slideOutVertically(tween(180)) { it }
-    ) {
+    if (visible) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

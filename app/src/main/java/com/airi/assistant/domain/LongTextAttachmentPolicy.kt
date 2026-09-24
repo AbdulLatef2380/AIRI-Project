@@ -8,9 +8,11 @@ object LongTextAttachmentPolicy {
     const val AUTO_CONVERT_CHAR_THRESHOLD = 3_000
     const val AUTO_CONVERT_LINE_THRESHOLD = 40
 
+    fun logicalLineCount(text: String): Int = text.lineSequence().count()
+
     fun shouldAutoConvert(text: String): Boolean =
         text.length >= AUTO_CONVERT_CHAR_THRESHOLD ||
-            text.lineSequence().count() >= AUTO_CONVERT_LINE_THRESHOLD
+            logicalLineCount(text) > AUTO_CONVERT_LINE_THRESHOLD
 
     fun utf8SizeBytes(text: String): Long =
         text.toByteArray(Charsets.UTF_8).size.toLong()

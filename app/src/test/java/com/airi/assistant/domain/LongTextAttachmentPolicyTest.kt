@@ -13,12 +13,12 @@ class LongTextAttachmentPolicyTest {
         assertTrue(LongTextAttachmentPolicy.shouldAutoConvert("x".repeat(3_000)))
     }
 
-    @Test fun fortyLinesConvertEvenWhenShort() {
-        assertTrue(LongTextAttachmentPolicy.shouldAutoConvert((1..40).joinToString("\n") { "line" }))
+    @Test fun fortyLinesStayInlineWhenShort() {
+        assertFalse(LongTextAttachmentPolicy.shouldAutoConvert((1..40).joinToString("\n") { "line" }))
     }
 
-    @Test fun thirtyNineLinesStayInlineWhenShort() {
-        assertFalse(LongTextAttachmentPolicy.shouldAutoConvert((1..39).joinToString("\n") { "line" }))
+    @Test fun fortyOneLinesConvertWhenShort() {
+        assertTrue(LongTextAttachmentPolicy.shouldAutoConvert((1..41).joinToString("\n") { "line" }))
     }
 
     @Test fun byteSizeUsesUtf8NotCharacterCount() {

@@ -71,7 +71,7 @@ class ReminderPlanningSkill(private val context: Context) : AiriSkill {
     }
 
     private fun preview(type: String, value: String, message: String) = SkillResult(
-        true, "Preview: $type at $value — $message. Confirm explicitly to schedule.", skillId = skillId,
+        true, "Preview: $type at $value — $message. Confirm explicitly to schedule.", skillName = skillId,
         metadata = mapOf("scheduled" to "false", "requires_confirmation" to "true", "type" to type, "value" to value)
     )
 

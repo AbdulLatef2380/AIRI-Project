@@ -25,7 +25,13 @@ class SkillManifestMetadataTest {
             supportsAttachments = true
         )
 
-        val restored = SkillManifest.fromJson(manifest.toJson())
+        val restored = try {
+            SkillManifest.fromJson(manifest.toJson())
+        } catch (error: Throwable) {
+            println("SkillManifestMetadataTest round-trip failed: ${error::class.java.name}: ${error.message}")
+            error.printStackTrace()
+            throw error
+        }
         assertEquals(manifest.displayName, restored.displayName)
         assertEquals(manifest.inputSchema, restored.inputSchema)
         assertEquals(manifest.outputSchema, restored.outputSchema)

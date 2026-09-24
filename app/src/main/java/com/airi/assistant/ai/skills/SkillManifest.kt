@@ -180,8 +180,9 @@ data class SkillManifest(
 
     companion object {
         fun fromJson(json: JSONObject): SkillManifest {
-            // Normalize objects created by different platform org.json versions.
-            val normalized = JSONObject(json.toString())
+            // The caller already provides the platform JSONObject; parse it directly
+            // to preserve Android's native array/object representation.
+            val normalized = json
             fun parseTools(arr: JSONArray?): List<ToolDef> {
                 if (arr == null) return emptyList()
                 return (0 until arr.length()).map { i ->

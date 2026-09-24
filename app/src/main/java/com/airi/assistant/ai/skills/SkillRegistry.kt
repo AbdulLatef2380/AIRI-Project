@@ -61,7 +61,7 @@ class SkillRegistry(private val context: Context) {
                 .map { it.trim().lowercase() }
                 .filter { it.length > 2 }
                 .distinct()
-            register(
+            AiriSkillOrchestrator.register(
                 AiriSkillOrchestrator.SkillDescriptor(
                     skillId = manifest.id,
                     displayName = manifest.displayName,

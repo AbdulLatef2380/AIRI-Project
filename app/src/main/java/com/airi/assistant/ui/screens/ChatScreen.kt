@@ -20,12 +20,7 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.unit.dp
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.ui.unit.Dp
-import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -72,17 +67,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.core.content.ContextCompat
 import com.airi.assistant.R
 import com.airi.assistant.WakeWordDispatcher
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.core.VoiceManager
 import com.airi.assistant.domain.retention.RetentionManager
+import com.airi.assistant.domain.LongTextAttachmentPolicy
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.*
 import com.airi.core.attachments.AttachmentPolicy
@@ -201,6 +192,7 @@ fun ChatScreen(
     val agentMode     by viewModel.agentMode.collectAsState()
     val smartReplies  by viewModel.smartReplies.collectAsState()
     val attachmentDispatchInFlight by viewModel.attachmentDispatchInFlight.collectAsState()
+    val longTextConversionInFlight by viewModel.longTextConversionInFlight.collectAsState()
     val dailyCreditsRemaining  by viewModel.dailyCreditsRemaining.collectAsState()
     val isProPlan = ServiceLocator.subscriptionManager.isPro()
     // : real-time network state — drives offline banner
@@ -786,11 +778,7 @@ fun ChatScreen(
                         onClick = { showTaskInfo = true }
                     )
                     // Activity feed only visible while agent is executing
-                AnimatedVisibility(
-                    visible = agentState.isWorking,
-                    enter   = fadeIn() + expandVertically(),
-                    exit    = fadeOut() + shrinkVertically()
-                ) {
+                if (agentState.isWorking) {
                     com.airi.assistant.ui.activity.ActivityFeedComposable(
                         modifier        = Modifier.fillMaxWidth(),
                         compactMaxItems = 3,
@@ -802,11 +790,7 @@ fun ChatScreen(
                 // Attachment chips are now rendered inside the input pill (AiriChatInputBar).
                 // : "Compressing history…" chip shown while ConversationSummarizer runs.
                 // Non-blocking: chat remains usable. Chip auto-dismisses when done.
-                AnimatedVisibility(
-                    visible = isSummarizing,
-                    enter   = fadeIn() + slideInVertically { it },
-                    exit    = fadeOut() + slideOutVertically { it }
-                ) {
+                if (isSummarizing) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -839,11 +823,7 @@ fun ChatScreen(
                 }
 
                 // Memory acceptance banner
-                AnimatedVisibility(
-                    visible = pendingSummary != null,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut()
-                ) {
+                if (pendingSummary != null) {
                     pendingSummary?.let { summary ->
                         MemoryAcceptanceBanner(
                             summary = summary,
@@ -857,6 +837,7 @@ fun ChatScreen(
                     modelState    = modelState,
                     isGenerating  = agentState.isWorking,
                     isDispatchingAttachment = attachmentDispatchInFlight,
+                    isLongTextConversionInFlight = longTextConversionInFlight,
                     voiceInput    = voiceInput,
                     voicePartial  = partialVoiceInput,
                     smartReplies  = smartReplies,
@@ -1090,12 +1071,8 @@ fun ChatScreen(
                     com.airi.assistant.ui.debug.DebugOverlay()
                 }
             }
-            AnimatedVisibility(
-                visible  = systemIntegrityFailed,
-                enter    = slideInVertically { -it } + fadeIn(),
-                exit     = slideOutVertically { -it } + fadeOut(),
-                modifier = Modifier.align(Alignment.TopCenter)
-            ) {
+            if (systemIntegrityFailed) {
+                Box(modifier = Modifier.align(Alignment.TopCenter)) {
                 Surface(color = Color(0xFFFF4444), modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
@@ -1109,15 +1086,12 @@ fun ChatScreen(
                     }
                 }
             }
+            }
 
             // : Offline mode banner — shown when device has no internet.
             // Informs user that cloud models are unavailable and local model is active.
-            AnimatedVisibility(
-                visible  = !isOnline,
-                enter    = slideInVertically { -it } + fadeIn(),
-                exit     = slideOutVertically { -it } + fadeOut(),
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = if (systemIntegrityFailed) 48.dp else 0.dp)
-            ) {
+            if (!isOnline) {
+                Box(modifier = Modifier.align(Alignment.TopCenter).padding(top = if (systemIntegrityFailed) 48.dp else 0.dp)) {
                 Surface(
                     color    = Color(0xFF1A1A2E),
                     modifier = Modifier.fillMaxWidth()
@@ -1143,6 +1117,7 @@ fun ChatScreen(
                     }
                 }
             }
+            }
 
             // Context Reset Warning Banner — only shown in debug/developer mode.
             // In production builds this is an implementation detail logged to audit log only.
@@ -1154,14 +1129,8 @@ fun ChatScreen(
                 !isOnline                          -> 48.dp
                 else                               -> 0.dp
             }
-            AnimatedVisibility(
-                visible  = showContextResetBanner,
-                enter    = slideInVertically { -it } + fadeIn(),
-                exit     = slideOutVertically { -it } + fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = topOffset)
-            ) {
+            if (showContextResetBanner) {
+                Box(modifier = Modifier.align(Alignment.TopCenter).padding(top = topOffset)) {
                 Surface(
                     color    = Color(0xFFB45309),
                     modifier = Modifier.fillMaxWidth()
@@ -1198,6 +1167,7 @@ fun ChatScreen(
                 }
             }
         }
+    }
     }
 
     // History panel — slides from start side
@@ -1430,12 +1400,24 @@ private fun AiriChatTopBar(
             containerColor = AiriTheme.background.copy(alpha = 0.92f)
         ),
         navigationIcon = {
-            Text(
-                text = "AIRI",
-                color = AiriTheme.onBackground,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(start = 16.dp),
-            )
+            Box(
+                modifier = Modifier
+                    .padding(start = 12.dp)
+                    .clip(AIRIShapes.pill)
+                    .background(if (planLabel == "Pro") SemanticSuccess.copy(alpha = 0.12f) else AiriTheme.surfaceVariant)
+                    .border(0.5.dp, if (planLabel == "Pro") SemanticSuccess.copy(alpha = 0.40f) else AiriTheme.outline, AIRIShapes.pill)
+                    .clickable { onPointsClick() }
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Icon(Icons.Outlined.Bolt, contentDescription = null,
+                        tint = if (planLabel == "Pro") SemanticSuccess else AiriTheme.onSurfaceVariant,
+                        modifier = Modifier.size(11.dp))
+                    Text(planLabel,
+                        color = if (planLabel == "Pro") SemanticSuccess else AiriTheme.onSurface,
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp)
+                }
+            }
         },
         title = {
             // Center model selector pill
@@ -1971,7 +1953,7 @@ fun ChatMessageList(
 
     LaunchedEffect(messages.size) {
         if (isPinnedToBottom && (messages.isNotEmpty() || streamingText.isNotEmpty())) {
-            scope.launch { listState.animateScrollToItem(0) }
+            scope.launch { listState.scrollToItem(0) }
         }
         lastScrolledStreamLen = 0
     }
@@ -1998,36 +1980,14 @@ fun ChatMessageList(
                     .padding(horizontal = 28.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "idle_pulse")
-                val orbAlpha by infinite.animateFloat(
-                    initialValue = 0.14f,
-                    targetValue  = 0.32f,
-                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                        animation  = androidx.compose.animation.core.tween(2200, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-                    ),
-                    label = "idle_alpha"
-                )
-                val orbScale by infinite.animateFloat(
-                    initialValue  = 0.95f,
-                    targetValue  = 1.05f,
-                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                        animation  = androidx.compose.animation.core.tween(2800, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-                    ),
-                    label = "idle_scale"
-                )
+                val orbAlpha = 0.22f
                 Spacer(Modifier.height(28.dp))
                 Image(
                     painter = painterResource(R.mipmap.ic_launcher_foreground),
                     contentDescription = "AIRI",
                     modifier = Modifier
                         .size(28.dp)
-                        .graphicsLayer {
-                            alpha = orbAlpha
-                            scaleX = orbScale
-                            scaleY = orbScale
-                        }
+                        .graphicsLayer { alpha = orbAlpha }
                 )
                 Spacer(Modifier.height(12.dp))
                 val greetings = listOf(
@@ -2130,7 +2090,7 @@ fun ChatMessageList(
             }
             ScrollToBottomFab(
                 visible  = !isPinnedToBottom,
-                onClick  = { scope.launch { listState.animateScrollToItem(0) } },
+                onClick  = { scope.launch { listState.scrollToItem(0) } },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp)
             )
         }
@@ -2176,7 +2136,7 @@ private fun FinalAnswerVerificationBadge(state: FinalAnswerUiState) {
                 modifier = Modifier.size(18.dp)
             )
         }
-        AnimatedVisibility(visible = expanded) {
+        if (expanded) {
             Column(Modifier.padding(start = 24.dp, top = 6.dp)) {
                 if (state.details.isEmpty()) {
                     Text(
@@ -2239,12 +2199,15 @@ fun UserBubble(
     val context = LocalContext.current
     val haptic  = LocalHapticFeedback.current
 
-    val transition = remember {
-        androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
-    }
-
     var showContextMenu by remember { mutableStateOf(false) }
     var isSelectingText by remember { mutableStateOf(false) }
+    var isExpanded by rememberSaveable(text) { mutableStateOf(false) }
+    val logicalLineCount = remember(displayText) { LongTextAttachmentPolicy.logicalLineCount(displayText) }
+    val isLongMessage = imageUri == null && logicalLineCount > 15
+    val renderedText = remember(displayText, isExpanded, isLongMessage) {
+        if (!isLongMessage || isExpanded) displayText
+        else displayText.lineSequence().take(15).joinToString("\n")
+    }
     val bubbleGesture = if (isSelectingText) {
         Modifier
     } else {
@@ -2257,26 +2220,13 @@ fun UserBubble(
         )
     }
 
-    AnimatedVisibility(
-        visibleState = transition,
-        enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) +
-                slideInHorizontally(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.NORMAL)) { it / 5 }
-    ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-            Box {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Box {
                     Column(
                         modifier = Modifier
-                            .widthIn(max = 640.dp)
-                            .then(
-                                when (ChatPresentationPolicy.classifyLength(displayText)) {
-                                    ChatPresentationPolicy.MessageLength.SHORT,
-                                    ChatPresentationPolicy.MessageLength.MEDIUM -> Modifier.wrapContentWidth(Alignment.End)
-                                    ChatPresentationPolicy.MessageLength.LONG,
-                                    ChatPresentationPolicy.MessageLength.VERY_LONG ->
-                                        Modifier.fillMaxWidth(ChatPresentationPolicy.userBubbleFraction(displayText))
-                                }
-                            )
+                            .widthIn(max = minOf(640.dp, maxWidth * 0.86f))
+                            .wrapContentWidth(Alignment.End)
                             .clip(AIRIShapes.userBubble)
                             .background(AiriTheme.surfaceVariant)
                             .then(bubbleGesture)
@@ -2314,10 +2264,26 @@ fun UserBubble(
                                 }
                             } else {
                                 BidiAwareMarkdownRenderer(
-                                    text = displayText,
+                                    text = renderedText,
                                     textColor = AiriTheme.onSurface
                                 )
                             }
+                        }
+                    }
+                    if (isLongMessage) {
+                        TextButton(
+                            onClick = { isExpanded = !isExpanded },
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                            modifier = Modifier.semantics {
+                                contentDescription = stringResource(if (isExpanded) R.string.show_less else R.string.show_more)
+                            }
+                        ) {
+                            Text(
+                                stringResource(if (isExpanded) R.string.show_less else R.string.show_more),
+                                color = CosmicAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                     }
@@ -2365,7 +2331,6 @@ fun UserBubble(
                 }
             }
         }
-    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -2410,15 +2375,7 @@ fun AiBubble(
         )
     }
 
-    val transition = remember {
-        androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
-    }
-    AnimatedVisibility(
-        visibleState = transition,
-        enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(240)) +
-                slideInVertically(animationSpec = androidx.compose.animation.core.tween(240)) { it / 5 }
-    ) {
-        Row(
+    Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
             horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.Top
@@ -2608,7 +2565,6 @@ fun AiBubble(
                 }
             }
         }
-    }
     if (showFullscreenViewer) {
         FullscreenResponseViewer(
             text = text,
@@ -2706,21 +2662,13 @@ fun AiStreamingBubble(text: String) {
 
 @Composable
 private fun AiriThinkingDots() {
-    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "airi_thinking")
     Row(
         modifier = Modifier.semantics { contentDescription = "AIRI is generating a response" }.padding(vertical = 7.dp),
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        repeat(3) { index ->
-            val alpha by transition.animateFloat(
-                initialValue = 0.28f, targetValue = 0.95f,
-                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                    animation = androidx.compose.animation.core.tween(520, delayMillis = index * 150),
-                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-                ), label = "thinking_dot_$index"
-            )
-            Box(modifier = Modifier.size(7.dp).graphicsLayer { this.alpha = alpha }.clip(CircleShape).background(CosmicAccent))
+        repeat(3) {
+            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(CosmicAccent.copy(alpha = 0.65f)))
         }
     }
 }
@@ -2743,7 +2691,31 @@ private fun AttachmentChip(
     val extension = attachment.safeDisplayName.substringAfterLast('.', "")
         .takeIf { it.isNotBlank() }
         ?.let { ".${it.uppercase()}" }
-    val subtitle = listOfNotNull(typeLabel, extension, attachment.displaySize).joinToString(" • ")
+    val lineCount by produceState<Int?>(null, attachment.uri, attachment.contentType) {
+        if (attachment.isTextual && attachment.uri != null) {
+            value = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openInputStream(attachment.uri)?.bufferedReader()?.use { reader ->
+                        var count = 1
+                        while (reader.readLine() != null) count++
+                        count
+                    }
+                }.getOrNull()
+            }
+        }
+    }
+    val subtitle = listOfNotNull(typeLabel, lineCount?.let { "$it lines" }, extension, attachment.displaySize)
+        .joinToString(" • ")
+    val openAttachment = {
+        attachment.uri?.let { uri ->
+            runCatching {
+                context.startActivity(Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, attachment.normalizedMimeType.ifBlank { "*/*" })
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                })
+            }
+        }
+    }
     Box(
         modifier = Modifier
             .width(252.dp)
@@ -2752,6 +2724,7 @@ private fun AttachmentChip(
             .clip(AIRIShapes.lg)
             .background(AiriTheme.surfaceVariant.copy(alpha = 0.96f))
             .border(1.dp, accent.copy(alpha = 0.30f), AIRIShapes.lg)
+            .clickable(enabled = attachment.uri != null, onClick = openAttachment)
             .padding(7.dp)
     ) {
         Row(
@@ -2800,6 +2773,14 @@ private fun AttachmentChip(
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop
                     )
                 }
+                if (attachment.contentType == AttachmentPolicy.ContentType.VIDEO) {
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = stringResource(R.string.workspace_preview),
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
                 val thumbModel: Any? = attachment.uri ?: attachment.bitmap
                 if (attachment.isVisualImage && thumbModel != null) {
                     AsyncImage(
@@ -2833,7 +2814,7 @@ private fun AttachmentChip(
             enabled = isRemovalEnabled,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .size(24.dp)
+                .size(48.dp)
                 .background(AiriTheme.surface.copy(alpha = 0.92f), CircleShape),
         ) {
             Icon(
@@ -2848,14 +2829,7 @@ private fun AttachmentChip(
 
 @Composable
 private fun BlinkingCursor() {
-    var cursorOn by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(500L); cursorOn = !cursorOn } }
-    AnimatedContent(
-        targetState = cursorOn,
-        transitionSpec = { fadeIn(animationSpec = androidx.compose.animation.core.tween(80)) togetherWith fadeOut(animationSpec = androidx.compose.animation.core.tween(80)) },
-        label = "cursor_blink"
-    ) { on -> Text(if (on) "▍" else " ", color = CosmicAccent.copy(0.85f), fontSize = 15.sp, lineHeight = 23.sp) }
+    Text("▍", color = CosmicAccent.copy(0.85f), fontSize = 15.sp, lineHeight = 23.sp)
 }
 
 // Input bar
@@ -2865,6 +2839,7 @@ fun AiriChatInputBar(
     modelState: ModelUiState,
     isGenerating: Boolean,
     isDispatchingAttachment: Boolean = false,
+    isLongTextConversionInFlight: Boolean = false,
     voiceInput: String,
     voicePartial: String = "",
     voiceState: VoiceSessionState = VoiceSessionState.IDLE,
@@ -2915,7 +2890,7 @@ fun AiriChatInputBar(
     // available for long text without permanently consuming the chat viewport.
     var showFullScreenEditor by rememberSaveable { mutableStateOf(false) }
     val isInferenceReady = modelState.isModelReady || modelState.isCloudReady
-    val isInteractionLocked = isGenerating || isDispatchingAttachment
+    val isInteractionLocked = isGenerating || isDispatchingAttachment || isLongTextConversionInFlight
     val canSend = (text.isNotBlank() || attachments.isNotEmpty()) && isInferenceReady && !modelState.isModelLoading && !isInteractionLocked
     val isTyping = text.isNotBlank()
     val shortcutInput = text.trimStart()
@@ -3003,15 +2978,7 @@ fun AiriChatInputBar(
         }
     }
 
-    val micPulse = remember { androidx.compose.animation.core.Animatable(1f) }
-    LaunchedEffect(voiceState) {
-        when (voiceState) {
-            VoiceSessionState.LISTENING   -> while (true) { micPulse.animateTo(1.30f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) }
-            VoiceSessionState.PROCESSING  -> while (true) { micPulse.animateTo(1.18f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOWER)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.SLOWER)) }
-            VoiceSessionState.SPEAKING    -> while (true) { micPulse.animateTo(1.22f, animationSpec = androidx.compose.animation.core.tween(700)); micPulse.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(700)) }
-            else -> micPulse.snapTo(1f)
-        }
-    }
+    val micPulse = 1f
 
     LaunchedEffect(voiceInput) {
         if (voiceInput.isNotBlank()) {
@@ -3089,11 +3056,7 @@ fun AiriChatInputBar(
     Column(modifier = Modifier.fillMaxWidth()) {
 
         // : Warning banner for 2000-3000 chars
-        AnimatedVisibility(
-            visible = showWarningBanner,
-            enter   = fadeIn() + expandVertically(),
-            exit    = fadeOut() + shrinkVertically()
-        ) {
+        if (showWarningBanner) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -3117,7 +3080,7 @@ fun AiriChatInputBar(
         }
 
         // Smart reply chips
-        AnimatedVisibility(visible = smartReplies.isNotEmpty() && !isGenerating, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+        if (smartReplies.isNotEmpty() && !isGenerating) {
             Row(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -3135,7 +3098,7 @@ fun AiriChatInputBar(
         }
 
         // Voice state banner
-        AnimatedVisibility(visible = voiceState != VoiceSessionState.IDLE, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+        if (voiceState != VoiceSessionState.IDLE) {
             val waveColor = when {
                 isVadInterrupting                           -> Color(0xFFFFB347)
                 voiceState == VoiceSessionState.LISTENING  -> Color(0xFFFF6B6B)
@@ -3201,11 +3164,7 @@ fun AiriChatInputBar(
                 }
                 Divider(color = AiriTheme.outline, thickness = 0.5.dp)
             }
-            AnimatedVisibility(
-                visible = activeSuggestions.isNotEmpty() && !isGenerating,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
+            if (activeSuggestions.isNotEmpty() && !isGenerating) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -3331,7 +3290,7 @@ fun AiriChatInputBar(
                     enabled = isInferenceReady && !isInteractionLocked,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 26.dp, max = 72.dp)
+                        .heightIn(min = 26.dp, max = 190.dp)
                         .onFocusChanged { state ->
                             // Propagate focus change upward so toolbar collapses
                             onFocusChanged(state.isFocused)
@@ -3341,7 +3300,8 @@ fun AiriChatInputBar(
                         textAlign = TextAlign.Start
                     ),
                     cursorBrush = androidx.compose.ui.graphics.SolidColor(CosmicAccent),
-                    maxLines = 3,
+                    minLines = 1,
+                    maxLines = 8,
                     decorationBox = { inner ->
                         Box {
                             if (text.isEmpty()) {
@@ -3367,10 +3327,7 @@ fun AiriChatInputBar(
             val voiceInputDescription = stringResource(R.string.voice_input)
             val connectorsDescription = stringResource(R.string.connectors_title)
             val mainActionDescription = stringResource(if (showSend) R.string.send else R.string.voice_input)
-            val mainScale = animateFloatAsState(
-                targetValue = if (showSend || isGenerating || isDispatchingAttachment) 1f else 0.95f,
-                label = "composer_action_scale"
-            ).value
+            val mainScale = if (showSend || isGenerating || isDispatchingAttachment) 1f else 0.95f
             CompositionLocalProvider(LocalLayoutDirection provides LocalLayoutDirection.current) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 6.dp, bottom = 4.dp),
@@ -3409,7 +3366,7 @@ fun AiriChatInputBar(
                                 modifier = Modifier.size(22.dp),
                             )
                         }
-                        AnimatedVisibility(visible = !isGenerating, enter = fadeIn() + expandHorizontally(), exit = fadeOut() + shrinkHorizontally()) {
+                        if (!isGenerating) {
                             Box(
                                 modifier = Modifier.size(44.dp).clip(CircleShape)
                                     .semantics {
@@ -3420,7 +3377,7 @@ fun AiriChatInputBar(
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (voiceState != VoiceSessionState.IDLE) {
-                                    Box(modifier = Modifier.size((28 * micPulse.value).dp).clip(CircleShape).background(CosmicAccent.copy(0.18f)))
+                                    Box(modifier = Modifier.size((28 * micPulse).dp).clip(CircleShape).background(CosmicAccent.copy(0.18f)))
                                 }
                                 Icon(Icons.Outlined.Mic, voiceInputDescription,
                                     tint = when (voiceState) {
@@ -3483,25 +3440,11 @@ fun AiriChatInputBar(
                                 },
                             contentAlignment = Alignment.Center
                         ) {
-                            AnimatedContent(
-                                targetState = when {
-                                    isGenerating -> "stop"
-                                    isDispatchingAttachment -> "preparing"
-                                    showSend -> "send"
-                                    else -> "live"
-                                },
-                                transitionSpec = {
-                                    (fadeIn(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) + scaleIn(initialScale = 0.7f)) togetherWith
-                                    (fadeOut(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) + scaleOut(targetScale = 0.7f))
-                                },
-                                label = "main_btn"
-                            ) { state ->
-                                when (state) {
-                                    "stop" -> Icon(Icons.Default.Stop, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
-                                    "preparing" -> CircularProgressIndicator(modifier = Modifier.size(18.dp), color = AiriTheme.onBackground, strokeWidth = 2.dp)
-                                    "send" -> Icon(Icons.Default.ArrowUpward, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
-                                    else -> Icon(Icons.Default.GraphicEq, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
-                                }
+                            when {
+                                isGenerating -> Icon(Icons.Default.Stop, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                                isDispatchingAttachment -> CircularProgressIndicator(modifier = Modifier.size(18.dp), color = AiriTheme.onBackground, strokeWidth = 2.dp)
+                                showSend -> Icon(Icons.Default.ArrowUpward, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                                else -> Icon(Icons.Default.GraphicEq, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
                             }
                         }
                     }
@@ -3536,17 +3479,6 @@ fun AiriChatInputBar(
                 }
             }
         ) {
-            // Material3 animates the sheet itself; this animates its content as it appears.
-            AnimatedVisibility(
-                visible = true,
-                enter = fadeIn(animationSpec = tween(220)) +
-                    slideInVertically(
-                        initialOffsetY = { fullHeight -> fullHeight / 12 },
-                        animationSpec = tween(260, easing = FastOutSlowInEasing)
-                    ),
-                exit = fadeOut(animationSpec = tween(120)) +
-                    shrinkVertically(animationSpec = tween(160))
-            ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -3663,7 +3595,6 @@ fun AiriChatInputBar(
                     onPickImage()
                 }
             }
-        }
         }
     }
 }
@@ -3974,20 +3905,12 @@ private fun GenerationSettingsDialog(viewModel: ChatViewModel, onDismiss: () -> 
 
 @Composable
 private fun VoiceWaveformBars(active: Boolean, color: Color, barCount: Int = 5, modifier: Modifier = Modifier) {
-    val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label = "voice_waveform")
     val barAlpha = if (active) 0.88f else 0.40f
     Row(modifier = modifier.height(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         for (i in 0 until barCount) {
             val maxH = when (i % 3) { 0 -> 14f; 1 -> 18f; else -> 10f }
-            val barH by infinite.animateFloat(
-                initialValue = 3f, targetValue = if (active) maxH else 4f,
-                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                    animation = androidx.compose.animation.core.tween(280 + i * 70),
-                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
-                    initialStartOffset = androidx.compose.animation.core.StartOffset(i * 75)
-                ), label = "bar$i"
-            )
-            Box(modifier = Modifier.width(3.dp).height(barH.dp).clip(RoundedCornerShape(2.dp)).graphicsLayer { alpha = barAlpha }.background(color))
+            val barHeight = if (active) maxH else 4f
+            Box(modifier = Modifier.width(3.dp).height(barHeight.dp).clip(RoundedCornerShape(2.dp)).graphicsLayer { alpha = barAlpha }.background(color))
         }
     }
 }
@@ -3995,20 +3918,9 @@ private fun VoiceWaveformBars(active: Boolean, color: Color, barCount: Int = 5, 
 @Composable
 private fun ScrollToBottomFab(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val scrollToBottomDescription = stringResource(R.string.cd_scroll_to_bottom)
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) + scaleIn(
-            animationSpec = androidx.compose.animation.core.spring(
-                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                stiffness    = androidx.compose.animation.core.Spring.StiffnessMedium
-            ),
-            initialScale = 0.60f
-        ),
-        exit  = fadeOut(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) + scaleOut(targetScale = 0.70f),
-        modifier = modifier
-    ) {
+    if (visible) {
         Box(
-            modifier = Modifier
+            modifier = modifier
                 .size(48.dp)
                 .clip(CircleShape)
                 .background(

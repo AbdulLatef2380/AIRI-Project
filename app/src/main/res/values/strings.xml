@@ -396,6 +396,8 @@
     <string name="model_settings_icon">Model settings</string>
     <string name="expand">Expand</string>
     <string name="collapse">Collapse</string>
+    <string name="show_more">Show more</string>
+    <string name="show_less">Show less</string>
     <!-- File/image pick feedback -->
     <string name="file_selected_name">File selected: %1$s</string>
     <string name="image_selected_vision_soon">Image attachments are not enabled in this build</string>

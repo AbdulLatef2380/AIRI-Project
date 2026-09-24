@@ -1,14 +1,5 @@
 package com.airi.assistant.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -61,6 +52,7 @@ fun AdvancedChatInputBar(
     modelState:             ModelUiState,
     isGenerating:           Boolean,
     isDispatchingAttachment: Boolean = false,
+    isLongTextConversionInFlight: Boolean = false,
     voiceInput:             String,
     voicePartial:           String                  = "",
     voiceState:             VoiceSessionState       = VoiceSessionState.IDLE,
@@ -120,11 +112,7 @@ fun AdvancedChatInputBar(
                 }
             }
     ) {
-        AnimatedVisibility(
-            visible = !hasUserSentMessage && !toolbarDismissed && (hasFocus || isGenerating || isPlanModeActive),
-            enter   = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
-            exit    = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
-        ) {
+        if (bottomNavVisible && !hasUserSentMessage) {
             InputActionToolbar(
                 isPlanModeActive  = isPlanModeActive,
                 onPlanModeToggle  = onPlanModeToggle,
@@ -145,6 +133,7 @@ fun AdvancedChatInputBar(
             modelState              = modelState,
             isGenerating            = isGenerating,
             isDispatchingAttachment = isDispatchingAttachment,
+            isLongTextConversionInFlight = isLongTextConversionInFlight,
             voiceInput              = voiceInput,
             voicePartial            = voicePartial,
             voiceState              = voiceState,
@@ -178,6 +167,24 @@ fun AdvancedChatInputBar(
             onRemoveAttachment      = onRemoveAttachment
             ,imageInputEnabled      = imageInputEnabled
         )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            IconButton(
+                onClick = onBottomNavToggle,
+                modifier = Modifier.semantics {
+                    contentDescription = stringResource(if (bottomNavVisible) R.string.cd_collapse_input else R.string.cd_expand_input)
+                    role = Role.Button
+                }
+            ) {
+                Icon(
+                    imageVector = if (bottomNavVisible) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                    contentDescription = null,
+                    tint = AiriTheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 // Toolbar composable
@@ -268,12 +275,8 @@ private fun InputActionToolbar(
 @Composable
 private fun PlanModeChip(isActive: Boolean, onClick: () -> Unit) {
     val planDescription = stringResource(if (isActive) R.string.input_plan_active else R.string.input_plan)
-    val bg by animateColorAsState(
-        if (isActive) CosmicAccent.copy(0.20f) else AiriTheme.onSurface.copy(0.04f), tween(AIRIAnimations.FAST), label = "plan_bg"
-    )
-    val border by animateColorAsState(
-        if (isActive) CosmicAccent.copy(0.60f) else AiriTheme.outline, tween(AIRIAnimations.FAST), label = "plan_border"
-    )
+    val bg = if (isActive) CosmicAccent.copy(0.20f) else AiriTheme.onSurface.copy(0.04f)
+    val border = if (isActive) CosmicAccent.copy(0.60f) else AiriTheme.outline
     Row(
         modifier = Modifier
             .heightIn(min = 48.dp)
@@ -296,11 +299,7 @@ private fun PlanModeChip(isActive: Boolean, onClick: () -> Unit) {
             fontWeight  = if (isActive) FontWeight.Bold else FontWeight.Medium,
             color       = if (isActive) CosmicAccent else AiriTheme.onSurfaceVariant
         )
-        AnimatedVisibility(
-            visible = isActive,
-            enter   = fadeIn() + expandHorizontally(),
-            exit    = fadeOut() + shrinkHorizontally()
-        ) {
+        if (isActive) {
             Box(
                 modifier = Modifier
                     .size(6.dp)
@@ -319,9 +318,7 @@ private fun ActionChip(
     isActive: Boolean,
     onClick:  () -> Unit
 ) {
-    val bg by animateColorAsState(
-        if (isActive) iconTint.copy(0.15f) else AiriTheme.onSurface.copy(0.04f), tween(AIRIAnimations.FAST), label = "chip_bg"
-    )
+    val bg = if (isActive) iconTint.copy(0.15f) else AiriTheme.onSurface.copy(0.04f)
     Row(
         modifier = Modifier
             .heightIn(min = 48.dp)

@@ -810,11 +810,63 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // must not become persisted chat metadata before the user sends them.
     private val _composerDrafts = MutableStateFlow<Map<String, ChatComposerDraft>>(emptyMap())
     val composerDrafts: StateFlow<Map<String, ChatComposerDraft>> = _composerDrafts.asStateFlow()
+    private val _longTextConversionInFlight = MutableStateFlow(false)
+    val longTextConversionInFlight: StateFlow<Boolean> = _longTextConversionInFlight.asStateFlow()
 
     fun updateComposerText(text: String) {
         val sessionId = _currentSessionId.value
         _composerDrafts.update { drafts ->
             ChatComposerDraftPolicy.replaceText(drafts, sessionId, text)
+        }
+        if (LongTextAttachmentPolicy.shouldAutoConvert(text)) {
+            convertLongTextDraftToAttachment(sessionId, text)
+        }
+    }
+
+    /** Converts the current draft only after the complete text is written successfully. */
+    private fun convertLongTextDraftToAttachment(sessionId: String, text: String) {
+        if (sessionId.isBlank() || _longTextConversionInFlight.value) return
+        _longTextConversionInFlight.value = true
+        viewModelScope.launch {
+            val attachment = withContext(Dispatchers.IO) {
+                runCatching {
+                    val directory = File(appContext.cacheDir, "chat_attachments").apply { mkdirs() }
+                    val file = File(directory, "long_message_${java.util.UUID.randomUUID()}.txt")
+                    file.writeText(text)
+                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                        appContext,
+                        "${appContext.packageName}.fileprovider",
+                        file
+                    )
+                    ChatAttachment(
+                        kind = ChatAttachment.Kind.FILE,
+                        uri = uri,
+                        displayName = "message.txt",
+                        mimeType = "text/plain",
+                        sizeBytes = LongTextAttachmentPolicy.utf8SizeBytes(text)
+                    )
+                }.getOrNull()
+            }
+            if (attachment != null && _currentSessionId.value == sessionId) {
+                _composerDrafts.update { drafts ->
+                    val current = ChatComposerDraftPolicy.current(drafts, sessionId)
+                    if (current.text != text) return@update drafts
+                    val withTextCleared = ChatComposerDraftPolicy.replaceText(drafts, sessionId, "")
+                    ChatComposerDraftPolicy.replaceAttachments(
+                        withTextCleared,
+                        sessionId,
+                        current.attachments + attachment
+                    )
+                }
+            }
+            _longTextConversionInFlight.value = false
+            val latestText = ChatComposerDraftPolicy.current(_composerDrafts.value, sessionId).text
+            if (_currentSessionId.value == sessionId &&
+                latestText != text &&
+                LongTextAttachmentPolicy.shouldAutoConvert(latestText)
+            ) {
+                convertLongTextDraftToAttachment(sessionId, latestText)
+            }
         }
     }
 

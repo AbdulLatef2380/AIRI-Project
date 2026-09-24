@@ -80,7 +80,14 @@ class DefensiveEngineeringSkill(private val spec: Spec) : AiriSkill {
                     }
                     if (index == spec.stages.lastIndex) append("\nReturn the final report only.")
                 }
-                val result = bridge.complete(prompt, spec.systemPrompt, spec.maxTokens)
+                val result = try {
+                    bridge.complete(prompt, spec.systemPrompt, spec.maxTokens)
+                } catch (error: Exception) {
+                    throw IllegalStateException(
+                        "Analysis stage ${index + 1} failed: ${error.message ?: "unknown model error"}",
+                        error
+                    )
+                }
                 if (result.isBlank()) error("Analysis stage ${index + 1} returned an empty result")
                 evidence = result.trim()
             }

@@ -112,7 +112,31 @@ data class SkillManifest(
         val default:  String? = null
     )
 
-    fun toJson(): JSONObject = JSONObject().apply {
+    fun toJson(): JSONObject {
+        fun stringArray(values: List<String>) = JSONArray().apply {
+            values.forEach(::put)
+        }
+        fun stringObject(values: Map<String, String>) = JSONObject().apply {
+            values.forEach { (key, value) -> put(key, value) }
+        }
+        fun toolsArray() = JSONArray().apply {
+            tools.forEach { tool ->
+                put(JSONObject().apply {
+                    put("name", tool.name)
+                    put("description", tool.description)
+                    put("parameters", JSONObject().apply {
+                        tool.parameters.forEach { (key, parameter) ->
+                            put(key, JSONObject().apply {
+                                put("type", parameter.type)
+                                put("description", parameter.description)
+                                put("required", parameter.required)
+                            })
+                        }
+                    })
+                })
+            }
+        }
+        return JSONObject().apply {
         put("id",                   id)
         put("name",                 name)
         put("description",          description)
@@ -121,25 +145,13 @@ data class SkillManifest(
         put("category",             category)
         put("is_official",          isOfficial)
         put("icon_emoji",           iconEmoji)
-        put("permissions",          JSONArray(permissions))
+        put("permissions",          stringArray(permissions))
         put("memory_access",        memoryAccess.name)
         put("model_access",         modelAccess.name)
-        put("dependencies",         JSONArray(dependencies))
-        put("tools", JSONArray(tools.map { t ->
-            JSONObject().apply {
-                put("name",        t.name)
-                put("description", t.description)
-                put("parameters", JSONObject(t.parameters.mapValues { (_, p) ->
-                    JSONObject().apply {
-                        put("type",        p.type)
-                        put("description", p.description)
-                        put("required",    p.required)
-                    }
-                }))
-            }
-        }))
+        put("dependencies",         stringArray(dependencies))
+        put("tools",                 toolsArray())
         put("license",              license)
-        put("tags",                 JSONArray(tags))
+        put("tags",                 stringArray(tags))
         // Extended fields
         put("airi_min_version",     airiMinVersion)
         put("airi_target_version",  airiTargetVersion)
@@ -154,15 +166,16 @@ data class SkillManifest(
         entrypoint?.let    { put("entrypoint",      it) }
         repositoryUrl?.let { put("repository_url",  it) }
         put("display_name", displayName)
-        put("input_schema", JSONObject(inputSchema))
-        put("output_schema", JSONObject(outputSchema))
+        put("input_schema", stringObject(inputSchema))
+        put("output_schema", stringObject(outputSchema))
         put("instructions", instructions)
-        put("examples", JSONArray(examples))
-        put("limitations", JSONArray(limitations))
+        put("examples", stringArray(examples))
+        put("limitations", stringArray(limitations))
         put("risk_level", riskLevel.name.lowercase())
         put("requires_confirmation", requiresConfirmation)
         put("supports_streaming", supportsStreaming)
         put("supports_attachments", supportsAttachments)
+        }
     }
 
     companion object {

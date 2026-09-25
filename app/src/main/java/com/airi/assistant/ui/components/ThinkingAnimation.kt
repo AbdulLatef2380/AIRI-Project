@@ -33,8 +33,21 @@ import com.airi.assistant.ui.theme.CosmicAccent
 @Composable
 fun ThinkingAnimation(
     modifier: Modifier = Modifier,
-    stageText: String? = null  // null = auto-cycle; non-null = use caller-provided text
+    stageText: String? = null, // null = auto-cycle; non-null = use caller-provided text
+    animate: Boolean = true
 ) {
+    if (!animate) {
+        Text(
+            text = stageText ?: "Thinking…",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp
+            ),
+            color = CosmicAccent,
+            modifier = modifier.padding(horizontal = 12.dp, vertical = 12.dp)
+        )
+        return
+    }
     val transition = rememberInfiniteTransition(label = "thinking")
 
     // ── Glow pulse behind the dots ────────────────────────────────────────────

@@ -40,11 +40,16 @@ class ExecutionIntegrityTest {
     @Test
     fun retryRequestPreservesIdentityWhilePromptMayChange() {
         val identity = ChatExecutionIdentityContract.create("chat-session-7", "execution-7")
-        val firstRequest = ExecutionRequest(prompt = "first", identity = identity)
+        val firstRequest = ExecutionRequest(
+            prompt = "first",
+            requestedModelId = "model-authoritative-1",
+            identity = identity,
+        )
         val retryRequest = firstRequest.copy(prompt = "retry with reduced context")
 
         assertEquals(identity, firstRequest.identity)
         assertEquals(identity, retryRequest.identity)
+        assertEquals("model-authoritative-1", retryRequest.requestedModelId)
         assertEquals("retry with reduced context", retryRequest.prompt)
     }
 

@@ -2018,4 +2018,5 @@
     <string name="connectors_access">نطاق الوصول</string>
     <string name="connectors_authentication">المصادقة: %1$s</string>
     <string name="connectors_capabilities">القدرات</string>
+    <string name="resource_summary">التخزين · الذاكرة · المعالج</string>
 </resources>

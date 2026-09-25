@@ -2086,4 +2086,10 @@
     <string name="model_key_saved">Key for %1$s saved</string>
     <string name="resource_storage_used">%1$s used of %2$s (%3$d%%)</string>
     <string name="resource_processor_cores_text">%1$d processor cores available. This value guides AIRI runtime choices; Android still controls scheduling.</string>
+    <string name="skill_examples">Prompt examples</string>
+    <string name="skill_prompt_shortcut">Prefills the composer without sending</string>
+    <string name="skill_use_example">Use example</string>
+    <string name="skill_request_explanation">Explain how this skill works, its requirements, permissions, and a safe example.</string>
+    <string name="skill_explain_name_label">Skill</string>
+    <string name="skill_explain_id_label">Technical ID</string>
 </resources>

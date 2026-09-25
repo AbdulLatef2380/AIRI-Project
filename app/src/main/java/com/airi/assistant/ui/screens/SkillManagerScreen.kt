@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.ai.skills.OfficialSkillLibrary
 import com.airi.assistant.ai.skills.SkillManifest
+import com.airi.assistant.ai.skills.SkillPresentation
 import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.domain.customskill.CustomSkill
 import com.airi.assistant.domain.customskill.CustomSkillRepository
@@ -54,6 +55,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.UUID
+import java.util.Locale
 
 private enum class ImportSource { STORAGE, GITHUB, AI }
 
@@ -66,6 +68,7 @@ fun SkillManagerScreen(
     onOpenOfficial: (String) -> Unit = {}
 ) {
     val context       = LocalContext.current
+    val presentationLocale = remember { Locale.getDefault() }
     val repository    = remember { CustomSkillRepository(context) }
     val skillRegistry = remember { SkillRegistry(context) }
     val scope         = rememberCoroutineScope()
@@ -91,22 +94,25 @@ fun SkillManagerScreen(
         reload()
     }
     val filteredOfficialSkills = officialSkills.filter { info ->
+        val manifest = OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.id }?.manifest
+        val presentation = manifest?.let { SkillPresentation.localized(it, presentationLocale) }
         val matchesSearch = searchQuery.isBlank() ||
-            info.name.contains(searchQuery, ignoreCase = true) ||
-            info.description.contains(searchQuery, ignoreCase = true)
+            listOfNotNull(info.id, info.name, info.description, presentation?.name, presentation?.description)
+                .any { it.contains(searchQuery, ignoreCase = true) }
         val matchesFilter = when (selectedFilter) {
             1 -> info.isConnected
             2 -> !info.isConnected
             else -> true
         }
-        val category = OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.id }
-            ?.manifest?.category ?: "OTHER"
+        val category = presentation?.category ?: "OTHER"
         val matchesCategory = selectedCategory == "ALL" || category == selectedCategory
         matchesSearch && matchesFilter && matchesCategory
     }
     val categories = remember(officialSkills) {
         listOf("ALL") + officialSkills.mapNotNull { info ->
-            OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.id }?.manifest?.category
+            OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.id }
+                ?.manifest
+                ?.let { SkillPresentation.localized(it, presentationLocale).category }
         }.distinct().sorted()
     }
     LaunchedEffect(categories) {
@@ -248,7 +254,7 @@ fun SkillManagerScreen(
                         val label = when (category) {
                             "ALL" -> stringResource(R.string.skill_category_all)
                             "OTHER" -> stringResource(R.string.skill_category_other)
-                            else -> category.lowercase().replaceFirstChar { it.uppercase() }
+                            else -> category
                         }
                         SkillFilterChip(label, selectedCategory == category) { selectedCategory = category }
                     }
@@ -257,7 +263,7 @@ fun SkillManagerScreen(
                 SkillSectionHeader(stringResource(R.string.skill_official_section), filteredOfficialSkills.size)
                 Spacer(Modifier.height(8.dp))
                 filteredOfficialSkills.forEach { info ->
-                    OfficialSkillCard(info, { onOpenOfficial(info.id) }) { enabled -> skillRegistry.setSkillEnabled(info.id, enabled); reload() }
+                    OfficialSkillCard(info, presentationLocale, { onOpenOfficial(info.id) }) { enabled -> skillRegistry.setSkillEnabled(info.id, enabled); reload() }
                     Spacer(Modifier.height(10.dp))
                 }
                 Spacer(Modifier.height(8.dp))
@@ -341,9 +347,10 @@ private fun SkillHeroCard(total: Int, active: Int, connected: Int, onCreate: () 
     }
 }
 
-@Composable private fun OfficialSkillCard(info: SkillRegistry.SkillInfo, onClick: () -> Unit, onToggle: (Boolean) -> Unit) {
-    val entry = remember(info.name) { OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.name } }
-    val displayName = entry?.manifest?.name ?: info.name.split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+@Composable private fun OfficialSkillCard(info: SkillRegistry.SkillInfo, locale: Locale, onClick: () -> Unit, onToggle: (Boolean) -> Unit) {
+    val entry = remember(info.id) { OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.id } }
+    val presentation = entry?.manifest?.let { SkillPresentation.localized(it, locale) }
+    val displayName = presentation?.name ?: info.name.split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
     val emoji = entry?.manifest?.iconEmoji?.ifBlank { "✦" } ?: "✦"
     val needsConnector = !info.isConnected
     Surface(shape = AIRIShapes.xl, color = AiriTheme.surface, tonalElevation = if (info.isEnabled) 3.dp else 1.dp, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
@@ -356,7 +363,7 @@ private fun SkillHeroCard(total: Int, active: Int, connected: Int, onCreate: () 
                         Text(displayName, color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         if (needsConnector) Surface(shape = AIRIShapes.pill, color = SemanticWarn.copy(0.14f)) { Text(stringResource(R.string.skill_connector_required), color = SemanticWarn, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)) }
                     }
-                    Text(info.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(presentation?.description ?: info.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 if (!needsConnector) Switch(checked = info.isEnabled, onCheckedChange = onToggle, colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = CosmicAccent, uncheckedThumbColor = AiriTheme.onSurfaceVariant, uncheckedTrackColor = AiriTheme.outline))
             }

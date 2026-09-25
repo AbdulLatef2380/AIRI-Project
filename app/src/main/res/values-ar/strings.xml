@@ -1985,4 +1985,10 @@
     <string name="model_key_saved">تم حفظ مفتاح %1$s</string>
     <string name="resource_storage_used">المستخدم %1$s من %2$s (%3$d%%)</string>
     <string name="resource_processor_cores_text">يتوفر %1$d من أنوية المعالج. توجه هذه القيمة اختيارات وقت تشغيل AIRI، بينما يظل Android متحكماً في الجدولة.</string>
+    <string name="skill_examples">أمثلة مطالبات إرشادية</string>
+    <string name="skill_prompt_shortcut">تُضاف إلى صندوق الإدخال ولا تُرسل تلقائياً</string>
+    <string name="skill_use_example">استخدم المثال</string>
+    <string name="skill_request_explanation">اشرح طريقة عمل هذه المهارة ومتطلباتها وأذوناتها مع مثال آمن.</string>
+    <string name="skill_explain_name_label">المهارة</string>
+    <string name="skill_explain_id_label">المعرّف التقني</string>
 </resources>

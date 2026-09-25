@@ -122,6 +122,48 @@ class RoutingPolicyTest {
     }
 
     @Test
+    fun explicitCloudProviderIsPrimaryEvenForSimpleHybridPrompt() {
+        val local = backend("local", ExecOrigin.LOCAL, available = true, CapabilityProfile.LOCAL_CPU)
+        val cloud = backend("cloud", ExecOrigin.CLOUD, available = true, CapabilityProfile.CLOUD_STREAMING)
+
+        val selection = RoutingPolicy.select(
+            request = ExecutionRequest(
+                prompt = "hello",
+                requestedProviderId = "openai",
+                requestedModelId = "gpt-selected"
+            ),
+            signals = signals(online = true),
+            prefs = prefs(mode = ExecutionMode.HYBRID),
+            local = local,
+            cloud = cloud
+        )
+
+        assertEquals(listOf(cloud, local), selection.backends)
+        assertEquals(RoutingPolicy.DecisionReason.EXPLICIT_CLOUD_TARGET, selection.reason)
+    }
+
+    @Test
+    fun explicitCloudProviderIsNotSilentlyReplacedByLocalWhenInternetPermissionIsMissing() {
+        val local = backend("local", ExecOrigin.LOCAL, available = true, CapabilityProfile.LOCAL_CPU)
+        val cloud = backend("cloud", ExecOrigin.CLOUD, available = true, CapabilityProfile.CLOUD_STREAMING)
+
+        val selection = RoutingPolicy.select(
+            request = ExecutionRequest(
+                prompt = "hello",
+                requestedProviderId = "anthropic",
+                requestedModelId = "claude-selected"
+            ),
+            signals = signals(online = true),
+            prefs = prefs(mode = ExecutionMode.HYBRID, internetPermission = false),
+            local = local,
+            cloud = cloud
+        )
+
+        assertEquals(listOf(cloud), selection.backends)
+        assertEquals(RoutingPolicy.DecisionReason.EXPLICIT_CLOUD_TARGET, selection.reason)
+    }
+
+    @Test
     fun hybridOfflineSelectsOnlyLocal() {
         val local = backend("local", ExecOrigin.LOCAL, available = true, CapabilityProfile.LOCAL_CPU)
         val cloud = backend("cloud", ExecOrigin.CLOUD, available = true, CapabilityProfile.CLOUD_STREAMING)
@@ -157,11 +199,12 @@ class RoutingPolicyTest {
 
     private fun prefs(
         mode: ExecutionMode,
-        offlineFallback: Boolean = true
+        offlineFallback: Boolean = true,
+        internetPermission: Boolean = true
     ) = FakeRoutingPreferences(
         effectiveMode = mode,
         privacyLevel = PrivacyLevel.BALANCED,
-        internetPermissionGranted = true,
+        internetPermissionGranted = internetPermission,
         offlineFallbackEnabled = offlineFallback
     )
 

@@ -239,8 +239,8 @@ fun SettingsScreen(
                 SettingsNavItem(
                     icon     = Icons.Outlined.Memory,
                     iconTint = CosmicAccent,
-                    label    = "Resource customization",
-                    trailing = "Storage · RAM · CPU",
+                    label    = stringResource(R.string.resource_customization_title),
+                    trailing = stringResource(R.string.resource_summary),
                     onClick  = { onNavigate(AiriRoute.SETTINGS_RESOURCES) }
                 )
                 SettingsDivider()

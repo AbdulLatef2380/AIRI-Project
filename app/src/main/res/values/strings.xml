@@ -2120,4 +2120,5 @@
     <string name="connectors_access">Access scope</string>
     <string name="connectors_authentication">Authentication: %1$s</string>
     <string name="connectors_capabilities">Capabilities</string>
+    <string name="resource_summary">Storage · RAM · CPU</string>
 </resources>

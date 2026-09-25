@@ -1786,4 +1786,5 @@
     <string name="connectors_access">Ámbito de acceso</string>
     <string name="connectors_authentication">Autenticación: %1$s</string>
     <string name="connectors_capabilities">Capacidades</string>
+    <string name="resource_summary">Almacenamiento · RAM · CPU</string>
 </resources>

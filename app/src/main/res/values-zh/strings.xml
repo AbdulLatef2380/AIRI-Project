@@ -1786,4 +1786,5 @@
     <string name="connectors_access">访问范围</string>
     <string name="connectors_authentication">身份验证：%1$s</string>
     <string name="connectors_capabilities">功能</string>
+    <string name="resource_summary">存储 · 内存 · CPU</string>
 </resources>

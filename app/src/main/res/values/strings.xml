@@ -2115,4 +2115,8 @@
     <string name="privacy_maximum_desc">Nothing leaves the device — cloud blocked</string>
     <string name="privacy_balanced_desc">Cloud prompts are sanitized before sending</string>
     <string name="privacy_performance_desc">Full context sent to cloud — fastest capability</string>
+    <string name="connectors_how_to_use">How to use</string>
+    <string name="connectors_access">Access scope</string>
+    <string name="connectors_authentication">Authentication: %1$s</string>
+    <string name="connectors_capabilities">Capabilities</string>
 </resources>

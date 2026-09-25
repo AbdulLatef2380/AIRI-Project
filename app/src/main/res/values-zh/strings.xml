@@ -1782,4 +1782,8 @@
     <string name="privacy_maximum_desc">数据不会离开设备 — 云端已阻止</string>
     <string name="privacy_balanced_desc">云端发送前会清理请求</string>
     <string name="privacy_performance_desc">向云端发送完整上下文 — 能力最强</string>
+    <string name="connectors_how_to_use">使用方法</string>
+    <string name="connectors_access">访问范围</string>
+    <string name="connectors_authentication">身份验证：%1$s</string>
+    <string name="connectors_capabilities">功能</string>
 </resources>

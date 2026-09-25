@@ -1782,4 +1782,8 @@
     <string name="privacy_maximum_desc">Nada sale del dispositivo — nube bloqueada</string>
     <string name="privacy_balanced_desc">Las solicitudes se limpian antes de enviarse</string>
     <string name="privacy_performance_desc">Se envía todo el contexto a la nube — máxima capacidad</string>
+    <string name="connectors_how_to_use">Cómo usar</string>
+    <string name="connectors_access">Ámbito de acceso</string>
+    <string name="connectors_authentication">Autenticación: %1$s</string>
+    <string name="connectors_capabilities">Capacidades</string>
 </resources>

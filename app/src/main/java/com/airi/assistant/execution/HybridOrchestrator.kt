@@ -232,6 +232,10 @@ class HybridOrchestrator(
 
             val isFallback = idx > 0
             val req = if (backend.origin.isCloudBound()) cloudRequest!! else ownedRequest
+            // A local fallback is a new execution target. Reusing a cloud
+            // requestedModelId makes LocalLlamaBackend reject the request
+            // because model IDs belong to different namespaces.
+            val targetRequest = if (backend.origin.isCloudBound()) req else backend.rebindForExecution(req)
 
             if (isFallback) {
                 sessionFallbackCount++
@@ -280,7 +284,7 @@ class HybridOrchestrator(
             if (idx == 0) lastExecutionSource = "${backend.displayName} (pending)"
             try {
                 backend.generateStream(
-                request    = req,
+                    request    = targetRequest,
                 onToken    = { token ->
                     if (generationGate.accepts(genId)) {
                         attemptBuffer.append(token)

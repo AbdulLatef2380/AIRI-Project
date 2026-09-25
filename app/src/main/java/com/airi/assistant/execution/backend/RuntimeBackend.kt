@@ -34,6 +34,12 @@ interface RuntimeBackend {
      */
     fun cancelStream() {}
 
+    /**
+     * Bind a request to this backend's actual execution target.
+     * Backends may override this when a fallback crosses model namespaces.
+     */
+    fun rebindForExecution(request: ExecutionRequest): ExecutionRequest = request
+
     suspend fun generateStream(
         request:    ExecutionRequest,
         onToken:    suspend (String) -> Unit,

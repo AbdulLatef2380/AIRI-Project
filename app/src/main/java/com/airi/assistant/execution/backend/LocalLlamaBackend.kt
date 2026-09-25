@@ -102,6 +102,16 @@ class LocalLlamaBackend(
         llamaManager.cancelStream()
     }
 
+    override fun rebindForExecution(request: ExecutionRequest): ExecutionRequest {
+        val loadedModelId = ModelManager.getCurrent()?.id.orEmpty()
+        return request.copy(
+            requestedProviderId = "local",
+            requestedModelId = loadedModelId,
+            resolvedProviderId = "local",
+            resolvedModelId = loadedModelId,
+        )
+    }
+
     /** Event type used to bridge non-suspend LlamaManager callbacks to suspend callers. */
     private sealed class LlamaEvent {
         data class Token(val value: String)                      : LlamaEvent()

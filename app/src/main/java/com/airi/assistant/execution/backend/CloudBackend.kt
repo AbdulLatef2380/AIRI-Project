@@ -115,17 +115,23 @@ class CloudBackend(
             NetworkGuard.Decision.Allow -> {}
         }
 
-        // ── Build provider priority list for this request ─────────────────────
-        // Primary provider first, then available fallback providers in priority order.
-        val primary = prefs.preferredProvider.takeUnless { it == CloudProvider.BRAVE }
-            ?: CloudProvider.GEMINI
-        val providerQueue = buildList {
-            add(primary)
-            FAILOVER_PRIORITY.filter { it != primary }.forEach { fallback ->
-                val adapter = CloudAdapterFactory.create(fallback, context)
-                if (adapter.isAvailable) add(fallback)
-            }
+        // ── Resolve the provider target for this request ─────────────────────
+        // An explicit provider identity is authoritative. Never retry the same
+        // model against another provider: provider/model namespaces are not
+        // interchangeable, and doing so hides ownership errors from the user.
+        val requestedProvider = request.requestedProviderId
+            .takeIf { it.isNotBlank() }
+            ?.let { id -> CloudProvider.entries.firstOrNull { it.name.equals(id, ignoreCase = true) } }
+        if (request.requestedProviderId.isNotBlank() &&
+            (requestedProvider == null || requestedProvider == CloudProvider.BRAVE)
+        ) {
+            onError("Requested cloud provider is not supported: ${request.requestedProviderId}")
+            return
         }
+        val primary = requestedProvider
+            ?: prefs.preferredProvider.takeUnless { it == CloudProvider.BRAVE }
+            ?: CloudProvider.GEMINI
+        val providerQueue = listOf(primary)
 
         var lastError = "Unknown cloud error"
         
@@ -144,7 +150,24 @@ class CloudBackend(
                 Log.w(TAG, "AIRI CLOUD_FAILOVER from=${providerQueue[attemptIdx-1].name} to=${provider.name}")
             }
 
-            val adapter = CloudAdapterFactory.create(provider, context, request)
+            val resolvedModel = CloudAdapterFactory.resolveRequestedModel(provider, request)
+                ?: request.resolvedModelId.takeIf { it.isNotBlank() }
+            if (provider == CloudProvider.OPENROUTER) {
+                val liveModels = com.airi.assistant.execution.cloud.OpenRouterModelRegistry.refresh()
+                if (resolvedModel != null && liveModels.isNotEmpty() && resolvedModel !in liveModels) {
+                    onError("Selected OpenRouter model is unavailable: $resolvedModel")
+                    return
+                }
+            }
+            val targetRequest = request.copy(
+                resolvedProviderId = provider.name.lowercase(),
+                resolvedModelId = resolvedModel.orEmpty()
+            )
+            RuntimeEventLog.post(
+                "CLOUD_BACKEND", EventSeverity.INFO,
+                "EXECUTION_TARGET provider=${provider.name.lowercase()} model=${resolvedModel ?: "adapter-default"}"
+            )
+            val adapter = CloudAdapterFactory.create(provider, context, targetRequest)
             if (!adapter.isAvailable) {
                 Log.d(TAG, "Skipping ${provider.name} — no key configured")
                 continue
@@ -177,7 +200,7 @@ class CloudBackend(
                 promptTok = 0
                 compTok = 0
                 adapter.streamGenerate(
-                    request = request,
+                    request = targetRequest,
                     onToken = { /* buffered by the adapter result; emit only after success */ },
                     onUsage = { p, c -> promptTok = p; compTok = c }
                 )
@@ -193,7 +216,14 @@ class CloudBackend(
 
             when (result) {
                 is CloudProviderAdapter.AdapterResult.Success -> {
-                    successfulProviderLabel = "${provider.displayName} · ${request.requestedModelId.ifBlank { "configured model" }}"
+                    val executedModel = result.executedModelId.ifBlank {
+                        targetRequest.resolvedModelId.ifBlank { targetRequest.requestedModelId.ifBlank { "configured model" } }
+                    }
+                    successfulProviderLabel = "${provider.displayName} · $executedModel"
+                    RuntimeEventLog.post(
+                        "CLOUD_BACKEND", EventSeverity.INFO,
+                        "EXECUTED_TARGET provider=${provider.name.lowercase()} model=$executedModel"
+                    )
                     if (result.fullText.isNotBlank()) onToken(result.fullText)
                     val totalTokens = promptTok + compTok
                     if (totalTokens > 0) {
@@ -282,9 +312,34 @@ class CloudBackend(
                     retryable = false, code = "network_blocked"
                 )
                 NetworkGuard.Decision.Allow -> {
-                    val provider = prefs.preferredProvider.takeUnless { it == CloudProvider.BRAVE }
+                    val provider = request.requestedProviderId
+                        .takeIf { it.isNotBlank() }
+                        ?.let { id -> CloudProvider.entries.firstOrNull { it.name.equals(id, ignoreCase = true) } }
+                        ?: prefs.preferredProvider.takeUnless { it == CloudProvider.BRAVE }
                         ?: CloudProvider.GEMINI
-                    val adapter = CloudAdapterFactory.create(provider, context, request)
+                    if (provider == CloudProvider.BRAVE) {
+                        return@withContext ExecutionResult.Failure(
+                            error = "Brave Search is not an LLM provider",
+                            origin = ExecOrigin.CLOUD,
+                            retryable = false, code = "invalid_provider"
+                        )
+                    }
+                    val resolvedModel = CloudAdapterFactory.resolveRequestedModel(provider, request)
+                    if (provider == CloudProvider.OPENROUTER) {
+                        val liveModels = com.airi.assistant.execution.cloud.OpenRouterModelRegistry.refresh()
+                        if (resolvedModel != null && liveModels.isNotEmpty() && resolvedModel !in liveModels) {
+                            return@withContext ExecutionResult.Failure(
+                                error = "Selected OpenRouter model is unavailable: $resolvedModel",
+                                origin = ExecOrigin.CLOUD,
+                                retryable = false, code = "model_unavailable"
+                            )
+                        }
+                    }
+                    val targetRequest = request.copy(
+                        resolvedProviderId = provider.name.lowercase(),
+                        resolvedModelId = resolvedModel.orEmpty()
+                    )
+                    val adapter = CloudAdapterFactory.create(provider, context, targetRequest)
                     if (!adapter.isAvailable) {
                         return@withContext ExecutionResult.Failure(
                             error = "${provider.displayName}: no API key",
@@ -295,7 +350,7 @@ class CloudBackend(
                     val startMs = System.currentTimeMillis()
                     val fullText = StringBuilder()
                     val result = RetryPolicy.withRetry(MAX_RETRIES) {
-                        adapter.streamGenerate(request, onToken = { fullText.append(it) })
+                        adapter.streamGenerate(targetRequest, onToken = { fullText.append(it) })
                     }
                     when (result) {
                         is CloudProviderAdapter.AdapterResult.Success ->

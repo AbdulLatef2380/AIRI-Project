@@ -1695,6 +1695,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         // ── Intent classification (before any async work) ─────────────────────
         val selectedModelIdAtDispatch = _modelState.value.selectedModelId
+        val cloudProviderAtDispatch = _modelState.value.activeCloudProvider
+            ?.takeIf { _modelState.value.isCloudReady && execModePrefs.effectiveMode != ExecutionMode.LOCAL_ONLY }
+        val requestedProviderIdAtDispatch = cloudProviderAtDispatch?.name?.lowercase().orEmpty()
+        val requestedModelIdAtDispatch = if (cloudProviderAtDispatch != null) {
+            _modelState.value.cloudModelName
+        } else {
+            selectedModelIdAtDispatch
+        }
+        val cloudConfigured = RemoteModelRegistry.getActive() != null ||
+            com.airi.assistant.execution.cloud.EmbeddedProviderConfig
+                .getActiveProvider(appContext) != null
+        if (execModePrefs.executionMode != ExecutionMode.LOCAL_ONLY &&
+            cloudConfigured && !execModePrefs.internetPermissionGranted
+        ) {
+            val message = "Cloud execution blocked: internet permission is disabled."
+            RuntimeEventLog.post("EXEC_MODE", EventSeverity.WARN, message)
+            _lastExecutionError.value = ExecutionErrorProjection(
+                executionId = "generation-permission",
+                message = message,
+                detail = "Enable internet permission before sending to the selected cloud provider."
+            )
+            return false
+        }
         val queryType = QueryClassifier.classifyQuery(trimmedInput)
         val wordCount = trimmedInput.split(Regex("\\s+")).size
         Log.d("AIRI_INTENT", "type=${queryType.name} input_words=$wordCount")
@@ -1823,7 +1846,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
             // ── Fast response shortcut — bypass model inference for known replies ──
             val startTimeMs = System.currentTimeMillis()
-            val fastHit = ResponseOptimizer.tryFastResponse(trimmedInput)
+            val fastHit = if (cloudProviderAtDispatch == null) {
+                ResponseOptimizer.tryFastResponse(trimmedInput)
+            } else {
+                null
+            }
             if (fastHit != null) {
                 val fastLatency = System.currentTimeMillis() - startTimeMs
                 Log.d("AIRI_FAST", "hit=true response_len=${fastHit.length}")
@@ -1968,7 +1995,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     systemPrompt = systemPrompt,
                     tools        = activeTools,
                     queryType    = queryType,
-                    modelId      = selectedModelIdAtDispatch,
+                    modelId      = requestedModelIdAtDispatch,
+                    providerId   = requestedProviderIdAtDispatch,
                     sessionId    = com.airi.assistant.execution.ChatExecutionIdentityContract
                         .normalizeSessionId(sessionId),
                     visionParts  = visionParts,
@@ -2479,7 +2507,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _modelState.update {
                     it.copy(
                         isCloudReady        = true,
-                        cloudModelName      = builtinConfig.displayLabel,
+                        cloudModelName      = builtinConfig.defaultModel,
                         activeCloudProvider = builtinConfig.provider
                     )
                 }

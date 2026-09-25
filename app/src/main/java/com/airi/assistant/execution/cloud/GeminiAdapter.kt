@@ -135,7 +135,8 @@ class GeminiAdapter(
             Log.i(TAG, "complete: ${fullText.length} chars ${promptTokens}p+${completeTokens}c ${latency}ms")
             CloudProviderAdapter.AdapterResult.Success(
                 fullText = fullText.toString(), latencyMs = latency,
-                promptTokens = promptTokens, completionTokens = completeTokens
+                promptTokens = promptTokens, completionTokens = completeTokens,
+                executedModelId = model
             )
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e

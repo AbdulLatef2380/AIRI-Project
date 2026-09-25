@@ -26,8 +26,14 @@ data class ExecutionRequest(
     val requiresStructuredOutput: Boolean    = false,
     val estimatedPromptTokens:    Int        = 0,
     val sessionTag:               String     = "",
+    /** Stable provider identity captured when the execution was admitted. */
+    val requestedProviderId:      String     = "",
     /** Stable model identity captured when the execution was admitted. */
     val requestedModelId:         String     = "",
+    /** Identity resolved for the selected execution target, never user-facing input. */
+    val resolvedProviderId:       String     = "",
+    /** Model identifier actually selected for the resolved target. */
+    val resolvedModelId:          String     = "",
     val conversationHistory:      List<ConversationTurn> = emptyList(),
     /** Inline image parts for providers that support vision (base64, no file paths). */
     val imageParts:               List<ImagePart> = emptyList(),
@@ -56,7 +62,10 @@ data class ExecutionRequest(
         if (requiresLongContext)      append(" longCtx=true")
         if (requiresOffline)          append(" offline=true")
         if (requiresStructuredOutput) append(" structured=true")
+        if (requestedProviderId.isNotBlank()) append(" provider=$requestedProviderId")
         if (requestedModelId.isNotBlank()) append(" model=$requestedModelId")
+        if (resolvedProviderId.isNotBlank()) append(" resolvedProvider=$resolvedProviderId")
+        if (resolvedModelId.isNotBlank()) append(" resolvedModel=$resolvedModelId")
         if (conversationHistory.isNotEmpty()) append(" history=${conversationHistory.size}")
     }
 }

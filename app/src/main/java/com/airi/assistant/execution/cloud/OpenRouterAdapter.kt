@@ -51,29 +51,32 @@ class OpenRouterAdapter(
 
         /** Select a current model for the request without returning retired IDs. */
         fun selectModel(request: ExecutionRequest): String {
-            if (request.requiresVision) return MODEL_VISION
-            if (request.requiresLongContext) return MODEL_LONG_CONTEXT
-
-            val prompt = request.prompt.lowercase()
-            val isCodingPrompt = prompt.contains("```") ||
-                prompt.contains("function ") ||
-                prompt.contains("class ") ||
-                prompt.contains("def ") ||
-                prompt.contains("import ") ||
-                prompt.contains("code") ||
-                prompt.contains("debug") ||
-                prompt.contains("error:") ||
-                prompt.contains("kotlin") ||
-                prompt.contains("python") ||
-                prompt.contains("javascript") ||
-                request.queryType == QueryType.ACTION && prompt.contains("script")
-            if (isCodingPrompt) return MODEL_CODING
-            if (request.queryType == QueryType.ANALYTICAL) return MODEL_REASONING
-            if (request.queryType == QueryType.SIMPLE && request.estimatedPromptTokens < 200) {
-                return MODEL_FAST
+            val candidates = when {
+                request.requiresVision -> listOf(MODEL_VISION)
+                request.requiresLongContext -> listOf(MODEL_LONG_CONTEXT)
+                else -> {
+                    val prompt = request.prompt.lowercase()
+                    val isCodingPrompt = prompt.contains("```") ||
+                        prompt.contains("function ") || prompt.contains("class ") ||
+                        prompt.contains("def ") || prompt.contains("import ") ||
+                        prompt.contains("code") || prompt.contains("debug") ||
+                        prompt.contains("error:") || prompt.contains("kotlin") ||
+                        prompt.contains("python") || prompt.contains("javascript") ||
+                        request.queryType == QueryType.ACTION && prompt.contains("script")
+                    when {
+                        isCodingPrompt -> listOf(MODEL_CODING, DEFAULT_MODEL)
+                        request.queryType == QueryType.ANALYTICAL -> listOf(MODEL_REASONING, DEFAULT_MODEL)
+                        request.queryType == QueryType.SIMPLE && request.estimatedPromptTokens < 200 -> listOf(MODEL_FAST, DEFAULT_MODEL)
+                        else -> listOf(MODEL_MULTILINGUAL)
+                    }
+                }
             }
-            // The default Qwen route is also the current free multilingual route.
-            return MODEL_MULTILINGUAL
+            val live = OpenRouterModelRegistry.snapshot()
+            if (live.isNotEmpty()) {
+                candidates.firstOrNull { it in live }?.let { return it }
+                live.firstOrNull { it.endsWith(":free") }?.let { return it }
+            }
+            return candidates.first()
         }
 
         fun modelLabel(modelId: String): String = when (modelId) {

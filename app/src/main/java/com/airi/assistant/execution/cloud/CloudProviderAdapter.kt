@@ -61,7 +61,9 @@ interface CloudProviderAdapter {
             val fullText:         String,
             val latencyMs:        Long,
             val promptTokens:     Int = 0,
-            val completionTokens: Int = 0
+            val completionTokens: Int = 0,
+            /** Wire-level model identifier used by the adapter. */
+            val executedModelId:  String = ""
         ) : AdapterResult() {
             val totalTokens: Int get() = promptTokens + completionTokens
         }

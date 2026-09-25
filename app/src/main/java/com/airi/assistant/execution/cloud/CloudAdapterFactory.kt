@@ -71,32 +71,55 @@ object CloudAdapterFactory {
                 //
                 // Read the model name from EmbeddedProviderConfig, which is scoped
                 // to the provider type, not from the shared RemoteModelRegistry.
-                val geminiModel = EmbeddedProviderConfig.getActiveProvider(context)
+                val geminiModel = resolveRequestedModel(provider, request) ?: EmbeddedProviderConfig.getActiveProvider(context)
                     ?.takeIf { it.provider == CloudProvider.GEMINI }
                     ?.defaultModel
                     ?: "gemini-3.8-flash"
                 Log.d(TAG, "GEMINI: model=$geminiModel (from EmbeddedProviderConfig)")
                 GeminiAdapter(keyStore, geminiModel)
             }
-            CloudProvider.OPENAI     -> OpenAIAdapter(keyStore, CloudProvider.OPENAI)
-            CloudProvider.ANTHROPIC  -> AnthropicAdapter(keyStore)
+            CloudProvider.OPENAI     -> OpenAIAdapter(
+                keyStore, CloudProvider.OPENAI,
+                model = resolveRequestedModel(provider, request) ?: OpenAIAdapter.providerDefaultModel(provider)
+            )
+            CloudProvider.ANTHROPIC  -> AnthropicAdapter(
+                keyStore,
+                model = resolveRequestedModel(provider, request) ?: AnthropicAdapter.DEFAULT_MODEL
+            )
             CloudProvider.OPENROUTER -> {
                 // Intelligent model selection: pick the best OpenRouter model
                 // for this specific request's task type and capabilities.
                 // Falls back to DEFAULT_MODEL when request is null.
-                val selectedModel = request?.let { OpenRouterAdapter.selectModel(it) }
+                val selectedModel = resolveRequestedModel(provider, request)
+                    ?: request?.let { OpenRouterAdapter.selectModel(it) }
                     ?: OpenRouterAdapter.DEFAULT_MODEL
                 Log.i(TAG, "OPENROUTER: selected model=$selectedModel " +
                     "queryType=${request?.queryType} vision=${request?.requiresVision}")
                 OpenRouterAdapter(keyStore, selectedModel)
             }
-            CloudProvider.KIMI       -> OpenAIAdapter(keyStore, CloudProvider.KIMI)
-            CloudProvider.CUSTOM     -> buildCustomAdapter(keyStore, context)
+            CloudProvider.KIMI       -> OpenAIAdapter(
+                keyStore, CloudProvider.KIMI,
+                model = resolveRequestedModel(provider, request) ?: OpenAIAdapter.providerDefaultModel(provider)
+            )
+            CloudProvider.CUSTOM     -> buildCustomAdapter(keyStore, context, request)
             CloudProvider.BRAVE      -> throw IllegalArgumentException(
                 "BRAVE is a search API key, not an LLM provider. Use SearchTool instead of CloudAdapterFactory."
             )
         }
     }
+
+    /**
+     * Resolve the wire model without silently replacing an explicit user choice.
+     * A requested model is accepted only for the provider that owns the request.
+     */
+    fun resolveRequestedModel(
+        provider: CloudProvider,
+        request: com.airi.assistant.execution.ExecutionRequest?
+    ): String? = request
+        ?.takeIf { it.requestedProviderId.equals(provider.name, ignoreCase = true) }
+        ?.requestedModelId
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
 
     /**
      * Create adapters for ALL providers that currently have a key configured.
@@ -114,11 +137,19 @@ object CloudAdapterFactory {
 
     // ── Internals ─────────────────────────────────────────────────────────────
 
-    private fun buildCustomAdapter(keyStore: SecureApiKeyStore, context: Context): CloudProviderAdapter {
+    private fun buildCustomAdapter(
+        keyStore: SecureApiKeyStore,
+        context: Context,
+        request: com.airi.assistant.execution.ExecutionRequest? = null
+    ): CloudProviderAdapter {
         val remote = RemoteModelRegistry.getActive()
         if (remote != null) {
             Log.i(TAG, "CUSTOM_REMOTE_MODEL_CONFIGURED")
-            return object : OpenAIAdapter(keyStore, CloudProvider.CUSTOM, remote.serverUrl, remote.name) {
+            val requestedModel = resolveRequestedModel(CloudProvider.CUSTOM, request)
+            return object : OpenAIAdapter(
+                keyStore, CloudProvider.CUSTOM, remote.serverUrl,
+                requestedModel ?: remote.name
+            ) {
                 override val isAvailable: Boolean get() = true
 
                 // Discover the active model for local OpenAI-compatible providers.
@@ -130,7 +161,7 @@ object CloudAdapterFactory {
                 // The property is instance-scoped; adapters are recreated per-request
                 // (factory KDoc), so discovery re-runs per request. The GET /v1/models
                 // call to localhost typically completes in < 10 ms.
-                private var effectiveModel: String = remote.name
+                private var effectiveModel: String = requestedModel ?: remote.name
                 override val model: String get() = effectiveModel
 
                 override suspend fun streamGenerate(
@@ -161,7 +192,7 @@ object CloudAdapterFactory {
                     // Studio). Discover the first currently-loaded model via GET /v1/models
                     // and use it in the request, overriding the catalog placeholder.
                     // Falls back to remote.name (catalog defaultModel) on failure.
-                    if (remote.apiKey.isBlank()) {
+                    if (remote.apiKey.isBlank() && requestedModel == null) {
                         val discovered = discoverFirstModel(remote.serverUrl)
                         if (discovered != null) {
                             if (discovered != effectiveModel) {

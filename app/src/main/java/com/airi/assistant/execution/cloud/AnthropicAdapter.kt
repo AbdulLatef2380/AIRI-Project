@@ -166,7 +166,8 @@ class AnthropicAdapter(
                 fullText         = fullText.toString(),
                 latencyMs        = latency,
                 promptTokens     = promptTokens,
-                completionTokens = completeTokens
+                completionTokens = completeTokens,
+                executedModelId  = model
             )
 
         } catch (e: kotlinx.coroutines.CancellationException) {

@@ -2236,7 +2236,7 @@ fun UserBubble(
             val expansionDescription = stringResource(
                 if (isExpanded) R.string.show_less else R.string.show_more
             )
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                 Box {
                     Column(
                         modifier = Modifier

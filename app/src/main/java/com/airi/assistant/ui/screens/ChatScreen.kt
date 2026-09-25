@@ -13,6 +13,12 @@ import android.os.CancellationSignal
 import android.provider.OpenableColumns
 import android.util.Size as AndroidSize
 import android.media.projection.MediaProjectionManager
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.DisposableEffect
 import com.airi.assistant.voice.VoskEngine
 import com.airi.assistant.voice.VoskModelManager
@@ -1047,34 +1053,6 @@ fun ChatScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // : Thinking animation — shown between send and first streaming token.
-            // Replaces the frozen-UI gap that users see during local LLM inference (2–15 s).
-            // Condition: agent is working BUT no streamed text yet (first token hasn't arrived).
-            if (agentState.isWorking && streamingText.isEmpty()) {
-                Surface(
-                    shape = AIRIShapes.pill,
-                    color = AiriTheme.surfaceVariant.copy(alpha = 0.94f),
-                    border = androidx.compose.foundation.BorderStroke(0.5.dp, AiriTheme.outline.copy(alpha = 0.45f)),
-                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Image(
-                            painter = painterResource(R.mipmap.ic_launcher_foreground),
-                            contentDescription = "AIRI",
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(5.dp))
-                        Text(
-                            text = agentState.currentAction.takeIf { it.isNotBlank() } ?: stringResource(R.string.generating),
-                            color = AiriTheme.onSurfaceVariant,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-            }
             // Shown when the user is in live/duplex voice mode
             if (liveChatActiveRef.value || voiceState != VoiceSessionState.IDLE) {
                 com.airi.assistant.ui.components.VoiceLiveOverlay(
@@ -2084,6 +2062,11 @@ fun ChatMessageList(
                         }
                     }
                 }
+                if (isGenerating && streamingText.isEmpty()) {
+                    item(key = "thinking", contentType = "thinking") {
+                        AiriThinkingRow(label = stringResource(R.string.chat_airi_thinking))
+                    }
+                }
                 if (finalAnswerVerification != null && !isGenerating) {
                     item(key = "final_answer_verification", contentType = "verification") {
                         FinalAnswerVerificationBadge(finalAnswerVerification)
@@ -2235,11 +2218,10 @@ fun UserBubble(
     var showContextMenu by remember { mutableStateOf(false) }
     var isSelectingText by remember { mutableStateOf(false) }
     var isExpanded by rememberSaveable(text) { mutableStateOf(false) }
-    val logicalLineCount = remember(displayText) { LongTextAttachmentPolicy.logicalLineCount(displayText) }
-    val isLongMessage = imageUri == null && logicalLineCount > 15
+    val isLongMessage = imageUri == null && LongTextAttachmentPolicy.shouldCollapseInline(displayText)
     val renderedText = remember(displayText, isExpanded, isLongMessage) {
         if (!isLongMessage || isExpanded) displayText
-        else displayText.lineSequence().take(15).joinToString("\n")
+        else LongTextAttachmentPolicy.collapsedPreview(displayText)
     }
     val bubbleGesture = if (isSelectingText) {
         Modifier
@@ -2254,16 +2236,16 @@ fun UserBubble(
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val bubbleMaxWidth = minOf(640.dp, maxWidth * 0.86f)
+            val bubbleMaxWidth = minOf(640.dp, maxWidth * 0.78f)
             val expansionDescription = stringResource(
                 if (isExpanded) R.string.show_less else R.string.show_more
             )
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Box {
                     Column(
                         modifier = Modifier
                             .widthIn(max = bubbleMaxWidth)
-                            .wrapContentWidth(Alignment.End)
+                            .wrapContentWidth()
                             .clip(AIRIShapes.userBubble)
                             .background(AiriTheme.surfaceVariant)
                             .then(bubbleGesture)
@@ -2296,13 +2278,15 @@ fun UserBubble(
                                 SelectionContainer {
                                     BidiAwareMarkdownRenderer(
                                         text = displayText,
-                                        textColor = AiriTheme.onSurface
+                                        textColor = AiriTheme.onSurface,
+                                        fillWidth = false
                                     )
                                 }
                             } else {
                                 BidiAwareMarkdownRenderer(
                                     text = renderedText,
-                                    textColor = AiriTheme.onSurface
+                                    textColor = AiriTheme.onSurface,
+                                    fillWidth = false
                                 )
                             }
                         }
@@ -2694,6 +2678,41 @@ fun AiStreamingBubble(text: String) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AiriThinkingRow(label: String) {
+    val transition = rememberInfiniteTransition(label = "airi_thinking")
+    val alpha by transition.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "airi_thinking_alpha"
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .semantics { contentDescription = label },
+        horizontalArrangement = Arrangement.Start,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Image(
+            painter = painterResource(R.mipmap.ic_launcher_foreground),
+            contentDescription = "AIRI",
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(Modifier.width(7.dp))
+        Text(
+            text = label,
+            color = CosmicAccent.copy(alpha = alpha),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 

@@ -400,6 +400,7 @@
     <string name="collapse">Collapse</string>
     <string name="show_more">Show more</string>
     <string name="show_less">Show less</string>
+    <string name="chat_airi_thinking">AIRI is thinking…</string>
     <!-- File/image pick feedback -->
     <string name="file_selected_name">File selected: %1$s</string>
     <string name="image_selected_vision_soon">Image attachments are not enabled in this build</string>

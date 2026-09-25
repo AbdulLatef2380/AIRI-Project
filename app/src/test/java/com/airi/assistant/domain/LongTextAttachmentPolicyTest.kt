@@ -21,6 +21,23 @@ class LongTextAttachmentPolicyTest {
         assertTrue(LongTextAttachmentPolicy.shouldAutoConvert((1..41).joinToString("\n") { "line" }))
     }
 
+    @Test fun fifteenLinesStayFullyVisibleInline() {
+        val text = (1..15).joinToString("\n") { "line $it" }
+        assertFalse(LongTextAttachmentPolicy.shouldCollapseInline(text))
+    }
+
+    @Test fun sixteenToFortyLinesCollapseToFifteenLinePreview() {
+        val text = (1..20).joinToString("\n") { "line $it" }
+        assertTrue(LongTextAttachmentPolicy.shouldCollapseInline(text))
+        assertTrue(LongTextAttachmentPolicy.collapsedPreview(text).lineSequence().count() == 15)
+    }
+
+    @Test fun attachmentThresholdTakesPrecedenceOverInlineCollapse() {
+        val text = (1..41).joinToString("\n") { "line $it" }
+        assertFalse(LongTextAttachmentPolicy.shouldCollapseInline(text))
+        assertTrue(LongTextAttachmentPolicy.shouldAutoConvert(text))
+    }
+
     @Test fun byteSizeUsesUtf8NotCharacterCount() {
         assertTrue(LongTextAttachmentPolicy.utf8SizeBytes("ع" ) > "ع".length)
     }

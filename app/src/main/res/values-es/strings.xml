@@ -409,6 +409,7 @@
     <string name="collapse">Contraer</string>
     <string name="show_more">Mostrar más</string>
     <string name="show_less">Mostrar menos</string>
+    <string name="chat_airi_thinking">AIRI está pensando…</string>
     <string name="file_selected_name">Archivo seleccionado: %1$s</string>
     <string name="image_selected_vision_soon">Los adjuntos de imagen no están habilitados en esta versión</string>
     <string name="image_attached_no_vision">Modelo de visión no cargado — se enviará un marcador de texto</string>

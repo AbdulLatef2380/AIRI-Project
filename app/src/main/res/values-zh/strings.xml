@@ -1753,4 +1753,10 @@
     <string name="skill_validation_description_required">描述为必填项</string>
     <string name="skill_validation_name_required">技能名称为必填项</string>
     <string name="skill_validation_version">版本必须符合 semver（例如 1.0.0）</string>
+    <string name="skill_examples">提示词示例</string>
+    <string name="skill_prompt_shortcut">填入输入框但不会自动发送</string>
+    <string name="skill_use_example">使用示例</string>
+    <string name="skill_request_explanation">解释此技能的工作方式、要求、权限，并提供一个安全示例。</string>
+    <string name="skill_explain_name_label">技能</string>
+    <string name="skill_explain_id_label">技术 ID</string>
 </resources>

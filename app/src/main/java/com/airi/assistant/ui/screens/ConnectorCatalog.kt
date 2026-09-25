@@ -1,8 +1,8 @@
 package com.airi.assistant.ui.screens
 
-import android.net.Uri
 import com.airi.assistant.connector.ConnectorMeta
 import com.airi.assistant.connector.ConnectorType
+import java.net.URI
 import java.util.Locale
 
 data class ConnectorPresentation(
@@ -101,6 +101,12 @@ private val officialIcons = mapOf(
     "microsoft_todo" to "https://to-do.live.com/favicon.ico"
 )
 
+private fun websiteFaviconUrl(website: String): String? = runCatching {
+    URI(website).host?.takeIf { it.isNotBlank() }?.let { host ->
+        "https://$host/favicon.ico"
+    }
+}.getOrNull()
+
 fun ConnectorMeta.presentation(locale: Locale = Locale.getDefault()): ConnectorPresentation {
     val copy = ConnectorCopy.forMeta(this, locale)
     val category = copy?.category ?: this.category ?: when (type) {
@@ -155,6 +161,6 @@ fun ConnectorMeta.presentation(locale: Locale = Locale.getDefault()): ConnectorP
         capabilities = capabilities,
         howToUse = copy?.howToUse ?: "Use this connector only through its declared capabilities and permissions.",
         authentication = auth,
-        iconUrl = iconUrl ?: officialIcons[id] ?: website?.let { runCatching { "https://${Uri.parse(it).host}/favicon.ico" }.getOrNull() }
+        iconUrl = iconUrl ?: officialIcons[id] ?: website?.let(::websiteFaviconUrl)
     )
 }

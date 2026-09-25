@@ -21,6 +21,13 @@ object ResponseOptimizer {
 
     private const val TAG = "AIRI_OPTIMIZE"
 
+    /** Android's framework Log methods are unavailable in plain JVM unit tests. */
+    private fun diagnosticLog(message: String) {
+        if (com.airi.assistant.BuildConfig.DEBUG) {
+            runCatching { Log.d(TAG, message) }
+        }
+    }
+
     // ── Fast response table ───────────────────────────────────────────────────
 
     private data class FastEntry(val keys: List<String>, val replies: List<() -> String>)
@@ -137,8 +144,7 @@ object ResponseOptimizer {
         val tokens = lower.split(Regex("[\\s\\p{Punct}،؛؟]+")).filter { it.isNotBlank() }
         val isShort = lower.length <= 32 && tokens.size <= 5
         if (!isShort) {
-            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "fast_response BYPASS reason=long_input len=${lower.length} tokens=${tokens.size}")
-            Log.i("AIRI", "FAST_PATH_BYPASSED reason=long_input len=${lower.length}")
+            diagnosticLog("fast_response BYPASS reason=long_input len=${lower.length} tokens=${tokens.size}")
             return null
         }
 
@@ -172,8 +178,7 @@ object ResponseOptimizer {
                     else -> entry.replies.firstOrNull { !it().any { c -> c in '\u0600'..'\u06FF' } }
                 } ?: return null
                 val reply = replyFactory()
-                if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "fast_response matched len=${input.length} reply_len=${reply.length}")
-                Log.i("AIRI", "FAST_PATH_HIT input_len=${input.length} reply_len=${reply.length}")
+                diagnosticLog("fast_response matched len=${input.length} reply_len=${reply.length}")
                 return reply
             }
         }

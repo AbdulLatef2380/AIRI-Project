@@ -11,6 +11,11 @@ class SkillPresentationTest {
     fun everyCanonicalSkillHasArabicDisplayCopy() {
         val missing = OfficialSkillLibrary.ids.filterNot(SkillPresentation::hasArabicCopy)
         assertTrue("Missing Arabic copy for: $missing", missing.isEmpty())
+        OfficialSkillLibrary.ids.forEach { id ->
+            val localized = SkillPresentation.localized(OfficialSkillLibrary.manifestFor(id)!!, Locale("ar"))
+            assertTrue("Arabic name missing for: $id", localized.name.any { it in '\u0600'..'\u06FF' })
+            assertTrue("Arabic description missing for: $id", localized.description.any { it in '\u0600'..'\u06FF' })
+        }
     }
 
     @Test

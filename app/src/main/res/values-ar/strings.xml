@@ -1992,4 +1992,26 @@
     <string name="skill_request_explanation">اشرح طريقة عمل هذه المهارة ومتطلباتها وأذوناتها مع مثال آمن.</string>
     <string name="skill_explain_name_label">المهارة</string>
     <string name="skill_explain_id_label">المعرّف التقني</string>
+    <string name="exec_mode_local_name">محلي فقط</string>
+    <string name="exec_mode_cloud_name">سحابي فقط</string>
+    <string name="exec_mode_hybrid_name">مختلط</string>
+    <string name="exec_mode_local_desc">يعمل دون اتصال بالكامل · llama.cpp فقط · الخصوصية أولاً</string>
+    <string name="exec_mode_cloud_desc">واجهات سحابية فقط · يتطلب الإنترنت</string>
+    <string name="exec_mode_hybrid_desc">توجيه ذكي · يختار المحرك الأنسب لكل طلب</string>
+    <string name="exec_privacy_override">الخصوصية القصوى تتجاوز %1$s — تبقى كل الطلبات محلية</string>
+    <string name="exec_cloud_blocked">تم حظر التنفيذ السحابي لأن الوصول إلى الإنترنت معطل.</string>
+    <string name="exec_model_unavailable">النموذج المحدد غير متاح. اختر نموذجاً آخر أو تحقق من إعداده.</string>
+    <string name="exec_generation_cancelled">تم إلغاء التوليد.</string>
+    <string name="cloud_mode_local_short">محلي</string>
+    <string name="cloud_mode_cloud_short">سحابي</string>
+    <string name="cloud_mode_hybrid_short">مختلط</string>
+    <string name="cloud_mode_local_desc">الخصوصية أولاً · يعمل دون اتصال · llama.cpp فقط</string>
+    <string name="cloud_mode_cloud_desc">واجهات سحابية · الأسرع · يتطلب الإنترنت</string>
+    <string name="cloud_mode_hybrid_desc">توجيه ذكي · يختار أفضل محرك لكل طلب</string>
+    <string name="privacy_maximum">الخصوصية القصوى</string>
+    <string name="privacy_balanced">متوازنة</string>
+    <string name="privacy_performance">الأداء</string>
+    <string name="privacy_maximum_desc">لا يغادر شيء الجهاز — السحابة محظورة</string>
+    <string name="privacy_balanced_desc">تُنقّى المطالبات قبل إرسالها للسحابة</string>
+    <string name="privacy_performance_desc">يُرسل السياق الكامل للسحابة — أعلى قدرة</string>
 </resources>

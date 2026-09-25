@@ -1760,4 +1760,26 @@
     <string name="skill_request_explanation">解释此技能的工作方式、要求、权限，并提供一个安全示例。</string>
     <string name="skill_explain_name_label">技能</string>
     <string name="skill_explain_id_label">技术 ID</string>
+    <string name="exec_mode_local_name">仅本地</string>
+    <string name="exec_mode_cloud_name">仅云端</string>
+    <string name="exec_mode_hybrid_name">混合</string>
+    <string name="exec_mode_local_desc">完全离线 · 仅使用 llama.cpp · 隐私优先</string>
+    <string name="exec_mode_cloud_desc">仅远程 API · 需要网络</string>
+    <string name="exec_mode_hybrid_desc">智能路由 · 为每个请求选择最佳引擎</string>
+    <string name="exec_privacy_override">最高隐私级别覆盖 %1$s — 所有请求均保留在本地</string>
+    <string name="exec_cloud_blocked">由于互联网访问已禁用，云端执行已被阻止。</string>
+    <string name="exec_model_unavailable">所选模型不可用。请选择其他模型或检查其配置。</string>
+    <string name="exec_generation_cancelled">生成已取消。</string>
+    <string name="cloud_mode_local_short">本地</string>
+    <string name="cloud_mode_cloud_short">云端</string>
+    <string name="cloud_mode_hybrid_short">混合</string>
+    <string name="cloud_mode_local_desc">隐私优先 · 完全离线 · 仅使用 llama.cpp</string>
+    <string name="cloud_mode_cloud_desc">远程 API · 速度最快 · 需要网络</string>
+    <string name="cloud_mode_hybrid_desc">智能路由 · 为每个请求选择最佳引擎</string>
+    <string name="privacy_maximum">最高隐私</string>
+    <string name="privacy_balanced">平衡</string>
+    <string name="privacy_performance">性能</string>
+    <string name="privacy_maximum_desc">数据不会离开设备 — 云端已阻止</string>
+    <string name="privacy_balanced_desc">云端发送前会清理请求</string>
+    <string name="privacy_performance_desc">向云端发送完整上下文 — 能力最强</string>
 </resources>

@@ -202,7 +202,11 @@ fun ExecutionModePanel(
                     tint = WarnAmber, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "Maximum Privacy overrides ${currentMode.displayName} — all requests stay local",
+                    stringResource(R.string.exec_privacy_override, when (currentMode) {
+                        ExecutionMode.LOCAL_ONLY -> stringResource(R.string.exec_mode_local_name)
+                        ExecutionMode.CLOUD_ONLY -> stringResource(R.string.exec_mode_cloud_name)
+                        ExecutionMode.HYBRID -> stringResource(R.string.exec_mode_hybrid_name)
+                    }),
                     color = WarnAmber,
                     fontSize = 11.sp,
                     lineHeight = 15.sp
@@ -246,13 +250,21 @@ private fun ExecModeOption(
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    mode.displayName,
+                    when (mode) {
+                        ExecutionMode.LOCAL_ONLY -> stringResource(R.string.exec_mode_local_name)
+                        ExecutionMode.CLOUD_ONLY -> stringResource(R.string.exec_mode_cloud_name)
+                        ExecutionMode.HYBRID -> stringResource(R.string.exec_mode_hybrid_name)
+                    },
                     color      = if (selected) AiriTheme.onSurface else dimWhite(),
                     fontSize   = 13.sp,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
                 )
                 Text(
-                    mode.description,
+                    when (mode) {
+                        ExecutionMode.LOCAL_ONLY -> stringResource(R.string.exec_mode_local_desc)
+                        ExecutionMode.CLOUD_ONLY -> stringResource(R.string.exec_mode_cloud_desc)
+                        ExecutionMode.HYBRID -> stringResource(R.string.exec_mode_hybrid_desc)
+                    },
                     color    = if (selected) dimWhite() else subtleWhite(),
                     fontSize = 11.sp,
                     lineHeight = 14.sp
@@ -298,13 +310,21 @@ private fun PrivacyLevelOption(
         Spacer(Modifier.width(6.dp))
         Column {
             Text(
-                level.displayName,
+                when (level) {
+                    PrivacyLevel.MAXIMUM -> stringResource(R.string.privacy_maximum)
+                    PrivacyLevel.BALANCED -> stringResource(R.string.privacy_balanced)
+                    PrivacyLevel.PERFORMANCE -> stringResource(R.string.privacy_performance)
+                },
                 color      = if (selected) AiriTheme.onSurface else dimWhite(),
                 fontSize   = 12.sp,
                 fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
             )
             Text(
-                level.description,
+                when (level) {
+                    PrivacyLevel.MAXIMUM -> stringResource(R.string.privacy_maximum_desc)
+                    PrivacyLevel.BALANCED -> stringResource(R.string.privacy_balanced_desc)
+                    PrivacyLevel.PERFORMANCE -> stringResource(R.string.privacy_performance_desc)
+                },
                 color    = subtleWhite(),
                 fontSize = 10.sp,
                 lineHeight = 13.sp

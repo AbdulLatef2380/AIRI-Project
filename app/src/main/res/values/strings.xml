@@ -2093,4 +2093,26 @@
     <string name="model_key_saved">Key for %1$s saved</string>
     <string name="resource_storage_used">%1$s used of %2$s (%3$d%%)</string>
     <string name="resource_processor_cores_text">%1$d processor cores available. This value guides AIRI runtime choices; Android still controls scheduling.</string>
+    <string name="exec_mode_local_name">Local only</string>
+    <string name="exec_mode_cloud_name">Cloud only</string>
+    <string name="exec_mode_hybrid_name">Hybrid</string>
+    <string name="exec_mode_local_desc">Fully offline · llama.cpp only · privacy-first</string>
+    <string name="exec_mode_cloud_desc">Remote APIs only · requires internet</string>
+    <string name="exec_mode_hybrid_desc">Smart routing · chooses the best engine per request</string>
+    <string name="exec_privacy_override">Maximum Privacy overrides %1$s — all requests stay local</string>
+    <string name="exec_cloud_blocked">Cloud execution is blocked because internet access is disabled.</string>
+    <string name="exec_model_unavailable">The selected model is unavailable. Choose another model or check its configuration.</string>
+    <string name="exec_generation_cancelled">Generation was cancelled.</string>
+    <string name="cloud_mode_local_short">Local</string>
+    <string name="cloud_mode_cloud_short">Cloud</string>
+    <string name="cloud_mode_hybrid_short">Hybrid</string>
+    <string name="cloud_mode_local_desc">Privacy-first · fully offline · llama.cpp only</string>
+    <string name="cloud_mode_cloud_desc">Remote APIs · fastest · requires internet</string>
+    <string name="cloud_mode_hybrid_desc">Smart routing · picks the best engine per request</string>
+    <string name="privacy_maximum">Maximum privacy</string>
+    <string name="privacy_balanced">Balanced</string>
+    <string name="privacy_performance">Performance</string>
+    <string name="privacy_maximum_desc">Nothing leaves the device — cloud blocked</string>
+    <string name="privacy_balanced_desc">Cloud prompts are sanitized before sending</string>
+    <string name="privacy_performance_desc">Full context sent to cloud — fastest capability</string>
 </resources>

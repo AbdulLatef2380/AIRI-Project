@@ -2014,4 +2014,8 @@
     <string name="privacy_maximum_desc">لا يغادر شيء الجهاز — السحابة محظورة</string>
     <string name="privacy_balanced_desc">تُنقّى المطالبات قبل إرسالها للسحابة</string>
     <string name="privacy_performance_desc">يُرسل السياق الكامل للسحابة — أعلى قدرة</string>
+    <string name="connectors_how_to_use">طريقة الاستخدام</string>
+    <string name="connectors_access">نطاق الوصول</string>
+    <string name="connectors_authentication">المصادقة: %1$s</string>
+    <string name="connectors_capabilities">القدرات</string>
 </resources>

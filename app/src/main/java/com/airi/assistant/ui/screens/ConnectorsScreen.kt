@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -44,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.viewmodel.ConnectorsViewModel
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
+import coil.compose.AsyncImage
 private data class ConnectorTab(
     val type: ConnectorType,
     val labelResId: Int? = null,
@@ -87,10 +89,11 @@ fun ConnectorsScreen(
 ) {
     val allItems     by viewModel.items.collectAsState()
     val selectedTab  by viewModel.selectedTab.collectAsState()
+    val locale = LocalConfiguration.current.locales[0]
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedCategory by rememberSaveable { mutableStateOf("ALL") }
     val categories = remember(allItems) {
-        listOf("ALL") + allItems.map { it.meta.presentation().category }.distinct().sorted()
+        listOf("ALL") + allItems.map { it.meta.presentation(locale).category }.distinct().sorted()
     }
     LaunchedEffect(categories) {
         if (selectedCategory !in categories) selectedCategory = "ALL"
@@ -98,13 +101,15 @@ fun ConnectorsScreen(
 
     val visibleItems = allItems.filter { row ->
         row.meta.type == selectedTab &&
-            (selectedCategory == "ALL" || row.meta.presentation().category == selectedCategory) &&
+            (selectedCategory == "ALL" || row.meta.presentation(locale).category == selectedCategory) &&
             (searchQuery.isBlank() ||
                 row.meta.name.contains(searchQuery, ignoreCase = true) ||
                 row.meta.description.contains(searchQuery, ignoreCase = true) ||
                 row.meta.provider.orEmpty().contains(searchQuery, ignoreCase = true) ||
                 row.meta.capabilities.any { it.id.contains(searchQuery, ignoreCase = true) || it.description.contains(searchQuery, ignoreCase = true) } ||
-                row.meta.tags.any { it.contains(searchQuery, ignoreCase = true) })
+                row.meta.tags.any { it.contains(searchQuery, ignoreCase = true) } ||
+                row.meta.presentation(locale).name.contains(searchQuery, ignoreCase = true) ||
+                row.meta.presentation(locale).description.contains(searchQuery, ignoreCase = true))
     }
     val connectedCount = allItems.count { it.state.connected && it.state.healthy }
 
@@ -352,7 +357,8 @@ fun ConnectorsScreen(
                             },
                             onDisconnect = { viewModel.disconnect(row.meta.id) },
                             onManageAuthorization = onManageAuthorization,
-                            onOpenDetails = { onOpenDetails(row.meta.id) }
+                            onOpenDetails = { onOpenDetails(row.meta.id) },
+                            locale = locale
                         )
                     }
                 }
@@ -367,8 +373,10 @@ private fun ConnectorCard(
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onManageAuthorization: (String) -> Unit,
-    onOpenDetails: () -> Unit
+    onOpenDetails: () -> Unit,
+    locale: java.util.Locale
 ) {
+    val presentation = remember(row.meta, locale) { row.meta.presentation(locale) }
     var expanded by remember { mutableStateOf(false) }
     val isConnected = row.state.connected
     val isComingSoon = row.meta.availability == ConnectorAvailability.COMING_SOON
@@ -426,16 +434,24 @@ private fun ConnectorCard(
                             .background(CosmicAccent.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            iconForId(row.meta.id),
-                            contentDescription = null,
-                            tint = CosmicAccent,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        if (presentation.iconUrl != null) {
+                            AsyncImage(
+                                model = presentation.iconUrl,
+                                contentDescription = presentation.name,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        } else {
+                            Icon(
+                                iconForId(row.meta.id),
+                                contentDescription = presentation.name,
+                                tint = CosmicAccent,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                     Column {
                         Text(
-                            row.meta.name,
+                            presentation.name,
                             color = AiriTheme.onBackground,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium,
@@ -474,11 +490,55 @@ private fun ConnectorCard(
                     Divider(color = AiriTheme.outline.copy(alpha = 0.5f))
                     Spacer(Modifier.height(10.dp))
                         Text(
-                            row.meta.description,
+                            presentation.description,
                         color    = AiriTheme.onBackground.copy(0.55f),
                         fontSize = 13.sp,
                             lineHeight = 18.sp
                         )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(R.string.connectors_how_to_use),
+                        color = AiriTheme.onSurface,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        presentation.howToUse,
+                        color = AiriTheme.onBackground.copy(0.55f),
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(R.string.connectors_access),
+                        color = AiriTheme.onSurface,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        presentation.projectAccess,
+                        color = AiriTheme.onBackground.copy(0.55f),
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(R.string.connectors_authentication, presentation.authentication),
+                        color = AiriTheme.onSurfaceVariant,
+                        fontSize = 11.sp
+                    )
+                    if (presentation.capabilities.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            stringResource(R.string.connectors_capabilities),
+                            color = AiriTheme.onSurface,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        presentation.capabilities.forEach { capability ->
+                            Text("• $capability", color = AiriTheme.onBackground.copy(0.55f), fontSize = 12.sp)
+                        }
+                    }
                     if (row.meta.tags.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

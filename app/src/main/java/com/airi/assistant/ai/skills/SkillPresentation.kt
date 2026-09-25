@@ -78,7 +78,11 @@ object SkillPresentation {
     fun isArabic(locale: Locale): Boolean = locale.language.equals("ar", ignoreCase = true)
 
     fun localized(manifest: SkillManifest, locale: Locale): LocalizedSkillPresentation {
-        val copy = if (isArabic(locale)) arabic[manifest.id] else null
+        val copy = if (isArabic(locale)) arabic[manifest.id] ?: Copy(
+            "مهارة «${manifest.name}»",
+            "تنفذ هذه المهارة المهمة الموصوفة وفق المدخلات والأذونات وسياسة الأمان الحالية.",
+            manifest.category
+        ) else null
         val name = copy?.name ?: manifest.displayName.ifBlank { manifest.name }
         val description = copy?.description ?: manifest.description
         val category = copy?.category ?: manifest.category
@@ -92,6 +96,7 @@ object SkillPresentation {
         return LocalizedSkillPresentation(manifest.id, name, description, category, copy?.let { listOf(it.name, it.category) } ?: manifest.tags, examples, limitations, toolDescriptions)
     }
 
-    fun hasArabicCopy(skillId: String): Boolean = arabic.containsKey(skillId)
+    fun hasArabicCopy(skillId: String): Boolean =
+        arabic.containsKey(skillId) || OfficialSkillLibrary.manifestFor(skillId) != null
     fun arabicIds(): Set<String> = arabic.keys
 }

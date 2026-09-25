@@ -71,6 +71,8 @@ import com.airi.assistant.memory.dao.ChatSessionSummary
 import com.airi.assistant.memory.entity.ChatMessage as MemoryChatMessage
 import com.airi.assistant.memory.repository.MemoryManager
 import com.airi.assistant.ai.skills.SkillModelBridge
+import com.airi.assistant.ai.skills.OfficialSkillLibrary
+import com.airi.assistant.ai.skills.SkillPresentation
 import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.ai.skills.SkillToolBridge
 import com.airi.assistant.tools.FileUtils
@@ -3370,16 +3372,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .asSequence()
             .filter { it.isEnabled && it.isConnected }
             .filter { skill ->
+                val presentation = OfficialSkillLibrary.manifestFor(skill.id)
+                    ?.let { SkillPresentation.localized(it, java.util.Locale.getDefault()) }
                 normalized.isBlank() ||
                     skill.name.lowercase().contains(normalized) ||
-                    skill.description.lowercase().contains(normalized)
+                    skill.description.lowercase().contains(normalized) ||
+                    presentation?.name?.lowercase()?.contains(normalized) == true ||
+                    presentation?.description?.lowercase()?.contains(normalized) == true
             }
             .take(MAX_SHORTCUT_SUGGESTIONS)
             .map { skill ->
+                val presentation = OfficialSkillLibrary.manifestFor(skill.id)
+                    ?.let { SkillPresentation.localized(it, java.util.Locale.getDefault()) }
                 ChatInputSuggestion(
                     id = skill.id,
-                    title = skill.name.replace('_', ' '),
-                    subtitle = skill.description,
+                    title = presentation?.name ?: skill.name.replace('_', ' '),
+                    subtitle = presentation?.description ?: skill.description,
                     isKnowledge = false
                 )
             }

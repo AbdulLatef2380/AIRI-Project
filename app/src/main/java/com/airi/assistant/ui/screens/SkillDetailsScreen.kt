@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.ai.skills.OfficialSkillLibrary
+import com.airi.assistant.ai.skills.SkillPresentation
 import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.ui.theme.AIRIShapes
 import com.airi.assistant.ui.theme.AiriTheme
@@ -71,12 +72,13 @@ fun SkillDetailsScreen(
     val registry = remember { SkillRegistry(context) }
     val entry = remember(skillId) { OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == skillId } }
     val manifest = entry?.manifest
+    val presentation = manifest?.let { SkillPresentation.localized(it, java.util.Locale.getDefault()) }
     val skillInfo = remember(skillId) { registry.getAllSkillInfos().firstOrNull { it.name == skillId } }
     val available = skillInfo?.isConnected != false
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var enabled by remember(skillId) { mutableStateOf(registry.isSkillEnabled(skillId)) }
-    if (manifest == null) { LaunchedEffect(Unit) { onBack() }; return }
+    if (manifest == null || presentation == null) { LaunchedEffect(Unit) { onBack() }; return }
 
     Scaffold(
         containerColor = AiriTheme.background,
@@ -85,7 +87,7 @@ fun SkillDetailsScreen(
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background),
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, stringResource(R.string.back), tint = AiriTheme.onBackground) } },
-                title = { Text(stringResource(R.string.skill_details_category_label, manifest.category, manifest.version), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp) }
+                title = { Text(stringResource(R.string.skill_details_category_label, presentation.category, manifest.version), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp) }
             )
         }
     ) { padding ->
@@ -96,12 +98,12 @@ fun SkillDetailsScreen(
                         Surface(shape = AIRIShapes.lg, color = CosmicAccent.copy(0.18f), modifier = Modifier.size(68.dp)) { Box(contentAlignment = Alignment.Center) { Text(manifest.iconEmoji.ifBlank { "✦" }, fontSize = 34.sp) } }
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text(manifest.name, color = AiriTheme.onSurface, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                            Text(manifest.description, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 19.sp)
+                            Text(presentation.name, color = AiriTheme.onSurface, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                            Text(presentation.description, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 19.sp)
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DetailBadge(manifest.category, CosmicAccent)
+                        DetailBadge(presentation.category, CosmicAccent)
                         DetailBadge("v${manifest.version}", AiriTheme.onSurfaceVariant)
                         if (!available) DetailBadge(stringResource(R.string.skill_connector_required), SemanticWarn)
                     }
@@ -132,13 +134,29 @@ fun SkillDetailsScreen(
                     if (manifest.supportsAttachments) Text(stringResource(R.string.skill_supports_attachments), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
                 }
             }
+            Text(stringResource(R.string.skill_examples), color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            presentation.examples.forEach { example ->
+                Surface(shape = AIRIShapes.lg, color = AiriTheme.surface, modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(example, color = AiriTheme.onSurface, fontSize = 13.sp, lineHeight = 19.sp)
+                            Text(stringResource(R.string.skill_prompt_shortcut), color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
+                        }
+                        OutlinedButton(onClick = { onTry("/skill:${manifest.id} $example") }) {
+                            Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(stringResource(R.string.skill_use_example), fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
             Text(stringResource(R.string.skill_capabilities), color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 17.sp)
             manifest.tools.forEach { tool ->
                 Surface(shape = AIRIShapes.lg, color = AiriTheme.surface, modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(15.dp), verticalAlignment = Alignment.Top) {
                         Surface(shape = AIRIShapes.pill, color = CosmicAccent.copy(0.14f), modifier = Modifier.size(30.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.AutoAwesome, null, tint = CosmicAccent, modifier = Modifier.size(16.dp)) } }
                         Spacer(Modifier.width(10.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(tool.name, color = AiriTheme.onSurface, fontWeight = FontWeight.SemiBold); Text(tool.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 17.sp) }
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(tool.name, color = AiriTheme.onSurface, fontWeight = FontWeight.SemiBold); Text(presentation.toolDescriptions[tool.name] ?: tool.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 17.sp) }
                     }
                 }
             }
@@ -148,7 +166,7 @@ fun SkillDetailsScreen(
                 }
                 OutlinedButton(onClick = { onTry("/skill:${manifest.id} ") }, modifier = Modifier.weight(1f), shape = AIRIShapes.lg) { Icon(Icons.Outlined.PlayArrow, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.skill_try)) }
             }
-            OutlinedButton(onClick = { onExplain("Explain the ${manifest.name} skill, its requirements, permissions, and a safe example of using it in this project.") }, modifier = Modifier.fillMaxWidth(), shape = AIRIShapes.lg) { Icon(Icons.Outlined.HelpOutline, null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.skill_explain)) }
+            OutlinedButton(onClick = { onExplain("${context.getString(R.string.skill_request_explanation)}\n\n${context.getString(R.string.skill_explain_name_label)}: ${presentation.name}\n${context.getString(R.string.skill_explain_id_label)}: ${manifest.id}") }, modifier = Modifier.fillMaxWidth(), shape = AIRIShapes.lg) { Icon(Icons.Outlined.HelpOutline, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.skill_explain)) }
             Spacer(Modifier.height(24.dp))
         }
     }

@@ -1983,6 +1983,12 @@
     <string name="prompt_report_title">Report a problem or suggestion</string>
     <string name="prompt_report_hint">Tell us what happened or what should improve…</string>
     <string name="prompt_send_report">Send report</string>
+    <string name="skill_examples">Prompt examples</string>
+    <string name="skill_prompt_shortcut">Prefills the composer without sending</string>
+    <string name="skill_use_example">Use example</string>
+    <string name="skill_request_explanation">Explain how this skill works, its requirements, permissions, and a safe example.</string>
+    <string name="skill_explain_name_label">Skill</string>
+    <string name="skill_explain_id_label">Technical ID</string>
     <string name="prompt_report_sent">Thanks. Your report was recorded.</string>
     <string name="about_terms">Terms of Use</string>
     <string name="about_acknowledgements">Open-Source Acknowledgements</string>

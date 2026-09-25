@@ -1709,12 +1709,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (execModePrefs.executionMode != ExecutionMode.LOCAL_ONLY &&
             cloudConfigured && !execModePrefs.internetPermissionGranted
         ) {
-            val message = "Cloud execution blocked: internet permission is disabled."
+            val message = appContext.getString(R.string.exec_cloud_blocked)
             RuntimeEventLog.post("EXEC_MODE", EventSeverity.WARN, message)
             _lastExecutionError.value = ExecutionErrorProjection(
                 executionId = "generation-permission",
                 message = message,
-                detail = "Enable internet permission before sending to the selected cloud provider."
+                detail = appContext.getString(R.string.exec_cloud_blocked)
             )
             return false
         }

@@ -1951,6 +1951,7 @@ fun ChatMessageList(
     val listState = rememberLazyListState()
     val scope     = rememberCoroutineScope()
     val reversedMessages = remember(messages) { messages.reversed() }
+    val messageKeys = remember(reversedMessages) { ChatUiPolicy.messageKeys(reversedMessages) }
     val isPinnedToBottom by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < 48
@@ -1960,7 +1961,7 @@ fun ChatMessageList(
 
     LaunchedEffect(messages.size) {
         if (isPinnedToBottom && (messages.isNotEmpty() || streamingText.isNotEmpty())) {
-            scope.launch { listState.scrollToItem(0) }
+            listState.scrollToItem(0)
         }
         lastScrolledStreamLen = 0
     }
@@ -2068,7 +2069,7 @@ fun ChatMessageList(
                         FinalAnswerVerificationBadge(finalAnswerVerification)
                     }
                 }
-                itemsIndexed(reversedMessages, key = { _, msg -> msg.uid }, contentType = { _, msg -> if (msg.isUser) "user" else "assistant" }) { index, msg ->
+                itemsIndexed(reversedMessages, key = { index, _ -> messageKeys[index] }, contentType = { _, msg -> if (msg.isUser) "user" else "assistant" }) { index, msg ->
                     val prevMsg = reversedMessages.getOrNull(index + 1)
                     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                         val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
@@ -3206,7 +3207,6 @@ fun AiriChatInputBar(
                         )
                     }
                 }
-                Divider(color = AiriTheme.outline, thickness = 0.5.dp)
             }
             if (activeSuggestions.isNotEmpty() && !isGenerating) {
                 Column(
@@ -3287,7 +3287,7 @@ fun AiriChatInputBar(
                 horizontalArrangement = Arrangement.End
             ) {
                 val fullScreenEditorDescription = stringResource(R.string.expand)
-                if (text.lineSequence().count() >= 5) {
+                if (ChatUiPolicy.shouldShowExpandAction(text)) {
                     IconButton(
                         onClick = { showFullScreenEditor = true },
                         modifier = Modifier.size(48.dp).semantics {
@@ -3967,12 +3967,9 @@ private fun ScrollToBottomFab(visible: Boolean, onClick: () -> Unit, modifier: M
             modifier = modifier
                 .size(48.dp)
                 .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        listOf(CosmicAccentAlt, CosmicAccent)
-                    )
-                )
-                .shadow(8.dp, CircleShape, ambientColor = CosmicAccent, spotColor = CosmicAccent)
+                .background(AiriTheme.surfaceVariant)
+                .border(1.dp, AiriTheme.outline, CircleShape)
+                .shadow(4.dp, CircleShape, ambientColor = AiriTheme.outline, spotColor = AiriTheme.outline)
                 .semantics {
                     contentDescription = scrollToBottomDescription
                     role = Role.Button
@@ -3980,7 +3977,7 @@ private fun ScrollToBottomFab(visible: Boolean, onClick: () -> Unit, modifier: M
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.KeyboardArrowDown, null, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.KeyboardArrowDown, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
         }
     }
 }

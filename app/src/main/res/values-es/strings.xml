@@ -1760,4 +1760,26 @@
     <string name="skill_request_explanation">Explica cómo funciona esta habilidad, sus requisitos, permisos y un ejemplo seguro.</string>
     <string name="skill_explain_name_label">Habilidad</string>
     <string name="skill_explain_id_label">ID técnico</string>
+    <string name="exec_mode_local_name">Solo local</string>
+    <string name="exec_mode_cloud_name">Solo nube</string>
+    <string name="exec_mode_hybrid_name">Híbrido</string>
+    <string name="exec_mode_local_desc">Totalmente sin conexión · solo llama.cpp · privacidad primero</string>
+    <string name="exec_mode_cloud_desc">Solo APIs remotas · requiere internet</string>
+    <string name="exec_mode_hybrid_desc">Enrutamiento inteligente · elige el mejor motor para cada solicitud</string>
+    <string name="exec_privacy_override">La privacidad máxima reemplaza %1$s — todas las solicitudes permanecen locales</string>
+    <string name="exec_cloud_blocked">La ejecución en la nube está bloqueada porque el acceso a internet está desactivado.</string>
+    <string name="exec_model_unavailable">El modelo seleccionado no está disponible. Elige otro modelo o revisa su configuración.</string>
+    <string name="exec_generation_cancelled">La generación fue cancelada.</string>
+    <string name="cloud_mode_local_short">Local</string>
+    <string name="cloud_mode_cloud_short">Nube</string>
+    <string name="cloud_mode_hybrid_short">Híbrido</string>
+    <string name="cloud_mode_local_desc">Privacidad primero · totalmente sin conexión · solo llama.cpp</string>
+    <string name="cloud_mode_cloud_desc">APIs remotas · más rápido · requiere internet</string>
+    <string name="cloud_mode_hybrid_desc">Enrutamiento inteligente · elige el mejor motor para cada solicitud</string>
+    <string name="privacy_maximum">Privacidad máxima</string>
+    <string name="privacy_balanced">Equilibrada</string>
+    <string name="privacy_performance">Rendimiento</string>
+    <string name="privacy_maximum_desc">Nada sale del dispositivo — nube bloqueada</string>
+    <string name="privacy_balanced_desc">Las solicitudes se limpian antes de enviarse</string>
+    <string name="privacy_performance_desc">Se envía todo el contexto a la nube — máxima capacidad</string>
 </resources>

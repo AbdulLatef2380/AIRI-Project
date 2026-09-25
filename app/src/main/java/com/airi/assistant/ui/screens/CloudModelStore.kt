@@ -216,9 +216,9 @@ private fun CloudInferenceModePicker(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         listOf(
-            Triple(ExecutionMode.LOCAL_ONLY,  Icons.Outlined.DevicesOther, "Local"),
-            Triple(ExecutionMode.CLOUD_ONLY,  Icons.Outlined.Cloud,        "Cloud"),
-            Triple(ExecutionMode.HYBRID,      Icons.Outlined.Bolt,         "Hybrid")
+            Triple(ExecutionMode.LOCAL_ONLY,  Icons.Outlined.DevicesOther, stringResource(R.string.cloud_mode_local_short)),
+            Triple(ExecutionMode.CLOUD_ONLY,  Icons.Outlined.Cloud,        stringResource(R.string.cloud_mode_cloud_short)),
+            Triple(ExecutionMode.HYBRID,      Icons.Outlined.Bolt,         stringResource(R.string.cloud_mode_hybrid_short))
         ).forEach { (mode, icon, label) ->
             val selected = selectedMode == mode
             Surface(
@@ -256,9 +256,9 @@ private fun CloudInferenceModePicker(
 
     // Mode description
     val modeDesc = when (selectedMode) {
-        ExecutionMode.LOCAL_ONLY -> "Privacy-first · fully offline · llama.cpp only"
-        ExecutionMode.CLOUD_ONLY -> "Remote APIs · fastest · requires internet"
-        ExecutionMode.HYBRID     -> "Smart routing: picks best engine per request"
+        ExecutionMode.LOCAL_ONLY -> stringResource(R.string.cloud_mode_local_desc)
+        ExecutionMode.CLOUD_ONLY -> stringResource(R.string.cloud_mode_cloud_desc)
+        ExecutionMode.HYBRID     -> stringResource(R.string.cloud_mode_hybrid_desc)
     }
     Text(
         modeDesc,

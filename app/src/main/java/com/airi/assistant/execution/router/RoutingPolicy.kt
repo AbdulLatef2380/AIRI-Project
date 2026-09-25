@@ -57,6 +57,7 @@ object RoutingPolicy {
         LOCAL_BEST_EFFORT,
         DEVICE_STRESS,
         CLOUD_PREFERRED,
+        EXPLICIT_CLOUD_TARGET,
         CLOUD_BUDGET_EXHAUSTED,
         NETWORK_UNAVAILABLE,
         HYBRID_LOCAL_DEFAULT
@@ -83,12 +84,30 @@ object RoutingPolicy {
         val privacy = prefs.privacyLevel
         val fallbackEnabled = prefs.offlineFallbackEnabled
 
-        // ── Rule 1 + 2 + 3: hard local gates ─────────────────────────────────
+        val explicitCloudTarget = request.requestedProviderId.isNotBlank() &&
+            !request.requestedProviderId.equals("local", ignoreCase = true)
+
+        // ── Rule 1 + 2: hard local gates ──────────────────────────────────────
         if (!request.allowCloud ||
             mode == ExecutionMode.LOCAL_ONLY ||
-            privacy == PrivacyLevel.MAXIMUM ||
-            !prefs.internetPermissionGranted) {
+            privacy == PrivacyLevel.MAXIMUM) {
             return Selection(listOf(local), "LOCAL_ONLY / privacy=MAXIMUM / no internet permission", DecisionReason.HARD_LOCAL_GATE)
+        }
+
+        if (!prefs.internetPermissionGranted && !explicitCloudTarget) {
+            return Selection(listOf(local), "No internet permission", DecisionReason.HARD_LOCAL_GATE)
+        }
+
+        if (!prefs.internetPermissionGranted && explicitCloudTarget) {
+            return Selection(listOf(cloud), "Explicit cloud target blocked by missing internet permission", DecisionReason.EXPLICIT_CLOUD_TARGET)
+        }
+
+        // A user-selected cloud provider/model is an ownership request, not a
+        // hint for hybrid optimization. Keep cloud primary and only permit a
+        // local fallback when the explicit fallback policy allows it.
+        if (explicitCloudTarget) {
+            val candidates = if (fallbackEnabled && local.isAvailable) listOf(cloud, local) else listOf(cloud)
+            return Selection(candidates, "Explicit cloud target=${request.requestedProviderId}", DecisionReason.EXPLICIT_CLOUD_TARGET)
         }
 
         // ── Rule 4: caller signals offline ────────────────────────────────────

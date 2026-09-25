@@ -1,6 +1,7 @@
 package com.airi.assistant.ui.screens
 
 import com.airi.assistant.connector.OfficialConnectorCatalog
+import com.airi.assistant.connector.toConnectorMeta
 import java.util.Locale
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull

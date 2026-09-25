@@ -2,6 +2,7 @@ package com.airi.assistant.ui.screens
 
 import android.Manifest
 import android.app.Activity
+import android.animation.ValueAnimator
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.WindowInsets
@@ -13,12 +14,6 @@ import android.os.CancellationSignal
 import android.provider.OpenableColumns
 import android.util.Size as AndroidSize
 import android.media.projection.MediaProjectionManager
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.DisposableEffect
 import com.airi.assistant.voice.VoskEngine
 import com.airi.assistant.voice.VoskModelManager
@@ -110,6 +105,7 @@ import kotlinx.coroutines.withContext
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.airi.assistant.ui.text.BidiAwareMarkdownRenderer
+import com.airi.assistant.ui.components.ThinkingAnimation
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -1981,7 +1977,7 @@ fun ChatMessageList(
         }
     }
 
-    if (messages.isEmpty() && streamingText.isEmpty()) {
+    if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating) {
         // Premium empty state — cosmic orb + greeting + suggestion chips
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Column(
@@ -2217,7 +2213,7 @@ fun UserBubble(
 
     var showContextMenu by remember { mutableStateOf(false) }
     var isSelectingText by remember { mutableStateOf(false) }
-    var isExpanded by rememberSaveable(text) { mutableStateOf(false) }
+    var isExpanded by rememberSaveable(text, imageUri) { mutableStateOf(false) }
     val isLongMessage = imageUri == null && LongTextAttachmentPolicy.shouldCollapseInline(displayText)
     val renderedText = remember(displayText, isExpanded, isLongMessage) {
         if (!isLongMessage || isExpanded) displayText
@@ -2683,16 +2679,7 @@ fun AiStreamingBubble(text: String) {
 
 @Composable
 private fun AiriThinkingRow(label: String) {
-    val transition = rememberInfiniteTransition(label = "airi_thinking")
-    val alpha by transition.animateFloat(
-        initialValue = 0.55f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "airi_thinking_alpha"
-    )
+    val animationsEnabled = ValueAnimator.areAnimatorsEnabled()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -2703,15 +2690,14 @@ private fun AiriThinkingRow(label: String) {
     ) {
         Image(
             painter = painterResource(R.mipmap.ic_launcher_foreground),
-            contentDescription = "AIRI",
+            contentDescription = null,
             modifier = Modifier.size(24.dp)
         )
         Spacer(Modifier.width(7.dp))
-        Text(
-            text = label,
-            color = CosmicAccent.copy(alpha = alpha),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium
+        ThinkingAnimation(
+            modifier = Modifier.padding(vertical = 2.dp),
+            stageText = label,
+            animate = animationsEnabled
         )
     }
 }

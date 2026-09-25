@@ -103,6 +103,9 @@ fun AdvancedChatInputBar(
     // Track focus state to collapse toolbar when idle
     var hasFocus by remember { mutableStateOf(false) }
     var toolbarDismissed by remember { mutableStateOf(false) }
+    val bottomNavDescription = stringResource(
+        if (bottomNavVisible) R.string.cd_collapse_input else R.string.cd_expand_input
+    )
 
     Column(
         modifier = Modifier
@@ -176,7 +179,7 @@ fun AdvancedChatInputBar(
             IconButton(
                 onClick = onBottomNavToggle,
                 modifier = Modifier.semantics {
-                    contentDescription = stringResource(if (bottomNavVisible) R.string.cd_collapse_input else R.string.cd_expand_input)
+                    contentDescription = bottomNavDescription
                     role = Role.Button
                 }
             ) {

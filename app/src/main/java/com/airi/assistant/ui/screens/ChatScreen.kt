@@ -2254,11 +2254,15 @@ fun UserBubble(
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val bubbleMaxWidth = minOf(640.dp, maxWidth * 0.86f)
+            val expansionDescription = stringResource(
+                if (isExpanded) R.string.show_less else R.string.show_more
+            )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Box {
                     Column(
                         modifier = Modifier
-                            .widthIn(max = minOf(640.dp, maxWidth * 0.86f))
+                            .widthIn(max = bubbleMaxWidth)
                             .wrapContentWidth(Alignment.End)
                             .clip(AIRIShapes.userBubble)
                             .background(AiriTheme.surfaceVariant)
@@ -2308,7 +2312,7 @@ fun UserBubble(
                             onClick = { isExpanded = !isExpanded },
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
                             modifier = Modifier.semantics {
-                                contentDescription = stringResource(if (isExpanded) R.string.show_less else R.string.show_more)
+                                contentDescription = expansionDescription
                             }
                         ) {
                             Text(
@@ -2739,7 +2743,7 @@ private fun AttachmentChip(
     }
     val subtitle = listOfNotNull(typeLabel, lineCount?.let { "$it lines" }, extension, attachment.displaySize)
         .joinToString(" • ")
-    val openAttachment = {
+    val openAttachment: () -> Unit = {
         attachment.uri?.let { uri ->
             runCatching {
                 context.startActivity(Intent(Intent.ACTION_VIEW).apply {
@@ -2748,6 +2752,7 @@ private fun AttachmentChip(
                 })
             }
         }
+        Unit
     }
     Box(
         modifier = Modifier

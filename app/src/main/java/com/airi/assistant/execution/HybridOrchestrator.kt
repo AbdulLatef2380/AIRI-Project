@@ -163,6 +163,7 @@ class HybridOrchestrator(
             "gen#$genId request=${ownedRequest.identity?.requestId} " +
             "execution=${ownedRequest.identity?.executionId} " +
             "EXECUTE ${ownedRequest.queryType.name} mode=${prefs.effectiveMode.name} " +
+            "model=${ownedRequest.requestedModelId.ifBlank { "unspecified" }} " +
             "tokens_est=${ownedRequest.estimatedPromptTokens}")
 
         updateDiagnostics {

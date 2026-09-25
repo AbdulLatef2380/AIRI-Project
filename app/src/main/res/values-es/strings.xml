@@ -1753,4 +1753,10 @@
     <string name="skill_validation_description_required">La descripción es obligatoria</string>
     <string name="skill_validation_name_required">El nombre de la habilidad es obligatorio</string>
     <string name="skill_validation_version">La versión debe seguir semver (p. ej., 1.0.0)</string>
+    <string name="skill_examples">Ejemplos de prompts</string>
+    <string name="skill_prompt_shortcut">Rellena el campo sin enviar</string>
+    <string name="skill_use_example">Usar ejemplo</string>
+    <string name="skill_request_explanation">Explica cómo funciona esta habilidad, sus requisitos, permisos y un ejemplo seguro.</string>
+    <string name="skill_explain_name_label">Habilidad</string>
+    <string name="skill_explain_id_label">ID técnico</string>
 </resources>

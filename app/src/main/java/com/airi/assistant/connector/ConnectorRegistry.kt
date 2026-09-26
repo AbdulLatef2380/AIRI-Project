@@ -78,38 +78,6 @@ class ConnectorRegistry(
                 (availability == null || item.availability == availability)
         }
 
-    /** Catalog entries remain discoverable, but only registered adapters are executable. */
-    fun catalogMeta(): List<ConnectorMeta> {
-        val catalogIds = OfficialConnectorCatalog.all.mapTo(mutableSetOf()) { it.id }
-        val catalogEntries = OfficialConnectorCatalog.all.map { definition ->
-            get(definition.id)?.meta()?.withCatalogDefinition(definition)
-                ?: definition.toConnectorMeta()
-        }
-        val liveOnly = meta.value.filterNot { it.id in catalogIds }.map { item ->
-            if (item.type == ConnectorType.APP && item.availability == ConnectorAvailability.READY) {
-                item.copy(availability = ConnectorAvailability.PARTIAL)
-            } else item
-        }
-        return catalogEntries + liveOnly
-    }
-
-    fun catalogSearch(query: String): List<ConnectorMeta> {
-        val q = query.trim()
-        if (q.isEmpty()) return catalogMeta()
-        return catalogMeta().filter { item ->
-            listOf(item.id, item.name, item.description, item.provider.orEmpty(), item.category.orEmpty())
-                .any { it.contains(q, ignoreCase = true) } ||
-                item.tags.any { it.contains(q, ignoreCase = true) } ||
-                item.capabilities.any { it.id.contains(q, ignoreCase = true) }
-        }
-    }
-
-    fun catalogFilter(category: String? = null, availability: ConnectorAvailability? = null): List<ConnectorMeta> =
-        catalogMeta().filter { item ->
-            (category == null || item.category.equals(category, ignoreCase = true)) &&
-                (availability == null || item.availability == availability)
-        }
-
     fun register(connector: Connector) {
         require(connector.id.isNotBlank()) { "Connector id must not be blank" }
         store[connector.id] = connector

@@ -49,6 +49,34 @@ class ConnectorRuntimeManagerTest {
         assertTrue(results.values.all { it is ConnectorOutput.Success })
     }
 
+    @Test
+    fun timeoutIsNotProjectedAsSuccessAndStateIsTimedOut() = runBlocking {
+        val registry = ConnectorRegistry()
+        registry.register(FakeConnector(id = "slow-timeout", initiallyHealthy = true, executionDelayMs = 200))
+        val runtime = ConnectorRuntimeManager(registry)
+
+        val result = runtime.execute("slow-timeout", ConnectorInput(action = "read"), maxRetries = 0, timeoutMs = 10)
+
+        assertTrue(result is ConnectorOutput.Failure)
+        assertEquals("timeout", (result as ConnectorOutput.Failure).code)
+        assertTrue(runtime.operationStates.value.values.last() is ConnectorOperationState.TimedOut)
+    }
+
+    @Test
+    fun explicitDisconnectBlocksLateExecutionUntilLifecycleReconnect() = runBlocking {
+        val registry = ConnectorRegistry()
+        registry.register(FakeConnector(id = "lifecycle", initiallyHealthy = true))
+        val runtime = ConnectorRuntimeManager(registry)
+
+        assertTrue(registry.disconnect("lifecycle"))
+        val blocked = runtime.execute("lifecycle", ConnectorInput(action = "read"))
+        assertEquals("not_connected", (blocked as ConnectorOutput.Failure).code)
+
+        val reconnected = registry.connect("lifecycle")
+        assertTrue(reconnected.connected && reconnected.healthy)
+        assertTrue(runtime.execute("lifecycle", ConnectorInput(action = "read")) is ConnectorOutput.Success)
+    }
+
     private class ApprovalConnector : Connector {
         override val id = "approval"
         override val name = "Approval connector"

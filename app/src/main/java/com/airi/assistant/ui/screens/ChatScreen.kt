@@ -209,6 +209,7 @@ fun ChatScreen(
     val isSummarizing         by viewModel.isSummarizing.collectAsState()
     val pendingSummary        by viewModel.pendingSummary.collectAsState()
     val currentSessionId      by viewModel.currentSessionId.collectAsState()
+    val sessionLoadState      by viewModel.sessionLoadState.collectAsState()
     val sessions              by viewModel.sessions.collectAsState()
     val favoriteSessionIds    by viewModel.favoriteSessionIds.collectAsState()
     val composerDrafts        by viewModel.composerDrafts.collectAsState()
@@ -1024,6 +1025,8 @@ fun ChatScreen(
                 finalAnswerVerification = agentState.finalAnswerVerification,
                 isModelReady  = modelState.isModelReady,
                 isCloudReady  = modelState.isCloudReady,
+                sessionLoadState = sessionLoadState,
+                onRetrySession = { id -> id?.let(viewModel::loadSession) },
                 onOpenModels  = { onNavigate(AiriRoute.MODELS) },
                 onShareAiResponse = { response -> shareAiResponse(context, response) },
                 onSpeak = { text ->
@@ -1933,6 +1936,8 @@ fun ChatMessageList(
     messages: List<ChatMessage>,
     streamingText: String,
     isGenerating: Boolean,
+    sessionLoadState: com.airi.assistant.ui.viewmodel.SessionLoadState = com.airi.assistant.ui.viewmodel.SessionLoadState.NotStarted,
+    onRetrySession: (String?) -> Unit = {},
     finalAnswerVerification: FinalAnswerUiState? = null,
     isModelReady: Boolean = false,
     isCloudReady: Boolean = false,
@@ -1978,7 +1983,38 @@ fun ChatMessageList(
         }
     }
 
-    if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating) {
+    if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && sessionLoadState is com.airi.assistant.ui.viewmodel.SessionLoadState.Loading) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = CosmicAccent)
+        }
+    } else if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && sessionLoadState is com.airi.assistant.ui.viewmodel.SessionLoadState.Failed) {
+        val failure = sessionLoadState as com.airi.assistant.ui.viewmodel.SessionLoadState.Failed
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(horizontal = 28.dp)
+            ) {
+                Text(
+                    text = "تعذر تحميل الجلسة",
+                    color = AiriTheme.onBackground,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = failure.reason,
+                    color = AiriTheme.onSurfaceVariant,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(16.dp))
+                TextButton(onClick = { onRetrySession(failure.sessionId) }) {
+                    Text("إعادة المحاولة")
+                }
+            }
+        }
+    } else if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating) {
         // Premium empty state — cosmic orb + greeting + suggestion chips
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Column(

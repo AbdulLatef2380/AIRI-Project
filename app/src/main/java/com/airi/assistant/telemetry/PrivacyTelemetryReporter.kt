@@ -52,7 +52,8 @@ class PrivacyTelemetryReporter(
                 is AgentTelemetryEvent.ToolCalled,
                 is AgentTelemetryEvent.MemoryWritten,
                 is AgentTelemetryEvent.WatchdogAlert,
-                is AgentTelemetryEvent.SessionBound -> {
+                is AgentTelemetryEvent.SessionBound,
+                is AgentTelemetryEvent.RuntimeStateChanged -> {
                     if (!consent.agentTelemetryEnabled) return@launch
                     dispatchAgentEvent(event)
                 }
@@ -77,7 +78,16 @@ class PrivacyTelemetryReporter(
             is AgentTelemetryEvent.ToolCalled     -> "tool_called"         to mapOf("tool" to sanitize(event.toolName), "ok" to event.succeeded.toString())
             is AgentTelemetryEvent.MemoryWritten  -> "memory_written"      to mapOf("layer" to sanitize(event.layer), "count" to event.entryCount.toString())
             is AgentTelemetryEvent.WatchdogAlert  -> "watchdog_alert"      to mapOf("age_ms" to bucket(event.ageMs))
-            is AgentTelemetryEvent.SessionBound   -> "session_bound"       to mapOf("tier" to event.deviceTier, "mode" to event.executionMode, "nctx_bucket" to nCtxBucket(event.nCtx))
+            is AgentTelemetryEvent.SessionBound   -> "session_bound"       to mapOf(
+                "tier" to TelemetryTagPolicy.dimension(event.deviceTier, setOf("low", "mid", "high", "unknown")),
+                "mode" to TelemetryTagPolicy.dimension(event.executionMode, setOf("local", "hybrid", "cloud", "unknown")),
+                "nctx_bucket" to nCtxBucket(event.nCtx)
+            )
+            is AgentTelemetryEvent.RuntimeStateChanged -> "runtime_state_changed" to mapOf(
+                "area" to TelemetryTagPolicy.area(event.area),
+                "state" to TelemetryTagPolicy.state(event.state),
+                "reason" to TelemetryTagPolicy.reason(event.reasonTag)
+            )
             else -> return
         }
         LoggingService.debug(TAG, "TELEMETRY $name params=$params")
@@ -85,8 +95,10 @@ class PrivacyTelemetryReporter(
     }
 
     private fun dispatchCrashEvent(event: AgentTelemetryEvent.CrashRecorded) {
-        LoggingService.warn(TAG, "TELEMETRY crash component=${event.component} tag=${event.errorTag}")
-        AnalyticsService.skillFailed(event.component, event.errorTag)
+        val component = sanitize(event.component)
+        val errorTag = sanitize(event.errorTag)
+        LoggingService.warn(TAG, "TELEMETRY crash component=$component tag=$errorTag")
+        AnalyticsService.skillFailed(component, errorTag)
     }
 
     private fun sanitize(raw: String): String {

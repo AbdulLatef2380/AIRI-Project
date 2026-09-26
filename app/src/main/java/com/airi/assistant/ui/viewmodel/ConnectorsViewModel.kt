@@ -53,17 +53,17 @@ class ConnectorsViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun connect(id: String) {
-        val connector = registry.get(id) ?: return
+        if (registry.get(id) == null) return
         if (registry.catalogMeta().firstOrNull { it.id == id }?.availability == ConnectorAvailability.COMING_SOON) return
         viewModelScope.launch {
-            runCatching { connector.connect() }
+            registry.connect(id)
         }
     }
 
     fun disconnect(id: String) {
-        val connector = registry.get(id) ?: return
+        if (registry.get(id) == null) return
         viewModelScope.launch {
-            runCatching { connector.disconnect() }
+            registry.disconnect(id)
         }
     }
 

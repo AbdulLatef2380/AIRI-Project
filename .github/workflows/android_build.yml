@@ -54,6 +54,9 @@ jobs:
       run: |
         python3 tools/airi_runtime_simulation.py
         python3 tools/stability/local_model_performance_sim.py
+        python3 scripts/connector_lifecycle_static_scan.py
+        python3 scripts/runtime_state_simulation.py
+        python3 scripts/telemetry_privacy_scan.py
         if [ -n "${OPENAI_API_KEY:-}" ] || [ -n "${GEMINI_API_KEY:-}" ]; then
           python3 tools/stability/cloud_api_smoke.py --allow-missing
         else

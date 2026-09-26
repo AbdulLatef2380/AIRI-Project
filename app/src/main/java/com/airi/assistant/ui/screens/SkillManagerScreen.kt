@@ -104,7 +104,7 @@ fun SkillManagerScreen(
             2 -> !info.isConnected
             else -> true
         }
-        val category = presentation?.category ?: "OTHER"
+            val category = presentation?.category ?: "OTHER"
         val matchesCategory = selectedCategory == "ALL" || category == selectedCategory
         matchesSearch && matchesFilter && matchesCategory
     }

@@ -397,7 +397,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val execModePrefs  = com.airi.assistant.core.ServiceLocator.execModePrefs
     val tokenAccountant     = TokenAccountant(appContext)
     private val localBackend   = LocalLlamaBackend(llamaManager)
-    private val cloudBackend   = CloudBackend(execModePrefs, appContext, tokenAccountant)
+    private val cloudBackend   = CloudBackend(
+        execModePrefs,
+        appContext,
+        tokenAccountant,
+        ServiceLocator.privacyTelemetryReporter
+    )
     private val runtimeRouter  = RuntimeRouter(localBackend, cloudBackend, execModePrefs)
 
     // ── Production execution layer ────────────────────────────────────────────
@@ -642,16 +647,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _pendingSummary = MutableStateFlow<String?>(null)
     val pendingSummary: StateFlow<String?> = _pendingSummary.asStateFlow()
+    private val summarySequence = java.util.concurrent.atomic.AtomicLong(0L)
+    @Volatile private var pendingSummaryToken: Long = 0L
+    @Volatile private var pendingSummarySessionId: String? = null
 
     fun acceptSummary(sessionId: String, summary: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            com.airi.assistant.ai.prompt.MemoryStore.setSummary(appContext, sessionId, summary)
-            _pendingSummary.value = null
+            val token = pendingSummaryToken
+            if (sessionId.isBlank() || sessionId != pendingSummarySessionId || token == 0L) return@launch
+            runCatching { com.airi.assistant.ai.prompt.MemoryStore.setSummary(appContext, sessionId, summary) }
+                .onSuccess {
+                    if (pendingSummaryToken == token && pendingSummarySessionId == sessionId) {
+                        _pendingSummary.value = null
+                        pendingSummarySessionId = null
+                        pendingSummaryToken = 0L
+                    }
+                }
+                .onFailure { error -> Log.w("AIRI", "SUMMARY_PERSIST_FAILED type=${error.javaClass.simpleName}") }
         }
     }
 
     fun rejectSummary() {
         _pendingSummary.value = null
+        pendingSummarySessionId = null
+        pendingSummaryToken = 0L
     }
 
     // ── ModelController: owns model lifecycle (loadModel, registry, diagnostics) ──
@@ -807,6 +826,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _currentSessionId = MutableStateFlow("")
     val currentSessionId: StateFlow<String> = _currentSessionId.asStateFlow()
+    private val _sessionLoadState = MutableStateFlow<SessionLoadState>(SessionLoadState.NotStarted)
+    val sessionLoadState: StateFlow<SessionLoadState> = _sessionLoadState.asStateFlow()
+    private val sessionLoadGate = LatestOperationGate()
 
     // Composer input is transient but owned by a durable conversation ID. It is
     // intentionally not written to Room because picker URIs and camera bitmaps
@@ -1454,11 +1476,49 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun loadSession(sessionId: String) {
+        if (sessionId.isBlank()) {
+            _sessionLoadState.value = SessionLoadState.Failed("Session id is blank")
+            ServiceLocator.privacyTelemetryReporter.report(
+                com.airi.assistant.telemetry.AgentTelemetryEvent.RuntimeStateChanged(
+                    area = "session_load", state = "failed", reasonTag = "db_error"
+                )
+            )
+            return
+        }
+        val loadToken = sessionLoadGate.begin()
+        _sessionLoadState.value = SessionLoadState.Loading
+        ServiceLocator.privacyTelemetryReporter.report(
+            com.airi.assistant.telemetry.AgentTelemetryEvent.RuntimeStateChanged(
+                area = "session_load", state = "started", reasonTag = "unknown"
+            )
+        )
         viewModelScope.launch {
             val previousId      = _currentSessionId.value
             val hadMessages     = _messages.value.isNotEmpty()
             val switchingSessions = previousId.isNotEmpty() && previousId != sessionId && hadMessages
-            val history = runCatching { memoryManager.loadSession(sessionId) }.getOrElse { emptyList() }
+            val historyResult = runCatching { memoryManager.loadSession(sessionId) }
+            if (!sessionLoadGate.isCurrent(loadToken)) {
+                ServiceLocator.privacyTelemetryReporter.report(
+                    com.airi.assistant.telemetry.AgentTelemetryEvent.RuntimeStateChanged(
+                        area = "session_load", state = "stale", reasonTag = "completion_ignored"
+                    )
+                )
+                return@launch
+            }
+            val history = historyResult.getOrElse { error ->
+                _sessionLoadState.value = SessionLoadState.Failed(
+                    reason = error.message?.take(240) ?: "Session could not be loaded",
+                    causeType = error.javaClass.simpleName,
+                    sessionId = sessionId
+                )
+                Log.w("AIRI", "SESSION_LOAD_FAILED session=$sessionId type=${error.javaClass.simpleName}")
+                ServiceLocator.privacyTelemetryReporter.report(
+                    com.airi.assistant.telemetry.AgentTelemetryEvent.RuntimeStateChanged(
+                        area = "session_load", state = "failed", reasonTag = "db_error"
+                    )
+                )
+                return@launch
+            }
             _currentSessionId.value = sessionId
             preferences.edit().putString(KEY_SESSION_ID, sessionId).apply()
             _messages.value = history.map { msg ->
@@ -1471,6 +1531,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             llamaManager.setHistory(history.takeLast(12))
             refreshSessions()
+            _sessionLoadState.value = if (history.isEmpty()) SessionLoadState.Empty
+            else SessionLoadState.Ready(sessionId, history.size)
+            ServiceLocator.privacyTelemetryReporter.report(
+                com.airi.assistant.telemetry.AgentTelemetryEvent.RuntimeStateChanged(
+                    area = "session_load",
+                    state = if (history.isEmpty()) "empty" else "succeeded",
+                    reasonTag = if (history.isEmpty()) "valid_empty" else "success"
+                )
+            )
             if (switchingSessions) {
                 val reason = "Switched to a different session — active context has been replaced."
                 _contextResetWarning.value = reason
@@ -2165,6 +2234,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 refreshSessions()
                 refreshPowerLevel()
                 if (needsResummarize) {
+                    val summaryToken = summarySequence.incrementAndGet()
                     viewModelScope.launch(Dispatchers.IO) {
                         _isSummarizing.value = true
                         val result = runCatching {
@@ -2179,7 +2249,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             )
                         }.getOrNull()
                         
-                        if (result != null) {
+                        if (result != null && _currentSessionId.value == sessionId && summarySequence.get() == summaryToken) {
+                            pendingSummaryToken = summaryToken
+                            pendingSummarySessionId = sessionId
                             _pendingSummary.value = result
                         }
                         _isSummarizing.value = false

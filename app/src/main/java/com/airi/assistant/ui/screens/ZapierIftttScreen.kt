@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.connector.ConnectorState
 import com.airi.assistant.connector.app.IftttConnector
 import com.airi.assistant.connector.app.ZapierConnector
+import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.ui.theme.*
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
@@ -174,7 +175,7 @@ private fun ZapierTab(
                             OutlinedButton(
                                 onClick = {
                                     scope.launch {
-                                        connector.disconnect()
+                                        ServiceLocator.connectorRegistry.disconnect("zapier")
                                         statusMessage = context.getString(R.string.zapier_disconnected)
                                     }
                                 }
@@ -339,7 +340,7 @@ private fun IftttTab(
                         onClick = {
                             scope.launch {
                                 connector.setKey(webhookKey.trim())
-                                connector.connect()
+                                ServiceLocator.connectorRegistry.connect("ifttt")
                             }
                         },
                         enabled = webhookKey.isNotBlank(),
@@ -483,4 +484,3 @@ private fun inputColors() = OutlinedTextFieldDefaults.colors(
     focusedLabelColor    = CosmicAccent,
     cursorColor          = CosmicAccent
 )
-

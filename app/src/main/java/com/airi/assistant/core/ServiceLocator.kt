@@ -234,17 +234,23 @@ object ServiceLocator {
             GeminiProvider    (keyProvider = { keys.getLlmKey("gemini")    }),
         )
         ConnectorRegistry().also { reg ->
-            ConnectorBootstrap.installDefaults(
-                appContext    = requireContext(),
-                registry      = reg,
-                authManager   = connectorAuthManager,   // P1-7: for GitHubConnector
-                llmProviders  = llmProviders,
-                secureStorage = secureStorage,
-                durableTaskManager = durableTaskManager,
-                secretVault = secretVault,
-            )
-            // GitHubConnector is now registered inside ConnectorBootstrap.installDefaults.
-            // No duplicate registration needed here.
+            reg.markInitializing()
+            runCatching {
+                ConnectorBootstrap.installDefaults(
+                    appContext    = requireContext(),
+                    registry      = reg,
+                    authManager   = connectorAuthManager,
+                    llmProviders  = llmProviders,
+                    secureStorage = secureStorage,
+                    durableTaskManager = durableTaskManager,
+                    secretVault = secretVault,
+                )
+            }.onSuccess {
+                reg.markReady()
+            }.onFailure { error ->
+                reg.markFailed(error.message ?: "Connector initialization failed")
+                throw error
+            }
         }
     }
 

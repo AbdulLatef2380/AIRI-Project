@@ -102,4 +102,12 @@ sealed class AgentTelemetryEvent {
         val errorTag:  String,
         override val timestampMs: Long = System.currentTimeMillis()
     ) : AgentTelemetryEvent()
+
+    /** Bounded operational signal; never carries prompts, identifiers, or payloads. */
+    data class RuntimeStateChanged(
+        val area: String,
+        val state: String,
+        val reasonTag: String = "",
+        override val timestampMs: Long = System.currentTimeMillis()
+    ) : AgentTelemetryEvent()
 }

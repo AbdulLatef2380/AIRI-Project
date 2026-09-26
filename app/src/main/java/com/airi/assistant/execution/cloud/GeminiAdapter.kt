@@ -26,7 +26,8 @@ import java.net.URL
  */
 class GeminiAdapter(
     private val keyStore: SecureApiKeyStore,
-    private val model:    String = "gemini-3.8-flash"
+    /** Stable Google alias; avoids shipping a version that may not be enabled for a key. */
+    private val model:    String = DEFAULT_MODEL
 ) : CloudProviderAdapter {
 
     override val providerId: String = "gemini"
@@ -205,6 +206,7 @@ class GeminiAdapter(
     companion object {
         private const val TAG              = "AIRI_GeminiAdapter"
         private const val BASE_URL         = "https://generativelanguage.googleapis.com/v1beta"
+        const val DEFAULT_MODEL            = "gemini-flash-latest"
         private const val CONNECT_TIMEOUT_MS = 10_000
         private const val READ_TIMEOUT_MS    = 90_000
     }

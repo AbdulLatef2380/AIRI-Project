@@ -140,14 +140,14 @@ object EmbeddedProviderConfig {
             badgeColor   = 0xFF4285F4
         ),
 
-        // ── FREE: Google Gemini 3.8 Flash ─────────────────────────────────
+        // ── FREE: Google Gemini Flash (stable alias) ──────────────────────
         ProviderConfig(
             id           = "gemini_flash",
             provider     = CloudProvider.GEMINI,
-            displayLabel = "Gemini 3.8 Flash",
+            displayLabel = "Gemini Flash",
             description  = "Google Gemini flagship flash model. Excellent reasoning + vision.",
             tier         = ProviderTier.FREE_SIGNUP,
-            defaultModel = "gemini-3.8-flash",
+            defaultModel = GeminiAdapter.DEFAULT_MODEL,
             baseUrl      = "https://generativelanguage.googleapis.com",
             signupUrl    = "https://aistudio.google.com/app/apikey",
             keyPrefsKey  = KEY_GEMINI_KEY,

@@ -1025,6 +1025,8 @@ fun ChatScreen(
                 finalAnswerVerification = agentState.finalAnswerVerification,
                 isModelReady  = modelState.isModelReady,
                 isCloudReady  = modelState.isCloudReady,
+                sessionLoadState = sessionLoadState,
+                onRetrySession = { id -> id?.let(viewModel::loadSession) },
                 onOpenModels  = { onNavigate(AiriRoute.MODELS) },
                 onShareAiResponse = { response -> shareAiResponse(context, response) },
                 onSpeak = { text ->
@@ -1934,6 +1936,8 @@ fun ChatMessageList(
     messages: List<ChatMessage>,
     streamingText: String,
     isGenerating: Boolean,
+    sessionLoadState: com.airi.assistant.ui.viewmodel.SessionLoadState = com.airi.assistant.ui.viewmodel.SessionLoadState.NotStarted,
+    onRetrySession: (String?) -> Unit = {},
     finalAnswerVerification: FinalAnswerUiState? = null,
     isModelReady: Boolean = false,
     isCloudReady: Boolean = false,
@@ -2005,7 +2009,7 @@ fun ChatMessageList(
                     textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(16.dp))
-                TextButton(onClick = { failure.sessionId?.let(viewModel::loadSession) }) {
+                TextButton(onClick = { onRetrySession(failure.sessionId) }) {
                     Text("إعادة المحاولة")
                 }
             }

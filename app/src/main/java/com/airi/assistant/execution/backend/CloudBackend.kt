@@ -15,6 +15,7 @@ import com.airi.assistant.execution.cloud.CloudProviderAdapter
 import com.airi.assistant.execution.cloud.RetryPolicy
 import com.airi.assistant.execution.network.NetworkGuard
 import com.airi.assistant.execution.prefs.ExecModePreferences
+import com.airi.assistant.telemetry.PrivacyTelemetryReporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
@@ -46,7 +47,8 @@ import kotlinx.coroutines.withContext
 class CloudBackend(
     private val prefs: ExecModePreferences,
     private val context: Context,
-    private val tokenAccountant: com.airi.assistant.execution.accounting.TokenAccountant? = null
+    private val tokenAccountant: com.airi.assistant.execution.accounting.TokenAccountant? = null,
+    private val telemetry: PrivacyTelemetryReporter? = null
 ) : RuntimeBackend {
 
     override val id: String = "cloud"
@@ -131,7 +133,14 @@ class CloudBackend(
         val primary = requestedProvider
             ?: prefs.preferredProvider.takeUnless { it == CloudProvider.BRAVE }
             ?: CloudProvider.GEMINI
-        val providerQueue = listOf(primary)
+        val providerQueue = if (requestedProvider != null) {
+            listOf(primary)
+        } else {
+            buildList {
+                add(primary)
+                FAILOVER_PRIORITY.forEach { if (it !in this) add(it) }
+            }
+        }
 
         var lastError = "Unknown cloud error"
         
@@ -145,6 +154,11 @@ class CloudBackend(
             }
             val isFallback = attemptIdx > 0
             if (isFallback) {
+                telemetry?.report(com.airi.assistant.telemetry.AgentTelemetryEvent.RuntimeStateChanged(
+                    area = "cloud_failover",
+                    state = "started",
+                    reasonTag = "transient_failure"
+                ))
                 RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.WARN,
                     "CLOUD_FAILOVER ${providerQueue[attemptIdx - 1].displayName} → ${provider.displayName}")
                 Log.w(TAG, "AIRI CLOUD_FAILOVER from=${providerQueue[attemptIdx-1].name} to=${provider.name}")
@@ -220,6 +234,13 @@ class CloudBackend(
                         targetRequest.resolvedModelId.ifBlank { targetRequest.requestedModelId.ifBlank { "configured model" } }
                     }
                     successfulProviderLabel = "${provider.displayName} · $executedModel"
+                    if (isFallback) {
+                        telemetry?.report(com.airi.assistant.telemetry.AgentTelemetryEvent.RuntimeStateChanged(
+                            area = "cloud_failover",
+                            state = "succeeded",
+                            reasonTag = "provider_switch"
+                        ))
+                    }
                     RuntimeEventLog.post(
                         "CLOUD_BACKEND", EventSeverity.INFO,
                         "EXECUTED_TARGET provider=${provider.name.lowercase()} model=$executedModel"
@@ -281,6 +302,13 @@ class CloudBackend(
             "All ${providerQueue.size} cloud provider(s) failed. lastErrorChars=${lastError.length}"
         )
         
+        if (providerQueue.size > 1) {
+            telemetry?.report(com.airi.assistant.telemetry.AgentTelemetryEvent.RuntimeStateChanged(
+                area = "cloud_failover",
+                state = "exhausted",
+                reasonTag = "all_providers_failed"
+            ))
+        }
         _errorCount.incrementAndGet(); _globalErrorCount.incrementAndGet()
         onError(lastError)
         } finally {

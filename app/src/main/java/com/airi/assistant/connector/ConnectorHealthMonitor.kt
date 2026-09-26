@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** Periodic state sampler; provider probing belongs to each connector's connect/execute contract. */
@@ -34,13 +35,16 @@ class ConnectorHealthMonitor(private val registry: ConnectorRegistry) {
     private val _healthSummary = MutableStateFlow<List<HealthEntry>>(emptyList())
     val healthSummary: StateFlow<List<HealthEntry>> = _healthSummary.asStateFlow()
 
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var monitorJob: Job? = null
-    private val lastOfflineNotice = mutableMapOf<String, Long>()
+    private val lastOfflineNotice = ConcurrentHashMap<String, Long>()
 
     @Synchronized
     fun start() {
         if (monitorJob?.isActive == true) return
+        if (scope.coroutineContext[Job]?.isActive != true) {
+            scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        }
         monitorJob = scope.launch {
             while (currentCoroutineContext().isActive) {
                 checkAll()
@@ -53,9 +57,13 @@ class ConnectorHealthMonitor(private val registry: ConnectorRegistry) {
     fun stop() {
         monitorJob?.cancel()
         monitorJob = null
+        scope.coroutineContext[Job]?.cancel()
+        lastOfflineNotice.clear()
     }
 
     private suspend fun checkAll() {
+        val activeIds = registry.all().mapTo(mutableSetOf()) { it.id }
+        lastOfflineNotice.keys.removeIf { it !in activeIds }
         val results = coroutineScope {
             registry.all().map { connector ->
                 async {

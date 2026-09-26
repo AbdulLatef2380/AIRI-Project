@@ -28,14 +28,21 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
     private val inflightMutex = Mutex()
     private val _inflightActions = MutableStateFlow<List<InflightAction>>(emptyList())
     val inflightActions: StateFlow<List<InflightAction>> = _inflightActions.asStateFlow()
+    private val _operationStates = MutableStateFlow<Map<Long, ConnectorOperationState>>(emptyMap())
+    val operationStates: StateFlow<Map<Long, ConnectorOperationState>> = _operationStates.asStateFlow()
     suspend fun execute(connectorId: String, input: ConnectorInput, maxRetries: Int = 2, timeoutMs: Long = 20_000L): ConnectorOutput {
         require(connectorId.isNotBlank()) { "connectorId must not be blank" }
         require(input.action.isNotBlank()) { "connector action must not be blank" }
         require(timeoutMs > 0L) { "timeoutMs must be positive" }
+        if (registry.isExplicitlyDisconnected(connectorId)) {
+            return ConnectorOutput.Failure("not_connected", "Connector '$connectorId' was explicitly disconnected", retryable = false)
+        }
         val connector = registry.get(connectorId)
             ?: return ConnectorOutput.Failure("not_found", "Connector '$connectorId' not registered")
-        val key = "${connectorId}::${input.action}#${invocationSequence.incrementAndGet()}"
+        val operationId = invocationSequence.incrementAndGet()
+        val key = "${connectorId}::${input.action}#$operationId"
         trackStart(key, InflightAction(connectorId, input.action))
+        setOperationState(operationId, ConnectorOperationState.Running(operationId, connectorId, input.action))
         AgentActivityBus.emit("Executing '$connectorId' → ${input.action}", ActivityCategory.CONNECTOR)
         return try {
             withTimeout(timeoutMs) {
@@ -47,18 +54,27 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
                     )
                 }
                 executeWithRetry(connector, input, maxRetries.coerceIn(0, MAX_RETRIES))
+            }.also { output ->
+                setOperationState(operationId, when (output) {
+                    is ConnectorOutput.Success, is ConnectorOutput.Streaming -> ConnectorOperationState.Success(operationId)
+                    is ConnectorOutput.ApprovalRequired -> ConnectorOperationState.AwaitingApproval(operationId, output.approvalId)
+                    is ConnectorOutput.Failure -> ConnectorOperationState.Failed(operationId, output.code, output.message.take(MAX_ERROR_CHARS), output.retryable)
+                })
             }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             AgentActivityBus.emit("'$connectorId' timed out after ${timeoutMs}ms", ActivityCategory.CONNECTOR, ActivitySeverity.WARN)
             // A timeout has an unknown outcome. Retrying blindly can duplicate a
             // mutation, so callers must opt into a contract-specific retry.
+            setOperationState(operationId, ConnectorOperationState.TimedOut(operationId, timeoutMs))
             ConnectorOutput.Failure("timeout", "Timed out after ${timeoutMs}ms; outcome is unknown", retryable = false)
         } catch (e: CancellationException) {
             // Cancellation is a control-flow signal, never a retryable connector
             // failure. Re-throw it so ViewModel/agent cancellation reaches the
             // transport and the inflight action is cleaned up by finally.
+            setOperationState(operationId, ConnectorOperationState.Cancelled(operationId))
             throw e
         } catch (e: Exception) {
+            setOperationState(operationId, ConnectorOperationState.Failed(operationId, "runtime_error", (e.message ?: "Unknown error").take(MAX_ERROR_CHARS), false))
             ConnectorOutput.Failure("runtime_error", e.message ?: "Unknown error")
         } finally { trackEnd(key) }
     }
@@ -72,7 +88,7 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
 
     private suspend fun ensureHealthy(connector: Connector): Boolean {
         val current = connector.state().value
-        val checked = if (current.connected && current.healthy) current else connector.connect()
+        val checked = if (current.connected && current.healthy) current else registry.connect(connector.id)
         return checked.connected && checked.healthy
     }
 
@@ -114,7 +130,15 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
         _inflightActions.value = inflight.values.toList()
     }
 
+    private fun setOperationState(operationId: Long, state: ConnectorOperationState) {
+        val next = _operationStates.value + (operationId to state)
+        _operationStates.value = if (next.size <= MAX_OPERATION_HISTORY) next else
+            next.toList().takeLast(MAX_OPERATION_HISTORY).toMap()
+    }
+
     private companion object {
         const val MAX_RETRIES = 3
+        const val MAX_OPERATION_HISTORY = 100
+        const val MAX_ERROR_CHARS = 240
     }
 }

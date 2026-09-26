@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
@@ -29,11 +31,20 @@ class ConnectorRegistry(
     private val store = ConcurrentHashMap<String, Connector>()
     private val registrationOrder = ConcurrentHashMap<String, Long>()
     private val sequence = AtomicLong(0L)
+    private val explicitlyDisconnected = ConcurrentHashMap.newKeySet<String>()
+    private val lifecycleGeneration = ConcurrentHashMap<String, Long>()
+    private val lifecycleMutex = Mutex()
 
     private val _meta = MutableStateFlow<List<ConnectorMeta>>(emptyList())
+    private val _readiness = MutableStateFlow<ConnectorReadinessState>(ConnectorReadinessState.NotInitialized)
+    val readiness: StateFlow<ConnectorReadinessState> = _readiness.asStateFlow()
     /** Observable list of all registered connectors' metadata, in
      *  insertion order. UI subscribes to this for the Connectors screen. */
     val meta: StateFlow<List<ConnectorMeta>> = _meta.asStateFlow()
+    fun markInitializing() { _readiness.value = ConnectorReadinessState.Initializing }
+    fun markReady() { _readiness.value = ConnectorReadinessState.Ready(store.size) }
+    fun markDegraded(reason: String) { _readiness.value = ConnectorReadinessState.Degraded(store.size, reason.take(240)) }
+    fun markFailed(reason: String) { _readiness.value = ConnectorReadinessState.Failed(reason.take(240)) }
 
     /** Catalog entries remain discoverable, but only registered adapters are executable. */
     fun catalogMeta(): List<ConnectorMeta> {
@@ -70,12 +81,16 @@ class ConnectorRegistry(
     fun register(connector: Connector) {
         require(connector.id.isNotBlank()) { "Connector id must not be blank" }
         store[connector.id] = connector
+        explicitlyDisconnected.remove(connector.id)
+        lifecycleGeneration[connector.id] = 0L
         registrationOrder.putIfAbsent(connector.id, sequence.getAndIncrement())
         recomputeMeta()
     }
 
     fun unregister(id: String) {
         val removed = store.remove(id) ?: return
+        explicitlyDisconnected.add(id)
+        lifecycleGeneration[id] = (lifecycleGeneration[id] ?: 0L) + 1L
         registrationOrder.remove(id)
         // Best-effort disconnect; failure is logged by the connector itself.
         scope.launch { runCatching { removed.disconnect() } }
@@ -83,6 +98,30 @@ class ConnectorRegistry(
     }
 
     fun get(id: String): Connector? = store[id]
+
+    fun isExplicitlyDisconnected(id: String): Boolean = explicitlyDisconnected.contains(id)
+
+    suspend fun connect(id: String): ConnectorState = lifecycleMutex.withLock {
+        val connector = get(id) ?: return ConnectorState(false, false, errorMessage = "Connector not registered")
+        val token = (lifecycleGeneration[id] ?: 0L) + 1L
+        lifecycleGeneration[id] = token
+        return runCatching { connector.connect() }.getOrElse {
+            explicitlyDisconnected.add(id)
+            ConnectorState(false, false, errorMessage = it.message ?: "Connection failed")
+        }.also {
+            if (lifecycleGeneration[id] == token && it.connected && it.healthy) {
+                explicitlyDisconnected.remove(id)
+            }
+        }
+    }
+
+    suspend fun disconnect(id: String): Boolean = lifecycleMutex.withLock {
+        val connector = get(id) ?: return false
+        val token = (lifecycleGeneration[id] ?: 0L) + 1L
+        lifecycleGeneration[id] = token
+        explicitlyDisconnected.add(id)
+        return runCatching { connector.disconnect(); true }.getOrDefault(false)
+    }
 
     fun all(): List<Connector> = store.values.sortedBy { registrationOrder[it.id] ?: Long.MAX_VALUE }
 
@@ -124,7 +163,7 @@ class ConnectorRegistry(
      *  stop the others). */
     fun connectAll() {
         for (c in store.values) {
-            scope.launch { runCatching { c.connect() } }
+            scope.launch { connect(c.id) }
         }
     }
 

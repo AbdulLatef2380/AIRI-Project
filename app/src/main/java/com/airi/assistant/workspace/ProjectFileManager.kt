@@ -423,13 +423,22 @@ class ProjectFileManager(
             extractionState = extractionStateFor(mimeType)
         )
         store[id] = record
-        publishAndPersist()
+        publish()
+        if (!persistIndex()) {
+            val failed = record.copy(
+                lifecycle = LifecycleState.FAILED,
+                error = "Project-file metadata could not be persisted"
+            )
+            store[id] = failed
+            publish()
+            return ImportResult.Failed(failed.error)
+        }
 
         val stagingDir = File(context.cacheDir, "project-file-imports").also { it.mkdirs() }
         val staged = File(stagingDir, "$id-$safeName")
         return runCatching {
             record = record.copy(lifecycle = LifecycleState.VALIDATING, modifiedAtMs = System.currentTimeMillis())
-            replace(record)
+            replaceOrThrow(record)
 
             val digest = MessageDigest.getInstance("SHA-256")
             var totalBytes = 0L
@@ -455,7 +464,7 @@ class ProjectFileManager(
                 sha256 = hash,
                 modifiedAtMs = System.currentTimeMillis()
             )
-            replace(record)
+            replaceOrThrow(record)
 
             findDuplicate(projectId, hash)?.takeIf { it.id != id }?.let { duplicate ->
                 store.remove(id)
@@ -465,7 +474,7 @@ class ProjectFileManager(
             }
 
             record = record.copy(lifecycle = LifecycleState.STORING, modifiedAtMs = System.currentTimeMillis())
-            replace(record)
+            replaceOrThrow(record)
             val libraryItem = mediaLibrary.importFile(
                 sourceFile = staged,
                 type = mediaTypeFor(mimeType),
@@ -481,7 +490,7 @@ class ProjectFileManager(
                 mediaItemId = libraryItem.id,
                 modifiedAtMs = System.currentTimeMillis()
             )
-            replace(record)
+            replaceOrThrow(record)
 
             val extraction = extractPreview(record)
             record = record.copy(
@@ -491,7 +500,12 @@ class ProjectFileManager(
                 error = extraction.error,
                 modifiedAtMs = System.currentTimeMillis()
             )
-            replace(record)
+            replaceOrThrow(record)
+
+            if (record.extractionState == ExtractionState.FAILED) {
+                Log.w(TAG, "PROJECT_FILE_IMPORT_FAILED id=$id reason=extraction")
+                return ImportResult.Failed(record.error.ifBlank { "Text extraction failed" })
+            }
 
             // Knowledge ingestion is explicit. PENDING means this resource is
             // ready for use but has not been silently added to model knowledge.
@@ -500,7 +514,7 @@ class ProjectFileManager(
                 indexState = IndexState.NOT_REQUESTED,
                 modifiedAtMs = System.currentTimeMillis()
             )
-            replace(record)
+            replaceOrThrow(record)
             Log.i(TAG, "PROJECT_FILE_READY id=$id project=$projectId bytes=$totalBytes")
             ImportResult.Imported(record)
         }.getOrElse { throwable ->
@@ -510,7 +524,9 @@ class ProjectFileManager(
                 error = (throwable.message ?: "Import failed").take(MAX_ERROR_CHARS),
                 modifiedAtMs = System.currentTimeMillis()
             )
-            replace(failed)
+            store[id] = failed
+            publish()
+            persistIndex()
             Log.w(TAG, "PROJECT_FILE_IMPORT_FAILED id=$id type=${throwable.javaClass.simpleName}")
             ImportResult.Failed(failed.error)
         }
@@ -633,6 +649,12 @@ class ProjectFileManager(
     private fun replace(file: ProjectFile) {
         store[file.id] = file
         publishAndPersist()
+    }
+
+    private fun replaceOrThrow(file: ProjectFile) {
+        store[file.id] = file
+        publish()
+        check(persistIndex()) { "Project-file metadata could not be persisted" }
     }
 
     private fun restore() {

@@ -107,7 +107,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     /** Re-evaluates the registered connector after an explicit Google account action. */
     private fun refreshGoogleConnectorState() {
         viewModelScope.launch {
-            ServiceLocator.connectorRegistry.get("google")?.connect()
+            ServiceLocator.connectorRegistry.connect("google")
             refresh()
         }
     }
@@ -207,8 +207,17 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                             error = "Secure credential storage is unavailable. GitHub was not connected."
                         )
                     } else {
-                        _dialog.value = DialogState.None
-                        refresh()
+                        val state = ServiceLocator.connectorRegistry.connect("github")
+                        if (!state.connected || !state.healthy) {
+                            authManager.clearCredential("github", "pat")
+                            _dialog.value = current.copy(
+                                loading = false,
+                                error = state.errorMessage ?: "GitHub runtime initialization failed"
+                            )
+                        } else {
+                            _dialog.value = DialogState.None
+                            refresh()
+                        }
                     }
                 }
                 .onFailure { e ->
@@ -230,8 +239,17 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             telegramService.validateAndConnect(current.token)
                 .onSuccess {
-                    _dialog.value = DialogState.None
-                    refresh()
+                    val state = ServiceLocator.connectorRegistry.connect("telegram")
+                    if (!state.connected || !state.healthy) {
+                        secureStorage.disconnect("telegram")
+                        _dialog.value = current.copy(
+                            loading = false,
+                            error = state.errorMessage ?: "Telegram runtime initialization failed"
+                        )
+                    } else {
+                        _dialog.value = DialogState.None
+                        refresh()
+                    }
                 }
                 .onFailure { e ->
                     AppErrorHandler.capture(e, "IntegrationsViewModel.connectTelegram")
@@ -334,11 +352,12 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     fun disconnect(id: String) {
         when (id) {
             "google" -> viewModelScope.launch {
-                val connector = ServiceLocator.connectorRegistry.get("google")
-                if (connector != null) connector.disconnect() else googleAuthService.disconnect()
+                ServiceLocator.connectorRegistry.disconnect("google")
+                googleAuthService.disconnect()
                 refresh()
             }
-            else -> {
+            else -> viewModelScope.launch {
+                ServiceLocator.connectorRegistry.disconnect(id)
                 secureStorage.disconnect(id)
                 refresh()
             }

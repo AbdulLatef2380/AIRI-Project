@@ -210,11 +210,22 @@ fun ChatScreen(
     val pendingSummary        by viewModel.pendingSummary.collectAsState()
     val currentSessionId      by viewModel.currentSessionId.collectAsState()
     val sessionLoadState      by viewModel.sessionLoadState.collectAsState()
+    val lastExecutionError    by viewModel.lastExecutionError.collectAsState()
     val sessions              by viewModel.sessions.collectAsState()
     val favoriteSessionIds    by viewModel.favoriteSessionIds.collectAsState()
     val composerDrafts        by viewModel.composerDrafts.collectAsState()
     val currentComposerDraft = composerDrafts[currentSessionId]
     val currentSession = sessions.firstOrNull { it.id == currentSessionId }
+
+    LaunchedEffect(lastExecutionError?.occurredAtMs) {
+        val failure = lastExecutionError ?: return@LaunchedEffect
+        val detail = failure.detail.takeIf { it.isNotBlank() }
+        snackbarHost.showSnackbar(
+            listOf(failure.message, detail).filterNotNull().joinToString("\n")
+        )
+        viewModel.clearExecutionError()
+    }
+
     val sessionActions = ChatSessionActionPolicy.availability(
         hasPersistedSession = currentSession?.id == currentSessionId,
         sessionId = currentSessionId,

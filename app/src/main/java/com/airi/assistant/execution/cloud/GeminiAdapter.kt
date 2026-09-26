@@ -96,8 +96,9 @@ class GeminiAdapter(
                     val payload = raw.removePrefix("data:").trim()
                     if (payload.isBlank() || payload == "[DONE]") continue
                     lastPayload = payload
-                    if (payload.contains("\"finishReason\":\"")) sawTerminal = true
-                    if (payload.contains("\"error\"")) {
+                    val event = GeminiSseParser.parse(payload)
+                    if (event.terminal) sawTerminal = true
+                    if (event.hasError) {
                         val mapped = CloudErrorMapper.map(200, payload)
                         return@withContext CloudProviderAdapter.AdapterResult.Failure(
                             error = mapped.message,
@@ -106,9 +107,10 @@ class GeminiAdapter(
                             httpCode = 200
                         )
                     }
-                    val token = extractToken(payload)
+                    val token = event.text
                     if (token.isNotEmpty()) { fullText.append(token); onToken(token) }
-                    extractUsage(payload)?.let { (p, c) -> promptTokens = p; completeTokens = c }
+                    event.promptTokens?.let { promptTokens = it }
+                    event.completionTokens?.let { completeTokens = it }
                 }
             }
 
@@ -183,39 +185,6 @@ class GeminiAdapter(
         append("]},")
         append("\"generationConfig\":{\"maxOutputTokens\":${req.maxTokens},\"temperature\":${req.temperature}}")
         append("}")
-    }
-
-    private fun extractToken(json: String): String {
-        val idx = json.indexOf("\"text\"")
-        if (idx < 0) return ""
-        val ci = json.indexOf(":", idx)
-        if (ci < 0) return ""
-        val after = json.substring(ci + 1).trimStart()
-        if (!after.startsWith("\"")) return ""
-        val e = findStringEnd(after, 1)
-        if (e < 0) return ""
-        return after.substring(1, e)
-            .replace("\\n", "\n").replace("\\\"", "\"")
-            .replace("\\\\", "\\").replace("\\t", "\t")
-    }
-
-    private fun extractUsage(json: String): Pair<Int, Int>? {
-        if (!json.contains("usageMetadata")) return null
-        val p = extractInt(json, "promptTokenCount")     ?: return null
-        val c = extractInt(json, "candidatesTokenCount") ?: 0
-        return p to c
-    }
-
-    private fun extractInt(json: String, field: String): Int? {
-        val idx = json.indexOf("\"$field\""); if (idx < 0) return null
-        val ci  = json.indexOf(":", idx);    if (ci < 0) return null
-        return json.substring(ci + 1).trimStart().takeWhile { it.isDigit() }.toIntOrNull()
-    }
-
-    private fun findStringEnd(s: String, start: Int): Int {
-        var i = start
-        while (i < s.length) { when { s[i] == '\\' -> i += 2; s[i] == '"' -> return i; else -> i++ } }
-        return -1
     }
 
     private fun jsonString(s: String): String = buildString {

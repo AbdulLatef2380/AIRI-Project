@@ -141,6 +141,7 @@ Do not mix tool_call JSON with prose in the same message.
         // If no tools provided, single-pass inference
         if (tools.isEmpty()) {
             val response = callLLM(input, systemPrompt, history, tools, queryType, modelId, providerId, visionParts, onToken, requestIdentity)
+            if (response.isBlank()) throw IllegalStateException("Model completed without a response")
             return LoopResult(response, 1, emptyList())
         }
 
@@ -520,7 +521,9 @@ Do not mix tool_call JSON with prose in the same message.
         )
 
         if (error != null) throw RuntimeException(error)
-        return buf.toString().trim()
+        return buf.toString().trim().also {
+            if (it.isBlank()) throw IllegalStateException("Model completed without a response")
+        }
     }
 
     // ── Tool call parsing ──────────────────────────────────────────────────────

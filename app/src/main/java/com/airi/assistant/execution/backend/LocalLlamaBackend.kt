@@ -197,6 +197,10 @@ class LocalLlamaBackend(
                 is LlamaEvent.Token    -> onToken(event.value)
                 is LlamaEvent.Complete -> {
                     finished.set(true)
+                    if (event.text.isBlank()) {
+                        onError("Local model completed without a response")
+                        continue
+                    }
                     
                     // since nativeTokenCount is not surfaced through this interface.
                     tokenAccountant?.let { accountant ->

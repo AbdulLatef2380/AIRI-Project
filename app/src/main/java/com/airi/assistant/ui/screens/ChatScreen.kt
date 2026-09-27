@@ -117,6 +117,10 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.draganddrop.DragAndDropEvent
+import androidx.compose.ui.draganddrop.DragAndDropTarget
+import androidx.compose.ui.draganddrop.dragAndDropTarget
+import androidx.compose.ui.draganddrop.toAndroidDragEvent
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
 
@@ -1016,6 +1020,11 @@ fun ChatScreen(
                     },
                     // Pass attachments so they render inside the pill
                     attachments         = pendingAttachments,
+                    onDropFiles          = { uris ->
+                        uris.forEach { uri ->
+                            stageUriAttachment(uri, ChatAttachment.Kind.FILE, "dropped_file")
+                        }
+                    },
                     onRemoveAttachment  = { uid ->
                         viewModel.updateComposerAttachments(
                             pendingAttachments.filterNot { it.id == uid || it.uid == uid }
@@ -2886,13 +2895,32 @@ private fun AttachmentChip(
     }
 }
 
+private fun formatAttachmentBytes(bytes: Long?): String? = bytes?.takeIf { it >= 0L }?.let {
+    when {
+        it >= 1024L * 1024L -> "${"%.1f".format(it / (1024.0 * 1024.0))} MB"
+        it >= 1024L -> "${it / 1024L} KB"
+        else -> "$it B"
+    }
+}
+
 @Composable
 private fun AttachmentPreviewDialog(attachment: ChatAttachment, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val typeLabel = attachment.safeDisplayName.substringAfterLast('.', "")
-        .takeIf { it.isNotBlank() }
-        ?.uppercase()
-        ?: stringResource(R.string.attachment_type_file)
+    val typeLabel = when (attachment.contentType) {
+        AttachmentPolicy.ContentType.IMAGE -> stringResource(R.string.attachment_type_image)
+        AttachmentPolicy.ContentType.VIDEO -> stringResource(R.string.attachment_type_video)
+        AttachmentPolicy.ContentType.TEXT -> stringResource(R.string.attachment_type_text)
+        AttachmentPolicy.ContentType.DOCUMENT -> stringResource(R.string.attachment_type_document)
+        AttachmentPolicy.ContentType.FILE -> stringResource(R.string.attachment_type_file)
+    }
+    val extension = attachment.safeDisplayName.substringAfterLast('.', "")
+        .takeIf { it.isNotBlank() }?.uppercase()
+    val detailType = listOfNotNull(typeLabel, extension).distinct().joinToString(" • ")
+    val exactSizeBytes by produceState<Long?>(attachment.sizeBytes, attachment.persistedPath) {
+        value = attachment.sizeBytes ?: attachment.persistedPath?.let { path ->
+            runCatching { java.io.File(path).length().takeIf { it > 0L } }.getOrNull()
+        }
+    }
     val thumbModel: Any? = attachment.uri ?: attachment.bitmap
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
@@ -2926,7 +2954,7 @@ private fun AttachmentPreviewDialog(attachment: ChatAttachment, onDismiss: () ->
                             Icon(Icons.Outlined.InsertDriveFile, typeLabel, tint = CosmicAccent, modifier = Modifier.size(52.dp))
                             Spacer(Modifier.height(8.dp))
                             Text(typeLabel, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                            attachment.displaySize?.let { Text(it, color = AiriTheme.onSurfaceVariant, fontSize = 11.sp) }
+                            formatAttachmentBytes(exactSizeBytes)?.let { Text(it, color = AiriTheme.onSurfaceVariant, fontSize = 11.sp) }
                         }
                     }
                 }
@@ -2938,9 +2966,9 @@ private fun AttachmentPreviewDialog(attachment: ChatAttachment, onDismiss: () ->
                     border = BorderStroke(1.dp, AiriTheme.outline.copy(alpha = 0.45f))
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                        AttachmentDetailRow(stringResource(R.string.attachment_detail_type), typeLabel)
+                        AttachmentDetailRow(stringResource(R.string.attachment_detail_type), detailType)
                         AttachmentDetailRow(stringResource(R.string.attachment_detail_mime), attachment.normalizedMimeType.ifBlank { "*/*" })
-                        AttachmentDetailRow(stringResource(R.string.attachment_detail_size), attachment.displaySize ?: stringResource(R.string.attachment_size_unknown))
+                        AttachmentDetailRow(stringResource(R.string.attachment_detail_size), formatAttachmentBytes(exactSizeBytes) ?: stringResource(R.string.attachment_size_unknown))
                     }
                 }
                 if (attachment.uri != null) {
@@ -3022,11 +3050,32 @@ fun AiriChatInputBar(
 
     attachments: List<ChatAttachment> = emptyList(),
     onRemoveAttachment: (String) -> Unit = {},
-    imageInputEnabled: Boolean = true
+    imageInputEnabled: Boolean = true,
+    onDropFiles: (List<Uri>) -> Unit = {}
 ) {
     val context          = LocalContext.current
     var showAttachPopup by remember { mutableStateOf(false) }
     var previewAttachment by remember { mutableStateOf<ChatAttachment?>(null) }
+    var isDragActive by remember { mutableStateOf(false) }
+    val currentDropHandler by rememberUpdatedState(onDropFiles)
+    val dragTarget = remember {
+        object : DragAndDropTarget {
+            override fun onStarted(event: DragAndDropEvent) { isDragActive = true }
+            override fun onEntered(event: DragAndDropEvent) { isDragActive = true }
+            override fun onExited(event: DragAndDropEvent) { isDragActive = false }
+            override fun onEnded(event: DragAndDropEvent) { isDragActive = false }
+            override fun onDrop(event: DragAndDropEvent): Boolean {
+                val clipData = event.toAndroidDragEvent().clipData ?: return false
+                val uris = (0 until clipData.itemCount)
+                    .mapNotNull { index -> clipData.getItemAt(index).uri }
+                    .distinct()
+                isDragActive = false
+                if (uris.isEmpty()) return false
+                currentDropHandler(uris)
+                return true
+            }
+        }
+    }
     // Keep collapsed and expanded states available; the content remains
     // scrollable so every attachment shortcut is reachable on small screens.
     val attachSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
@@ -3201,7 +3250,14 @@ fun AiriChatInputBar(
         }
     }
 
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dragAndDropTarget(
+                shouldStartDragAndDrop = { true },
+                target = dragTarget,
+            )
+    ) {
 
         // : Warning banner for 2000-3000 chars
         if (showWarningBanner) {
@@ -3295,6 +3351,38 @@ fun AiriChatInputBar(
                 .background(AiriTheme.surface.copy(alpha = 0.97f))
                 .border(0.5.dp, AiriTheme.outline.copy(alpha = 0.6f), AIRIShapes.xl)
         ) {
+            if (isDragActive) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                    shape = AIRIShapes.md,
+                    color = CosmicAccent.copy(alpha = 0.14f),
+                    border = BorderStroke(1.dp, CosmicAccent.copy(alpha = 0.72f))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Outlined.FileDownload, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
+                        Text(stringResource(R.string.attachment_drop_here), color = AiriTheme.onSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+            if (isDispatchingAttachment) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(color = CosmicAccent, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                    Text(stringResource(R.string.attachment_preparing), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                }
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    color = CosmicAccent,
+                    trackColor = CosmicAccent.copy(alpha = 0.16f)
+                )
+            }
             if (attachments.isNotEmpty()) {
                 LazyRow(
                     modifier = Modifier

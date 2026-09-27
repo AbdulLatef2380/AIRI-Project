@@ -3070,7 +3070,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                 }
-                att.copy(persistedPath = destFile.absolutePath)
+                att.copy(
+                    persistedPath = destFile.absolutePath,
+                    sizeBytes = destFile.length()
+                )
             }.getOrNull()
             }
         }

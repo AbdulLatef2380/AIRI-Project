@@ -8,7 +8,7 @@ object LongTextAttachmentPolicy {
     /** Maximum number of lines kept visible in an inline chat bubble. */
     const val INLINE_VISIBLE_LINE_LIMIT = 15
     const val AUTO_CONVERT_CHAR_THRESHOLD = 3_000
-    const val AUTO_CONVERT_LINE_THRESHOLD = 40
+    const val AUTO_CONVERT_LINE_THRESHOLD = 60
 
     fun logicalLineCount(text: String): Int = text.lineSequence().count()
 

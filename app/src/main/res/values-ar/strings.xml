@@ -1709,6 +1709,9 @@
     <string name="attachment_staging_failed">تعذر تجهيز مرفق واحد أو أكثر. احتُفظ بها لكي تتمكن من المحاولة مجدداً.</string>
     <string name="attachment_preparing">جارٍ تجهيز المرفقات</string>
     <string name="attachment_drop_here">أفلت الملفات هنا لإرفاقها</string>
+    <string name="chat_search">بحث في المحادثة</string>
+    <string name="chat_search_hint">ابحث في الرسائل…</string>
+    <string name="chat_search_no_results">لا توجد رسائل تطابق البحث.</string>
     <string name="chat_how_can_help_name">كيف يمكنني مساعدتك يا %1$s؟</string>
     <string name="chat_empty_state_tagline">العمل محلياً هو الافتراضي، وأي اتصال سحابي تختاره أنت.</string>
     <string name="chat_starter_email_label">صياغة بريد</string>

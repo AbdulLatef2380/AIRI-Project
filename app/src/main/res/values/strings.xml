@@ -1810,6 +1810,9 @@
     <string name="attachment_staging_failed">We couldn\'t prepare one or more attachments. They were kept so you can try again.</string>
     <string name="attachment_preparing">Preparing attachments</string>
     <string name="attachment_drop_here">Drop files here to attach them</string>
+    <string name="chat_search">Search chat</string>
+    <string name="chat_search_hint">Search messages…</string>
+    <string name="chat_search_no_results">No messages match your search.</string>
     <string name="chat_how_can_help_name">How can I help, %1$s?</string>
     <string name="chat_empty_state_tagline">On-device by default. You choose any cloud connection.</string>
     <string name="chat_starter_email_label">Draft an email</string>

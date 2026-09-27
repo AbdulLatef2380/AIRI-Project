@@ -1786,5 +1786,16 @@
     <string name="connectors_access">访问范围</string>
     <string name="connectors_authentication">身份验证：%1$s</string>
     <string name="connectors_capabilities">功能</string>
+    <string name="attachment_drop_here">将文件拖放到此处以添加附件</string>
+    <string name="chat_search">搜索聊天</string>
+    <string name="chat_search_hint">搜索消息…</string>
+    <string name="chat_search_no_results">没有匹配搜索内容的消息。</string>
+    <string name="err_empty_response">模型完成了生成，但没有返回答案。请检查模型或提供商后重试。</string>
     <string name="resource_summary">存储 · 内存 · CPU</string>
+    <string name="attachment_preview_title">附件预览</string>
+    <string name="attachment_detail_type">类型</string>
+    <string name="attachment_detail_mime">MIME 类型</string>
+    <string name="attachment_detail_size">大小</string>
+    <string name="attachment_size_unknown">大小未知</string>
+    <string name="open_attachment">打开附件</string>
 </resources>

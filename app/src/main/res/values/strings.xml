@@ -1625,6 +1625,7 @@
 
     <!-- generation -->
     <string name="err_generation_failed">Unable to generate a response. Please try again.</string>
+    <string name="err_empty_response">The model completed without returning an answer. Check the model or provider and try again.</string>
 
     <!-- input shortcuts -->
     <string name="input_saved_knowledge">Saved knowledge</string>
@@ -2124,4 +2125,10 @@
     <string name="connectors_authentication">Authentication: %1$s</string>
     <string name="connectors_capabilities">Capabilities</string>
     <string name="resource_summary">Storage · RAM · CPU</string>
+    <string name="attachment_preview_title">Attachment preview</string>
+    <string name="attachment_detail_type">Type</string>
+    <string name="attachment_detail_mime">MIME type</string>
+    <string name="attachment_detail_size">Size</string>
+    <string name="attachment_size_unknown">Unknown size</string>
+    <string name="open_attachment">Open attachment</string>
 </resources>

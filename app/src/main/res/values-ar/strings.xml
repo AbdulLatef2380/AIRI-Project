@@ -1527,6 +1527,7 @@
     <string name="input_saved_knowledge">معرفة محفوظة</string>
 
     <string name="err_generation_failed">تعذّر إنشاء الاستجابة. حاول مرة أخرى.</string>
+    <string name="err_empty_response">اكتمل التوليد دون وصول إجابة. تحقق من النموذج أو المزوّد ثم حاول مرة أخرى.</string>
 
     <!-- chat accessibility -->
     <string name="cd_send_message">إرسال الرسالة</string>
@@ -2023,4 +2024,10 @@
     <string name="connectors_authentication">المصادقة: %1$s</string>
     <string name="connectors_capabilities">القدرات</string>
     <string name="resource_summary">التخزين · الذاكرة · المعالج</string>
+    <string name="attachment_preview_title">معاينة المرفق</string>
+    <string name="attachment_detail_type">النوع</string>
+    <string name="attachment_detail_mime">نوع MIME</string>
+    <string name="attachment_detail_size">الحجم</string>
+    <string name="attachment_size_unknown">حجم غير معروف</string>
+    <string name="open_attachment">فتح المرفق</string>
 </resources>

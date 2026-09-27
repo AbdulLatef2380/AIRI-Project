@@ -5,6 +5,7 @@ import com.airi.assistant.ui.text.LanguageRuntimeManager
 
 /** Pure presentation rules shared by the chat UI and its unit tests. */
 internal object ChatPresentationPolicy {
+    enum class BubbleEdge { START, END }
     enum class MessageLength { SHORT, MEDIUM, LONG, VERY_LONG }
 
     fun textDirection(text: String): LayoutDirection =
@@ -19,6 +20,10 @@ internal object ChatPresentationPolicy {
 
     /** Maximum user-turn width as a fraction of the available chat width. */
     fun userBubbleFraction(text: String): Float = 0.82f
+
+    /** Physical placement is role-based; text direction is handled separately. */
+    fun bubbleEdge(isUser: Boolean): BubbleEdge =
+        if (isUser) BubbleEdge.END else BubbleEdge.START
 
     fun humanModelLabel(rawId: String, isLocal: Boolean, isCloud: Boolean): String {
         if (rawId.isBlank()) return if (isLocal) "Local" else if (isCloud) "Cloud" else "Auto"

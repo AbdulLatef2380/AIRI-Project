@@ -2057,6 +2057,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             var needsResummarize = false
             val olderToFold: List<com.airi.assistant.memory.entity.ChatMessage> = emptyList()
             Log.i("AIRI", "AGENT_LOOP_START inputChars=${trimmedInput.length} queryType=${queryType.name} planMode=${_isPlanModeActive.value}")
+            val reasoningParser = ReasoningStreamParser()
 
             try {
                 val loopResult = agentLoop.run(
@@ -2071,7 +2072,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     visionParts  = visionParts,
                     onToken      = token@{ tok ->
                         if (!isCurrentGeneration(generationId) || _isCancelled.get()) return@token
-                        tokenCount += tok.length / 4 + 1
+                        val visibleToken = reasoningParser.consume(tok)
+                        if (visibleToken.isBlank()) return@token
+                        tokenCount += visibleToken.length / 4 + 1
                         if (!firstTokenReceived) {
                             firstTokenReceived = true
                             _generationPhase.value = GenerationPhase.GENERATE
@@ -2080,8 +2083,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             _debugState.update { it.copy(lastFirstTokenMs = ftMs) }
                             if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_SPEED", "LOOP first_token=${ftMs}ms")
                         }
-                        if (_streamingText.value == "Generating...") streamAccumulator.setLength(0)
-                        streamAccumulator.append(tok)
+                        streamAccumulator.append(visibleToken)
                         _streamingText.value = streamAccumulator.toString()
                     },
                     onStepComplete = { stepEvent ->
@@ -2128,6 +2130,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     _generationPhase.value = GenerationPhase.CANCELLED
                     return@launch
                 }
+                val streamedAnswer = (streamAccumulator.toString() + reasoningParser.finish()).trim()
+                val normalizedAnswer = ReasoningStreamParser.extractAnswer(loopResult.finalAnswer)
+                    .ifBlank { streamedAnswer }
+                when (GenerationResponsePolicy.classify(normalizedAnswer, streamedAnswer, loopResult.cancelled || _isCancelled.get())) {
+                    GenerationResponseStatus.CANCELLED -> {
+                        _generationPhase.value = GenerationPhase.CANCELLED
+                        return@launch
+                    }
+                    GenerationResponseStatus.EMPTY_RESPONSE -> {
+                        _generationPhase.value = GenerationPhase.CLEANUP
+                        _lastExecutionError.value = ExecutionErrorProjection(
+                            executionId = "generation-$generationId",
+                            message = appContext.getString(R.string.err_empty_response)
+                        )
+                        Log.e("AIRI_LOOP", "EMPTY_RESPONSE generation=$generationId model=$requestedModelIdAtDispatch provider=$requestedProviderIdAtDispatch")
+                        return@launch
+                    }
+                    GenerationResponseStatus.SUCCESS -> Unit
+                }
                 val elapsedMs = System.currentTimeMillis() - requestStart
                 recordGenerationStats(elapsedMs, tokenCount)
                 val tps = if (elapsedMs > 0) tokenCount * 1000f / elapsedMs.coerceAtLeast(1) else 0f
@@ -2152,16 +2173,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )}
                 AnalyticsService.responseGenerated(elapsedMs, tps, _modelState.value.selectedModelName, false)
 
-                if (loopResult.finalAnswer.isNotBlank()) {
+                if (normalizedAnswer.isNotBlank()) {
                     val assistantMsg = memoryManager.recordChatMessage(
                         sessionId = sessionId,
                         role = "assistant",
-                        content = loopResult.finalAnswer,
+                        content = normalizedAnswer,
                         projectId = activeProjectId
                     )
                     _messages.update {
                         it + ChatMessage(
-                            text       = loopResult.finalAnswer,
+                            text       = normalizedAnswer,
                             isUser     = false,
                             id         = assistantMsg.id,
                             execOrigin = _lastExecOrigin.value,
@@ -2182,7 +2203,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     // backends. It is intentionally not charged again as a daily
                     // interaction credit, which would exhaust the visible budget.
                     refreshTodayTokens()
-                    _smartReplies.value = ResponseOptimizer.generateSuggestions(loopResult.finalAnswer)
+                    _smartReplies.value = ResponseOptimizer.generateSuggestions(normalizedAnswer)
                     subscriptionManager.recordConsecutiveSuccess()
                     val successes = subscriptionManager.getConsecutiveSuccesses()
                     val successLevel = PaywallTriggerEngine.onSuccessfulResponse(successes, subscriptionManager.isPremium())

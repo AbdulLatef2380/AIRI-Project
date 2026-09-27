@@ -1786,5 +1786,16 @@
     <string name="connectors_access">Ámbito de acceso</string>
     <string name="connectors_authentication">Autenticación: %1$s</string>
     <string name="connectors_capabilities">Capacidades</string>
+    <string name="attachment_drop_here">Suelta los archivos aquí para adjuntarlos</string>
+    <string name="chat_search">Buscar en el chat</string>
+    <string name="chat_search_hint">Buscar mensajes…</string>
+    <string name="chat_search_no_results">No hay mensajes que coincidan con tu búsqueda.</string>
+    <string name="err_empty_response">El modelo terminó sin devolver una respuesta. Comprueba el modelo o el proveedor e inténtalo de nuevo.</string>
     <string name="resource_summary">Almacenamiento · RAM · CPU</string>
+    <string name="attachment_preview_title">Vista previa del archivo adjunto</string>
+    <string name="attachment_detail_type">Tipo</string>
+    <string name="attachment_detail_mime">Tipo MIME</string>
+    <string name="attachment_detail_size">Tamaño</string>
+    <string name="attachment_size_unknown">Tamaño desconocido</string>
+    <string name="open_attachment">Abrir archivo adjunto</string>
 </resources>

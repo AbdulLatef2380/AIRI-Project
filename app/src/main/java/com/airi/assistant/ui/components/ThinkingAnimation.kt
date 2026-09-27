@@ -94,10 +94,9 @@ fun ThinkingAnimation(
 
     val effectiveText = stageText ?: statusMessages[(statusIndex.toInt()) % 3]
 
-    Column(
+    Row(
         modifier = modifier
             .padding(horizontal = 12.dp, vertical = 12.dp)
-            .width(IntrinsicSize.Min)
             .drawBehind {
                 // Radial glow behind the dots
                 val radius = 40f * glowScale
@@ -112,8 +111,8 @@ fun ThinkingAnimation(
                     )
                 )
             },
-        horizontalAlignment = Alignment.Start,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Status text
         Text(

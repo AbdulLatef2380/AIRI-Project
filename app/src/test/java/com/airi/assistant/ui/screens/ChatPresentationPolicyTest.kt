@@ -34,6 +34,11 @@ class ChatPresentationPolicyTest {
         assertTrue(ChatPresentationPolicy.userBubbleFraction("long text".repeat(500)) in 0f..0.82f)
     }
 
+    @Test fun bubblePlacementIsRoleBasedNotLanguageBased() {
+        assertEquals(ChatPresentationPolicy.BubbleEdge.END, ChatPresentationPolicy.bubbleEdge(isUser = true))
+        assertEquals(ChatPresentationPolicy.BubbleEdge.START, ChatPresentationPolicy.bubbleEdge(isUser = false))
+    }
+
     @Test fun rawProviderIdsGetHumanLabels() {
         assertEquals("Gemini Flash", ChatPresentationPolicy.humanModelLabel("gemini-3.8-flash", false, true))
         assertEquals("Local", ChatPresentationPolicy.humanModelLabel("", true, false))

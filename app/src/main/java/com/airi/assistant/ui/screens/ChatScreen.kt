@@ -119,7 +119,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
-import androidx.compose.ui.draganddrop.dragAndDropTarget
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
@@ -193,6 +192,7 @@ fun ChatScreen(
     val messages      by viewModel.messages.collectAsState()
     val streamingText by viewModel.streamingText.collectAsState()
     val agentState    by viewModel.agentState.collectAsState()
+    val lastExecutionError by viewModel.lastExecutionError.collectAsState()
     val modelState    by viewModel.modelState.collectAsState()
     val capabilityDescriptor = remember(modelState) { viewModel.currentCapabilityDescriptor() }
     val agentMode     by viewModel.agentMode.collectAsState()
@@ -266,6 +266,16 @@ fun ChatScreen(
             viewModel.clearPaywallTrigger()
             onNavigate(AiriRoute.PAYWALL)
         }
+    }
+
+    LaunchedEffect(lastExecutionError) {
+        val error = lastExecutionError ?: return@LaunchedEffect
+        val detail = error.detail.trim()
+        snackbarHost.showSnackbar(
+            message = if (detail.isBlank()) error.message else "${error.message}: $detail",
+            duration = SnackbarDuration.Long
+        )
+        viewModel.clearExecutionError()
     }
 
     LaunchedEffect(upgradePrompt) {
@@ -2357,7 +2367,13 @@ fun UserBubble(
             val expansionDescription = stringResource(
                 if (isExpanded) R.string.show_less else R.string.show_more
             )
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = when (ChatPresentationPolicy.bubbleEdge(isUser = true)) {
+                    ChatPresentationPolicy.BubbleEdge.START -> Arrangement.Absolute.Left
+                    ChatPresentationPolicy.BubbleEdge.END -> Arrangement.Absolute.Right
+                }
+            ) {
                 Box {
                     Column(
                         modifier = Modifier
@@ -2515,7 +2531,7 @@ fun AiBubble(
 
     Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.Start,
+            horizontalArrangement = Arrangement.Absolute.Left,
             verticalAlignment = Alignment.Top
         ) {
             if (!hideAvatar) {
@@ -2771,10 +2787,9 @@ private fun FullscreenResponseViewer(
 
 @Composable
 fun AiStreamingBubble(text: String) {
-    val isThinkingStage = text in setOf("Thinking...", "Analyzing...", "Planning...", "Generating...", "Preparing...", "Reasoning...")
     Row(
         modifier = Modifier.fillMaxWidth().padding(end = 44.dp),
-        horizontalArrangement = Arrangement.Start,
+        horizontalArrangement = Arrangement.Absolute.Left,
         verticalAlignment = Alignment.Top
     ) {
         Image(
@@ -2784,10 +2799,7 @@ fun AiStreamingBubble(text: String) {
         )
         Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.fillMaxWidth().padding(start = 2.dp, top = 1.dp)) {
-            if (isThinkingStage) {
-                AiriThinkingDots()
-            } else {
-                Row(verticalAlignment = Alignment.Bottom) {
+            Row(verticalAlignment = Alignment.Bottom) {
                     CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection(text)) {
                         BidiAwareMarkdownRenderer(text = text, modifier = Modifier.fillMaxWidth(), isStreaming = true)
                     }
@@ -2796,8 +2808,6 @@ fun AiStreamingBubble(text: String) {
             }
         }
     }
-}
-
 @Composable
 private fun AiriThinkingRow(label: String) {
     val animationsEnabled = ValueAnimator.areAnimatorsEnabled()
@@ -2806,7 +2816,7 @@ private fun AiriThinkingRow(label: String) {
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 2.dp)
             .semantics { contentDescription = label },
-        horizontalArrangement = Arrangement.Start,
+        horizontalArrangement = Arrangement.Absolute.Left,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Image(
@@ -3317,10 +3327,7 @@ fun AiriChatInputBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .dragAndDropTarget(
-                shouldStartDragAndDrop = { true },
-                target = dragTarget,
-            )
+
     ) {
 
         // : Warning banner for 2000-3000 chars

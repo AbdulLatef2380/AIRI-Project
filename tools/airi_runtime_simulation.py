@@ -197,7 +197,7 @@ def test_ui_contract() -> dict[str, int]:
     check(".padding(horizontal = 14.dp, vertical = 12.dp)" not in ai_block, "assistant response still has bubble padding")
     check("BidiAwareMarkdownRenderer" in ai_block, "assistant response lost readable renderer")
     check(".background(AiriTheme.surfaceVariant)" in source[user_at:ai_at], "theme-aware user bubble surface is missing")
-    check("Arrangement.Start" in source[user_at:ai_at], "user bubble is not placed like the reference layout")
+    check("Arrangement.Absolute.Right" in source[user_at:ai_at], "user bubble is not placed on the physical right")
     stream_at = source.index("fun AiStreamingBubble")
     stream_block = source[stream_at:source.index("private fun AiriThinkingDots", stream_at)]
     check("AIRIShapes.aiBubble" not in stream_block and "AiriTheme.surfaceVariant" not in stream_block, "streaming response still has a bubble")

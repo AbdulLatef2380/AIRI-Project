@@ -214,7 +214,6 @@ fun ChatScreen(
     val pendingSummary        by viewModel.pendingSummary.collectAsState()
     val currentSessionId      by viewModel.currentSessionId.collectAsState()
     val sessionLoadState      by viewModel.sessionLoadState.collectAsState()
-    val lastExecutionError    by viewModel.lastExecutionError.collectAsState()
     val sessions              by viewModel.sessions.collectAsState()
     val favoriteSessionIds    by viewModel.favoriteSessionIds.collectAsState()
     val composerDrafts        by viewModel.composerDrafts.collectAsState()

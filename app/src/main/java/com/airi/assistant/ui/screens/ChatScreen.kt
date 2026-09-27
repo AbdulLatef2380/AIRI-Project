@@ -219,6 +219,13 @@ fun ChatScreen(
     val composerDrafts        by viewModel.composerDrafts.collectAsState()
     val currentComposerDraft = composerDrafts[currentSessionId]
     val currentSession = sessions.firstOrNull { it.id == currentSessionId }
+    var showChatSearch by rememberSaveable { mutableStateOf(false) }
+    var chatSearchQuery by rememberSaveable { mutableStateOf("") }
+    val filteredChatMessages = remember(messages, chatSearchQuery) {
+        val query = chatSearchQuery.trim()
+        if (query.isBlank()) messages
+        else messages.filter { it.text.contains(query, ignoreCase = true) }
+    }
     val sessionActions = ChatSessionActionPolicy.availability(
         hasPersistedSession = currentSession?.id == currentSessionId,
         sessionId = currentSessionId,
@@ -776,12 +783,13 @@ fun ChatScreen(
                 isCurrentSessionPinned = currentSession?.isPinned == true,
                 onSetSessionPinned = { isPinned -> viewModel.setCurrentSessionPinned(isPinned) },
                 isCurrentSessionFavorite = currentSessionId in favoriteSessionIds,
-                onSetSessionFavorite = { favorite -> viewModel.setSessionFavorite(currentSessionId, favorite) },
+    onSetSessionFavorite = { favorite -> viewModel.setSessionFavorite(currentSessionId, favorite) },
                 onArchiveSession = { viewModel.archiveSession(currentSessionId) },
                 onRenameChat      = { title -> viewModel.renameCurrentSession(title) },
                 onNewChat         = { viewModel.clearMessages() },
                 planLabel          = if (isProPlan) "Pro" else "Free",
                 onPointsClick     = { onNavigate(if (isProPlan) AiriRoute.PRO_PLAN else AiriRoute.FREE_PLAN) },
+                onSearchOpen      = { showChatSearch = true },
                 onNavigate        = onNavigate
             )
         },
@@ -1027,9 +1035,51 @@ fun ChatScreen(
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (showChatSearch) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    shape = AIRIShapes.md,
+                    color = AiriTheme.surface,
+                    border = BorderStroke(1.dp, AiriTheme.outline.copy(alpha = 0.55f))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Outlined.Search, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(6.dp))
+                        OutlinedTextField(
+                            value = chatSearchQuery,
+                            onValueChange = { chatSearchQuery = it },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            placeholder = { Text(stringResource(R.string.chat_search_hint), fontSize = 13.sp) },
+                            label = { Text(stringResource(R.string.chat_search), fontSize = 11.sp) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CosmicAccent,
+                                unfocusedBorderColor = Color.Transparent
+                            )
+                        )
+                        if (chatSearchQuery.isNotBlank()) {
+                            Text(
+                                text = filteredChatMessages.size.toString(),
+                                color = AiriTheme.onSurfaceVariant,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+                        }
+                        IconButton(onClick = { showChatSearch = false; chatSearchQuery = "" }) {
+                            Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.close), tint = AiriTheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
             ChatMessageList(
-                messages      = messages,
-                streamingText = streamingText,
+                messages      = filteredChatMessages,
+                streamingText = if (chatSearchQuery.isBlank()) streamingText else "",
                 isGenerating  = agentState.isWorking,
                 finalAnswerVerification = agentState.finalAnswerVerification,
                 isModelReady  = modelState.isModelReady,
@@ -1058,8 +1108,24 @@ fun ChatScreen(
                 onExportPdf        = { exportPdfLauncher.launch(ChatExporter.buildFileName("pdf")) },
                 onExportMarkdown   = { exportMdLauncher.launch(ChatExporter.buildFileName("md")) },
                 onFeedback         = { uid, liked -> viewModel.submitFeedback(uid, liked) },
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = if (showChatSearch) 72.dp else 0.dp)
             )
+            if (showChatSearch && chatSearchQuery.isNotBlank() && filteredChatMessages.isEmpty()) {
+                Surface(
+                    modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                    shape = AIRIShapes.md,
+                    color = AiriTheme.surfaceVariant
+                ) {
+                    Text(
+                        stringResource(R.string.chat_search_no_results),
+                        color = AiriTheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)
+                    )
+                }
+            }
 
             // Shown when the user is in live/duplex voice mode
             if (liveChatActiveRef.value || voiceState != VoiceSessionState.IDLE) {
@@ -1412,6 +1478,7 @@ private fun AiriChatTopBar(
     onRenameChat: (String) -> Unit,
     onNewChat: () -> Unit,
     onPointsClick: () -> Unit = {},
+    onSearchOpen: () -> Unit = {},
     onNavigate: (String) -> Unit = {}
 ) {
     TopAppBar(
@@ -1524,6 +1591,14 @@ private fun AiriChatTopBar(
                             Text(stringResource(R.string.cancel))
                         }
                     }
+                )
+            }
+            IconButton(onClick = onSearchOpen) {
+                Icon(
+                    Icons.Outlined.Search,
+                    contentDescription = stringResource(R.string.chat_search),
+                    tint = AiriTheme.onBackground.copy(alpha = 0.65f),
+                    modifier = Modifier.size(20.dp)
                 )
             }
             // History / clock

@@ -13,12 +13,12 @@ class LongTextAttachmentPolicyTest {
         assertTrue(LongTextAttachmentPolicy.shouldAutoConvert("x".repeat(3_000)))
     }
 
-    @Test fun fortyLinesStayInlineWhenShort() {
-        assertFalse(LongTextAttachmentPolicy.shouldAutoConvert((1..40).joinToString("\n") { "line" }))
+    @Test fun sixtyLinesStayInlineWhenShort() {
+        assertFalse(LongTextAttachmentPolicy.shouldAutoConvert((1..60).joinToString("\n") { "line" }))
     }
 
-    @Test fun fortyOneLinesConvertWhenShort() {
-        assertTrue(LongTextAttachmentPolicy.shouldAutoConvert((1..41).joinToString("\n") { "line" }))
+    @Test fun sixtyOneLinesConvertWhenShort() {
+        assertTrue(LongTextAttachmentPolicy.shouldAutoConvert((1..61).joinToString("\n") { "line" }))
     }
 
     @Test fun fifteenLinesStayFullyVisibleInline() {
@@ -26,14 +26,14 @@ class LongTextAttachmentPolicyTest {
         assertFalse(LongTextAttachmentPolicy.shouldCollapseInline(text))
     }
 
-    @Test fun sixteenToFortyLinesCollapseToFifteenLinePreview() {
+    @Test fun sixteenToSixtyLinesCollapseToFifteenLinePreview() {
         val text = (1..20).joinToString("\n") { "line $it" }
         assertTrue(LongTextAttachmentPolicy.shouldCollapseInline(text))
         assertTrue(LongTextAttachmentPolicy.collapsedPreview(text).lineSequence().count() == 15)
     }
 
     @Test fun attachmentThresholdTakesPrecedenceOverInlineCollapse() {
-        val text = (1..41).joinToString("\n") { "line $it" }
+        val text = (1..61).joinToString("\n") { "line $it" }
         assertFalse(LongTextAttachmentPolicy.shouldCollapseInline(text))
         assertTrue(LongTextAttachmentPolicy.shouldAutoConvert(text))
     }

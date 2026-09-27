@@ -34,7 +34,8 @@ import com.airi.assistant.ui.theme.CosmicAccent
 fun ThinkingAnimation(
     modifier: Modifier = Modifier,
     stageText: String? = null, // null = auto-cycle; non-null = use caller-provided text
-    animate: Boolean = true
+    animate: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
 ) {
     if (!animate) {
         Text(
@@ -44,7 +45,7 @@ fun ThinkingAnimation(
                 fontSize = 12.sp
             ),
             color = CosmicAccent,
-            modifier = modifier.padding(horizontal = 12.dp, vertical = 12.dp)
+            modifier = modifier.padding(contentPadding)
         )
         return
     }
@@ -96,7 +97,7 @@ fun ThinkingAnimation(
 
     Row(
         modifier = modifier
-            .padding(horizontal = 12.dp, vertical = 12.dp)
+            .padding(contentPadding)
             .drawBehind {
                 // Radial glow behind the dots
                 val radius = 40f * glowScale

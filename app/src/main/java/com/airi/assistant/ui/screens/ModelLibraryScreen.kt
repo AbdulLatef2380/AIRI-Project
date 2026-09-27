@@ -222,7 +222,7 @@ fun ModelLibraryScreen(
                 )
             }
 
-            items(OPENROUTER_TASK_MODELS, key = { it.modelId }) { entry ->
+            items(OPENROUTER_TASK_MODELS, key = { it.taskKey }) { entry ->
                 OpenRouterTaskModelCard(entry = entry)
             }
 
@@ -586,6 +586,7 @@ private fun CloudProviderCard(
     }
 }
 private data class TaskModelEntry(
+    val taskKey:    String,
     val modelId:    String,
     val taskLabel:  String,
     val taskIcon:   ImageVector,
@@ -595,6 +596,7 @@ private data class TaskModelEntry(
 
 private val OPENROUTER_TASK_MODELS = listOf(
     TaskModelEntry(
+        taskKey    = "coding",
         modelId    = OpenRouterAdapter.MODEL_CODING,
         taskLabel  = "Coding & Debugging",
         taskIcon   = Icons.Outlined.Code,
@@ -602,6 +604,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         contextLen = "16k"
     ),
     TaskModelEntry(
+        taskKey    = "reasoning",
         modelId    = OpenRouterAdapter.MODEL_REASONING,
         taskLabel  = "Deep Reasoning",
         taskIcon   = Icons.Outlined.Psychology,
@@ -609,6 +612,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         contextLen = "64k"
     ),
     TaskModelEntry(
+        taskKey    = "general",
         modelId    = OpenRouterAdapter.DEFAULT_MODEL,
         taskLabel  = "General & Long Context",
         taskIcon   = Icons.Outlined.AutoAwesome,
@@ -616,6 +620,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         contextLen = "1M"
     ),
     TaskModelEntry(
+        taskKey    = "multilingual",
         modelId    = OpenRouterAdapter.MODEL_MULTILINGUAL,
         taskLabel  = "Arabic & Multilingual",
         taskIcon   = Icons.Outlined.Language,
@@ -623,6 +628,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         contextLen = "128k"
     ),
     TaskModelEntry(
+        taskKey    = "fast",
         modelId    = OpenRouterAdapter.MODEL_FAST,
         taskLabel  = "Fast Responses",
         taskIcon   = Icons.Outlined.FlashOn,

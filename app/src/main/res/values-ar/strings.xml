@@ -1528,6 +1528,23 @@
 
     <string name="err_generation_failed">تعذّر إنشاء الاستجابة. حاول مرة أخرى.</string>
     <string name="err_empty_response">اكتمل التوليد دون وصول إجابة. تحقق من النموذج أو المزوّد ثم حاول مرة أخرى.</string>
+    <string name="err_cloud_credentials_invalid">مفتاح API المحفوظ لهذا الموفّر غير صالح. تحقّق من إعداداته وحاول مجددًا.</string>
+    <string name="err_cloud_model_unavailable">النموذج المحدد غير متاح لدى هذا الموفّر. اختر نموذجًا آخر أو تحقّق من إعدادات الموفّر.</string>
+    <string name="err_cloud_quota_exhausted">نفدت الحصة المتاحة لدى الموفّر. تحقّق من حسابه أو اختر موفّرًا آخر.</string>
+    <string name="err_cloud_request_rejected">رفض موفّر السحابة هذا الطلب. تحقّق من النموذج والموفّر المحدّدين ثم حاول مجددًا.</string>
+    <string name="err_cloud_context_limit">يتجاوز هذا الطلب سعة السياق للنموذج المحدد. اختصره أو اختر نموذجًا بسياق أكبر.</string>
+    <string name="err_cloud_content_filtered">لم يُرجع الموفّر ردًا لأن الطلب خضع لمرشح سياسة المحتوى.</string>
+    <string name="err_cloud_rate_limited">يحدّ موفّر السحابة من عدد الطلبات حاليًا. انتظر قليلًا ثم حاول مجددًا.</string>
+    <string name="err_cloud_timeout">لم يستجب موفّر السحابة في الوقت المحدد. تحقّق من اتصالك وحاول مجددًا.</string>
+    <string name="err_cloud_unavailable">موفّر السحابة غير متاح الآن. تحقّق من الاتصال وحاول مرة أخرى.</string>
+    <string name="err_agent_loop_failed">تعذّر على AIRI إكمال خطوات تنفيذ الطلب، لذلك لم يُنشأ رد.</string>
+    <string name="chat_execution_stopped_at">توقفت العملية عند: %1$s</string>
+    <string name="chat_execution_stage_preparation">تهيئة الطلب</string>
+    <string name="chat_execution_stage_agent">مسار الوكيل</string>
+    <string name="chat_execution_stage_provider">موفّر السحابة</string>
+    <string name="chat_execution_stage_response">إنشاء الرد</string>
+    <string name="chat_execution_stage_attachment">معالجة المرفق</string>
+    <string name="model_unsupported_architecture">يستخدم نموذج GGUF بنية غير مدعومة (%1$s)، لذلك لم يتم تحميله.</string>
 
     <!-- chat accessibility -->
     <string name="cd_send_message">إرسال الرسالة</string>

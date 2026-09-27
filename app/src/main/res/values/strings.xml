@@ -1626,6 +1626,23 @@
     <!-- generation -->
     <string name="err_generation_failed">Unable to generate a response. Please try again.</string>
     <string name="err_empty_response">The model completed without returning an answer. Check the model or provider and try again.</string>
+    <string name="err_cloud_credentials_invalid">The saved API key for this provider is invalid. Check its settings and try again.</string>
+    <string name="err_cloud_model_unavailable">The selected model is not available from this provider. Choose another model or verify provider settings.</string>
+    <string name="err_cloud_quota_exhausted">The provider usage quota is exhausted. Check the provider account or choose another provider.</string>
+    <string name="err_cloud_request_rejected">The cloud provider rejected this request. Check the selected model and provider settings, then try again.</string>
+    <string name="err_cloud_context_limit">This request exceeds the selected model context limit. Shorten it or choose a model with a larger context window.</string>
+    <string name="err_cloud_content_filtered">The provider did not return a response because the request was filtered by its content policy.</string>
+    <string name="err_cloud_rate_limited">The cloud provider is rate-limiting requests. Wait a moment and try again.</string>
+    <string name="err_cloud_timeout">The cloud provider did not respond in time. Check your connection and try again.</string>
+    <string name="err_cloud_unavailable">The cloud provider is unavailable right now. Check the connection and try again.</string>
+    <string name="err_agent_loop_failed">AIRI could not pass the request through its execution steps. No response was produced.</string>
+    <string name="chat_execution_stopped_at">Stopped at: %1$s</string>
+    <string name="chat_execution_stage_preparation">Request preparation</string>
+    <string name="chat_execution_stage_agent">Agent workflow</string>
+    <string name="chat_execution_stage_provider">Cloud provider</string>
+    <string name="chat_execution_stage_response">Response generation</string>
+    <string name="chat_execution_stage_attachment">Attachment processing</string>
+    <string name="model_unsupported_architecture">This GGUF model uses an unsupported architecture (%1$s) and was not loaded.</string>
 
     <!-- input shortcuts -->
     <string name="input_saved_knowledge">Saved knowledge</string>

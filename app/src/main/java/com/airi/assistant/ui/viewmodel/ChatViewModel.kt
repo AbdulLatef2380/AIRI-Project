@@ -237,6 +237,10 @@ data class ExecutionErrorProjection(
     val message: String,
     val detail: String = "",
     val occurredAtMs: Long = System.currentTimeMillis(),
+    val messageResId: Int? = null,
+    val stage: ExecutionFailureStage = ExecutionFailureStage.RESPONSE,
+    val sessionId: String? = null,
+    val replyToMessageId: String? = null,
 )
 
 enum class ExecutionStage {
@@ -244,7 +248,7 @@ enum class ExecutionStage {
 }
 
 enum class LoadErrorType {
-    NONE, FILE_NOT_FOUND, INVALID_FORMAT, TOO_SMALL, INSUFFICIENT_RAM, LOAD_FAILED
+    NONE, FILE_NOT_FOUND, INVALID_FORMAT, UNSUPPORTED_ARCHITECTURE, TOO_SMALL, INSUFFICIENT_RAM, LOAD_FAILED
 }
 
 enum class AgentMode(val label: String, val prompt: String) {
@@ -1783,7 +1787,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _lastExecutionError.value = ExecutionErrorProjection(
                 executionId = "generation-permission",
                 message = message,
-                detail = appContext.getString(R.string.exec_cloud_blocked)
+                messageResId = R.string.exec_cloud_blocked,
+                stage = ExecutionFailureStage.PREPARATION,
+                sessionId = _currentSessionId.value.takeIf { it.isNotBlank() }
             )
             return false
         }
@@ -2142,7 +2148,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _generationPhase.value = GenerationPhase.CLEANUP
                         _lastExecutionError.value = ExecutionErrorProjection(
                             executionId = "generation-$generationId",
-                            message = appContext.getString(R.string.err_empty_response)
+                            message = appContext.getString(R.string.err_empty_response),
+                            messageResId = R.string.err_empty_response,
+                            stage = ExecutionFailureStage.RESPONSE,
+                            sessionId = sessionId,
+                            replyToMessageId = userMessage.id
                         )
                         Log.e("AIRI_LOOP", "EMPTY_RESPONSE generation=$generationId model=$requestedModelIdAtDispatch provider=$requestedProviderIdAtDispatch")
                         return@launch
@@ -2231,14 +2241,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 if (isCurrentGeneration(generationId) && !_isCancelled.get()) {
                     Log.e("AIRI_LOOP", "AgentLoop failed type=${e.javaClass.simpleName} message=${e.message}", e)
-                    // Keep the stable localized heading, but include the sanitized
-                    // backend reason so provider/model failures are diagnosable
-                    // instead of appearing as an indistinguishable retry loop.
-                    val detail = e.message?.trim()?.take(240).orEmpty()
+                    val classification = ExecutionFailurePolicy.classify(
+                        rawMessage = e.message,
+                        responseStarted = firstTokenReceived
+                    )
+                    val messageResId = when (classification.kind) {
+                        ExecutionFailureKind.PROVIDER_CREDENTIALS -> R.string.err_cloud_credentials_invalid
+                        ExecutionFailureKind.PROVIDER_MODEL_UNAVAILABLE -> R.string.err_cloud_model_unavailable
+                        ExecutionFailureKind.PROVIDER_QUOTA_EXHAUSTED -> R.string.err_cloud_quota_exhausted
+                        ExecutionFailureKind.PROVIDER_REJECTED -> R.string.err_cloud_request_rejected
+                        ExecutionFailureKind.PROVIDER_CONTEXT_LIMIT -> R.string.err_cloud_context_limit
+                        ExecutionFailureKind.PROVIDER_CONTENT_FILTERED -> R.string.err_cloud_content_filtered
+                        ExecutionFailureKind.PROVIDER_RATE_LIMIT -> R.string.err_cloud_rate_limited
+                        ExecutionFailureKind.PROVIDER_TIMEOUT -> R.string.err_cloud_timeout
+                        ExecutionFailureKind.PROVIDER_UNAVAILABLE -> R.string.err_cloud_unavailable
+                        ExecutionFailureKind.AGENT_LOOP_FAILED -> R.string.err_agent_loop_failed
+                        ExecutionFailureKind.RESPONSE_FAILED -> R.string.err_generation_failed
+                    }
                     _lastExecutionError.value = ExecutionErrorProjection(
                         executionId = "generation-$generationId",
-                        message = appContext.getString(R.string.err_generation_failed),
-                        detail = detail,
+                        message = appContext.getString(messageResId),
+                        messageResId = messageResId,
+                        stage = classification.stage,
+                        sessionId = sessionId,
+                        replyToMessageId = userMessage.id
                     )
                 }
             } finally {
@@ -3420,6 +3446,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _lastExecutionError.value = ExecutionErrorProjection(
                     executionId = "generation-$generationId",
                     message = appContext.getString(R.string.err_image_process_failed),
+                    messageResId = R.string.err_image_process_failed,
+                    stage = ExecutionFailureStage.ATTACHMENT,
+                    sessionId = sessionId,
+                    replyToMessageId = userMsg.id
                 )
                 finishGeneration(generationId)
                 return@launch
@@ -3477,7 +3507,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _lastExecutionError.value = ExecutionErrorProjection(
                             executionId = "generation-$generationId",
                             message = appContext.getString(R.string.err_image_analyze_failed),
-                            detail = errMsg,
+                            messageResId = R.string.err_image_analyze_failed,
+                            stage = ExecutionFailureStage.RESPONSE,
+                            sessionId = sessionId,
+                            replyToMessageId = userMsg.id
                         )
                         finishGeneration(generationId)
                     }

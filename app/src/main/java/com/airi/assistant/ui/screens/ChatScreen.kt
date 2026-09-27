@@ -2757,6 +2757,7 @@ private fun AttachmentChip(
     attachment: com.airi.assistant.domain.ChatAttachment,
     isRemovalEnabled: Boolean = true,
     onRemove: () -> Unit,
+    onPreview: () -> Unit,
 ) {
     val accent = CosmicAccent
     val context = LocalContext.current
@@ -2767,9 +2768,17 @@ private fun AttachmentChip(
         AttachmentPolicy.ContentType.DOCUMENT -> stringResource(R.string.attachment_type_document)
         AttachmentPolicy.ContentType.FILE -> stringResource(R.string.attachment_type_file)
     }
-    val extension = attachment.safeDisplayName.substringAfterLast('.', "")
+    val badgeLabel = attachment.safeDisplayName.substringAfterLast('.', "")
         .takeIf { it.isNotBlank() }
-        ?.let { ".${it.uppercase()}" }
+        ?.uppercase()
+        ?.take(8)
+        ?: when (attachment.contentType) {
+            AttachmentPolicy.ContentType.IMAGE -> "IMG"
+            AttachmentPolicy.ContentType.VIDEO -> "VIDEO"
+            AttachmentPolicy.ContentType.TEXT -> "TXT"
+            AttachmentPolicy.ContentType.DOCUMENT -> "DOC"
+            AttachmentPolicy.ContentType.FILE -> "FILE"
+        }
     val lineCount by produceState<Int?>(null, attachment.uri, attachment.contentType) {
         if (attachment.isTextual && attachment.uri != null) {
             value = withContext(Dispatchers.IO) {
@@ -2783,118 +2792,77 @@ private fun AttachmentChip(
             }
         }
     }
-    val subtitle = listOfNotNull(typeLabel, lineCount?.let { "$it lines" }, extension, attachment.displaySize)
-        .joinToString(" • ")
-    val openAttachment: () -> Unit = {
-        attachment.uri?.let { uri ->
-            runCatching {
-                context.startActivity(Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(uri, attachment.normalizedMimeType.ifBlank { "*/*" })
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                })
-            }
-        }
-        Unit
-    }
     Box(
         modifier = Modifier
-            .width(252.dp)
-            .height(72.dp)
-            .shadow(3.dp, AIRIShapes.lg, ambientColor = accent.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.24f))
-            .clip(AIRIShapes.lg)
+            .size(112.dp)
+            .shadow(3.dp, AIRIShapes.md, ambientColor = accent.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.24f))
+            .clip(AIRIShapes.md)
             .background(AiriTheme.surfaceVariant.copy(alpha = 0.96f))
-            .border(1.dp, accent.copy(alpha = 0.30f), AIRIShapes.lg)
-            .clickable(enabled = attachment.uri != null, onClick = openAttachment)
-            .padding(7.dp)
+            .border(1.dp, accent.copy(alpha = 0.30f), AIRIShapes.md)
+            .clickable(onClick = onPreview)
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize().padding(start = 2.dp, end = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(9.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(76.dp)
+                .padding(horizontal = 8.dp, vertical = 7.dp)
+                .clip(AIRIShapes.sm)
+                .background(accent.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(AIRIShapes.md)
-                    .background(accent.copy(alpha = 0.16f))
-                    .border(1.dp, accent.copy(alpha = 0.22f), AIRIShapes.md),
-                contentAlignment = Alignment.Center
-            ) {
-                val fallback = when (attachment.contentType) {
-                    AttachmentPolicy.ContentType.IMAGE -> Icons.Default.Image
-                    AttachmentPolicy.ContentType.VIDEO -> Icons.Outlined.Videocam
-                    AttachmentPolicy.ContentType.TEXT -> Icons.Outlined.Description
-                    AttachmentPolicy.ContentType.DOCUMENT -> Icons.Outlined.Article
-                    AttachmentPolicy.ContentType.FILE -> Icons.Default.AttachFile
-                }
-                Icon(fallback, contentDescription = typeLabel, tint = accent, modifier = Modifier.size(22.dp))
-                val videoThumbnail by produceState<Bitmap?>(null, attachment.uri, attachment.contentType) {
-                    val videoUri = attachment.uri
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-                        attachment.contentType == AttachmentPolicy.ContentType.VIDEO &&
-                        videoUri != null
-                    ) {
-                        value = withContext(Dispatchers.IO) {
-                            runCatching {
-                                context.contentResolver.loadThumbnail(
-                                    videoUri,
-                                    AndroidSize(112, 112),
-                                    CancellationSignal()
-                                )
-                            }.getOrNull()
-                        }
-                    }
-                }
-                if (videoThumbnail != null) {
-                    Image(
-                        bitmap = videoThumbnail!!.asImageBitmap(),
-                        contentDescription = attachment.safeDisplayName,
-                        modifier = Modifier.matchParentSize().clip(AIRIShapes.md),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                    )
-                }
-                if (attachment.contentType == AttachmentPolicy.ContentType.VIDEO) {
-                    Icon(
-                        Icons.Default.PlayArrow,
-                        contentDescription = stringResource(R.string.workspace_preview),
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                val thumbModel: Any? = attachment.uri ?: attachment.bitmap
-                if (attachment.isVisualImage && thumbModel != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context).data(thumbModel).crossfade(true).build(),
-                        contentDescription = attachment.safeDisplayName,
-                        modifier = Modifier.matchParentSize().clip(AIRIShapes.md),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                    )
-                }
+            val fallback = when (attachment.contentType) {
+                AttachmentPolicy.ContentType.IMAGE -> Icons.Default.Image
+                AttachmentPolicy.ContentType.VIDEO -> Icons.Outlined.Videocam
+                AttachmentPolicy.ContentType.TEXT -> Icons.Outlined.Description
+                AttachmentPolicy.ContentType.DOCUMENT -> Icons.Outlined.Article
+                AttachmentPolicy.ContentType.FILE -> Icons.Default.AttachFile
             }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    text = attachment.safeDisplayName,
-                    color = AiriTheme.onSurface,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = subtitle,
-                    color = AiriTheme.onSurfaceVariant,
-                    fontSize = 10.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+            Icon(fallback, contentDescription = typeLabel, tint = accent, modifier = Modifier.size(24.dp))
+            val thumbModel: Any? = attachment.uri ?: attachment.bitmap
+            if (attachment.isVisualImage && thumbModel != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context).data(thumbModel).crossfade(true).build(),
+                    contentDescription = attachment.safeDisplayName,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
                 )
             }
+            if (attachment.contentType == AttachmentPolicy.ContentType.VIDEO) {
+                Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.workspace_preview), tint = Color.White, modifier = Modifier.size(24.dp))
+            }
+        }
+        Text(
+            attachment.safeDisplayName,
+            color = AiriTheme.onSurface,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, end = 8.dp, bottom = 7.dp)
+        )
+        Surface(
+            shape = RoundedCornerShape(7.dp),
+            color = CosmicAccent.copy(alpha = 0.92f),
+            contentColor = Color.White,
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.38f)),
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 6.dp)
+        ) {
+            Text(
+                badgeLabel,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.35.sp,
+                maxLines = 1,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+            )
         }
         IconButton(
             onClick = onRemove,
             enabled = isRemovalEnabled,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .size(48.dp)
+                .padding(6.dp)
+                .size(26.dp)
                 .background(AiriTheme.surface.copy(alpha = 0.92f), CircleShape),
         ) {
             Icon(
@@ -2904,6 +2872,93 @@ private fun AttachmentChip(
                 modifier = Modifier.size(14.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun AttachmentPreviewDialog(attachment: ChatAttachment, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val typeLabel = attachment.safeDisplayName.substringAfterLast('.', "")
+        .takeIf { it.isNotBlank() }
+        ?.uppercase()
+        ?: stringResource(R.string.attachment_type_file)
+    val thumbModel: Any? = attachment.uri ?: attachment.bitmap
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            shape = AIRIShapes.lg,
+            color = AiriTheme.surface,
+            tonalElevation = 8.dp
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.attachment_preview_title), color = AiriTheme.onSurface, fontWeight = FontWeight.SemiBold)
+                        Text(attachment.safeDisplayName, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, stringResource(R.string.close), tint = AiriTheme.onSurface) }
+                }
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp, max = 420.dp).clip(AIRIShapes.md).background(AiriTheme.background),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (attachment.isVisualImage && thumbModel != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context).data(thumbModel).crossfade(true).build(),
+                            contentDescription = attachment.safeDisplayName,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                        )
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Outlined.InsertDriveFile, typeLabel, tint = CosmicAccent, modifier = Modifier.size(52.dp))
+                            Spacer(Modifier.height(8.dp))
+                            Text(typeLabel, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            attachment.displaySize?.let { Text(it, color = AiriTheme.onSurfaceVariant, fontSize = 11.sp) }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AIRIShapes.md,
+                    color = AiriTheme.surfaceVariant.copy(alpha = 0.58f),
+                    border = BorderStroke(1.dp, AiriTheme.outline.copy(alpha = 0.45f))
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                        AttachmentDetailRow(stringResource(R.string.attachment_detail_type), typeLabel)
+                        AttachmentDetailRow(stringResource(R.string.attachment_detail_mime), attachment.normalizedMimeType.ifBlank { "*/*" })
+                        AttachmentDetailRow(stringResource(R.string.attachment_detail_size), attachment.displaySize ?: stringResource(R.string.attachment_size_unknown))
+                    }
+                }
+                if (attachment.uri != null) {
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, attachment.uri).apply {
+                                setDataAndType(attachment.uri, attachment.normalizedMimeType.ifBlank { "*/*" })
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            runCatching { context.startActivity(intent) }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Outlined.OpenInNew, null, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.open_attachment))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttachmentDetailRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.weight(0.38f))
+        Text(value, color = AiriTheme.onSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(0.62f))
     }
 }
 
@@ -2960,6 +3015,7 @@ fun AiriChatInputBar(
 ) {
     val context          = LocalContext.current
     var showAttachPopup by remember { mutableStateOf(false) }
+    var previewAttachment by remember { mutableStateOf<ChatAttachment?>(null) }
     // Keep collapsed and expanded states available; the content remains
     // scrollable so every attachment shortcut is reachable on small screens.
     val attachSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
@@ -3240,6 +3296,7 @@ fun AiriChatInputBar(
                             attachment = attachment,
                             isRemovalEnabled = !isDispatchingAttachment,
                             onRemove   = { onRemoveAttachment(attachment.uid) },
+                            onPreview  = { previewAttachment = attachment },
                         )
                     }
                 }
@@ -3535,6 +3592,12 @@ fun AiriChatInputBar(
             }
         }
 
+    }
+    previewAttachment?.let { attachment ->
+        AttachmentPreviewDialog(
+            attachment = attachment,
+            onDismiss = { previewAttachment = null }
+        )
     }
     if (showAttachPopup) {
         ModalBottomSheet(

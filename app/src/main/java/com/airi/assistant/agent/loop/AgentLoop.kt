@@ -10,6 +10,7 @@ import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.HybridOrchestrator
+import com.airi.assistant.execution.ResponseTerminalPolicy
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 import kotlinx.coroutines.CancellationException
@@ -357,7 +358,12 @@ Do not mix tool_call JSON with prose in the same message.
         )
 
         if (error != null) throw RuntimeException(error)
-        return buf.toString().trim()
+        val result = buf.toString().trim()
+        if (!ResponseTerminalPolicy.isSuccessful(result)) {
+            Log.w(TAG, "EMPTY_RESPONSE from orchestrator; refusing blank success")
+            throw IllegalStateException(ResponseTerminalPolicy.EMPTY_RESPONSE_CODE)
+        }
+        return result
     }
 
     // ── Tool call parsing ──────────────────────────────────────────────────────

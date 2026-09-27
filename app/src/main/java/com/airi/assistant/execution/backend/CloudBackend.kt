@@ -9,6 +9,7 @@ import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.ExecutionResult
+import com.airi.assistant.execution.ResponseTerminalPolicy
 import com.airi.assistant.execution.cloud.CloudAdapterFactory
 import com.airi.assistant.execution.cloud.CloudErrorType
 import com.airi.assistant.execution.cloud.CloudProviderAdapter
@@ -156,6 +157,15 @@ class CloudBackend(
 
             when (result) {
                 is CloudProviderAdapter.AdapterResult.Success -> {
+                    if (!ResponseTerminalPolicy.isSuccessful(result.fullText)) {
+                        lastError = "${ResponseTerminalPolicy.EMPTY_RESPONSE_CODE} from ${provider.displayName}"
+                        RuntimeEventLog.post(
+                            "CLOUD_BACKEND",
+                            EventSeverity.WARN,
+                            "${provider.displayName} returned EMPTY_RESPONSE; trying next provider"
+                        )
+                        continue
+                    }
                     val totalTokens = promptTok + compTok
                     if (totalTokens > 0) {
                         prefs.recordCloudTokens(totalTokens)
@@ -234,13 +244,23 @@ class CloudBackend(
                         adapter.streamGenerate(request, onToken = { fullText.append(it) })
                     }
                     when (result) {
-                        is CloudProviderAdapter.AdapterResult.Success ->
-                            ExecutionResult.Success(
-                                fullText = result.fullText,
-                                origin = ExecOrigin.CLOUD,
-                                latencyMs = System.currentTimeMillis() - startMs,
-                                provider = provider.name
-                            )
+                        is CloudProviderAdapter.AdapterResult.Success -> {
+                            if (!ResponseTerminalPolicy.isSuccessful(result.fullText)) {
+                                ExecutionResult.Failure(
+                                    error = ResponseTerminalPolicy.EMPTY_RESPONSE_CODE,
+                                    origin = ExecOrigin.CLOUD,
+                                    retryable = true,
+                                    code = ResponseTerminalPolicy.EMPTY_RESPONSE_CODE.lowercase()
+                                )
+                            } else {
+                                ExecutionResult.Success(
+                                    fullText = result.fullText,
+                                    origin = ExecOrigin.CLOUD,
+                                    latencyMs = System.currentTimeMillis() - startMs,
+                                    provider = provider.name
+                                )
+                            }
+                        }
                         is CloudProviderAdapter.AdapterResult.Failure ->
                             ExecutionResult.Failure(
                                 error = result.error, origin = ExecOrigin.CLOUD,

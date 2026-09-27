@@ -385,6 +385,13 @@
     <string name="model_settings_icon">Model settings</string>
     <string name="expand">Expand</string>
     <string name="collapse">Collapse</string>
+    <string name="show_more">Show more</string>
+    <string name="show_less">Show less</string>
+    <string name="chat_search_open">Search this chat</string>
+    <string name="chat_search_close">Close chat search</string>
+    <string name="chat_search_hint">Search messages…</string>
+    <string name="chat_search_previous">Previous result</string>
+    <string name="chat_search_next">Next result</string>
     <!-- File/image pick feedback -->
     <string name="file_selected_name">File selected: %1$s</string>
     <string name="image_selected_vision_soon">Image attachments are not enabled in this build</string>
@@ -860,6 +867,21 @@
     <!-- Generic actions / shared -->
     <string name="done">Done</string>
     <string name="close">Close</string>
+    <string name="attachment_preview_title">Attachment preview</string>
+    <string name="open_attachment">Open file</string>
+    <string name="attachment_drop_here">Drop files here</string>
+    <string name="attachment_detail_type">Type</string>
+    <string name="attachment_detail_mime">MIME</string>
+    <string name="attachment_detail_size">Size</string>
+    <string name="attachment_size_unknown">Unavailable</string>
+    <string name="attachment_preparing">Preparing attachments…</string>
+    <string name="attachment_model_loading">The model is still loading.</string>
+    <string name="attachment_generation_in_progress">A response is already being generated.</string>
+    <string name="attachment_session_changed">The chat session changed. Try again.</string>
+    <string name="attachment_vision_unavailable">Vision is not available for this model.</string>
+    <string name="attachment_capability_unavailable">This attachment capability is unavailable.</string>
+    <string name="attachment_capability_unknown">Attachment capability is not ready.</string>
+    <string name="attachment_staging_failed">The attachment could not be prepared.</string>
     <string name="refresh">Refresh</string>
     <string name="run">Run</string>
     <string name="remove">Remove</string>
@@ -1445,6 +1467,7 @@
 
     <!-- generation -->
     <string name="err_generation_failed">Unable to generate a response. Please try again.</string>
+    <string name="err_empty_response">The model returned an empty response. Please try again.</string>
 
     <!-- input shortcuts -->
     <string name="input_saved_knowledge">Saved knowledge</string>

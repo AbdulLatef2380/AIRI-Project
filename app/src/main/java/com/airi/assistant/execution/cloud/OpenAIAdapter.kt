@@ -119,6 +119,21 @@ open class OpenAIAdapter(
                     }
                     if (payload.isBlank()) continue
 
+                    // OpenRouter can return an error object inside an HTTP 200
+                    // SSE stream. Treat it as a terminal failure before parsing
+                    // delta.content; otherwise the stream may look successful
+                    // while producing no assistant response.
+                    val normalizedPayload = payload.trimStart()
+                    if (normalizedPayload.startsWith("{\"error\"") ||
+                        normalizedPayload.startsWith("{ \"error\"")) {
+                        return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                            error = extractErrorMessage(payload) ?: "Provider returned an in-stream error",
+                            errorType = CloudErrorType.UNKNOWN,
+                            retryable = fullText.isEmpty(),
+                            httpCode = 200
+                        )
+                    }
+
                     // Token delta
                     val token = extractDeltaContent(payload)
                     if (token.isNotEmpty()) {
@@ -253,6 +268,18 @@ open class OpenAIAdapter(
         val prompt   = extractIntAfterKey(json, "\"prompt_tokens\"",     usageIdx)     ?: return null
         val complete = extractIntAfterKey(json, "\"completion_tokens\"", usageIdx) ?: 0
         return Pair(prompt, complete)
+    }
+
+    private fun extractErrorMessage(json: String): String? {
+        val key = "\"message\""
+        val keyIdx = json.indexOf(key)
+        if (keyIdx < 0) return null
+        val colonIdx = json.indexOf(":", keyIdx + key.length)
+        if (colonIdx < 0) return null
+        val after = json.substring(colonIdx + 1).trimStart()
+        if (!after.startsWith("\"")) return null
+        val end = findStringEnd(after, 1)
+        return if (end > 1) after.substring(1, end) else null
     }
 
     private fun extractIntAfterKey(json: String, key: String, fromIdx: Int): Int? {

@@ -450,6 +450,13 @@
     <string name="model_settings_icon">إعدادات النموذج</string>
     <string name="expand">توسيع</string>
     <string name="collapse">طي</string>
+    <string name="show_more">عرض المزيد</string>
+    <string name="show_less">عرض أقل</string>
+    <string name="chat_search_open">البحث في المحادثة</string>
+    <string name="chat_search_close">إغلاق بحث المحادثة</string>
+    <string name="chat_search_hint">ابحث في الرسائل…</string>
+    <string name="chat_search_previous">النتيجة السابقة</string>
+    <string name="chat_search_next">النتيجة التالية</string>
     <!-- File/image pick feedback -->
     <string name="file_selected_name">تم اختيار الملف: %1$s</string>
     <string name="image_selected_vision_soon">إرفاق الصور غير مُفعَّل في هذه النسخة</string>
@@ -859,6 +866,21 @@
     <!-- Generic actions / shared -->
     <string name="done">تم</string>
     <string name="close">إغلاق</string>
+    <string name="attachment_preview_title">معاينة المرفق</string>
+    <string name="open_attachment">فتح الملف</string>
+    <string name="attachment_drop_here">أفلت الملفات هنا</string>
+    <string name="attachment_detail_type">النوع</string>
+    <string name="attachment_detail_mime">نوع MIME</string>
+    <string name="attachment_detail_size">الحجم</string>
+    <string name="attachment_size_unknown">غير متاح</string>
+    <string name="attachment_preparing">جارٍ تجهيز المرفقات…</string>
+    <string name="attachment_model_loading">النموذج لا يزال قيد التحميل.</string>
+    <string name="attachment_generation_in_progress">توجد إجابة قيد التوليد حاليًا.</string>
+    <string name="attachment_session_changed">تغيرت جلسة المحادثة. حاول مرة أخرى.</string>
+    <string name="attachment_vision_unavailable">الرؤية غير متاحة لهذا النموذج.</string>
+    <string name="attachment_capability_unavailable">إمكانية معالجة هذا المرفق غير متاحة.</string>
+    <string name="attachment_capability_unknown">إمكانية المرفق غير جاهزة.</string>
+    <string name="attachment_staging_failed">تعذر تجهيز المرفق.</string>
     <string name="refresh">تحديث</string>
     <string name="run">تشغيل</string>
     <string name="remove">إزالة</string>
@@ -1347,6 +1369,7 @@
     <string name="input_saved_knowledge">معرفة محفوظة</string>
 
     <string name="err_generation_failed">تعذّر إنشاء الاستجابة. حاول مرة أخرى.</string>
+    <string name="err_empty_response">أعاد النموذج استجابة فارغة. حاول مرة أخرى.</string>
 
     <!-- chat accessibility -->
     <string name="cd_send_message">إرسال الرسالة</string>

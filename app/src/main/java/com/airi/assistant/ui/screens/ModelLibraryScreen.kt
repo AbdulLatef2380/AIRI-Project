@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -162,7 +163,8 @@ fun ModelLibraryScreen(
                 it.tier == EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER
             }
 
-            items(freeTierProviders, key = { it.id }) { config ->
+            val providerKeys = stableCatalogKeys(freeTierProviders.map { it.id })
+            itemsIndexed(freeTierProviders, key = { index, _ -> "provider_${providerKeys[index]}" }) { _, config ->
                 val isActive = activeProv?.id == config.id && modelState.isCloudReady
                 val hasKey   = EmbeddedProviderConfig.hasKeyFor(context, config)
                 CloudProviderCard(
@@ -222,7 +224,8 @@ fun ModelLibraryScreen(
                 )
             }
 
-            items(OPENROUTER_TASK_MODELS, key = { it.modelId }) { entry ->
+            val modelKeys = stableCatalogKeys(OPENROUTER_TASK_MODELS.map { it.modelId })
+            itemsIndexed(OPENROUTER_TASK_MODELS, key = { index, _ -> "model_${modelKeys[index]}" }) { _, entry ->
                 OpenRouterTaskModelCard(entry = entry)
             }
 
@@ -592,6 +595,17 @@ private data class TaskModelEntry(
     val description: String,
     val contextLen: String
 )
+
+/** Compose keys must remain unique if a provider catalog repeats an id. */
+internal fun stableCatalogKeys(values: List<String>): List<String> {
+    val seen = mutableMapOf<String, Int>()
+    return values.map { raw ->
+        val base = raw.ifBlank { "item" }
+        val occurrence = seen.getOrDefault(base, 0)
+        seen[base] = occurrence + 1
+        if (occurrence == 0) base else "$base#$occurrence"
+    }
+}
 
 private val OPENROUTER_TASK_MODELS = listOf(
     TaskModelEntry(

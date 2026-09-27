@@ -245,15 +245,27 @@ class HybridOrchestrator(
                 },
                 onComplete = { fullText, latencyMs ->
                     if (generationGate.accepts(genId)) {
-                        backendSucceeded = true
-                        updateDiagnostics { copy(
-                            isStreaming          = false,
-                            lastStreamDurationMs = System.currentTimeMillis() - streamStart,
-                            lastProviderLatencyMs = latencyMs
-                        )}
-                        RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.INFO,
-                            "gen#$genId ${backend.id} OK latency=${latencyMs}ms")
-                        onComplete(fullText, latencyMs, backend.origin)
+                        if (!ResponseTerminalPolicy.isSuccessful(fullText)) {
+                            lastError = "${ResponseTerminalPolicy.EMPTY_RESPONSE_CODE} from ${backend.id}"
+                            lastOrigin = backend.origin
+                            updateDiagnostics { copy(
+                                isStreaming = false,
+                                lastStreamDurationMs = System.currentTimeMillis() - streamStart,
+                                lastErrorMessage = lastError
+                            )}
+                            RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.WARN,
+                                "gen#$genId ${backend.id} EMPTY_RESPONSE; trying fallback")
+                        } else {
+                            backendSucceeded = true
+                            updateDiagnostics { copy(
+                                isStreaming          = false,
+                                lastStreamDurationMs = System.currentTimeMillis() - streamStart,
+                                lastProviderLatencyMs = latencyMs
+                            )}
+                            RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.INFO,
+                                "gen#$genId ${backend.id} OK latency=${latencyMs}ms chars=${fullText.length}")
+                            onComplete(fullText, latencyMs, backend.origin)
+                        }
                     }
                 },
                 onError    = { error ->

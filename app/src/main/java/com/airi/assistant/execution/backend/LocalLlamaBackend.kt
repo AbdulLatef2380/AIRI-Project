@@ -123,16 +123,19 @@ class LocalLlamaBackend(
         val fullText = StringBuilder()
 
         // Use an unlimited Channel to bridge non-suspend LlamaManager callbacks
-        // back to this suspend caller without blocking any thread.
-        val finished = AtomicBoolean(false)
+        // back to this suspend caller without blocking any thread. The channel
+        // is cancelled with the caller so native callbacks cannot accumulate
+        // after the UI/agent has stopped collecting the request.
+        val events = Channel<LlamaEvent>(Channel.UNLIMITED)
+        val terminalSent = AtomicBoolean(false)
         currentCoroutineContext()[Job]?.invokeOnCompletion { cause ->
-            if (cause != null && finished.compareAndSet(false, true)) {
+            if (cause != null && terminalSent.compareAndSet(false, true)) {
                 // The native engine outlives the caller coroutine. Cancel it
                 // when the UI/agent stops collecting the stream.
                 llamaManager.cancelStream()
+                events.cancel(cause)
             }
         }
-        val events = Channel<LlamaEvent>(Channel.UNLIMITED)
 
         llamaManager.generateStream(
             prompt         = request.prompt,
@@ -146,13 +149,17 @@ class LocalLlamaBackend(
                 events.trySend(LlamaEvent.Token(token))
             },
             onComplete     = { _ ->
-                events.trySend(LlamaEvent.Complete(fullText.toString(), System.currentTimeMillis() - startMs))
-                events.close()
+                if (terminalSent.compareAndSet(false, true)) {
+                    events.trySend(LlamaEvent.Complete(fullText.toString(), System.currentTimeMillis() - startMs))
+                    events.close()
+                }
             },
             onError        = { error ->
                 Log.w(TAG, "generateStream error: $error")
-                events.trySend(LlamaEvent.Error(error))
-                events.close()
+                if (terminalSent.compareAndSet(false, true)) {
+                    events.trySend(LlamaEvent.Error(error))
+                    events.close()
+                }
             },
             onStallWarning = {
                 Log.w(TAG, "generateStream: stall warning")
@@ -164,8 +171,6 @@ class LocalLlamaBackend(
             when (event) {
                 is LlamaEvent.Token    -> onToken(event.value)
                 is LlamaEvent.Complete -> {
-                    finished.set(true)
-                    
                     // since nativeTokenCount is not surfaced through this interface.
                     tokenAccountant?.let { accountant ->
                         runCatching {
@@ -181,11 +186,11 @@ class LocalLlamaBackend(
                     onComplete(event.text, event.latency)
                 }
                 is LlamaEvent.Error    -> {
-                    finished.set(true)
                     onError(event.message)
                 }
             }
         }
+        events.close()
     }
 
     /**
@@ -243,8 +248,19 @@ class LocalLlamaBackend(
         // Await the result in suspend context — this is the correct place to call
         // suspend functions. tokenAccountant.recordLocal is a suspend fun (uses Mutex)
         // and cannot be called inside the non-suspend onComplete lambda above.
-        
-        val result = deferred.await()
+        val result = when (val completed = deferred.await()) {
+            is ExecutionResult.Success -> if (ResponseTerminalPolicy.isSuccessful(completed.fullText)) {
+                completed
+            } else {
+                ExecutionResult.Failure(
+                    error = ResponseTerminalPolicy.EMPTY_RESPONSE_CODE,
+                    origin = ExecOrigin.LOCAL,
+                    retryable = true,
+                    code = ResponseTerminalPolicy.EMPTY_RESPONSE_CODE.lowercase()
+                )
+            }
+            is ExecutionResult.Failure -> completed
+        }
         if (result is ExecutionResult.Success) {
             tokenAccountant?.let { accountant ->
                 runCatching {

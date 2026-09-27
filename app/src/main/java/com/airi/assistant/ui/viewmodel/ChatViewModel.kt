@@ -113,6 +113,16 @@ import com.airi.assistant.execution.security.SecureApiKeyStore
 import com.airi.assistant.voice.VoskModelManager
 import com.airi.assistant.ui.activity.AgentActivityBus
 
+enum class AttachmentDispatchFailure {
+    MODEL_LOADING,
+    GENERATION_IN_PROGRESS,
+    SESSION_CHANGED,
+    VISION_UNAVAILABLE,
+    CAPABILITY_UNAVAILABLE,
+    CAPABILITY_UNKNOWN,
+    STAGING_FAILED
+}
+
 data class ChatMessage(
     val text: String,
     val isUser: Boolean,
@@ -499,6 +509,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isGenerating = MutableStateFlow(false)
     val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
+
+    private val _attachmentDispatchInFlight = MutableStateFlow(false)
+    val attachmentDispatchInFlight: StateFlow<Boolean> = _attachmentDispatchInFlight.asStateFlow()
 
     /**
      * Live total tokens used today across all providers.
@@ -1362,11 +1375,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return InputDirectives(remaining, skillId, knowledgeId)
     }
 
-        // Long-text file conversion threshold: messages over this length are
-    // automatically saved as a text file and attached to the conversation
-    // instead of being sent as raw text. This prevents context overflow
-    // and keeps the token budget manageable.
-    private val LONG_TEXT_THRESHOLD = 3000
+    // Messages over 60 lines are automatically saved as a complete text file
+    // and attached instead of being sent inline.
+    private val LONG_TEXT_LINE_THRESHOLD = 60
 
     fun sendMessage(input: String) {
         val directives = parseInputDirectives(input)
@@ -1375,11 +1386,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // The composer stays disabled while an execution owns the stream. This
         // guard also protects programmatic callers from queuing a second request.
         if (_agentState.value.isWorking) return
-        // ── Long-text-to-file conversion (3000+ chars) ────────────────────────
+        // ── Long-text-to-file conversion (more than 60 lines) ─────────────────
         // When the user pastes/sends very long text (e.g. code, articles, logs),
         // convert it to a .txt file attachment instead of embedding it inline.
         // This prevents token overflow and keeps the conversation manageable.
-        if (trimmedInput.length >= LONG_TEXT_THRESHOLD) {
+        if (trimmedInput.lineSequence().count() > LONG_TEXT_LINE_THRESHOLD) {
             val file = File(appContext.cacheDir, "chat_attachments")
             file.mkdirs()
             val fileName = "pasted_${System.currentTimeMillis()}.txt"
@@ -1471,6 +1482,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             generationStartMs = System.currentTimeMillis()
             val perfMode = _performanceMode.value
             val sessionId = currentSessionOrCreate()
+            Log.i("AIRI_RESPONSE", "phase=SEND_STARTED generation=$generationId session=$sessionId inputChars=${trimmedInput.length}")
             val wasEmpty = _messages.value.isEmpty()
             val attachedForBubble = pendingImageUriForNextSend
             val attachmentJson = pendingAttachmentJsonForNextSend
@@ -1781,17 +1793,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
                     if (triggerPaywallAfterSend) { _paywallTrigger.value = true }
+                } else {
+                    val emptyMessage = appContext.getString(R.string.err_empty_response)
+                    Log.e("AIRI_RESPONSE", "terminal=EMPTY_RESPONSE generation=$generationId session=$sessionId")
+                    val errorRec = memoryManager.recordChatMessage(sessionId, "assistant", emptyMessage)
+                    _messages.update {
+                        it + ChatMessage(emptyMessage, isUser = false, id = errorRec.id)
+                    }
                 }
-                Log.i("AIRI", "AGENT_LOOP_COMPLETE steps=${loopResult.stepsUsed} tools=${loopResult.toolsInvoked}")
+                Log.i("AIRI_RESPONSE", "terminal=${if (loopResult.finalAnswer.isBlank()) "EMPTY_RESPONSE" else "SUCCESS"} generation=$generationId session=$sessionId steps=${loopResult.stepsUsed} tools=${loopResult.toolsInvoked}")
 
             } catch (_: CancellationException) {
+                Log.i("AIRI_RESPONSE", "terminal=CANCELLED generation=$generationId session=$sessionId")
                 if (isCurrentGeneration(generationId)) {
                     _generationPhase.value = GenerationPhase.CANCELLED
                 }
             } catch (e: Exception) {
                 if (isCurrentGeneration(generationId) && !_isCancelled.get()) {
-                    Log.e("AIRI_LOOP", "AgentLoop failed type=${e.javaClass.simpleName}")
-                    val errMsg = appContext.getString(R.string.err_generation_failed)
+                    Log.e("AIRI_RESPONSE", "terminal=FAILURE generation=$generationId session=$sessionId type=${e.javaClass.simpleName} message=${e.message?.take(120)}")
+                    val errMsg = if (e.message == "EMPTY_RESPONSE") {
+                        appContext.getString(R.string.err_empty_response)
+                    } else {
+                        appContext.getString(R.string.err_generation_failed)
+                    }
                     val errRec = memoryManager.recordChatMessage(sessionId, "assistant", errMsg)
                     _messages.update { it + ChatMessage(errMsg, isUser = false, id = errRec.id) }
                 }
@@ -2480,15 +2504,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendMessageWithAttachments(
         input: String,
-        attachments: List<com.airi.assistant.domain.ChatAttachment>
+        attachments: List<com.airi.assistant.domain.ChatAttachment>,
+        onAccepted: () -> Unit = {},
+        onRejected: (AttachmentDispatchFailure) -> Unit = {}
     ) {
         if (attachments.isEmpty()) {
             sendMessage(input.trim())
+            onAccepted()
             return
         }
-        if (_modelState.value.isModelLoading) return
+        if (_modelState.value.isModelLoading) {
+            onRejected(AttachmentDispatchFailure.MODEL_LOADING)
+            return
+        }
+        if (_isGenerating.value) {
+            onRejected(AttachmentDispatchFailure.GENERATION_IN_PROGRESS)
+            return
+        }
 
+        _attachmentDispatchInFlight.value = true
         viewModelScope.launch {
+        try {
         // Persist attachment bytes before sending. Only a generated local file
         // name is retained in message metadata; source URIs and absolute paths
         // are intentionally not written to Room.
@@ -2575,6 +2611,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // pendingImageUriForNextSend hand-off used by the old fallback.
             primaryImage?.uri?.let { pendingImageUriForNextSend = it.toString() }
             sendMessage(fullText)
+        }
+        onAccepted()
+        } catch (_: Throwable) {
+            onRejected(AttachmentDispatchFailure.STAGING_FAILED)
+        } finally {
+            _attachmentDispatchInFlight.value = false
         }
         }
     }

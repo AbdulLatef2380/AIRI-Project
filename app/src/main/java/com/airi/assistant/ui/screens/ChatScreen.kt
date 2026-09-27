@@ -72,6 +72,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -85,7 +86,7 @@ import com.airi.assistant.core.VoiceManager
 import com.airi.assistant.domain.retention.RetentionManager
 import com.airi.assistant.ui.AiriRoute
 import com.airi.assistant.ui.theme.*
-import com.airi.core.attachments.AttachmentPolicy
+import com.airi.assistant.domain.AttachmentPolicy
 import com.airi.assistant.domain.ChatAttachment
 import androidx.compose.foundation.lazy.LazyRow
 import com.airi.assistant.util.ChatExporter
@@ -124,6 +125,10 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.draganddrop.DragAndDropEvent
+import androidx.compose.ui.draganddrop.DragAndDropTarget
+import androidx.compose.ui.draganddrop.dragAndDropTarget
+import androidx.compose.ui.draganddrop.toAndroidDragEvent
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
 
@@ -164,6 +169,45 @@ private fun resolveAttachmentMetadata(
         mimeType = resolvedMime,
         sizeBytes = values?.second
     )
+}
+
+private fun attachmentTypeLabel(attachment: ChatAttachment): String {
+    val extension = attachment.safeDisplayName.substringAfterLast('.', "")
+        .takeIf { it.isNotBlank() }
+        ?.uppercase()
+    if (extension != null) return extension
+
+    val mimeSubtype = attachment.normalizedMimeType.substringAfter('/', "")
+        .takeIf { it.isNotBlank() }
+        ?.uppercase()
+    return mimeSubtype ?: when (attachment.contentType) {
+        AttachmentPolicy.ContentType.IMAGE -> "IMAGE"
+        AttachmentPolicy.ContentType.VIDEO -> "VIDEO"
+        AttachmentPolicy.ContentType.TEXT -> "TEXT"
+        AttachmentPolicy.ContentType.DOCUMENT -> "DOCUMENT"
+        AttachmentPolicy.ContentType.FILE -> "FILE"
+    }
+}
+
+private fun attachmentMimeLabel(attachment: ChatAttachment): String =
+    attachment.normalizedMimeType.ifBlank {
+        when (attachment.contentType) {
+            AttachmentPolicy.ContentType.IMAGE -> "image/*"
+            AttachmentPolicy.ContentType.VIDEO -> "video/*"
+            AttachmentPolicy.ContentType.TEXT -> "text/plain"
+            AttachmentPolicy.ContentType.DOCUMENT -> "application/document"
+            AttachmentPolicy.ContentType.FILE -> "application/octet-stream"
+        }
+    }
+
+private fun attachmentSizeLabel(attachment: ChatAttachment): String {
+    attachment.displaySize?.let { return it }
+    val bitmapBytes = attachment.bitmap?.allocationByteCount?.toLong() ?: return ""
+    return when {
+        bitmapBytes >= 1024L * 1024L -> "${"%.1f".format(bitmapBytes / (1024.0 * 1024.0))} MB"
+        bitmapBytes >= 1024L -> "${bitmapBytes / 1024L} KB"
+        else -> "$bitmapBytes B"
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -309,6 +353,15 @@ fun ChatScreen(
     }
 
     var showMenu            by remember { mutableStateOf(false) }
+    var showChatSearch      by rememberSaveable { mutableStateOf(false) }
+    var chatSearchQuery     by rememberSaveable { mutableStateOf("") }
+    var chatSearchIndex     by rememberSaveable { mutableStateOf(0) }
+    val chatSearchMatches = remember(messages, chatSearchQuery) {
+        if (chatSearchQuery.isBlank()) emptyList()
+        else messages.filter { it.text.contains(chatSearchQuery, ignoreCase = true) }
+    }
+    LaunchedEffect(chatSearchQuery, messages.size) { chatSearchIndex = 0 }
+    val chatSearchTargetUid = chatSearchMatches.getOrNull(chatSearchIndex)?.uid
     var showGenSettings     by remember { mutableStateOf(false) }
     var showModelPicker     by remember { mutableStateOf(false) }
     val isPlanModeActive    by viewModel.isPlanModeActive.collectAsState()
@@ -764,7 +817,26 @@ fun ChatScreen(
                 onNewChat         = { viewModel.clearMessages() },
                 planLabel          = if (isProPlan) "Pro" else "Free",
                 onPointsClick     = { onNavigate(if (isProPlan) AiriRoute.PRO_PLAN else AiriRoute.FREE_PLAN) },
-                onNavigate        = onNavigate
+                onNavigate        = onNavigate,
+                showSearch        = showChatSearch,
+                searchQuery       = chatSearchQuery,
+                searchMatchCount  = chatSearchMatches.size,
+                searchMatchIndex  = chatSearchIndex,
+                onToggleSearch    = {
+                    showChatSearch = !showChatSearch
+                    if (showChatSearch) chatSearchIndex = 0 else chatSearchQuery = ""
+                },
+                onSearchQueryChange = { chatSearchQuery = it },
+                onSearchPrevious  = {
+                    if (chatSearchMatches.isNotEmpty()) {
+                        chatSearchIndex = (chatSearchIndex - 1 + chatSearchMatches.size) % chatSearchMatches.size
+                    }
+                },
+                onSearchNext      = {
+                    if (chatSearchMatches.isNotEmpty()) {
+                        chatSearchIndex = (chatSearchIndex + 1) % chatSearchMatches.size
+                    }
+                }
             )
         },
             bottomBar = {
@@ -993,6 +1065,11 @@ fun ChatScreen(
                             pendingAttachments.filterNot { it.id == uid || it.uid == uid }
                         )
                     },
+                    onDropFiles = { uris ->
+                        uris.forEach { uri ->
+                            stageUriAttachment(uri, ChatAttachment.Kind.FILE, "dropped_file")
+                        }
+                    },
                     bottomNavVisible = bottomNavVisible,
                     onBottomNavToggle = onBottomNavToggle,
                     imageInputEnabled = capabilityDescriptor.isReady(com.airi.assistant.execution.Capability.IMAGE_UNDERSTANDING)
@@ -1009,6 +1086,8 @@ fun ChatScreen(
                 isModelReady  = modelState.isModelReady,
                 isCloudReady  = modelState.isCloudReady,
                 onOpenModels  = { onNavigate(AiriRoute.MODELS) },
+                searchQuery = chatSearchQuery,
+                searchTargetUid = chatSearchTargetUid,
                 onShareAiResponse = { response -> shareAiResponse(context, response) },
                 onSpeak = { text ->
                     voiceManager.stopVadIfRunning(); voiceManager.stopSpeaking()
@@ -1056,7 +1135,11 @@ fun ChatScreen(
                         Text(
                             text = agentState.currentAction.takeIf { it.isNotBlank() } ?: stringResource(R.string.generating),
                             color = AiriTheme.onSurfaceVariant,
-                            fontSize = 11.sp
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 240.dp)
                         )
                     }
                 }
@@ -1423,8 +1506,17 @@ private fun AiriChatTopBar(
     onRenameChat: (String) -> Unit,
     onNewChat: () -> Unit,
     onPointsClick: () -> Unit = {},
-    onNavigate: (String) -> Unit = {}
+    onNavigate: (String) -> Unit = {},
+    showSearch: Boolean = false,
+    searchQuery: String = "",
+    searchMatchCount: Int = 0,
+    searchMatchIndex: Int = 0,
+    onToggleSearch: () -> Unit = {},
+    onSearchQueryChange: (String) -> Unit = {},
+    onSearchPrevious: () -> Unit = {},
+    onSearchNext: () -> Unit = {}
 ) {
+    Column {
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = AiriTheme.background.copy(alpha = 0.92f)
@@ -1523,6 +1615,15 @@ private fun AiriChatTopBar(
                             Text(stringResource(R.string.cancel))
                         }
                     }
+                )
+            }
+            // Search and history controls
+            IconButton(onClick = onToggleSearch) {
+                Icon(
+                    if (showSearch) Icons.Outlined.SearchOff else Icons.Outlined.Search,
+                    contentDescription = stringResource(if (showSearch) R.string.chat_search_close else R.string.chat_search_open),
+                    tint = if (showSearch) CosmicAccent else AiriTheme.onBackground.copy(alpha = 0.65f),
+                    modifier = Modifier.size(20.dp)
                 )
             }
             // History / clock
@@ -1631,6 +1732,73 @@ private fun AiriChatTopBar(
             }
         }
     )
+    if (showSearch) {
+        ChatSearchBar(
+            query = searchQuery,
+            matchCount = searchMatchCount,
+            matchIndex = searchMatchIndex,
+            onQueryChange = onSearchQueryChange,
+            onPrevious = onSearchPrevious,
+            onNext = onSearchNext,
+            onClose = onToggleSearch
+        )
+    }
+    }
+}
+
+@Composable
+private fun ChatSearchBar(
+    query: String,
+    matchCount: Int,
+    matchIndex: Int,
+    onQueryChange: (String) -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onClose: () -> Unit
+) {
+    Surface(color = AiriTheme.surfaceVariant, tonalElevation = 2.dp) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(Icons.Outlined.Search, null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                placeholder = { Text(stringResource(R.string.chat_search_hint), fontSize = 13.sp) },
+                trailingIcon = if (query.isNotBlank()) ({
+                    IconButton(onClick = { onQueryChange("") }) {
+                        Icon(Icons.Outlined.Clear, stringResource(R.string.clear), modifier = Modifier.size(17.dp))
+                    }
+                }) else null,
+                textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = CosmicAccent,
+                    unfocusedBorderColor = AiriTheme.outline.copy(alpha = 0.5f)
+                )
+            )
+            if (query.isNotBlank()) {
+                Text(
+                    if (matchCount == 0) "0" else "${matchIndex + 1}/$matchCount",
+                    color = AiriTheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    maxLines = 1
+                )
+                IconButton(onClick = onPrevious, enabled = matchCount > 0, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Outlined.KeyboardArrowUp, stringResource(R.string.chat_search_previous), modifier = Modifier.size(19.dp))
+                }
+                IconButton(onClick = onNext, enabled = matchCount > 0, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Outlined.KeyboardArrowDown, stringResource(R.string.chat_search_next), modifier = Modifier.size(19.dp))
+                }
+            }
+            IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Outlined.Close, stringResource(R.string.chat_search_close), modifier = Modifier.size(18.dp))
+            }
+        }
+    }
 }
 // Model picker bottom sheet
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1948,6 +2116,8 @@ fun ChatMessageList(
     isModelReady: Boolean = false,
     isCloudReady: Boolean = false,
     onOpenModels: () -> Unit = {},
+    searchQuery: String = "",
+    searchTargetUid: String? = null,
     onShareAiResponse: (String) -> Unit = {},
     onSpeak: (String) -> Unit = {},
     onSuggestionClick: (String) -> Unit = {},
@@ -1986,6 +2156,10 @@ fun ChatMessageList(
                 listState.scrollToItem(0)
             }
         }
+    }
+    LaunchedEffect(searchTargetUid, reversedMessages) {
+        val targetIndex = searchTargetUid?.let { uid -> reversedMessages.indexOfFirst { it.uid == uid } }
+        if (targetIndex != null && targetIndex >= 0) listState.animateScrollToItem(targetIndex)
     }
 
     if (messages.isEmpty() && streamingText.isEmpty()) {
@@ -2098,7 +2272,16 @@ fun ChatMessageList(
                 }
                 itemsIndexed(reversedMessages, key = { _, msg -> msg.uid }, contentType = { _, msg -> if (msg.isUser) "user" else "assistant" }) { index, msg ->
                     val prevMsg = reversedMessages.getOrNull(index + 1)
-                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                            .then(
+                                if (searchQuery.isNotBlank() && msg.text.contains(searchQuery, ignoreCase = true)) {
+                                    Modifier.border(1.dp, CosmicAccent.copy(alpha = 0.72f), AIRIShapes.md)
+                                } else Modifier
+                            )
+                    ) {
                         val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
                         if (msg.isUser) {
                             UserBubble(
@@ -2238,13 +2421,18 @@ fun UserBubble(
     }
     val context = LocalContext.current
     val haptic  = LocalHapticFeedback.current
+    var isSelectingText by remember { mutableStateOf(false) }
+    var isExpanded by rememberSaveable(text, imageUri) { mutableStateOf(false) }
+    val lineCount = remember(displayText) { displayText.count { it == '\n' } + 1 }
+    val isLongMessage = lineCount > 15
+    val collapsedText = remember(displayText) { displayText.split('\n').take(15).joinToString("\n") }
+    val renderedText = if (isLongMessage && !isExpanded && !isSelectingText) "$collapsedText\n…" else displayText
 
     val transition = remember {
         androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true }
     }
 
     var showContextMenu by remember { mutableStateOf(false) }
-    var isSelectingText by remember { mutableStateOf(false) }
     val bubbleGesture = if (isSelectingText) {
         Modifier
     } else {
@@ -2262,7 +2450,7 @@ fun UserBubble(
         enter = fadeIn(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.FAST)) +
                 slideInHorizontally(animationSpec = androidx.compose.animation.core.tween(AIRIAnimations.NORMAL)) { it / 5 }
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             Box {
                 Box {
                     Column(
@@ -2314,10 +2502,24 @@ fun UserBubble(
                                 }
                             } else {
                                 BidiAwareMarkdownRenderer(
-                                    text = displayText,
+                                    text = renderedText,
                                     textColor = AiriTheme.onSurface
                                 )
                             }
+                        }
+                    }
+                    if (isLongMessage) {
+                        TextButton(
+                            onClick = { isExpanded = !isExpanded },
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text(
+                                stringResource(if (isExpanded) R.string.show_less else R.string.show_more),
+                                color = CosmicAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                     }
@@ -2691,7 +2893,7 @@ fun AiStreamingBubble(text: String) {
         Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.fillMaxWidth().padding(start = 2.dp, top = 1.dp)) {
             if (isThinkingStage) {
-                AiriThinkingDots()
+                AiriThinkingIndicator(text)
             } else {
                 Row(verticalAlignment = Alignment.Bottom) {
                     CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection(text)) {
@@ -2705,13 +2907,31 @@ fun AiStreamingBubble(text: String) {
 }
 
 @Composable
-private fun AiriThinkingDots() {
+private fun AiriThinkingIndicator(text: String) {
     val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "airi_thinking")
     Row(
-        modifier = Modifier.semantics { contentDescription = "AIRI is generating a response" }.padding(vertical = 7.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = "AIRI is generating a response" }
+            .padding(vertical = 7.dp),
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Image(
+            painter = painterResource(R.mipmap.ic_launcher_foreground),
+            contentDescription = "AIRI",
+            modifier = Modifier.size(18.dp)
+        )
+        Text(
+            text = text,
+            color = AiriTheme.onBackground.copy(alpha = 0.65f),
+            fontSize = 13.sp,
+            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
         repeat(3) { index ->
             val alpha by transition.animateFloat(
                 initialValue = 0.28f, targetValue = 0.95f,
@@ -2730,110 +2950,84 @@ private fun AttachmentChip(
     attachment: com.airi.assistant.domain.ChatAttachment,
     isRemovalEnabled: Boolean = true,
     onRemove: () -> Unit,
+    onPreview: () -> Unit,
 ) {
     val accent = CosmicAccent
     val context = LocalContext.current
-    val typeLabel = when (attachment.contentType) {
-        AttachmentPolicy.ContentType.IMAGE -> stringResource(R.string.attachment_type_image)
-        AttachmentPolicy.ContentType.VIDEO -> stringResource(R.string.attachment_type_video)
-        AttachmentPolicy.ContentType.TEXT -> stringResource(R.string.attachment_type_text)
-        AttachmentPolicy.ContentType.DOCUMENT -> stringResource(R.string.attachment_type_document)
-        AttachmentPolicy.ContentType.FILE -> stringResource(R.string.attachment_type_file)
-    }
-    val extension = attachment.safeDisplayName.substringAfterLast('.', "")
-        .takeIf { it.isNotBlank() }
-        ?.let { ".${it.uppercase()}" }
-    val subtitle = listOfNotNull(typeLabel, extension, attachment.displaySize).joinToString(" • ")
+    val typeLabel = attachmentTypeLabel(attachment)
     Box(
         modifier = Modifier
-            .width(252.dp)
-            .height(72.dp)
-            .shadow(3.dp, AIRIShapes.lg, ambientColor = accent.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.24f))
-            .clip(AIRIShapes.lg)
+            .size(112.dp)
+            .shadow(2.dp, AIRIShapes.md, ambientColor = accent.copy(alpha = 0.14f), spotColor = Color.Black.copy(alpha = 0.20f))
+            .clip(AIRIShapes.md)
             .background(AiriTheme.surfaceVariant.copy(alpha = 0.96f))
-            .border(1.dp, accent.copy(alpha = 0.30f), AIRIShapes.lg)
-            .padding(7.dp)
+            .border(1.dp, accent.copy(alpha = 0.24f), AIRIShapes.md)
+            .clickable(onClick = onPreview)
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize().padding(start = 2.dp, end = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(9.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(AIRIShapes.md)
-                    .background(accent.copy(alpha = 0.16f))
-                    .border(1.dp, accent.copy(alpha = 0.22f), AIRIShapes.md),
-                contentAlignment = Alignment.Center
+        val fallback = when (attachment.contentType) {
+            AttachmentPolicy.ContentType.IMAGE -> Icons.Default.Image
+            AttachmentPolicy.ContentType.VIDEO -> Icons.Outlined.Videocam
+            AttachmentPolicy.ContentType.TEXT -> Icons.Outlined.Description
+            AttachmentPolicy.ContentType.DOCUMENT -> Icons.Outlined.Article
+            AttachmentPolicy.ContentType.FILE -> Icons.Default.AttachFile
+        }
+        val videoThumbnail by produceState<Bitmap?>(null, attachment.uri, attachment.contentType) {
+            val videoUri = attachment.uri
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                attachment.contentType == AttachmentPolicy.ContentType.VIDEO && videoUri != null
             ) {
-                val fallback = when (attachment.contentType) {
-                    AttachmentPolicy.ContentType.IMAGE -> Icons.Default.Image
-                    AttachmentPolicy.ContentType.VIDEO -> Icons.Outlined.Videocam
-                    AttachmentPolicy.ContentType.TEXT -> Icons.Outlined.Description
-                    AttachmentPolicy.ContentType.DOCUMENT -> Icons.Outlined.Article
-                    AttachmentPolicy.ContentType.FILE -> Icons.Default.AttachFile
-                }
-                Icon(fallback, contentDescription = typeLabel, tint = accent, modifier = Modifier.size(22.dp))
-                val videoThumbnail by produceState<Bitmap?>(null, attachment.uri, attachment.contentType) {
-                    val videoUri = attachment.uri
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-                        attachment.contentType == AttachmentPolicy.ContentType.VIDEO &&
-                        videoUri != null
-                    ) {
-                        value = withContext(Dispatchers.IO) {
-                            runCatching {
-                                context.contentResolver.loadThumbnail(
-                                    videoUri,
-                                    AndroidSize(112, 112),
-                                    CancellationSignal()
-                                )
-                            }.getOrNull()
-                        }
-                    }
-                }
-                if (videoThumbnail != null) {
-                    Image(
-                        bitmap = videoThumbnail!!.asImageBitmap(),
-                        contentDescription = attachment.safeDisplayName,
-                        modifier = Modifier.matchParentSize().clip(AIRIShapes.md),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                    )
-                }
-                val thumbModel: Any? = attachment.uri ?: attachment.bitmap
-                if (attachment.isVisualImage && thumbModel != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context).data(thumbModel).crossfade(true).build(),
-                        contentDescription = attachment.safeDisplayName,
-                        modifier = Modifier.matchParentSize().clip(AIRIShapes.md),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                    )
+                value = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.loadThumbnail(videoUri, AndroidSize(140, 80), CancellationSignal())
+                    }.getOrNull()
                 }
             }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    text = attachment.safeDisplayName,
-                    color = AiriTheme.onSurface,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = subtitle,
-                    color = AiriTheme.onSurfaceVariant,
-                    fontSize = 10.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+        }
+        val thumbModel: Any? = attachment.uri ?: attachment.bitmap
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(76.dp)
+                .padding(horizontal = 8.dp, vertical = 7.dp)
+                .clip(AIRIShapes.sm)
+                .background(accent.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(fallback, contentDescription = typeLabel, tint = accent, modifier = Modifier.size(24.dp))
+            if (videoThumbnail != null) {
+                Image(bitmap = videoThumbnail!!.asImageBitmap(), contentDescription = attachment.safeDisplayName,
+                    modifier = Modifier.matchParentSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            } else if (attachment.isVisualImage && thumbModel != null) {
+                AsyncImage(model = ImageRequest.Builder(context).data(thumbModel).crossfade(true).build(),
+                    contentDescription = attachment.safeDisplayName, modifier = Modifier.matchParentSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop)
             }
+        }
+        Text(attachment.safeDisplayName, color = AiriTheme.onSurface, fontSize = 11.sp,
+            fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, end = 8.dp, bottom = 7.dp))
+        Surface(
+            shape = RoundedCornerShape(7.dp),
+            color = AiriTheme.surface.copy(alpha = 0.76f),
+            border = BorderStroke(0.7.dp, AiriTheme.outline.copy(alpha = 0.85f)),
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 6.dp)
+        ) {
+            Text(
+                typeLabel,
+                color = AiriTheme.onSurfaceVariant,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+            )
         }
         IconButton(
             onClick = onRemove,
             enabled = isRemovalEnabled,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .size(24.dp)
+                .padding(6.dp)
+                .size(26.dp)
                 .background(AiriTheme.surface.copy(alpha = 0.92f), CircleShape),
         ) {
             Icon(
@@ -2843,6 +3037,125 @@ private fun AttachmentChip(
                 modifier = Modifier.size(14.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun AttachmentPreviewDialog(attachment: ChatAttachment, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val typeLabel = attachmentTypeLabel(attachment)
+    val thumbModel: Any? = attachment.uri ?: attachment.bitmap
+    val videoThumbnail by produceState<Bitmap?>(null, attachment.uri, attachment.contentType) {
+        val uri = attachment.uri
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && attachment.contentType == AttachmentPolicy.ContentType.VIDEO && uri != null) {
+            value = withContext(Dispatchers.IO) {
+                runCatching { context.contentResolver.loadThumbnail(uri, AndroidSize(720, 720), CancellationSignal()) }.getOrNull()
+            }
+        }
+    }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            shape = AIRIShapes.lg,
+            color = AiriTheme.surface,
+            tonalElevation = 8.dp
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.attachment_preview_title), color = AiriTheme.onSurface, fontWeight = FontWeight.SemiBold)
+                        Text(attachment.safeDisplayName, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, stringResource(R.string.close), tint = AiriTheme.onSurface) }
+                }
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp, max = 420.dp).clip(AIRIShapes.md).background(AiriTheme.background),
+                    contentAlignment = Alignment.Center
+                ) {
+                    when {
+                        attachment.isVisualImage && thumbModel != null -> AsyncImage(
+                            model = ImageRequest.Builder(context).data(thumbModel).crossfade(true).build(),
+                            contentDescription = attachment.safeDisplayName,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                        )
+                        videoThumbnail != null -> Image(
+                            bitmap = videoThumbnail!!.asImageBitmap(),
+                            contentDescription = attachment.safeDisplayName,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                        )
+                        else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Outlined.InsertDriveFile, typeLabel, tint = CosmicAccent, modifier = Modifier.size(48.dp))
+                            Spacer(Modifier.height(8.dp))
+                            Text(typeLabel, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+                            attachment.displaySize?.let { Text(it, color = AiriTheme.onSurfaceVariant, fontSize = 11.sp) }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AIRIShapes.md,
+                    color = AiriTheme.surfaceVariant.copy(alpha = 0.58f),
+                    border = BorderStroke(1.dp, AiriTheme.outline.copy(alpha = 0.45f))
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                        AttachmentDetailRow(
+                            label = stringResource(R.string.attachment_detail_type),
+                            value = typeLabel
+                        )
+                        AttachmentDetailRow(
+                            label = stringResource(R.string.attachment_detail_mime),
+                            value = attachmentMimeLabel(attachment)
+                        )
+                        AttachmentDetailRow(
+                            label = stringResource(R.string.attachment_detail_size),
+                            value = attachmentSizeLabel(attachment).ifBlank {
+                                stringResource(R.string.attachment_size_unknown)
+                            }
+                        )
+                    }
+                }
+                if (attachment.uri != null) {
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, attachment.uri).apply {
+                                setDataAndType(attachment.uri, attachment.normalizedMimeType.ifBlank { "*/*" })
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            runCatching { context.startActivity(intent) }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Outlined.OpenInNew, null, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.open_attachment))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttachmentDetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.weight(0.38f))
+        Text(
+            value,
+            color = AiriTheme.onSurface,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(0.62f)
+        )
     }
 }
 
@@ -2900,10 +3213,32 @@ fun AiriChatInputBar(
 
     attachments: List<ChatAttachment> = emptyList(),
     onRemoveAttachment: (String) -> Unit = {},
+    onDropFiles: (List<Uri>) -> Unit = {},
     imageInputEnabled: Boolean = true
 ) {
     val context          = LocalContext.current
     var showAttachPopup by remember { mutableStateOf(false) }
+    var previewAttachment by remember { mutableStateOf<ChatAttachment?>(null) }
+    var isDragActive by remember { mutableStateOf(false) }
+    val currentDropHandler by rememberUpdatedState(onDropFiles)
+    val dragTarget = remember {
+        object : DragAndDropTarget {
+            override fun onStarted(event: DragAndDropEvent) { isDragActive = true }
+            override fun onEntered(event: DragAndDropEvent) { isDragActive = true }
+            override fun onExited(event: DragAndDropEvent) { isDragActive = false }
+            override fun onEnded(event: DragAndDropEvent) { isDragActive = false }
+            override fun onDrop(event: DragAndDropEvent): Boolean {
+                val clipData = event.toAndroidDragEvent().clipData ?: return false
+                val uris = (0 until clipData.itemCount)
+                    .mapNotNull { index -> clipData.getItemAt(index).uri }
+                    .distinct()
+                isDragActive = false
+                if (uris.isEmpty()) return false
+                currentDropHandler(uris)
+                return true
+            }
+        }
+    }
     // Keep collapsed and expanded states available; the content remains
     // scrollable so every attachment shortcut is reachable on small screens.
     val attachSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
@@ -2927,19 +3262,39 @@ fun AiriChatInputBar(
         else -> emptyList()
     }
 
-    // Large prompt conversion is handled on send by the ViewModel. Never create a
-    // file from a LaunchedEffect while the user is still typing or pasting.
+    // Text longer than 60 lines is staged as a full TXT attachment immediately
+    // after it is pasted or entered into the composer.
     val showWarningBanner = false
     val showLimitBottomSheet = false
-    var hasDismissedBottomSheet by remember(text.length < 3000) { mutableStateOf(false) }
+    var hasDismissedBottomSheet by remember(text.lineSequence().count() <= 60) { mutableStateOf(false) }
 
     val limitSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    fun convertLongTextToAttachment(value: String): Boolean {
+        if (value.isBlank() || value.lineSequence().count() <= 60) return false
+        val uri = runCatching {
+            val dir = java.io.File(context.cacheDir, "chat_attachments").apply { mkdirs() }
+            val file = java.io.File(dir, "pasted_${System.currentTimeMillis()}.txt")
+            file.writeText(value)
+            androidx.core.content.FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", file
+            )
+        }.getOrNull() ?: return false
+        onStageFile(uri)
+        text = ""
+        onDraftTextChanged("")
+        hasDismissedBottomSheet = true
+        return true
+    }
 
     // Apply external pre-fill (e.g. from Edit bubble action)
     LaunchedEffect(externalInputText) {
         val prefill = externalInputText
         if (prefill != null) {
-            onDraftTextChanged(prefill)
+            if (!convertLongTextToAttachment(prefill)) {
+                text = prefill
+                onDraftTextChanged(prefill)
+            }
             onExternalInputConsumed()
         }
     }
@@ -2972,9 +3327,10 @@ fun AiriChatInputBar(
                     Spacer(Modifier.height(8.dp))
                     BasicTextField(
                         value = text,
-                        onValueChange = {
-                            text = it
-                            onDraftTextChanged(it)
+                        onValueChange = { newValue ->
+                            if (convertLongTextToAttachment(newValue)) return@BasicTextField
+                            text = newValue
+                            onDraftTextChanged(newValue)
                         },
                         enabled = isInferenceReady && !isInteractionLocked,
                         modifier = Modifier.fillMaxSize(),
@@ -3086,7 +3442,18 @@ fun AiriChatInputBar(
         }
     }
 
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .dragAndDropTarget(
+                shouldStartDragAndDrop = { event -> event.mimeTypes().isNotEmpty() },
+                target = dragTarget
+            )
+            .then(
+                if (isDragActive) Modifier.border(1.5.dp, CosmicAccent, AIRIShapes.xl)
+                else Modifier
+            )
+    ) {
 
         // : Warning banner for 2000-3000 chars
         AnimatedVisibility(
@@ -3196,6 +3563,7 @@ fun AiriChatInputBar(
                             attachment = attachment,
                             isRemovalEnabled = !isDispatchingAttachment,
                             onRemove   = { onRemoveAttachment(attachment.uid) },
+                            onPreview  = { previewAttachment = attachment },
                         )
                     }
                 }
@@ -3307,6 +3675,7 @@ fun AiriChatInputBar(
                 BasicTextField(
                     value = text,
                     onValueChange = { newValue ->
+                        if (convertLongTextToAttachment(newValue)) return@BasicTextField
                         if (text.isEmpty() && newValue.isNotEmpty()) onUserStartedTyping()
                         text = newValue
                         onDraftTextChanged(newValue)
@@ -3512,6 +3881,12 @@ fun AiriChatInputBar(
             }
         }
 
+    }
+    previewAttachment?.let { attachment ->
+        AttachmentPreviewDialog(
+            attachment = attachment,
+            onDismiss = { previewAttachment = null }
+        )
     }
     if (showAttachPopup) {
         ModalBottomSheet(

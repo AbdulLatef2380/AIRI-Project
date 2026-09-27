@@ -95,7 +95,8 @@ fun AdvancedChatInputBar(
     onKnowledgeQueryChanged:(String) -> Unit         = {},
     // Attachments inside the pill
     attachments:            List<com.airi.assistant.domain.ChatAttachment> = emptyList(),
-    onRemoveAttachment:     (String) -> Unit        = {}
+    onRemoveAttachment:     (String) -> Unit        = {},
+    onDropFiles:            (List<android.net.Uri>) -> Unit = {}
     ,bottomNavVisible:      Boolean                 = false
     ,onBottomNavToggle:     () -> Unit              = {}
     ,imageInputEnabled:     Boolean                 = true
@@ -169,7 +170,8 @@ fun AdvancedChatInputBar(
             onSkillQueryChanged      = onSkillQueryChanged,
             onKnowledgeQueryChanged  = onKnowledgeQueryChanged,
             attachments             = attachments,
-            onRemoveAttachment      = onRemoveAttachment
+            onRemoveAttachment      = onRemoveAttachment,
+            onDropFiles              = onDropFiles
             ,imageInputEnabled      = imageInputEnabled
         )
         Row(

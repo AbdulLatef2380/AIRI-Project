@@ -1708,6 +1708,7 @@
     <string name="attachment_capability_unknown">تعذر على AIRI التحقق من دعم النموذج الحالي لهذا المرفق. اختر نموذجاً متوافقاً أو تحقق من التوافق قبل المحاولة.</string>
     <string name="attachment_staging_failed">تعذر تجهيز مرفق واحد أو أكثر. احتُفظ بها لكي تتمكن من المحاولة مجدداً.</string>
     <string name="attachment_preparing">جارٍ تجهيز المرفقات</string>
+    <string name="attachment_drop_here">أفلت الملفات هنا لإرفاقها</string>
     <string name="chat_how_can_help_name">كيف يمكنني مساعدتك يا %1$s؟</string>
     <string name="chat_empty_state_tagline">العمل محلياً هو الافتراضي، وأي اتصال سحابي تختاره أنت.</string>
     <string name="chat_starter_email_label">صياغة بريد</string>

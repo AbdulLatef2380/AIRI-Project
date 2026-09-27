@@ -1809,6 +1809,7 @@
     <string name="attachment_capability_unknown">AIRI could not verify whether the current model supports this attachment. Choose a compatible model or verify it before retrying.</string>
     <string name="attachment_staging_failed">We couldn\'t prepare one or more attachments. They were kept so you can try again.</string>
     <string name="attachment_preparing">Preparing attachments</string>
+    <string name="attachment_drop_here">Drop files here to attach them</string>
     <string name="chat_how_can_help_name">How can I help, %1$s?</string>
     <string name="chat_empty_state_tagline">On-device by default. You choose any cloud connection.</string>
     <string name="chat_starter_email_label">Draft an email</string>

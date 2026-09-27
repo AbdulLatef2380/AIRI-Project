@@ -16,13 +16,15 @@ class ExecutionFailurePolicyTest {
     }
 
     @Test
-    fun cloudBackendDiagnosticsKeepTheirSpecificCause() {
+    fun providerDiagnosticsKeepTheirSpecificCause() {
         val cases = listOf(
             "Invalid API key for Gemini. Check Settings → API Keys." to ExecutionFailureKind.PROVIDER_CREDENTIALS,
             "The selected model is not available at OpenRouter. Choose another model." to ExecutionFailureKind.PROVIDER_MODEL_UNAVAILABLE,
             "Gemini quota exhausted. Check your billing dashboard." to ExecutionFailureKind.PROVIDER_QUOTA_EXHAUSTED,
             "Prompt too long for Gemini. Try a shorter message." to ExecutionFailureKind.PROVIDER_CONTEXT_LIMIT,
-            "Gemini is rate-limiting requests. Please wait a moment." to ExecutionFailureKind.PROVIDER_RATE_LIMIT
+            "Gemini is rate-limiting requests. Please wait a moment." to ExecutionFailureKind.PROVIDER_RATE_LIMIT,
+            "Custom endpoint timed out. Check your internet connection." to ExecutionFailureKind.PROVIDER_TIMEOUT,
+            "Connection to Ollama was lost mid-stream." to ExecutionFailureKind.PROVIDER_UNAVAILABLE
         )
 
         cases.forEach { (message, expectedKind) ->

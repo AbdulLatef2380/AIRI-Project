@@ -606,7 +606,8 @@ class LlamaManager(private val context: Context) {
      * confirm the sequence ran in the expected order.
      */
     fun unloadModel() {
-        Log.i("AIRI", "UNLOAD_REQUESTED was_loaded=$isLoaded")
+        val hadLoadedModel = isLoaded || loadedModelPath != null || sessionPrimed
+        Log.i("AIRI", "UNLOAD_REQUESTED was_loaded=$hadLoadedModel")
         // Cancel BEFORE the dispatcher hop — the in-flight token loop reads
         // this flag every callback and will exit on the next tick.
         cancelRequested.set(true)
@@ -629,15 +630,18 @@ class LlamaManager(private val context: Context) {
                 Log.i("AIRI",
                     "UNLOAD_COMPLETE kv_cleared=true model_mmap_held=true " +
                     "note=loadModel_will_free_weights")
-                // P1-D: Model unload clears chatHistory and destroys the KV cache.
-                // Emit CONTEXT_RESET so the ChatViewModel observer can surface the banner.
-                runCatching {
-                    com.airi.assistant.ui.activity.AgentActivityBus.emit(
-                        message  = context.getString(R.string.activity_model_unloaded_context_cleared),
-                        category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
-                        severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
-                        machineTag = com.airi.assistant.ui.activity.ActivityEvent.MACHINE_TAG_NATIVE_CONTEXT_RESET
-                    )
+                if (hadLoadedModel) {
+                    // P1-D: Surface a reset only when a real loaded model/KV context existed.
+                    runCatching {
+                        com.airi.assistant.ui.activity.AgentActivityBus.emit(
+                            message  = context.getString(R.string.activity_model_unloaded_context_cleared),
+                            category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
+                            severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
+                            machineTag = com.airi.assistant.ui.activity.ActivityEvent.MACHINE_TAG_NATIVE_CONTEXT_RESET
+                        )
+                    }
+                } else {
+                    Log.i("AIRI", "UNLOAD_COMPLETE no_active_model_context=true")
                 }
             }
         }

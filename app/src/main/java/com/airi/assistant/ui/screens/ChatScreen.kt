@@ -3540,7 +3540,7 @@ fun AiriChatInputBar(
         ModalBottomSheet(
             onDismissRequest = { showAttachPopup = false },
             sheetState = attachSheetState,
-            containerColor = AiriTheme.surface,
+            containerColor = Color(0xFF2B2B2B),
             contentColor = AiriTheme.onSurface,
             tonalElevation = 8.dp,
             scrimColor = Color.Black.copy(alpha = if (AiriTheme.onBackground == Color.White) 0.62f else 0.28f),

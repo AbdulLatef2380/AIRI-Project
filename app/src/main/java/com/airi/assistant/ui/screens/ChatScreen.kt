@@ -1087,6 +1087,7 @@ fun ChatScreen(
                 messages      = filteredChatMessages,
                 streamingText = if (chatSearchQuery.isBlank()) streamingText else "",
                 isGenerating  = agentState.isWorking,
+                executionError = visibleExecutionError,
                 finalAnswerVerification = agentState.finalAnswerVerification,
                 isModelReady  = modelState.isModelReady,
                 isCloudReady  = modelState.isCloudReady,
@@ -2026,6 +2027,7 @@ fun ChatMessageList(
     messages: List<ChatMessage>,
     streamingText: String,
     isGenerating: Boolean,
+    executionError: ExecutionErrorProjection? = null,
     sessionLoadState: com.airi.assistant.ui.viewmodel.SessionLoadState = com.airi.assistant.ui.viewmodel.SessionLoadState.NotStarted,
     onRetrySession: (String?) -> Unit = {},
     finalAnswerVerification: FinalAnswerUiState? = null,
@@ -2073,11 +2075,11 @@ fun ChatMessageList(
         }
     }
 
-    if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && visibleExecutionError == null && sessionLoadState is com.airi.assistant.ui.viewmodel.SessionLoadState.Loading) {
+    if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && executionError == null && sessionLoadState is com.airi.assistant.ui.viewmodel.SessionLoadState.Loading) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = CosmicAccent)
         }
-    } else if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && visibleExecutionError == null && sessionLoadState is com.airi.assistant.ui.viewmodel.SessionLoadState.Failed) {
+    } else if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && executionError == null && sessionLoadState is com.airi.assistant.ui.viewmodel.SessionLoadState.Failed) {
         val failure = sessionLoadState as com.airi.assistant.ui.viewmodel.SessionLoadState.Failed
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Column(
@@ -2104,7 +2106,7 @@ fun ChatMessageList(
                 }
             }
         }
-    } else if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && visibleExecutionError == null) {
+    } else if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && executionError == null) {
         // Premium empty state — cosmic orb + greeting + suggestion chips
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Column(
@@ -2178,7 +2180,7 @@ fun ChatMessageList(
                 contentPadding      = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                visibleExecutionError?.let { failure ->
+                executionError?.let { failure ->
                     item(key = "execution-error-${failure.executionId}", contentType = "execution-error") {
                         ExecutionErrorBubble(failure)
                     }
@@ -2858,7 +2860,7 @@ fun AiStreamingBubble(text: String) {
             modifier = Modifier.size(28.dp)
         )
         Spacer(Modifier.width(8.dp))
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, top = 1.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp).padding(top = 1.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
                     CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection(text)) {
                         BidiAwareMarkdownRenderer(text = text, modifier = Modifier.fillMaxWidth(), isStreaming = true)

@@ -240,7 +240,7 @@ data class ExecutionErrorProjection(
     val messageResId: Int? = null,
     val stage: ExecutionFailureStage = ExecutionFailureStage.RESPONSE,
     val sessionId: String? = null,
-    val replyToMessageId: String? = null,
+    val replyToMessageId: Long? = null,
 )
 
 enum class ExecutionStage {

@@ -108,6 +108,9 @@ private fun ExpandedFeed(events: List<ActivityEvent>, categoryFilter: ActivityCa
             items(items = events, key = { it.id }) { event ->
                 var detailVisible by remember(event.id) { mutableStateOf(false) }
                 val hasDetail = !event.detail.isNullOrBlank()
+                val categoryLabel = if (event.category == ActivityCategory.CONTEXT_RESET) {
+                    stringResource(R.string.activity_context_reset)
+                } else event.category.label
                 Column(modifier = Modifier.fillMaxWidth()
                     .then(if (hasDetail) Modifier.clickable { detailVisible = !detailVisible } else Modifier)
                     .padding(horizontal = 14.dp, vertical = 6.dp)) {
@@ -115,7 +118,7 @@ private fun ExpandedFeed(events: List<ActivityEvent>, categoryFilter: ActivityCa
                         Text(event.category.emoji, fontSize = 13.sp, modifier = Modifier.padding(top = 1.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(event.message, fontSize = 12.sp, color = sevColor(event.severity), lineHeight = 17.sp)
-                            Text("${event.category.label} · ${fmtTime(event.timestampMs)}", fontSize = 10.sp, color = AiriTheme.onBackground.copy(alpha = 0.3f))
+                            Text("$categoryLabel · ${fmtTime(event.timestampMs)}", fontSize = 10.sp, color = AiriTheme.onBackground.copy(alpha = 0.3f))
                         }
                         if (event.severity != ActivitySeverity.INFO)
                             Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(sevColor(event.severity)).padding(top = 4.dp))

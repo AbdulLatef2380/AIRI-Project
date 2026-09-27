@@ -2,6 +2,7 @@ package com.airi.assistant.ai
 
 import android.content.Context
 import android.util.Log
+import com.airi.assistant.R
 import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.ai.session.SessionHandle
 import com.airi.assistant.memory.entity.ChatMessage
@@ -402,9 +403,10 @@ class LlamaManager(private val context: Context) {
         // can surface the warning banner and snackbar to the user.
         runCatching {
             com.airi.assistant.ui.activity.AgentActivityBus.emit(
-                message  = "Context window full — older conversation history was cleared to continue.",
+                message  = context.getString(R.string.activity_context_window_compacted),
                 category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
-                severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
+                severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
+                machineTag = com.airi.assistant.ui.activity.ActivityEvent.MACHINE_TAG_NATIVE_CONTEXT_RESET
             )
         }
     }
@@ -515,9 +517,10 @@ class LlamaManager(private val context: Context) {
                 // Emit CONTEXT_RESET so the observer in ChatViewModel surfaces the banner.
                 runCatching {
                     com.airi.assistant.ui.activity.AgentActivityBus.emit(
-                        message  = "Model reloaded — context window was reset.",
+                        message  = context.getString(R.string.activity_model_reloaded_context_reset),
                         category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
-                        severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
+                        severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
+                        machineTag = com.airi.assistant.ui.activity.ActivityEvent.MACHINE_TAG_NATIVE_CONTEXT_RESET
                     )
                 }
                 
@@ -553,9 +556,10 @@ class LlamaManager(private val context: Context) {
                     // P1-D: Also emit on the legacy load path.
                     runCatching {
                         com.airi.assistant.ui.activity.AgentActivityBus.emit(
-                            message  = "Model reloaded — context window was reset.",
+                            message  = context.getString(R.string.activity_model_reloaded_context_reset),
                             category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
-                            severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
+                            severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
+                            machineTag = com.airi.assistant.ui.activity.ActivityEvent.MACHINE_TAG_NATIVE_CONTEXT_RESET
                         )
                     }
                     
@@ -629,9 +633,10 @@ class LlamaManager(private val context: Context) {
                 // Emit CONTEXT_RESET so the ChatViewModel observer can surface the banner.
                 runCatching {
                     com.airi.assistant.ui.activity.AgentActivityBus.emit(
-                        message  = "Model unloaded — context window was cleared.",
+                        message  = context.getString(R.string.activity_model_unloaded_context_cleared),
                         category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
-                        severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
+                        severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
+                        machineTag = com.airi.assistant.ui.activity.ActivityEvent.MACHINE_TAG_NATIVE_CONTEXT_RESET
                     )
                 }
             }

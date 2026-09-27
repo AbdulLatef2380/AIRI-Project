@@ -1333,9 +1333,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             AgentActivityBus.events.collect { event ->
                 if (event.category == com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET &&
                     event.severity == com.airi.assistant.ui.activity.ActivitySeverity.WARN) {
-                    val isNativeReset = event.message.startsWith("Context window") ||
-                        event.message.startsWith("Model reload") ||
-                        event.message.startsWith("Model unload")
+                    val isNativeReset = event.machineTag ==
+                        com.airi.assistant.ui.activity.ActivityEvent.MACHINE_TAG_NATIVE_CONTEXT_RESET
                     // Only surface the warning when there is an active conversation to lose.
                     // Model load at startup with an empty history is not a context loss event.
                     val hasActiveConversation = _messages.value.isNotEmpty()

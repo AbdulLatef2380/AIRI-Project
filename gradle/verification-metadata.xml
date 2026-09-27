@@ -6197,5 +6197,25 @@
             <sha256 value="0dea7dfff0a2b74088ac997043cbc240835d2bff59b39fcc8b0cac6ea3eb3697" origin="Retrieved from Maven Central"/>
          </artifact>
       </component>
+      <component group="org.jetbrains.kotlinx" name="kotlinx-coroutines-core-jvm" version="1.5.0">
+         <artifact name="kotlinx-coroutines-core-jvm-1.5.0.jar">
+            <sha256 value="78d6cc7135f84d692ff3752fcfd1fa1bbe0940d7df70652e4f1eaeec0c78afbb" origin="Retrieved from Maven Central"/>
+         </artifact>
+      </component>
+      <component group="org.jetbrains.kotlinx" name="kotlinx-coroutines-core-jvm" version="1.5.0">
+         <artifact name="kotlinx-coroutines-core-jvm-1.5.0.module">
+            <sha256 value="c885dd0281076c5843826de317e3cbcdc3d8859dbeef53ae1cfacd1b9c60f96e" origin="Retrieved from Maven Central"/>
+         </artifact>
+      </component>
+      <component group="org.jetbrains.intellij.deps" name="trove4j" version="1.0.20200330">
+         <artifact name="trove4j-1.0.20200330.jar">
+            <sha256 value="c5fd725bffab51846bf3c77db1383c60aaaebfe1b7fe2f00d23fe1b7df0a439d" origin="Retrieved from Maven Central"/>
+         </artifact>
+      </component>
+      <component group="org.jetbrains.intellij.deps" name="trove4j" version="1.0.20200330">
+         <artifact name="trove4j-1.0.20200330.pom">
+            <sha256 value="87721cbaa65a3c97d8b1ba9d207840f164c9fe38759fc9ea10ffe26565f8d3e9" origin="Retrieved from Maven Central"/>
+         </artifact>
+      </component>
    </components>
 </verification-metadata>

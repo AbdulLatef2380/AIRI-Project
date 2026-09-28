@@ -1298,6 +1298,7 @@ fun ChatScreen(
         AiriModelPickerSheet(
             modelState = modelState,
             viewModel  = viewModel,
+            snackbarHost = snackbarHost,
             onDismiss  = { showModelPicker = false },
             onNavigateToModels = { showModelPicker = false; onNavigate(AiriRoute.MODELS) }
         )
@@ -1728,6 +1729,7 @@ private fun AiriChatTopBar(
 private fun AiriModelPickerSheet(
     modelState: ModelUiState,
     viewModel: ChatViewModel,
+    snackbarHost: SnackbarHostState,
     onDismiss: () -> Unit,
     onNavigateToModels: () -> Unit
 ) {

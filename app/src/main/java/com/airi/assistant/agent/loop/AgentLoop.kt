@@ -13,6 +13,7 @@ import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.ExecutionIdentity
 import com.airi.assistant.execution.ChatExecutionIdentityContract
+import com.airi.assistant.execution.ConversationRequestPolicy
 import com.airi.assistant.execution.ToolCallFingerprint
 import com.airi.assistant.execution.ToolCallLedger
 import com.airi.assistant.execution.stableArgumentsHash

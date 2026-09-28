@@ -964,6 +964,13 @@
     <string name="login_new_account">没有账户？创建一个</string>
     <string name="login_terms_privacy">继续即表示您同意服务条款和隐私政策。</string>
     <string name="login_google_not_configured">此应用未配置 Google 登录。请选择其他登录方式或联系支持人员。</string>
+    <string name="login_google_client_id_missing">Google 登录缺少 OAuth 客户端 ID。请联系应用管理员。</string>
+    <string name="login_google_firebase_config_missing">此应用未配置 Firebase 身份验证。请联系应用管理员。</string>
+    <string name="login_google_provider_disabled">此应用已停用 Google 登录。请在身份验证提供商设置中启用它。</string>
+    <string name="login_google_sha_mismatch">此应用的签名证书尚未注册用于 Google 登录。请联系应用管理员。</string>
+    <string name="login_google_credential_failure">Google 登录无法访问设备凭据服务。请重试。</string>
+    <string name="login_google_network_failure">Google 登录无法连接到服务。请检查网络连接后重试。</string>
+    <string name="login_google_unknown_failure">无法完成 Google 登录。请重试或选择其他登录方式。</string>
     <string name="login_google_cancelled">Google 登录已取消。</string>
     <string name="login_google_no_id_token">Google 未返回登录令牌。请重试。</string>
     <string name="login_google_exchange_failed">无法完成 Google 登录。请检查网络连接后重试。</string>

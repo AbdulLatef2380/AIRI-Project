@@ -14,14 +14,26 @@ internal object GeminiSseParser {
         val promptTokens: Int? = null,
         val completionTokens: Int? = null,
         val hasError: Boolean = false,
+        val errorCode: String? = null,
+        val errorStatus: String? = null,
+        val finishReason: String? = null,
+        val malformed: Boolean = false,
     )
 
     fun parse(payload: String): Event {
-        val root = runCatching { JSONObject(payload) }.getOrNull() ?: return Event()
-        if (root.has("error")) return Event(hasError = true)
+        val root = runCatching { JSONObject(payload) }.getOrNull()
+            ?: return Event(malformed = true)
+        if (root.has("error")) {
+            val error = root.optJSONObject("error") ?: return Event(hasError = true, malformed = true)
+            return Event(
+                hasError = true,
+                errorCode = error.optStringValue("code"),
+                errorStatus = error.optStringValue("status"),
+            )
+        }
 
         val candidates = root.optJSONArray("candidates")
-        var text = buildString {
+        val text = buildString {
             if (candidates != null) {
                 for (i in 0 until candidates.length()) {
                     val candidate = candidates.optJSONObject(i) ?: continue
@@ -35,23 +47,27 @@ internal object GeminiSseParser {
             }
         }
 
-        val terminal = if (candidates == null) {
-            false
-        } else {
-            (0 until candidates.length()).any { index ->
-                val reason = candidates.optJSONObject(index)?.optString("finishReason", "").orEmpty()
-                reason.isNotBlank() && reason != "null"
-            }
+        val finishReason = candidates?.let { values ->
+            (0 until values.length()).asSequence()
+                .mapNotNull { values.optJSONObject(it)?.optStringValue("finishReason") }
+                .firstOrNull()
         }
+        val promptBlockReason = root.optJSONObject("promptFeedback")?.optStringValue("blockReason")
         val usage = root.optJSONObject("usageMetadata")
         return Event(
             text = text,
-            terminal = terminal,
+            terminal = !finishReason.isNullOrBlank(),
             promptTokens = usage?.optIntOrNull("promptTokenCount"),
             completionTokens = usage?.optIntOrNull("candidatesTokenCount"),
+            hasError = !promptBlockReason.isNullOrBlank(),
+            errorStatus = promptBlockReason,
+            finishReason = finishReason,
         )
     }
 
     private fun JSONObject.optIntOrNull(name: String): Int? =
         if (has(name) && !isNull(name)) optInt(name) else null
+
+    private fun JSONObject.optStringValue(name: String): String? =
+        opt(name)?.takeUnless { it === JSONObject.NULL }?.toString()?.takeIf(String::isNotBlank)
 }

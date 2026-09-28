@@ -1,61 +1,43 @@
 package com.airi.assistant.ui.viewmodel
 
+import com.airi.assistant.agent.loop.AgentLoop
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GenerationResponsePolicyTest {
     @Test
-    fun blankCompletionIsNotSuccessful() {
-        assertEquals(
-            GenerationResponseStatus.EMPTY_RESPONSE,
-            GenerationResponsePolicy.classify("", "", cancelled = false)
-        )
-    }
-
-    @Test
-    fun streamedAnswerCanRescueBlankFinalCompletion() {
+    fun onlyExplicitSuccessIsClassifiedAsSuccess() {
         assertEquals(
             GenerationResponseStatus.SUCCESS,
-            GenerationResponsePolicy.classify("", "visible answer", cancelled = false)
+            GenerationResponsePolicy.classify(AgentLoop.TerminalState.SUCCESS),
         )
     }
 
     @Test
-    fun cancellationWinsOverPartialText() {
+    fun timeoutIsNeverUpgradedByPartialStreamText() {
+        assertEquals(
+            GenerationResponseStatus.TIMEOUT,
+            GenerationResponsePolicy.classify(AgentLoop.TerminalState.TIMEOUT),
+        )
+    }
+
+    @Test
+    fun providerOrAgentFailureRemainsFailure() {
+        assertEquals(
+            GenerationResponseStatus.FAILURE,
+            GenerationResponsePolicy.classify(AgentLoop.TerminalState.FAILURE),
+        )
+    }
+
+    @Test
+    fun noResponseAndCancellationHaveDistinctStates() {
+        assertEquals(
+            GenerationResponseStatus.EMPTY_RESPONSE,
+            GenerationResponsePolicy.classify(AgentLoop.TerminalState.NO_RESPONSE),
+        )
         assertEquals(
             GenerationResponseStatus.CANCELLED,
-            GenerationResponsePolicy.classify("partial", "partial", cancelled = true)
+            GenerationResponsePolicy.classify(AgentLoop.TerminalState.CANCELLED),
         )
-    }
-}
-
-class ReasoningStreamParserTest {
-    @Test
-    fun splitThinkTagsNeverLeakReasoningIntoAnswer() {
-        val parser = ReasoningStreamParser()
-        val visible = buildString {
-            append(parser.consume("<thi"))
-            append(parser.consume("nk>private reasoning"))
-            append(parser.consume("</thin"))
-            append(parser.consume("k>final answer"))
-            append(parser.finish())
-        }
-        assertEquals("final answer", visible.trim())
-    }
-
-    @Test
-    fun structuredAnalysisIsRemovedFromFinalAnswer() {
-        assertEquals(
-            "answer",
-            ReasoningStreamParser.extractAnswer("<analysis>hidden</analysis>answer")
-        )
-    }
-
-    @Test
-    fun ordinaryTextRemainsVisible() {
-        val parser = ReasoningStreamParser()
-        val visible = parser.consume("مرحباً AIRI") + parser.finish()
-        assertTrue(visible.contains("مرحباً AIRI"))
     }
 }

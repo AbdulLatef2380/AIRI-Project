@@ -88,7 +88,9 @@ internal class ModelController(
     internal fun loadModel(model: ModelInfo) {
         val requestId = loadRequestSequence.incrementAndGet()
         val file       = File(model.path)
-        val validation = ModelValidator.validate(file, appContext, model.ramRequiredMb)
+        val requiredRamMb = model.ramRequiredMb.takeIf { it > 0 }
+            ?: ModelValidator.estimateRequiredRamMb(file.length())
+        val validation = ModelValidator.validate(file, appContext, requiredRamMb)
         if (validation !is ValidationResult.Valid) {
             val (msg, type) = validationMessage(validation)
             modelState.value = modelState.value.copy(
@@ -354,7 +356,8 @@ internal class ModelController(
                 else      -> ModelType.inferFromFileName(file.name)
             },
             isLocal       = true,
-            ramRequiredMb = matched?.ramRequiredMb ?: 0,
+            ramRequiredMb = matched?.ramRequiredMb?.takeIf { it > 0 }
+                ?: ModelValidator.estimateRequiredRamMb(file.length()),
             contextSize   = matched?.contextSize ?: 4096
         )
     }
@@ -373,6 +376,8 @@ internal class ModelController(
     internal fun validationMessage(result: ValidationResult): Pair<String, LoadErrorType> = when (result) {
         is ValidationResult.FileNotFound    -> "File not found"                  to LoadErrorType.FILE_NOT_FOUND
         is ValidationResult.InvalidFormat   -> "Invalid file format"             to LoadErrorType.INVALID_FORMAT
+        is ValidationResult.UnsupportedArchitecture ->
+            appContext.getString(com.airi.assistant.R.string.model_unsupported_architecture, result.architecture) to LoadErrorType.UNSUPPORTED_ARCHITECTURE
         is ValidationResult.TooSmall        -> "File too small"              to LoadErrorType.TOO_SMALL
         is ValidationResult.InsufficientRam ->
             "Insufficient RAM — ${(result as ValidationResult.InsufficientRam).requiredMb} MB required" to LoadErrorType.INSUFFICIENT_RAM

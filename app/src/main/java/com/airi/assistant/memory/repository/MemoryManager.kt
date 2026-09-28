@@ -375,6 +375,12 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
     suspend fun forgetMemory(memoryId: Long): Boolean =
         dao.deleteLongTermMemory(memoryId) > 0
 
+    /** Clears only durable memories attached to the supplied conversation. */
+    suspend fun clearSessionMemories(sessionId: String): Int {
+        require(sessionId.isNotBlank()) { "A non-empty owning session is required to clear memories" }
+        return dao.deleteLongTermMemoriesForSession(sessionId)
+    }
+
     suspend fun editMemory(
         memoryId: Long,
         content: String,

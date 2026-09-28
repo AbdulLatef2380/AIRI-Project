@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.viewmodel
 
+import com.airi.core.attachments.AttachmentPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -95,5 +96,71 @@ class AttachmentDispatchPolicyTest {
             AttachmentDispatchPolicy.afterStaging(allAttachmentsPersisted = false),
         )
         assertNull(AttachmentDispatchPolicy.afterStaging(allAttachmentsPersisted = true))
+    }
+
+    @Test
+    fun multipleImagesRouteToCloudOnlyWhenCloudCanAcceptAllImages() {
+        assertEquals(
+            ImageDispatchRoute.CLOUD_VISION,
+            AttachmentDispatchPolicy.imageRoute(
+                imageCount = 3,
+                localVisionReady = true,
+                cloudVisionReady = true,
+                cloudMaxImages = 4,
+            ),
+        )
+        assertNull(
+            AttachmentDispatchPolicy.imageRoute(
+                imageCount = 3,
+                localVisionReady = true,
+                cloudVisionReady = false,
+                cloudMaxImages = 0,
+            ),
+        )
+        assertNull(
+            AttachmentDispatchPolicy.imageRoute(
+                imageCount = 5,
+                localVisionReady = false,
+                cloudVisionReady = true,
+                cloudMaxImages = 4,
+            ),
+        )
+    }
+
+    @Test
+    fun oneImagePrefersLocalWhenAvailableAndOtherwiseUsesCompatibleCloud() {
+        assertEquals(
+            ImageDispatchRoute.LOCAL_SINGLE_IMAGE,
+            AttachmentDispatchPolicy.imageRoute(1, localVisionReady = true, cloudVisionReady = true, cloudMaxImages = 4),
+        )
+        assertEquals(
+            ImageDispatchRoute.CLOUD_VISION,
+            AttachmentDispatchPolicy.imageRoute(1, localVisionReady = false, cloudVisionReady = true, cloudMaxImages = 4),
+        )
+    }
+
+    @Test
+    fun actualPersistedBytesUseTextSpecificAndGeneralLimits() {
+        assertEquals(
+            AttachmentDispatchFailure.TEXT_ATTACHMENT_TOO_LARGE,
+            AttachmentDispatchPolicy.sizeFailure(
+                AttachmentPolicy.MAX_TEXT_ATTACHMENT_BYTES + 1,
+                AttachmentPolicy.ContentType.TEXT,
+            ),
+        )
+        assertEquals(
+            AttachmentDispatchFailure.ATTACHMENT_TOO_LARGE,
+            AttachmentDispatchPolicy.sizeFailure(
+                AttachmentPolicy.MAX_ATTACHMENT_BYTES + 1,
+                AttachmentPolicy.ContentType.VIDEO,
+            ),
+        )
+        assertEquals(
+            null,
+            AttachmentDispatchPolicy.sizeFailure(
+                AttachmentPolicy.MAX_TEXT_ATTACHMENT_BYTES,
+                AttachmentPolicy.ContentType.TEXT,
+            ),
+        )
     }
 }

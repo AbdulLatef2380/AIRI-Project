@@ -13,6 +13,7 @@ import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.ExecutionIdentity
 import com.airi.assistant.execution.ChatExecutionIdentityContract
+import com.airi.assistant.execution.ConversationRequestPolicy
 import com.airi.assistant.execution.ToolCallFingerprint
 import com.airi.assistant.execution.ToolCallLedger
 import com.airi.assistant.execution.stableArgumentsHash
@@ -21,6 +22,8 @@ import com.airi.assistant.execution.HybridOrchestrator
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import java.util.UUID
 import kotlinx.coroutines.isActive
 import org.json.JSONObject
@@ -63,7 +66,8 @@ class AgentLoop(
      */
     private val agentSandbox: com.airi.assistant.security.AgentSandbox? = null,
     /** Typed local proposal runtime; only calendar creation is eligible today. */
-    private val calendarCreateRuntime: CalendarCreateRuntime? = null
+    private val calendarCreateRuntime: CalendarCreateRuntime? = null,
+    private val timeoutMs: Long = TIMEOUT_MS
 ) {
     companion object {
         private const val TAG              = "AIRI_AgentLoop"
@@ -95,9 +99,11 @@ Do not mix tool_call JSON with prose in the same message.
         val finalAnswer:  String,
         val stepsUsed:    Int,
         val toolsInvoked: List<String>,
-        val timedOut:     Boolean = false,
-        val cancelled:    Boolean = false
+        val terminalState: TerminalState = TerminalState.SUCCESS,
+        val failureMessage: String? = null,
     )
+
+    enum class TerminalState { SUCCESS, FAILURE, TIMEOUT, CANCELLED, NO_RESPONSE }
 
     /**
      * Run the agent loop for a user [input].
@@ -122,6 +128,7 @@ Do not mix tool_call JSON with prose in the same message.
         modelId:      String              = "",
         providerId:   String              = "",
         sessionId:      String                 = "",
+        priorConversation: List<ExecutionRequest.ConversationTurn> = emptyList(),
         visionParts:    List<com.airi.assistant.execution.ExecutionRequest.ImagePart> = emptyList(),
         onToken:        suspend (String) -> Unit,
         onStepComplete: suspend (StepEvent) -> String? = { null },
@@ -129,7 +136,14 @@ Do not mix tool_call JSON with prose in the same message.
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
         val toolsInvoked = mutableListOf<String>()
-        val history      = mutableListOf<ConversationTurn>()
+        val history      = priorConversation.mapNotNull { turn ->
+            when (turn.role.lowercase()) {
+                "user" -> ConversationTurn.User(turn.content)
+                "assistant" -> ConversationTurn.Assistant(turn.content)
+                else -> null
+            }
+        }.toMutableList()
+        val priorHistoryCount = history.size
         var stepsUsed    = 0
         val executionId   = UUID.randomUUID().toString()
         val requestIdentity = ChatExecutionIdentityContract.create(sessionId, executionId)
@@ -138,25 +152,38 @@ Do not mix tool_call JSON with prose in the same message.
         var durableExecutionContext: AgentLoopExecutionContext? = null
         var activeToolTrace: ActiveToolTrace? = null
 
-        // If no tools provided, single-pass inference
-        if (tools.isEmpty()) {
-            val response = callLLM(input, systemPrompt, history, tools, queryType, modelId, providerId, visionParts, onToken, requestIdentity)
-            if (response.isBlank()) throw IllegalStateException("Model completed without a response")
-            return LoopResult(response, 1, emptyList())
-        }
-
         val fullSystemPrompt = systemPrompt + "\n\n" + buildToolBlock(tools) + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
 
         try {
+            return withTimeout(timeoutMs.coerceAtLeast(1L)) {
+            // If no tools provided, single-pass inference.
+            if (tools.isEmpty()) {
+                val response = callLLM(
+                    prompt = input,
+                    systemPrompt = systemPrompt,
+                    history = history,
+                    tools = tools,
+                    queryType = queryType,
+                    modelId = modelId,
+                    providerId = providerId,
+                    visionParts = visionParts,
+                    onToken = onToken,
+                    identity = requestIdentity,
+                    localHistoryStartIndex = priorHistoryCount,
+                )
+                return@withTimeout if (response.isBlank()) {
+                    LoopResult("", 1, emptyList(), terminalState = TerminalState.NO_RESPONSE)
+                } else {
+                    LoopResult(response, 1, emptyList(), terminalState = TerminalState.SUCCESS)
+                }
+            }
+
             while (stepsUsed < MAX_STEPS && coroutineContext.isActive) {
-                if (System.currentTimeMillis() - startMs > TIMEOUT_MS) {
+                if (System.currentTimeMillis() - startMs >= timeoutMs) {
                     Log.w(TAG, "AgentLoop timed out after ${stepsUsed} steps")
                     ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
-                    val partial = history.lastOrNull { it is ConversationTurn.Assistant }
-                        ?.let { (it as ConversationTurn.Assistant).content }
-                        ?: "Task timed out. Please try again."
-                    return LoopResult(partial, stepsUsed, toolsInvoked, timedOut = true)
+                    return@withTimeout LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.TIMEOUT)
                 }
 
                 stepsUsed++
@@ -176,9 +203,14 @@ Do not mix tool_call JSON with prose in the same message.
                         onToken(tok)
                     },
                     identity      = requestIdentity,
+                    localHistoryStartIndex = priorHistoryCount,
                 )
 
                 Log.d(TAG, "Agent step completed: step=$stepsUsed responseChars=${rawResponse.length}")
+                if (rawResponse.isBlank()) {
+                    ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
+                    return@withTimeout LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.NO_RESPONSE)
+                }
 
                 // Parse: tool_call block or final answer?
                 var toolCall = parseToolCall(rawResponse)
@@ -208,7 +240,10 @@ Do not mix tool_call JSON with prose in the same message.
                             visionParts = visionParts,
                             onToken        = {},   // don't stream retry to UI
                             identity       = requestIdentity,
+                            localHistoryStartIndex = priorHistoryCount,
                         )
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Log.w(TAG, "Tool call retry callLLM failed: ${e.message}")
                         ""
@@ -224,9 +259,9 @@ Do not mix tool_call JSON with prose in the same message.
                 if (toolCall == null) {
                     // Final answer — LLM decided it's done (or retry also failed)
                     history.add(ConversationTurn.Assistant(rawResponse))
-                    ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
                     onStepComplete(StepEvent.FinalAnswer(rawResponse, stepsUsed))
-                    return LoopResult(rawResponse, stepsUsed, toolsInvoked)
+                    ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
+                    return@withTimeout LoopResult(rawResponse, stepsUsed, toolsInvoked)
                 }
 
                 // Execute the tool
@@ -409,10 +444,46 @@ Do not mix tool_call JSON with prose in the same message.
             // Exhausted step budget — ask LLM to summarise what it has
             Log.w(TAG, "AgentLoop exhausted $MAX_STEPS steps — asking LLM to summarise")
             history.add(ConversationTurn.User("You have reached your step limit. Summarise what you have done and what the final answer is."))
-            val summary = callLLM("", fullSystemPrompt, history, emptyList(), queryType, modelId, providerId, visionParts, onToken, requestIdentity)
+            val summary = callLLM(
+                prompt = "",
+                systemPrompt = fullSystemPrompt,
+                history = history,
+                tools = emptyList(),
+                queryType = queryType,
+                modelId = modelId,
+                providerId = providerId,
+                visionParts = visionParts,
+                onToken = onToken,
+                identity = requestIdentity,
+                localHistoryStartIndex = priorHistoryCount,
+            )
+            if (summary.isBlank()) {
+                ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
+                return@withTimeout LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.NO_RESPONSE)
+            }
             ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
-            return LoopResult(summary, stepsUsed, toolsInvoked)
+            return@withTimeout LoopResult(summary, stepsUsed, toolsInvoked, terminalState = TerminalState.SUCCESS)
+            }
 
+        } catch (e: TimeoutCancellationException) {
+            activeToolTrace?.let { active ->
+                ExecutionStatusBus.onToolCancelled(
+                    executionId = active.executionId,
+                    actionId = active.actionId,
+                    toolName = active.toolName,
+                    durationMs = System.currentTimeMillis() - active.startedAtMs,
+                    detail = "Agent execution timed out.",
+                )
+            }
+            ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
+            Log.w(TAG, "AgentLoop reached its ${timeoutMs}ms execution deadline")
+            return LoopResult(
+                finalAnswer = "",
+                stepsUsed = stepsUsed,
+                toolsInvoked = toolsInvoked,
+                terminalState = TerminalState.TIMEOUT,
+                failureMessage = "Agent execution timed out.",
+            )
         } catch (e: CancellationException) {
             activeToolTrace?.let { active ->
                 ExecutionStatusBus.onToolCancelled(
@@ -424,9 +495,17 @@ Do not mix tool_call JSON with prose in the same message.
                 )
             }
             ExecutionStatusBus.onGraphCancelled(executionId)
-            val last = history.lastOrNull { it is ConversationTurn.Assistant }
-                ?.let { (it as ConversationTurn.Assistant).content } ?: ""
-            return LoopResult(last.ifBlank { "Task cancelled." }, stepsUsed, toolsInvoked, cancelled = true)
+            return LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.CANCELLED)
+        } catch (e: Exception) {
+            ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
+            Log.e(TAG, "AgentLoop failed type=${e.javaClass.simpleName}", e)
+            return LoopResult(
+                finalAnswer = "",
+                stepsUsed = stepsUsed,
+                toolsInvoked = toolsInvoked,
+                terminalState = TerminalState.FAILURE,
+                failureMessage = e.message,
+            )
         }
     }
 
@@ -443,28 +522,36 @@ Do not mix tool_call JSON with prose in the same message.
         visionParts:   List<com.airi.assistant.execution.ExecutionRequest.ImagePart> = emptyList(),
         onToken:       suspend (String) -> Unit,
         identity:      ExecutionIdentity,
+        localHistoryStartIndex: Int = 0,
     ): String {
-        // Build the full prompt from history
-        val fullPrompt = when {
-            history.isEmpty() -> prompt
-            else -> buildString {
-                for (turn in history) {
-                    when (turn) {
-                        is ConversationTurn.User       -> append("User: ${turn.content}\n")
-                        is ConversationTurn.Assistant  -> append("Assistant: ${turn.content}\n")
-                        is ConversationTurn.ToolResult -> append("[Tool ${turn.toolName} returned: ${turn.result.take(500)}]\n")
-                    }
-                }
-                if (prompt.isNotBlank()) append("User: $prompt\n")
-                append("Assistant:")
+        val requestTurns = history.map { turn ->
+            when (turn) {
+                is ConversationTurn.User -> ExecutionRequest.ConversationTurn("user", turn.content)
+                is ConversationTurn.Assistant -> ExecutionRequest.ConversationTurn("assistant", turn.content)
+                is ConversationTurn.ToolResult -> ExecutionRequest.ConversationTurn(
+                    "user", "[Tool ${turn.toolName}: ${turn.result.take(400)}]"
+                )
             }
+        }
+        val currentPromptText = (history.lastOrNull() as? ConversationTurn.User)?.content
+        val requestProjection = ConversationRequestPolicy.project(requestTurns, currentPromptText)
+        val localTurns = history.drop(localHistoryStartIndex.coerceIn(0, history.size))
+        val localPrompt = if (localTurns.isEmpty()) prompt else buildString {
+            for (turn in localTurns) {
+                when (turn) {
+                    is ConversationTurn.User -> append("User: ${turn.content}\n")
+                    is ConversationTurn.Assistant -> append("Assistant: ${turn.content}\n")
+                    is ConversationTurn.ToolResult -> append("[Tool ${turn.toolName} returned: ${turn.result.take(500)}]\n")
+                }
+            }
+            append("Assistant:")
         }
 
         // SPRINT 1: Estimate token count and derive the long-context threshold from
         // the live ContextBudget (LlamaNative.getNCtx() → ContextBudget.longContextThreshold)
         // rather than the former hardcoded constant of 8_192.
         // For a 1536-token model: threshold = 768; for 32K: threshold = 16384.
-        val estimatedTokens = fullPrompt.length / 4
+        val estimatedTokens = (localPrompt.length + systemPrompt.length) / 4
         val longContextThreshold = contextBudgetProvider().longContextThreshold
 
         val buf = StringBuilder()
@@ -476,7 +563,8 @@ Do not mix tool_call JSON with prose in the same message.
 
         orchestrator.executeStream(
             request    = ExecutionRequest(
-                prompt                = fullPrompt,
+                prompt                = requestProjection.prompt,
+                localPrompt           = localPrompt,
                 systemPrompt          = systemPrompt,
                 maxTokens             = 1024,   // : was 512 — too low for complex tool JSON + reasoning
                 temperature           = 0.3f,   // low temp for structured decisions
@@ -491,18 +579,7 @@ Do not mix tool_call JSON with prose in the same message.
                 imageParts            = visionParts,
                 identity              = identity,
 
-                conversationHistory   = history.mapNotNull { turn ->
-                    when (turn) {
-                        is ConversationTurn.User ->
-                            ExecutionRequest.ConversationTurn("user", turn.content)
-                        is ConversationTurn.Assistant ->
-                            ExecutionRequest.ConversationTurn("assistant", turn.content)
-                        is ConversationTurn.ToolResult ->
-                            ExecutionRequest.ConversationTurn(
-                                "user", "[Tool ${turn.toolName}: ${turn.result.take(400)}]"
-                            )
-                    }
-                }
+                conversationHistory   = requestProjection.conversationHistory
             ),
             context    = appContext,
             onToken    = { tok ->
@@ -521,9 +598,7 @@ Do not mix tool_call JSON with prose in the same message.
         )
 
         if (error != null) throw RuntimeException(error)
-        return buf.toString().trim().also {
-            if (it.isBlank()) throw IllegalStateException("Model completed without a response")
-        }
+        return buf.toString().trim()
     }
 
     // ── Tool call parsing ──────────────────────────────────────────────────────

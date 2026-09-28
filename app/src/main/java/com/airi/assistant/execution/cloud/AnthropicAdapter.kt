@@ -210,8 +210,10 @@ class AnthropicAdapter(
             append("{\"role\":\"${turn.role}\",\"content\":${jsonString(turn.content)}}")
             needsComma = true
         }
-        if (needsComma) append(",")
-        append("{\"role\":\"user\",\"content\":${jsonString(req.prompt)}}")
+        if (req.prompt.isNotBlank()) {
+            if (needsComma) append(",")
+            append("{\"role\":\"user\",\"content\":${jsonString(req.prompt)}}")
+        }
         append("],")
         append("\"stream\":true")
         append("}")

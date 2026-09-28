@@ -86,7 +86,11 @@ import com.airi.assistant.ui.viewmodel.AgentMode
 import com.airi.assistant.ui.viewmodel.AttachmentDispatchFailure
 import com.airi.assistant.ui.viewmodel.ChatInputSuggestion
 import com.airi.assistant.ui.viewmodel.ChatMessage
+import com.airi.assistant.ui.viewmodel.ChatMainAction
+import com.airi.assistant.ui.viewmodel.ChatMainActionPolicy
 import com.airi.assistant.ui.viewmodel.ChatViewModel
+import com.airi.assistant.ui.viewmodel.ExecutionErrorProjection
+import com.airi.assistant.ui.viewmodel.ExecutionFailureStage
 import com.airi.assistant.ui.viewmodel.FinalAnswerUiState
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -219,21 +223,18 @@ fun ChatScreen(
     val composerDrafts        by viewModel.composerDrafts.collectAsState()
     val currentComposerDraft = composerDrafts[currentSessionId]
     val currentSession = sessions.firstOrNull { it.id == currentSessionId }
+    val generationBelongsToCurrentSession = agentState.isWorking &&
+        (agentState.sessionId.isBlank() || agentState.sessionId == currentSessionId)
+    val visibleStreamingText = streamingText.takeIf { generationBelongsToCurrentSession }.orEmpty()
+    val visibleExecutionError = lastExecutionError?.takeIf {
+        it.sessionId.isNullOrBlank() || it.sessionId == currentSessionId
+    }
     var showChatSearch by rememberSaveable { mutableStateOf(false) }
     var chatSearchQuery by rememberSaveable { mutableStateOf("") }
     val filteredChatMessages = remember(messages, chatSearchQuery) {
         val query = chatSearchQuery.trim()
         if (query.isBlank()) messages
         else messages.filter { it.text.contains(query, ignoreCase = true) }
-    }
-
-    LaunchedEffect(lastExecutionError?.occurredAtMs) {
-        val failure = lastExecutionError ?: return@LaunchedEffect
-        val detail = failure.detail.takeIf { it.isNotBlank() }
-        snackbarHost.showSnackbar(
-            listOf(failure.message, detail).filterNotNull().joinToString("\n")
-        )
-        viewModel.clearExecutionError()
     }
 
     val sessionActions = ChatSessionActionPolicy.availability(
@@ -247,7 +248,7 @@ fun ChatScreen(
     var knowledgeSearchVersion by remember { mutableStateOf(0) }
 
     // Chat is "active" when there are messages or the AI is responding
-    val chatIsActive = messages.isNotEmpty() || streamingText.isNotEmpty() || agentState.isWorking
+    val chatIsActive = messages.isNotEmpty() || visibleStreamingText.isNotEmpty() || generationBelongsToCurrentSession
     LaunchedEffect(chatIsActive) { onChatActiveChanged(chatIsActive) }
     // ChatScreen is the correct collection site because it has access to
     // FragmentActivity via LocalContext — ViewModels must never hold Activity refs.
@@ -276,16 +277,6 @@ fun ChatScreen(
             viewModel.clearPaywallTrigger()
             onNavigate(AiriRoute.PAYWALL)
         }
-    }
-
-    LaunchedEffect(lastExecutionError) {
-        val error = lastExecutionError ?: return@LaunchedEffect
-        val detail = error.detail.trim()
-        snackbarHost.showSnackbar(
-            message = if (detail.isBlank()) error.message else "${error.message}: $detail",
-            duration = SnackbarDuration.Long
-        )
-        viewModel.clearExecutionError()
     }
 
     LaunchedEffect(upgradePrompt) {
@@ -915,6 +906,12 @@ fun ChatScreen(
                                         AttachmentDispatchFailure.CAPABILITY_UNAVAILABLE -> R.string.attachment_capability_unavailable
                                         AttachmentDispatchFailure.CAPABILITY_UNKNOWN -> R.string.attachment_capability_unknown
                                         AttachmentDispatchFailure.STAGING_FAILED -> R.string.attachment_staging_failed
+                                        AttachmentDispatchFailure.UNSUPPORTED_CONTENT -> R.string.attachment_unsupported_content
+                                        AttachmentDispatchFailure.TEXT_EXTRACTION_FAILED -> R.string.attachment_text_extraction_failed
+                                        AttachmentDispatchFailure.MULTI_IMAGE_UNSUPPORTED -> R.string.attachment_multiple_images_unsupported
+                                        AttachmentDispatchFailure.ATTACHMENT_TOO_LARGE -> R.string.attachment_too_large
+                                        AttachmentDispatchFailure.TEXT_ATTACHMENT_TOO_LARGE -> R.string.text_attachment_too_large
+                                        AttachmentDispatchFailure.DISPATCH_FAILED -> R.string.attachment_dispatch_failed
                                     }
                                     scope.launch { snackbarHost.showSnackbar(context.getString(messageRes)) }
                                 },
@@ -1099,9 +1096,10 @@ fun ChatScreen(
             }
             ChatMessageList(
                 messages      = filteredChatMessages,
-                streamingText = if (chatSearchQuery.isBlank()) streamingText else "",
-                isGenerating  = agentState.isWorking,
-                finalAnswerVerification = agentState.finalAnswerVerification,
+                streamingText = if (chatSearchQuery.isBlank()) visibleStreamingText else "",
+                isGenerating  = generationBelongsToCurrentSession,
+                executionError = visibleExecutionError,
+                finalAnswerVerification = agentState.finalAnswerVerification.takeIf { generationBelongsToCurrentSession || !agentState.isWorking },
                 isModelReady  = modelState.isModelReady,
                 isCloudReady  = modelState.isCloudReady,
                 sessionLoadState = sessionLoadState,
@@ -1304,6 +1302,7 @@ fun ChatScreen(
         AiriModelPickerSheet(
             modelState = modelState,
             viewModel  = viewModel,
+            snackbarHost = snackbarHost,
             onDismiss  = { showModelPicker = false },
             onNavigateToModels = { showModelPicker = false; onNavigate(AiriRoute.MODELS) }
         )
@@ -1734,6 +1733,7 @@ private fun AiriChatTopBar(
 private fun AiriModelPickerSheet(
     modelState: ModelUiState,
     viewModel: ChatViewModel,
+    snackbarHost: SnackbarHostState,
     onDismiss: () -> Unit,
     onNavigateToModels: () -> Unit
 ) {
@@ -1818,8 +1818,15 @@ private fun AiriModelPickerSheet(
                     isSelected = isSelected,
                     onClick   = {
                         scope.launch {
-                            viewModel.activateBuiltinProvider(prov)
-                            activeProv.value = prov
+                            if (viewModel.activateBuiltinProvider(prov)) {
+                                activeProv.value = prov
+                            } else {
+                                if (prov.tier == com.airi.assistant.execution.cloud.EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER) {
+                                    snackbarHost.showSnackbar(context.getString(R.string.local_endpoint_config_required))
+                                } else {
+                                    onNavigateToModels()
+                                }
+                            }
                             onDismiss()
                         }
                     }
@@ -2040,6 +2047,7 @@ fun ChatMessageList(
     messages: List<ChatMessage>,
     streamingText: String,
     isGenerating: Boolean,
+    executionError: ExecutionErrorProjection? = null,
     sessionLoadState: com.airi.assistant.ui.viewmodel.SessionLoadState = com.airi.assistant.ui.viewmodel.SessionLoadState.NotStarted,
     onRetrySession: (String?) -> Unit = {},
     finalAnswerVerification: FinalAnswerUiState? = null,
@@ -2087,11 +2095,11 @@ fun ChatMessageList(
         }
     }
 
-    if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && sessionLoadState is com.airi.assistant.ui.viewmodel.SessionLoadState.Loading) {
+    if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && executionError == null && sessionLoadState is com.airi.assistant.ui.viewmodel.SessionLoadState.Loading) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = CosmicAccent)
         }
-    } else if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && sessionLoadState is com.airi.assistant.ui.viewmodel.SessionLoadState.Failed) {
+    } else if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && executionError == null && sessionLoadState is com.airi.assistant.ui.viewmodel.SessionLoadState.Failed) {
         val failure = sessionLoadState as com.airi.assistant.ui.viewmodel.SessionLoadState.Failed
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Column(
@@ -2118,7 +2126,7 @@ fun ChatMessageList(
                 }
             }
         }
-    } else if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating) {
+    } else if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && executionError == null) {
         // Premium empty state — cosmic orb + greeting + suggestion chips
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Column(
@@ -2192,6 +2200,11 @@ fun ChatMessageList(
                 contentPadding      = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                executionError?.let { failure ->
+                    item(key = "execution-error-${failure.executionId}", contentType = "execution-error") {
+                        ExecutionErrorBubble(failure)
+                    }
+                }
                 if (streamingText.isNotEmpty() && isGenerating) {
                     item(key = "streaming", contentType = "streaming") {
                         Box(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
@@ -2796,19 +2809,78 @@ private fun FullscreenResponseViewer(
 }
 
 @Composable
+private fun ExecutionErrorBubble(error: ExecutionErrorProjection) {
+    val message = error.messageResId?.let { stringResource(it) } ?: error.message
+    val stageLabel = stringResource(
+        when (error.stage) {
+            ExecutionFailureStage.PREPARATION -> R.string.chat_execution_stage_preparation
+            ExecutionFailureStage.AGENT_LOOP -> R.string.chat_execution_stage_agent
+            ExecutionFailureStage.PROVIDER -> R.string.chat_execution_stage_provider
+            ExecutionFailureStage.RESPONSE -> R.string.chat_execution_stage_response
+            ExecutionFailureStage.ATTACHMENT -> R.string.chat_execution_stage_attachment
+        }
+    )
+    val stageSummary = stringResource(R.string.chat_execution_stopped_at, stageLabel)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.Absolute.Left,
+        verticalAlignment = Alignment.Top
+    ) {
+        Image(
+            painter = painterResource(R.mipmap.ic_launcher_foreground),
+            contentDescription = null,
+            modifier = Modifier.size(28.dp)
+        )
+        Spacer(Modifier.width(8.dp))
+        Surface(
+            modifier = Modifier.weight(1f).widthIn(max = 680.dp),
+            shape = AIRIShapes.md,
+            color = AiriTheme.surfaceVariant,
+            border = BorderStroke(1.dp, SemanticError.copy(alpha = 0.24f))
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(
+                        Icons.Outlined.ErrorOutline,
+                        contentDescription = null,
+                        tint = SemanticError,
+                        modifier = Modifier.size(17.dp)
+                    )
+                    Text(
+                        text = message,
+                        color = AiriTheme.onBackground,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp
+                    )
+                }
+                Text(
+                    text = stageSummary,
+                    color = AiriTheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun AiStreamingBubble(text: String) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(end = 44.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.Absolute.Left,
         verticalAlignment = Alignment.Top
     ) {
         Image(
             painter = painterResource(R.mipmap.ic_launcher_foreground),
             contentDescription = "AIRI",
-            modifier = Modifier.size(30.dp)
+            modifier = Modifier.size(28.dp)
         )
         Spacer(Modifier.width(8.dp))
-        Column(modifier = Modifier.fillMaxWidth().padding(start = 2.dp, top = 1.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp).padding(top = 1.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
                     CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection(text)) {
                         BidiAwareMarkdownRenderer(text = text, modifier = Modifier.fillMaxWidth(), isStreaming = true)
@@ -2832,13 +2904,14 @@ private fun AiriThinkingRow(label: String) {
         Image(
             painter = painterResource(R.mipmap.ic_launcher_foreground),
             contentDescription = null,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(28.dp)
         )
-        Spacer(Modifier.width(7.dp))
+        Spacer(Modifier.width(8.dp))
         ThinkingAnimation(
-            modifier = Modifier.padding(vertical = 2.dp),
+            modifier = Modifier,
             stageText = label,
-            animate = animationsEnabled
+            animate = animationsEnabled,
+            contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
         )
     }
 }
@@ -2865,6 +2938,9 @@ private fun AttachmentChip(
 ) {
     val accent = CosmicAccent
     val context = LocalContext.current
+    val isImageAttachment = attachment.contentType == AttachmentPolicy.ContentType.IMAGE
+    val chipWidth = if (isImageAttachment) 112.dp else 88.dp
+    val chipHeight = if (isImageAttachment) 112.dp else 88.dp
     val typeLabel = when (attachment.contentType) {
         AttachmentPolicy.ContentType.IMAGE -> stringResource(R.string.attachment_type_image)
         AttachmentPolicy.ContentType.VIDEO -> stringResource(R.string.attachment_type_video)
@@ -2898,7 +2974,7 @@ private fun AttachmentChip(
     }
     Box(
         modifier = Modifier
-            .size(112.dp)
+            .size(width = chipWidth, height = chipHeight)
             .shadow(3.dp, AIRIShapes.md, ambientColor = accent.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.24f))
             .clip(AIRIShapes.md)
             .background(AiriTheme.surfaceVariant.copy(alpha = 0.96f))
@@ -2908,7 +2984,7 @@ private fun AttachmentChip(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(76.dp)
+                .height(if (isImageAttachment) 76.dp else 54.dp)
                 .padding(horizontal = 8.dp, vertical = 7.dp)
                 .clip(AIRIShapes.sm)
                 .background(accent.copy(alpha = 0.12f)),
@@ -3200,6 +3276,15 @@ fun AiriChatInputBar(
         }
     }
     val showSend = isTyping || attachments.isNotEmpty() || isInteractionLocked
+    val mainAction = ChatMainActionPolicy.resolve(
+        showSend = showSend,
+        isGenerating = isGenerating,
+        isDispatchingAttachment = isDispatchingAttachment,
+        isLongTextConversionInFlight = isLongTextConversionInFlight,
+        canSend = canSend,
+        inferenceReady = isInferenceReady,
+        modelLoading = modelState.isModelLoading,
+    )
 
     if (showFullScreenEditor) {
         Dialog(
@@ -3743,16 +3828,17 @@ fun AiriChatInputBar(
                                     else -> CosmicAccent.copy(0.30f)
                                 })
                                 .semantics { contentDescription = mainActionDescription; role = Role.Button }
-                                .clickable(enabled = isInferenceReady || isInteractionLocked) {
-                                    when {
-                                        isGenerating -> onCancel()
-                                        showSend && canSend -> {
+                                .clickable(enabled = mainAction != ChatMainAction.NONE) {
+                                    when (mainAction) {
+                                        ChatMainAction.CANCEL -> onCancel()
+                                        ChatMainAction.SEND -> {
                                             onSend(text) {
                                                 text = ""
                                                 onDraftTextChanged("")
                                             }
                                         }
-                                        !showSend -> onVoiceChatClick()
+                                        ChatMainAction.VOICE -> onVoiceChatClick()
+                                        ChatMainAction.NONE -> Unit
                                     }
                                 },
                             contentAlignment = Alignment.Center

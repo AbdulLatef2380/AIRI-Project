@@ -201,6 +201,8 @@ data class AgentState(
     val activeGoalDescription:  String  = "",
     /** Stable identifier for the admitted graph/agent execution that owns this state. */
     val executionId:            String  = "",
+    /** Session that owns this in-flight generation; an empty value is legacy/unscoped state. */
+    val sessionId:              String  = "",
     val activeNodeId:           String  = "",
     val activeNodeAction:       String  = "",
     val nodesCompleted:         Int     = 0,
@@ -237,6 +239,10 @@ data class ExecutionErrorProjection(
     val message: String,
     val detail: String = "",
     val occurredAtMs: Long = System.currentTimeMillis(),
+    val messageResId: Int? = null,
+    val stage: ExecutionFailureStage = ExecutionFailureStage.RESPONSE,
+    val sessionId: String? = null,
+    val replyToMessageId: Long? = null,
 )
 
 enum class ExecutionStage {
@@ -244,7 +250,7 @@ enum class ExecutionStage {
 }
 
 enum class LoadErrorType {
-    NONE, FILE_NOT_FOUND, INVALID_FORMAT, TOO_SMALL, INSUFFICIENT_RAM, LOAD_FAILED
+    NONE, FILE_NOT_FOUND, INVALID_FORMAT, UNSUPPORTED_ARCHITECTURE, TOO_SMALL, INSUFFICIENT_RAM, LOAD_FAILED
 }
 
 enum class AgentMode(val label: String, val prompt: String) {
@@ -1036,18 +1042,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Identifier of the only user-visible generation allowed at a time. */
     @Volatile private var activeGenerationId: Long = 0L
+    @Volatile private var activeGenerationSessionId: String? = null
+    private data class DeferredLlamaHistory(
+        val sessionId: String,
+        val messages: List<com.airi.assistant.memory.entity.ChatMessage>,
+    )
+    private var deferredLlamaHistory: DeferredLlamaHistory? = null
 
     private fun isCurrentGeneration(generationId: Long): Boolean =
         generationId != 0L && activeGenerationId == generationId
 
     private fun finishGeneration(generationId: Long) {
         if (!isCurrentGeneration(generationId)) return
+        val completedSessionId = activeGenerationSessionId
         streamAccumulator.setLength(0)
         _streamingText.value = ""
         _agentState.value = AgentState()
         _generationPhase.value = GenerationPhase.IDLE
         _isGenerating.value = false
         activeGenerationId = 0L
+        activeGenerationSessionId = null
+        val deferred = deferredLlamaHistory
+        if (deferred != null && deferred.sessionId == _currentSessionId.value) {
+            llamaManager.setHistory(deferred.messages)
+            deferredLlamaHistory = null
+        } else if (completedSessionId == _currentSessionId.value) {
+            deferredLlamaHistory = null
+        }
     }
 
     fun cancelGeneration() {
@@ -1329,9 +1350,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             AgentActivityBus.events.collect { event ->
                 if (event.category == com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET &&
                     event.severity == com.airi.assistant.ui.activity.ActivitySeverity.WARN) {
-                    val isNativeReset = event.message.startsWith("Context window") ||
-                        event.message.startsWith("Model reload") ||
-                        event.message.startsWith("Model unload")
+                    val isNativeReset = event.machineTag ==
+                        com.airi.assistant.ui.activity.ActivityEvent.MACHINE_TAG_NATIVE_CONTEXT_RESET
                     // Only surface the warning when there is an active conversation to lose.
                     // Model load at startup with an empty history is not a context loss event.
                     val hasActiveConversation = _messages.value.isNotEmpty()
@@ -1430,15 +1450,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             val hadMessages = _messages.value.isNotEmpty()
+            val generationRunning = activeGenerationId != 0L
             val session = memoryManager.createSession()
             _currentSessionId.value = session.id
             preferences.edit().putString(KEY_SESSION_ID, session.id).apply()
             _messages.value = emptyList()
-            streamAccumulator.setLength(0); _streamingText.value = ""
-            _agentState.value = AgentState()
-            llamaManager.setHistory(emptyList())
+            _streamingText.value = ""
+            if (generationRunning) {
+                deferredLlamaHistory = DeferredLlamaHistory(session.id, emptyList())
+            } else {
+                streamAccumulator.setLength(0)
+                _agentState.value = AgentState()
+                deferredLlamaHistory = null
+                llamaManager.setHistory(emptyList())
+            }
             refreshSessions()
-            if (hadMessages) {
+            if (hadMessages && !generationRunning) {
                 val reason = "New conversation started — previous context has been cleared."
                 _contextResetWarning.value = reason
                 AgentActivityBus.emit(
@@ -1456,6 +1483,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val sessionId = _currentSessionId.value
         if (sessionId.isBlank()) {
             return Result.failure(IllegalStateException("No active conversation is available to delete."))
+        }
+        if (activeGenerationId != 0L) {
+            return Result.failure(IllegalStateException("Stop the active response before clearing conversation history."))
         }
         return try {
             memoryManager.deleteSession(sessionId)
@@ -1529,7 +1559,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     imageUri = attachmentPreviewUri(msg.attachmentJson)
                 )
             }
-            llamaManager.setHistory(history.takeLast(12))
+            _streamingText.value = if (activeGenerationSessionId == sessionId) streamAccumulator.toString() else ""
+            if (SessionGenerationPolicy.mayReplaceNativeHistory(activeGenerationSessionId)) {
+                llamaManager.setHistory(history.takeLast(12))
+                deferredLlamaHistory = null
+            } else {
+                deferredLlamaHistory = DeferredLlamaHistory(sessionId, history.takeLast(12))
+            }
             refreshSessions()
             _sessionLoadState.value = if (history.isEmpty()) SessionLoadState.Empty
             else SessionLoadState.Ready(sessionId, history.size)
@@ -1718,16 +1754,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         allowLongTextConversion: Boolean,
         expectedSessionId: String? = null,
         visionParts: List<com.airi.assistant.execution.ExecutionRequest.ImagePart> = emptyList(),
+        onAccepted: () -> Unit = {},
     ): Boolean {
-        if (expectedSessionId != null &&
-            (expectedSessionId.isBlank() || _currentSessionId.value != expectedSessionId)
-        ) return false
+        if (activeGenerationId != 0L || _agentState.value.isWorking) return false
+        val generationSessionId = expectedSessionId ?: _currentSessionId.value
+        if (generationSessionId.isBlank() || _currentSessionId.value != generationSessionId) return false
         val directives = parseInputDirectives(input)
         val trimmedInput = directives.userText.trim()
         if (trimmedInput.isEmpty() || _modelState.value.isModelLoading) return false
         // The composer stays disabled while an execution owns the stream. This
         // guard also protects programmatic callers from queuing a second request.
-        if (_agentState.value.isWorking) return false
+        if (activeGenerationId != 0L || _agentState.value.isWorking) return false
         _lastExecutionError.value = null
         // ── Long-text-to-file conversion (3000+ chars or 40+ lines) ───────────
         // When the user pastes/sends very long text (e.g. code, articles, logs),
@@ -1783,7 +1820,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _lastExecutionError.value = ExecutionErrorProjection(
                 executionId = "generation-permission",
                 message = message,
-                detail = appContext.getString(R.string.exec_cloud_blocked)
+                messageResId = R.string.exec_cloud_blocked,
+                stage = ExecutionFailureStage.PREPARATION,
+                sessionId = _currentSessionId.value.takeIf { it.isNotBlank() }
             )
             return false
         }
@@ -1846,29 +1885,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         val generationId = generationSequence.incrementAndGet()
         activeGenerationId = generationId
+        activeGenerationSessionId = generationSessionId
         viewModelScope.launch {
             if (!isCurrentGeneration(generationId)) return@launch
-            _agentState.value = AgentState(isWorking = true, currentAction = appContext.getString(R.string.generating))
+            _agentState.value = AgentState(
+                isWorking = true,
+                currentAction = appContext.getString(R.string.generating),
+                sessionId = generationSessionId,
+            )
             _generationPhase.value = GenerationPhase.PREFILL
             _isGenerating.value = true
             generationStartMs = System.currentTimeMillis()
             val perfMode = _performanceMode.value
-            val sessionId = expectedSessionId ?: currentSessionOrCreate()
-            if (expectedSessionId != null && _currentSessionId.value != expectedSessionId) {
-                finishGeneration(generationId)
-                return@launch
-            }
+            val sessionId = generationSessionId
             val activeProjectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
             val ragPrivacyLevel = if (execModePrefs.effectiveMode == ExecutionMode.LOCAL_ONLY) 0 else 1
             val wasEmpty = _messages.value.isEmpty()
             val stagedForSession = pendingAttachmentSessionId == sessionId
             val attachedForBubble = pendingImageUriForNextSend.takeIf { stagedForSession }
             val attachmentJson = pendingAttachmentJsonForNextSend.takeIf { stagedForSession }
-            if (stagedForSession) {
-                pendingAttachmentSessionId = null
-                pendingImageUriForNextSend = null
-                pendingAttachmentJsonForNextSend = null
-            }
             val rawHistory = memoryManager.loadSession(sessionId)
             val history    = ResponseOptimizer.smartTrim(rawHistory, isAgentMode = true)
             Log.d("AIRI_TRIM", "before=${rawHistory.size} after=${history.size}")
@@ -1879,6 +1914,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 attachmentJson = attachmentJson,
                 projectId = activeProjectId
             )
+            if (stagedForSession && pendingAttachmentSessionId == sessionId) {
+                pendingAttachmentSessionId = null
+                pendingImageUriForNextSend = null
+                pendingAttachmentJsonForNextSend = null
+            }
+            onAccepted()
             subscriptionManager.recordMessage()
             AnalyticsService.messageSent()
             if (RetentionManager.getTotalMessages() == 0) {
@@ -1890,13 +1931,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val paywallLevel = PaywallTriggerEngine.onMessageSent(subscriptionManager.isPremium())
             val triggerPaywallAfterSend = paywallLevel != UpsellLevel.NONE
             refreshPowerLevel()
-            _messages.update {
-                it + ChatMessage(
-                    text = trimmedInput,
-                    isUser = true,
-                    id = userMessage.id,
-                    imageUri = attachedForBubble
-                )
+            if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
+                _messages.update {
+                    it + ChatMessage(
+                        text = trimmedInput,
+                        isUser = true,
+                        id = userMessage.id,
+                        imageUri = attachedForBubble
+                    )
+                }
             }
 
             // ──  & 5 — Soft limit: degrade quality + add delay for free users ──
@@ -1956,12 +1999,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     content = fastHit,
                     projectId = activeProjectId
                 )
-                _messages.update {
-                    it + ChatMessage(
-                        fastHit, isUser = false, id = fastMsg.id,
-                        execOrigin = ExecOrigin.LOCAL,
-                        executionSource = "AIRI fast path (local)"
-                    )
+                if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
+                    _messages.update {
+                        it + ChatMessage(
+                            fastHit, isUser = false, id = fastMsg.id,
+                            execOrigin = ExecOrigin.LOCAL,
+                            executionSource = "AIRI fast path (local)"
+                        )
+                    }
                 }
                 if (wasEmpty) autoTitleAfterSuccessfulResponse(sessionId, trimmedInput)
                 _smartReplies.value = ResponseOptimizer.generateSuggestions(fastHit)
@@ -2069,6 +2114,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     providerId   = requestedProviderIdAtDispatch,
                     sessionId    = com.airi.assistant.execution.ChatExecutionIdentityContract
                         .normalizeSessionId(sessionId),
+                    priorConversation = history.mapNotNull { turn ->
+                        when (turn.role.lowercase()) {
+                            "user", "assistant" -> com.airi.assistant.execution.ExecutionRequest.ConversationTurn(
+                                role = turn.role.lowercase(),
+                                content = turn.content,
+                            )
+                            else -> null
+                        }
+                    },
                     visionParts  = visionParts,
                     onToken      = token@{ tok ->
                         if (!isCurrentGeneration(generationId) || _isCancelled.get()) return@token
@@ -2084,7 +2138,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_SPEED", "LOOP first_token=${ftMs}ms")
                         }
                         streamAccumulator.append(visibleToken)
-                        _streamingText.value = streamAccumulator.toString()
+                        if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
+                            _streamingText.value = streamAccumulator.toString()
+                        }
                     },
                     onStepComplete = { stepEvent ->
                         when (stepEvent) {
@@ -2126,23 +2182,72 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         ).createFor(toolName)
                     }
                 )
-                if (loopResult.cancelled || _isCancelled.get() || !isCurrentGeneration(generationId)) {
+                if (loopResult.terminalState == com.airi.assistant.agent.loop.AgentLoop.TerminalState.CANCELLED ||
+                    _isCancelled.get() || !isCurrentGeneration(generationId)
+                ) {
                     _generationPhase.value = GenerationPhase.CANCELLED
                     return@launch
                 }
                 val streamedAnswer = (streamAccumulator.toString() + reasoningParser.finish()).trim()
-                val normalizedAnswer = ReasoningStreamParser.extractAnswer(loopResult.finalAnswer)
-                    .ifBlank { streamedAnswer }
-                when (GenerationResponsePolicy.classify(normalizedAnswer, streamedAnswer, loopResult.cancelled || _isCancelled.get())) {
+                val responseStatus = GenerationResponsePolicy.classify(loopResult.terminalState)
+                val normalizedAnswer = if (responseStatus == GenerationResponseStatus.SUCCESS) {
+                    ReasoningStreamParser.extractAnswer(loopResult.finalAnswer).ifBlank { streamedAnswer }
+                } else ""
+                when (responseStatus) {
                     GenerationResponseStatus.CANCELLED -> {
                         _generationPhase.value = GenerationPhase.CANCELLED
+                        return@launch
+                    }
+                    GenerationResponseStatus.TIMEOUT -> {
+                        _generationPhase.value = GenerationPhase.CLEANUP
+                        _lastExecutionError.value = ExecutionErrorProjection(
+                            executionId = "generation-$generationId",
+                            message = appContext.getString(R.string.err_agent_loop_timeout),
+                            messageResId = R.string.err_agent_loop_timeout,
+                            stage = ExecutionFailureStage.AGENT_LOOP,
+                            sessionId = sessionId,
+                            replyToMessageId = userMessage.id
+                        )
+                        return@launch
+                    }
+                    GenerationResponseStatus.FAILURE -> {
+                        _generationPhase.value = GenerationPhase.CLEANUP
+                        val classification = ExecutionFailurePolicy.classify(
+                            rawMessage = loopResult.failureMessage,
+                            responseStarted = firstTokenReceived
+                        )
+                        val failureResId = when (classification.kind) {
+                            ExecutionFailureKind.PROVIDER_CREDENTIALS -> R.string.err_cloud_credentials_invalid
+                            ExecutionFailureKind.PROVIDER_MODEL_UNAVAILABLE -> R.string.err_cloud_model_unavailable
+                            ExecutionFailureKind.PROVIDER_QUOTA_EXHAUSTED -> R.string.err_cloud_quota_exhausted
+                            ExecutionFailureKind.PROVIDER_REJECTED -> R.string.err_cloud_request_rejected
+                            ExecutionFailureKind.PROVIDER_CONTEXT_LIMIT -> R.string.err_cloud_context_limit
+                            ExecutionFailureKind.PROVIDER_CONTENT_FILTERED -> R.string.err_cloud_content_filtered
+                            ExecutionFailureKind.PROVIDER_RATE_LIMIT -> R.string.err_cloud_rate_limited
+                            ExecutionFailureKind.PROVIDER_TIMEOUT -> R.string.err_cloud_timeout
+                            ExecutionFailureKind.PROVIDER_UNAVAILABLE -> R.string.err_cloud_unavailable
+                            ExecutionFailureKind.AGENT_LOOP_FAILED -> R.string.err_agent_loop_failed
+                            ExecutionFailureKind.RESPONSE_FAILED -> R.string.err_generation_failed
+                        }
+                        _lastExecutionError.value = ExecutionErrorProjection(
+                            executionId = "generation-$generationId",
+                            message = appContext.getString(failureResId),
+                            messageResId = failureResId,
+                            stage = classification.stage,
+                            sessionId = sessionId,
+                            replyToMessageId = userMessage.id
+                        )
                         return@launch
                     }
                     GenerationResponseStatus.EMPTY_RESPONSE -> {
                         _generationPhase.value = GenerationPhase.CLEANUP
                         _lastExecutionError.value = ExecutionErrorProjection(
                             executionId = "generation-$generationId",
-                            message = appContext.getString(R.string.err_empty_response)
+                            message = appContext.getString(R.string.err_empty_response),
+                            messageResId = R.string.err_empty_response,
+                            stage = ExecutionFailureStage.RESPONSE,
+                            sessionId = sessionId,
+                            replyToMessageId = userMessage.id
                         )
                         Log.e("AIRI_LOOP", "EMPTY_RESPONSE generation=$generationId model=$requestedModelIdAtDispatch provider=$requestedProviderIdAtDispatch")
                         return@launch
@@ -2160,16 +2265,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 com.airi.assistant.domain.verification.VerificationTracker.record(
                     com.airi.assistant.domain.verification.VerificationEvent(
                         type = "AGENT_LOOP", latencyMs = elapsedMs, tokens = tokenCount,
-                        wasCut = loopResult.cancelled, queryType = queryType.name
+                        wasCut = false, queryType = queryType.name
                     )
                 )
                 com.airi.assistant.core.debug.RuntimeStore.update {
                     copy(totalLatencyMs = elapsedMs, tokensPerSecond = tps, fastPath = false,
-                         wasCut = loopResult.cancelled, lastQueryType = queryType.name)
+                         wasCut = false, lastQueryType = queryType.name)
                 }
                 _debugState.update { it.copy(
                     lastTotalLatencyMs = elapsedMs, lastTokensPerSec = tps,
-                    lastWasCut = loopResult.cancelled, lastModelName = _modelState.value.selectedModelName
+                    lastWasCut = false, lastModelName = _modelState.value.selectedModelName
                 )}
                 AnalyticsService.responseGenerated(elapsedMs, tps, _modelState.value.selectedModelName, false)
 
@@ -2180,14 +2285,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         content = normalizedAnswer,
                         projectId = activeProjectId
                     )
-                    _messages.update {
-                        it + ChatMessage(
-                            text       = normalizedAnswer,
-                            isUser     = false,
-                            id         = assistantMsg.id,
-                            execOrigin = _lastExecOrigin.value,
-                            executionSource = hybridOrchestrator.lastExecutionSource
-                        )
+                    if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
+                        _messages.update {
+                            it + ChatMessage(
+                                text       = normalizedAnswer,
+                                isUser     = false,
+                                id         = assistantMsg.id,
+                                execOrigin = _lastExecOrigin.value,
+                                executionSource = hybridOrchestrator.lastExecutionSource
+                            )
+                        }
                     }
                     if (wasEmpty) autoTitleAfterSuccessfulResponse(sessionId, trimmedInput)
                     // Record inference outcome for adaptive intelligence
@@ -2203,7 +2310,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     // backends. It is intentionally not charged again as a daily
                     // interaction credit, which would exhaust the visible budget.
                     refreshTodayTokens()
-                    _smartReplies.value = ResponseOptimizer.generateSuggestions(normalizedAnswer)
+                    if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
+                        _smartReplies.value = ResponseOptimizer.generateSuggestions(normalizedAnswer)
+                    }
                     subscriptionManager.recordConsecutiveSuccess()
                     val successes = subscriptionManager.getConsecutiveSuccesses()
                     val successLevel = PaywallTriggerEngine.onSuccessfulResponse(successes, subscriptionManager.isPremium())
@@ -2231,14 +2340,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 if (isCurrentGeneration(generationId) && !_isCancelled.get()) {
                     Log.e("AIRI_LOOP", "AgentLoop failed type=${e.javaClass.simpleName} message=${e.message}", e)
-                    // Keep the stable localized heading, but include the sanitized
-                    // backend reason so provider/model failures are diagnosable
-                    // instead of appearing as an indistinguishable retry loop.
-                    val detail = e.message?.trim()?.take(240).orEmpty()
+                    val classification = ExecutionFailurePolicy.classify(
+                        rawMessage = e.message,
+                        responseStarted = firstTokenReceived
+                    )
+                    val messageResId = when (classification.kind) {
+                        ExecutionFailureKind.PROVIDER_CREDENTIALS -> R.string.err_cloud_credentials_invalid
+                        ExecutionFailureKind.PROVIDER_MODEL_UNAVAILABLE -> R.string.err_cloud_model_unavailable
+                        ExecutionFailureKind.PROVIDER_QUOTA_EXHAUSTED -> R.string.err_cloud_quota_exhausted
+                        ExecutionFailureKind.PROVIDER_REJECTED -> R.string.err_cloud_request_rejected
+                        ExecutionFailureKind.PROVIDER_CONTEXT_LIMIT -> R.string.err_cloud_context_limit
+                        ExecutionFailureKind.PROVIDER_CONTENT_FILTERED -> R.string.err_cloud_content_filtered
+                        ExecutionFailureKind.PROVIDER_RATE_LIMIT -> R.string.err_cloud_rate_limited
+                        ExecutionFailureKind.PROVIDER_TIMEOUT -> R.string.err_cloud_timeout
+                        ExecutionFailureKind.PROVIDER_UNAVAILABLE -> R.string.err_cloud_unavailable
+                        ExecutionFailureKind.AGENT_LOOP_FAILED -> R.string.err_agent_loop_failed
+                        ExecutionFailureKind.RESPONSE_FAILED -> R.string.err_generation_failed
+                    }
                     _lastExecutionError.value = ExecutionErrorProjection(
                         executionId = "generation-$generationId",
-                        message = appContext.getString(R.string.err_generation_failed),
-                        detail = detail,
+                        message = appContext.getString(messageResId),
+                        messageResId = messageResId,
+                        stage = classification.stage,
+                        sessionId = sessionId,
+                        replyToMessageId = userMessage.id
                     )
                 }
             } finally {
@@ -2626,6 +2751,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun builtinProviderToRemoteModel(
         config: com.airi.assistant.execution.cloud.EmbeddedProviderConfig.ProviderConfig
     ): RemoteModel? {
+        val baseUrl = com.airi.assistant.execution.cloud.EmbeddedProviderConfig.effectiveBaseUrl(appContext, config)
+        if (baseUrl.isBlank() ||
+            com.airi.assistant.execution.cloud.LocalEndpointPolicy.normalizeAllowedEndpoint(baseUrl) == null
+        ) {
+            Log.w("AIRI_CLOUD", "Built-in provider ${config.id} has no valid endpoint configured")
+            return null
+        }
         val apiKey = when (config.tier) {
             com.airi.assistant.execution.cloud.EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER -> ""
             else -> {
@@ -2644,7 +2776,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // directly into the JSON "model" field of every request body. Sending the display label
             // caused every built-in provider to receive a model-not-found error from the upstream API.
             name      = config.defaultModel,
-            serverUrl = config.baseUrl,
+            serverUrl = baseUrl,
             apiKey    = apiKey,
             isActive  = true
         )
@@ -2665,12 +2797,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      *    so the UI reads the final settled state.
      */
     fun activateBuiltinProvider(
-        config: com.airi.assistant.execution.cloud.EmbeddedProviderConfig.ProviderConfig
-    ) {
+        config: com.airi.assistant.execution.cloud.EmbeddedProviderConfig.ProviderConfig,
+        localEndpoint: String? = null,
+    ): Boolean {
+        if (config.tier == com.airi.assistant.execution.cloud.EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER) {
+            val endpoint = localEndpoint
+                ?: com.airi.assistant.execution.cloud.EmbeddedProviderConfig.getLocalEndpoint(appContext, config)
+            if (com.airi.assistant.execution.cloud.LocalEndpointPolicy.normalizeAllowedEndpoint(endpoint) == null) {
+                Log.w("AIRI_CLOUD", "Local provider activation rejected: endpoint is missing or not permitted")
+                return false
+            }
+            if (localEndpoint != null &&
+                !com.airi.assistant.execution.cloud.EmbeddedProviderConfig.saveLocalEndpoint(appContext, config, endpoint)
+            ) return false
+        }
+        val remote = builtinProviderToRemoteModel(config)
+        if (remote == null) {
+            refreshCloudReadiness()
+            return false
+        }
         com.airi.assistant.execution.cloud.EmbeddedProviderConfig.setActiveProvider(appContext, config)
         // Bridge to RemoteModelRegistry so sendMessage() routing finds it
-        val remote = builtinProviderToRemoteModel(config)
-        if (remote != null) {
+        run {
             RemoteModelRegistry.add(remote)
             RemoteModelRegistry.setActive(remote.id)
             // M-2: Write preferredProvider BEFORE refreshCloudReadiness() so
@@ -2703,11 +2851,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _executionMode.value = ExecutionMode.HYBRID
             }
             Log.i("AIRI_CLOUD", "activateBuiltinProvider: bridged ${config.id} → RemoteModel ${remote.id} provider=${config.provider.name}")
-        } else {
-            Log.w("AIRI_CLOUD", "activateBuiltinProvider: ${config.id} has no key yet — needs API key entry")
         }
         // O-3: refreshCloudReadiness executes after all prefs writes above.
         refreshCloudReadiness()
+        return true
     }
 
     /**
@@ -2731,7 +2878,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * [RemoteModelRegistry.getActive()] for the endpoint and key.
      * [refreshCloudReadiness] is called AFTER all preference writes (O-3).
      */
-    fun activateRemoteModel(model: RemoteModel) {
+    fun activateRemoteModel(model: RemoteModel): Boolean {
+        if (com.airi.assistant.execution.cloud.LocalEndpointPolicy.normalizeAllowedEndpoint(model.serverUrl) == null) {
+            Log.w("AIRI_CLOUD", "Custom endpoint activation rejected by endpoint security policy")
+            return false
+        }
         RemoteModelRegistry.add(model)
         RemoteModelRegistry.setActive(model.id)
         // M-1: Write preferredProvider = CUSTOM so CloudBackend evaluates the
@@ -2745,6 +2896,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         // O-3: refreshCloudReadiness executes after all prefs writes above.
         refreshCloudReadiness()
+        return true
     }
 
     /** Deactivate ALL cloud sources — local-only mode. */
@@ -2912,16 +3064,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * delegate so existing callers (and the speech tests) keep working,
      * but **all new UI code goes through this function**.
      *
-     * Capability decision (the *only* fork in the unified path):
-     *   1. If at least one attachment is an image AND vision is ready
-     *      (mmproj loaded + capability flag) → call the native vision
-     *      pipeline with the first image. Any *additional* attachments
-     *      become text markers appended after the prompt so the model
-     *      still knows about them.
-     *   2. Otherwise → every attachment becomes a `[image: …]` /
-     *      `[file: …]` text marker and the message goes through the
-     *      normal text [sendMessage] path. This matches the old
-     *      "[ATTACHMENT: image: name]" fallback but works for files too.
+     * Only images and readable plain-text files are currently dispatched.
+     * Images must go to a vision-capable route; every selected image is sent
+     * as image content, while text-file contents are extracted with a hard
+     * size limit. Other file types are rejected before copying or sending.
      *
      * No hidden forks: the only branching is this one block.
      */
@@ -2953,6 +3099,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             sendMessage(input.trim())
             return
         }
+        if (attachments.any { !it.isVisualImage && !it.isTextual }) {
+            onRejected(AttachmentDispatchFailure.UNSUPPORTED_CONTENT)
+            return
+        }
         if (_attachmentDispatchInFlight.value) {
             onRejected(AttachmentDispatchFailure.GENERATION_IN_PROGRESS)
             return
@@ -2971,12 +3121,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val visionReady = localVisionReady || cloudVisionReady
         val preflightFailure = AttachmentDispatchPolicy.preflight(
             modelLoading = _modelState.value.isModelLoading,
-            generationInProgress = _agentState.value.isWorking,
+            generationInProgress = activeGenerationId != 0L || _agentState.value.isWorking,
             hasVisualImage = attachments.any { it.isVisualImage },
             visionReady = visionReady,
         )
         if (preflightFailure != null) {
             onRejected(preflightFailure)
+            return
+        }
+        val visualImageCount = attachments.count { it.isVisualImage }
+        val imageRoute = AttachmentDispatchPolicy.imageRoute(
+            imageCount = visualImageCount,
+            localVisionReady = localVisionReady,
+            cloudVisionReady = cloudVisionReady,
+            cloudMaxImages = cloudDescriptor?.limits?.maxImages ?: 0,
+        )
+        if (visualImageCount > 0 && imageRoute == null) {
+            onRejected(
+                if (visualImageCount > 1) AttachmentDispatchFailure.MULTI_IMAGE_UNSUPPORTED
+                else AttachmentDispatchFailure.VISION_UNAVAILABLE
+            )
             return
         }
 
@@ -3032,6 +3196,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val sessionAtDispatch = _currentSessionId.value
+        if (sessionAtDispatch.isBlank()) {
+            onRejected(AttachmentDispatchFailure.SESSION_CHANGED)
+            return
+        }
         _attachmentDispatchInFlight.value = true
         viewModelScope.launch {
             try {
@@ -3053,9 +3221,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (destFile.exists() && destFile.length() == 0L) destFile.delete()
                 if (!destFile.exists()) {
                     tempFile.delete()
+                    val maxBytes = AttachmentDispatchPolicy.maximumSizeBytes(att.contentType)
+                    val tooLargeFailure = requireNotNull(
+                        AttachmentDispatchPolicy.sizeFailure(maxBytes + 1L, att.contentType)
+                    )
                     when {
                         att.uri != null -> appContext.contentResolver.openInputStream(att.uri)?.use { input ->
-                            tempFile.outputStream().use { out -> input.copyTo(out) }
+                            tempFile.outputStream().use { out ->
+                                copyAttachmentBounded(input, out, maxBytes, tooLargeFailure)
+                            }
                         }
                         att.bitmap != null -> tempFile.outputStream().use { output ->
                             check(att.bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)) {
@@ -3064,7 +3238,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                     if ((att.uri != null || att.bitmap != null) && tempFile.exists()) {
-                        check(tempFile.length() in 1L..AttachmentPolicy.MAX_ATTACHMENT_BYTES) { "Attachment is too large" }
+                        AttachmentDispatchPolicy.sizeFailure(tempFile.length(), att.contentType)?.let {
+                            throw AttachmentSizeLimitException(it)
+                        }
+                        check(tempFile.length() > 0L) { "Attachment is empty" }
                         check(tempFile.renameTo(destFile)) { "Attachment could not be committed" }
                     }
                 }
@@ -3072,6 +3249,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     tempFile.delete()
                     destFile.delete()
                     return@runCatching null
+                }
+                AttachmentDispatchPolicy.sizeFailure(destFile.length(), att.contentType)?.let {
+                    throw AttachmentSizeLimitException(it)
                 }
 
                 val mediaType = when (att.contentType) {
@@ -3086,7 +3266,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 sourceFile = destFile,
                                 type = mediaType,
                                 mimeType = att.mimeType ?: if (att.contentType == com.airi.core.attachments.AttachmentPolicy.ContentType.VIDEO) "video/*" else "image/jpeg",
-                                sessionId = _currentSessionId.value
+                                sessionId = sessionAtDispatch
                             )
                         }
                     }
@@ -3095,7 +3275,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     persistedPath = destFile.absolutePath,
                     sizeBytes = destFile.length()
                 )
-            }.getOrNull()
+            }.getOrElse { error ->
+                if (error is AttachmentSizeLimitException) throw error
+                null
+            }
             }
         }
         val stagingFailure = AttachmentDispatchPolicy.afterStaging(
@@ -3116,13 +3299,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         pendingAttachmentSessionId = sessionAtDispatch
         pendingAttachmentJsonForNextSend = attachmentMetadataJson(persistedAttachments)
         val trimmed = input.trim()
-        val textAttachmentContext = withContext(Dispatchers.IO) {
-            buildTextAttachmentContext(persistedAttachments, trimmed)
+        val textAttachmentContext = runCatching {
+            withContext(Dispatchers.IO) { buildTextAttachmentContext(persistedAttachments) }
+        }.getOrElse {
+            if (pendingAttachmentSessionId == sessionAtDispatch) {
+                pendingAttachmentSessionId = null
+                pendingAttachmentJsonForNextSend = null
+            }
+            onRejected(AttachmentDispatchFailure.TEXT_EXTRACTION_FAILED)
+            return@launch
         }
 
-        // Find the first visual image attachment, if any.
-        val primaryImage = persistedAttachments.firstOrNull { it.isVisualImage }
-        val extras       = persistedAttachments - listOfNotNull(primaryImage).toSet()
+        val visualImages = persistedAttachments.filter { it.isVisualImage }
+        val primaryImage = visualImages.firstOrNull()
+        val extras = persistedAttachments.filterNot { it.isVisualImage }
 
         Log.i(
             "AIRI",
@@ -3131,17 +3321,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "extras=${extras.size} vision_ready=$visionReady"
         )
 
-        if (primaryImage != null && !visionReady) {
-            if (pendingAttachmentSessionId == sessionAtDispatch) {
-                pendingAttachmentSessionId = null
-                pendingAttachmentJsonForNextSend = null
-            }
-            onRejected(AttachmentDispatchFailure.VISION_UNAVAILABLE)
-            return@launch
-        }
-
         if (primaryImage != null) {
-            onAccepted()
             val attachmentContext = listOf(
                 extras.joinToString(separator = "\n") { it.toTextMarker() },
                 textAttachmentContext
@@ -3149,21 +3329,48 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val fullText = if (attachmentContext.isBlank()) trimmed
                            else if (trimmed.isBlank()) attachmentContext
                            else "$trimmed\n\n$attachmentContext"
-            if (cloudVisionReady && !localVisionReady) {
-                val imagePart = withContext(Dispatchers.IO) { visionImagePart(primaryImage) }
-                if (imagePart == null || !sendMessageInternal(
-                        input = fullText,
-                        allowLongTextConversion = false,
-                        expectedSessionId = sessionAtDispatch,
-                        visionParts = listOf(imagePart)
-                    )) {
+            if (imageRoute == ImageDispatchRoute.CLOUD_VISION) {
+                val imageParts = withContext(Dispatchers.IO) { visualImages.mapNotNull(::visionImagePart) }
+                if (imageParts.size != visualImages.size) {
                     if (pendingAttachmentSessionId == sessionAtDispatch) {
                         pendingAttachmentSessionId = null
                         pendingAttachmentJsonForNextSend = null
                     }
+                    onRejected(AttachmentDispatchFailure.STAGING_FAILED)
+                    return@launch
+                }
+                pendingImageUriForNextSend = primaryImage.persistedPath?.let { Uri.fromFile(File(it)).toString() }
+                if (!sendMessageInternal(
+                        input = fullText,
+                        allowLongTextConversion = false,
+                        expectedSessionId = sessionAtDispatch,
+                        visionParts = imageParts,
+                        onAccepted = onAccepted,
+                    )) {
+                    if (pendingAttachmentSessionId == sessionAtDispatch) {
+                        pendingAttachmentSessionId = null
+                        pendingImageUriForNextSend = null
+                        pendingAttachmentJsonForNextSend = null
+                    }
+                    onRejected(AttachmentDispatchFailure.DISPATCH_FAILED)
                 }
             } else {
-                sendMessageWithImage(fullText, primaryImage.uri, primaryImage.bitmap)
+                val persistedUri = primaryImage.persistedPath?.let { Uri.fromFile(File(it)) }
+                if (persistedUri == null) {
+                    if (pendingAttachmentSessionId == sessionAtDispatch) {
+                        pendingAttachmentSessionId = null
+                        pendingAttachmentJsonForNextSend = null
+                    }
+                    onRejected(AttachmentDispatchFailure.STAGING_FAILED)
+                    return@launch
+                }
+                sendMessageWithImage(
+                    input = fullText,
+                    imageUri = persistedUri,
+                    capturedBitmap = null,
+                    onAccepted = onAccepted,
+                    onRejected = onRejected,
+                )
             }
         } else {
             val attachmentContext = listOf(
@@ -3175,42 +3382,67 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     fullText,
                     allowLongTextConversion = false,
                     expectedSessionId = sessionAtDispatch,
+                    onAccepted = onAccepted,
                 )) {
-                onAccepted()
             } else {
                 if (pendingAttachmentSessionId == sessionAtDispatch) {
                     pendingAttachmentSessionId = null
                     pendingAttachmentJsonForNextSend = null
                 }
+                onRejected(AttachmentDispatchFailure.DISPATCH_FAILED)
             }
         }
+            } catch (error: AttachmentSizeLimitException) {
+                if (pendingAttachmentSessionId == sessionAtDispatch) {
+                    pendingAttachmentSessionId = null
+                    pendingImageUriForNextSend = null
+                    pendingAttachmentJsonForNextSend = null
+                }
+                runCatching {
+                    File(appContext.filesDir, "attachments").listFiles()
+                        ?.filter { it.name.startsWith(".") && it.name.endsWith(".part") }
+                        ?.forEach(File::delete)
+                }
+                runCatching { onRejected(error.dispatchFailure) }
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                Log.e("AIRI", "ATTACHMENT_DISPATCH_FAILED type=${error.javaClass.simpleName}", error)
+                if (pendingAttachmentSessionId == sessionAtDispatch) {
+                    pendingAttachmentSessionId = null
+                    pendingImageUriForNextSend = null
+                    pendingAttachmentJsonForNextSend = null
+                }
+                runCatching { onRejected(AttachmentDispatchFailure.STAGING_FAILED) }
             } finally {
                 _attachmentDispatchInFlight.value = false
             }
         }
     }
 
-    private fun buildTextAttachmentContext(attachments: List<ChatAttachment>, query: String): String {
+    private fun buildTextAttachmentContext(attachments: List<ChatAttachment>): String {
         var remainingChars = AttachmentPolicy.MAX_TEXT_CONTENT_CHARS
         val textualAttachments = attachments.filter { it.isTextual && !it.persistedPath.isNullOrBlank() }
         val context = StringBuilder()
-        textualAttachments.forEachIndexed { index, attachment ->
-            if (remainingChars <= 0) return@forEachIndexed
-            val attachmentsRemaining = textualAttachments.size - index
-            val readLimit = (remainingChars / attachmentsRemaining).coerceAtLeast(1)
-            val content = runCatching {
+        textualAttachments.forEach { attachment ->
+            if (remainingChars <= 0) throw IllegalStateException("Text attachments exceed the extraction limit.")
+            val maxRead = remainingChars + 1
+            val rawContent = runCatching {
                 File(requireNotNull(attachment.persistedPath)).bufferedReader().use { reader ->
                     val bounded = StringBuilder()
-                    val buffer = CharArray(minOf(2_048, readLimit))
-                    while (bounded.length < readLimit) {
-                        val read = reader.read(buffer, 0, minOf(buffer.size, readLimit - bounded.length))
+                    val buffer = CharArray(minOf(2_048, maxRead))
+                    while (bounded.length < maxRead) {
+                        val read = reader.read(buffer, 0, minOf(buffer.size, maxRead - bounded.length))
                         if (read <= 0) break
                         bounded.append(buffer, 0, read)
                     }
-                    bounded.toString().replace("\u0000", "").trim()
+                    bounded.toString()
                 }
-            }.getOrNull().orEmpty()
-            if (content.isBlank()) return@forEachIndexed
+            }.getOrElse { throw IllegalStateException("Text attachment could not be read.", it) }
+            if (rawContent.length > remainingChars) {
+                throw IllegalStateException("Text attachments exceed the extraction limit.")
+            }
+            val content = rawContent.replace("\u0000", "").trim()
+            if (content.isBlank()) throw IllegalStateException("Text attachment is empty or unreadable.")
 
             val chunks = com.airi.core.attachments.StructuredTextChunker.split(
                 attachmentId = attachment.id,
@@ -3221,14 +3453,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // A file attachment is an explicit user request for its content.
             // Do not use relevance selection here: it silently dropped chunks
             // from long files and made the model receive only a partial file.
+            if (chunks.isEmpty()) throw IllegalStateException("Text attachment produced no readable content.")
             chunks.forEach { chunk ->
-                if (remainingChars <= 0) return@forEach
-                context.append("BEGIN UNTRUSTED TEXT ATTACHMENT: ")
-                    .append(attachment.safeDisplayName)
-                    .append(" [").append(chunk.chunkId).append("]\n")
-                    .append(chunk.text)
-                    .append("\nEND UNTRUSTED TEXT ATTACHMENT\n\n")
-                remainingChars -= chunk.text.length
+                val renderedChunk = buildString {
+                    append("BEGIN UNTRUSTED TEXT ATTACHMENT: ")
+                    append(attachment.safeDisplayName)
+                    append(" [").append(chunk.chunkId).append("]\n")
+                    append(chunk.text)
+                    append("\nEND UNTRUSTED TEXT ATTACHMENT\n\n")
+                }
+                if (renderedChunk.length > remainingChars) {
+                    throw IllegalStateException("Combined text attachments exceed the extraction limit.")
+                }
+                context.append(renderedChunk)
+                remainingChars -= renderedChunk.length
             }
         }
         return context.toString().trim()
@@ -3281,14 +3519,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         else -> null
     }
 
-    fun sendMessageWithImage(input: String, imageUri: Uri?, capturedBitmap: Bitmap?) {
+    fun sendMessageWithImage(
+        input: String,
+        imageUri: Uri?,
+        capturedBitmap: Bitmap?,
+        onAccepted: () -> Unit = {},
+        onRejected: (AttachmentDispatchFailure) -> Unit = {},
+    ) {
         val trimmedInput = input.trim()
         // Branch A: nothing attached → existing text path.
         if (imageUri == null && capturedBitmap == null) {
-            sendMessage(trimmedInput)
+            if (sendMessage(trimmedInput)) onAccepted() else onRejected(AttachmentDispatchFailure.DISPATCH_FAILED)
             return
         }
-        if (_modelState.value.isModelLoading || _agentState.value.isWorking) return
+        if (_modelState.value.isModelLoading) {
+            onRejected(AttachmentDispatchFailure.MODEL_LOADING)
+            return
+        }
+        if (activeGenerationId != 0L || _agentState.value.isWorking) {
+            onRejected(AttachmentDispatchFailure.GENERATION_IN_PROGRESS)
+            return
+        }
         _lastExecutionError.value = null
 
         // ── : Privacy gate enforcement ─────────────────────────────────
@@ -3326,78 +3577,50 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         if (!visionReady) {
             Log.i("AIRI", "VISION_REQUEST_REJECTED reason=no_vision_wired name=$attachmentName")
-            _messages.update {
-                it + ChatMessage(
-                    "لا يوجد نموذج رؤية جاهز لتحليل الصورة. لم تُرسل الصورة إلى نموذج نصي؛ اختر نموذجاً يدعم الرؤية ثم أعد المحاولة.",
-                    isUser = false
-                )
-            }
+            onRejected(AttachmentDispatchFailure.VISION_UNAVAILABLE)
             return
         }
 
         // Branch B: real vision call.
         val sessionAtDispatch = _currentSessionId.value
-        val attachmentJson = pendingAttachmentJsonForNextSend.takeIf {
-            pendingAttachmentSessionId == sessionAtDispatch
-        }
-        if (pendingAttachmentSessionId == sessionAtDispatch) {
-            pendingAttachmentSessionId = null
-            pendingAttachmentJsonForNextSend = null
-        }
         val current = ModelManager.getCurrent()
         if (current == null || !_modelState.value.isModelReady) {
-            _messages.update {
-                it + ChatMessage(appContext.getString(R.string.err_load_text_model_first), isUser = false)
-            }
+            onRejected(AttachmentDispatchFailure.CAPABILITY_UNAVAILABLE)
             return
         }
 
         val modelIdAtDispatch = current.id
-        if (sessionAtDispatch.isBlank()) return
+        if (sessionAtDispatch.isBlank()) {
+            onRejected(AttachmentDispatchFailure.SESSION_CHANGED)
+            return
+        }
         val generationId = generationSequence.incrementAndGet()
         activeGenerationId = generationId
+        activeGenerationSessionId = sessionAtDispatch
         viewModelScope.launch {
             if (!isCurrentGeneration(generationId)) return@launch
-            if (_currentSessionId.value != sessionAtDispatch ||
-                ModelManager.getCurrent()?.id != modelIdAtDispatch
-            ) {
+            if (ModelManager.getCurrent()?.id != modelIdAtDispatch) {
                 finishGeneration(generationId)
+                onRejected(AttachmentDispatchFailure.DISPATCH_FAILED)
                 return@launch
             }
-            _agentState.value = AgentState(isWorking = true, currentAction = appContext.getString(R.string.generating))
+            var acceptedUserMessageId: Long? = null
+            try {
+            _agentState.value = AgentState(
+                isWorking = true,
+                currentAction = appContext.getString(R.string.generating),
+                sessionId = sessionAtDispatch,
+            )
             _generationPhase.value = GenerationPhase.PREFILL
             _isGenerating.value = true
             _isCancelled.set(false)
             generationStartMs = System.currentTimeMillis()
             val sessionId = sessionAtDispatch
-            val activeProjectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
-            val wasEmpty = _messages.value.isEmpty()
-
-            // Record the user's turn FIRST (with a structured marker so the
-            // chat history stays text-serializable for memory/export).
-            val userMarker = if (trimmedInput.isBlank()) "[image: $attachmentName]"
-                             else "$trimmedInput\n\n[image: $attachmentName]"
-            val userMsg = memoryManager.recordChatMessage(
-                sessionId = sessionId,
-                role = "user",
-                content = userMarker,
-                attachmentJson = attachmentJson,
-                projectId = activeProjectId
-            )
-            _messages.update {
-                it + ChatMessage(
-                    text = userMarker,
-                    isUser = true,
-                    id = userMsg.id,
-                    imageUri = displayableUri
-                )
-            }
-
-            subscriptionManager.recordMessage()
-            AnalyticsService.messageSent()
 
             _agentState.update { it.copy(currentAction = appContext.getString(R.string.generating)) }
-            _streamingText.value = ""
+            if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
+                _streamingText.value = ""
+            }
 
             // ── Bitmap prep (off the main thread) ────────────────────────
             val rgbBundle = withContext(Dispatchers.Default) {
@@ -3414,17 +3637,55 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
             if (_isCancelled.get() || !isCurrentGeneration(generationId)) {
                 finishGeneration(generationId)
+                onRejected(AttachmentDispatchFailure.DISPATCH_FAILED)
                 return@launch
             }
             if (rgbBundle == null) {
                 _lastExecutionError.value = ExecutionErrorProjection(
                     executionId = "generation-$generationId",
                     message = appContext.getString(R.string.err_image_process_failed),
+                    messageResId = R.string.err_image_process_failed,
+                    stage = ExecutionFailureStage.ATTACHMENT,
+                    sessionId = sessionId
                 )
                 finishGeneration(generationId)
+                onRejected(AttachmentDispatchFailure.STAGING_FAILED)
                 return@launch
             }
             val (rgb888, w, h) = rgbBundle
+
+            val activeProjectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
+            val wasEmpty = _messages.value.isEmpty()
+            val attachmentJson = pendingAttachmentJsonForNextSend.takeIf {
+                pendingAttachmentSessionId == sessionId
+            }
+            val userMarker = if (trimmedInput.isBlank()) "[image: $attachmentName]"
+                             else "$trimmedInput\n\n[image: $attachmentName]"
+            val userMsg = memoryManager.recordChatMessage(
+                sessionId = sessionId,
+                role = "user",
+                content = userMarker,
+                attachmentJson = attachmentJson,
+                projectId = activeProjectId
+            )
+            acceptedUserMessageId = userMsg.id
+            if (pendingAttachmentSessionId == sessionId) {
+                pendingAttachmentSessionId = null
+                pendingAttachmentJsonForNextSend = null
+            }
+            if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
+                _messages.update {
+                    it + ChatMessage(
+                        text = userMarker,
+                        isUser = true,
+                        id = userMsg.id,
+                        imageUri = displayableUri
+                    )
+                }
+            }
+            subscriptionManager.recordMessage()
+            AnalyticsService.messageSent()
+            onAccepted()
 
             // Token cap: vision prefill is expensive, no point asking for
             // 1k tokens — clip to 256.
@@ -3450,14 +3711,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             finishGeneration(generationId)
                             return@launch
                         }
+                        if (fullText.isBlank()) {
+                            _lastExecutionError.value = ExecutionErrorProjection(
+                                executionId = "generation-$generationId",
+                                message = appContext.getString(R.string.err_empty_response),
+                                messageResId = R.string.err_empty_response,
+                                stage = ExecutionFailureStage.RESPONSE,
+                                sessionId = sessionId,
+                                replyToMessageId = userMsg.id,
+                            )
+                            finishGeneration(generationId)
+                            return@launch
+                        }
                         val asstMsg = memoryManager.recordChatMessage(
                             sessionId = sessionId,
                             role = "assistant",
                             content = fullText,
                             projectId = activeProjectId
                         )
-                        _messages.update {
-                            it + ChatMessage(fullText, isUser = false, id = asstMsg.id)
+                        if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
+                            _messages.update {
+                                it + ChatMessage(fullText, isUser = false, id = asstMsg.id)
+                            }
                         }
                         if (wasEmpty) autoTitleAfterSuccessfulResponse(sessionId, visionPrompt)
                         finishGeneration(generationId)
@@ -3477,12 +3752,32 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _lastExecutionError.value = ExecutionErrorProjection(
                             executionId = "generation-$generationId",
                             message = appContext.getString(R.string.err_image_analyze_failed),
-                            detail = errMsg,
+                            messageResId = R.string.err_image_analyze_failed,
+                            stage = ExecutionFailureStage.RESPONSE,
+                            sessionId = sessionId,
+                            replyToMessageId = userMsg.id
                         )
                         finishGeneration(generationId)
                     }
                 }
             )
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) {
+                    finishGeneration(generationId)
+                    return@launch
+                }
+                Log.e("AIRI", "VISION_GENERATION_SETUP_FAILED type=${error.javaClass.simpleName}", error)
+                _lastExecutionError.value = ExecutionErrorProjection(
+                    executionId = "generation-$generationId",
+                    message = appContext.getString(R.string.err_generation_failed),
+                    messageResId = R.string.err_generation_failed,
+                    stage = if (acceptedUserMessageId == null) ExecutionFailureStage.ATTACHMENT else ExecutionFailureStage.RESPONSE,
+                    sessionId = sessionAtDispatch,
+                    replyToMessageId = acceptedUserMessageId,
+                )
+                runCatching { onRejected(AttachmentDispatchFailure.DISPATCH_FAILED) }
+                finishGeneration(generationId)
+            }
         }
     }
 

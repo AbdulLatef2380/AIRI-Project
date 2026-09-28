@@ -81,6 +81,8 @@ fun ModelLibraryScreen(
 
     // Key entry dialog state
     var keyDialog         by remember { mutableStateOf<EmbeddedProviderConfig.ProviderConfig?>(null) }
+    var localEndpointDialog by remember { mutableStateOf<EmbeddedProviderConfig.ProviderConfig?>(null) }
+    var localEndpointDraft by remember { mutableStateOf("") }
     // Brave Search API key dialog (uses CloudProvider directly, not EmbeddedProviderConfig)
     var keyDialogProvider by remember { mutableStateOf<com.airi.assistant.execution.CloudProvider?>(null) }
 
@@ -170,11 +172,15 @@ fun ModelLibraryScreen(
                     isActive = isActive,
                     hasKey   = hasKey,
                     onConnect = {
-                        if (hasKey || config.tier == EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER) {
+                        if (config.tier == EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER) {
+                            localEndpointDraft = EmbeddedProviderConfig.getLocalEndpoint(context, config)
+                            localEndpointDialog = config
+                        } else if (hasKey) {
                             scope.launch {
-                                viewModel.activateBuiltinProvider(config)
-                                activeProv = config
-                                snackbar.showSnackbar(context.getString(R.string.model_activated, config.displayLabel), duration = SnackbarDuration.Short)
+                                if (viewModel.activateBuiltinProvider(config)) {
+                                    activeProv = config
+                                    snackbar.showSnackbar(context.getString(R.string.model_activated, config.displayLabel), duration = SnackbarDuration.Short)
+                                }
                             }
                         } else {
                             keyDialog = config
@@ -222,7 +228,7 @@ fun ModelLibraryScreen(
                 )
             }
 
-            items(OPENROUTER_TASK_MODELS, key = { it.modelId }) { entry ->
+            items(OPENROUTER_TASK_MODELS, key = { it.taskKey }) { entry ->
                 OpenRouterTaskModelCard(entry = entry)
             }
 
@@ -242,6 +248,47 @@ fun ModelLibraryScreen(
                     snackbar.showSnackbar(context.getString(R.string.model_connected, config.displayLabel), duration = SnackbarDuration.Short)
                 }
             }
+        )
+    }
+    localEndpointDialog?.let { config ->
+        val endpointAllowed = com.airi.assistant.execution.cloud.LocalEndpointPolicy.isAllowed(localEndpointDraft)
+        AlertDialog(
+            onDismissRequest = { localEndpointDialog = null },
+            title = { Text(stringResource(R.string.local_endpoint_title, config.displayLabel)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.local_endpoint_help), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
+                    OutlinedTextField(
+                        value = localEndpointDraft,
+                        onValueChange = { localEndpointDraft = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.local_endpoint_label)) },
+                        placeholder = { Text(stringResource(R.string.local_endpoint_example)) },
+                        isError = localEndpointDraft.isNotBlank() && !endpointAllowed,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (localEndpointDraft.isNotBlank() && !endpointAllowed) {
+                        Text(stringResource(R.string.local_endpoint_invalid), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = endpointAllowed,
+                    onClick = {
+                        scope.launch {
+                            if (viewModel.activateBuiltinProvider(config, localEndpointDraft)) {
+                                activeProv = config
+                                localEndpointDialog = null
+                                snackbar.showSnackbar(context.getString(R.string.model_activated, config.displayLabel), duration = SnackbarDuration.Short)
+                            }
+                        }
+                    },
+                ) { Text(stringResource(R.string.connect)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { localEndpointDialog = null }) { Text(stringResource(R.string.cancel)) }
+            },
         )
     }
     keyDialogProvider?.let { provider ->
@@ -586,6 +633,7 @@ private fun CloudProviderCard(
     }
 }
 private data class TaskModelEntry(
+    val taskKey:    String,
     val modelId:    String,
     val taskLabel:  String,
     val taskIcon:   ImageVector,
@@ -595,6 +643,7 @@ private data class TaskModelEntry(
 
 private val OPENROUTER_TASK_MODELS = listOf(
     TaskModelEntry(
+        taskKey    = "coding",
         modelId    = OpenRouterAdapter.MODEL_CODING,
         taskLabel  = "Coding & Debugging",
         taskIcon   = Icons.Outlined.Code,
@@ -602,6 +651,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         contextLen = "16k"
     ),
     TaskModelEntry(
+        taskKey    = "reasoning",
         modelId    = OpenRouterAdapter.MODEL_REASONING,
         taskLabel  = "Deep Reasoning",
         taskIcon   = Icons.Outlined.Psychology,
@@ -609,6 +659,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         contextLen = "64k"
     ),
     TaskModelEntry(
+        taskKey    = "general",
         modelId    = OpenRouterAdapter.DEFAULT_MODEL,
         taskLabel  = "General & Long Context",
         taskIcon   = Icons.Outlined.AutoAwesome,
@@ -616,6 +667,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         contextLen = "1M"
     ),
     TaskModelEntry(
+        taskKey    = "multilingual",
         modelId    = OpenRouterAdapter.MODEL_MULTILINGUAL,
         taskLabel  = "Arabic & Multilingual",
         taskIcon   = Icons.Outlined.Language,
@@ -623,6 +675,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         contextLen = "128k"
     ),
     TaskModelEntry(
+        taskKey    = "fast",
         modelId    = OpenRouterAdapter.MODEL_FAST,
         taskLabel  = "Fast Responses",
         taskIcon   = Icons.Outlined.FlashOn,

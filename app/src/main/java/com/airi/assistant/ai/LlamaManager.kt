@@ -2,6 +2,7 @@ package com.airi.assistant.ai
 
 import android.content.Context
 import android.util.Log
+import com.airi.assistant.R
 import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.ai.session.SessionHandle
 import com.airi.assistant.memory.entity.ChatMessage
@@ -402,9 +403,10 @@ class LlamaManager(private val context: Context) {
         // can surface the warning banner and snackbar to the user.
         runCatching {
             com.airi.assistant.ui.activity.AgentActivityBus.emit(
-                message  = "Context window full — older conversation history was cleared to continue.",
+                message  = context.getString(R.string.activity_context_window_compacted),
                 category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
-                severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
+                severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
+                machineTag = com.airi.assistant.ui.activity.ActivityEvent.MACHINE_TAG_NATIVE_CONTEXT_RESET
             )
         }
     }
@@ -515,9 +517,10 @@ class LlamaManager(private val context: Context) {
                 // Emit CONTEXT_RESET so the observer in ChatViewModel surfaces the banner.
                 runCatching {
                     com.airi.assistant.ui.activity.AgentActivityBus.emit(
-                        message  = "Model reloaded — context window was reset.",
+                        message  = context.getString(R.string.activity_model_reloaded_context_reset),
                         category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
-                        severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
+                        severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
+                        machineTag = com.airi.assistant.ui.activity.ActivityEvent.MACHINE_TAG_NATIVE_CONTEXT_RESET
                     )
                 }
                 
@@ -553,9 +556,10 @@ class LlamaManager(private val context: Context) {
                     // P1-D: Also emit on the legacy load path.
                     runCatching {
                         com.airi.assistant.ui.activity.AgentActivityBus.emit(
-                            message  = "Model reloaded — context window was reset.",
+                            message  = context.getString(R.string.activity_model_reloaded_context_reset),
                             category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
-                            severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
+                            severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
+                            machineTag = com.airi.assistant.ui.activity.ActivityEvent.MACHINE_TAG_NATIVE_CONTEXT_RESET
                         )
                     }
                     
@@ -602,7 +606,8 @@ class LlamaManager(private val context: Context) {
      * confirm the sequence ran in the expected order.
      */
     fun unloadModel() {
-        Log.i("AIRI", "UNLOAD_REQUESTED was_loaded=$isLoaded")
+        val hadLoadedModel = isLoaded || loadedModelPath != null || sessionPrimed
+        Log.i("AIRI", "UNLOAD_REQUESTED was_loaded=$hadLoadedModel")
         // Cancel BEFORE the dispatcher hop — the in-flight token loop reads
         // this flag every callback and will exit on the next tick.
         cancelRequested.set(true)
@@ -625,14 +630,18 @@ class LlamaManager(private val context: Context) {
                 Log.i("AIRI",
                     "UNLOAD_COMPLETE kv_cleared=true model_mmap_held=true " +
                     "note=loadModel_will_free_weights")
-                // P1-D: Model unload clears chatHistory and destroys the KV cache.
-                // Emit CONTEXT_RESET so the ChatViewModel observer can surface the banner.
-                runCatching {
-                    com.airi.assistant.ui.activity.AgentActivityBus.emit(
-                        message  = "Model unloaded — context window was cleared.",
-                        category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
-                        severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN
-                    )
+                if (hadLoadedModel) {
+                    // P1-D: Surface a reset only when a real loaded model/KV context existed.
+                    runCatching {
+                        com.airi.assistant.ui.activity.AgentActivityBus.emit(
+                            message  = context.getString(R.string.activity_model_unloaded_context_cleared),
+                            category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
+                            severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
+                            machineTag = com.airi.assistant.ui.activity.ActivityEvent.MACHINE_TAG_NATIVE_CONTEXT_RESET
+                        )
+                    }
+                } else {
+                    Log.i("AIRI", "UNLOAD_COMPLETE no_active_model_context=true")
                 }
             }
         }
@@ -889,17 +898,13 @@ class LlamaManager(private val context: Context) {
     ) {
         val model = ModelManager.getCurrent()
         if (!isLoaded || model == null) {
-            
-            // contain user-supplied callbacks so an exception inside
-            // onToken/onComplete cannot crash the app.
+            // A readiness failure is terminal. Never emit diagnostic prose as
+            // a token or follow it with an empty completion: that combination
+            // used to be interpreted as a successful local answer.
             scope.launch(Dispatchers.Main) {
-                try { onToken("[Engine not initialised]") }
+                try { onError("Local model engine is not initialized. Load a local model and try again.") }
                 catch (t: Throwable) {
-                    Log.w(TAG, "onToken(early) threw (swallowed): ${t.message}", t)
-                }
-                try { onComplete("") }
-                catch (t: Throwable) {
-                    Log.w(TAG, "onComplete(early) threw (swallowed): ${t.message}", t)
+                    Log.w(TAG, "onError(early) threw (swallowed): ${t.message}", t)
                 }
             }
             return
@@ -1546,8 +1551,10 @@ class LlamaManager(private val context: Context) {
                         // Close the assistant turn in KV so the next user turn
                         // aligns. Safe here because status==0 means the native
                         // context is intact (no fullReset was called above).
-                        runCatching {
-                            LlamaNative.appendAssistantTurn(assistantCloseTag(model.type))
+                        LlamaNative.appendAssistantTurn(assistantCloseTag(model.type))
+                        val assistantCloseStatus = LlamaNative.nativeGetLastStatus()
+                        if (assistantCloseStatus != 0) {
+                            throw RuntimeException("ASSISTANT_CLOSE_STATUS=$assistantCloseStatus")
                         }
 
                         if (finished.compareAndSet(false, true)) {

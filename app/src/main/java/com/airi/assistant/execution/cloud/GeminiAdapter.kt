@@ -14,6 +14,10 @@ import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 
+private val GEMINI_BLOCKING_FINISH_REASONS = setOf(
+    "SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY"
+)
+
 /**
  * Gemini streaming adapter — multi-turn REST implementation.
  *
@@ -98,9 +102,19 @@ class GeminiAdapter(
                     if (payload.isBlank() || payload == "[DONE]") continue
                     lastPayload = payload
                     val event = GeminiSseParser.parse(payload)
-                    if (event.terminal) sawTerminal = true
+                    if (event.malformed) {
+                        return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                            error = "Malformed Gemini stream event",
+                            errorType = CloudErrorType.UNKNOWN,
+                            retryable = false,
+                            httpCode = 200,
+                        )
+                    }
                     if (event.hasError) {
-                        val mapped = CloudErrorMapper.map(200, payload)
+                        val mapped = CloudErrorMapper.mapStructuredProviderError(
+                            code = event.errorCode,
+                            status = event.errorStatus,
+                        )
                         return@withContext CloudProviderAdapter.AdapterResult.Failure(
                             error = mapped.message,
                             errorType = mapped.type,
@@ -108,6 +122,15 @@ class GeminiAdapter(
                             httpCode = 200
                         )
                     }
+                    if (event.finishReason?.uppercase()?.let { it in GEMINI_BLOCKING_FINISH_REASONS } == true) {
+                        return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                            error = "Gemini blocked the response by content policy",
+                            errorType = CloudErrorType.CONTENT_FILTERED,
+                            retryable = false,
+                            httpCode = 200,
+                        )
+                    }
+                    if (event.terminal) sawTerminal = true
                     val token = event.text
                     if (token.isNotEmpty()) { fullText.append(token); onToken(token) }
                     event.promptTokens?.let { promptTokens = it }
@@ -171,19 +194,28 @@ class GeminiAdapter(
             append(jsonString(turn.content))
             append("}]}")
         }
-        if (!first) append(",")
-        append("{\"role\":\"user\",\"parts\":[{\"text\":")
-        append(jsonString(req.prompt))
-        req.imageParts.forEach { image ->
-            // Gemini REST expects snake_case inline_data parts. An OpenAI
-            // image_url object is not valid Gemini request JSON.
-            append(",{\"inline_data\":{\"mime_type\":")
-            append(jsonString(image.mimeType.ifBlank { "image/jpeg" }))
-            append(",\"data\":")
-            append(jsonString(image.base64Data))
-            append("}}")
+        if (req.prompt.isNotBlank() || req.imageParts.isNotEmpty()) {
+            if (!first) append(",")
+            append("{\"role\":\"user\",\"parts\":[")
+            var hasPart = false
+            if (req.prompt.isNotBlank()) {
+                append("{\"text\":${jsonString(req.prompt)}}")
+                hasPart = true
+            }
+            req.imageParts.forEach { image ->
+                // Gemini REST expects snake_case inline_data parts. An OpenAI
+                // image_url object is not valid Gemini request JSON.
+                if (hasPart) append(",")
+                append("{\"inline_data\":{\"mime_type\":")
+                append(jsonString(image.mimeType.ifBlank { "image/jpeg" }))
+                append(",\"data\":")
+                append(jsonString(image.base64Data))
+                append("}}")
+                hasPart = true
+            }
+            append("]}")
         }
-        append("]},")
+        append("],")
         append("\"generationConfig\":{\"maxOutputTokens\":${req.maxTokens},\"temperature\":${req.temperature}}")
         append("}")
     }

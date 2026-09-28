@@ -1164,6 +1164,13 @@
     <string name="login_new_account">ليس لديك حساب؟ أنشئ حسابًا</string>
     <string name="login_terms_privacy">بالمتابعة، فإنك توافق على شروط الخدمة وسياسة الخصوصية.</string>
     <string name="login_google_not_configured">تسجيل الدخول عبر Google غير مهيأ في هذا التطبيق. اختر طريقة دخول أخرى أو تواصل مع الدعم.</string>
+    <string name="login_google_client_id_missing">معرّف OAuth الخاص بتسجيل الدخول عبر Google مفقود. تواصل مع مسؤول التطبيق.</string>
+    <string name="login_google_firebase_config_missing">مصادقة Firebase غير مهيأة لهذا التطبيق. تواصل مع مسؤول التطبيق.</string>
+    <string name="login_google_provider_disabled">تسجيل الدخول عبر Google معطل لهذا التطبيق. فعّله في إعدادات مزود المصادقة.</string>
+    <string name="login_google_sha_mismatch">شهادة توقيع التطبيق غير مسجلة لتسجيل الدخول عبر Google. تواصل مع مسؤول التطبيق.</string>
+    <string name="login_google_credential_failure">تعذر على تسجيل الدخول عبر Google الوصول إلى خدمة بيانات اعتماد الجهاز. حاول مرة أخرى.</string>
+    <string name="login_google_network_failure">تعذر على تسجيل الدخول عبر Google الوصول إلى الخدمة. تحقق من اتصالك ثم حاول مرة أخرى.</string>
+    <string name="login_google_unknown_failure">تعذر إكمال تسجيل الدخول عبر Google. حاول مرة أخرى أو اختر طريقة أخرى.</string>
     <string name="login_google_cancelled">تم إلغاء تسجيل الدخول عبر Google.</string>
     <string name="login_google_no_id_token">لم تُعد Google رمز تسجيل الدخول. حاول مرة أخرى.</string>
     <string name="login_google_exchange_failed">تعذر إكمال تسجيل الدخول عبر Google. تحقق من اتصالك ثم حاول مرة أخرى.</string>

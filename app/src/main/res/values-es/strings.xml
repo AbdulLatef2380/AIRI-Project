@@ -964,6 +964,13 @@
     <string name="login_new_account">¿No tienes una cuenta? Crea una</string>
     <string name="login_terms_privacy">Al continuar, aceptas los Términos de servicio y la Política de privacidad.</string>
     <string name="login_google_not_configured">El inicio de sesión con Google no está configurado en esta aplicación. Elige otro método o contacta con soporte.</string>
+    <string name="login_google_client_id_missing">Falta el ID de cliente OAuth para iniciar sesión con Google. Contacta con el administrador de la aplicación.</string>
+    <string name="login_google_firebase_config_missing">La autenticación de Firebase no está configurada para esta aplicación. Contacta con el administrador.</string>
+    <string name="login_google_provider_disabled">El inicio de sesión con Google está desactivado para esta aplicación. Actívalo en la configuración del proveedor de autenticación.</string>
+    <string name="login_google_sha_mismatch">El certificado de firma de esta aplicación no está registrado para iniciar sesión con Google. Contacta con el administrador.</string>
+    <string name="login_google_credential_failure">El inicio de sesión con Google no pudo acceder al servicio de credenciales del dispositivo. Inténtalo de nuevo.</string>
+    <string name="login_google_network_failure">El inicio de sesión con Google no pudo conectarse al servicio. Comprueba tu conexión e inténtalo de nuevo.</string>
+    <string name="login_google_unknown_failure">No se pudo completar el inicio de sesión con Google. Inténtalo de nuevo o elige otro método.</string>
     <string name="login_google_cancelled">Se canceló el inicio de sesión con Google.</string>
     <string name="login_google_no_id_token">Google no devolvió un token de inicio de sesión. Inténtalo de nuevo.</string>
     <string name="login_google_exchange_failed">No se pudo completar el inicio de sesión con Google. Comprueba tu conexión e inténtalo de nuevo.</string>

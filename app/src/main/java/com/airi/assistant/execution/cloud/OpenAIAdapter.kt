@@ -1,6 +1,7 @@
 package com.airi.assistant.execution.cloud
 
 import android.util.Log
+import com.airi.assistant.execution.AttachmentDeliveryStage
 import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.security.SecureApiKeyStore
@@ -284,7 +285,7 @@ open class OpenAIAdapter(
             BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { reader ->
                 var line: String?
                 while (reader.readLine().also { line = it } != null) {
-                    ensureActive()
+                    currentCoroutineContext().ensureActive()
                     val raw = line!!.trim()
                     if (!raw.startsWith("data:")) continue
                     val payload = raw.removePrefix("data:").trim()
@@ -374,9 +375,9 @@ open class OpenAIAdapter(
             when (json[i]) {
                 '\\' -> {
                     if (i + 1 >= json.length) return null
-                    result.append when (json[i + 1]) {
+                    result.append(when (json[i + 1]) {
                         'n' -> '\n'; 'r' -> '\r'; 't' -> '\t'; else -> json[i + 1]
-                    }
+                    })
                     i += 2
                 }
                 '"' -> return result.toString()

@@ -56,4 +56,25 @@ object AiriIdentityProfile {
             - $modelFacts
         """.trimIndent()
     }
+
+    /** Stable context for ordinary turns; cloud providers are not AIRI's identity. */
+    fun runtimeContext(descriptor: ModelCapabilityDescriptor?): String {
+        val modelFacts = descriptor?.let { d ->
+            val vision = when (d.status(Capability.IMAGE_UNDERSTANDING)) {
+                CapabilityStatus.SUPPORTED, CapabilityStatus.SUPPORTED_WITH_LIMITS -> "image understanding available"
+                CapabilityStatus.TEMPORARILY_UNAVAILABLE -> "image understanding configured but not ready"
+                CapabilityStatus.UNSUPPORTED -> "image understanding unavailable"
+                CapabilityStatus.UNKNOWN -> "image understanding unverified"
+            }
+            "active model=${d.displayName}; provider=${d.providerId}; $vision"
+        } ?: "active model/provider not verified"
+        return """
+            AIRI RUNTIME CONTRACT (authoritative application context):
+            - You are AIRI, the assistant application. The selected cloud provider is only the inference backend, not your identity.
+            - Answer as AIRI; never claim to be Gemini, OpenAI, Anthropic, or another provider.
+            - Conversation memory/RAG, skills, connectors, web tools, and the governed terminal are available only when listed in AVAILABLE TOOLS. Use only listed tools and report unavailable features honestly.
+            - Do not invent application features or provider capabilities. $modelFacts.
+            - Attachments are routed by AIRI; use only attachment content present in the request.
+        """.trimIndent()
+    }
 }

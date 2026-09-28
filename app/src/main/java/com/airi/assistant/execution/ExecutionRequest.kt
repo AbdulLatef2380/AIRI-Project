@@ -10,7 +10,8 @@ import com.airi.assistant.ai.QueryType
  *                             "user" or "assistant". The current [prompt] is always the
  *                             final user turn — adapters must not duplicate it.
  *                             Local llama.cpp ignores this field; it uses KV-cache
- *                             session reuse instead.
+ *                             session reuse instead. [localPrompt] is the complete
+ *                             prompt for that local inference path.
  */
 data class ExecutionRequest(
     val prompt:                   String,
@@ -35,15 +36,31 @@ data class ExecutionRequest(
     /** Model identifier actually selected for the resolved target. */
     val resolvedModelId:          String     = "",
     val conversationHistory:      List<ConversationTurn> = emptyList(),
+    /** Full per-request text for local inference; cloud adapters must use prompt + history. */
+    val localPrompt:              String     = "",
     /** Inline image parts for providers that support vision (base64, no file paths). */
     val imageParts:               List<ImagePart> = emptyList(),
+    /** Native inline binary parts for providers whose wire protocol supports them. */
+    val inlineDataParts:          List<InlineDataPart> = emptyList(),
+    /** Optional metadata-only trace for proving attachment delivery. */
+    val attachmentTrace:          AttachmentDeliveryTrace? = null,
     /** Correlation identity; generated at the request boundary and preserved downstream. */
     val identity:                 ExecutionIdentity? = null,
     /** Explicit privacy/routing boundary for this request. */
     val allowCloud:               Boolean = true,
 ) {
     data class ConversationTurn(val role: String, val content: String)
-    data class ImagePart(val mimeType: String, val base64Data: String)
+    data class ImagePart(
+        val mimeType: String,
+        val base64Data: String,
+        val attachmentId: String = "",
+    )
+    data class InlineDataPart(
+        val mimeType: String,
+        val base64Data: String,
+        val fileName: String = "",
+        val attachmentId: String = "",
+    )
 
     val estimatedTotalTokens: Int get() = estimatedPromptTokens + maxTokens
 

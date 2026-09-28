@@ -72,8 +72,8 @@ data class CapabilityProfile(
      */
     fun canFit(request: ExecutionRequest, reserveTokens: Int = 128): Boolean {
         if (request.estimatedPromptTokens <= 0) return true
-        val imageTokens = request.imageParts.sumOf { part ->
-            (part.base64Data.length / 16).coerceAtLeast(256)
+        val imageTokens = (request.imageParts.map { it.base64Data } + request.inlineDataParts.map { it.base64Data }).sumOf { data ->
+            (data.length / 16).coerceAtLeast(256)
         }
         val total = request.estimatedPromptTokens.toLong() +
             request.maxTokens.coerceAtLeast(0).toLong() +

@@ -108,13 +108,14 @@ fun LoginScreen(
                         AnalyticsService.login("google")
                         onGoogleLoginSuccess()
                     } else {
-                        feedback = LoginFeedback.GOOGLE_EXCHANGE_FAILED
+                        feedback = LoginFeedbackPolicy.googleAuthFailure(error)
                     }
                 }
             }
         } catch (exception: ApiException) {
             feedback = LoginFeedbackPolicy.googleApiFailure(
                 wasCancelled = cancelled || exception.statusCode == CommonStatusCodes.CANCELED,
+                statusCode = exception.statusCode,
             )
         }
     }
@@ -194,7 +195,7 @@ fun LoginScreen(
                     if (googleSignInClient != null) {
                         googleLauncher.launch(googleSignInClient.signInIntent)
                     } else {
-                        feedback = LoginFeedback.GOOGLE_NOT_CONFIGURED
+                        feedback = LoginFeedback.GOOGLE_CLIENT_ID_MISSING
                     }
                 },
                 enabled   = !isLoading,
@@ -350,7 +351,14 @@ fun LoginScreen(
 @Composable
 private fun LoginFeedbackBanner(feedback: LoginFeedback) {
     val message = when (feedback) {
-        LoginFeedback.GOOGLE_NOT_CONFIGURED -> stringResource(R.string.login_google_not_configured)
+        LoginFeedback.GOOGLE_NOT_CONFIGURED,
+        LoginFeedback.GOOGLE_CLIENT_ID_MISSING -> stringResource(R.string.login_google_client_id_missing)
+        LoginFeedback.GOOGLE_FIREBASE_CONFIG_MISSING -> stringResource(R.string.login_google_firebase_config_missing)
+        LoginFeedback.GOOGLE_PROVIDER_DISABLED -> stringResource(R.string.login_google_provider_disabled)
+        LoginFeedback.GOOGLE_SHA_MISMATCH -> stringResource(R.string.login_google_sha_mismatch)
+        LoginFeedback.GOOGLE_CREDENTIAL_MANAGER_FAILURE -> stringResource(R.string.login_google_credential_failure)
+        LoginFeedback.GOOGLE_NETWORK_FAILURE -> stringResource(R.string.login_google_network_failure)
+        LoginFeedback.GOOGLE_UNKNOWN_FAILURE -> stringResource(R.string.login_google_unknown_failure)
         LoginFeedback.GOOGLE_CANCELLED -> stringResource(R.string.login_google_cancelled)
         LoginFeedback.GOOGLE_NO_ID_TOKEN -> stringResource(R.string.login_google_no_id_token)
         LoginFeedback.GOOGLE_EXCHANGE_FAILED -> stringResource(R.string.login_google_exchange_failed)

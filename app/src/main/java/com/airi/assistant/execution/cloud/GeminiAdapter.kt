@@ -14,6 +14,10 @@ import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 
+private val GEMINI_BLOCKING_FINISH_REASONS = setOf(
+    "SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY"
+)
+
 /**
  * Gemini streaming adapter — multi-turn REST implementation.
  *
@@ -26,7 +30,8 @@ import java.net.URL
  */
 class GeminiAdapter(
     private val keyStore: SecureApiKeyStore,
-    private val model:    String = "gemini-3.8-flash"
+    /** Stable Google alias; avoids shipping a version that may not be enabled for a key. */
+    private val model:    String = DEFAULT_MODEL
 ) : CloudProviderAdapter {
 
     override val providerId: String = "gemini"
@@ -49,6 +54,19 @@ class GeminiAdapter(
         // retain request URLs. Gemini supports x-goog-api-key authentication.
         val url  = "$BASE_URL/models/$model:streamGenerateContent?alt=sse"
         val body = buildRequestBody(request)
+        val trace = request.attachmentTrace
+        val attachmentIds = (request.imageParts.map { it.attachmentId } +
+            request.inlineDataParts.map { it.attachmentId }).filter { it.isNotBlank() }
+        trace?.mark(AttachmentDeliveryStage.PROVIDER_PAYLOAD_BUILT, attachmentIds)
+        attachmentIds.forEach { id ->
+            val encodedLength = request.imageParts.firstOrNull { it.attachmentId == id }?.base64Data?.length
+                ?: request.inlineDataParts.firstOrNull { it.attachmentId == id }?.base64Data?.length
+                ?: 0
+            if (encodedLength > 0 && body.contains("\"data\":\"") &&
+                GeminiPayloadContract.containsNonEmptyInlineContent(request)) {
+                trace?.markPayloadContainsContent(id, encodedLength.toLong())
+            }
+        }
 
         Log.d(TAG, "streamGenerate model=$model " +
             "history=${request.conversationHistory.size} prompt_chars=${request.prompt.length}")
@@ -74,9 +92,12 @@ class GeminiAdapter(
             // this request's connection when its owning job is cancelled.
             currentCoroutineContext()[Job]?.invokeOnCompletion { conn?.disconnect() }
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            trace?.mark(AttachmentDeliveryStage.HTTP_REQUEST_DISPATCHED, attachmentIds)
 
             val httpCode = conn.responseCode
+            trace?.mark(AttachmentDeliveryStage.PROVIDER_RESPONSE_RECEIVED, attachmentIds)
             if (httpCode !in 200..299) {
+                trace?.markProviderResponse(false, attachmentIds)
                 val errBody = conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $httpCode"
                 val mapped  = CloudErrorMapper.map(httpCode, errBody)
                 Log.w(TAG, "CLOUD_HTTP_FAILURE provider=gemini code=$httpCode errorType=${mapped.type}")
@@ -96,9 +117,20 @@ class GeminiAdapter(
                     val payload = raw.removePrefix("data:").trim()
                     if (payload.isBlank() || payload == "[DONE]") continue
                     lastPayload = payload
-                    if (payload.contains("\"finishReason\":\"")) sawTerminal = true
-                    if (payload.contains("\"error\"")) {
-                        val mapped = CloudErrorMapper.map(200, payload)
+                    val event = GeminiSseParser.parse(payload)
+                    if (event.malformed) {
+                        return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                            error = "Malformed Gemini stream event",
+                            errorType = CloudErrorType.UNKNOWN,
+                            retryable = false,
+                            httpCode = 200,
+                        )
+                    }
+                    if (event.hasError) {
+                        val mapped = CloudErrorMapper.mapStructuredProviderError(
+                            code = event.errorCode,
+                            status = event.errorStatus,
+                        )
                         return@withContext CloudProviderAdapter.AdapterResult.Failure(
                             error = mapped.message,
                             errorType = mapped.type,
@@ -106,9 +138,19 @@ class GeminiAdapter(
                             httpCode = 200
                         )
                     }
-                    val token = extractToken(payload)
+                    if (event.finishReason?.uppercase()?.let { it in GEMINI_BLOCKING_FINISH_REASONS } == true) {
+                        return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                            error = "Gemini blocked the response by content policy",
+                            errorType = CloudErrorType.CONTENT_FILTERED,
+                            retryable = false,
+                            httpCode = 200,
+                        )
+                    }
+                    if (event.terminal) sawTerminal = true
+                    val token = event.text
                     if (token.isNotEmpty()) { fullText.append(token); onToken(token) }
-                    extractUsage(payload)?.let { (p, c) -> promptTokens = p; completeTokens = c }
+                    event.promptTokens?.let { promptTokens = it }
+                    event.completionTokens?.let { completeTokens = it }
                 }
             }
 
@@ -122,12 +164,22 @@ class GeminiAdapter(
             }
 
             if (fullText.isBlank()) {
+                trace?.markProviderResponse(false, attachmentIds)
                 val mapped = CloudErrorMapper.map(200, lastPayload)
                 return@withContext CloudProviderAdapter.AdapterResult.Failure(
                     error = if (mapped.type == CloudErrorType.UNKNOWN) "Provider returned no text" else mapped.message,
                     errorType = mapped.type,
                     retryable = mapped.retryable,
                     httpCode = 200
+                )
+            }
+            trace?.markProviderResponse(true, attachmentIds)
+            trace?.snapshot()?.forEach { evidence ->
+                Log.i(
+                    TAG,
+                    "ATTACHMENT_DELIVERY id=${evidence.attachmentId} " +
+                        "status=${evidence.status} transport=${evidence.transport} " +
+                        "stages=${evidence.stages} bytes=${evidence.bytesIncluded}",
                 )
             }
             onUsage(promptTokens, completeTokens)
@@ -168,54 +220,39 @@ class GeminiAdapter(
             append(jsonString(turn.content))
             append("}]}")
         }
-        if (!first) append(",")
-        append("{\"role\":\"user\",\"parts\":[{\"text\":")
-        append(jsonString(req.prompt))
-        req.imageParts.forEach { image ->
-            // Gemini REST expects snake_case inline_data parts. An OpenAI
-            // image_url object is not valid Gemini request JSON.
-            append(",{\"inline_data\":{\"mime_type\":")
-            append(jsonString(image.mimeType.ifBlank { "image/jpeg" }))
-            append(",\"data\":")
-            append(jsonString(image.base64Data))
-            append("}}")
+        if (req.prompt.isNotBlank() || req.imageParts.isNotEmpty() || req.inlineDataParts.isNotEmpty()) {
+            if (!first) append(",")
+            append("{\"role\":\"user\",\"parts\":[")
+            var hasPart = false
+            if (req.prompt.isNotBlank()) {
+                append("{\"text\":${jsonString(req.prompt)}}")
+                hasPart = true
+            }
+            req.imageParts.forEach { image ->
+                // Gemini REST expects snake_case inline_data parts. An OpenAI
+                // image_url object is not valid Gemini request JSON.
+                if (hasPart) append(",")
+                append("{\"inline_data\":{\"mime_type\":")
+                append(jsonString(image.mimeType.ifBlank { "image/jpeg" }))
+                append(",\"data\":")
+                append(jsonString(image.base64Data))
+                append("}}")
+                hasPart = true
+            }
+            req.inlineDataParts.forEach { part ->
+                if (hasPart) append(",")
+                append("{\"inline_data\":{\"mime_type\":")
+                append(jsonString(part.mimeType))
+                append(",\"data\":")
+                append(jsonString(part.base64Data))
+                append("}}")
+                hasPart = true
+            }
+            append("]}")
         }
-        append("]},")
+        append("],")
         append("\"generationConfig\":{\"maxOutputTokens\":${req.maxTokens},\"temperature\":${req.temperature}}")
         append("}")
-    }
-
-    private fun extractToken(json: String): String {
-        val idx = json.indexOf("\"text\"")
-        if (idx < 0) return ""
-        val ci = json.indexOf(":", idx)
-        if (ci < 0) return ""
-        val after = json.substring(ci + 1).trimStart()
-        if (!after.startsWith("\"")) return ""
-        val e = findStringEnd(after, 1)
-        if (e < 0) return ""
-        return after.substring(1, e)
-            .replace("\\n", "\n").replace("\\\"", "\"")
-            .replace("\\\\", "\\").replace("\\t", "\t")
-    }
-
-    private fun extractUsage(json: String): Pair<Int, Int>? {
-        if (!json.contains("usageMetadata")) return null
-        val p = extractInt(json, "promptTokenCount")     ?: return null
-        val c = extractInt(json, "candidatesTokenCount") ?: 0
-        return p to c
-    }
-
-    private fun extractInt(json: String, field: String): Int? {
-        val idx = json.indexOf("\"$field\""); if (idx < 0) return null
-        val ci  = json.indexOf(":", idx);    if (ci < 0) return null
-        return json.substring(ci + 1).trimStart().takeWhile { it.isDigit() }.toIntOrNull()
-    }
-
-    private fun findStringEnd(s: String, start: Int): Int {
-        var i = start
-        while (i < s.length) { when { s[i] == '\\' -> i += 2; s[i] == '"' -> return i; else -> i++ } }
-        return -1
     }
 
     private fun jsonString(s: String): String = buildString {
@@ -236,6 +273,7 @@ class GeminiAdapter(
     companion object {
         private const val TAG              = "AIRI_GeminiAdapter"
         private const val BASE_URL         = "https://generativelanguage.googleapis.com/v1beta"
+        const val DEFAULT_MODEL            = "gemini-flash-latest"
         private const val CONNECT_TIMEOUT_MS = 10_000
         private const val READ_TIMEOUT_MS    = 90_000
     }

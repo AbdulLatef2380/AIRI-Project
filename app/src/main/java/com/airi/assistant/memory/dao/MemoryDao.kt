@@ -63,6 +63,10 @@ interface MemoryDao {
     @Query("DELETE FROM episodic_memory WHERE id = :memoryId AND isMemory = 1")
     suspend fun deleteLongTermMemory(memoryId: Long): Int
 
+    /** Delete only explicitly stored memory records owned by one chat session. */
+    @Query("DELETE FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 1")
+    suspend fun deleteLongTermMemoriesForSession(sessionId: String): Int
+
     @Query("""
         UPDATE episodic_memory
         SET content = :content,

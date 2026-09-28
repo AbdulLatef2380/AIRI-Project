@@ -265,6 +265,21 @@ class ToolDispatcher(
                 ToolResult.Success("Note created: ${note.title}")
             }
 
+            // ── Restricted terminal ──────────────────────────────────────────
+            // TerminalRuntime owns the per-command governance check and sandbox.
+            "terminal_execute" -> {
+                val command = args["command"]?.trim().orEmpty()
+                if (command.isBlank()) return ToolResult.Error("Missing command")
+                val terminal = com.airi.assistant.core.ServiceLocator.terminalRuntime
+                val before = terminal.lines.value.size
+                terminal.execute(command)
+                val output = terminal.lines.value.drop(before)
+                    .joinToString("\n") { it.text }
+                    .trim()
+                Log.i(TAG, "TERMINAL_TOOL_COMPLETE commandChars=${command.length} outputChars=${output.length}")
+                ToolResult.Success(output.ifBlank { "Command completed without output." })
+            }
+
             // ── Confirmation request (LLM asks user) ──────────────────────────
             // This tool does NOT execute an action — it signals AgentLoop that
             // the LLM wants to pause for user confirmation before continuing.

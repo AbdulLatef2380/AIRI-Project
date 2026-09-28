@@ -192,11 +192,7 @@ class CloudBackend(
 
             var promptTok = 0
             var compTok = 0
-            // Do not emit provider output until the attempt succeeds. A retry
-            // or provider failover after partial SSE output would otherwise
-            // append the same prefix twice (or mix two providers in one bubble).
-            // This deliberately trades token-by-token UI latency for response
-            // integrity, which is essential for a stable release build.
+            var providerEmittedAnyToken = false
 
             val result = RetryPolicy.withRetry(maxAttempts = MAX_RETRIES) { attempt ->
                 if (cancelRequested.get()) {
@@ -213,11 +209,23 @@ class CloudBackend(
                 }
                 promptTok = 0
                 compTok = 0
-                adapter.streamGenerate(
+                var attemptEmittedAnyToken = false
+                val attemptResult = adapter.streamGenerate(
                     request = targetRequest,
-                    onToken = { /* buffered by the adapter result; emit only after success */ },
+                    onToken = { token ->
+                        if (token.isNotEmpty()) {
+                            attemptEmittedAnyToken = true
+                            providerEmittedAnyToken = true
+                            onToken(token)
+                        }
+                    },
                     onUsage = { p, c -> promptTok = p; compTok = c }
                 )
+                if (attemptEmittedAnyToken && attemptResult is CloudProviderAdapter.AdapterResult.Failure) {
+                    attemptResult.copy(retryable = false)
+                } else {
+                    attemptResult
+                }
             }
 
             if (cancelRequested.get() ||
@@ -230,6 +238,14 @@ class CloudBackend(
 
             when (result) {
                 is CloudProviderAdapter.AdapterResult.Success -> {
+                    if (result.fullText.isBlank()) {
+                        lastError = "Cloud provider completed without response text"
+                        if (providerEmittedAnyToken) {
+                            onError(lastError)
+                            return
+                        }
+                        continue
+                    }
                     val executedModel = result.executedModelId.ifBlank {
                         targetRequest.resolvedModelId.ifBlank { targetRequest.requestedModelId.ifBlank { "configured model" } }
                     }
@@ -245,7 +261,9 @@ class CloudBackend(
                         "CLOUD_BACKEND", EventSeverity.INFO,
                         "EXECUTED_TARGET provider=${provider.name.lowercase()} model=$executedModel"
                     )
-                    if (result.fullText.isNotBlank()) onToken(result.fullText)
+                    // Streaming adapters have already delivered these tokens.
+                    // Non-streaming compatible adapters may only return the final text.
+                    if (!providerEmittedAnyToken && result.fullText.isNotBlank()) onToken(result.fullText)
                     val totalTokens = promptTok + compTok
                     if (totalTokens > 0) {
                         prefs.recordCloudTokens(totalTokens)
@@ -277,6 +295,12 @@ class CloudBackend(
                         TAG,
                         "CloudBackend failure provider=${provider.name} type=${result.errorType} http=${result.httpCode} errorChars=${result.error.length}"
                     )
+                    if (providerEmittedAnyToken) {
+                        // Never retry or switch providers after visible output:
+                        // a second response would duplicate/mix the user-visible prefix.
+                        onError(lastError)
+                        return
+                    }
                     // Permanent failures identify a bad request/configuration/model;
                     // failing over would hide the actionable cause and can violate
                     // the user's selected-provider contract.

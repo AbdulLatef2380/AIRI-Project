@@ -1528,6 +1528,28 @@
 
     <string name="err_generation_failed">تعذّر إنشاء الاستجابة. حاول مرة أخرى.</string>
     <string name="err_empty_response">اكتمل التوليد دون وصول إجابة. تحقق من النموذج أو المزوّد ثم حاول مرة أخرى.</string>
+    <string name="err_agent_loop_timeout">انتهت مهلة المعالجة قبل اكتمال رد AIRI؛ لم تُعامل أي مخرجات جزئية على أنها إجابة كاملة.</string>
+    <string name="err_cloud_credentials_invalid">مفتاح API المحفوظ لهذا الموفّر غير صالح. تحقّق من إعداداته وحاول مجددًا.</string>
+    <string name="err_cloud_model_unavailable">النموذج المحدد غير متاح لدى هذا الموفّر. اختر نموذجًا آخر أو تحقّق من إعدادات الموفّر.</string>
+    <string name="err_cloud_quota_exhausted">نفدت الحصة المتاحة لدى الموفّر. تحقّق من حسابه أو اختر موفّرًا آخر.</string>
+    <string name="err_cloud_request_rejected">رفض الموفّر المحدد هذا الطلب. تحقّق من إعدادات النموذج والموفّر ثم حاول مجددًا.</string>
+    <string name="err_cloud_context_limit">يتجاوز هذا الطلب سعة السياق للنموذج المحدد. اختصره أو اختر نموذجًا بسياق أكبر.</string>
+    <string name="err_cloud_content_filtered">لم يُرجع الموفّر ردًا لأن الطلب خضع لمرشح سياسة المحتوى.</string>
+    <string name="err_cloud_rate_limited">يحدّ الموفّر المحدد من عدد الطلبات حاليًا. انتظر قليلًا ثم حاول مجددًا.</string>
+    <string name="err_cloud_timeout">لم يستجب الموفّر المحدد أو الخادم المحلي في الوقت المحدد. تحقّق من تشغيله وإمكانية الوصول إليه ثم حاول مجددًا.</string>
+    <string name="err_cloud_unavailable">تعذّر الوصول إلى الموفّر المحدد أو الخادم المحلي. تحقّق من عنوانه والاتصال ثم حاول مجددًا.</string>
+    <string name="err_agent_loop_failed">تعذّر على AIRI إكمال خطوات تنفيذ الطلب، لذلك لم يُنشأ رد.</string>
+    <string name="chat_execution_stopped_at">توقفت العملية عند: %1$s</string>
+    <string name="chat_execution_stage_preparation">تهيئة الطلب</string>
+    <string name="chat_execution_stage_agent">مسار الوكيل</string>
+    <string name="chat_execution_stage_provider">الموفّر</string>
+    <string name="chat_execution_stage_response">إنشاء الرد</string>
+    <string name="chat_execution_stage_attachment">معالجة المرفق</string>
+    <string name="model_unsupported_architecture">يستخدم نموذج GGUF بنية غير مدعومة (%1$s)، لذلك لم يتم تحميله.</string>
+    <string name="activity_context_window_compacted">امتلأ سياق المحادثة؛ أُزيلت الرسائل الأقدم للمتابعة.</string>
+    <string name="activity_model_reloaded_context_reset">أُعيد تحميل النموذج وأُعيد تهيئة سياقه النشط.</string>
+    <string name="activity_model_unloaded_context_cleared">أُوقف تحميل النموذج ومُسح سياقه النشط.</string>
+    <string name="activity_context_reset">إعادة ضبط السياق</string>
 
     <!-- chat accessibility -->
     <string name="cd_send_message">إرسال الرسالة</string>
@@ -1708,6 +1730,16 @@
     <string name="attachment_capability_unavailable">النموذج الحالي لا يستطيع معالجة نوع هذا المرفق. اختر نموذجاً متوافقاً أو أزل المرفق.</string>
     <string name="attachment_capability_unknown">تعذر على AIRI التحقق من دعم النموذج الحالي لهذا المرفق. اختر نموذجاً متوافقاً أو تحقق من التوافق قبل المحاولة.</string>
     <string name="attachment_staging_failed">تعذر تجهيز مرفق واحد أو أكثر. احتُفظ بها لكي تتمكن من المحاولة مجدداً.</string>
+    <string name="attachment_unsupported_content">لا يستطيع AIRI قراءة هذا النوع من الملفات حالياً. الأنواع المدعومة هي الصور والنصوص وPDF وDOCX وXLSX وPPTX، وقد احتُفظ بالمرفق.</string>
+    <string name="attachment_text_extraction_failed">تعذر على AIRI قراءة الملف النصي المحدد. احتُفظ به؛ اختر ملفاً مقروءاً وحاول مجدداً.</string>
+    <string name="attachment_multiple_images_unsupported">لا يستطيع هذا المسار معالجة كل الصور المحددة معاً. احتُفظ بالمرفقات؛ اختر مزود رؤية يدعمها أو أرسل عدداً أقل.</string>
+    <string name="attachment_dispatch_failed">لم يُقبل الطلب. احتُفظ بالمرفقات لتتمكن من المحاولة مجدداً.</string>
+    <string name="local_endpoint_title">الاتصال بـ %1$s</string>
+    <string name="local_endpoint_label">عنوان الخادم</string>
+    <string name="local_endpoint_example">مثال: http://ollama.local:11434/v1</string>
+    <string name="local_endpoint_help">أدخل عنوان خادم متوافق مع OpenAI. في الهاتف يشير localhost إلى الهاتف نفسه لا إلى حاسوبك. إصدارات الإنتاج تتطلب HTTPS؛ وتسمح إصدارات debug بـHTTP فقط مع localhost أو مضيف المحاكي أو اسم مضيف ينتهي بـ .local.</string>
+    <string name="local_endpoint_invalid">استخدم HTTPS. يُسمح بـHTTP في إصدارات debug فقط مع localhost أو مضيف المحاكي أو اسم مضيف .local.</string>
+    <string name="local_endpoint_config_required">أعد إعداد عنوان الخادم المحلي من الإعدادات ← النماذج السحابية قبل الاتصال.</string>
     <string name="attachment_preparing">جارٍ تجهيز المرفقات</string>
     <string name="attachment_drop_here">أفلت الملفات هنا لإرفاقها</string>
     <string name="chat_search">بحث في المحادثة</string>

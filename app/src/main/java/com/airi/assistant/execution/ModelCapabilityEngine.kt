@@ -80,8 +80,9 @@ object ModelCapabilityEngine {
             Capability.VISION to if (declaredVision) CapabilityStatus.SUPPORTED else CapabilityStatus.UNSUPPORTED,
             Capability.AUDIO_INPUT to CapabilityStatus.UNSUPPORTED,
             Capability.VIDEO_INPUT to CapabilityStatus.UNSUPPORTED,
-            Capability.DOCUMENT_INPUT to CapabilityStatus.SUPPORTED,
-            Capability.PDF_INPUT to CapabilityStatus.UNKNOWN,
+            Capability.VIDEO_UNDERSTANDING to CapabilityStatus.UNSUPPORTED,
+            Capability.DOCUMENT_INPUT to CapabilityStatus.UNSUPPORTED,
+            Capability.PDF_INPUT to CapabilityStatus.UNSUPPORTED,
             Capability.OCR to if (declaredVision) CapabilityStatus.UNKNOWN else CapabilityStatus.UNSUPPORTED,
             Capability.TOOL_CALLING to if (capabilities.toolCalling) CapabilityStatus.SUPPORTED else CapabilityStatus.UNKNOWN,
             Capability.STREAMING to CapabilityStatus.SUPPORTED,
@@ -125,8 +126,9 @@ object ModelCapabilityEngine {
     fun fromCloud(provider: CloudProvider, modelId: String): ModelCapabilityDescriptor {
         val exact = modelId.trim().lowercase()
         val vision = when (provider) {
-            CloudProvider.GEMINI -> exact.startsWith("gemini-2.5") || exact.startsWith("gemini-2.0") || exact.startsWith("gemini-3")
-            CloudProvider.OPENAI -> exact.startsWith("gpt-4o") || exact.startsWith("gpt-4.1") || exact.startsWith("gpt-4.5") || exact.startsWith("o1") || exact.startsWith("o3") || exact.startsWith("o4")
+            CloudProvider.GEMINI -> exact.contains("gemini")
+            CloudProvider.OPENAI -> exact.startsWith("gpt-4o") || exact.startsWith("gpt-4.1") || exact.startsWith("gpt-4.5") || exact.startsWith("gpt-5") || exact.startsWith("o1") || exact.startsWith("o3") || exact.startsWith("o4")
+            CloudProvider.ANTHROPIC -> exact.contains("claude")
             CloudProvider.OPENROUTER -> exact.contains("gemini") || exact.contains("gpt-4o") || exact.contains("claude-3") || exact.contains("qwen-vl") || exact.contains("llava") || exact.contains("vision")
             CloudProvider.CUSTOM -> false
             else -> false
@@ -138,8 +140,20 @@ object ModelCapabilityEngine {
         values[Capability.IMAGE_UNDERSTANDING] = status
         values[Capability.VISION] = status
         values[Capability.AUDIO_INPUT] = CapabilityStatus.UNKNOWN
-        values[Capability.VIDEO_INPUT] = CapabilityStatus.UNKNOWN
-        values[Capability.DOCUMENT_INPUT] = CapabilityStatus.SUPPORTED_WITH_LIMITS
+        val nativeInline = (provider == CloudProvider.GEMINI || provider == CloudProvider.OPENAI || provider == CloudProvider.ANTHROPIC) && vision
+        values[Capability.VIDEO_INPUT] = if (provider == CloudProvider.GEMINI && nativeInline) CapabilityStatus.SUPPORTED_WITH_LIMITS else CapabilityStatus.UNSUPPORTED
+        values[Capability.VIDEO_UNDERSTANDING] = if (provider == CloudProvider.GEMINI && nativeInline) CapabilityStatus.SUPPORTED_WITH_LIMITS else CapabilityStatus.UNSUPPORTED
+        values[Capability.DOCUMENT_INPUT] = when {
+            provider == CloudProvider.OPENAI && vision -> CapabilityStatus.SUPPORTED_WITH_LIMITS
+            provider == CloudProvider.GEMINI && vision -> CapabilityStatus.SUPPORTED_WITH_LIMITS
+            else -> CapabilityStatus.UNSUPPORTED
+        }
+        values[Capability.PDF_INPUT] = when {
+            provider == CloudProvider.ANTHROPIC && vision -> CapabilityStatus.SUPPORTED_WITH_LIMITS
+            provider == CloudProvider.OPENAI && vision -> CapabilityStatus.SUPPORTED_WITH_LIMITS
+            provider == CloudProvider.GEMINI && vision -> CapabilityStatus.SUPPORTED_WITH_LIMITS
+            else -> CapabilityStatus.UNSUPPORTED
+        }
         values[Capability.STREAMING] = CapabilityStatus.SUPPORTED
         values[Capability.TOOL_CALLING] = CapabilityStatus.UNKNOWN
         values[Capability.STRUCTURED_OUTPUT] = CapabilityStatus.UNKNOWN
@@ -151,7 +165,7 @@ object ModelCapabilityEngine {
             declared = values,
             runtime = values,
             confidence = if (provider == CloudProvider.CUSTOM) CapabilityConfidence.UNKNOWN else CapabilityConfidence.VERIFIED,
-            limits = CapabilityLimit(maxImages = if (vision) 4 else null, maxFileSizeBytes = 12L * 1024L * 1024L),
+            limits = CapabilityLimit(maxImages = if (vision) 4 else null, maxFileSizeBytes = if (nativeInline) 20L * 1024L * 1024L else 12L * 1024L * 1024L),
             explanation = if (vision) "تم التعرف على capability حسب model ID المحدد." else "هذا model ID لا يعلن دعم الصور في كتالوج AIRI الحالي.",
             readiness = ModelReadiness(
                 availability = if (exact.isBlank()) ModelAvailability.UNKNOWN else ModelAvailability.AVAILABLE,

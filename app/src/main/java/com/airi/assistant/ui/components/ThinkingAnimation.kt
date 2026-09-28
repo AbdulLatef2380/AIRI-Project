@@ -34,7 +34,8 @@ import com.airi.assistant.ui.theme.CosmicAccent
 fun ThinkingAnimation(
     modifier: Modifier = Modifier,
     stageText: String? = null, // null = auto-cycle; non-null = use caller-provided text
-    animate: Boolean = true
+    animate: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
 ) {
     if (!animate) {
         Text(
@@ -44,7 +45,7 @@ fun ThinkingAnimation(
                 fontSize = 12.sp
             ),
             color = CosmicAccent,
-            modifier = modifier.padding(horizontal = 12.dp, vertical = 12.dp)
+            modifier = modifier.padding(contentPadding)
         )
         return
     }
@@ -96,7 +97,7 @@ fun ThinkingAnimation(
 
     Row(
         modifier = modifier
-            .padding(horizontal = 12.dp, vertical = 12.dp)
+            .padding(contentPadding)
             .drawBehind {
                 // Radial glow behind the dots
                 val radius = 40f * glowScale
@@ -114,18 +115,8 @@ fun ThinkingAnimation(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Status text
-        Text(
-            text = effectiveText,
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontWeight = FontWeight.Medium,
-                fontSize   = 12.sp
-            ),
-            color = CosmicAccent.copy(alpha = fadeAlpha),
-            modifier = Modifier.alpha(fadeAlpha)
-        )
-
-        // Three-dot breathing indicator
+        // Three-dot breathing indicator comes first so the parent can keep the
+        // invariant icon → dots → label order in both LTR and RTL locales.
         Row(
             horizontalArrangement = Arrangement.spacedBy(5.dp),
             verticalAlignment     = Alignment.CenterVertically
@@ -166,5 +157,16 @@ fun ThinkingAnimation(
                 )
             }
         }
+
+        // Status text remains a separate bidi-aware label after the dots.
+        Text(
+            text = effectiveText,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontWeight = FontWeight.Medium,
+                fontSize   = 12.sp
+            ),
+            color = CosmicAccent.copy(alpha = fadeAlpha),
+            modifier = Modifier.alpha(fadeAlpha)
+        )
     }
 }

@@ -21,6 +21,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import java.util.LinkedList
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * TerminalRuntime — persistent interactive shell runtime backed by [SandboxManager].
@@ -69,6 +70,7 @@ class TerminalRuntime(
     private val _isRunning = MutableStateFlow(false)
     val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
     @Volatile private var activeExecutionJob: Job? = null
+    private val commandInFlight = AtomicBoolean(false)
 
     private val scrollback = LinkedList<TerminalLine>()
     private val historyBuffer = ArrayDeque<String>()
@@ -121,6 +123,10 @@ class TerminalRuntime(
     suspend fun execute(rawCommand: String) {
         val command = rawCommand.trim()
         if (command.isBlank()) return
+        if (!commandInFlight.compareAndSet(false, true)) {
+            appendLine(TerminalLine(text = "Permission denied: another terminal command is already running", isError = true))
+            return
+        }
         val executionJob = currentCoroutineContext()[Job]
         activeExecutionJob = executionJob
 
@@ -133,15 +139,17 @@ class TerminalRuntime(
 
         // Built-in commands
         when (command.lowercase()) {
-            "clear"  -> { _lines.value = emptyList(); return }
-            "help"   -> { appendHelp(); return }
-            "exit"   -> { activeSession?.let { sandboxManager.closeSession(it.sandboxId) }; activeSession = null; return }
+            "clear"  -> { _lines.value = emptyList(); commandInFlight.set(false); return }
+            "help"   -> { appendHelp(); commandInFlight.set(false); return }
+            "exit"   -> { activeSession?.let { sandboxManager.closeSession(it.sandboxId) }; activeSession = null; commandInFlight.set(false); return }
         }
 
         // Governance check
         val decision = governance.evaluate("shell_command", command, "terminal", command)
         if (!decision.allowed) {
             appendLine(TerminalLine(text = "Permission denied: ${decision.reason}", isError = true))
+            if (activeExecutionJob === executionJob) activeExecutionJob = null
+            commandInFlight.set(false)
             return
         }
 
@@ -158,6 +166,8 @@ class TerminalRuntime(
         if (sandboxSession == null) {
             appendLine(TerminalLine(text = "Error: No sandbox session available", isError = true))
             _isRunning.value = false
+            if (activeExecutionJob === executionJob) activeExecutionJob = null
+            commandInFlight.set(false)
             return
         }
 
@@ -199,6 +209,7 @@ class TerminalRuntime(
         } finally {
             if (activeExecutionJob === executionJob) activeExecutionJob = null
             _isRunning.value = false
+            commandInFlight.set(false)
         }
     }
 

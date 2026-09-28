@@ -61,7 +61,22 @@ class AnthropicAdapter(
                 retryable = false
             )
 
-        val body    = buildRequestBody(request)
+        val body    = AnthropicPayloadContract.buildRequestBody(request, model)
+        val attachmentIds = AnthropicPayloadContract.attachmentIds(request)
+        val trace = request.attachmentTrace
+        if (attachmentIds.isNotEmpty()) {
+            if (!AnthropicPayloadContract.containsNonEmptyContent(request)) {
+                trace?.reject("Anthropic attachment payload contained unsupported or empty content.")
+                return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                    error = "Anthropic attachment payload is empty or unsupported",
+                    errorType = CloudErrorType.INVALID_REQUEST,
+                    retryable = false,
+                )
+            }
+            trace?.mark(AttachmentDeliveryStage.PROVIDER_PAYLOAD_BUILT, attachmentIds)
+            request.imageParts.forEach { trace?.markPayloadContainsContent(it.attachmentId, it.base64Data.length.toLong()) }
+            request.inlineDataParts.forEach { trace?.markPayloadContainsContent(it.attachmentId, it.base64Data.length.toLong()) }
+        }
         var conn: HttpURLConnection? = null
         val fullText       = StringBuilder()
         var promptTokens   = 0
@@ -82,9 +97,11 @@ class AnthropicAdapter(
             currentCoroutineContext()[Job]?.invokeOnCompletion { conn?.disconnect() }
 
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            trace?.mark(AttachmentDeliveryStage.HTTP_REQUEST_DISPATCHED, attachmentIds)
 
             val httpCode = conn.responseCode
             if (httpCode !in 200..299) {
+                trace?.markProviderResponse(false, attachmentIds)
                 val errBody = conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $httpCode"
                 val mapped  = CloudErrorMapper.map(httpCode, errBody)
                 Log.w(TAG, "CLOUD_HTTP_FAILURE provider=anthropic code=$httpCode errorType=${mapped.type}")
@@ -142,6 +159,7 @@ class AnthropicAdapter(
             }
 
             if (!sawMessageStop) {
+                trace?.markProviderResponse(false, attachmentIds)
                 return@withContext CloudProviderAdapter.AdapterResult.Failure(
                     error = "Anthropic stream ended before message_stop",
                     errorType = CloudErrorType.CONNECTION_LOST,
@@ -152,6 +170,7 @@ class AnthropicAdapter(
 
             val latency = System.currentTimeMillis() - startMs
             if (fullText.isBlank()) {
+                trace?.markProviderResponse(false, attachmentIds)
                 return@withContext CloudProviderAdapter.AdapterResult.Failure(
                     error = "Provider returned no text",
                     errorType = CloudErrorType.UNKNOWN,
@@ -159,6 +178,8 @@ class AnthropicAdapter(
                     httpCode = 200
                 )
             }
+            trace?.mark(AttachmentDeliveryStage.PROVIDER_RESPONSE_RECEIVED, attachmentIds)
+            trace?.markProviderResponse(true, attachmentIds)
             onUsage(promptTokens, completeTokens)
             Log.i(TAG, "Complete: ${fullText.length} chars ${promptTokens}p+${completeTokens}c ${latency}ms")
 
@@ -174,12 +195,14 @@ class AnthropicAdapter(
             Log.i(TAG, "Cancelled after ${fullText.length} chars")
             throw e
         } catch (e: java.net.SocketTimeoutException) {
+            trace?.markProviderResponse(false, attachmentIds)
             val mapped = CloudErrorMapper.map(-1, e.message ?: "timeout")
             CloudProviderAdapter.AdapterResult.Failure(
                 error = mapped.message, errorType = mapped.type,
                 retryable = mapped.retryable, httpCode = -1
             )
         } catch (e: java.io.IOException) {
+            trace?.markProviderResponse(false, attachmentIds)
             val code = if (fullText.isNotEmpty()) -2 else -1
             val mapped = CloudErrorMapper.map(code, e.message ?: "io error")
             Log.w(TAG, "IOException code=$code: ${e.message}")
@@ -210,8 +233,10 @@ class AnthropicAdapter(
             append("{\"role\":\"${turn.role}\",\"content\":${jsonString(turn.content)}}")
             needsComma = true
         }
-        if (needsComma) append(",")
-        append("{\"role\":\"user\",\"content\":${jsonString(req.prompt)}}")
+        if (req.prompt.isNotBlank()) {
+            if (needsComma) append(",")
+            append("{\"role\":\"user\",\"content\":${jsonString(req.prompt)}}")
+        }
         append("],")
         append("\"stream\":true")
         append("}")

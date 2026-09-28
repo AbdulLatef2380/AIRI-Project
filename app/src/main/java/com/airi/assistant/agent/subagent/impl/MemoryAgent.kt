@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.flow
  *   - STORE  → [MemoryManager.recordImportantMemory] persists to Room (isMemory=true)
  *   - RECALL → [MemoryManager.getSemanticMemories] + optional vector search via EmbeddingService
  *   - LIST   → [MemoryManager.getSemanticMemories] with formatting
- *   - DELETE → [MemoryManager.clearAll] wipes all episodic memory rows
+ *   - DELETE → clears explicit memory rows owned by the active chat session only
  *
  * ─────────────────────────────────────────────────────────────────────────
  * PRIVACY CONTRACT
@@ -68,7 +68,7 @@ class MemoryAgent(
         when (operation) {
             MemoryOperation.STORE -> executeStore(input, context, start)
             MemoryOperation.RECALL -> executeRecall(input, context, start)
-            MemoryOperation.DELETE -> executeDelete(start)
+            MemoryOperation.DELETE -> executeDelete(context, start)
             MemoryOperation.LIST   -> executeList(context, start)
         }.collect { event -> emit(event) }
     }
@@ -197,23 +197,36 @@ class MemoryAgent(
     // DELETE — wipe stored memories
     // ─────────────────────────────────────────────────────────────────────────
 
-    private fun executeDelete(start: Long) = flow<AgentEvent> {
+    private fun executeDelete(context: SubAgentContext, start: Long) = flow<AgentEvent> {
+        val owningSession = context.sessionId.trim()
+        if (owningSession.isBlank()) {
+            emit(AgentEvent.PartialResult(
+                "I could not safely identify this conversation, so no memories were deleted.",
+                isFinal = true
+            ))
+            emit(AgentEvent.Complete(
+                result = "Memory deletion refused: missing session owner.",
+                durationMs = System.currentTimeMillis() - start,
+                toolsUsed = listOf("memory_delete")
+            ))
+            return@flow
+        }
         emit(AgentEvent.ToolCall(
             toolName  = "memory_delete",
-            params    = mapOf("scope" to "ALL"),
+            params    = mapOf("scope" to "SESSION", "session_id" to owningSession),
             reasoning = "User requested memory deletion"
         ))
-        emit(AgentEvent.Progress("Clearing all stored memories…", 50, "delete"))
+        emit(AgentEvent.Progress("Clearing memories from this conversation…", 50, "delete"))
 
-        memoryManager.clearAll()
+        val deletedCount = memoryManager.clearSessionMemories(owningSession)
 
-        Log.i(TAG, "AIRI MEMORY_CLEARED all episodic memories deleted")
+        Log.i(TAG, "AIRI SESSION_MEMORY_CLEARED deleted=$deletedCount")
         emit(AgentEvent.PartialResult(
-            "All stored memories have been cleared. I no longer have any personal data about you stored locally.",
+            "Stored memories for this conversation have been cleared. Other conversations and chat history were left unchanged.",
             isFinal = true
         ))
         emit(AgentEvent.Complete(
-            result     = "Memory cleared.",
+            result     = "Session memory cleared ($deletedCount record(s)).",
             durationMs = System.currentTimeMillis() - start,
             toolsUsed  = listOf("memory_delete")
         ))

@@ -71,10 +71,12 @@ object CloudAdapterFactory {
                 //
                 // Read the model name from EmbeddedProviderConfig, which is scoped
                 // to the provider type, not from the shared RemoteModelRegistry.
-                val geminiModel = resolveRequestedModel(provider, request) ?: EmbeddedProviderConfig.getActiveProvider(context)
+                val geminiModel = normalizeGeminiModel(resolveRequestedModel(provider, request))
+                    ?: EmbeddedProviderConfig.getActiveProvider(context)
                     ?.takeIf { it.provider == CloudProvider.GEMINI }
                     ?.defaultModel
-                    ?: "gemini-3.8-flash"
+                    ?.let(::normalizeGeminiModel)
+                    ?: GeminiAdapter.DEFAULT_MODEL
                 Log.d(TAG, "GEMINI: model=$geminiModel (from EmbeddedProviderConfig)")
                 GeminiAdapter(keyStore, geminiModel)
             }
@@ -118,6 +120,15 @@ object CloudAdapterFactory {
     ): String? = request
         ?.takeIf { it.requestedProviderId.equals(provider.name, ignoreCase = true) }
         ?.requestedModelId
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+
+    /**
+     * Migrate IDs written by older AIRI catalog versions at the wire boundary.
+     * The registry is persisted, so changing only the catalog does not repair an
+     * already-active model on a user's device.
+     */
+    private fun normalizeGeminiModel(model: String?): String? = model
         ?.trim()
         ?.takeIf { it.isNotBlank() }
 

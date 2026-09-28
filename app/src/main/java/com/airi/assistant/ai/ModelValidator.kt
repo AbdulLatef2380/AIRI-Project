@@ -12,6 +12,7 @@ sealed class ValidationResult {
     object FileNotFound : ValidationResult()
     object InvalidFormat : ValidationResult()
     object TooSmall : ValidationResult()
+    data class UnsupportedArchitecture(val architecture: String) : ValidationResult()
     data class InsufficientRam(val requiredMb: Long, val availableMb: Long) : ValidationResult()
 }
 
@@ -31,6 +32,10 @@ object ModelValidator {
         if (!file.exists()) return ValidationResult.FileNotFound
         if (file.length() < MIN_HEADER_BYTES) return ValidationResult.TooSmall
         if (!hasSupportedGgufHeader(file)) return ValidationResult.InvalidFormat
+        val architecture = detectArchitecture(file)
+        if (architecture !in SUPPORTED_ARCHS) {
+            return ValidationResult.UnsupportedArchitecture(architecture)
+        }
         if (ramRequiredMb > 0) {
             val availableMb = context?.let(::getAvailableRamMb) ?: Long.MAX_VALUE
             if (availableMb < ramRequiredMb) {
@@ -38,6 +43,13 @@ object ModelValidator {
             }
         }
         return ValidationResult.Valid
+    }
+
+    /** Conservative estimate used only when a local model has no catalog RAM metadata. */
+    fun estimateRequiredRamMb(fileSizeBytes: Long): Int {
+        val fileSizeMb = fileSizeBytes.coerceAtLeast(0L).toDouble() / (1024.0 * 1024.0)
+        val estimate = kotlin.math.ceil(fileSizeMb * 1.25 + 512.0)
+        return estimate.coerceIn(512.0, Int.MAX_VALUE.toDouble()).toInt()
     }
 
     fun inspect(file: File): Inspection {
@@ -83,13 +95,17 @@ object ModelValidator {
                 val value = b.toInt() and 0xFF
                 if (value in 32..126) value.toChar() else ' '
             }.joinToString("")
-            when {
-                Regex("gemma2?", RegexOption.IGNORE_CASE).containsMatchIn(printable) -> "gemma"
-                Regex("qwen2?", RegexOption.IGNORE_CASE).containsMatchIn(printable) -> "qwen"
-                Regex("llama", RegexOption.IGNORE_CASE).containsMatchIn(printable) -> "llama"
-                Regex("mistral|mixtral", RegexOption.IGNORE_CASE).containsMatchIn(printable) -> "mistral"
-                else -> "unknown"
+            val architectureKey = "general.architecture"
+            val keyIndex = printable.indexOf(architectureKey)
+            val candidate = if (keyIndex >= 0) {
+                printable.substring(keyIndex + architectureKey.length).take(128)
+            } else {
+                printable
             }
+            Regex(
+                "\\b(qwen3vl|qwen2vl|qwen3|qwen2|qwen|llama4|llama|gemma3|gemma2|gemma|mixtral|mistral|phi3|deepseek2?|starcoder2|command-r)\\b",
+                RegexOption.IGNORE_CASE
+            ).find(candidate)?.value?.lowercase() ?: "unknown"
         } catch (e: Exception) {
             "unknown"
         }

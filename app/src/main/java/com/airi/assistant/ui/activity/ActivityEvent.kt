@@ -10,8 +10,14 @@ data class ActivityEvent(
     /** Owning agent execution when the event originates from a live trace. */
     val executionId: String? = null,
     val category: ActivityCategory,
-    val severity: ActivitySeverity = ActivitySeverity.INFO
-)
+    val severity: ActivitySeverity = ActivitySeverity.INFO,
+    /** Stable machine-readable classification; unlike detail, never shown in the feed. */
+    val machineTag: String? = null
+) {
+    companion object {
+        const val MACHINE_TAG_NATIVE_CONTEXT_RESET = "native_context_reset"
+    }
+}
 
 enum class ActivityCategory(val label: String, val emoji: String) {
     REASONING    ("Reasoning",     "◉"),

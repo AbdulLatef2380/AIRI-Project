@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 PROMPT = "Reply with exactly: AIRI smoke test passed."
-DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+DEFAULT_GEMINI_MODEL = "gemini-flash-latest"
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 
 
@@ -137,7 +137,7 @@ def _gemini(timeout: float, model: str) -> Result:
             value = json.loads(payload)
             if value.get("error"):
                 raise RuntimeError("provider returned an error event")
-            if '"finishReason":"' in payload:
+            if any(candidate.get("finishReason") for candidate in value.get("candidates", [])):
                 terminal = True
             for candidate in value.get("candidates", []):
                 for part in candidate.get("content", {}).get("parts", []):

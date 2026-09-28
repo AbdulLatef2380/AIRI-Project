@@ -62,8 +62,14 @@ object AgentActivityBus {
         }
     }
 
-    fun emit(message: String, category: ActivityCategory, severity: ActivitySeverity = ActivitySeverity.INFO, detail: String? = null) {
-        emit(ActivityEvent(message = message, category = category, severity = severity, detail = detail))
+    fun emit(
+        message: String,
+        category: ActivityCategory,
+        severity: ActivitySeverity = ActivitySeverity.INFO,
+        detail: String? = null,
+        machineTag: String? = null
+    ) {
+        emit(ActivityEvent(message = message, category = category, severity = severity, detail = detail, machineTag = machineTag))
     }
 
     fun clearHistory() { snapshotList.clear(); _recent.value = emptyList() }

@@ -4,12 +4,15 @@ object ModelManager {
     private var currentModel: ModelInfo? = null
     private var loader: ModelLoader? = null
     private var isLoading = false
+    private var operationId = 0L
+    private var lastFailedModelId: String? = null
 
     fun setLoader(l: ModelLoader) {
         loader = l
     }
 
     fun load(model: ModelInfo, onProgress: (Int) -> Unit = {}, onReady: (Boolean) -> Unit) {
+        val requestId = ++operationId
         if (isLoading) {
             onReady(false)
             return
@@ -23,19 +26,32 @@ object ModelManager {
         activeLoader.unload()
         currentModel = null
         activeLoader.loadModel(model, onProgress) { success ->
-            isLoading = false
-            if (success) {
-                ModelRegistry.addModel(model)
-                currentModel = model
+            if (requestId == operationId) {
+                isLoading = false
+                if (success) {
+                    ModelRegistry.addModel(model)
+                    currentModel = model
+                    lastFailedModelId = null
+                } else {
+                    lastFailedModelId = model.id
+                }
+                onReady(success)
             }
-            onReady(success)
         }
     }
 
     fun unload() {
+        operationId++
         loader?.unload()
         currentModel = null
         isLoading = false
+    }
+
+    /** Diagnostic state for startup recovery UI; explicit retry remains allowed. */
+    fun lastFailedModelId(): String? = lastFailedModelId
+
+    fun clearLastFailedModel() {
+        lastFailedModelId = null
     }
 
     fun getCurrent(): ModelInfo? = currentModel

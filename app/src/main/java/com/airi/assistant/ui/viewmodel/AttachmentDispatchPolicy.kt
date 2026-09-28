@@ -28,6 +28,17 @@ enum class AttachmentDispatchFailure {
 internal enum class ImageDispatchRoute { LOCAL_SINGLE_IMAGE, CLOUD_VISION }
 
 internal object AttachmentDispatchPolicy {
+    /** A capability declaration is not sufficient unless this runtime has a payload path. */
+    fun payloadTransportFailure(
+        contentType: AttachmentPolicy.ContentType,
+    ): AttachmentDispatchFailure? = when (contentType) {
+        AttachmentPolicy.ContentType.IMAGE,
+        AttachmentPolicy.ContentType.TEXT -> null
+        AttachmentPolicy.ContentType.VIDEO,
+        AttachmentPolicy.ContentType.DOCUMENT,
+        AttachmentPolicy.ContentType.FILE -> AttachmentDispatchFailure.UNSUPPORTED_CONTENT
+    }
+
     fun maximumSizeBytes(contentType: AttachmentPolicy.ContentType): Long =
         if (contentType == AttachmentPolicy.ContentType.TEXT) {
             AttachmentPolicy.MAX_TEXT_ATTACHMENT_BYTES

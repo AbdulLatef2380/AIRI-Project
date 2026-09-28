@@ -8,6 +8,22 @@ import org.junit.Test
 class AttachmentDispatchPolicyTest {
 
     @Test
+    fun onlyPayloadsWithImplementedTransportAreAdmitted() {
+        assertNull(AttachmentDispatchPolicy.payloadTransportFailure(AttachmentPolicy.ContentType.IMAGE))
+        assertNull(AttachmentDispatchPolicy.payloadTransportFailure(AttachmentPolicy.ContentType.TEXT))
+        listOf(
+            AttachmentPolicy.ContentType.VIDEO,
+            AttachmentPolicy.ContentType.DOCUMENT,
+            AttachmentPolicy.ContentType.FILE,
+        ).forEach { type ->
+            assertEquals(
+                AttachmentDispatchFailure.UNSUPPORTED_CONTENT,
+                AttachmentDispatchPolicy.payloadTransportFailure(type),
+            )
+        }
+    }
+
+    @Test
     fun preflightRejectsWhileTheModelIsLoading() {
         assertEquals(
             AttachmentDispatchFailure.MODEL_LOADING,

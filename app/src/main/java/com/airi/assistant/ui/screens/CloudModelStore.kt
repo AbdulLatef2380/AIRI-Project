@@ -62,6 +62,8 @@ fun CloudModelStoreSection(
         EmbeddedProviderConfig.getActiveProvider(context)
     )}
     var showKeyDialog  by remember { mutableStateOf<EmbeddedProviderConfig.ProviderConfig?>(null) }
+    var showLocalEndpointDialog by remember { mutableStateOf<EmbeddedProviderConfig.ProviderConfig?>(null) }
+    var localEndpointDraft by remember { mutableStateOf("") }
     var showAdvanced   by remember { mutableStateOf(false) }
     var execModeExpanded by remember { mutableStateOf(false) }
 
@@ -123,10 +125,11 @@ fun CloudModelStoreSection(
                 isActive = isActive,
                 hasKey   = hasKey,
                 onActivate = {
-                    if (config.tier == EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER || hasKey) {
-                        // Ready to activate
-                        viewModel.activateBuiltinProvider(config)
-                        activeBuiltin.value = config
+                    if (config.tier == EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER) {
+                        localEndpointDraft = EmbeddedProviderConfig.getLocalEndpoint(context, config)
+                        showLocalEndpointDialog = config
+                    } else if (hasKey) {
+                        if (viewModel.activateBuiltinProvider(config)) activeBuiltin.value = config
                     } else {
                         // Need API key first
                         showKeyDialog = config
@@ -199,6 +202,50 @@ fun CloudModelStoreSection(
                 showKeyDialog = null
             },
             onDismiss = { showKeyDialog = null }
+        )
+    }
+    showLocalEndpointDialog?.let { cfg ->
+        val endpointAllowed = com.airi.assistant.execution.cloud.LocalEndpointPolicy.isAllowed(localEndpointDraft)
+        AlertDialog(
+            onDismissRequest = { showLocalEndpointDialog = null },
+            title = { Text(stringResource(R.string.local_endpoint_title, cfg.displayLabel)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.local_endpoint_help), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
+                    OutlinedTextField(
+                        value = localEndpointDraft,
+                        onValueChange = { localEndpointDraft = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.local_endpoint_label)) },
+                        placeholder = { Text(stringResource(R.string.local_endpoint_example)) },
+                        isError = localEndpointDraft.isNotBlank() && !endpointAllowed,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (localEndpointDraft.isNotBlank() && !endpointAllowed) {
+                        Text(
+                            stringResource(R.string.local_endpoint_invalid),
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = endpointAllowed,
+                    onClick = {
+                        if (viewModel.activateBuiltinProvider(cfg, localEndpointDraft)) {
+                            activeBuiltin.value = cfg
+                            showLocalEndpointDialog = null
+                        }
+                    },
+                ) { Text(stringResource(R.string.connect)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLocalEndpointDialog = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
         )
     }
 }

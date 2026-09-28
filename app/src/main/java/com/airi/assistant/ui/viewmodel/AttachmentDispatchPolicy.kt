@@ -15,9 +15,27 @@ enum class AttachmentDispatchFailure {
     CAPABILITY_UNAVAILABLE,
     CAPABILITY_UNKNOWN,
     STAGING_FAILED,
+    UNSUPPORTED_CONTENT,
+    TEXT_EXTRACTION_FAILED,
+    MULTI_IMAGE_UNSUPPORTED,
+    DISPATCH_FAILED,
 }
 
+internal enum class ImageDispatchRoute { LOCAL_SINGLE_IMAGE, CLOUD_VISION }
+
 internal object AttachmentDispatchPolicy {
+    fun imageRoute(
+        imageCount: Int,
+        localVisionReady: Boolean,
+        cloudVisionReady: Boolean,
+        cloudMaxImages: Int,
+    ): ImageDispatchRoute? = when {
+        imageCount <= 0 -> null
+        imageCount == 1 && localVisionReady -> ImageDispatchRoute.LOCAL_SINGLE_IMAGE
+        cloudVisionReady && imageCount <= cloudMaxImages -> ImageDispatchRoute.CLOUD_VISION
+        else -> null
+    }
+
     fun preflight(
         modelLoading: Boolean,
         generationInProgress: Boolean,

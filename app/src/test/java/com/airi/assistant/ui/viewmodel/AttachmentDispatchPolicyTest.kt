@@ -96,4 +96,45 @@ class AttachmentDispatchPolicyTest {
         )
         assertNull(AttachmentDispatchPolicy.afterStaging(allAttachmentsPersisted = true))
     }
+
+    @Test
+    fun multipleImagesRouteToCloudOnlyWhenCloudCanAcceptAllImages() {
+        assertEquals(
+            ImageDispatchRoute.CLOUD_VISION,
+            AttachmentDispatchPolicy.imageRoute(
+                imageCount = 3,
+                localVisionReady = true,
+                cloudVisionReady = true,
+                cloudMaxImages = 4,
+            ),
+        )
+        assertNull(
+            AttachmentDispatchPolicy.imageRoute(
+                imageCount = 3,
+                localVisionReady = true,
+                cloudVisionReady = false,
+                cloudMaxImages = 0,
+            ),
+        )
+        assertNull(
+            AttachmentDispatchPolicy.imageRoute(
+                imageCount = 5,
+                localVisionReady = false,
+                cloudVisionReady = true,
+                cloudMaxImages = 4,
+            ),
+        )
+    }
+
+    @Test
+    fun oneImagePrefersLocalWhenAvailableAndOtherwiseUsesCompatibleCloud() {
+        assertEquals(
+            ImageDispatchRoute.LOCAL_SINGLE_IMAGE,
+            AttachmentDispatchPolicy.imageRoute(1, localVisionReady = true, cloudVisionReady = true, cloudMaxImages = 4),
+        )
+        assertEquals(
+            ImageDispatchRoute.CLOUD_VISION,
+            AttachmentDispatchPolicy.imageRoute(1, localVisionReady = false, cloudVisionReady = true, cloudMaxImages = 4),
+        )
+    }
 }

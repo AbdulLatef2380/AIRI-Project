@@ -171,19 +171,28 @@ class GeminiAdapter(
             append(jsonString(turn.content))
             append("}]}")
         }
-        if (!first) append(",")
-        append("{\"role\":\"user\",\"parts\":[{\"text\":")
-        append(jsonString(req.prompt))
-        req.imageParts.forEach { image ->
-            // Gemini REST expects snake_case inline_data parts. An OpenAI
-            // image_url object is not valid Gemini request JSON.
-            append(",{\"inline_data\":{\"mime_type\":")
-            append(jsonString(image.mimeType.ifBlank { "image/jpeg" }))
-            append(",\"data\":")
-            append(jsonString(image.base64Data))
-            append("}}")
+        if (req.prompt.isNotBlank() || req.imageParts.isNotEmpty()) {
+            if (!first) append(",")
+            append("{\"role\":\"user\",\"parts\":[")
+            var hasPart = false
+            if (req.prompt.isNotBlank()) {
+                append("{\"text\":${jsonString(req.prompt)}}")
+                hasPart = true
+            }
+            req.imageParts.forEach { image ->
+                // Gemini REST expects snake_case inline_data parts. An OpenAI
+                // image_url object is not valid Gemini request JSON.
+                if (hasPart) append(",")
+                append("{\"inline_data\":{\"mime_type\":")
+                append(jsonString(image.mimeType.ifBlank { "image/jpeg" }))
+                append(",\"data\":")
+                append(jsonString(image.base64Data))
+                append("}}")
+                hasPart = true
+            }
+            append("]}")
         }
-        append("]},")
+        append("],")
         append("\"generationConfig\":{\"maxOutputTokens\":${req.maxTokens},\"temperature\":${req.temperature}}")
         append("}")
     }

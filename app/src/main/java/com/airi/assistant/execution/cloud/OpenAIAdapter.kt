@@ -230,21 +230,29 @@ open class OpenAIAdapter(
             append("{\"role\":\"${turn.role}\",\"content\":${jsonString(turn.content)}}")
             needsComma = true
         }
-        if (needsComma) append(",")
-        append("{\"role\":\"user\",\"content\":")
-        if (req.imageParts.isEmpty()) {
-            append(jsonString(req.prompt))
-        } else {
-            append("[")
-            append("{\"type\":\"text\",\"text\":${jsonString(req.prompt)}}")
-            req.imageParts.forEach { image ->
-                append(",{\"type\":\"image_url\",\"image_url\":{\"url\":")
-                append(jsonString("data:${image.mimeType.ifBlank { "image/jpeg" }};base64,${image.base64Data}"))
-                append("}}")
+        if (req.prompt.isNotBlank() || req.imageParts.isNotEmpty()) {
+            if (needsComma) append(",")
+            append("{\"role\":\"user\",\"content\":")
+            if (req.imageParts.isEmpty()) {
+                append(jsonString(req.prompt))
+            } else {
+                append("[")
+                var hasPart = false
+                if (req.prompt.isNotBlank()) {
+                    append("{\"type\":\"text\",\"text\":${jsonString(req.prompt)}}")
+                    hasPart = true
+                }
+                req.imageParts.forEach { image ->
+                    if (hasPart) append(",")
+                    append("{\"type\":\"image_url\",\"image_url\":{\"url\":")
+                    append(jsonString("data:${image.mimeType.ifBlank { "image/jpeg" }};base64,${image.base64Data}"))
+                    append("}}")
+                    hasPart = true
+                }
+                append("]")
             }
-            append("]")
+            append("}")
         }
-        append("}")
         append("],")
         append("\"max_tokens\":${req.maxTokens},")
         append("\"temperature\":${req.temperature},")

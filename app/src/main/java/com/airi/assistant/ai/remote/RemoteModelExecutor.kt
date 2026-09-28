@@ -1,6 +1,7 @@
 package com.airi.assistant.ai.remote
 
 import android.util.Log
+import com.airi.assistant.execution.cloud.LocalEndpointPolicy
 import com.airi.assistant.domain.logging.LoggingService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -69,6 +70,9 @@ class RemoteModelExecutor {
         maxTokens: Int = 512,
         temperature: Float = 0.8f
     ): RemoteResult = withContext(Dispatchers.IO) {
+        if (!LocalEndpointPolicy.isAllowed(model.serverUrl)) {
+            return@withContext RemoteResult.Failure("Endpoint rejected by local security policy")
+        }
         val startMs = System.currentTimeMillis()
         var lastError = "Unknown error"
         for (attempt in 0..MAX_RETRIES) {
@@ -104,6 +108,9 @@ class RemoteModelExecutor {
         temperature: Float = 0.8f,
         onToken: suspend (String) -> Unit
     ): RemoteResult = withContext(Dispatchers.IO) {
+        if (!LocalEndpointPolicy.isAllowed(model.serverUrl)) {
+            return@withContext RemoteResult.Failure("Endpoint rejected by local security policy")
+        }
         val startMs = System.currentTimeMillis()
         val result = withTimeoutOrNull(TIMEOUT_MS) {
             runCatching {
@@ -119,14 +126,16 @@ class RemoteModelExecutor {
         result
     }
 
-    suspend fun testConnection(model: RemoteModel): Boolean = withContext(Dispatchers.IO) {
-        withTimeoutOrNull(10_000L) {
+    suspend fun testConnection(model: RemoteModel, timeoutMs: Long = 10_000L): Boolean = withContext(Dispatchers.IO) {
+        if (!LocalEndpointPolicy.isAllowed(model.serverUrl)) return@withContext false
+        val socketTimeoutMs = timeoutMs.coerceIn(1L, 8_000L).toInt()
+        withTimeoutOrNull(timeoutMs.coerceAtLeast(1L)) {
             runCatching {
                 val url  = URL(normalizeUrl(model.serverUrl) + "/v1/models")
                 val conn = url.openConnection() as HttpURLConnection
                 try {
-                    conn.connectTimeout = 8_000
-                    conn.readTimeout    = 8_000
+                    conn.connectTimeout = socketTimeoutMs
+                    conn.readTimeout    = socketTimeoutMs
                     conn.requestMethod  = "GET"
                     if (model.apiKey.isNotBlank()) {
                         conn.setRequestProperty("Authorization", "Bearer ${model.apiKey}")

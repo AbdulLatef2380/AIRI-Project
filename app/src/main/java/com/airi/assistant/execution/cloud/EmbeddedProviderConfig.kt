@@ -47,6 +47,7 @@ object EmbeddedProviderConfig {
     private const val KEY_GROQ_KEY      = "user_groq_key"
     private const val KEY_OR_KEY        = "user_openrouter_key"
     private const val KEY_GEMINI_KEY    = "user_gemini_key"
+    private const val LOCAL_ENDPOINT_PREFIX = "local_endpoint_"
 
     // ── Provider tier ─────────────────────────────────────────────────────────
 
@@ -224,6 +225,26 @@ object EmbeddedProviderConfig {
             .remove(KEY_ACTIVE_ID)
             .apply()
     }
+
+    fun getLocalEndpoint(context: Context, config: ProviderConfig): String =
+        if (config.tier != ProviderTier.LOCAL_SERVER) "" else
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(LOCAL_ENDPOINT_PREFIX + config.id, "")
+                .orEmpty()
+
+    fun saveLocalEndpoint(context: Context, config: ProviderConfig, endpoint: String): Boolean {
+        if (config.tier != ProviderTier.LOCAL_SERVER) return false
+        val normalized = LocalEndpointPolicy.normalizeAllowedEndpoint(endpoint) ?: return false
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(LOCAL_ENDPOINT_PREFIX + config.id, normalized)
+            .apply()
+        return true
+    }
+
+    /** Empty means not configured; never silently use a localhost catalog default. */
+    fun effectiveBaseUrl(context: Context, config: ProviderConfig): String =
+        if (config.tier == ProviderTier.LOCAL_SERVER) getLocalEndpoint(context, config) else config.baseUrl
 
     // ── Key management (delegates to SecureApiKeyStore) ───────────────────────
 

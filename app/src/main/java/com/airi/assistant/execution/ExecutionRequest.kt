@@ -10,7 +10,8 @@ import com.airi.assistant.ai.QueryType
  *                             "user" or "assistant". The current [prompt] is always the
  *                             final user turn — adapters must not duplicate it.
  *                             Local llama.cpp ignores this field; it uses KV-cache
- *                             session reuse instead.
+ *                             session reuse instead. [localPrompt] is the complete
+ *                             prompt for that local inference path.
  */
 data class ExecutionRequest(
     val prompt:                   String,
@@ -35,6 +36,8 @@ data class ExecutionRequest(
     /** Model identifier actually selected for the resolved target. */
     val resolvedModelId:          String     = "",
     val conversationHistory:      List<ConversationTurn> = emptyList(),
+    /** Full per-request text for local inference; cloud adapters must use prompt + history. */
+    val localPrompt:              String     = "",
     /** Inline image parts for providers that support vision (base64, no file paths). */
     val imageParts:               List<ImagePart> = emptyList(),
     /** Correlation identity; generated at the request boundary and preserved downstream. */

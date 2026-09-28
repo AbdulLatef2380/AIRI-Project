@@ -1,19 +1,23 @@
 package com.airi.assistant.ui.viewmodel
 
+import com.airi.assistant.agent.loop.AgentLoop
+
 /** Terminal classification for one user-visible generation. */
 enum class GenerationResponseStatus {
     SUCCESS,
     EMPTY_RESPONSE,
     CANCELLED,
+    TIMEOUT,
+    FAILURE,
 }
 
 object GenerationResponsePolicy {
-    fun classify(finalAnswer: String, streamedAnswer: String, cancelled: Boolean): GenerationResponseStatus {
-        if (cancelled) return GenerationResponseStatus.CANCELLED
-        return if (finalAnswer.trim().isNotEmpty() || streamedAnswer.trim().isNotEmpty()) {
-            GenerationResponseStatus.SUCCESS
-        } else {
-            GenerationResponseStatus.EMPTY_RESPONSE
-        }
+    /** The semantic terminal state is authoritative; partial streamed text never upgrades a failure. */
+    fun classify(terminalState: AgentLoop.TerminalState): GenerationResponseStatus = when (terminalState) {
+        AgentLoop.TerminalState.SUCCESS -> GenerationResponseStatus.SUCCESS
+        AgentLoop.TerminalState.NO_RESPONSE -> GenerationResponseStatus.EMPTY_RESPONSE
+        AgentLoop.TerminalState.CANCELLED -> GenerationResponseStatus.CANCELLED
+        AgentLoop.TerminalState.TIMEOUT -> GenerationResponseStatus.TIMEOUT
+        AgentLoop.TerminalState.FAILURE -> GenerationResponseStatus.FAILURE
     }
 }

@@ -221,6 +221,9 @@ fun ChatScreen(
     val composerDrafts        by viewModel.composerDrafts.collectAsState()
     val currentComposerDraft = composerDrafts[currentSessionId]
     val currentSession = sessions.firstOrNull { it.id == currentSessionId }
+    val generationBelongsToCurrentSession = agentState.isWorking &&
+        (agentState.sessionId.isBlank() || agentState.sessionId == currentSessionId)
+    val visibleStreamingText = streamingText.takeIf { generationBelongsToCurrentSession }.orEmpty()
     val visibleExecutionError = lastExecutionError?.takeIf {
         it.sessionId.isNullOrBlank() || it.sessionId == currentSessionId
     }
@@ -243,7 +246,7 @@ fun ChatScreen(
     var knowledgeSearchVersion by remember { mutableStateOf(0) }
 
     // Chat is "active" when there are messages or the AI is responding
-    val chatIsActive = messages.isNotEmpty() || streamingText.isNotEmpty() || agentState.isWorking
+    val chatIsActive = messages.isNotEmpty() || visibleStreamingText.isNotEmpty() || generationBelongsToCurrentSession
     LaunchedEffect(chatIsActive) { onChatActiveChanged(chatIsActive) }
     // ChatScreen is the correct collection site because it has access to
     // FragmentActivity via LocalContext — ViewModels must never hold Activity refs.
@@ -901,6 +904,10 @@ fun ChatScreen(
                                         AttachmentDispatchFailure.CAPABILITY_UNAVAILABLE -> R.string.attachment_capability_unavailable
                                         AttachmentDispatchFailure.CAPABILITY_UNKNOWN -> R.string.attachment_capability_unknown
                                         AttachmentDispatchFailure.STAGING_FAILED -> R.string.attachment_staging_failed
+                                        AttachmentDispatchFailure.UNSUPPORTED_CONTENT -> R.string.attachment_unsupported_content
+                                        AttachmentDispatchFailure.TEXT_EXTRACTION_FAILED -> R.string.attachment_text_extraction_failed
+                                        AttachmentDispatchFailure.MULTI_IMAGE_UNSUPPORTED -> R.string.attachment_multiple_images_unsupported
+                                        AttachmentDispatchFailure.DISPATCH_FAILED -> R.string.attachment_dispatch_failed
                                     }
                                     scope.launch { snackbarHost.showSnackbar(context.getString(messageRes)) }
                                 },
@@ -1085,10 +1092,10 @@ fun ChatScreen(
             }
             ChatMessageList(
                 messages      = filteredChatMessages,
-                streamingText = if (chatSearchQuery.isBlank()) streamingText else "",
-                isGenerating  = agentState.isWorking,
+                streamingText = if (chatSearchQuery.isBlank()) visibleStreamingText else "",
+                isGenerating  = generationBelongsToCurrentSession,
                 executionError = visibleExecutionError,
-                finalAnswerVerification = agentState.finalAnswerVerification,
+                finalAnswerVerification = agentState.finalAnswerVerification.takeIf { generationBelongsToCurrentSession || !agentState.isWorking },
                 isModelReady  = modelState.isModelReady,
                 isCloudReady  = modelState.isCloudReady,
                 sessionLoadState = sessionLoadState,
@@ -1805,8 +1812,15 @@ private fun AiriModelPickerSheet(
                     isSelected = isSelected,
                     onClick   = {
                         scope.launch {
-                            viewModel.activateBuiltinProvider(prov)
-                            activeProv.value = prov
+                            if (viewModel.activateBuiltinProvider(prov)) {
+                                activeProv.value = prov
+                            } else {
+                                if (prov.tier == com.airi.assistant.execution.cloud.EmbeddedProviderConfig.ProviderTier.LOCAL_SERVER) {
+                                    snackbarHost.showSnackbar(context.getString(R.string.local_endpoint_config_required))
+                                } else {
+                                    onNavigateToModels()
+                                }
+                            }
                             onDismiss()
                         }
                     }

@@ -1626,6 +1626,7 @@
     <!-- generation -->
     <string name="err_generation_failed">Unable to generate a response. Please try again.</string>
     <string name="err_empty_response">The model completed without returning an answer. Check the model or provider and try again.</string>
+    <string name="err_agent_loop_timeout">AIRI reached its processing deadline before completing a response. Any partial output was not treated as a complete answer.</string>
     <string name="err_cloud_credentials_invalid">The saved API key for this provider is invalid. Check its settings and try again.</string>
     <string name="err_cloud_model_unavailable">The selected model is not available from this provider. Choose another model or verify provider settings.</string>
     <string name="err_cloud_quota_exhausted">The provider usage quota is exhausted. Check the provider account or choose another provider.</string>
@@ -1830,6 +1831,16 @@
     <string name="attachment_capability_unavailable">The current model cannot process this attachment type. Choose a compatible model or remove the attachment.</string>
     <string name="attachment_capability_unknown">AIRI could not verify whether the current model supports this attachment. Choose a compatible model or verify it before retrying.</string>
     <string name="attachment_staging_failed">We couldn\'t prepare one or more attachments. They were kept so you can try again.</string>
+    <string name="attachment_unsupported_content">AIRI cannot read this file type yet. Images and plain-text files are supported; your attachment was kept.</string>
+    <string name="attachment_text_extraction_failed">AIRI could not read the selected text file. It was kept; choose a readable file and try again.</string>
+    <string name="attachment_multiple_images_unsupported">This route cannot process all selected images together. Your attachments were kept; choose a vision provider that supports them or send fewer images.</string>
+    <string name="attachment_dispatch_failed">The request was not accepted. Your attachments were kept so you can try again.</string>
+    <string name="local_endpoint_title">Connect %1$s</string>
+    <string name="local_endpoint_label">Server URL</string>
+    <string name="local_endpoint_example">Example: http://ollama.local:11434/v1</string>
+    <string name="local_endpoint_help">Enter the OpenAI-compatible server URL. On a phone, localhost points to the phone, not your computer. Release builds require HTTPS; debug builds allow HTTP only for localhost, the emulator host, or a .local hostname.</string>
+    <string name="local_endpoint_invalid">Use HTTPS. HTTP is allowed only in debug builds for localhost, the emulator host, or a .local hostname.</string>
+    <string name="local_endpoint_config_required">Configure the local server URL in Settings → Cloud Models before connecting.</string>
     <string name="attachment_preparing">Preparing attachments</string>
     <string name="attachment_drop_here">Drop files here to attach them</string>
     <string name="chat_search">Search chat</string>

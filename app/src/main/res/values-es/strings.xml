@@ -1257,6 +1257,7 @@
     <string name="voice_vosk_stt_models">Modelos STT de Vosk</string>
     <string name="welcome_greeting">Hola, soy AIRI</string>
     <string name="err_generation_failed">No se pudo generar una respuesta. Por favor, inténtalo de nuevo.</string>
+    <string name="err_agent_loop_timeout">AIRI alcanzó el límite de tiempo antes de completar la respuesta; el texto parcial no se consideró una respuesta completa.</string>
     <string name="err_cloud_credentials_invalid">La clave API guardada para este proveedor no es válida. Comprueba su configuración e inténtalo de nuevo.</string>
     <string name="err_cloud_model_unavailable">El modelo seleccionado no está disponible en este proveedor. Elige otro modelo o revisa la configuración.</string>
     <string name="err_cloud_quota_exhausted">Se agotó la cuota del proveedor. Comprueba la cuenta del proveedor o elige otro.</string>
@@ -1751,6 +1752,16 @@
     <string name="resource_processor_cores_text">Hay %1$d núcleos de procesador disponibles. Este valor guía las opciones de AIRI; Android sigue controlando la planificación.</string>
     <string name="attachment_capability_unavailable">El modelo actual no puede procesar este tipo de archivo adjunto. Elige un modelo compatible o elimina el archivo.</string>
     <string name="attachment_capability_unknown">AIRI no pudo verificar si el modelo actual admite este archivo adjunto. Elige un modelo compatible o verifica la compatibilidad antes de reintentarlo.</string>
+    <string name="attachment_unsupported_content">AIRI aún no puede leer este tipo de archivo. Se admiten imágenes y archivos de texto sin formato; el adjunto se conservó.</string>
+    <string name="attachment_text_extraction_failed">AIRI no pudo leer el archivo de texto seleccionado. Se conservó; elige un archivo legible e inténtalo de nuevo.</string>
+    <string name="attachment_multiple_images_unsupported">Esta ruta no puede procesar todas las imágenes seleccionadas. Se conservaron; elige un proveedor visual compatible o envía menos imágenes.</string>
+    <string name="attachment_dispatch_failed">No se aceptó la solicitud. Los archivos adjuntos se conservaron para que puedas volver a intentarlo.</string>
+    <string name="local_endpoint_title">Conectar %1$s</string>
+    <string name="local_endpoint_label">URL del servidor</string>
+    <string name="local_endpoint_example">Ejemplo: http://ollama.local:11434/v1</string>
+    <string name="local_endpoint_help">Introduce la URL del servidor compatible con OpenAI. En un teléfono, localhost apunta al teléfono, no al ordenador. Las versiones de producción requieren HTTPS; las versiones debug permiten HTTP solo para localhost, el host del emulador o un nombre .local.</string>
+    <string name="local_endpoint_invalid">Usa HTTPS. HTTP solo se permite en versiones debug para localhost, el host del emulador o un nombre .local.</string>
+    <string name="local_endpoint_config_required">Configura la URL del servidor local en Ajustes → Modelos en la nube antes de conectarlo.</string>
     <string name="feedback_helpful">Respuesta útil</string>
     <string name="feedback_not_helpful">Respuesta no útil</string>
     <string name="cd_scroll_to_bottom">Desplazarse al final de la conversación</string>

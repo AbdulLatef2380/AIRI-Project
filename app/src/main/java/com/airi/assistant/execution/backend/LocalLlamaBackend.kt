@@ -160,7 +160,7 @@ class LocalLlamaBackend(
 
         try {
             llamaManager.generateStream(
-                prompt         = request.prompt,
+                prompt         = request.localPrompt.ifBlank { request.prompt },
                 systemPrompt   = request.systemPrompt,
                 maxTokens      = request.maxTokens,
                 temperature    = request.temperature,
@@ -252,7 +252,13 @@ class LocalLlamaBackend(
         val requestedModelId = request.requestedModelId
         val loadedModelId = ModelManager.getCurrent()?.id.orEmpty()
         if (requestedModelId.isNotBlank() && requestedModelId != loadedModelId) {
-            Log.w(TAG, "stale model binding requested=$requestedModelId loaded=$loadedModelId; using loaded model")
+            Log.w(TAG, "model binding mismatch requested=$requestedModelId loaded=$loadedModelId")
+            return ExecutionResult.Failure(
+                error = "Selected model is not loaded; reload the selected model before retrying.",
+                origin = ExecOrigin.LOCAL,
+                retryable = false,
+                code = "model_mismatch",
+            )
         }
 
         val startMs  = System.currentTimeMillis()
@@ -275,7 +281,7 @@ class LocalLlamaBackend(
 
         try {
             llamaManager.generateStream(
-                prompt         = request.prompt,
+                prompt         = request.localPrompt.ifBlank { request.prompt },
                 systemPrompt   = request.systemPrompt,
                 maxTokens      = request.maxTokens,
                 temperature    = request.temperature,

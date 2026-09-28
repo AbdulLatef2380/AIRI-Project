@@ -898,17 +898,13 @@ class LlamaManager(private val context: Context) {
     ) {
         val model = ModelManager.getCurrent()
         if (!isLoaded || model == null) {
-            
-            // contain user-supplied callbacks so an exception inside
-            // onToken/onComplete cannot crash the app.
+            // A readiness failure is terminal. Never emit diagnostic prose as
+            // a token or follow it with an empty completion: that combination
+            // used to be interpreted as a successful local answer.
             scope.launch(Dispatchers.Main) {
-                try { onToken("[Engine not initialised]") }
+                try { onError("Local model engine is not initialized. Load a local model and try again.") }
                 catch (t: Throwable) {
-                    Log.w(TAG, "onToken(early) threw (swallowed): ${t.message}", t)
-                }
-                try { onComplete("") }
-                catch (t: Throwable) {
-                    Log.w(TAG, "onComplete(early) threw (swallowed): ${t.message}", t)
+                    Log.w(TAG, "onError(early) threw (swallowed): ${t.message}", t)
                 }
             }
             return

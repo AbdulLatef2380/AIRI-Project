@@ -50,4 +50,25 @@ class GeminiSseParserTest {
         assertEquals("", event.text)
         assertFalse(event.terminal)
     }
+
+    @Test
+    fun structuredProviderCodeAndFinishReasonArePreserved() {
+        val error = GeminiSseParser.parse(
+            """{"error":{"code":429,"status":"RESOURCE_EXHAUSTED","message":"private detail"}}"""
+        )
+        val safety = GeminiSseParser.parse(
+            """{"candidates":[{"content":{"parts":[]},"finishReason":"SAFETY"}]}"""
+        )
+
+        assertTrue(error.hasError)
+        assertEquals("429", error.errorCode)
+        assertEquals("RESOURCE_EXHAUSTED", error.errorStatus)
+        assertEquals("SAFETY", safety.finishReason)
+        assertTrue(safety.terminal)
+    }
+
+    @Test
+    fun malformedPayloadIsNotTreatedAsAnEmptySuccessfulEvent() {
+        assertTrue(GeminiSseParser.parse("{not json").malformed)
+    }
 }

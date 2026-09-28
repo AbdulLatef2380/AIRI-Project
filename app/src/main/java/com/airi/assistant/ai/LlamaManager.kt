@@ -1551,8 +1551,10 @@ class LlamaManager(private val context: Context) {
                         // Close the assistant turn in KV so the next user turn
                         // aligns. Safe here because status==0 means the native
                         // context is intact (no fullReset was called above).
-                        runCatching {
-                            LlamaNative.appendAssistantTurn(assistantCloseTag(model.type))
+                        LlamaNative.appendAssistantTurn(assistantCloseTag(model.type))
+                        val assistantCloseStatus = LlamaNative.nativeGetLastStatus()
+                        if (assistantCloseStatus != 0) {
+                            throw RuntimeException("ASSISTANT_CLOSE_STATUS=$assistantCloseStatus")
                         }
 
                         if (finished.compareAndSet(false, true)) {

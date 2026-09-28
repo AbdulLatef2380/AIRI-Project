@@ -86,6 +86,8 @@ import com.airi.assistant.ui.viewmodel.AgentMode
 import com.airi.assistant.ui.viewmodel.AttachmentDispatchFailure
 import com.airi.assistant.ui.viewmodel.ChatInputSuggestion
 import com.airi.assistant.ui.viewmodel.ChatMessage
+import com.airi.assistant.ui.viewmodel.ChatMainAction
+import com.airi.assistant.ui.viewmodel.ChatMainActionPolicy
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.ui.viewmodel.ExecutionErrorProjection
 import com.airi.assistant.ui.viewmodel.ExecutionFailureStage
@@ -907,6 +909,8 @@ fun ChatScreen(
                                         AttachmentDispatchFailure.UNSUPPORTED_CONTENT -> R.string.attachment_unsupported_content
                                         AttachmentDispatchFailure.TEXT_EXTRACTION_FAILED -> R.string.attachment_text_extraction_failed
                                         AttachmentDispatchFailure.MULTI_IMAGE_UNSUPPORTED -> R.string.attachment_multiple_images_unsupported
+                                        AttachmentDispatchFailure.ATTACHMENT_TOO_LARGE -> R.string.attachment_too_large
+                                        AttachmentDispatchFailure.TEXT_ATTACHMENT_TOO_LARGE -> R.string.text_attachment_too_large
                                         AttachmentDispatchFailure.DISPATCH_FAILED -> R.string.attachment_dispatch_failed
                                     }
                                     scope.launch { snackbarHost.showSnackbar(context.getString(messageRes)) }
@@ -3272,6 +3276,15 @@ fun AiriChatInputBar(
         }
     }
     val showSend = isTyping || attachments.isNotEmpty() || isInteractionLocked
+    val mainAction = ChatMainActionPolicy.resolve(
+        showSend = showSend,
+        isGenerating = isGenerating,
+        isDispatchingAttachment = isDispatchingAttachment,
+        isLongTextConversionInFlight = isLongTextConversionInFlight,
+        canSend = canSend,
+        inferenceReady = isInferenceReady,
+        modelLoading = modelState.isModelLoading,
+    )
 
     if (showFullScreenEditor) {
         Dialog(
@@ -3815,16 +3828,17 @@ fun AiriChatInputBar(
                                     else -> CosmicAccent.copy(0.30f)
                                 })
                                 .semantics { contentDescription = mainActionDescription; role = Role.Button }
-                                .clickable(enabled = isInferenceReady || isInteractionLocked) {
-                                    when {
-                                        isGenerating -> onCancel()
-                                        showSend && canSend -> {
+                                .clickable(enabled = mainAction != ChatMainAction.NONE) {
+                                    when (mainAction) {
+                                        ChatMainAction.CANCEL -> onCancel()
+                                        ChatMainAction.SEND -> {
                                             onSend(text) {
                                                 text = ""
                                                 onDraftTextChanged("")
                                             }
                                         }
-                                        !showSend -> onVoiceChatClick()
+                                        ChatMainAction.VOICE -> onVoiceChatClick()
+                                        ChatMainAction.NONE -> Unit
                                     }
                                 },
                             contentAlignment = Alignment.Center

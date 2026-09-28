@@ -1,5 +1,7 @@
 package com.airi.assistant.ui.viewmodel
 
+import com.airi.core.attachments.AttachmentPolicy
+
 /**
  * Admission policy for a composed message that contains attachments.
  *
@@ -18,12 +20,30 @@ enum class AttachmentDispatchFailure {
     UNSUPPORTED_CONTENT,
     TEXT_EXTRACTION_FAILED,
     MULTI_IMAGE_UNSUPPORTED,
+    ATTACHMENT_TOO_LARGE,
+    TEXT_ATTACHMENT_TOO_LARGE,
     DISPATCH_FAILED,
 }
 
 internal enum class ImageDispatchRoute { LOCAL_SINGLE_IMAGE, CLOUD_VISION }
 
 internal object AttachmentDispatchPolicy {
+    fun maximumSizeBytes(contentType: AttachmentPolicy.ContentType): Long =
+        if (contentType == AttachmentPolicy.ContentType.TEXT) {
+            AttachmentPolicy.MAX_TEXT_ATTACHMENT_BYTES
+        } else {
+            AttachmentPolicy.MAX_ATTACHMENT_BYTES
+        }
+
+    fun sizeFailure(
+        actualSizeBytes: Long,
+        contentType: AttachmentPolicy.ContentType,
+    ): AttachmentDispatchFailure? = when (AttachmentPolicy.validateSize(actualSizeBytes, contentType)) {
+        AttachmentPolicy.ValidationResult.Accepted -> null
+        AttachmentPolicy.ValidationResult.TooLarge -> AttachmentDispatchFailure.ATTACHMENT_TOO_LARGE
+        AttachmentPolicy.ValidationResult.TextTooLarge -> AttachmentDispatchFailure.TEXT_ATTACHMENT_TOO_LARGE
+    }
+
     fun imageRoute(
         imageCount: Int,
         localVisionReady: Boolean,

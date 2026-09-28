@@ -2,7 +2,6 @@ package com.airi.assistant.connector.api
 
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -73,23 +72,11 @@ class OpenAiProvider(
             httpClient.newCall(req).execute().use { resp ->
                 val text = resp.body?.string().orEmpty()
                 if (!resp.isSuccessful) {
-                    throw IOException("openai http ${resp.code}: ${text.take(400)}")
+                    throw IOException("openai http ${resp.code}")
                 }
-                extractContent(text)
+                OpenAiContentDecoder.extractContent(text)
             }
         }
-
-    private fun extractContent(json: String): String {
-        // {"choices":[{"message":{"content":"..."}}]}
-        val root = JsonParser.parseString(json).asJsonObject
-        val choices = root.getAsJsonArray("choices")
-            ?: throw IOException("openai: no 'choices' in response")
-        if (choices.size() == 0) throw IOException("openai: empty choices")
-        val msg = choices[0].asJsonObject.getAsJsonObject("message")
-            ?: throw IOException("openai: no 'message' in choice")
-        return msg.get("content")?.asString
-            ?: throw IOException("openai: no 'content' in message")
-    }
 
     companion object {
         private val JSON = "application/json".toMediaType()

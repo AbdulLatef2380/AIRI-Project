@@ -12,6 +12,7 @@ import com.airi.assistant.execution.privacy.SanitizationResult
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.execution.router.RuntimeRouter
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -276,8 +277,8 @@ class HybridOrchestrator(
             var backendSucceeded = false
             var completionDelivered = false
             val streamStart      = System.currentTimeMillis()
-            // Keep each attempt isolated until terminal success so a failed
-            // backend cannot be concatenated with its fallback response.
+            // Retain the emitted prefix to prohibit backend failover after any
+            // user-visible output; otherwise two models could be mixed in one reply.
             val attemptBuffer = StringBuilder()
 
             activeBackend_ = backend
@@ -286,13 +287,19 @@ class HybridOrchestrator(
                 backend.generateStream(
                     request    = targetRequest,
                 onToken    = { token ->
-                    if (generationGate.accepts(genId)) {
+                    if (generationGate.accepts(genId) && !completionDelivered && token.isNotEmpty()) {
                         attemptBuffer.append(token)
+                        onToken(token)
                     }
                 },
                 onComplete = { fullText, latencyMs ->
-                    val committedText = fullText.ifBlank { attemptBuffer.toString() }
-                    if (generationGate.accepts(genId) && !completionDelivered && committedText.isNotBlank() && terminalGuard.tryDeliver()) {
+                    val streamedText = attemptBuffer.toString()
+                    val committedText = fullText.ifBlank { streamedText }
+                    val streamMatchesFinal = streamedText.isBlank() || committedText.startsWith(streamedText)
+                    if (!streamMatchesFinal) {
+                        lastError = "Backend final response did not match streamed output."
+                        lastOrigin = backend.origin
+                    } else if (generationGate.accepts(genId) && !completionDelivered && committedText.isNotBlank() && terminalGuard.tryDeliver()) {
                         completionDelivered = true
                         backendSucceeded = true
                         lastExecutionSource = backend.sourceLabel
@@ -304,7 +311,11 @@ class HybridOrchestrator(
                         )}
                         RuntimeEventLog.post("ORCHESTRATOR", EventSeverity.INFO,
                             "gen#$genId ${backend.id} OK latency=${latencyMs}ms")
-                        onToken(committedText)
+                        if (streamedText.isBlank()) {
+                            onToken(committedText)
+                        } else if (committedText.length > streamedText.length) {
+                            onToken(committedText.substring(streamedText.length))
+                        }
                         move(ExecutionLifecycleState.COMPLETED)
                         onComplete(committedText, latencyMs, backend.origin)
                     }
@@ -317,6 +328,13 @@ class HybridOrchestrator(
                     updateDiagnostics { copy(lastErrorMessage = error.take(100)) }
                 }
                 )
+            } catch (e: TimeoutCancellationException) {
+                activeBackend_ = null
+                runCatching { backend.cancelStream() }
+                    .onFailure { cancelError -> Log.w(TAG, "timeout cancelStream failed for ${backend.id}: ${cancelError.message}") }
+                move(ExecutionLifecycleState.FAILED)
+                updateDiagnostics { copy(isStreaming = false, lastErrorMessage = "Execution timed out") }
+                throw e
             } catch (_: CancellationException) {
                 activeBackend_ = null
                 cancelAndThrow("backend ${backend.id} coroutine cancellation")
@@ -331,6 +349,7 @@ class HybridOrchestrator(
                 return@withLock
             }
             activeBackend_ = null
+            if (attemptBuffer.isNotEmpty()) break
         }
 
         // All backends exhausted.

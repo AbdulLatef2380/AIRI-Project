@@ -53,4 +53,28 @@ class CloudErrorMapperTest {
         assertTrue(CloudErrorMapper.map(503, "unavailable").retryable)
         assertTrue(CloudErrorMapper.map(504, "gateway timeout").retryable)
     }
+
+    @Test
+    fun structuredProviderCodesAreClassifiedWithoutReadingErrorMessages() {
+        val rateLimit = CloudErrorMapper.mapStructuredProviderError(
+            code = "rate_limit_exceeded", type = "rate_limit_error"
+        )
+        val quota = CloudErrorMapper.mapStructuredProviderError(
+            code = "insufficient_quota", type = "insufficient_quota"
+        )
+        val auth = CloudErrorMapper.mapStructuredProviderError(
+            code = "401", status = "UNAUTHENTICATED"
+        )
+        val filtered = CloudErrorMapper.mapStructuredProviderError(
+            code = "", status = "SAFETY"
+        )
+
+        assertEquals(CloudErrorType.RATE_LIMITED, rateLimit.type)
+        assertTrue(rateLimit.retryable)
+        assertEquals(CloudErrorType.QUOTA_EXCEEDED, quota.type)
+        assertFalse(quota.retryable)
+        assertEquals(CloudErrorType.UNAUTHORIZED, auth.type)
+        assertEquals(CloudErrorType.CONTENT_FILTERED, filtered.type)
+        assertFalse(filtered.message.contains("private"))
+    }
 }

@@ -78,7 +78,6 @@ open class OpenAIAdapter(
         var promptTokens   = 0
         var completeTokens = 0
         val startMs        = System.currentTimeMillis()
-        var streamError: CloudProviderAdapter.AdapterResult.Failure? = null
 
         try {
             conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
@@ -111,6 +110,7 @@ open class OpenAIAdapter(
             }
 
             // ── Parse SSE stream ───────────────────────────────────────────
+            var streamFailure: CloudProviderAdapter.AdapterResult.Failure? = null
             BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { reader ->
                 var sawDone = false
                 var line: String?
@@ -125,10 +125,22 @@ open class OpenAIAdapter(
                     }
                     if (payload.isBlank()) continue
 
-                    if (payload.contains("\"error\"")) {
-                        val message = extractErrorMessage(payload)
-                        val mapped = CloudErrorMapper.map(200, message)
-                        streamError = CloudProviderAdapter.AdapterResult.Failure(
+                    val event = OpenAISseParser.parse(payload)
+                    if (event.malformed) {
+                        streamFailure = CloudProviderAdapter.AdapterResult.Failure(
+                            error = "Malformed OpenAI stream event",
+                            errorType = CloudErrorType.UNKNOWN,
+                            retryable = false,
+                            httpCode = 200
+                        )
+                        break
+                    }
+                    if (event.hasProviderError) {
+                        val mapped = CloudErrorMapper.mapStructuredProviderError(
+                            code = event.errorCode,
+                            type = event.errorType,
+                        )
+                        streamFailure = CloudProviderAdapter.AdapterResult.Failure(
                             error = mapped.message,
                             errorType = mapped.type,
                             retryable = mapped.retryable,
@@ -138,18 +150,17 @@ open class OpenAIAdapter(
                     }
 
                     // Token delta
-                    val token = extractDeltaContent(payload)
+                    val token = event.text
                     if (token.isNotEmpty()) {
                         fullText.append(token)
                         onToken(token)
                     }
 
                     // Usage (present in the final chunk when stream_options.include_usage=true)
-                    extractUsage(payload)?.let { (p, c) ->
-                        promptTokens   = p
-                        completeTokens = c
-                    }
+                    event.promptTokens?.let { promptTokens = it }
+                    event.completionTokens?.let { completeTokens = it }
                 }
+                streamFailure?.let { return@withContext it }
                 if (!sawDone) {
                     return@withContext CloudProviderAdapter.AdapterResult.Failure(
                         error = "OpenAI stream ended before [DONE]",
@@ -160,7 +171,6 @@ open class OpenAIAdapter(
                 }
             }
 
-            streamError?.let { return@withContext it }
             if (fullText.isBlank()) {
                 return@withContext CloudProviderAdapter.AdapterResult.Failure(
                     error = "Provider returned no text",
@@ -260,81 +270,6 @@ open class OpenAIAdapter(
         append("\"stream_options\":{\"include_usage\":true}")
         append("}")
     }
-
-    // ── OpenAI SSE parsers ────────────────────────────────────────────────────
-
-    /**
-     * Extract delta.content from an OpenAI SSE payload chunk.
-     */
-    private fun extractDeltaContent(json: String): String {
-        val deltaIdx = json.indexOf("\"delta\"")
-        val searchFrom = if (deltaIdx >= 0) deltaIdx else 0
-        val contentIdx = json.indexOf("\"content\"", searchFrom)
-        if (contentIdx < 0) return ""
-        val colonIdx = json.indexOf(":", contentIdx)
-        if (colonIdx < 0) return ""
-        val afterColon = json.substring(colonIdx + 1).trimStart()
-        // null content = role-only delta
-        if (afterColon.startsWith("null")) return ""
-        if (!afterColon.startsWith("\"")) return ""
-        val s = 1
-        val e = findStringEnd(afterColon, s)
-        if (e < 0) return ""
-        return afterColon.substring(s, e)
-            .replace("\\n", "\n")
-            .replace("\\\"", "\"")
-            .replace("\\\\", "\\")
-            .replace("\\t", "\t")
-            .replace("\\r", "\r")
-    }
-
-    /**
-     * Extract usage from an OpenAI SSE chunk.
-     * Returns (promptTokens, completionTokens) or null.
-     */
-    private fun extractUsage(json: String): Pair<Int, Int>? {
-        if (!json.contains("\"usage\"")) return null
-        val usageIdx = json.indexOf("\"usage\"")
-        val prompt   = extractIntAfterKey(json, "\"prompt_tokens\"",     usageIdx)     ?: return null
-        val complete = extractIntAfterKey(json, "\"completion_tokens\"", usageIdx) ?: 0
-        return Pair(prompt, complete)
-    }
-
-    private fun extractIntAfterKey(json: String, key: String, fromIdx: Int): Int? {
-        val idx = json.indexOf(key, fromIdx)
-        if (idx < 0) return null
-        val colonIdx = json.indexOf(":", idx)
-        if (colonIdx < 0) return null
-        val after = json.substring(colonIdx + 1).trimStart()
-        val numStr = after.takeWhile { it.isDigit() }
-        return numStr.toIntOrNull()
-    }
-
-    private fun findStringEnd(s: String, start: Int): Int {
-        var i = start
-        while (i < s.length) {
-            when {
-                s[i] == '\\' -> i += 2
-                s[i] == '"'  -> return i
-                else         -> i++
-            }
-        }
-        return -1
-    }
-
-    private fun extractErrorMessage(json: String): String {
-        val marker = json.indexOf("\"message\"")
-        if (marker < 0) return "unknown provider error"
-        val colon = json.indexOf(':', marker)
-        if (colon < 0) return "unknown provider error"
-        val value = json.substring(colon + 1).trimStart()
-        if (!value.startsWith("\"")) return value.take(180)
-        val end = findStringEnd(value, 1)
-        return if (end > 1) value.substring(1, end) else "unknown provider error"
-    }
-
-    private fun String.containsAny(vararg needles: String): Boolean =
-        needles.any { contains(it, ignoreCase = true) }
 
     private fun jsonString(s: String): String =
         "\"${s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r")}\""

@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.viewmodel
 
+import com.airi.core.attachments.AttachmentPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -135,6 +136,31 @@ class AttachmentDispatchPolicyTest {
         assertEquals(
             ImageDispatchRoute.CLOUD_VISION,
             AttachmentDispatchPolicy.imageRoute(1, localVisionReady = false, cloudVisionReady = true, cloudMaxImages = 4),
+        )
+    }
+
+    @Test
+    fun actualPersistedBytesUseTextSpecificAndGeneralLimits() {
+        assertEquals(
+            AttachmentDispatchFailure.TEXT_ATTACHMENT_TOO_LARGE,
+            AttachmentDispatchPolicy.sizeFailure(
+                AttachmentPolicy.MAX_TEXT_ATTACHMENT_BYTES + 1,
+                AttachmentPolicy.ContentType.TEXT,
+            ),
+        )
+        assertEquals(
+            AttachmentDispatchFailure.ATTACHMENT_TOO_LARGE,
+            AttachmentDispatchPolicy.sizeFailure(
+                AttachmentPolicy.MAX_ATTACHMENT_BYTES + 1,
+                AttachmentPolicy.ContentType.VIDEO,
+            ),
+        )
+        assertEquals(
+            null,
+            AttachmentDispatchPolicy.sizeFailure(
+                AttachmentPolicy.MAX_TEXT_ATTACHMENT_BYTES,
+                AttachmentPolicy.ContentType.TEXT,
+            ),
         )
     }
 }

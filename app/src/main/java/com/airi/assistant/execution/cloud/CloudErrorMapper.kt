@@ -43,6 +43,35 @@ object CloudErrorMapper {
         else                                    -> MappedError(CloudErrorType.UNKNOWN,          false, "Provider request failed (HTTP $httpCode)")
     }
 
+    /** Classifies structured provider envelopes without searching arbitrary text. */
+    fun mapStructuredProviderError(
+        code: String?,
+        type: String? = null,
+        status: String? = null,
+    ): MappedError {
+        val values = listOfNotNull(code, type, status)
+            .map { it.trim().lowercase().replace('-', '_').replace(' ', '_') }
+        return when {
+            values.any { it in setOf("insufficient_quota", "quota_exceeded", "billing_limit", "402") } ->
+                MappedError(CloudErrorType.QUOTA_EXCEEDED, false, "Cloud quota exhausted — upgrade billing or wait for reset")
+            values.any { it in setOf("rate_limit_exceeded", "rate_limit_error", "resource_exhausted", "429") } ->
+                MappedError(CloudErrorType.RATE_LIMITED, true, "Rate limited — retry after a short delay")
+            values.any { it in setOf("invalid_api_key", "authentication_error", "unauthenticated", "permission_denied", "unauthorized", "401", "403") } ->
+                MappedError(CloudErrorType.UNAUTHORIZED, false, "Authentication or permission failed — check credentials")
+            values.any { it in setOf("model_not_found", "not_found", "404") } ->
+                MappedError(CloudErrorType.MODEL_NOT_FOUND, false, "Model or provider endpoint was not found")
+            values.any { it in setOf("context_length_exceeded", "maximum_context_length_exceeded", "context_length", "413") } ->
+                MappedError(CloudErrorType.CONTEXT_LENGTH, false, "Prompt exceeds model context window")
+            values.any { it in setOf("content_filter", "content_policy_violation", "safety", "prohibited_content") } ->
+                MappedError(CloudErrorType.CONTENT_FILTERED, false, "Content policy violation")
+            values.any { it in setOf("invalid_argument", "invalid_request_error", "invalid_request", "400") } ->
+                MappedError(CloudErrorType.INVALID_REQUEST, false, "Provider rejected the request")
+            values.any { it in setOf("unavailable", "internal", "server_error", "500", "503") } ->
+                MappedError(CloudErrorType.SERVER_ERROR, true, "Provider is temporarily unavailable")
+            else -> MappedError(CloudErrorType.UNKNOWN, false, "Provider returned an unrecognized error")
+        }
+    }
+
     /** 429 may be either a request-rate limit (retryable) or a quota/billing limit (not retryable). */
     private fun classify429(body: String): MappedError {
         val isQuota = body.containsAny("quota", "billing", "insufficient_quota", "exceeded your current quota")

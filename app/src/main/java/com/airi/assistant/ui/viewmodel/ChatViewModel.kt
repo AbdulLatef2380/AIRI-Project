@@ -3221,9 +3221,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (destFile.exists() && destFile.length() == 0L) destFile.delete()
                 if (!destFile.exists()) {
                     tempFile.delete()
+                    val maxBytes = AttachmentDispatchPolicy.maximumSizeBytes(att.contentType)
+                    val tooLargeFailure = requireNotNull(
+                        AttachmentDispatchPolicy.sizeFailure(maxBytes + 1L, att.contentType)
+                    )
                     when {
                         att.uri != null -> appContext.contentResolver.openInputStream(att.uri)?.use { input ->
-                            tempFile.outputStream().use { out -> input.copyTo(out) }
+                            tempFile.outputStream().use { out ->
+                                copyAttachmentBounded(input, out, maxBytes, tooLargeFailure)
+                            }
                         }
                         att.bitmap != null -> tempFile.outputStream().use { output ->
                             check(att.bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)) {
@@ -3232,7 +3238,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                     if ((att.uri != null || att.bitmap != null) && tempFile.exists()) {
-                        check(tempFile.length() in 1L..AttachmentPolicy.MAX_ATTACHMENT_BYTES) { "Attachment is too large" }
+                        AttachmentDispatchPolicy.sizeFailure(tempFile.length(), att.contentType)?.let {
+                            throw AttachmentSizeLimitException(it)
+                        }
+                        check(tempFile.length() > 0L) { "Attachment is empty" }
                         check(tempFile.renameTo(destFile)) { "Attachment could not be committed" }
                     }
                 }
@@ -3240,6 +3249,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     tempFile.delete()
                     destFile.delete()
                     return@runCatching null
+                }
+                AttachmentDispatchPolicy.sizeFailure(destFile.length(), att.contentType)?.let {
+                    throw AttachmentSizeLimitException(it)
                 }
 
                 val mediaType = when (att.contentType) {
@@ -3263,7 +3275,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     persistedPath = destFile.absolutePath,
                     sizeBytes = destFile.length()
                 )
-            }.getOrNull()
+            }.getOrElse { error ->
+                if (error is AttachmentSizeLimitException) throw error
+                null
+            }
             }
         }
         val stagingFailure = AttachmentDispatchPolicy.afterStaging(
@@ -3377,6 +3392,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 onRejected(AttachmentDispatchFailure.DISPATCH_FAILED)
             }
         }
+            } catch (error: AttachmentSizeLimitException) {
+                if (pendingAttachmentSessionId == sessionAtDispatch) {
+                    pendingAttachmentSessionId = null
+                    pendingImageUriForNextSend = null
+                    pendingAttachmentJsonForNextSend = null
+                }
+                runCatching {
+                    File(appContext.filesDir, "attachments").listFiles()
+                        ?.filter { it.name.startsWith(".") && it.name.endsWith(".part") }
+                        ?.forEach(File::delete)
+                }
+                runCatching { onRejected(error.dispatchFailure) }
             } catch (error: Exception) {
                 if (error is kotlinx.coroutines.CancellationException) throw error
                 Log.e("AIRI", "ATTACHMENT_DISPATCH_FAILED type=${error.javaClass.simpleName}", error)

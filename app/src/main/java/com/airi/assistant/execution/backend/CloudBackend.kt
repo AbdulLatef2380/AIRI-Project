@@ -240,7 +240,6 @@ class CloudBackend(
                 is CloudProviderAdapter.AdapterResult.Success -> {
                     if (result.fullText.isBlank()) {
                         lastError = "Cloud provider completed without response text"
-                        lastOrigin = ExecOrigin.CLOUD
                         if (providerEmittedAnyToken) {
                             onError(lastError)
                             return

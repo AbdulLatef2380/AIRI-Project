@@ -21,6 +21,7 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -2363,6 +2364,7 @@ fun UserBubble(
         else text
     }
     val context = LocalContext.current
+    val layoutDirection = LocalLayoutDirection.current
     val haptic  = LocalHapticFeedback.current
 
     var showContextMenu by remember { mutableStateOf(false) }
@@ -2392,10 +2394,10 @@ fun UserBubble(
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = when (ChatPresentationPolicy.bubbleEdge(isUser = true)) {
-                    ChatPresentationPolicy.BubbleEdge.START -> Arrangement.Absolute.Left
-                    ChatPresentationPolicy.BubbleEdge.END -> Arrangement.Absolute.Right
-                }
+                horizontalArrangement = ChatPresentationPolicy.horizontalArrangement(
+                    isUser = true,
+                    layoutDirection = layoutDirection,
+                )
             ) {
                 Box {
                     Column(
@@ -2529,6 +2531,7 @@ fun AiBubble(
     onExportMarkdown: (String) -> Unit = {}
 ) {
     val context   = LocalContext.current
+    val layoutDirection = LocalLayoutDirection.current
     val haptic    = LocalHapticFeedback.current
     val allTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsState()
     val trace = remember(traceId, allTraces) {
@@ -2554,7 +2557,10 @@ fun AiBubble(
 
     Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.Absolute.Left,
+            horizontalArrangement = ChatPresentationPolicy.horizontalArrangement(
+                isUser = false,
+                layoutDirection = layoutDirection,
+            ),
             verticalAlignment = Alignment.Top
         ) {
             if (!hideAvatar) {
@@ -2869,9 +2875,13 @@ private fun ExecutionErrorBubble(error: ExecutionErrorProjection) {
 
 @Composable
 fun AiStreamingBubble(text: String) {
+    val layoutDirection = LocalLayoutDirection.current
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
-        horizontalArrangement = Arrangement.Absolute.Left,
+        horizontalArrangement = ChatPresentationPolicy.horizontalArrangement(
+            isUser = false,
+            layoutDirection = layoutDirection,
+        ),
         verticalAlignment = Alignment.Top
     ) {
         Image(
@@ -2893,26 +2903,30 @@ fun AiStreamingBubble(text: String) {
 @Composable
 private fun AiriThinkingRow(label: String) {
     val animationsEnabled = ValueAnimator.areAnimatorsEnabled()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 2.dp)
-            .semantics { contentDescription = label },
-        horizontalArrangement = Arrangement.Absolute.Left,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Image(
-            painter = painterResource(R.mipmap.ic_launcher_foreground),
-            contentDescription = null,
-            modifier = Modifier.size(28.dp)
-        )
-        Spacer(Modifier.width(8.dp))
-        ThinkingAnimation(
-            modifier = Modifier,
-            stageText = label,
-            animate = animationsEnabled,
-            contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
-        )
+    // Keep the indicator's icon → dots → label order independent of the
+    // surrounding message direction. The label itself remains bidi-aware.
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 2.dp)
+                .semantics { contentDescription = label },
+            horizontalArrangement = Arrangement.Start,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painter = painterResource(R.mipmap.ic_launcher_foreground),
+                contentDescription = null,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            ThinkingAnimation(
+                modifier = Modifier,
+                stageText = label,
+                animate = animationsEnabled,
+                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
+            )
+        }
     }
 }
 

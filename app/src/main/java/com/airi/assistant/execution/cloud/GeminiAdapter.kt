@@ -54,6 +54,19 @@ class GeminiAdapter(
         // retain request URLs. Gemini supports x-goog-api-key authentication.
         val url  = "$BASE_URL/models/$model:streamGenerateContent?alt=sse"
         val body = buildRequestBody(request)
+        val trace = request.attachmentTrace
+        val attachmentIds = (request.imageParts.map { it.attachmentId } +
+            request.inlineDataParts.map { it.attachmentId }).filter { it.isNotBlank() }
+        trace?.mark(AttachmentDeliveryStage.PROVIDER_PAYLOAD_BUILT, attachmentIds)
+        attachmentIds.forEach { id ->
+            val encodedLength = request.imageParts.firstOrNull { it.attachmentId == id }?.base64Data?.length
+                ?: request.inlineDataParts.firstOrNull { it.attachmentId == id }?.base64Data?.length
+                ?: 0
+            if (encodedLength > 0 && body.contains("\"data\":\"") &&
+                GeminiPayloadContract.containsNonEmptyInlineContent(request)) {
+                trace?.markPayloadContainsContent(id, encodedLength.toLong())
+            }
+        }
 
         Log.d(TAG, "streamGenerate model=$model " +
             "history=${request.conversationHistory.size} prompt_chars=${request.prompt.length}")
@@ -79,9 +92,12 @@ class GeminiAdapter(
             // this request's connection when its owning job is cancelled.
             currentCoroutineContext()[Job]?.invokeOnCompletion { conn?.disconnect() }
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            trace?.mark(AttachmentDeliveryStage.HTTP_REQUEST_DISPATCHED, attachmentIds)
 
             val httpCode = conn.responseCode
+            trace?.mark(AttachmentDeliveryStage.PROVIDER_RESPONSE_RECEIVED, attachmentIds)
             if (httpCode !in 200..299) {
+                trace?.markProviderResponse(false, attachmentIds)
                 val errBody = conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $httpCode"
                 val mapped  = CloudErrorMapper.map(httpCode, errBody)
                 Log.w(TAG, "CLOUD_HTTP_FAILURE provider=gemini code=$httpCode errorType=${mapped.type}")
@@ -148,12 +164,22 @@ class GeminiAdapter(
             }
 
             if (fullText.isBlank()) {
+                trace?.markProviderResponse(false, attachmentIds)
                 val mapped = CloudErrorMapper.map(200, lastPayload)
                 return@withContext CloudProviderAdapter.AdapterResult.Failure(
                     error = if (mapped.type == CloudErrorType.UNKNOWN) "Provider returned no text" else mapped.message,
                     errorType = mapped.type,
                     retryable = mapped.retryable,
                     httpCode = 200
+                )
+            }
+            trace?.markProviderResponse(true, attachmentIds)
+            trace?.snapshot()?.forEach { evidence ->
+                Log.i(
+                    TAG,
+                    "ATTACHMENT_DELIVERY id=${evidence.attachmentId} " +
+                        "status=${evidence.status} transport=${evidence.transport} " +
+                        "stages=${evidence.stages} bytes=${evidence.bytesIncluded}",
                 )
             }
             onUsage(promptTokens, completeTokens)
@@ -194,7 +220,7 @@ class GeminiAdapter(
             append(jsonString(turn.content))
             append("}]}")
         }
-        if (req.prompt.isNotBlank() || req.imageParts.isNotEmpty()) {
+        if (req.prompt.isNotBlank() || req.imageParts.isNotEmpty() || req.inlineDataParts.isNotEmpty()) {
             if (!first) append(",")
             append("{\"role\":\"user\",\"parts\":[")
             var hasPart = false
@@ -210,6 +236,15 @@ class GeminiAdapter(
                 append(jsonString(image.mimeType.ifBlank { "image/jpeg" }))
                 append(",\"data\":")
                 append(jsonString(image.base64Data))
+                append("}}")
+                hasPart = true
+            }
+            req.inlineDataParts.forEach { part ->
+                if (hasPart) append(",")
+                append("{\"inline_data\":{\"mime_type\":")
+                append(jsonString(part.mimeType))
+                append(",\"data\":")
+                append(jsonString(part.base64Data))
                 append("}}")
                 hasPart = true
             }

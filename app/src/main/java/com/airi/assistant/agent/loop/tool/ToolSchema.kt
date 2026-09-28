@@ -125,6 +125,14 @@ object BuiltinTools {
         category = ToolSchema.Category.PRODUCTIVITY
     )
 
+    val TERMINAL_EXECUTE = ToolSchema(
+        name        = "terminal_execute",
+        description = "Run one command in AIRI's restricted sandbox terminal and return its output. Network and unsafe commands remain blocked by AIRI governance.",
+        parameters  = mapOf("command" to ToolSchema.Param("string", "A single shell command for the restricted AIRI sandbox")),
+        category    = ToolSchema.Category.PRODUCTIVITY,
+        dangerous  = true
+    )
+
     val ASK_CONFIRMATION = ToolSchema(
         name        = "ask_confirmation",
         description = "Ask the user to confirm before proceeding with a sensitive action.",
@@ -148,12 +156,12 @@ object BuiltinTools {
     val ALL: List<ToolSchema> = listOf(
         READ_SCREEN, OPEN_APP, TAP, TYPE_TEXT, SCROLL_DOWN, GO_BACK,
         WEB_SEARCH, FETCH_URL, MEMORY_RECALL,
-        CALENDAR_READ, CALENDAR_CREATE, SET_ALARM, CREATE_NOTE,
+        CALENDAR_READ, CALENDAR_CREATE, SET_ALARM, CREATE_NOTE, TERMINAL_EXECUTE,
         ASK_CONFIRMATION
     )
 
     /** Minimal set for plain chat (no accessibility, no calendar write). */
     val CHAT_ONLY: List<ToolSchema> = listOf(
-        WEB_SEARCH, FETCH_URL, MEMORY_RECALL, CALENDAR_READ, CREATE_NOTE
+        WEB_SEARCH, FETCH_URL, MEMORY_RECALL, CALENDAR_READ, CREATE_NOTE, TERMINAL_EXECUTE
     )
 }

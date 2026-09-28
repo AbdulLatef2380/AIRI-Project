@@ -60,7 +60,7 @@ class PermissionGovernanceLayer(
 
     private fun checkRateLimit(agentId: String): Boolean {
         val now = System.currentTimeMillis()
-        val window = rateLimitWindows.getOrPut(agentId) { ArrayDeque() }
+        val window = rateLimitWindows.computeIfAbsent(agentId) { ArrayDeque() }
         synchronized(window) {
             while (window.isNotEmpty() && (now - window.peek()) > RATE_WINDOW_MS) {
                 window.poll()

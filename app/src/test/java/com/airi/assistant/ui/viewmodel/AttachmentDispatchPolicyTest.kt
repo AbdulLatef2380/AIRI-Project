@@ -8,7 +8,7 @@ import org.junit.Test
 class AttachmentDispatchPolicyTest {
 
     @Test
-    fun onlyPayloadsWithImplementedTransportAreAdmitted() {
+    fun genericPayloadsReachProviderAwareCapabilityAdmission() {
         assertNull(AttachmentDispatchPolicy.payloadTransportFailure(AttachmentPolicy.ContentType.IMAGE))
         assertNull(AttachmentDispatchPolicy.payloadTransportFailure(AttachmentPolicy.ContentType.TEXT))
         listOf(
@@ -16,10 +16,7 @@ class AttachmentDispatchPolicyTest {
             AttachmentPolicy.ContentType.DOCUMENT,
             AttachmentPolicy.ContentType.FILE,
         ).forEach { type ->
-            assertEquals(
-                AttachmentDispatchFailure.UNSUPPORTED_CONTENT,
-                AttachmentDispatchPolicy.payloadTransportFailure(type),
-            )
+            assertNull(AttachmentDispatchPolicy.payloadTransportFailure(type))
         }
     }
 

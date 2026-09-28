@@ -40,13 +40,27 @@ data class ExecutionRequest(
     val localPrompt:              String     = "",
     /** Inline image parts for providers that support vision (base64, no file paths). */
     val imageParts:               List<ImagePart> = emptyList(),
+    /** Native inline binary parts for providers whose wire protocol supports them. */
+    val inlineDataParts:          List<InlineDataPart> = emptyList(),
+    /** Optional metadata-only trace for proving attachment delivery. */
+    val attachmentTrace:          AttachmentDeliveryTrace? = null,
     /** Correlation identity; generated at the request boundary and preserved downstream. */
     val identity:                 ExecutionIdentity? = null,
     /** Explicit privacy/routing boundary for this request. */
     val allowCloud:               Boolean = true,
 ) {
     data class ConversationTurn(val role: String, val content: String)
-    data class ImagePart(val mimeType: String, val base64Data: String)
+    data class ImagePart(
+        val mimeType: String,
+        val base64Data: String,
+        val attachmentId: String = "",
+    )
+    data class InlineDataPart(
+        val mimeType: String,
+        val base64Data: String,
+        val fileName: String = "",
+        val attachmentId: String = "",
+    )
 
     val estimatedTotalTokens: Int get() = estimatedPromptTokens + maxTokens
 

@@ -39,6 +39,17 @@ class ChatPresentationPolicyTest {
         assertEquals(ChatPresentationPolicy.BubbleEdge.START, ChatPresentationPolicy.bubbleEdge(isUser = false))
     }
 
+    @Test fun physicalChatRolesDoNotSwapInRtl() {
+        assertEquals(
+            ChatPresentationPolicy.BubbleEdge.END,
+            ChatPresentationPolicy.bubbleEdge(isUser = true, layoutDirection = LayoutDirection.Rtl),
+        )
+        assertEquals(
+            ChatPresentationPolicy.BubbleEdge.START,
+            ChatPresentationPolicy.bubbleEdge(isUser = false, layoutDirection = LayoutDirection.Rtl),
+        )
+    }
+
     @Test fun rawProviderIdsGetHumanLabels() {
         assertEquals("Gemini Flash", ChatPresentationPolicy.humanModelLabel("gemini-3.8-flash", false, true))
         assertEquals("Local", ChatPresentationPolicy.humanModelLabel("", true, false))

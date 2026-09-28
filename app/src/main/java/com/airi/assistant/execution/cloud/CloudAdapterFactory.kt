@@ -131,7 +131,6 @@ object CloudAdapterFactory {
     private fun normalizeGeminiModel(model: String?): String? = model
         ?.trim()
         ?.takeIf { it.isNotBlank() }
-        ?.let { if (it.equals("gemini-3.8-flash", ignoreCase = true)) GeminiAdapter.DEFAULT_MODEL else it }
 
     /**
      * Create adapters for ALL providers that currently have a key configured.

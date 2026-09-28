@@ -54,6 +54,7 @@ import com.airi.core.attachments.AttachmentPolicy
 import com.airi.assistant.domain.ChatAttachment
 import com.airi.assistant.domain.ConversationTitlePolicy
 import com.airi.assistant.domain.LongTextAttachmentPolicy
+import com.airi.assistant.attachments.AttachmentContentExtractor
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
@@ -86,6 +87,9 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import com.google.gson.reflect.TypeToken
 import java.io.File
+import java.io.FileOutputStream
+import java.io.OutputStreamWriter
+import java.nio.charset.StandardCharsets
 import com.airi.assistant.ai.QueryClassifier
 import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.ResponseOptimizer
@@ -1754,6 +1758,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         allowLongTextConversion: Boolean,
         expectedSessionId: String? = null,
         visionParts: List<com.airi.assistant.execution.ExecutionRequest.ImagePart> = emptyList(),
+        attachmentParts: List<com.airi.assistant.execution.ExecutionRequest.InlineDataPart> = emptyList(),
+        attachmentTrace: com.airi.assistant.execution.AttachmentDeliveryTrace? = null,
         onAccepted: () -> Unit = {},
     ): Boolean {
         if (activeGenerationId != 0L || _agentState.value.isWorking) return false
@@ -1776,10 +1782,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val fileName = "pasted_${System.currentTimeMillis()}.txt"
             val fileUri = runCatching {
                 val f = File(file, fileName)
-                f.writeText(trimmedInput)
+                val temp = File(file, ".${fileName}.part")
+                FileOutputStream(temp, false).use { stream ->
+                    OutputStreamWriter(stream, StandardCharsets.UTF_8).buffered().use { writer ->
+                        var offset = 0
+                        while (offset < trimmedInput.length) {
+                            val end = minOf(offset + 64 * 1024, trimmedInput.length)
+                            writer.write(trimmedInput, offset, end - offset)
+                            offset = end
+                        }
+                        writer.flush()
+                    }
+                    stream.fd.sync()
+                }
+                if (!temp.renameTo(f)) error("Unable to publish long-text attachment atomically")
                 androidx.core.content.FileProvider.getUriForFile(
                     appContext, "${appContext.packageName}.fileprovider", f
                 )
+            }.onFailure {
+                File(file, ".${fileName}.part").delete()
             }.getOrNull()
             if (fileUri != null) {
                 Log.i("AIRI", "LONG_TEXT_CONVERSION chars=${trimmedInput.length} -> file=$fileName")
@@ -1919,7 +1940,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 pendingImageUriForNextSend = null
                 pendingAttachmentJsonForNextSend = null
             }
-            onAccepted()
+            if (attachmentTrace == null) onAccepted()
             subscriptionManager.recordMessage()
             AnalyticsService.messageSent()
             if (RetentionManager.getTotalMessages() == 0) {
@@ -1958,7 +1979,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
             // ── Fast response shortcut — bypass model inference for known replies ──
             val startTimeMs = System.currentTimeMillis()
-            val fastHit = if (cloudProviderAtDispatch == null) {
+            val fastHit = if (cloudProviderAtDispatch == null && attachmentTrace == null) {
                 ResponseOptimizer.tryFastResponse(trimmedInput)
             } else {
                 null
@@ -2091,10 +2112,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // SkillToolBridge already handles these in ToolDispatcher — they just weren't
             // being advertised to the LLM in the system prompt (the gap that caused
             // skill_code_assistant, skill_research_agent, etc. to never be invoked).
-            val activeTools = runCatching {
+            val allActiveTools = runCatching {
                 com.airi.assistant.agent.loop.tool.BuiltinTools.ALL + skillToolBridge.asToolSchemas()
             }.getOrDefault(com.airi.assistant.agent.loop.tool.BuiltinTools.ALL)
-            Log.i("AIRI", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${activeTools.size - com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} total=${activeTools.size}")
+            // A greeting or creative turn should not pay the latency/format cost
+            // of a 16-step tool loop. Action, analytical, and unknown turns keep
+            // the full runtime surface (memory, skills, connectors, terminal).
+            // AgentLoop itself remains the single execution boundary for those
+            // turns; this only avoids forcing tool-call protocol on plain chat.
+            val activeTools = if (queryType == QueryType.SIMPLE || queryType == QueryType.CREATIVE) {
+                emptyList()
+            } else {
+                allActiveTools
+            }
+            Log.i("AIRI", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${allActiveTools.size - com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} selected=${activeTools.size} queryType=${queryType.name}")
 
             var tokenCount = 0
             var firstTokenReceived = false
@@ -2124,6 +2155,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     },
                     visionParts  = visionParts,
+                    attachmentParts = attachmentParts,
+                    attachmentTrace = attachmentTrace,
                     onToken      = token@{ tok ->
                         if (!isCurrentGeneration(generationId) || _isCancelled.get()) return@token
                         val visibleToken = reasoningParser.consume(tok)
@@ -2254,6 +2287,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     GenerationResponseStatus.SUCCESS -> Unit
                 }
+                if (attachmentTrace != null && !attachmentTrace.isTransportSuccessful()) {
+                    Log.e("AIRI_ATTACHMENT", "transport success was not proven; refusing UI acceptance")
+                    _generationPhase.value = GenerationPhase.CLEANUP
+                    return@launch
+                }
+                if (attachmentTrace != null) onAccepted()
                 val elapsedMs = System.currentTimeMillis() - requestStart
                 recordGenerationStats(elapsedMs, tokenCount)
                 val tps = if (elapsedMs > 0) tokenCount * 1000f / elapsedMs.coerceAtLeast(1) else 0f
@@ -2443,10 +2482,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         memorySummary: String   = "",
         hasAgentTools: Boolean  = false
     ): String {
-        // queryType no longer gates execution; it's logged for telemetry only.
-        // Identity facts are injected only for identity/about questions and are
-        // derived from the current capability descriptor.
-        val identityContext = AiriIdentityProfile.promptContext(input, currentCapabilityDescriptor())
+        // queryType selects the appropriate tool-loop surface above; identity
+        // facts are always injected from the current capability descriptor, with
+        // the detailed biography block added only for identity/about questions.
+        val capabilityDescriptor = currentCapabilityDescriptor()
+        val identityContext = listOf(
+            AiriIdentityProfile.runtimeContext(capabilityDescriptor),
+            AiriIdentityProfile.promptContext(input, capabilityDescriptor)
+        ).filter { it.isNotBlank() }.joinToString("\n\n")
         return buildEffectiveSystemPrompt(
             perfMode = perfMode,
             queryType = queryType,
@@ -3099,7 +3142,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             sendMessage(input.trim())
             return
         }
-        if (attachments.any { !it.isVisualImage && !it.isTextual }) {
+        if (attachments.any {
+                AttachmentDispatchPolicy.payloadTransportFailure(
+                    it.contentType, it.normalizedMimeType, it.safeDisplayName
+                ) != null
+            }) {
             onRejected(AttachmentDispatchFailure.UNSUPPORTED_CONTENT)
             return
         }
@@ -3130,7 +3177,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val unsupportedPayload = attachments.firstNotNullOfOrNull { attachment ->
-            AttachmentDispatchPolicy.payloadTransportFailure(attachment.contentType)
+            AttachmentDispatchPolicy.payloadTransportFailure(
+                attachment.contentType, attachment.normalizedMimeType, attachment.safeDisplayName
+            )
         }
         if (unsupportedPayload != null) {
             onRejected(unsupportedPayload)
@@ -3176,9 +3225,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val requirement = when (attachment.contentType) {
                 AttachmentPolicy.ContentType.IMAGE -> AttachmentRequirement.IMAGE
                 AttachmentPolicy.ContentType.VIDEO -> AttachmentRequirement.VIDEO
-                AttachmentPolicy.ContentType.TEXT -> AttachmentRequirement.DOCUMENT
+                AttachmentPolicy.ContentType.TEXT -> AttachmentRequirement.TEXT
                 AttachmentPolicy.ContentType.DOCUMENT, AttachmentPolicy.ContentType.FILE ->
-                    if (attachment.normalizedMimeType == "application/pdf") AttachmentRequirement.PDF else AttachmentRequirement.DOCUMENT
+                    if (attachment.normalizedMimeType.equals("application/pdf", ignoreCase = true))
+                        AttachmentRequirement.PDF else AttachmentRequirement.DOCUMENT
             }
             val results = candidateDescriptors.map { descriptor ->
                 ModelCapabilityEngine.check(
@@ -3189,7 +3239,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     count = attachments.count { it.contentType == attachment.contentType }
                 )
             }
-            if (results.any { it.decision == CompatibilityDecision.ALLOW }) null else results.first()
+            val extractedTextAllowed = AttachmentContentExtractor.supports(
+                attachment.normalizedMimeType,
+                attachment.safeDisplayName,
+            ) && candidateDescriptors.any { descriptor ->
+                ModelCapabilityEngine.check(
+                    descriptor = descriptor,
+                    requirement = AttachmentRequirement.TEXT,
+                    mimeType = "text/plain",
+                    sizeBytes = attachment.sizeBytes,
+                ).decision == CompatibilityDecision.ALLOW
+            }
+            if (results.any { it.decision == CompatibilityDecision.ALLOW } || extractedTextAllowed) null else results.first()
         }
         if (incompatible != null) {
             Log.w("AIRI_CAPABILITY", "blocked attachment capability=${incompatible.capability} status=${incompatible.status} candidates=${candidateDescriptors.size}")
@@ -3306,8 +3367,66 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         pendingAttachmentSessionId = sessionAtDispatch
         pendingAttachmentJsonForNextSend = attachmentMetadataJson(persistedAttachments)
         val trimmed = input.trim()
+        val attachmentResolutions = persistedAttachments.map { attachment ->
+            val requirement = when (attachment.contentType) {
+                AttachmentPolicy.ContentType.IMAGE -> AttachmentRequirement.IMAGE
+                AttachmentPolicy.ContentType.VIDEO -> AttachmentRequirement.VIDEO
+                AttachmentPolicy.ContentType.DOCUMENT, AttachmentPolicy.ContentType.FILE ->
+                    if (attachment.normalizedMimeType.equals("application/pdf", ignoreCase = true))
+                        AttachmentRequirement.PDF else AttachmentRequirement.DOCUMENT
+                else -> null
+            }
+            val nativeReady = requirement != null && cloudAllowed &&
+                cloudProvider in setOf(CloudProvider.GEMINI, CloudProvider.OPENAI, CloudProvider.ANTHROPIC) &&
+                cloudDescriptor?.isReady(requirementCapability(requirement)) == true
+            com.airi.assistant.execution.AttachmentTransportResolver.resolve(
+                attachmentId = attachment.id,
+                contentType = attachment.normalizedMimeType.ifBlank { attachment.contentType.name },
+                provider = cloudProvider,
+                nativeInlineReady = nativeReady,
+                extractedTextAvailable = AttachmentContentExtractor.supports(
+                    attachment.normalizedMimeType,
+                    attachment.safeDisplayName,
+                ),
+                capabilitySupported = requirement != null && cloudDescriptor?.isReady(
+                    requirementCapability(requirement)
+                ) == true,
+            )
+        }
+        val attachmentTrace = attachmentResolutions
+            .takeIf { resolutions -> resolutions.any { it.transport == com.airi.assistant.execution.AttachmentTransport.NATIVE_INLINE } }
+            ?.let {
+                com.airi.assistant.execution.AttachmentDeliveryTrace(
+                    resolutions = attachmentResolutions.filter {
+                        it.transport == com.airi.assistant.execution.AttachmentTransport.NATIVE_INLINE
+                    },
+                    provider = cloudProvider,
+                ).also { trace ->
+                    trace.mark(com.airi.assistant.execution.AttachmentDeliveryStage.LOCAL_ATTACHMENT_RESOLVED)
+                }
+            }
+        val unresolved = attachmentResolutions.firstOrNull {
+            (it.transport == com.airi.assistant.execution.AttachmentTransport.UNSUPPORTED ||
+                it.transport == com.airi.assistant.execution.AttachmentTransport.NOT_READY) &&
+                !(it.transport == com.airi.assistant.execution.AttachmentTransport.UNSUPPORTED &&
+                    attachments.any { attachment -> attachment.id == it.attachmentId && attachment.isVisualImage && localVisionReady })
+        }
+        if (unresolved != null) {
+            attachmentTrace?.reject(unresolved.reason.ifBlank { "No implemented attachment transport." })
+            onRejected(
+                if (unresolved.transport == com.airi.assistant.execution.AttachmentTransport.NOT_READY)
+                    AttachmentDispatchFailure.CAPABILITY_UNAVAILABLE
+                else AttachmentDispatchFailure.UNSUPPORTED_CONTENT
+            )
+            return@launch
+        }
+        val nativeBinaryAttachments = persistedAttachments.filterIndexed { index, _ ->
+            attachmentResolutions[index].transport == com.airi.assistant.execution.AttachmentTransport.NATIVE_INLINE
+        }
         val textAttachmentContext = runCatching {
-            withContext(Dispatchers.IO) { buildTextAttachmentContext(persistedAttachments) }
+            withContext(Dispatchers.IO) {
+                buildTextAttachmentContext(persistedAttachments.filterNot { it in nativeBinaryAttachments })
+            }
         }.getOrElse {
             if (pendingAttachmentSessionId == sessionAtDispatch) {
                 pendingAttachmentSessionId = null
@@ -3338,6 +3457,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                            else "$trimmed\n\n$attachmentContext"
             if (imageRoute == ImageDispatchRoute.CLOUD_VISION) {
                 val imageParts = withContext(Dispatchers.IO) { visualImages.mapNotNull(::visionImagePart) }
+                val extraInlineParts = withContext(Dispatchers.IO) {
+                    nativeBinaryAttachments.filterNot { it.isVisualImage }.mapNotNull(::inlineDataPart)
+                }
                 if (imageParts.size != visualImages.size) {
                     if (pendingAttachmentSessionId == sessionAtDispatch) {
                         pendingAttachmentSessionId = null
@@ -3352,6 +3474,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         allowLongTextConversion = false,
                         expectedSessionId = sessionAtDispatch,
                         visionParts = imageParts,
+                        attachmentParts = extraInlineParts,
+                        attachmentTrace = attachmentTrace,
                         onAccepted = onAccepted,
                     )) {
                     if (pendingAttachmentSessionId == sessionAtDispatch) {
@@ -3385,10 +3509,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 textAttachmentContext
             ).filter { it.isNotBlank() }.joinToString(separator = "\n\n")
             val fullText = if (trimmed.isBlank()) attachmentContext else "$trimmed\n\n$attachmentContext"
+            val inlineParts = withContext(Dispatchers.IO) {
+                nativeBinaryAttachments.mapNotNull { inlineDataPart(it) }
+            }
             if (sendMessageInternal(
                     fullText,
                     allowLongTextConversion = false,
                     expectedSessionId = sessionAtDispatch,
+                    attachmentParts = inlineParts,
+                    attachmentTrace = attachmentTrace,
                     onAccepted = onAccepted,
                 )) {
             } else {
@@ -3426,15 +3555,47 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun requirementCapability(requirement: AttachmentRequirement): com.airi.assistant.execution.Capability = when (requirement) {
+        AttachmentRequirement.VIDEO -> com.airi.assistant.execution.Capability.VIDEO_UNDERSTANDING
+        AttachmentRequirement.DOCUMENT -> com.airi.assistant.execution.Capability.DOCUMENT_INPUT
+        AttachmentRequirement.PDF -> com.airi.assistant.execution.Capability.PDF_INPUT
+        AttachmentRequirement.IMAGE -> com.airi.assistant.execution.Capability.IMAGE_UNDERSTANDING
+        AttachmentRequirement.AUDIO -> com.airi.assistant.execution.Capability.AUDIO_UNDERSTANDING
+        AttachmentRequirement.TEXT -> com.airi.assistant.execution.Capability.TEXT_INPUT
+    }
+
+    private fun inlineDataPart(attachment: ChatAttachment): ExecutionRequest.InlineDataPart? {
+        val file = attachment.persistedPath?.let(::File) ?: return null
+        if (!file.isFile || file.length() > 20L * 1024L * 1024L) return null
+        val bytes = runCatching { file.readBytes() }.getOrNull() ?: return null
+        return ExecutionRequest.InlineDataPart(
+            mimeType = attachment.normalizedMimeType.ifBlank { "application/octet-stream" },
+            base64Data = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP),
+            fileName = attachment.safeDisplayName,
+            attachmentId = attachment.id,
+        )
+    }
+
     private fun buildTextAttachmentContext(attachments: List<ChatAttachment>): String {
         var remainingChars = AttachmentPolicy.MAX_TEXT_CONTENT_CHARS
-        val textualAttachments = attachments.filter { it.isTextual && !it.persistedPath.isNullOrBlank() }
+        val textualAttachments = attachments.filter {
+            !it.persistedPath.isNullOrBlank() &&
+                (it.isTextual || AttachmentContentExtractor.supports(it.normalizedMimeType, it.safeDisplayName))
+        }
         val context = StringBuilder()
         textualAttachments.forEach { attachment ->
             if (remainingChars <= 0) throw IllegalStateException("Text attachments exceed the extraction limit.")
             val maxRead = remainingChars + 1
             val rawContent = runCatching {
-                File(requireNotNull(attachment.persistedPath)).bufferedReader().use { reader ->
+                val file = File(requireNotNull(attachment.persistedPath))
+                if (AttachmentContentExtractor.supports(attachment.normalizedMimeType, attachment.safeDisplayName)) {
+                    AttachmentContentExtractor.extract(
+                        file = file,
+                        mimeType = attachment.normalizedMimeType,
+                        fileName = attachment.safeDisplayName,
+                        maxChars = maxRead,
+                    )
+                } else file.bufferedReader().use { reader ->
                     val bounded = StringBuilder()
                     val buffer = CharArray(minOf(2_048, maxRead))
                     while (bounded.length < maxRead) {
@@ -3509,7 +3670,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (declaredMime != null && declaredMime != detectedMime) return null
         return ExecutionRequest.ImagePart(
             mimeType = detectedMime,
-            base64Data = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            base64Data = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP),
+            attachmentId = attachment.id,
         )
     }
 

@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.screens
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.unit.LayoutDirection
 import com.airi.assistant.ui.text.LanguageRuntimeManager
 
@@ -21,9 +22,27 @@ internal object ChatPresentationPolicy {
     /** Maximum user-turn width as a fraction of the available chat width. */
     fun userBubbleFraction(text: String): Float = 0.82f
 
-    /** Physical placement is role-based; text direction is handled separately. */
-    fun bubbleEdge(isUser: Boolean): BubbleEdge =
-        if (isUser) BubbleEdge.END else BubbleEdge.START
+    /**
+     * AIRI's chat convention is physical: user turns stay on the right and
+     * assistant turns stay on the left in both locales. The message content
+     * itself is still given [LayoutDirection.Rtl] when Arabic is detected.
+     * Keeping these concerns separate prevents RTL from swapping chat roles.
+     */
+    fun bubbleEdge(
+        isUser: Boolean,
+        layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+    ): BubbleEdge = when (layoutDirection) {
+        LayoutDirection.Ltr, LayoutDirection.Rtl ->
+            if (isUser) BubbleEdge.END else BubbleEdge.START
+    }
+
+    fun horizontalArrangement(
+        isUser: Boolean,
+        layoutDirection: LayoutDirection,
+    ): Arrangement.Horizontal = when (bubbleEdge(isUser, layoutDirection)) {
+        BubbleEdge.START -> Arrangement.Absolute.Left
+        BubbleEdge.END -> Arrangement.Absolute.Right
+    }
 
     fun humanModelLabel(rawId: String, isLocal: Boolean, isCloud: Boolean): String {
         if (rawId.isBlank()) return if (isLocal) "Local" else if (isCloud) "Cloud" else "Auto"

@@ -70,6 +70,19 @@ open class OpenAIAdapter(
                 retryable = false
             )
 
+        if (provider != CloudProvider.OPENAI && request.inlineDataParts.isNotEmpty()) {
+            request.attachmentTrace?.reject("This OpenAI-compatible provider has no native file transport.")
+            return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                error = "File attachments are not implemented for ${provider.displayName}",
+                errorType = CloudErrorType.INVALID_REQUEST,
+                retryable = false,
+            )
+        }
+
+        if (provider == CloudProvider.OPENAI && OpenAIResponsesPayloadContract.requiresResponses(request)) {
+            return@withContext streamResponses(request, apiKey, onToken, onUsage)
+        }
+
         val endpoint = "$baseUrl/chat/completions"
         val body     = buildRequestBody(request)
 
@@ -212,6 +225,173 @@ open class OpenAIAdapter(
         } finally {
             try { conn?.disconnect() } catch (_: Exception) {}
         }
+    }
+
+    /** Native OpenAI Responses transport used only by the first-party OpenAI provider. */
+    private suspend fun streamResponses(
+        request: ExecutionRequest,
+        apiKey: String,
+        onToken: suspend (String) -> Unit,
+        onUsage: suspend (Int, Int) -> Unit,
+    ): CloudProviderAdapter.AdapterResult {
+        val endpoint = "$baseUrl/responses"
+        val body = OpenAIResponsesPayloadContract.buildRequestBody(request, model)
+        val attachmentIds = OpenAIResponsesPayloadContract.attachmentIds(request)
+        val trace = request.attachmentTrace
+        if (!OpenAIResponsesPayloadContract.containsNonEmptyContent(request)) {
+            trace?.reject("OpenAI attachment payload contained empty content.")
+            return CloudProviderAdapter.AdapterResult.Failure(
+                error = "OpenAI attachment payload is empty",
+                errorType = CloudErrorType.INVALID_REQUEST,
+                retryable = false,
+            )
+        }
+        trace?.mark(AttachmentDeliveryStage.PROVIDER_PAYLOAD_BUILT, attachmentIds)
+        request.imageParts.forEach { trace?.markPayloadContainsContent(it.attachmentId, it.base64Data.length.toLong()) }
+        request.inlineDataParts.forEach { trace?.markPayloadContainsContent(it.attachmentId, it.base64Data.length.toLong()) }
+
+        var conn: HttpURLConnection? = null
+        val fullText = StringBuilder()
+        var promptTokens = 0
+        var completeTokens = 0
+        var sawDone = false
+        val startMs = System.currentTimeMillis()
+        try {
+            conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = READ_TIMEOUT_MS
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "text/event-stream")
+                setRequestProperty("Authorization", "Bearer $apiKey")
+            }
+            currentCoroutineContext()[Job]?.invokeOnCompletion { conn?.disconnect() }
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            trace?.mark(AttachmentDeliveryStage.HTTP_REQUEST_DISPATCHED, attachmentIds)
+            val httpCode = conn.responseCode
+            if (httpCode !in 200..299) {
+                trace?.markProviderResponse(false, attachmentIds)
+                val errBody = conn.errorStream?.bufferedReader()?.readText() ?: "HTTP $httpCode"
+                val mapped = CloudErrorMapper.map(httpCode, errBody)
+                return CloudProviderAdapter.AdapterResult.Failure(
+                    error = mapped.message,
+                    errorType = mapped.type,
+                    retryable = mapped.retryable,
+                    httpCode = httpCode,
+                )
+            }
+            BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { reader ->
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    ensureActive()
+                    val raw = line!!.trim()
+                    if (!raw.startsWith("data:")) continue
+                    val payload = raw.removePrefix("data:").trim()
+                    if (payload.isBlank()) continue
+                    val eventType = jsonStringField(payload, "type")
+                    when (eventType) {
+                        "response.output_text.delta" -> {
+                            val token = jsonStringField(payload, "delta").orEmpty()
+                            if (token.isNotEmpty()) {
+                                fullText.append(token)
+                                onToken(token)
+                            }
+                        }
+                        "response.completed", "response.done" -> {
+                            promptTokens = jsonIntField(payload, "input_tokens") ?: promptTokens
+                            completeTokens = jsonIntField(payload, "output_tokens") ?: completeTokens
+                            sawDone = true
+                            break
+                        }
+                        "response.failed", "error" -> {
+                            trace?.markProviderResponse(false, attachmentIds)
+                            return CloudProviderAdapter.AdapterResult.Failure(
+                                error = "OpenAI Responses stream returned an error",
+                                errorType = CloudErrorType.UNKNOWN,
+                                retryable = false,
+                                httpCode = 200,
+                            )
+                        }
+                    }
+                }
+            }
+            if (!sawDone) {
+                trace?.markProviderResponse(false, attachmentIds)
+                return CloudProviderAdapter.AdapterResult.Failure(
+                    error = "OpenAI Responses stream ended before completion",
+                    errorType = CloudErrorType.CONNECTION_LOST,
+                    retryable = fullText.isEmpty(),
+                    httpCode = -2,
+                )
+            }
+            if (fullText.isBlank()) {
+                trace?.markProviderResponse(false, attachmentIds)
+                return CloudProviderAdapter.AdapterResult.Failure(
+                    error = "OpenAI returned no text",
+                    errorType = CloudErrorType.UNKNOWN,
+                    retryable = false,
+                    httpCode = 200,
+                )
+            }
+            trace?.mark(AttachmentDeliveryStage.PROVIDER_RESPONSE_RECEIVED, attachmentIds)
+            trace?.markProviderResponse(true, attachmentIds)
+            val latency = System.currentTimeMillis() - startMs
+            onUsage(promptTokens, completeTokens)
+            CloudProviderAdapter.AdapterResult.Success(
+                fullText = fullText.toString(),
+                latencyMs = latency,
+                promptTokens = promptTokens,
+                completionTokens = completeTokens,
+                executedModelId = model,
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: java.net.SocketTimeoutException) {
+            trace?.markProviderResponse(false, attachmentIds)
+            val mapped = CloudErrorMapper.map(-1, e.message ?: "timeout")
+            CloudProviderAdapter.AdapterResult.Failure(mapped.message, mapped.type, mapped.retryable, -1)
+        } catch (e: java.io.IOException) {
+            trace?.markProviderResponse(false, attachmentIds)
+            val mapped = CloudErrorMapper.map(-1, e.message ?: "io error")
+            CloudProviderAdapter.AdapterResult.Failure(mapped.message, mapped.type, mapped.retryable, -1)
+        } finally {
+            try { conn?.disconnect() } catch (_: Exception) {}
+        }
+    }
+
+    private fun jsonStringField(json: String, field: String): String? {
+        val key = "\"$field\""
+        val keyIndex = json.indexOf(key)
+        if (keyIndex < 0) return null
+        val colon = json.indexOf(':', keyIndex + key.length)
+        if (colon < 0) return null
+        val start = json.indexOf('"', colon + 1)
+        if (start < 0) return null
+        var i = start + 1
+        val result = StringBuilder()
+        while (i < json.length) {
+            when (json[i]) {
+                '\\' -> {
+                    if (i + 1 >= json.length) return null
+                    result.append when (json[i + 1]) {
+                        'n' -> '\n'; 'r' -> '\r'; 't' -> '\t'; else -> json[i + 1]
+                    }
+                    i += 2
+                }
+                '"' -> return result.toString()
+                else -> result.append(json[i++])
+            }
+        }
+        return null
+    }
+
+    private fun jsonIntField(json: String, field: String): Int? {
+        val keyIndex = json.indexOf("\"$field\"")
+        if (keyIndex < 0) return null
+        val colon = json.indexOf(':', keyIndex)
+        if (colon < 0) return null
+        return json.substring(colon + 1).trimStart().takeWhile { it.isDigit() }.toIntOrNull()
     }
 
     // ── Subclass extension point ──────────────────────────────────────────────

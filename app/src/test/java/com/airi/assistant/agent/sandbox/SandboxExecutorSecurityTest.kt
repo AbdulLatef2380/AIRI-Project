@@ -45,4 +45,27 @@ class SandboxExecutorSecurityTest {
             root.deleteRecursively()
         }
     }
+
+    @Test
+    fun shellInjectionAbsolutePathsAndNetworkGitAreRejected() = runBlocking {
+        val root = Files.createTempDirectory("airi-sandbox-").toFile()
+        try {
+            val executor = SandboxExecutor(SandboxSession("test", "test", root))
+            val injection = executor.execute(
+                SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "echo safe; touch escaped")
+            )
+            val absoluteRead = executor.execute(
+                SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "cat /etc/passwd")
+            )
+            val networkGit = executor.execute(
+                SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "git clone https://example.invalid/repo")
+            )
+            assertTrue(injection is SandboxExecutor.ExecutionResult.SecurityViolation)
+            assertTrue(absoluteRead is SandboxExecutor.ExecutionResult.SecurityViolation)
+            assertTrue(networkGit is SandboxExecutor.ExecutionResult.SecurityViolation)
+            assertTrue(!java.io.File(root, "escaped").exists())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
 }

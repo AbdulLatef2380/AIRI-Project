@@ -1,6 +1,7 @@
 package com.airi.assistant.ui.viewmodel
 
 import com.airi.core.attachments.AttachmentPolicy
+import com.airi.assistant.attachments.AttachmentContentExtractor
 
 /**
  * Admission policy for a composed message that contains attachments.
@@ -31,12 +32,17 @@ internal object AttachmentDispatchPolicy {
     /** A capability declaration is not sufficient unless this runtime has a payload path. */
     fun payloadTransportFailure(
         contentType: AttachmentPolicy.ContentType,
+        mimeType: String = "",
+        fileName: String = "",
     ): AttachmentDispatchFailure? = when (contentType) {
         AttachmentPolicy.ContentType.IMAGE,
         AttachmentPolicy.ContentType.TEXT -> null
-        AttachmentPolicy.ContentType.VIDEO,
+        // Transport is provider/model-specific. Defer the decision to
+        // ModelCapabilityEngine so native Gemini media can proceed while
+        // unsupported local/OpenAI-compatible targets still fail closed.
         AttachmentPolicy.ContentType.DOCUMENT,
-        AttachmentPolicy.ContentType.FILE -> AttachmentDispatchFailure.UNSUPPORTED_CONTENT
+        AttachmentPolicy.ContentType.FILE,
+        AttachmentPolicy.ContentType.VIDEO -> null
     }
 
     fun maximumSizeBytes(contentType: AttachmentPolicy.ContentType): Long =

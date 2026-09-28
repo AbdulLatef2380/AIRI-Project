@@ -38,15 +38,18 @@ class ModelCapabilityEngineTest {
         assertTrue(custom.confidence == CapabilityConfidence.UNKNOWN)
     }
 
-    @Test fun documentAndVideoCapabilitiesAreNotAdvertisedWithoutPayloadTransport() {
+    @Test fun geminiAdvertisesNativeDocumentAndVideoTransportButLocalDoesNot() {
         val local = ModelCapabilityEngine.fromLocal(local("llama-3.1-8b"), textCaps, mmprojLoaded = false)
         val cloud = ModelCapabilityEngine.fromCloud(CloudProvider.GEMINI, "gemini-2.5-flash")
-        listOf(local, cloud).forEach { descriptor ->
+        listOf(local).forEach { descriptor ->
             assertEquals(CapabilityStatus.UNSUPPORTED, descriptor.status(Capability.DOCUMENT_INPUT))
             assertEquals(CapabilityStatus.UNSUPPORTED, descriptor.status(Capability.PDF_INPUT))
             assertEquals(CapabilityStatus.UNSUPPORTED, descriptor.status(Capability.VIDEO_INPUT))
             assertEquals(CapabilityStatus.UNSUPPORTED, descriptor.status(Capability.VIDEO_UNDERSTANDING))
         }
+        assertEquals(CapabilityStatus.SUPPORTED_WITH_LIMITS, cloud.status(Capability.DOCUMENT_INPUT))
+        assertEquals(CapabilityStatus.SUPPORTED_WITH_LIMITS, cloud.status(Capability.PDF_INPUT))
+        assertEquals(CapabilityStatus.SUPPORTED_WITH_LIMITS, cloud.status(Capability.VIDEO_UNDERSTANDING))
     }
 
     @Test fun capabilityIsNotFeasibility() {
@@ -102,5 +105,17 @@ class ModelCapabilityEngineTest {
             availableRamMb = null,
         )
         assertEquals(ModelFeasibility.UNKNOWN, descriptor.readiness.feasibility)
+    }
+
+    @Test fun openAiAndAnthropicAdvertiseOnlyImplementedNativeDocumentRoutes() {
+        val openAi = ModelCapabilityEngine.fromCloud(CloudProvider.OPENAI, "gpt-4.1")
+        assertEquals(CapabilityStatus.SUPPORTED_WITH_LIMITS, openAi.status(Capability.DOCUMENT_INPUT))
+        assertEquals(CapabilityStatus.SUPPORTED_WITH_LIMITS, openAi.status(Capability.PDF_INPUT))
+        assertEquals(CapabilityStatus.UNSUPPORTED, openAi.status(Capability.VIDEO_UNDERSTANDING))
+
+        val anthropic = ModelCapabilityEngine.fromCloud(CloudProvider.ANTHROPIC, "claude-sonnet-4-5")
+        assertEquals(CapabilityStatus.UNSUPPORTED, anthropic.status(Capability.DOCUMENT_INPUT))
+        assertEquals(CapabilityStatus.SUPPORTED_WITH_LIMITS, anthropic.status(Capability.PDF_INPUT))
+        assertEquals(CapabilityStatus.SUPPORTED, anthropic.status(Capability.IMAGE_UNDERSTANDING))
     }
 }

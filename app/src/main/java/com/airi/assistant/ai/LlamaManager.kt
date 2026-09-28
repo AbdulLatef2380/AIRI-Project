@@ -69,6 +69,11 @@ class LlamaManager(private val context: Context) {
     private val maxHistory = 4
 
     private val cancelRequested = AtomicBoolean(false)
+    /** Monotonically increases for every load/unload request. */
+    private val lifecycleGeneration = AtomicLong(0L)
+
+    private fun isCurrentLifecycle(generation: Long): Boolean =
+        lifecycleGeneration.get() == generation
 
     // ── SPEC v3 — STRICT LIFECYCLE MUTEX ────────────────────────────────────
     // Defensive belt-and-braces mutex around the full
@@ -473,6 +478,11 @@ class LlamaManager(private val context: Context) {
     }
 
     fun loadModel(path: String, onProgress: (Int) -> Unit = {}, onReady: (Boolean) -> Unit) {
+        val generation = lifecycleGeneration.incrementAndGet()
+        // Cancel before the dispatcher hop; a previous native decode/load may
+        // still be in progress and must not publish state after this request.
+        cancelRequested.set(true)
+        runCatching { LlamaNative.nativeCancel() }
         val modelFile = File(path)
         lastLoadFailure = null
         if (!modelFile.exists()) {
@@ -491,17 +501,31 @@ class LlamaManager(private val context: Context) {
         Log.i(TAG, "LOAD START path=${modelFile.absolutePath} size=${modelFile.length() / (1024 * 1024)}MB ggufVersion=${inspection.ggufVersion} architecture=${inspection.architecture}")
 
         scope.launch {
+            if (!isCurrentLifecycle(generation)) {
+                Log.i(TAG, "LOAD_SKIPPED stale_generation=$generation")
+                return@launch
+            }
+            cancelRequested.set(false)
             isLoaded = false
+            loadedModelPath = null
             invalidateSession()
             try {
                 LlamaNative.loadModelWithProgress(
                     modelFile.absolutePath,
                     object : LlamaNative.ProgressCallback {
                         override fun onProgress(percent: Int) {
-                            scope.launch(Dispatchers.Main) { onProgress(percent) }
+                            if (isCurrentLifecycle(generation)) {
+                                scope.launch(Dispatchers.Main) {
+                                    if (isCurrentLifecycle(generation)) onProgress(percent)
+                                }
+                            }
                         }
                     }
                 )
+                if (!isCurrentLifecycle(generation)) {
+                    Log.i(TAG, "LOAD_COMPLETED_STALE generation=$generation path=${modelFile.name}")
+                    return@launch
+                }
                 isLoaded = true
                 loadedModelPath = modelFile.absolutePath
                 restoreReloadHistory()
@@ -530,12 +554,16 @@ class LlamaManager(private val context: Context) {
                 // was fire-and-forget, so ChatViewModel could inspect capabilities
                 // in the gap and report vision as unavailable even when a valid
                 // sidecar was present beside the model.
-                maybeAutoLoadMmproj(modelFile.absolutePath)
+                if (!isCurrentLifecycle(generation)) return@launch
+                maybeAutoLoadMmproj(modelFile.absolutePath, generation)
                 
                 // GGUF so the Memory pipeline produces real pooled vectors
                 // instead of falling back to chat-context approximations.
-                maybeAutoLoadEmbeddingModel(modelFile.absolutePath)
-                withContext(Dispatchers.Main) { onReady(true) }
+                if (!isCurrentLifecycle(generation)) return@launch
+                maybeAutoLoadEmbeddingModel(modelFile.absolutePath, generation)
+                if (isCurrentLifecycle(generation)) {
+                    withContext(Dispatchers.Main) { onReady(true) }
+                }
             } catch (e: UnsatisfiedLinkError) {
                 Log.w(TAG, "loadModelWithProgress unavailable — falling back: ${e.message}", e)
                 val result = runCatching { LlamaNative.loadModel(modelFile.absolutePath) }
@@ -544,6 +572,10 @@ class LlamaManager(private val context: Context) {
                         Log.e(TAG, "LOAD FAILED: $lastLoadFailure", ex); "Error"
                     }
                 isLoaded = (result == "LOAD_SUCCESS" || result == "Success")
+                if (!isCurrentLifecycle(generation)) {
+                    Log.i(TAG, "LOAD_COMPLETED_STALE generation=$generation path=${modelFile.name}")
+                    return@launch
+                }
                 if (isLoaded) {
                     loadedModelPath = modelFile.absolutePath
                     restoreReloadHistory()
@@ -563,20 +595,25 @@ class LlamaManager(private val context: Context) {
                         )
                     }
                     
-                    maybeAutoLoadMmproj(modelFile.absolutePath)
-                    
-                    maybeAutoLoadEmbeddingModel(modelFile.absolutePath)
+                    if (!isCurrentLifecycle(generation)) return@launch
+                    maybeAutoLoadMmproj(modelFile.absolutePath, generation)
+                    if (!isCurrentLifecycle(generation)) return@launch
+                    maybeAutoLoadEmbeddingModel(modelFile.absolutePath, generation)
                 } else {
                     lastLoadFailure = "native loader returned $result for architecture=${inspection.architecture}"
                     com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", false, lastLoadFailure ?: "unknown")
                 }
-                withContext(Dispatchers.Main) { onReady(isLoaded) }
+                if (isCurrentLifecycle(generation)) {
+                    withContext(Dispatchers.Main) { onReady(isLoaded) }
+                }
             } catch (e: Exception) {
                 lastLoadFailure = "${e.javaClass.simpleName}: ${e.message}"
                 Log.e(TAG, "LOAD FAILED: $lastLoadFailure", e)
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", false, lastLoadFailure ?: "unknown")
                 isLoaded = false
-                withContext(Dispatchers.Main) { onReady(false) }
+                if (isCurrentLifecycle(generation)) {
+                    withContext(Dispatchers.Main) { onReady(false) }
+                }
             }
         }
     }
@@ -606,6 +643,7 @@ class LlamaManager(private val context: Context) {
      * confirm the sequence ran in the expected order.
      */
     fun unloadModel() {
+        val generation = lifecycleGeneration.incrementAndGet()
         val hadLoadedModel = isLoaded || loadedModelPath != null || sessionPrimed
         Log.i("AIRI", "UNLOAD_REQUESTED was_loaded=$hadLoadedModel")
         // Cancel BEFORE the dispatcher hop — the in-flight token loop reads
@@ -616,11 +654,23 @@ class LlamaManager(private val context: Context) {
             // We're now serialized behind any in-flight generate(), so it's
             // safe to touch native state.
             try {
-                reloadHistorySnapshot = chatHistory.toList()
+                // Keep only the bounded replay window. Never retain a full
+                // transcript in the model manager while the native weights are
+                // unloaded.
+                if (chatHistory.isNotEmpty()) {
+                    reloadHistorySnapshot = trimContext(chatHistory.toList())
+                }
                 if (LlamaNative.isAvailable()) {
                     runCatching { LlamaNative.resetSession() }
                         .onSuccess { Log.i("AIRI", "UNLOAD_KV_CLEARED") }
                         .onFailure { Log.w("AIRI", "UNLOAD_KV_CLEAR_FAIL ${it.message}") }
+                    runCatching { LlamaNative.unloadMmproj() }
+                        .onSuccess { Log.i("AIRI", "UNLOAD_MMPROJ_CLEARED") }
+                        .onFailure { Log.w("AIRI", "UNLOAD_MMPROJ_CLEAR_FAIL ${it.message}") }
+                    runCatching { LlamaNative.unloadEmbeddingModel() }
+                        .onSuccess { Log.i("AIRI", "UNLOAD_EMBEDDING_CLEARED") }
+                        .onFailure { Log.w("AIRI", "UNLOAD_EMBEDDING_CLEAR_FAIL ${it.message}") }
+                    loadedEmbeddingPath = null
                 }
             } finally {
                 isLoaded = false
@@ -628,7 +678,7 @@ class LlamaManager(private val context: Context) {
                 chatHistory.clear()
                 invalidateSession()
                 Log.i("AIRI",
-                    "UNLOAD_COMPLETE kv_cleared=true model_mmap_held=true " +
+                    "UNLOAD_COMPLETE generation=$generation kv_cleared=true model_mmap_held=true " +
                     "note=loadModel_will_free_weights")
                 if (hadLoadedModel) {
                     // P1-D: Surface a reset only when a real loaded model/KV context existed.
@@ -1888,7 +1938,11 @@ class LlamaManager(private val context: Context) {
      * Always emits AIRI MMPROJ_AUTOLOAD_* tags so the decision is
      * visible from logcat without enabling verbose logs.
      */
-    suspend fun maybeAutoLoadMmproj(modelPath: String) {
+    suspend fun maybeAutoLoadMmproj(modelPath: String, expectedGeneration: Long? = null) {
+        if (expectedGeneration != null && !isCurrentLifecycle(expectedGeneration)) {
+            Log.i("AIRI", "MMPROJ_AUTOLOAD_SKIPPED reason=stale_lifecycle")
+            return
+        }
         if (!isLoaded) {
             Log.i("AIRI", "MMPROJ_AUTOLOAD_SKIPPED reason=model_not_loaded")
             return
@@ -1973,12 +2027,20 @@ class LlamaManager(private val context: Context) {
         }
     }
 
-    fun maybeAutoLoadEmbeddingModel(modelPath: String) {
+    fun maybeAutoLoadEmbeddingModel(modelPath: String, expectedGeneration: Long? = null) {
+        if (expectedGeneration != null && !isCurrentLifecycle(expectedGeneration)) {
+            Log.i("AIRI", "EMBEDDING_AUTOLOAD_SKIPPED reason=stale_lifecycle")
+            return
+        }
         if (!isLoaded) {
             Log.i("AIRI", "EMBEDDING_AUTOLOAD_SKIPPED reason=model_not_loaded")
             return
         }
         scope.launch {
+            if (expectedGeneration != null && !isCurrentLifecycle(expectedGeneration)) {
+                Log.i("AIRI", "EMBEDDING_AUTOLOAD_SKIPPED reason=stale_lifecycle")
+                return@launch
+            }
             try {
                 val parent = File(modelPath).parentFile ?: run {
                     Log.i("AIRI", "EMBEDDING_AUTOLOAD_SKIPPED reason=no_parent_dir")

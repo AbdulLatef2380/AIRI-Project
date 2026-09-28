@@ -130,6 +130,8 @@ Do not mix tool_call JSON with prose in the same message.
         sessionId:      String                 = "",
         priorConversation: List<ExecutionRequest.ConversationTurn> = emptyList(),
         visionParts:    List<com.airi.assistant.execution.ExecutionRequest.ImagePart> = emptyList(),
+        attachmentParts: List<com.airi.assistant.execution.ExecutionRequest.InlineDataPart> = emptyList(),
+        attachmentTrace: com.airi.assistant.execution.AttachmentDeliveryTrace? = null,
         onToken:        suspend (String) -> Unit,
         onStepComplete: suspend (StepEvent) -> String? = { null },
         executionContextFactory: AgentLoopExecutionContextFactory? = null
@@ -154,6 +156,15 @@ Do not mix tool_call JSON with prose in the same message.
 
         val fullSystemPrompt = systemPrompt + "\n\n" + buildToolBlock(tools) + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
+        // Register ownership before any completion/cancellation event. The bus
+        // rejects terminal events from unknown execution ids; without this start
+        // event a previous run can leave isWorking=true on the chat screen.
+        ExecutionStatusBus.onGraphStarted(
+            goalDescription = input.take(80),
+            totalNodes = if (tools.isEmpty()) 1 else MAX_STEPS,
+            executionId = executionId,
+        )
+        isPlanPublished = true
 
         try {
             return withTimeout(timeoutMs.coerceAtLeast(1L)) {
@@ -168,13 +179,17 @@ Do not mix tool_call JSON with prose in the same message.
                     modelId = modelId,
                     providerId = providerId,
                     visionParts = visionParts,
+                    attachmentParts = attachmentParts,
+                    attachmentTrace = attachmentTrace,
                     onToken = onToken,
                     identity = requestIdentity,
                     localHistoryStartIndex = priorHistoryCount,
                 )
                 return@withTimeout if (response.isBlank()) {
+                    ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
                     LoopResult("", 1, emptyList(), terminalState = TerminalState.NO_RESPONSE)
                 } else {
+                    ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
                     LoopResult(response, 1, emptyList(), terminalState = TerminalState.SUCCESS)
                 }
             }
@@ -198,6 +213,8 @@ Do not mix tool_call JSON with prose in the same message.
                     modelId = modelId,
                     providerId = providerId,
                     visionParts = visionParts,
+                    attachmentParts = attachmentParts,
+                    attachmentTrace = attachmentTrace,
                     onToken       = { tok ->
                         tokenBuffer.append(tok)
                         onToken(tok)
@@ -238,6 +255,8 @@ Do not mix tool_call JSON with prose in the same message.
                             modelId = modelId,
                             providerId = providerId,
                             visionParts = visionParts,
+                            attachmentParts = attachmentParts,
+                            attachmentTrace = attachmentTrace,
                             onToken        = {},   // don't stream retry to UI
                             identity       = requestIdentity,
                             localHistoryStartIndex = priorHistoryCount,
@@ -520,6 +539,8 @@ Do not mix tool_call JSON with prose in the same message.
         modelId:      String = "",
         providerId:   String = "",
         visionParts:   List<com.airi.assistant.execution.ExecutionRequest.ImagePart> = emptyList(),
+        attachmentParts: List<com.airi.assistant.execution.ExecutionRequest.InlineDataPart> = emptyList(),
+        attachmentTrace: com.airi.assistant.execution.AttachmentDeliveryTrace? = null,
         onToken:       suspend (String) -> Unit,
         identity:      ExecutionIdentity,
         localHistoryStartIndex: Int = 0,
@@ -575,8 +596,10 @@ Do not mix tool_call JSON with prose in the same message.
                 sessionTag            = "agent_loop",
                 requestedProviderId   = providerId,
                 requestedModelId      = modelId,
-                requiresVision        = visionParts.isNotEmpty(),
+                requiresVision        = visionParts.isNotEmpty() || attachmentParts.isNotEmpty(),
                 imageParts            = visionParts,
+                inlineDataParts       = attachmentParts,
+                attachmentTrace       = attachmentTrace,
                 identity              = identity,
 
                 conversationHistory   = requestProjection.conversationHistory

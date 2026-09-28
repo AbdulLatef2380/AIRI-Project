@@ -1730,7 +1730,7 @@
     <string name="attachment_capability_unavailable">النموذج الحالي لا يستطيع معالجة نوع هذا المرفق. اختر نموذجاً متوافقاً أو أزل المرفق.</string>
     <string name="attachment_capability_unknown">تعذر على AIRI التحقق من دعم النموذج الحالي لهذا المرفق. اختر نموذجاً متوافقاً أو تحقق من التوافق قبل المحاولة.</string>
     <string name="attachment_staging_failed">تعذر تجهيز مرفق واحد أو أكثر. احتُفظ بها لكي تتمكن من المحاولة مجدداً.</string>
-    <string name="attachment_unsupported_content">لا يستطيع AIRI قراءة هذا النوع من الملفات حالياً. الأنواع المدعومة هي الصور والملفات النصية، وقد احتُفظ بالمرفق.</string>
+    <string name="attachment_unsupported_content">لا يستطيع AIRI قراءة هذا النوع من الملفات حالياً. الأنواع المدعومة هي الصور والنصوص وPDF وDOCX وXLSX وPPTX، وقد احتُفظ بالمرفق.</string>
     <string name="attachment_text_extraction_failed">تعذر على AIRI قراءة الملف النصي المحدد. احتُفظ به؛ اختر ملفاً مقروءاً وحاول مجدداً.</string>
     <string name="attachment_multiple_images_unsupported">لا يستطيع هذا المسار معالجة كل الصور المحددة معاً. احتُفظ بالمرفقات؛ اختر مزود رؤية يدعمها أو أرسل عدداً أقل.</string>
     <string name="attachment_dispatch_failed">لم يُقبل الطلب. احتُفظ بالمرفقات لتتمكن من المحاولة مجدداً.</string>

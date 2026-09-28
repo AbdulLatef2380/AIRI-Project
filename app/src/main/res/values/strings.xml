@@ -1223,6 +1223,13 @@
     <string name="login_new_account">Don\'t have an account? Create one</string>
     <string name="login_terms_privacy">By continuing, you agree to the Terms of Service and Privacy Policy.</string>
     <string name="login_google_not_configured">Google sign-in is not configured in this app. Choose another sign-in method or contact support.</string>
+    <string name="login_google_client_id_missing">Google sign-in is missing its OAuth client ID. Contact the app administrator.</string>
+    <string name="login_google_firebase_config_missing">Firebase authentication is not configured for this app. Contact the app administrator.</string>
+    <string name="login_google_provider_disabled">Google sign-in is disabled for this app. Enable it in the authentication provider settings.</string>
+    <string name="login_google_sha_mismatch">This app signing certificate is not registered for Google sign-in. Contact the app administrator.</string>
+    <string name="login_google_credential_failure">Google sign-in could not access the device credential service. Try again.</string>
+    <string name="login_google_network_failure">Google sign-in could not reach the service. Check your connection and try again.</string>
+    <string name="login_google_unknown_failure">Google sign-in could not be completed. Try again or choose another method.</string>
     <string name="login_google_cancelled">Google sign-in was cancelled.</string>
     <string name="login_google_no_id_token">Google did not return a sign-in token. Try again.</string>
     <string name="login_google_exchange_failed">Google sign-in could not be completed. Check your connection and try again.</string>
@@ -1831,7 +1838,7 @@
     <string name="attachment_capability_unavailable">The current model cannot process this attachment type. Choose a compatible model or remove the attachment.</string>
     <string name="attachment_capability_unknown">AIRI could not verify whether the current model supports this attachment. Choose a compatible model or verify it before retrying.</string>
     <string name="attachment_staging_failed">We couldn\'t prepare one or more attachments. They were kept so you can try again.</string>
-    <string name="attachment_unsupported_content">AIRI cannot read this file type yet. Images and plain-text files are supported; your attachment was kept.</string>
+    <string name="attachment_unsupported_content">AIRI cannot read this file type yet. Images, plain text, PDF, DOCX, XLSX, and PPTX are supported; your attachment was kept.</string>
     <string name="attachment_text_extraction_failed">AIRI could not read the selected text file. It was kept; choose a readable file and try again.</string>
     <string name="attachment_multiple_images_unsupported">This route cannot process all selected images together. Your attachments were kept; choose a vision provider that supports them or send fewer images.</string>
     <string name="attachment_dispatch_failed">The request was not accepted. Your attachments were kept so you can try again.</string>

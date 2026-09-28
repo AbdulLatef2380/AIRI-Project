@@ -80,8 +80,9 @@ object ModelCapabilityEngine {
             Capability.VISION to if (declaredVision) CapabilityStatus.SUPPORTED else CapabilityStatus.UNSUPPORTED,
             Capability.AUDIO_INPUT to CapabilityStatus.UNSUPPORTED,
             Capability.VIDEO_INPUT to CapabilityStatus.UNSUPPORTED,
-            Capability.DOCUMENT_INPUT to CapabilityStatus.SUPPORTED,
-            Capability.PDF_INPUT to CapabilityStatus.UNKNOWN,
+            Capability.VIDEO_UNDERSTANDING to CapabilityStatus.UNSUPPORTED,
+            Capability.DOCUMENT_INPUT to CapabilityStatus.UNSUPPORTED,
+            Capability.PDF_INPUT to CapabilityStatus.UNSUPPORTED,
             Capability.OCR to if (declaredVision) CapabilityStatus.UNKNOWN else CapabilityStatus.UNSUPPORTED,
             Capability.TOOL_CALLING to if (capabilities.toolCalling) CapabilityStatus.SUPPORTED else CapabilityStatus.UNKNOWN,
             Capability.STREAMING to CapabilityStatus.SUPPORTED,
@@ -138,8 +139,10 @@ object ModelCapabilityEngine {
         values[Capability.IMAGE_UNDERSTANDING] = status
         values[Capability.VISION] = status
         values[Capability.AUDIO_INPUT] = CapabilityStatus.UNKNOWN
-        values[Capability.VIDEO_INPUT] = CapabilityStatus.UNKNOWN
-        values[Capability.DOCUMENT_INPUT] = CapabilityStatus.SUPPORTED_WITH_LIMITS
+        values[Capability.VIDEO_INPUT] = CapabilityStatus.UNSUPPORTED
+        values[Capability.VIDEO_UNDERSTANDING] = CapabilityStatus.UNSUPPORTED
+        values[Capability.DOCUMENT_INPUT] = CapabilityStatus.UNSUPPORTED
+        values[Capability.PDF_INPUT] = CapabilityStatus.UNSUPPORTED
         values[Capability.STREAMING] = CapabilityStatus.SUPPORTED
         values[Capability.TOOL_CALLING] = CapabilityStatus.UNKNOWN
         values[Capability.STRUCTURED_OUTPUT] = CapabilityStatus.UNKNOWN

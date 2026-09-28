@@ -38,6 +38,17 @@ class ModelCapabilityEngineTest {
         assertTrue(custom.confidence == CapabilityConfidence.UNKNOWN)
     }
 
+    @Test fun documentAndVideoCapabilitiesAreNotAdvertisedWithoutPayloadTransport() {
+        val local = ModelCapabilityEngine.fromLocal(local("llama-3.1-8b"), textCaps, mmprojLoaded = false)
+        val cloud = ModelCapabilityEngine.fromCloud(CloudProvider.GEMINI, "gemini-2.5-flash")
+        listOf(local, cloud).forEach { descriptor ->
+            assertEquals(CapabilityStatus.UNSUPPORTED, descriptor.status(Capability.DOCUMENT_INPUT))
+            assertEquals(CapabilityStatus.UNSUPPORTED, descriptor.status(Capability.PDF_INPUT))
+            assertEquals(CapabilityStatus.UNSUPPORTED, descriptor.status(Capability.VIDEO_INPUT))
+            assertEquals(CapabilityStatus.UNSUPPORTED, descriptor.status(Capability.VIDEO_UNDERSTANDING))
+        }
+    }
+
     @Test fun capabilityIsNotFeasibility() {
         val model = local("llama-7b").copy(ramRequiredMb = 4096)
         val descriptor = ModelCapabilityEngine.fromLocal(

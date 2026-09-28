@@ -3129,6 +3129,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             onRejected(preflightFailure)
             return
         }
+        val unsupportedPayload = attachments.firstNotNullOfOrNull { attachment ->
+            AttachmentDispatchPolicy.payloadTransportFailure(attachment.contentType)
+        }
+        if (unsupportedPayload != null) {
+            onRejected(unsupportedPayload)
+            return
+        }
         val visualImageCount = attachments.count { it.isVisualImage }
         val imageRoute = AttachmentDispatchPolicy.imageRoute(
             imageCount = visualImageCount,

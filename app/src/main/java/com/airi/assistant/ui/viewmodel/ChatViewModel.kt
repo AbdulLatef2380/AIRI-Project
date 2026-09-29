@@ -94,6 +94,7 @@ import com.airi.assistant.ai.QueryClassifier
 import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.ResponseOptimizer
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -105,6 +106,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
@@ -1047,6 +1049,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Identifier of the only user-visible generation allowed at a time. */
     @Volatile private var activeGenerationId: Long = 0L
     @Volatile private var activeGenerationSessionId: String? = null
+    @Volatile private var activeGenerationJob: Job? = null
     private data class DeferredLlamaHistory(
         val sessionId: String,
         val messages: List<com.airi.assistant.memory.entity.ChatMessage>,
@@ -1055,6 +1058,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun isCurrentGeneration(generationId: Long): Boolean =
         generationId != 0L && activeGenerationId == generationId
+
+    private fun startOwnedGeneration(generationId: Long, job: Job) {
+        activeGenerationJob = job
+        job.invokeOnCompletion { cause ->
+            if (cause is CancellationException && isCurrentGeneration(generationId)) {
+                viewModelScope.launch { finishGeneration(generationId) }
+            }
+        }
+        job.start()
+    }
 
     private fun finishGeneration(generationId: Long) {
         if (!isCurrentGeneration(generationId)) return
@@ -1066,6 +1079,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _isGenerating.value = false
         activeGenerationId = 0L
         activeGenerationSessionId = null
+        activeGenerationJob = null
         val deferred = deferredLlamaHistory
         if (deferred != null && deferred.sessionId == _currentSessionId.value) {
             llamaManager.setHistory(deferred.messages)
@@ -1096,6 +1110,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 byUser = true,
                 tokensStreamed = 0
             )
+            activeGenerationJob?.cancel(CancellationException("Generation cancelled by user"))
         }
     }
 
@@ -1420,7 +1435,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _isCancelled.set(true)
         hybridOrchestrator.cancel()
         llamaManager.cancelStream()
+        activeGenerationJob?.cancel(CancellationException("ChatViewModel cleared"))
         activeGenerationId = 0L
+        activeGenerationJob = null
         clearHistoryJob?.cancel()
         super.onCleared()
         runtimeSupervisor.stop()
@@ -1907,7 +1924,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val generationId = generationSequence.incrementAndGet()
         activeGenerationId = generationId
         activeGenerationSessionId = generationSessionId
-        viewModelScope.launch {
+        _isCancelled.set(false)
+        val generationJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
             if (!isCurrentGeneration(generationId)) return@launch
             _agentState.value = AgentState(
                 isWorking = true,
@@ -2040,7 +2058,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _debugState.update { it.copy(lastIsFastPath = false) }
             _smartReplies.value = emptyList()
             if (!isCurrentGeneration(generationId)) return@launch
-            _isCancelled.set(false)
 
             _agentState.update { it.copy(currentAction = appContext.getString(R.string.generating)) }
             _streamingText.value = ""
@@ -2445,6 +2462,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 modelController.refreshDiagnosticsSnapshot()
             }
         }
+        startOwnedGeneration(generationId, generationJob)
         return true
     }
 
@@ -3766,7 +3784,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val generationId = generationSequence.incrementAndGet()
         activeGenerationId = generationId
         activeGenerationSessionId = sessionAtDispatch
-        viewModelScope.launch {
+        _isCancelled.set(false)
+        val generationJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
             if (!isCurrentGeneration(generationId)) return@launch
             if (ModelManager.getCurrent()?.id != modelIdAtDispatch) {
                 finishGeneration(generationId)
@@ -3782,7 +3801,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
             _generationPhase.value = GenerationPhase.PREFILL
             _isGenerating.value = true
-            _isCancelled.set(false)
             generationStartMs = System.currentTimeMillis()
             val sessionId = sessionAtDispatch
 
@@ -3948,6 +3966,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 finishGeneration(generationId)
             }
         }
+        startOwnedGeneration(generationId, generationJob)
     }
 
     // ── Skill management (delegates to SkillService) ──────────────────────────

@@ -184,6 +184,7 @@ def test_cloud_protocols() -> dict[str, int]:
 def test_ui_contract() -> dict[str, int]:
     source = Path("app/src/main/java/com/airi/assistant/ui/screens/ChatScreen.kt").read_text()
     policy = Path("app/src/main/java/com/airi/assistant/ui/screens/ChatPresentationPolicy.kt").read_text()
+    view_model = Path("app/src/main/java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt").read_text()
     contract_source = source + "\n" + policy
     check("fun chatTextDirection" in contract_source, "per-message direction helper missing")
     check("CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection" in source, "message direction is not applied")
@@ -200,13 +201,24 @@ def test_ui_contract() -> dict[str, int]:
     user_block = source[user_at:ai_at]
     policy_block = policy
     check(
-        ("Arrangement.Absolute.Right" in user_block)
-        or ("ChatPresentationPolicy.horizontalArrangement" in user_block
-            and "isUser = true" in user_block
-            and "LayoutDirection.Rtl" in policy_block
-            and "LayoutDirection.Ltr" in policy_block),
-        "user bubble is not placed by the direction-aware physical-right policy",
+        "ChatPresentationPolicy.userBubbleArrangement()" in user_block
+        and "fun userBubbleArrangement()" in policy_block
+        and "Arrangement.Absolute.Left" in policy_block,
+        "user bubble is not placed at the required physical-left position",
     )
+    check(
+        'activeGenerationJob?.cancel(CancellationException("Generation cancelled by user"))' in view_model
+        and "CoroutineStart.LAZY" in view_model
+        and "job.invokeOnCompletion { cause ->" in view_model
+        and "if (cause is CancellationException && isCurrentGeneration(generationId))" in view_model,
+        "stop does not cancel the active generation coroutine",
+    )
+    check(
+        "val isTextEditingEnabled = isGenerating ||" in source
+        and source.count("enabled = isTextEditingEnabled") >= 2,
+        "chat composer remains locked while a response is generating",
+    )
+    check("isGenerating -> CosmicAccent" in source, "stop action lost the cyan theme accent")
     stream_at = source.index("fun AiStreamingBubble")
     stream_block = source[stream_at:source.index("private fun AiriThinkingDots", stream_at)]
     check("AIRIShapes.aiBubble" not in stream_block and "AiriTheme.surfaceVariant" not in stream_block, "streaming response still has a bubble")

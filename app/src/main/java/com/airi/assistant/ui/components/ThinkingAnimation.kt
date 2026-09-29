@@ -1,17 +1,17 @@
 package com.airi.assistant.ui.components
 
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
@@ -24,10 +24,10 @@ import com.airi.assistant.ui.theme.CosmicAccent
 
 /**
  * Enhanced "thinking" indicator with:
- *   1. Three-dot breathing animation (staggered left-to-right wave)
+ *   1. Animated assistant icon with a breathing glow
  *   2. Dynamic status text that cycles through stages
  *      ("Thinking..." → "Generating..." → "Almost there...")
- *   3. Radial glow pulse behind the dots for a premium feel
+ *   3. Radial glow pulse behind the icon for a premium feel
  *   4. Adapts to Dark, Light, and AMOLED themes via CosmicAccent
  */
 @Composable
@@ -51,7 +51,7 @@ fun ThinkingAnimation(
     }
     val transition = rememberInfiniteTransition(label = "thinking")
 
-    // ── Glow pulse behind the dots ────────────────────────────────────────────
+    // ── Glow pulse behind the assistant icon ──────────────────────────────────
     val glowScale by transition.animateFloat(
         initialValue  = 0.6f,
         targetValue   = 1.2f,
@@ -99,7 +99,7 @@ fun ThinkingAnimation(
         modifier = modifier
             .padding(contentPadding)
             .drawBehind {
-                // Radial glow behind the dots
+                // Radial glow behind the assistant icon
                 val radius = 40f * glowScale
                 drawCircle(
                     brush = Brush.radialGradient(
@@ -115,50 +115,17 @@ fun ThinkingAnimation(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Three-dot breathing indicator comes first so the parent can keep the
-        // invariant icon → dots → label order in both LTR and RTL locales.
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
-            verticalAlignment     = Alignment.CenterVertically
-        ) {
-            repeat(3) { i ->
-                val scale by transition.animateFloat(
-                    initialValue  = 0.50f,
-                    targetValue   = 1.00f,
-                    animationSpec = infiniteRepeatable(
-                        animation  = tween(
-                            durationMillis = 480,
-                            delayMillis    = i * 160,
-                            easing         = FastOutSlowInEasing
-                        ),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "scale_$i"
-                )
-                val alpha by transition.animateFloat(
-                    initialValue  = 0.28f,
-                    targetValue   = 0.88f,
-                    animationSpec = infiniteRepeatable(
-                        animation  = tween(
-                            durationMillis = 480,
-                            delayMillis    = i * 160,
-                            easing         = FastOutSlowInEasing
-                        ),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "alpha_$i"
-                )
-                Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .scale(scale)
-                        .clip(CircleShape)
-                        .background(CosmicAccent.copy(alpha = alpha))
-                )
-            }
-        }
+        Icon(
+            imageVector = Icons.Outlined.AutoAwesome,
+            contentDescription = null,
+            tint = CosmicAccent.copy(alpha = fadeAlpha),
+            modifier = Modifier
+                .size(18.dp)
+                .scale(glowScale.coerceIn(0.85f, 1.15f))
+                .alpha(fadeAlpha)
+        )
 
-        // Status text remains a separate bidi-aware label after the dots.
+        // Status text remains a separate bidi-aware label after the icon.
         Text(
             text = effectiveText,
             style = MaterialTheme.typography.bodySmall.copy(

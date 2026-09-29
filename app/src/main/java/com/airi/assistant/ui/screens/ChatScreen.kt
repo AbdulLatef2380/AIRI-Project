@@ -2364,7 +2364,6 @@ fun UserBubble(
         else text
     }
     val context = LocalContext.current
-    val layoutDirection = LocalLayoutDirection.current
     val haptic  = LocalHapticFeedback.current
 
     var showContextMenu by remember { mutableStateOf(false) }
@@ -2394,10 +2393,7 @@ fun UserBubble(
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = ChatPresentationPolicy.horizontalArrangement(
-                    isUser = true,
-                    layoutDirection = layoutDirection,
-                )
+                horizontalArrangement = Arrangement.Absolute.Left
             ) {
                 Box {
                     Column(
@@ -2911,7 +2907,7 @@ private fun AiriThinkingRow(label: String) {
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 2.dp)
                 .semantics { contentDescription = label },
-            horizontalArrangement = Arrangement.Start,
+            horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(

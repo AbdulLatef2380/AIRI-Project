@@ -257,7 +257,7 @@ open class OpenAIAdapter(
         var completeTokens = 0
         var sawDone = false
         val startMs = System.currentTimeMillis()
-        try {
+        return try {
             conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = CONNECT_TIMEOUT_MS

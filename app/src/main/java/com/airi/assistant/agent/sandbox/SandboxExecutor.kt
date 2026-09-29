@@ -145,7 +145,6 @@ class SandboxExecutor(private val session: SandboxSession) {
         if (restriction != null) {
             val firstPathArg = argv.drop(1).firstOrNull { !it.startsWith("-") }
             if (firstPathArg != null && !restriction.containsMatchIn(firstPathArg)) {
-                Log.w(TAG, "SANDBOX_ARG_VIOLATION binary=$binary argChars=${firstPathArg.length}")
                 return ExecutionResult.SecurityViolation(
                     "Argument scope violation: '$binary $firstPathArg' — only relative paths permitted ()"
                 )

@@ -58,9 +58,10 @@ object AttachmentContentExtractor {
                 val xml = zip.getInputStream(entry).bufferedReader(Charsets.UTF_8).use { reader ->
                     reader.readText().take(maxChars - output.length)
                 }
-                // OOXML text is carried primarily in <t> nodes. Decode the
-                // five XML entities without evaluating markup or external refs.
-                Regex("<t(?:\\s[^>]*)?>(.*?)</t>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+                // OOXML text is carried primarily in <t> nodes. WordprocessingML
+                // normally prefixes that element as <w:t>; accept an optional
+                // namespace prefix without evaluating markup or external refs.
+                Regex("""<(?:[A-Za-z_][A-Za-z0-9_.-]*:)?t(?:\s[^>]*)?>(.*?)</(?:[A-Za-z_][A-Za-z0-9_.-]*:)?t>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
                     .findAll(xml)
                     .forEach { match ->
                         if (output.length < maxChars) {

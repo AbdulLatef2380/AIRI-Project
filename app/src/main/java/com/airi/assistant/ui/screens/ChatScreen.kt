@@ -2393,7 +2393,7 @@ fun UserBubble(
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Absolute.Left
+                horizontalArrangement = ChatPresentationPolicy.userBubbleArrangement()
             ) {
                 Box {
                     Column(
@@ -2527,7 +2527,6 @@ fun AiBubble(
     onExportMarkdown: (String) -> Unit = {}
 ) {
     val context   = LocalContext.current
-    val layoutDirection = LocalLayoutDirection.current
     val haptic    = LocalHapticFeedback.current
     val allTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsState()
     val trace = remember(traceId, allTraces) {
@@ -2553,10 +2552,7 @@ fun AiBubble(
 
     Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-            horizontalArrangement = ChatPresentationPolicy.horizontalArrangement(
-                isUser = false,
-                layoutDirection = layoutDirection,
-            ),
+            horizontalArrangement = ChatPresentationPolicy.assistantBubbleArrangement(),
             verticalAlignment = Alignment.Top
         ) {
             if (!hideAvatar) {
@@ -2871,13 +2867,9 @@ private fun ExecutionErrorBubble(error: ExecutionErrorProjection) {
 
 @Composable
 fun AiStreamingBubble(text: String) {
-    val layoutDirection = LocalLayoutDirection.current
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
-        horizontalArrangement = ChatPresentationPolicy.horizontalArrangement(
-            isUser = false,
-            layoutDirection = layoutDirection,
-        ),
+        horizontalArrangement = ChatPresentationPolicy.assistantBubbleArrangement(),
         verticalAlignment = Alignment.Top
     ) {
         Image(
@@ -3258,6 +3250,8 @@ fun AiriChatInputBar(
     var showFullScreenEditor by rememberSaveable { mutableStateOf(false) }
     val isInferenceReady = modelState.isModelReady || modelState.isCloudReady
     val isInteractionLocked = isGenerating || isDispatchingAttachment || isLongTextConversionInFlight
+    val isTextEditingEnabled = isGenerating ||
+        (isInferenceReady && !isDispatchingAttachment && !isLongTextConversionInFlight)
     val canSend = (text.isNotBlank() || attachments.isNotEmpty()) && isInferenceReady && !modelState.isModelLoading && !isInteractionLocked
     val isTyping = text.isNotBlank()
     val shortcutInput = text.trimStart()
@@ -3327,7 +3321,7 @@ fun AiriChatInputBar(
                             text = it
                             onDraftTextChanged(it)
                         },
-                        enabled = isInferenceReady && !isInteractionLocked,
+                        enabled = isTextEditingEnabled,
                         modifier = Modifier.fillMaxSize(),
                         textStyle = androidx.compose.ui.text.TextStyle(
                             color = AiriTheme.onBackground,
@@ -3699,7 +3693,7 @@ fun AiriChatInputBar(
                             }
                         }
                     },
-                    enabled = isInferenceReady && !isInteractionLocked,
+                    enabled = isTextEditingEnabled,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 26.dp, max = 190.dp)
@@ -3832,7 +3826,7 @@ fun AiriChatInputBar(
                                 .shadow(if (isInferenceReady) 12.dp else 0.dp, CircleShape, ambientColor = CosmicAccent.copy(0.5f), spotColor = CosmicAccent.copy(0.6f))
                                 .clip(CircleShape)
                                 .background(when {
-                                    isGenerating -> Color(0xFFFF6B6B)
+                                    isGenerating -> CosmicAccent
                                     isDispatchingAttachment -> CosmicAccent
                                     isInferenceReady || showSend -> CosmicAccent
                                     else -> CosmicAccent.copy(0.30f)

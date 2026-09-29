@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.screens
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.unit.LayoutDirection
 import com.airi.assistant.ui.text.LanguageRuntimeManager
 import org.junit.Assert.assertEquals
@@ -34,20 +35,12 @@ class ChatPresentationPolicyTest {
         assertTrue(ChatPresentationPolicy.userBubbleFraction("long text".repeat(500)) in 0f..0.82f)
     }
 
-    @Test fun bubblePlacementIsRoleBasedNotLanguageBased() {
-        assertEquals(ChatPresentationPolicy.BubbleEdge.END, ChatPresentationPolicy.bubbleEdge(isUser = true))
-        assertEquals(ChatPresentationPolicy.BubbleEdge.START, ChatPresentationPolicy.bubbleEdge(isUser = false))
+    @Test fun userBubbleUsesRequiredPhysicalLeftPositionInEveryLocale() {
+        assertEquals(Arrangement.Absolute.Left, ChatPresentationPolicy.userBubbleArrangement())
     }
 
-    @Test fun physicalChatRolesDoNotSwapInRtl() {
-        assertEquals(
-            ChatPresentationPolicy.BubbleEdge.END,
-            ChatPresentationPolicy.bubbleEdge(isUser = true, layoutDirection = LayoutDirection.Rtl),
-        )
-        assertEquals(
-            ChatPresentationPolicy.BubbleEdge.START,
-            ChatPresentationPolicy.bubbleEdge(isUser = false, layoutDirection = LayoutDirection.Rtl),
-        )
+    @Test fun assistantRowsKeepTheirExistingPhysicalLeftPosition() {
+        assertEquals(Arrangement.Absolute.Left, ChatPresentationPolicy.assistantBubbleArrangement())
     }
 
     @Test fun rawProviderIdsGetHumanLabels() {

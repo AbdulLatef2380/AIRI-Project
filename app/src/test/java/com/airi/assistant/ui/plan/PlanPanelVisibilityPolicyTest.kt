@@ -53,4 +53,15 @@ class PlanPanelVisibilityPolicyTest {
             )
         )
     }
+
+    @Test
+    fun cancelledMultiStepExecutionKeepsItsTerminalEvidenceVisible() {
+        assertTrue(
+            PlanPanelVisibilityPolicy.shouldShow(
+                stage = ExecutionStage.CANCELLED,
+                nodesTotal = 3,
+                stepCount = 3,
+            )
+        )
+    }
 }

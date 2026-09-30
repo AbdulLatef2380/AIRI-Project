@@ -25,8 +25,8 @@ import com.airi.assistant.workspace.ProjectContextResolver
  *   - [ServiceLocator.ragRetriever] holds the singleton.
  *   - [ChatViewModel.sendMessage] calls [buildContextBlock] and prepends
  *     the result to the system prompt BEFORE delegating to the backend.
- *   - The retriever is bypassed entirely when [isReady] returns false or
- *     [memoryManager.isSemanticMemoryReady] is false.
+ *   - When semantic embeddings are unavailable, recent safe messages remain
+ *     available through a bounded chronological fallback.
  *
  * PRIVACY:
  *   - All retrieval is local-only (Room + EmbeddingService).
@@ -65,9 +65,10 @@ class RagRetriever(
         query:     String,
         k:         Int = DEFAULT_K,
         projectId: String = "",
-        maxPrivacyLevel: Int = DEFAULT_PRIVACY_LEVEL
+        maxPrivacyLevel: Int = DEFAULT_PRIVACY_LEVEL,
+        maxContextChars: Int = MAX_CONTEXT_CHARS
     ): String {
-        if (!RagQueryPolicy.accepts(query)) return ""
+        if (!RagQueryPolicy.accepts(query) || maxContextChars <= 0) return ""
         val passages = retrieve(sessionId, query, k, projectId, maxPrivacyLevel)
         val memoryBlock = passages.takeIf { it.isNotEmpty() }?.let { results ->
             val formatted = results.joinToString("\n") { p ->
@@ -89,7 +90,7 @@ $formatted
         if (block.isBlank()) return ""
 
         Log.d(TAG, "RAG context built: hits=${passages.size} project=${projectBlock.isNotBlank()} chars=${block.length}")
-        return block.take(MAX_CONTEXT_CHARS)
+        return block.take(maxContextChars.coerceAtMost(MAX_CONTEXT_CHARS))
     }
 
     /**
@@ -126,10 +127,22 @@ $formatted
                 memoryId = memory.id
             )
         }
-        val semantic = if (memoryManager.isSemanticMemoryReady()) {
+        val semanticReady = memoryManager.isSemanticMemoryReady()
+        val semantic = if (semanticReady) {
             retrieveSemantic(sessionId, normalizedQuery, safeLimit, projectId, maxPrivacyLevel)
         } else {
             emptyList()
+        }
+        val chronologicalFallback = if (semanticReady) {
+            emptyList()
+        } else {
+            RagChronologicalFallback.select(
+                messages = memoryManager.getRecentMessages(sessionId, limit = safeLimit * 3),
+                query = normalizedQuery,
+                limit = safeLimit,
+                projectId = projectId,
+                maxPrivacyLevel = maxPrivacyLevel,
+            )
         }
         val projectKnowledge = projectKnowledgeManager
             ?.search(projectId = projectId, query = normalizedQuery, limit = safeLimit)
@@ -148,7 +161,7 @@ $formatted
                 )
             }
         return RagRetrievalRanker.rank(
-            passages = (longTerm + semantic + projectKnowledge)
+            passages = (longTerm + semantic + chronologicalFallback + projectKnowledge)
                 .filter(::isPromptSafe),
             limit = safeLimit
         )

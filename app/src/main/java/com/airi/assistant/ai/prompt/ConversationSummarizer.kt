@@ -50,7 +50,8 @@ object ConversationSummarizer {
         olderTurns: List<ChatMessage>,
         previousSummary: String,
         contextBudget: ContextBudget = ContextBudget.UNLOADED,
-        persistImmediately: Boolean = true
+        persistImmediately: Boolean = true,
+        coverageThrough: Int = olderTurns.size
     ): String? {
         if (olderTurns.isEmpty()) return null
         val transcript = buildTranscript(olderTurns)
@@ -103,14 +104,9 @@ object ConversationSummarizer {
         val cleaned = result.trim().take(contextBudget.summaryChars)
 
         if (persistImmediately) {
-            MemoryStore.setSummary(ctx, sessionId, cleaned)
-            MemoryStore.setSummaryCoverage(ctx, sessionId, olderTurns.size)
+            MemoryStore.setSummaryAndCoverage(ctx, sessionId, cleaned, coverageThrough)
             Log.i("AIRI_PROMPT_COMPRESS",
-                "SUMMARIZE_OK session=$sessionId folded=${olderTurns.size} chars=${cleaned.length}")
-        } else {
-            // Even if not persisting the summary text, we mark these turns as covered
-            // so we don't keep trying to summarize the same block.
-            MemoryStore.setSummaryCoverage(ctx, sessionId, olderTurns.size)
+                "SUMMARIZE_OK session=$sessionId folded=${olderTurns.size} covered=$coverageThrough chars=${cleaned.length}")
         }
         return cleaned
     }

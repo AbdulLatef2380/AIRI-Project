@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -32,7 +33,7 @@ class AiriDatabaseMigrationTest {
     }
 
     @Test
-    fun migratesVersionOneDataToVersionNineWithoutLoss() = runBlocking {
+    fun migratesVersionOneDataToVersionTenWithoutLossOrIndexDrift() = runBlocking {
         createVersionOneDatabase()
 
         database = Room.databaseBuilder(context, AiriDatabase::class.java, DATABASE_NAME)
@@ -92,8 +93,10 @@ class AiriDatabaseMigrationTest {
                 while (cursor.moveToNext()) add(cursor.getString(1))
             }
         }
-        assertTrue("index_episodic_memory_projectId_memoryScope" in memoryIndices)
-        assertTrue("index_episodic_memory_expiresAtMs" in memoryIndices)
+        assertTrue("index_episodic_memory_project_scope" in memoryIndices)
+        assertTrue("index_episodic_memory_expiry" in memoryIndices)
+        assertFalse("index_episodic_memory_projectId_memoryScope" in memoryIndices)
+        assertFalse("index_episodic_memory_expiresAtMs" in memoryIndices)
     }
 
     private fun createVersionOneDatabase() {

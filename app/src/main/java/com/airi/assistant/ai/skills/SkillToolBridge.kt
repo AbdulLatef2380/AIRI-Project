@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.airi.assistant.agent.loop.tool.ToolSchema
 import com.airi.assistant.domain.permission.PermissionService
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 
@@ -35,7 +36,9 @@ class SkillToolBridge(
     private val registry: SkillRegistry,
     private val modelBridge: SkillModelBridge? = null,
     private val skillCtx: () -> SkillContext = { SkillContext() },
-    private val isConnectorHealthy: (String) -> Boolean = { true }
+    // A bridge without an injected connector registry must not assume that
+    // external dependencies are available; callers can opt in with live state.
+    private val isConnectorHealthy: (String) -> Boolean = { false }
 ) {
     private val permissionService = PermissionService(context.applicationContext)
     companion object {
@@ -92,9 +95,9 @@ class SkillToolBridge(
      *
      * @param toolName  The raw tool name (e.g. "skill_web_search" or "skill_translate_text").
      * @param args      Arguments the agent provided.
-     * @return          The tool result string for the agent loop.
+     * @return          The verified, structured skill result for the agent loop.
      */
-    suspend fun invoke(toolName: String, args: Map<String, String>): String {
+    suspend fun invoke(toolName: String, args: Map<String, String>): SkillResult {
         val invokeStart  = System.currentTimeMillis()
         val strippedName = toolName.removePrefix(PREFIX)
 
@@ -102,10 +105,17 @@ class SkillToolBridge(
         if (skill == null) {
             val available = asToolSchemas().map { it.name }.joinToString()
             Log.w(TAG, "AIRI SKILL_NO_MATCH toolName=$toolName stripped=$strippedName available=[$available]")
-            return "No skill found for tool: $toolName. Available skill tools: $available"
+            return SkillResult(
+                success = false,
+                data = "",
+                error = "No skill found for tool: $toolName. Available skill tools: $available",
+                skillName = strippedName,
+                metadata = mapOf("failure_type" to "skill_not_found")
+            )
         }
 
-        val requestedContext = skillCtx().copy(modelBridge = modelBridge)
+        val providedContext = skillCtx()
+        val requestedContext = providedContext.copy(modelBridge = modelBridge ?: providedContext.modelBridge)
         val accessDecision = SkillInvocationAccessPolicy.authorize(
             skill = skill,
             context = requestedContext,
@@ -116,7 +126,13 @@ class SkillToolBridge(
             is SkillInvocationAccessPolicy.Decision.Allow -> accessDecision.context
             is SkillInvocationAccessPolicy.Decision.Deny -> {
                 Log.w(TAG, "AIRI SKILL_DENIED tool=$toolName skillId=${skill.skillId} reason=${accessDecision.reason}")
-                return accessDecision.userMessage
+                return SkillResult(
+                    success = false,
+                    data = "",
+                    error = accessDecision.userMessage,
+                    skillName = skill.skillId,
+                    metadata = mapOf("failure_type" to "authorization", "deny_reason" to accessDecision.reason.name)
+                )
             }
         }
         if (modelBridge != null && skillCtxInstance.modelBridge == null) {
@@ -153,14 +169,18 @@ class SkillToolBridge(
                     "resultLen=${result.data.length} " +
                     "toolOutputs=${result.toolOutputs.size} " +
                     "metadataCount=${result.metadata.size}")
-                result.data
+                result.copy(skillName = result.skillName ?: skill.skillId, executionMs = elapsedMs)
             } else {
                 Log.w(TAG, "AIRI SKILL_ERROR " +
                     "tool=$toolName " +
                     "skillId=${skill.skillId} " +
                     "ms=$elapsedMs " +
                     "errorChars=${result.error?.length ?: 0}")
-                "Skill '${skill.name}' error: ${result.error ?: "Unknown error"}"
+                result.copy(
+                    skillName = result.skillName ?: skill.skillId,
+                    error = result.error ?: "Unknown error",
+                    executionMs = elapsedMs
+                )
             }
 
         } catch (e: TimeoutCancellationException) {
@@ -170,8 +190,17 @@ class SkillToolBridge(
                 "skillId=${skill.skillId} " +
                 "limitMs=$TIMEOUT_MS " +
                 "elapsedMs=$elapsedMs")
-            "Skill '${skill.name}' timed out after ${TIMEOUT_MS / 1000}s. Try a simpler request."
+            SkillResult(
+                success = false,
+                data = "",
+                error = "Skill '${skill.name}' timed out after ${TIMEOUT_MS / 1000}s. Try a simpler request.",
+                skillName = skill.skillId,
+                executionMs = elapsedMs,
+                metadata = mapOf("failure_type" to "timeout")
+            )
 
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             val elapsedMs = System.currentTimeMillis() - invokeStart
             Log.e(TAG, "AIRI SKILL_EXCEPTION " +
@@ -179,7 +208,14 @@ class SkillToolBridge(
                 "skillId=${skill.skillId} " +
                 "ms=$elapsedMs " +
                 "errorType=${e.javaClass.simpleName}")
-            "Skill '${skill.name}' failed: ${e.message ?: "Unexpected error"}"
+            SkillResult(
+                success = false,
+                data = "",
+                error = "Skill '${skill.name}' failed: ${e.message ?: "Unexpected error"}",
+                skillName = skill.skillId,
+                executionMs = elapsedMs,
+                metadata = mapOf("failure_type" to e.javaClass.simpleName)
+            )
         }
     }
 

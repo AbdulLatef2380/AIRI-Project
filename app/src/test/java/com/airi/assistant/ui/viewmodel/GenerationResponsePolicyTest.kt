@@ -2,6 +2,8 @@ package com.airi.assistant.ui.viewmodel
 
 import com.airi.assistant.agent.loop.AgentLoop
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GenerationResponsePolicyTest {
@@ -39,5 +41,14 @@ class GenerationResponsePolicyTest {
             GenerationResponseStatus.CANCELLED,
             GenerationResponsePolicy.classify(AgentLoop.TerminalState.CANCELLED),
         )
+    }
+
+    @Test
+    fun partialTextIsPersistableOnlyForFailureAndTimeout() {
+        assertTrue(GenerationResponsePolicy.shouldPersistIncompleteResponse(GenerationResponseStatus.FAILURE, "partial"))
+        assertTrue(GenerationResponsePolicy.shouldPersistIncompleteResponse(GenerationResponseStatus.TIMEOUT, "partial"))
+        assertFalse(GenerationResponsePolicy.shouldPersistIncompleteResponse(GenerationResponseStatus.CANCELLED, "partial"))
+        assertFalse(GenerationResponsePolicy.shouldPersistIncompleteResponse(GenerationResponseStatus.EMPTY_RESPONSE, "partial"))
+        assertFalse(GenerationResponsePolicy.shouldPersistIncompleteResponse(GenerationResponseStatus.FAILURE, "  "))
     }
 }

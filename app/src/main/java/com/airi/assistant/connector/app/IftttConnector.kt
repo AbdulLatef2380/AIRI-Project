@@ -5,10 +5,13 @@ import com.airi.assistant.connector.*
 import com.airi.assistant.domain.release.ReleaseScopePolicy
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.AgentActivityBus
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -58,6 +61,7 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
     override val type        = ConnectorType.APP
 
     private val _state = MutableStateFlow(ConnectorState(connected = false, statusLine = "Not configured"))
+    private val triggerMutex = Mutex()
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -86,6 +90,10 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
             )
             return@withContext _state.value
         }
+        if (authManager.isExplicitlyDisconnected(id)) {
+            _state.value = ConnectorState(false, healthy = false, statusLine = "Disconnected")
+            return@withContext _state.value
+        }
         val key = authManager.getCredential(id, CRED_KEY)
         if (key.isNullOrBlank()) {
             _state.value = ConnectorState(false, statusLine = "No webhook key set",
@@ -99,7 +107,18 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
     }
 
     override suspend fun disconnect() {
-        _state.value = ConnectorState(false, statusLine = "Disconnected")
+        triggerMutex.withLock {
+            // Persist the deny marker first. If encrypted credential removal fails,
+            // an automatic reconnect still remains blocked across process restart.
+            val disabled = authManager.setExplicitlyDisconnected(id, true)
+            val cleared = authManager.clearCredential(id, CRED_KEY)
+            _state.value = ConnectorState(
+                connected = false,
+                healthy = false,
+                statusLine = if (disabled && cleared) "Disconnected" else "Disconnected; credential cleanup needs attention",
+                errorMessage = if (disabled && cleared) null else "Could not confirm durable disconnect cleanup."
+            )
+        }
     }
 
     // ── Execute ───────────────────────────────────────────────────────────────
@@ -111,16 +130,44 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
                 "External automation integrations are unavailable in this release."
             )
         }
+        if (input.action == "trigger_event" || input.action == "trigger_applet") {
+            return@withContext triggerMutex.withLock {
+                val key = authManager.getCredential(id, CRED_KEY)
+                if (!IftttTriggerAdmissionPolicy.allows(
+                        stateConnected = _state.value.connected,
+                        explicitlyDisconnected = authManager.isExplicitlyDisconnected(id),
+                        keyConfigured = !key.isNullOrBlank()
+                    )
+                ) {
+                    return@withLock ConnectorOutput.Failure(
+                        "not_connected",
+                        "IFTTT is disconnected or not configured.",
+                        retryable = false
+                    )
+                }
+                try {
+                    val startedAt = System.currentTimeMillis()
+                    val eventName = input.params["event"] ?: input.text.trim().replace(" ", "_")
+                    val text = triggerEvent(
+                        eventName = eventName,
+                        key = key!!,
+                        value1 = input.params["value1"] ?: input.text,
+                        value2 = input.params["value2"],
+                        value3 = input.params["value3"]
+                    )
+                    AgentActivityBus.emit("IFTTT: ${input.action}", ActivityCategory.CONNECTOR)
+                    ConnectorOutput.Success(text, durationMs = System.currentTimeMillis() - startedAt)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "IFTTT_EXECUTION_FAILURE action=${input.action} causeType=${e::class.simpleName}")
+                    ConnectorOutput.Failure("api_error", "IFTTT request failed (${e::class.simpleName}).", retryable = true)
+                }
+            }
+        }
         try {
             val t0 = System.currentTimeMillis()
             val result = when (input.action) {
-                "trigger_event",
-                "trigger_applet" -> triggerEvent(
-                    eventName = input.params["event"] ?: input.text.trim().replace(" ", "_"),
-                    value1    = input.params["value1"] ?: input.text,
-                    value2    = input.params["value2"],
-                    value3    = input.params["value3"]
-                )
                 "set_key"      -> setKey(input.text.trim())
                 "check_status" -> checkStatus()
                 "status"       -> return@withContext ConnectorOutput.Success(_state.value.statusLine)
@@ -128,6 +175,8 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
             }
             AgentActivityBus.emit("IFTTT: ${input.action}", ActivityCategory.CONNECTOR)
             ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "IFTTT_EXECUTION_FAILURE action=${input.action} causeType=${e::class.simpleName}")
             ConnectorOutput.Failure("api_error", e.message ?: "IFTTT error", retryable = true)
@@ -149,6 +198,12 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
             )
             return "Secure credential storage is unavailable. The webhook key was not saved."
         }
+        if (!authManager.setExplicitlyDisconnected(id, false)) {
+            authManager.setExplicitlyDisconnected(id, true)
+            authManager.clearCredential(id, CRED_KEY)
+            _state.value = ConnectorState(false, healthy = false, statusLine = "Could not enable connector safely")
+            return "The connector could not be enabled safely. Please try again."
+        }
         _state.value = ConnectorState(true, true, "Connected (key: ••••${key.takeLast(4)})", System.currentTimeMillis())
         return "IFTTT Maker Webhook key saved"
     }
@@ -159,9 +214,9 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
         null
     }
 
-    private fun triggerEvent(eventName: String, value1: String, value2: String?, value3: String?): String {
-        val key = authManager.getCredential(id, CRED_KEY)
-            ?: return "No webhook key configured. Use 'set_key' action first."
+    private fun triggerEvent(eventName: String, key: String, value1: String, value2: String?, value3: String?): String {
+
+        require(eventName.matches(Regex("[A-Za-z0-9_-]{1,100}"))) { "Invalid IFTTT event name." }
 
         val payload = JSONObject().apply {
             put("value1", value1)
@@ -172,13 +227,13 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
         val url  = "$MAKER_BASE/$eventName/with/key/$key"
         val body = payload.toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url(url).post(body).build()
-        val response = client.newCall(request).execute()
-
-        return if (response.isSuccessful) {
-            val body = response.body?.string() ?: ""
-            "Applet '$eventName' triggered  — $body"
-        } else {
-            "Trigger failed: HTTP ${response.code} ${response.message}"
+        return client.newCall(request).execute().use { response ->
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string().orEmpty()
+                "Applet '$eventName' triggered — $responseBody"
+            } else {
+                "Trigger failed: HTTP ${response.code} ${response.message}"
+            }
         }
     }
 

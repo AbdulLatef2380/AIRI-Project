@@ -20,4 +20,8 @@ object GenerationResponsePolicy {
         AgentLoop.TerminalState.TIMEOUT -> GenerationResponseStatus.TIMEOUT
         AgentLoop.TerminalState.FAILURE -> GenerationResponseStatus.FAILURE
     }
+
+    /** Preserve useful streamed content on failure/timeout without treating it as a completed answer. */
+    fun shouldPersistIncompleteResponse(status: GenerationResponseStatus, content: String): Boolean =
+        content.isNotBlank() && (status == GenerationResponseStatus.FAILURE || status == GenerationResponseStatus.TIMEOUT)
 }

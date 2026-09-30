@@ -14,6 +14,8 @@ import com.airi.assistant.connector.ConnectorRuntimeManager
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -147,16 +149,35 @@ class SkillRuntime(
                 withTimeout(timeoutMs) { skill.execute(params) }
             )
 
-            trackEnd(key, result.data)
+            if (result.success) trackEnd(key, result.data) else trackFail(key)
             AgentActivityBus.emit(
-                "${if (result.success) "" else ""} Skill ${skill.name}: ${result.data.take(60)}",
+                if (result.success) "Skill ${skill.name} completed" else "Skill ${skill.name} failed",
                 ActivityCategory.TOOL
             )
             result
+        } catch (e: TimeoutCancellationException) {
+            trackFail(key)
+            AgentActivityBus.emit("Skill ${skill.name} timed out", ActivityCategory.TOOL)
+            SkillResult(
+                success = false,
+                data = "",
+                error = "Skill timed out after ${timeoutMs}ms",
+                skillName = skill.skillId,
+                executionMs = timeoutMs,
+                metadata = mapOf("failure_type" to "timeout")
+            )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             trackFail(key)
-            AgentActivityBus.emit("Skill ${skill.name} failed: ${e.message?.take(60)}", ActivityCategory.TOOL)
-            SkillResult(success = false, data = e.message ?: "Error")
+            AgentActivityBus.emit("Skill ${skill.name} failed (${e.javaClass.simpleName})", ActivityCategory.TOOL)
+            SkillResult(
+                success = false,
+                data = "",
+                error = e.message ?: "Unexpected skill error",
+                skillName = skill.skillId,
+                metadata = mapOf("failure_type" to e.javaClass.simpleName)
+            )
         }
     }
 

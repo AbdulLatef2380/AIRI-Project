@@ -87,18 +87,18 @@ internal class ModelController(
 
     internal fun loadModel(model: ModelInfo) {
         val requestId = loadRequestSequence.incrementAndGet()
+        val previousState = modelState.value
         val file       = File(model.path)
         val requiredRamMb = model.ramRequiredMb.takeIf { it > 0 }
             ?: ModelValidator.estimateRequiredRamMb(file.length())
         val validation = ModelValidator.validate(file, appContext, requiredRamMb)
         if (validation !is ValidationResult.Valid) {
             val (msg, type) = validationMessage(validation)
-            modelState.value = modelState.value.copy(
-                selectedModelId   = model.id,   selectedModelName = model.name,
-                selectedModelPath = model.path, selectedModelSize = model.size,
-                isModelLoading    = false,       isModelReady      = false,
-                loadError         = msg,         loadErrorType     = type,
-                loadProgress      = -1,          availableModels   = ModelManager.getAllModels()
+            modelState.value = ModelLoadRequestPolicy.rejectBeforeUnload(
+                previous = previousState,
+                message = msg,
+                errorType = type,
+                availableModels = ModelManager.getAllModels()
             )
             return
         }
@@ -129,11 +129,17 @@ internal class ModelController(
                 withContext(Dispatchers.Main) {
                     if (ModelLoadRequestPolicy.shouldApply(requestId, loadRequestSequence.get())) {
                         modelState.value = modelState.value.copy(
+                            selectedModelId = previousState.selectedModelId,
+                            selectedModelName = previousState.selectedModelName,
+                            selectedModelPath = previousState.selectedModelPath,
+                            selectedModelSize = previousState.selectedModelSize,
                             isModelLoading = false,
                             isModelReady = false,
                             loadError = "Could not copy model into app storage",
                             loadErrorType = LoadErrorType.LOAD_FAILED,
-                            loadProgress = -1
+                            loadProgress = -1,
+                            availableModels = ModelManager.getAllModels(),
+                            capabilities = ModelCapabilities.textOnlyFallback()
                         )
                     }
                 }
@@ -179,19 +185,27 @@ internal class ModelController(
                 )
             }
             if (ModelLoadRequestPolicy.shouldApply(requestId, loadRequestSequence.get())) {
-                val newCaps = if (success) ModelCapabilities.detect(nativeModel)
-                              else ModelCapabilities.textOnlyFallback()
-                modelState.value = modelState.value.copy(
-                    isModelLoading = false,
-                    isModelReady   = success,
-                    loadError      = if (success) null
-                        else "Model failed to load: ${llamaManager.getLastLoadFailure() ?: "unknown"}",
-                    loadErrorType  = if (success) LoadErrorType.NONE else LoadErrorType.LOAD_FAILED,
-                    loadProgress   = -1,
-                    availableModels = ModelManager.getAllModels(),
-                    capabilities   = newCaps
-                )
-                if (success) autoLoadVisionProjectorIfPresent(nativeModel)
+                if (success) {
+                    modelState.value = modelState.value.copy(
+                        isModelLoading = false,
+                        isModelReady = true,
+                        loadError = null,
+                        loadErrorType = LoadErrorType.NONE,
+                        loadProgress = -1,
+                        availableModels = ModelManager.getAllModels(),
+                        capabilities = ModelCapabilities.detect(nativeModel)
+                    )
+                    autoLoadVisionProjectorIfPresent(nativeModel)
+                } else {
+                    val message = "Model failed to load: ${llamaManager.getLastLoadFailure() ?: "unknown"}"
+                    modelState.value = ModelLoadRequestPolicy.restoreSelectionAfterLoadFailure(
+                        previous = previousState,
+                        failed = modelState.value,
+                        message = message,
+                        errorType = LoadErrorType.LOAD_FAILED,
+                        availableModels = ModelManager.getAllModels()
+                    )
+                }
             }
                 }
             }

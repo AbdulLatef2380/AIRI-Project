@@ -299,7 +299,8 @@ class ToolDispatcher(
                 if (bridge != null && bridge.handles(toolName)) {
                     Log.i(TAG, "AIRI SKILL_TOOL_DISPATCH tool=$toolName")
                     val result = bridge.invoke(toolName, args)
-                    ToolResult.Success(result)
+                    val output = com.airi.assistant.ai.skills.SkillToolResultFormatter.format(result)
+                    if (result.success) ToolResult.Success(output) else ToolResult.Error(output)
                 } else {
                     Log.w(TAG, "Unknown tool: $toolName")
                     ToolResult.Error("Unknown tool: $toolName. Available tools: ${BuiltinTools.ALL.map { it.name }.joinToString()}")

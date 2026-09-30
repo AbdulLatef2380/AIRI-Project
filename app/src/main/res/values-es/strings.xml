@@ -1763,6 +1763,7 @@
     <string name="attachment_text_extraction_failed">AIRI no pudo leer el archivo de texto seleccionado. Se conservó; elige un archivo legible e inténtalo de nuevo.</string>
     <string name="attachment_multiple_images_unsupported">Esta ruta no puede procesar todas las imágenes seleccionadas. Se conservaron; elige un proveedor visual compatible o envía menos imágenes.</string>
     <string name="attachment_dispatch_failed">No se aceptó la solicitud. Los archivos adjuntos se conservaron para que puedas volver a intentarlo.</string>
+    <string name="attachment_delivery_not_confirmed">Tu mensaje se guardó, pero AIRI no pudo confirmar que todos los archivos adjuntos llegaran al modelo. No se publicó ninguna respuesta; vuelve a intentarlo con un modelo y formato verificados.</string>
     <string name="local_endpoint_title">Conectar %1$s</string>
     <string name="local_endpoint_label">URL del servidor</string>
     <string name="local_endpoint_example">Ejemplo: http://ollama.local:11434/v1</string>

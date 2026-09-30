@@ -8,6 +8,7 @@ enum class AttachmentTransport {
     NATIVE_INLINE,
     NATIVE_FILE_REFERENCE,
     EXTRACTED_TEXT,
+    LOCAL_VISION,
     FRAME_SAMPLING,
     UNSUPPORTED,
     NOT_READY,
@@ -22,7 +23,10 @@ data class AttachmentResolution(
 
 enum class AttachmentDeliveryStatus {
     SENT_NATIVE,
+    PREPARED_EXTRACTED_TEXT,
     SENT_EXTRACTED_TEXT,
+    PREPARED_LOCAL_VISION,
+    SENT_LOCAL_VISION,
     SENT_SAMPLED_MEDIA,
     REJECTED_WITH_REASON,
 }
@@ -30,9 +34,11 @@ enum class AttachmentDeliveryStatus {
 enum class AttachmentDeliveryStage {
     LOCAL_ATTACHMENT_RESOLVED,
     PROVIDER_PAYLOAD_BUILT,
+    EXECUTION_REQUEST_BUILT,
     PAYLOAD_CONTAINS_CONTENT,
     HTTP_REQUEST_DISPATCHED,
     PROVIDER_RESPONSE_RECEIVED,
+    MODEL_RESPONSE_COMPLETED,
 }
 
 data class AttachmentDeliveryEvidence(
@@ -54,8 +60,9 @@ data class AttachmentDeliveryEvidence(
  */
 class AttachmentDeliveryTrace(
     resolutions: List<AttachmentResolution>,
-    private val provider: CloudProvider?,
+    provider: CloudProvider?,
 ) {
+    @Volatile private var provider: CloudProvider? = provider
     private data class MutableEvidence(
         val attachmentId: String,
         val transport: AttachmentTransport,
@@ -91,12 +98,16 @@ class AttachmentDeliveryTrace(
         }
     }
 
+    fun setProvider(provider: CloudProvider) {
+        synchronized(entries) { this.provider = provider }
+    }
+
     fun markPayloadContainsContent(attachmentId: String, bytesIncluded: Long) {
         synchronized(entries) {
             entries[attachmentId]?.let {
                 it.stages.add(AttachmentDeliveryStage.PAYLOAD_CONTAINS_CONTENT)
                 it.payloadIncluded = bytesIncluded > 0L
-                it.bytesIncluded = bytesIncluded
+                it.bytesIncluded = bytesIncluded.coerceAtLeast(0L)
             }
         }
     }
@@ -105,9 +116,17 @@ class AttachmentDeliveryTrace(
         synchronized(entries) {
             attachmentIds.forEach { id ->
                 entries[id]?.let {
-                    if (success && it.payloadIncluded) {
+                    if (success &&
+                        it.payloadIncluded &&
+                        AttachmentDeliveryStage.HTTP_REQUEST_DISPATCHED in it.stages &&
+                        AttachmentDeliveryStage.PROVIDER_RESPONSE_RECEIVED in it.stages
+                    ) {
                         it.status = AttachmentDeliveryStatus.SENT_NATIVE
-                    } else if (!success) {
+                        it.failureReason = ""
+                    } else if (success) {
+                        it.status = AttachmentDeliveryStatus.REJECTED_WITH_REASON
+                        it.failureReason = "Provider delivery was not proven by request and response evidence."
+                    } else {
                         it.status = AttachmentDeliveryStatus.REJECTED_WITH_REASON
                         it.failureReason = "Provider did not accept the attachment request."
                     }
@@ -120,9 +139,53 @@ class AttachmentDeliveryTrace(
         synchronized(entries) {
             entries[attachmentId]?.let {
                 it.extractedChars = chars.coerceAtLeast(0)
-                it.status = AttachmentDeliveryStatus.SENT_EXTRACTED_TEXT
                 it.payloadIncluded = chars > 0
-                it.stages.add(AttachmentDeliveryStage.PAYLOAD_CONTAINS_CONTENT)
+                if (chars > 0) {
+                    it.status = AttachmentDeliveryStatus.PREPARED_EXTRACTED_TEXT
+                    it.stages.add(AttachmentDeliveryStage.PAYLOAD_CONTAINS_CONTENT)
+                    it.failureReason = ""
+                } else {
+                    it.status = AttachmentDeliveryStatus.REJECTED_WITH_REASON
+                    it.failureReason = "No extracted text was included in the execution request."
+                }
+            }
+        }
+    }
+
+    fun markLocalVisionContent(attachmentId: String, bytesIncluded: Long) {
+        synchronized(entries) {
+            entries[attachmentId]?.let {
+                it.bytesIncluded = bytesIncluded.coerceAtLeast(0L)
+                it.payloadIncluded = bytesIncluded > 0L
+                if (bytesIncluded > 0L) {
+                    it.status = AttachmentDeliveryStatus.PREPARED_LOCAL_VISION
+                    it.stages.add(AttachmentDeliveryStage.PAYLOAD_CONTAINS_CONTENT)
+                    it.failureReason = ""
+                } else {
+                    it.status = AttachmentDeliveryStatus.REJECTED_WITH_REASON
+                    it.failureReason = "No image content was included in local vision inference."
+                }
+            }
+        }
+    }
+
+    fun markExecutionRequestBuilt() {
+        synchronized(entries) {
+            entries.values.forEach { it.stages.add(AttachmentDeliveryStage.EXECUTION_REQUEST_BUILT) }
+        }
+    }
+
+    fun markExecutionCompleted() {
+        synchronized(entries) {
+            entries.values.forEach {
+                it.stages.add(AttachmentDeliveryStage.MODEL_RESPONSE_COMPLETED)
+                when (it.status) {
+                    AttachmentDeliveryStatus.PREPARED_EXTRACTED_TEXT ->
+                        it.status = AttachmentDeliveryStatus.SENT_EXTRACTED_TEXT
+                    AttachmentDeliveryStatus.PREPARED_LOCAL_VISION ->
+                        it.status = AttachmentDeliveryStatus.SENT_LOCAL_VISION
+                    else -> Unit
+                }
             }
         }
     }
@@ -153,15 +216,23 @@ class AttachmentDeliveryTrace(
         }
     }
 
-    fun isTransportSuccessful(): Boolean = snapshot().isNotEmpty() && snapshot().all { evidence ->
-        when (evidence.status) {
-            AttachmentDeliveryStatus.SENT_NATIVE ->
-                evidence.payloadIncluded &&
-                    AttachmentDeliveryStage.HTTP_REQUEST_DISPATCHED in evidence.stages &&
-                    AttachmentDeliveryStage.PROVIDER_RESPONSE_RECEIVED in evidence.stages
-            AttachmentDeliveryStatus.SENT_EXTRACTED_TEXT,
-            AttachmentDeliveryStatus.SENT_SAMPLED_MEDIA -> evidence.payloadIncluded
-            AttachmentDeliveryStatus.REJECTED_WITH_REASON -> false
+    fun isTransportSuccessful(): Boolean = snapshot().let { evidence ->
+        evidence.isNotEmpty() && evidence.all { item ->
+            when (item.status) {
+                AttachmentDeliveryStatus.SENT_NATIVE ->
+                    item.payloadIncluded &&
+                        AttachmentDeliveryStage.HTTP_REQUEST_DISPATCHED in item.stages &&
+                        AttachmentDeliveryStage.PROVIDER_RESPONSE_RECEIVED in item.stages
+                AttachmentDeliveryStatus.SENT_EXTRACTED_TEXT,
+                AttachmentDeliveryStatus.SENT_LOCAL_VISION,
+                AttachmentDeliveryStatus.SENT_SAMPLED_MEDIA ->
+                    item.payloadIncluded &&
+                        AttachmentDeliveryStage.EXECUTION_REQUEST_BUILT in item.stages &&
+                        AttachmentDeliveryStage.MODEL_RESPONSE_COMPLETED in item.stages
+                AttachmentDeliveryStatus.PREPARED_EXTRACTED_TEXT,
+                AttachmentDeliveryStatus.PREPARED_LOCAL_VISION,
+                AttachmentDeliveryStatus.REJECTED_WITH_REASON -> false
+            }
         }
     }
 }
@@ -174,6 +245,7 @@ object AttachmentTransportResolver {
         provider: CloudProvider?,
         nativeInlineReady: Boolean,
         extractedTextAvailable: Boolean,
+        localVisionReady: Boolean = false,
         capabilitySupported: Boolean = false,
         frameSamplingAvailable: Boolean = false,
     ): AttachmentResolution {
@@ -181,6 +253,8 @@ object AttachmentTransportResolver {
         return when {
             nativeInlineReady -> AttachmentResolution(attachmentId, AttachmentTransport.NATIVE_INLINE)
             extractedTextAvailable -> AttachmentResolution(attachmentId, AttachmentTransport.EXTRACTED_TEXT)
+            (normalized.startsWith("image/") || normalized == "image") && localVisionReady ->
+                AttachmentResolution(attachmentId, AttachmentTransport.LOCAL_VISION)
             normalized.startsWith("video/") && frameSamplingAvailable ->
                 AttachmentResolution(attachmentId, AttachmentTransport.FRAME_SAMPLING)
             capabilitySupported -> AttachmentResolution(

@@ -4,6 +4,7 @@ import com.airi.assistant.ai.ModelCapabilities
 import com.airi.assistant.ai.ModelInfo
 import com.airi.assistant.ai.ModelSource
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -36,9 +37,30 @@ class ModelCapabilityEngineTest {
         val custom = ModelCapabilityEngine.fromCloud(CloudProvider.CUSTOM, "my-model")
         assertEquals(CapabilityStatus.UNKNOWN, custom.status(Capability.IMAGE_UNDERSTANDING))
         assertTrue(custom.confidence == CapabilityConfidence.UNKNOWN)
+        assertEquals(
+            CompatibilityDecision.BLOCK,
+            ModelCapabilityEngine.check(custom, AttachmentRequirement.IMAGE, "image/jpeg", 100).decision,
+        )
     }
 
-    @Test fun geminiAdvertisesNativeDocumentAndVideoTransportButLocalDoesNot() {
+    @Test fun cloudAttachmentMatrixRequiresExactReviewedModelAndNativeMime() {
+        val openAi = ModelCapabilityEngine.fromCloud(CloudProvider.OPENAI, "gpt-4o-mini")
+        val unknownOpenAi = ModelCapabilityEngine.fromCloud(CloudProvider.OPENAI, "gpt-4.1-experimental")
+        val openRouter = ModelCapabilityEngine.fromCloud(CloudProvider.OPENROUTER, "qwen/qwen3.8-27b:free")
+        val kimi = ModelCapabilityEngine.fromCloud(CloudProvider.KIMI, "moonshot-v1-8k")
+
+        assertTrue(ModelCapabilityEngine.hasNativeAttachmentTransport(openAi, AttachmentRequirement.IMAGE, "image/png"))
+        assertTrue(ModelCapabilityEngine.hasNativeAttachmentTransport(openAi, AttachmentRequirement.PDF, "application/pdf"))
+        assertFalse(ModelCapabilityEngine.hasNativeAttachmentTransport(openAi, AttachmentRequirement.IMAGE, "image/heic"))
+        assertEquals(CapabilityStatus.UNKNOWN, unknownOpenAi.status(Capability.IMAGE_UNDERSTANDING))
+        assertEquals(CompatibilityDecision.BLOCK, ModelCapabilityEngine.check(
+            unknownOpenAi, AttachmentRequirement.IMAGE, "image/jpeg", 100,
+        ).decision)
+        assertEquals(CapabilityStatus.UNKNOWN, openRouter.status(Capability.IMAGE_UNDERSTANDING))
+        assertEquals(CapabilityStatus.UNSUPPORTED, kimi.status(Capability.IMAGE_UNDERSTANDING))
+    }
+
+    @Test fun geminiAdvertisesOnlyImplementedPdfAndImageRoutesButNotVideoOrGenericDocuments() {
         val local = ModelCapabilityEngine.fromLocal(local("llama-3.1-8b"), textCaps, mmprojLoaded = false)
         val cloud = ModelCapabilityEngine.fromCloud(CloudProvider.GEMINI, "gemini-2.5-flash")
         listOf(local).forEach { descriptor ->
@@ -47,9 +69,9 @@ class ModelCapabilityEngineTest {
             assertEquals(CapabilityStatus.UNSUPPORTED, descriptor.status(Capability.VIDEO_INPUT))
             assertEquals(CapabilityStatus.UNSUPPORTED, descriptor.status(Capability.VIDEO_UNDERSTANDING))
         }
-        assertEquals(CapabilityStatus.SUPPORTED_WITH_LIMITS, cloud.status(Capability.DOCUMENT_INPUT))
+        assertEquals(CapabilityStatus.UNSUPPORTED, cloud.status(Capability.DOCUMENT_INPUT))
         assertEquals(CapabilityStatus.SUPPORTED_WITH_LIMITS, cloud.status(Capability.PDF_INPUT))
-        assertEquals(CapabilityStatus.SUPPORTED_WITH_LIMITS, cloud.status(Capability.VIDEO_UNDERSTANDING))
+        assertEquals(CapabilityStatus.UNSUPPORTED, cloud.status(Capability.VIDEO_UNDERSTANDING))
     }
 
     @Test fun capabilityIsNotFeasibility() {
@@ -109,9 +131,13 @@ class ModelCapabilityEngineTest {
 
     @Test fun openAiAndAnthropicAdvertiseOnlyImplementedNativeDocumentRoutes() {
         val openAi = ModelCapabilityEngine.fromCloud(CloudProvider.OPENAI, "gpt-4.1")
-        assertEquals(CapabilityStatus.SUPPORTED_WITH_LIMITS, openAi.status(Capability.DOCUMENT_INPUT))
+        assertEquals(CapabilityStatus.UNSUPPORTED, openAi.status(Capability.DOCUMENT_INPUT))
         assertEquals(CapabilityStatus.SUPPORTED_WITH_LIMITS, openAi.status(Capability.PDF_INPUT))
         assertEquals(CapabilityStatus.UNSUPPORTED, openAi.status(Capability.VIDEO_UNDERSTANDING))
+        assertEquals(
+            CompatibilityDecision.ALLOW_WITH_WARNING,
+            ModelCapabilityEngine.check(openAi, AttachmentRequirement.PDF, "application/pdf", 100).decision,
+        )
 
         val anthropic = ModelCapabilityEngine.fromCloud(CloudProvider.ANTHROPIC, "claude-sonnet-4-5")
         assertEquals(CapabilityStatus.UNSUPPORTED, anthropic.status(Capability.DOCUMENT_INPUT))

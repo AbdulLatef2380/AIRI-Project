@@ -1958,7 +1958,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 pendingImageUriForNextSend = null
                 pendingAttachmentJsonForNextSend = null
             }
-            if (attachmentTrace == null) onAccepted()
+            // Acceptance means the user message (and staged attachment metadata) is durable.
+            // Provider/model delivery is recorded separately by AttachmentDeliveryTrace.
+            onAccepted()
             subscriptionManager.recordMessage()
             AnalyticsService.messageSent()
             if (RetentionManager.getTotalMessages() == 0) {
@@ -2304,12 +2306,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     GenerationResponseStatus.SUCCESS -> Unit
                 }
+                attachmentTrace?.markExecutionCompleted()
                 if (attachmentTrace != null && !attachmentTrace.isTransportSuccessful()) {
-                    Log.e("AIRI_ATTACHMENT", "transport success was not proven; refusing UI acceptance")
+                    val evidence = attachmentTrace.snapshot().joinToString { "${it.attachmentId}:${it.status}" }
+                    Log.e("AIRI_ATTACHMENT", "execution completed without attachment delivery proof: $evidence")
+                    attachmentTrace.reject("The completed response did not prove delivery of every attachment.")
+                    _lastExecutionError.value = ExecutionErrorProjection(
+                        executionId = "generation-$generationId",
+                        message = appContext.getString(R.string.attachment_delivery_not_confirmed),
+                        messageResId = R.string.attachment_delivery_not_confirmed,
+                        stage = ExecutionFailureStage.ATTACHMENT,
+                        sessionId = sessionId,
+                        replyToMessageId = userMessage.id,
+                    )
                     _generationPhase.value = GenerationPhase.CLEANUP
                     return@launch
                 }
-                if (attachmentTrace != null) onAccepted()
                 val elapsedMs = System.currentTimeMillis() - requestStart
                 recordGenerationStats(elapsedMs, tokenCount)
                 val tps = if (elapsedMs > 0) tokenCount * 1000f / elapsedMs.coerceAtLeast(1) else 0f
@@ -3237,7 +3249,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (cloudAllowed && state.isCloudReady && state.activeCloudProvider != null) add(
                 ModelCapabilityEngine.fromCloud(state.activeCloudProvider, state.cloudModelName)
             )
-            if (isEmpty()) add(ModelCapabilityEngine.fromCloud(CloudProvider.CUSTOM, ""))
+        }
+        if (candidateDescriptors.isEmpty()) {
+            onRejected(AttachmentDispatchFailure.CAPABILITY_UNKNOWN)
+            return
         }
         val incompatible = attachments.firstNotNullOfOrNull { attachment ->
             val requirement = when (attachment.contentType) {
@@ -3257,10 +3272,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     count = attachments.count { it.contentType == attachment.contentType }
                 )
             }
-            val extractedTextAllowed = AttachmentContentExtractor.supports(
+            val extractedTextAllowed = (attachment.isTextual || AttachmentContentExtractor.supports(
                 attachment.normalizedMimeType,
                 attachment.safeDisplayName,
-            ) && candidateDescriptors.any { descriptor ->
+            )) && candidateDescriptors.any { descriptor ->
                 ModelCapabilityEngine.check(
                     descriptor = descriptor,
                     requirement = AttachmentRequirement.TEXT,
@@ -3268,7 +3283,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     sizeBytes = attachment.sizeBytes,
                 ).decision == CompatibilityDecision.ALLOW
             }
-            if (results.any { it.decision == CompatibilityDecision.ALLOW } || extractedTextAllowed) null else results.first()
+            if (results.any {
+                    it.decision == CompatibilityDecision.ALLOW ||
+                        it.decision == CompatibilityDecision.ALLOW_WITH_WARNING
+                } || extractedTextAllowed
+            ) null else results.first()
         }
         if (incompatible != null) {
             Log.w("AIRI_CAPABILITY", "blocked attachment capability=${incompatible.capability} status=${incompatible.status} candidates=${candidateDescriptors.size}")
@@ -3389,45 +3408,53 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val requirement = when (attachment.contentType) {
                 AttachmentPolicy.ContentType.IMAGE -> AttachmentRequirement.IMAGE
                 AttachmentPolicy.ContentType.VIDEO -> AttachmentRequirement.VIDEO
+                AttachmentPolicy.ContentType.TEXT -> AttachmentRequirement.TEXT
                 AttachmentPolicy.ContentType.DOCUMENT, AttachmentPolicy.ContentType.FILE ->
-                    if (attachment.normalizedMimeType.equals("application/pdf", ignoreCase = true))
+                    if (attachment.normalizedMimeType.equals("application/pdf", ignoreCase = true) ||
+                        attachment.safeDisplayName.endsWith(".pdf", ignoreCase = true)
+                    )
                         AttachmentRequirement.PDF else AttachmentRequirement.DOCUMENT
-                else -> null
             }
-            val nativeReady = requirement != null && cloudAllowed &&
-                cloudProvider in setOf(CloudProvider.GEMINI, CloudProvider.OPENAI, CloudProvider.ANTHROPIC) &&
-                cloudDescriptor?.isReady(requirementCapability(requirement)) == true
+            val localVisionForAttachment = attachment.isVisualImage &&
+                imageRoute == ImageDispatchRoute.LOCAL_SINGLE_IMAGE
+            val nativeReady = cloudAllowed && imageRoute != ImageDispatchRoute.LOCAL_SINGLE_IMAGE &&
+                cloudDescriptor?.let { descriptor ->
+                    ModelCapabilityEngine.hasNativeAttachmentTransport(
+                        descriptor = descriptor,
+                        requirement = requirement,
+                        mimeType = attachment.normalizedMimeType,
+                    )
+                } == true
             com.airi.assistant.execution.AttachmentTransportResolver.resolve(
                 attachmentId = attachment.id,
-                contentType = attachment.normalizedMimeType.ifBlank { attachment.contentType.name },
+                contentType = attachment.normalizedMimeType.ifBlank {
+                    when (attachment.contentType) {
+                        AttachmentPolicy.ContentType.IMAGE -> "image"
+                        AttachmentPolicy.ContentType.VIDEO -> "video"
+                        AttachmentPolicy.ContentType.TEXT -> "text/plain"
+                        else -> "application/octet-stream"
+                    }
+                },
                 provider = cloudProvider,
                 nativeInlineReady = nativeReady,
-                extractedTextAvailable = AttachmentContentExtractor.supports(
-                    attachment.normalizedMimeType,
-                    attachment.safeDisplayName,
+                extractedTextAvailable = attachment.isTextual || AttachmentContentExtractor.supports(
+                    attachment.normalizedMimeType, attachment.safeDisplayName,
                 ),
-                capabilitySupported = requirement != null && cloudDescriptor?.isReady(
-                    requirementCapability(requirement)
-                ) == true,
+                localVisionReady = localVisionForAttachment,
+                capabilitySupported = cloudDescriptor?.isReady(requirementCapability(requirement)) == true,
             )
         }
-        val attachmentTrace = attachmentResolutions
-            .takeIf { resolutions -> resolutions.any { it.transport == com.airi.assistant.execution.AttachmentTransport.NATIVE_INLINE } }
-            ?.let {
-                com.airi.assistant.execution.AttachmentDeliveryTrace(
-                    resolutions = attachmentResolutions.filter {
-                        it.transport == com.airi.assistant.execution.AttachmentTransport.NATIVE_INLINE
-                    },
-                    provider = cloudProvider,
-                ).also { trace ->
-                    trace.mark(com.airi.assistant.execution.AttachmentDeliveryStage.LOCAL_ATTACHMENT_RESOLVED)
-                }
-            }
+        val attachmentTrace = com.airi.assistant.execution.AttachmentDeliveryTrace(
+            resolutions = attachmentResolutions,
+            provider = cloudProvider.takeIf {
+                attachmentResolutions.any { it.transport == com.airi.assistant.execution.AttachmentTransport.NATIVE_INLINE }
+            },
+        ).also { trace ->
+            trace.mark(com.airi.assistant.execution.AttachmentDeliveryStage.LOCAL_ATTACHMENT_RESOLVED)
+        }
         val unresolved = attachmentResolutions.firstOrNull {
-            (it.transport == com.airi.assistant.execution.AttachmentTransport.UNSUPPORTED ||
-                it.transport == com.airi.assistant.execution.AttachmentTransport.NOT_READY) &&
-                !(it.transport == com.airi.assistant.execution.AttachmentTransport.UNSUPPORTED &&
-                    attachments.any { attachment -> attachment.id == it.attachmentId && attachment.isVisualImage && localVisionReady })
+            it.transport == com.airi.assistant.execution.AttachmentTransport.UNSUPPORTED ||
+                it.transport == com.airi.assistant.execution.AttachmentTransport.NOT_READY
         }
         if (unresolved != null) {
             attachmentTrace?.reject(unresolved.reason.ifBlank { "No implemented attachment transport." })
@@ -3441,9 +3468,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val nativeBinaryAttachments = persistedAttachments.filterIndexed { index, _ ->
             attachmentResolutions[index].transport == com.airi.assistant.execution.AttachmentTransport.NATIVE_INLINE
         }
-        val textAttachmentContext = runCatching {
+        val textContextResult = runCatching {
             withContext(Dispatchers.IO) {
-                buildTextAttachmentContext(persistedAttachments.filterNot { it in nativeBinaryAttachments })
+                val extractedChars = LinkedHashMap<String, Int>()
+                val context = buildTextAttachmentContext(
+                    attachments = persistedAttachments.filterNot { it in nativeBinaryAttachments },
+                    onExtracted = { id, chars -> extractedChars[id] = chars },
+                )
+                context to extractedChars
             }
         }.getOrElse {
             if (pendingAttachmentSessionId == sessionAtDispatch) {
@@ -3453,6 +3485,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             onRejected(AttachmentDispatchFailure.TEXT_EXTRACTION_FAILED)
             return@launch
         }
+        val (textAttachmentContext, extractedCharsByAttachment) = textContextResult
 
         val visualImages = persistedAttachments.filter { it.isVisualImage }
         val primaryImage = visualImages.firstOrNull()
@@ -3473,12 +3506,34 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val fullText = if (attachmentContext.isBlank()) trimmed
                            else if (trimmed.isBlank()) attachmentContext
                            else "$trimmed\n\n$attachmentContext"
+            extractedCharsByAttachment.forEach { (id, chars) -> attachmentTrace.markExtractedText(id, chars) }
+            attachmentTrace.markExecutionRequestBuilt()
             if (imageRoute == ImageDispatchRoute.CLOUD_VISION) {
                 val imageParts = withContext(Dispatchers.IO) { visualImages.mapNotNull(::visionImagePart) }
                 val extraInlineParts = withContext(Dispatchers.IO) {
                     nativeBinaryAttachments.filterNot { it.isVisualImage }.mapNotNull(::inlineDataPart)
                 }
-                if (imageParts.size != visualImages.size) {
+                val cloudImageTransportVerified = imageParts.all { part ->
+                    cloudDescriptor?.let { descriptor ->
+                        ModelCapabilityEngine.hasNativeAttachmentTransport(
+                            descriptor = descriptor,
+                            requirement = AttachmentRequirement.IMAGE,
+                            mimeType = part.mimeType,
+                        )
+                    } == true
+                }
+                if (imageParts.size != visualImages.size || !cloudImageTransportVerified) {
+                    if (pendingAttachmentSessionId == sessionAtDispatch) {
+                        pendingAttachmentSessionId = null
+                        pendingAttachmentJsonForNextSend = null
+                    }
+                    onRejected(
+                        if (imageParts.size != visualImages.size) AttachmentDispatchFailure.STAGING_FAILED
+                        else AttachmentDispatchFailure.CAPABILITY_UNAVAILABLE
+                    )
+                    return@launch
+                }
+                if (extraInlineParts.size != nativeBinaryAttachments.count { !it.isVisualImage }) {
                     if (pendingAttachmentSessionId == sessionAtDispatch) {
                         pendingAttachmentSessionId = null
                         pendingAttachmentJsonForNextSend = null
@@ -3517,6 +3572,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     input = fullText,
                     imageUri = persistedUri,
                     capturedBitmap = null,
+                    attachmentTrace = attachmentTrace,
+                    localVisionAttachmentId = primaryImage.id,
                     onAccepted = onAccepted,
                     onRejected = onRejected,
                 )
@@ -3527,8 +3584,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 textAttachmentContext
             ).filter { it.isNotBlank() }.joinToString(separator = "\n\n")
             val fullText = if (trimmed.isBlank()) attachmentContext else "$trimmed\n\n$attachmentContext"
+            extractedCharsByAttachment.forEach { (id, chars) -> attachmentTrace.markExtractedText(id, chars) }
+            attachmentTrace.markExecutionRequestBuilt()
             val inlineParts = withContext(Dispatchers.IO) {
                 nativeBinaryAttachments.mapNotNull { inlineDataPart(it) }
+            }
+            if (inlineParts.size != nativeBinaryAttachments.size) {
+                if (pendingAttachmentSessionId == sessionAtDispatch) {
+                    pendingAttachmentSessionId = null
+                    pendingAttachmentJsonForNextSend = null
+                }
+                onRejected(AttachmentDispatchFailure.STAGING_FAILED)
+                return@launch
             }
             if (sendMessageInternal(
                     fullText,
@@ -3586,15 +3653,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val file = attachment.persistedPath?.let(::File) ?: return null
         if (!file.isFile || file.length() > 20L * 1024L * 1024L) return null
         val bytes = runCatching { file.readBytes() }.getOrNull() ?: return null
+        val mimeType = attachment.normalizedMimeType.substringBefore(';').trim().lowercase()
+        // Native binary transport is currently implemented for PDF only. Require
+        // both the declared MIME and a PDF signature before constructing payload.
+        if (mimeType != "application/pdf") return null
+        val headerLength = minOf(bytes.size, 1_024)
+        if (headerLength < 5 || !String(bytes, 0, headerLength, Charsets.ISO_8859_1).contains("%PDF-")) return null
         return ExecutionRequest.InlineDataPart(
-            mimeType = attachment.normalizedMimeType.ifBlank { "application/octet-stream" },
+            mimeType = mimeType,
             base64Data = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP),
             fileName = attachment.safeDisplayName,
             attachmentId = attachment.id,
         )
     }
 
-    private fun buildTextAttachmentContext(attachments: List<ChatAttachment>): String {
+    private fun buildTextAttachmentContext(
+        attachments: List<ChatAttachment>,
+        onExtracted: (attachmentId: String, chars: Int) -> Unit = { _, _ -> },
+    ): String {
         var remainingChars = AttachmentPolicy.MAX_TEXT_CONTENT_CHARS
         val textualAttachments = attachments.filter {
             !it.persistedPath.isNullOrBlank() &&
@@ -3654,6 +3730,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 context.append(renderedChunk)
                 remainingChars -= renderedChunk.length
             }
+            onExtracted(attachment.id, content.length)
         }
         return context.toString().trim()
     }
@@ -3710,6 +3787,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         input: String,
         imageUri: Uri?,
         capturedBitmap: Bitmap?,
+        attachmentTrace: com.airi.assistant.execution.AttachmentDeliveryTrace? = null,
+        localVisionAttachmentId: String? = null,
         onAccepted: () -> Unit = {},
         onRejected: (AttachmentDispatchFailure) -> Unit = {},
     ) {
@@ -3840,6 +3919,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             val (rgb888, w, h) = rgbBundle
+            if (localVisionAttachmentId != null) {
+                val localImageBytes = imageUri?.path?.let(::File)?.takeIf { it.isFile }?.length() ?: 0L
+                attachmentTrace?.markLocalVisionContent(localVisionAttachmentId, localImageBytes)
+                if (localImageBytes <= 0L) {
+                    _lastExecutionError.value = ExecutionErrorProjection(
+                        executionId = "generation-$generationId",
+                        message = appContext.getString(R.string.err_image_process_failed),
+                        messageResId = R.string.err_image_process_failed,
+                        stage = ExecutionFailureStage.ATTACHMENT,
+                        sessionId = sessionId,
+                    )
+                    finishGeneration(generationId)
+                    onRejected(AttachmentDispatchFailure.STAGING_FAILED)
+                    return@launch
+                }
+            }
 
             val activeProjectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
             val wasEmpty = _messages.value.isEmpty()
@@ -3910,6 +4005,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             finishGeneration(generationId)
                             return@launch
                         }
+                        attachmentTrace?.markExecutionCompleted()
+                        if (attachmentTrace != null && !attachmentTrace.isTransportSuccessful()) {
+                            attachmentTrace.reject("Local model response did not prove delivery of every attachment.")
+                            _lastExecutionError.value = ExecutionErrorProjection(
+                                executionId = "generation-$generationId",
+                                message = appContext.getString(R.string.attachment_delivery_not_confirmed),
+                                messageResId = R.string.attachment_delivery_not_confirmed,
+                                stage = ExecutionFailureStage.ATTACHMENT,
+                                sessionId = sessionId,
+                                replyToMessageId = userMsg.id,
+                            )
+                            finishGeneration(generationId)
+                            return@launch
+                        }
                         val asstMsg = memoryManager.recordChatMessage(
                             sessionId = sessionId,
                             role = "assistant",
@@ -3944,6 +4053,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             sessionId = sessionId,
                             replyToMessageId = userMsg.id
                         )
+                        attachmentTrace?.reject("Local vision inference failed before an attachment response was completed.")
                         finishGeneration(generationId)
                     }
                 }
@@ -3962,7 +4072,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     sessionId = sessionAtDispatch,
                     replyToMessageId = acceptedUserMessageId,
                 )
-                runCatching { onRejected(AttachmentDispatchFailure.DISPATCH_FAILED) }
+                if (acceptedUserMessageId == null) {
+                    runCatching { onRejected(AttachmentDispatchFailure.DISPATCH_FAILED) }
+                }
                 finishGeneration(generationId)
             }
         }

@@ -55,6 +55,7 @@ class AnthropicAdapter(
         onUsage:  suspend (Int, Int) -> Unit
     ): CloudProviderAdapter.AdapterResult = withContext(Dispatchers.IO) {
 
+        request.attachmentTrace?.setProvider(CloudProvider.ANTHROPIC)
         val apiKey = keyStore.getKey(CloudProvider.ANTHROPIC)
             ?: return@withContext CloudProviderAdapter.AdapterResult.Failure(
                 error     = "No Anthropic API key configured",

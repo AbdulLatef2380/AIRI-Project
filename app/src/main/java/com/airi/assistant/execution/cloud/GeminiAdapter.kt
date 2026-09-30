@@ -44,6 +44,7 @@ class GeminiAdapter(
         onUsage: suspend (Int, Int) -> Unit
     ): CloudProviderAdapter.AdapterResult = withContext(Dispatchers.IO) {
 
+        request.attachmentTrace?.setProvider(CloudProvider.GEMINI)
         val apiKey = keyStore.getKey(CloudProvider.GEMINI)
             ?: return@withContext CloudProviderAdapter.AdapterResult.Failure(
                 error = "No Gemini API key configured",

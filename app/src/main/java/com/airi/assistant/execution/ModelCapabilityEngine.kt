@@ -2,7 +2,6 @@ package com.airi.assistant.execution
 
 import com.airi.assistant.ai.ModelCapabilities
 import com.airi.assistant.ai.ModelInfo
-import com.airi.assistant.execution.CloudProvider
 
 /** Single source of truth for model/input compatibility decisions. */
 enum class Capability {
@@ -59,7 +58,66 @@ data class AttachmentCompatibility(
     val descriptor: ModelCapabilityDescriptor
 )
 
+/**
+ * Attachment capability is deliberately narrower than text-model discovery.
+ * A cloud model name is not proof of a modality. Only model IDs included in
+ * the local, reviewed allowlist can use native image/PDF transports; unknown
+ * IDs and unverified OpenAI-compatible endpoints fail closed.
+ */
 object ModelCapabilityEngine {
+    private data class CloudAttachmentProfile(
+        val vision: Boolean,
+        val pdf: Boolean,
+        val maxImages: Int = 4,
+        val maxNativeFileBytes: Long = 20L * 1024L * 1024L,
+    )
+
+    private val geminiAttachmentModels = setOf(
+        "gemini-flash-latest",
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "gemini-3.5-flash-lite",
+    )
+    private val openAiAttachmentModels = setOf(
+        "gpt-4o",
+        "gpt-4o-mini",
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4.1-nano",
+        "gpt-4.5-preview",
+        "gpt-5",
+        "gpt-5-mini",
+        "gpt-5-nano",
+        "o1",
+        "o3",
+        "o3-mini",
+        "o4-mini",
+    )
+    private val anthropicAttachmentModels = setOf(
+        "claude-haiku-4-5",
+        "claude-sonnet-4-5",
+        "claude-opus-4-1",
+        "claude-sonnet-4-0",
+        "claude-opus-4-0",
+        "claude-3-7-sonnet-latest",
+        "claude-3-5-sonnet-latest",
+    )
+    private val nativeImageMimeTypes = setOf("image/jpeg", "image/png", "image/gif", "image/webp")
+
+    private fun cloudAttachmentProfile(provider: CloudProvider, modelId: String): CloudAttachmentProfile? {
+        val exact = modelId.trim().lowercase()
+        if (exact.isBlank()) return null
+        return when {
+            provider == CloudProvider.GEMINI && exact in geminiAttachmentModels ->
+                CloudAttachmentProfile(vision = true, pdf = true)
+            provider == CloudProvider.OPENAI && exact in openAiAttachmentModels ->
+                CloudAttachmentProfile(vision = true, pdf = true)
+            provider == CloudProvider.ANTHROPIC && exact in anthropicAttachmentModels ->
+                CloudAttachmentProfile(vision = true, pdf = true)
+            else -> null
+        }
+    }
+
     fun fromLocal(
         model: ModelInfo,
         capabilities: ModelCapabilities,
@@ -79,6 +137,7 @@ object ModelCapabilityEngine {
             Capability.IMAGE_UNDERSTANDING to if (declaredVision) CapabilityStatus.SUPPORTED else CapabilityStatus.UNSUPPORTED,
             Capability.VISION to if (declaredVision) CapabilityStatus.SUPPORTED else CapabilityStatus.UNSUPPORTED,
             Capability.AUDIO_INPUT to CapabilityStatus.UNSUPPORTED,
+            Capability.AUDIO_UNDERSTANDING to CapabilityStatus.UNSUPPORTED,
             Capability.VIDEO_INPUT to CapabilityStatus.UNSUPPORTED,
             Capability.VIDEO_UNDERSTANDING to CapabilityStatus.UNSUPPORTED,
             Capability.DOCUMENT_INPUT to CapabilityStatus.UNSUPPORTED,
@@ -125,38 +184,43 @@ object ModelCapabilityEngine {
 
     fun fromCloud(provider: CloudProvider, modelId: String): ModelCapabilityDescriptor {
         val exact = modelId.trim().lowercase()
-        val vision = when (provider) {
-            CloudProvider.GEMINI -> exact.contains("gemini")
-            CloudProvider.OPENAI -> exact.startsWith("gpt-4o") || exact.startsWith("gpt-4.1") || exact.startsWith("gpt-4.5") || exact.startsWith("gpt-5") || exact.startsWith("o1") || exact.startsWith("o3") || exact.startsWith("o4")
-            CloudProvider.ANTHROPIC -> exact.contains("claude")
-            CloudProvider.OPENROUTER -> exact.contains("gemini") || exact.contains("gpt-4o") || exact.contains("claude-3") || exact.contains("qwen-vl") || exact.contains("llava") || exact.contains("vision")
-            CloudProvider.CUSTOM -> false
-            else -> false
+        val profile = cloudAttachmentProfile(provider, exact)
+        val modelNamed = exact.isNotBlank()
+        val firstPartyModalityMayVary = provider in setOf(
+            CloudProvider.GEMINI, CloudProvider.OPENAI, CloudProvider.ANTHROPIC
+        )
+        val visionFallback = if (
+            (firstPartyModalityMayVary && modelNamed) ||
+            provider == CloudProvider.OPENROUTER || provider == CloudProvider.CUSTOM
+        ) {
+            CapabilityStatus.UNKNOWN
+        } else {
+            CapabilityStatus.UNSUPPORTED
         }
-        val status = if (vision) CapabilityStatus.SUPPORTED else if (provider == CloudProvider.CUSTOM) CapabilityStatus.UNKNOWN else CapabilityStatus.UNSUPPORTED
+        val pdfFallback = if (firstPartyModalityMayVary && modelNamed) {
+            CapabilityStatus.UNKNOWN
+        } else {
+            CapabilityStatus.UNSUPPORTED
+        }
+        val visionStatus = if (profile?.vision == true) CapabilityStatus.SUPPORTED else visionFallback
+        val pdfStatus = if (profile?.pdf == true) CapabilityStatus.SUPPORTED_WITH_LIMITS else pdfFallback
         val values = Capability.entries.associateWith { CapabilityStatus.UNKNOWN }.toMutableMap()
-        values[Capability.TEXT_INPUT] = CapabilityStatus.SUPPORTED
-        values[Capability.IMAGE_INPUT] = status
-        values[Capability.IMAGE_UNDERSTANDING] = status
-        values[Capability.VISION] = status
-        values[Capability.AUDIO_INPUT] = CapabilityStatus.UNKNOWN
-        val nativeInline = (provider == CloudProvider.GEMINI || provider == CloudProvider.OPENAI || provider == CloudProvider.ANTHROPIC) && vision
-        values[Capability.VIDEO_INPUT] = if (provider == CloudProvider.GEMINI && nativeInline) CapabilityStatus.SUPPORTED_WITH_LIMITS else CapabilityStatus.UNSUPPORTED
-        values[Capability.VIDEO_UNDERSTANDING] = if (provider == CloudProvider.GEMINI && nativeInline) CapabilityStatus.SUPPORTED_WITH_LIMITS else CapabilityStatus.UNSUPPORTED
-        values[Capability.DOCUMENT_INPUT] = when {
-            provider == CloudProvider.OPENAI && vision -> CapabilityStatus.SUPPORTED_WITH_LIMITS
-            provider == CloudProvider.GEMINI && vision -> CapabilityStatus.SUPPORTED_WITH_LIMITS
-            else -> CapabilityStatus.UNSUPPORTED
-        }
-        values[Capability.PDF_INPUT] = when {
-            provider == CloudProvider.ANTHROPIC && vision -> CapabilityStatus.SUPPORTED_WITH_LIMITS
-            provider == CloudProvider.OPENAI && vision -> CapabilityStatus.SUPPORTED_WITH_LIMITS
-            provider == CloudProvider.GEMINI && vision -> CapabilityStatus.SUPPORTED_WITH_LIMITS
-            else -> CapabilityStatus.UNSUPPORTED
-        }
-        values[Capability.STREAMING] = CapabilityStatus.SUPPORTED
+        values[Capability.TEXT_INPUT] = if (modelNamed) CapabilityStatus.SUPPORTED else CapabilityStatus.UNKNOWN
+        values[Capability.IMAGE_INPUT] = visionStatus
+        values[Capability.IMAGE_UNDERSTANDING] = visionStatus
+        values[Capability.VISION] = visionStatus
+        values[Capability.AUDIO_INPUT] = CapabilityStatus.UNSUPPORTED
+        values[Capability.AUDIO_UNDERSTANDING] = CapabilityStatus.UNSUPPORTED
+        values[Capability.VIDEO_INPUT] = CapabilityStatus.UNSUPPORTED
+        values[Capability.VIDEO_UNDERSTANDING] = CapabilityStatus.UNSUPPORTED
+        values[Capability.DOCUMENT_INPUT] = CapabilityStatus.UNSUPPORTED
+        values[Capability.PDF_INPUT] = pdfStatus
+        values[Capability.OCR] = CapabilityStatus.UNSUPPORTED
+        values[Capability.STREAMING] = if (modelNamed) CapabilityStatus.SUPPORTED else CapabilityStatus.UNKNOWN
         values[Capability.TOOL_CALLING] = CapabilityStatus.UNKNOWN
+        values[Capability.FUNCTION_CALLING] = CapabilityStatus.UNKNOWN
         values[Capability.STRUCTURED_OUTPUT] = CapabilityStatus.UNKNOWN
+        values[Capability.JSON_OUTPUT] = CapabilityStatus.UNKNOWN
         return ModelCapabilityDescriptor(
             modelId = exact,
             displayName = modelId,
@@ -164,17 +228,57 @@ object ModelCapabilityEngine {
             runtimeId = provider.name.lowercase(),
             declared = values,
             runtime = values,
-            confidence = if (provider == CloudProvider.CUSTOM) CapabilityConfidence.UNKNOWN else CapabilityConfidence.VERIFIED,
-            limits = CapabilityLimit(maxImages = if (vision) 4 else null, maxFileSizeBytes = if (nativeInline) 20L * 1024L * 1024L else 12L * 1024L * 1024L),
-            explanation = if (vision) "تم التعرف على capability حسب model ID المحدد." else "هذا model ID لا يعلن دعم الصور في كتالوج AIRI الحالي.",
+            confidence = if (profile != null) CapabilityConfidence.DECLARED else CapabilityConfidence.UNKNOWN,
+            limits = CapabilityLimit(
+                maxImages = profile?.takeIf { it.vision }?.maxImages,
+                maxFileSizeBytes = profile?.maxNativeFileBytes ?: 12L * 1024L * 1024L,
+            ),
+            explanation = when {
+                profile != null -> "النقل الأصلي محدد لمعرّف نموذج معروف، والعقد يبقى مشروطًا بقبول المزوّد الفعلي."
+                modelNamed -> "لا توجد مصفوفة نقل مرفقات موثقة لهذا الموديل؛ رُفضت القدرات متعددة الوسائط افتراضيًا."
+                else -> "معرّف النموذج غير محدد؛ لا يمكن التحقق من توافق المرفقات."
+            },
             readiness = ModelReadiness(
-                availability = if (exact.isBlank()) ModelAvailability.UNKNOWN else ModelAvailability.AVAILABLE,
+                availability = if (modelNamed) ModelAvailability.AVAILABLE else ModelAvailability.UNKNOWN,
                 feasibility = ModelFeasibility.UNKNOWN,
             )
         )
     }
 
-    fun check(descriptor: ModelCapabilityDescriptor, requirement: AttachmentRequirement, mimeType: String?, sizeBytes: Long?, count: Int = 1): AttachmentCompatibility {
+    /** True only where both a reviewed model profile and a compatible adapter payload exist. */
+    fun hasNativeAttachmentTransport(
+        descriptor: ModelCapabilityDescriptor,
+        requirement: AttachmentRequirement,
+        mimeType: String?,
+    ): Boolean {
+        val provider = CloudProvider.entries.firstOrNull { it.name.equals(descriptor.providerId, ignoreCase = true) }
+            ?: return false
+        val profile = cloudAttachmentProfile(provider, descriptor.modelId) ?: return false
+        if (!descriptor.isReady(when (requirement) {
+                AttachmentRequirement.IMAGE -> Capability.IMAGE_UNDERSTANDING
+                AttachmentRequirement.PDF -> Capability.PDF_INPUT
+                AttachmentRequirement.TEXT -> Capability.TEXT_INPUT
+                AttachmentRequirement.DOCUMENT -> Capability.DOCUMENT_INPUT
+                AttachmentRequirement.VIDEO -> Capability.VIDEO_UNDERSTANDING
+                AttachmentRequirement.AUDIO -> Capability.AUDIO_UNDERSTANDING
+            })) return false
+        val mime = mimeType.orEmpty().trim().lowercase().substringBefore(';')
+        return when (requirement) {
+            AttachmentRequirement.IMAGE -> profile.vision &&
+                (mime.isBlank() || mime == "application/octet-stream" || mime in nativeImageMimeTypes)
+            AttachmentRequirement.PDF -> profile.pdf && mime == "application/pdf"
+            AttachmentRequirement.TEXT, AttachmentRequirement.DOCUMENT,
+            AttachmentRequirement.VIDEO, AttachmentRequirement.AUDIO -> false
+        }
+    }
+
+    fun check(
+        descriptor: ModelCapabilityDescriptor,
+        requirement: AttachmentRequirement,
+        mimeType: String?,
+        sizeBytes: Long?,
+        count: Int = 1,
+    ): AttachmentCompatibility {
         val capability = when (requirement) {
             AttachmentRequirement.TEXT -> Capability.TEXT_INPUT
             AttachmentRequirement.IMAGE -> Capability.IMAGE_UNDERSTANDING
@@ -186,10 +290,11 @@ object ModelCapabilityEngine {
         val status = descriptor.status(capability)
         val limit = descriptor.limits
         val tooLarge = limit.maxFileSizeBytes?.let { sizeBytes != null && sizeBytes > it } == true
-        val tooMany = limit.maxImages?.let { count > it } == true
+        val tooMany = requirement == AttachmentRequirement.IMAGE && limit.maxImages?.let { count > it } == true
         val unsupportedMime = limit.supportedMimeTypes.isNotEmpty() && mimeType != null && mimeType !in limit.supportedMimeTypes
         val reason = when {
             descriptor.readiness.availability == ModelAvailability.UNAVAILABLE -> descriptor.readiness.reason.ifBlank { "النموذج غير متاح حاليًا." }
+            descriptor.readiness.availability == ModelAvailability.UNKNOWN -> "لم يتم التحقق من توفر نموذج فعلي لهذا المسار."
             descriptor.readiness.feasibility == ModelFeasibility.INSUFFICIENT_RESOURCES -> descriptor.readiness.reason.ifBlank { "موارد الجهاز غير كافية لتشغيل النموذج بأمان." }
             tooLarge -> "حجم المرفق يتجاوز الحد المعروف للنموذج."
             tooMany -> "عدد الصور يتجاوز الحد المعروف للنموذج."
@@ -200,10 +305,10 @@ object ModelCapabilityEngine {
             else -> ""
         }
         val decision = when {
-            descriptor.readiness.availability == ModelAvailability.UNAVAILABLE ||
+            descriptor.readiness.availability != ModelAvailability.AVAILABLE ||
                 descriptor.readiness.feasibility == ModelFeasibility.INSUFFICIENT_RESOURCES ||
-                tooLarge || tooMany || unsupportedMime || status == CapabilityStatus.UNSUPPORTED || status == CapabilityStatus.TEMPORARILY_UNAVAILABLE -> CompatibilityDecision.BLOCK
-            status == CapabilityStatus.UNKNOWN -> CompatibilityDecision.ALLOW_WITH_WARNING
+                tooLarge || tooMany || unsupportedMime || status == CapabilityStatus.UNSUPPORTED ||
+                status == CapabilityStatus.UNKNOWN || status == CapabilityStatus.TEMPORARILY_UNAVAILABLE -> CompatibilityDecision.BLOCK
             status == CapabilityStatus.SUPPORTED_WITH_LIMITS -> CompatibilityDecision.ALLOW_WITH_WARNING
             else -> CompatibilityDecision.ALLOW
         }

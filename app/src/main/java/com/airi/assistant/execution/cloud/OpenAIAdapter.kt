@@ -64,6 +64,7 @@ open class OpenAIAdapter(
         onUsage:  suspend (Int, Int) -> Unit
     ): CloudProviderAdapter.AdapterResult = withContext(Dispatchers.IO) {
 
+        request.attachmentTrace?.setProvider(provider)
         val apiKey = keyStore.getKey(provider)
             ?: return@withContext CloudProviderAdapter.AdapterResult.Failure(
                 error     = "No ${provider.displayName} API key configured",
@@ -71,10 +72,12 @@ open class OpenAIAdapter(
                 retryable = false
             )
 
-        if (provider != CloudProvider.OPENAI && request.inlineDataParts.isNotEmpty()) {
-            request.attachmentTrace?.reject("This OpenAI-compatible provider has no native file transport.")
+        if (provider != CloudProvider.OPENAI &&
+            (request.inlineDataParts.isNotEmpty() || request.imageParts.isNotEmpty())
+        ) {
+            request.attachmentTrace?.reject("This OpenAI-compatible provider has no verified native attachment transport.")
             return@withContext CloudProviderAdapter.AdapterResult.Failure(
-                error = "File attachments are not implemented for ${provider.displayName}",
+                error = "Attachments are not implemented for ${provider.displayName}",
                 errorType = CloudErrorType.INVALID_REQUEST,
                 retryable = false,
             )

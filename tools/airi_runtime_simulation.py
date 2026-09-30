@@ -219,11 +219,46 @@ def test_ui_contract() -> dict[str, int]:
         "chat composer remains locked while a response is generating",
     )
     check("isGenerating -> CosmicAccent" in source, "stop action lost the cyan theme accent")
+    foundation = Path("app/src/main/java/com/airi/assistant/execution/AttachmentTransportFoundation.kt").read_text()
+    capability_matrix = Path("app/src/main/java/com/airi/assistant/execution/ModelCapabilityEngine.kt").read_text()
+    check(
+        "extractedTextAvailable = attachment.isTextual || AttachmentContentExtractor.supports(" in view_model
+        and "AttachmentPolicy.ContentType.TEXT -> AttachmentRequirement.TEXT" in view_model,
+        "plain-text attachments are not admitted into the extracted-text route",
+    )
+    check(
+        "resolutions = attachmentResolutions" in view_model
+        and "markExtractedText(id, chars)" in view_model
+        and "markLocalVisionContent(localVisionAttachmentId, localImageBytes)" in view_model,
+        "attachment delivery trace does not cover native, extracted-text, and local-vision routes",
+    )
+    check(
+        "Acceptance means the user message (and staged attachment metadata) is durable." in view_model
+        and "attachment_delivery_not_confirmed" in view_model
+        and "MODEL_RESPONSE_COMPLETED" in foundation,
+        "message acceptance and attachment-delivery completion are still conflated",
+    )
+    check(
+        "cloudAttachmentProfile(provider: CloudProvider, modelId: String)" in capability_matrix
+        and "exact in openAiAttachmentModels" in capability_matrix
+        and "status == CapabilityStatus.UNKNOWN" in capability_matrix
+        and "MODEL_VISION" not in capability_matrix,
+        "cloud attachment support is not based on an exact fail-closed model matrix",
+    )
     stream_at = source.index("fun AiStreamingBubble")
     stream_block = source[stream_at:source.index("private fun AiriThinkingDots", stream_at)]
     check("AIRIShapes.aiBubble" not in stream_block and "AiriTheme.surfaceVariant" not in stream_block, "streaming response still has a bubble")
     check("Icons.Outlined.MoreHoriz" in ai_block, "response more-actions control is missing")
-    return {"assistant_open_surface": 1, "user_filled_surface": 1, "direction_contract": 1, "response_actions": 5}
+    return {
+        "assistant_open_surface": 1,
+        "user_filled_surface": 1,
+        "direction_contract": 1,
+        "response_actions": 5,
+        "attachment_text_route": 1,
+        "attachment_delivery_trace": 1,
+        "acceptance_semantics": 1,
+        "fail_closed_provider_matrix": 1,
+    }
 
 
 def main() -> None:

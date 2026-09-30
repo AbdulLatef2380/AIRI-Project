@@ -1765,6 +1765,10 @@
     <string name="chat_starter_research_label">بحث موضوع</string>
     <string name="chat_starter_research_prompt">ابحث هذا الموضوع ولخّصه:</string>
     <!-- سجل تنفيذ الوكيل -->
+    <string name="agent_plan_metric_done">المكتمل</string>
+    <string name="agent_plan_metric_closed">المغلقة</string>
+    <string name="agent_plan_metric_total">الإجمالي</string>
+    <string name="agent_plan_latest_signals">آخر الإشارات</string>
     <string name="agent_plan_trace_title">سجل التنفيذ</string>
     <string name="agent_plan_trace_empty">لا توجد تحديثات للتنفيذ بعد</string>
     <string name="agent_plan_trace_filter_all">الكل</string>

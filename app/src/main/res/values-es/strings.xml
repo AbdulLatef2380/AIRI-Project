@@ -1511,6 +1511,10 @@
     <string name="chat_starter_research_label">Investigar un tema</string>
     <string name="chat_starter_research_prompt">Investiga y resume este tema:</string>
     <!-- Panel de seguimiento de ejecución del agente -->
+    <string name="agent_plan_metric_done">Completadas</string>
+    <string name="agent_plan_metric_closed">Cerradas</string>
+    <string name="agent_plan_metric_total">Total</string>
+    <string name="agent_plan_latest_signals">Últimas señales</string>
     <string name="agent_plan_trace_title">Seguimiento de ejecución</string>
     <string name="agent_plan_trace_empty">Aún no hay actualizaciones de ejecución</string>
     <string name="agent_plan_trace_filter_all">Todo</string>

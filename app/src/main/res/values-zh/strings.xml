@@ -1523,6 +1523,10 @@
     <string name="chat_starter_research_label">研究主题</string>
     <string name="chat_starter_research_prompt">研究并总结这个主题：</string>
     <!-- 智能体执行跟踪面板 -->
+    <string name="agent_plan_metric_done">已完成</string>
+    <string name="agent_plan_metric_closed">已关闭</string>
+    <string name="agent_plan_metric_total">总计</string>
+    <string name="agent_plan_latest_signals">最新信号</string>
     <string name="agent_plan_trace_title">执行跟踪</string>
     <string name="agent_plan_trace_empty">暂无执行更新</string>
     <string name="agent_plan_trace_filter_all">全部</string>

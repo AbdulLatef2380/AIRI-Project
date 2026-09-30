@@ -1866,6 +1866,10 @@
     <string name="chat_starter_research_label">Research a topic</string>
     <string name="chat_starter_research_prompt">Research and summarize this topic:</string>
     <!-- Agent execution trace panel -->
+    <string name="agent_plan_metric_done">Done</string>
+    <string name="agent_plan_metric_closed">Closed</string>
+    <string name="agent_plan_metric_total">Total</string>
+    <string name="agent_plan_latest_signals">Latest signals</string>
     <string name="agent_plan_trace_title">Execution trace</string>
     <string name="agent_plan_trace_empty">No execution updates yet</string>
     <string name="agent_plan_trace_filter_all">All</string>

@@ -11,6 +11,7 @@ import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.execution.ExecutionRequest
+import com.airi.assistant.execution.AgentPromptTokenEstimator
 import com.airi.assistant.execution.ExecutionIdentity
 import com.airi.assistant.execution.ChatExecutionIdentityContract
 import com.airi.assistant.execution.ConversationRequestPolicy
@@ -465,13 +466,15 @@ Do not mix tool_call JSON with prose in the same message.
             history.add(ConversationTurn.User("You have reached your step limit. Summarise what you have done and what the final answer is."))
             val summary = callLLM(
                 prompt = "",
-                systemPrompt = fullSystemPrompt,
+                systemPrompt = systemPrompt + "\n\nYou have no tools available for this final response. Synthesize the completed results and provide a concise answer to the user.",
                 history = history,
                 tools = emptyList(),
                 queryType = queryType,
                 modelId = modelId,
                 providerId = providerId,
                 visionParts = visionParts,
+                attachmentParts = attachmentParts,
+                attachmentTrace = attachmentTrace,
                 onToken = onToken,
                 identity = requestIdentity,
                 localHistoryStartIndex = priorHistoryCount,
@@ -572,7 +575,11 @@ Do not mix tool_call JSON with prose in the same message.
         // the live ContextBudget (LlamaNative.getNCtx() → ContextBudget.longContextThreshold)
         // rather than the former hardcoded constant of 8_192.
         // For a 1536-token model: threshold = 768; for 32K: threshold = 16384.
-        val estimatedTokens = (localPrompt.length + systemPrompt.length) / 4
+        val estimatedTokens = AgentPromptTokenEstimator.estimate(
+            systemPrompt = systemPrompt,
+            localPrompt = localPrompt,
+            projection = requestProjection,
+        )
         val longContextThreshold = contextBudgetProvider().longContextThreshold
 
         val buf = StringBuilder()

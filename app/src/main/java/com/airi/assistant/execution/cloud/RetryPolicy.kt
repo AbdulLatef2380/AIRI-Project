@@ -32,6 +32,16 @@ object RetryPolicy {
     private const val BASE_DELAY_MS = 1_000L
     private const val MAX_DELAY_MS  = 30_000L
 
+    /** Avoid repeatedly billing full, very large prompts after transient failures. */
+    fun maxAttemptsForPrompt(estimatedPromptTokens: Int, configuredMaxAttempts: Int): Int {
+        val configured = configuredMaxAttempts.coerceAtLeast(1)
+        return when {
+            estimatedPromptTokens >= 32_000 -> 1
+            estimatedPromptTokens >= 12_000 -> minOf(configured, 2)
+            else -> configured
+        }
+    }
+
     /**
      * Execute [block] up to [maxAttempts] times.
      *

@@ -34,6 +34,14 @@ object MemoryStore {
         prefs(ctx).edit().putString(summaryKey(sessionId), summary.trim()).apply()
     }
 
+    /** Persist the accepted summary and its coverage marker in one preferences transaction. */
+    fun setSummaryAndCoverage(ctx: Context, sessionId: String, summary: String, coveredThrough: Int) {
+        prefs(ctx).edit()
+            .putString(summaryKey(sessionId), summary.trim())
+            .putInt(coverageKey(sessionId), coveredThrough.coerceAtLeast(0))
+            .apply()
+    }
+
     /**
      * How many of the oldest messages (by index) are already represented in
      * the stored summary. Lets us re-summarize incrementally instead of
@@ -44,6 +52,13 @@ object MemoryStore {
 
     fun setSummaryCoverage(ctx: Context, sessionId: String, coveredThrough: Int) {
         prefs(ctx).edit().putInt(coverageKey(sessionId), coveredThrough).apply()
+    }
+
+    fun clearSummary(ctx: Context, sessionId: String) {
+        prefs(ctx).edit()
+            .remove(summaryKey(sessionId))
+            .remove(coverageKey(sessionId))
+            .apply()
     }
 
     // ── Memory facts ─────────────────────────────────────────────────────────

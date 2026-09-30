@@ -664,17 +664,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val summarySequence = java.util.concurrent.atomic.AtomicLong(0L)
     @Volatile private var pendingSummaryToken: Long = 0L
     @Volatile private var pendingSummarySessionId: String? = null
+    @Volatile private var pendingSummaryCoverage: Int? = null
 
     fun acceptSummary(sessionId: String, summary: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val token = pendingSummaryToken
             if (sessionId.isBlank() || sessionId != pendingSummarySessionId || token == 0L) return@launch
-            runCatching { com.airi.assistant.ai.prompt.MemoryStore.setSummary(appContext, sessionId, summary) }
+            val coveredThrough = pendingSummaryCoverage ?: return@launch
+            runCatching {
+                com.airi.assistant.ai.prompt.MemoryStore.setSummaryAndCoverage(
+                    appContext, sessionId, summary, coveredThrough
+                )
+            }
                 .onSuccess {
                     if (pendingSummaryToken == token && pendingSummarySessionId == sessionId) {
                         _pendingSummary.value = null
                         pendingSummarySessionId = null
                         pendingSummaryToken = 0L
+                        pendingSummaryCoverage = null
                     }
                 }
                 .onFailure { error -> Log.w("AIRI", "SUMMARY_PERSIST_FAILED type=${error.javaClass.simpleName}") }
@@ -682,9 +689,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun rejectSummary() {
+        summarySequence.incrementAndGet()
         _pendingSummary.value = null
         pendingSummarySessionId = null
         pendingSummaryToken = 0L
+        pendingSummaryCoverage = null
     }
 
     // ── ModelController: owns model lifecycle (loadModel, registry, diagnostics) ──
@@ -1475,6 +1484,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val hadMessages = _messages.value.isNotEmpty()
             val generationRunning = activeGenerationId != 0L
             val session = memoryManager.createSession()
+            rejectSummary()
             _currentSessionId.value = session.id
             preferences.edit().putString(KEY_SESSION_ID, session.id).apply()
             _messages.value = emptyList()
@@ -1512,6 +1522,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         return try {
             memoryManager.deleteSession(sessionId)
+            com.airi.assistant.ai.prompt.MemoryStore.clear(appContext, sessionId)
+            rejectSummary()
             removeComposerDraft(sessionId)
             val replacement = memoryManager.createSession()
             _currentSessionId.value = replacement.id
@@ -1572,6 +1584,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 return@launch
             }
+            if (previousId != sessionId) rejectSummary()
             _currentSessionId.value = sessionId
             preferences.edit().putString(KEY_SESSION_ID, sessionId).apply()
             _messages.value = history.map { msg ->
@@ -1622,6 +1635,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 refreshSessions()
                 return@launch
             }
+            com.airi.assistant.ai.prompt.MemoryStore.clear(appContext, sessionId)
+            if (pendingSummarySessionId == sessionId) rejectSummary()
 
             if (SessionDeletionPolicy.shouldRemoveDraft(deleteSucceeded = true)) {
                 removeComposerDraft(sessionId)
@@ -1946,6 +1961,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val attachedForBubble = pendingImageUriForNextSend.takeIf { stagedForSession }
             val attachmentJson = pendingAttachmentJsonForNextSend.takeIf { stagedForSession }
             val rawHistory = memoryManager.loadSession(sessionId)
+            val storedSummaryCoverage = com.airi.assistant.ai.prompt.MemoryStore
+                .getSummaryCoverage(appContext, sessionId)
+            val summaryCoverageIsValid = storedSummaryCoverage in 0..rawHistory.size
+            if (!summaryCoverageIsValid) {
+                com.airi.assistant.ai.prompt.MemoryStore.clearSummary(appContext, sessionId)
+            }
+            val summaryPlan = com.airi.assistant.ai.prompt.ConversationSummaryWindowPolicy.select(
+                history = rawHistory,
+                previousSummary = if (summaryCoverageIsValid) {
+                    com.airi.assistant.ai.prompt.MemoryStore.getSummary(appContext, sessionId)
+                } else "",
+                coveredThrough = if (summaryCoverageIsValid) storedSummaryCoverage else 0,
+            )
             val history    = ResponseOptimizer.smartTrim(rawHistory, isAgentMode = true)
             Log.d("AIRI_TRIM", "before=${rawHistory.size} after=${history.size}")
             val userMessage = memoryManager.recordChatMessage(
@@ -2077,7 +2105,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     sessionId = sessionId,
                     query = trimmedInput,
                     projectId = activeProjectId,
-                    maxPrivacyLevel = ragPrivacyLevel
+                    maxPrivacyLevel = ragPrivacyLevel,
+                    maxContextChars = if (cloudProviderAtDispatch == null && _modelState.value.isModelReady) {
+                        llamaManager.contextBudget.ragChars
+                    } else {
+                        2_400
+                    }
                 )
             }.getOrDefault("")
             val selectedKnowledge = directives.knowledgeId?.let { id ->
@@ -2101,7 +2134,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // SPRINT 2: hasAgentTools=true so PromptService skips its narrative skill block.
             // AgentLoop appends its own structured JSON tool schemas (activeTools below),
             // which are the single authoritative description of available capabilities.
-            val baseSystemPrompt = buildGenerationSystemPrompt(trimmedInput, perfMode, queryType, ragContext, hasAgentTools = true) +
+            val baseSystemPrompt = buildGenerationSystemPrompt(
+                trimmedInput, perfMode, queryType, ragContext,
+                memorySummary = summaryPlan.previousSummary.take(
+                    if (cloudProviderAtDispatch == null && _modelState.value.isModelReady) {
+                        llamaManager.contextBudget.summaryChars
+                    } else 1_600
+                ),
+                hasAgentTools = true
+            ) +
                 buildString {
                     selectedSkillId?.let { skillId ->
                         append("\n\nThe user explicitly selected skill '")
@@ -2151,8 +2192,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             var tokenCount = 0
             var firstTokenReceived = false
             val requestStart = System.currentTimeMillis()
-            var needsResummarize = false
-            val olderToFold: List<com.airi.assistant.memory.entity.ChatMessage> = emptyList()
+            val needsResummarize = summaryPlan.shouldSummarize
+            val olderToFold = summaryPlan.olderTurns
             Log.i("AIRI", "AGENT_LOOP_START inputChars=${trimmedInput.length} queryType=${queryType.name} planMode=${_isPlanModeActive.value}")
             val reasoningParser = ReasoningStreamParser()
 
@@ -2511,7 +2552,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 refreshSessions()
                 refreshPowerLevel()
-                if (needsResummarize) {
+                if (needsResummarize && _modelState.value.isModelReady) {
                     val summaryToken = summarySequence.incrementAndGet()
                     viewModelScope.launch(Dispatchers.IO) {
                         _isSummarizing.value = true
@@ -2521,15 +2562,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 sessionId       = sessionId,
                                 llamaManager    = llamaManager,
                                 olderTurns      = olderToFold,
-                                previousSummary = "",
+                                previousSummary = summaryPlan.previousSummary,
                                 contextBudget   = llamaManager.contextBudget,
-                                persistImmediately = false
+                                persistImmediately = false,
+                                coverageThrough = summaryPlan.coverageThrough
                             )
                         }.getOrNull()
                         
                         if (result != null && _currentSessionId.value == sessionId && summarySequence.get() == summaryToken) {
                             pendingSummaryToken = summaryToken
                             pendingSummarySessionId = sessionId
+                            pendingSummaryCoverage = summaryPlan.coverageThrough
                             _pendingSummary.value = result
                         }
                         _isSummarizing.value = false

@@ -194,7 +194,11 @@ class CloudBackend(
             var compTok = 0
             var providerEmittedAnyToken = false
 
-            val result = RetryPolicy.withRetry(maxAttempts = MAX_RETRIES) { attempt ->
+            val requestMaxAttempts = RetryPolicy.maxAttemptsForPrompt(
+                estimatedPromptTokens = request.estimatedPromptTokens,
+                configuredMaxAttempts = MAX_RETRIES,
+            )
+            val result = RetryPolicy.withRetry(maxAttempts = requestMaxAttempts) { attempt ->
                 if (cancelRequested.get()) {
                     return@withRetry CloudProviderAdapter.AdapterResult.Failure(
                         error = "Cancelled",
@@ -205,7 +209,7 @@ class CloudBackend(
                 }
                 if (attempt > 0) {
                     RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.WARN,
-                        "Retry attempt $attempt/${MAX_RETRIES - 1} for ${provider.displayName}")
+                        "Retry attempt $attempt/${requestMaxAttempts - 1} for ${provider.displayName}")
                 }
                 promptTok = 0
                 compTok = 0
@@ -401,8 +405,21 @@ class CloudBackend(
                     }
                     val startMs = System.currentTimeMillis()
                     val fullText = StringBuilder()
-                    val result = RetryPolicy.withRetry(MAX_RETRIES) {
-                        adapter.streamGenerate(targetRequest, onToken = { fullText.append(it) })
+                    val requestMaxAttempts = RetryPolicy.maxAttemptsForPrompt(
+                        estimatedPromptTokens = request.estimatedPromptTokens,
+                        configuredMaxAttempts = MAX_RETRIES,
+                    )
+                    val result = RetryPolicy.withRetry(requestMaxAttempts) {
+                        var attemptEmittedAnyToken = false
+                        val attemptResult = adapter.streamGenerate(targetRequest, onToken = {
+                            attemptEmittedAnyToken = attemptEmittedAnyToken || it.isNotEmpty()
+                            fullText.append(it)
+                        })
+                        if (attemptEmittedAnyToken && attemptResult is CloudProviderAdapter.AdapterResult.Failure) {
+                            attemptResult.copy(retryable = false)
+                        } else {
+                            attemptResult
+                        }
                     }
                     when (result) {
                         is CloudProviderAdapter.AdapterResult.Success ->

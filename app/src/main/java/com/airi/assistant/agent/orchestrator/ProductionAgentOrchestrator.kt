@@ -1,6 +1,6 @@
 package com.airi.assistant.agent.orchestrator
 
-import android.util.Log
+import android.util.Log as AndroidLog
 import com.airi.assistant.agent.durable.DurableTask
 import com.airi.assistant.agent.durable.TaskPlanStep
 import com.airi.assistant.agent.durable.TaskScope
@@ -27,6 +27,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,9 +38,25 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+
+/** Diagnostics must never turn a valid agent result into an execution failure. */
+private object Log {
+    private inline fun write(block: () -> Int): Int = try {
+        block()
+    } catch (_: RuntimeException) {
+        0 // Android's local-JVM stub throws when no platform logger is present.
+    }
+
+    fun d(tag: String, message: String): Int = write { AndroidLog.d(tag, message) }
+    fun i(tag: String, message: String): Int = write { AndroidLog.i(tag, message) }
+    fun w(tag: String, message: String): Int = write { AndroidLog.w(tag, message) }
+    fun e(tag: String, message: String): Int = write { AndroidLog.e(tag, message) }
+}
 
 /**
  * ProductionAgentOrchestrator — parallel sub-agent execution engine.
@@ -82,7 +101,13 @@ import java.util.concurrent.ConcurrentHashMap
  *   AgentEvent.Delegate with targetAgentId="llm_backend" is surfaced to the
  *   caller for routing to HybridOrchestrator.
  */
-class ProductionAgentOrchestrator {
+class ProductionAgentOrchestrator(
+    private val agentCapabilities: () -> List<SubAgentCapability> = { SubAgentRegistry.capabilities() },
+    private val routeAgent: suspend (String, SubAgentContext) -> SubAgent? = { input, context ->
+        SubAgentRegistry.route(input, context)
+    },
+    private val findAgent: (String) -> SubAgent? = { agentId -> SubAgentRegistry.findById(agentId) }
+) {
 
     private val TAG = "ProductionOrchestrator"
 
@@ -167,9 +192,38 @@ class ProductionAgentOrchestrator {
     // ── Active execution tracking ─────────────────────────────────────────────
 
     private val activeExecutions = ConcurrentHashMap<String, OrchestratorExecution>()
+    private var nextExecutionOrder = 0L
 
     private val _state = MutableStateFlow<OrchestratorState>(OrchestratorState.Idle)
     val state: StateFlow<OrchestratorState> = _state.asStateFlow()
+
+    @Synchronized
+    private fun createExecution(id: String, totalTasks: Int): OrchestratorExecution? {
+        if (activeExecutions.containsKey(id)) return null
+        val rootScope = orchestrationScope
+        val executionJob = SupervisorJob(rootScope.coroutineContext[Job])
+        val execution = OrchestratorExecution(
+            id = id,
+            job = executionJob,
+            scope = CoroutineScope(rootScope.coroutineContext + executionJob),
+            order = ++nextExecutionOrder,
+            totalTasks = totalTasks
+        )
+        activeExecutions[id] = execution
+        publishState()
+        return execution
+    }
+
+    @Synchronized
+    private fun publishState() {
+        val latest = activeExecutions.values
+            .asSequence()
+            .filter { it.job.isActive }
+            .maxByOrNull { it.order }
+        _state.value = latest?.let {
+            OrchestratorState.Running(it.id, it.totalTasks, it.completedTasks)
+        } ?: OrchestratorState.Idle
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Single-task convenience API
@@ -213,19 +267,54 @@ class ProductionAgentOrchestrator {
     suspend fun executePlan(
         plan:    OrchestratorPlan,
         onEvent: suspend (AgentEvent) -> Unit = {}
+    ): ExecutionResult = coroutineScope {
+        val execution = createExecution(plan.id, plan.tasks.size)
+            ?: return@coroutineScope ExecutionResult.PartialFailure(
+                planId = plan.id,
+                taskResults = emptyMap(),
+                taskErrors = mapOf("plan_validation" to "An execution with this plan ID is already active"),
+                durationMs = 0L
+            )
+        try {
+            executePlanInScope(plan, onEvent, execution)
+        } finally {
+            activeExecutions.remove(plan.id, execution)
+            execution.job.cancel()
+            execution.job.join()
+            publishState()
+        }
+    }
+
+    private suspend fun executePlanInScope(
+        plan: OrchestratorPlan,
+        onEvent: suspend (AgentEvent) -> Unit,
+        execution: OrchestratorExecution
     ): ExecutionResult {
         val executionId = plan.id
         val startMs     = System.currentTimeMillis()
         // A plan must keep its original scope. If cancelAll creates a new scope
         // for a later plan, this execution still observes its own cancellation.
-        val executionScope = orchestrationScope
-        val teamAdmission = AgentTeamPolicy.admit(plan, SubAgentRegistry.capabilities())
+        val executionScope = execution.scope
+        val teamAdmission = AgentTeamPolicy.admit(plan, agentCapabilities())
         if (!teamAdmission.accepted) {
             Log.w(TAG, "TEAM_PLAN_REJECTED id=$executionId reason=${teamAdmission.reason}")
             return ExecutionResult.PartialFailure(
                 planId = executionId,
                 taskResults = emptyMap(),
                 taskErrors = mapOf("team_policy" to teamAdmission.reason),
+                durationMs = System.currentTimeMillis() - startMs
+            )
+        }
+
+        val sinkTaskIds = plan.tasks
+            .filter { candidate -> plan.tasks.none { candidate.id in it.dependencies } }
+            .map { it.id }
+        val finalTaskId = plan.finalTaskId ?: sinkTaskIds.lastOrNull()
+        if (finalTaskId == null || finalTaskId !in sinkTaskIds) {
+            return ExecutionResult.PartialFailure(
+                planId = executionId,
+                taskResults = emptyMap(),
+                taskErrors = mapOf("plan_validation" to "The final task must be a valid sink task in the plan"),
                 durationMs = System.currentTimeMillis() - startMs
             )
         }
@@ -252,7 +341,7 @@ class ProductionAgentOrchestrator {
         )
 
         Log.i(TAG, "AIRI PLAN_START id=$executionId tasks=${plan.tasks.size}")
-        _state.value = OrchestratorState.Running(executionId, plan.tasks.size, 0)
+        publishState()
 
         // Per-plan shared tool workspace — agents publish/consume typed artifacts here
         val workspace = AgentWorkspace(workspaceId = executionId)
@@ -268,6 +357,7 @@ class ProductionAgentOrchestrator {
         val taskErrors    = ConcurrentHashMap<String, String>()
         val completedIds  = ConcurrentHashMap.newKeySet<String>()
         val allEvents     = mutableListOf<AgentEvent>()
+        val eventMutex    = Mutex()
 
         // Topological execution: repeatedly find tasks whose dependencies are met
         var remaining = plan.tasks.toMutableList()
@@ -294,7 +384,7 @@ class ProductionAgentOrchestrator {
             remaining.removeAll(ready)
 
             // Execute all ready tasks in parallel
-            ready.chunked(teamAdmission.maxParallelTasks).forEach { batch ->
+            for (batch in ready.chunked(teamAdmission.maxParallelTasks)) {
                 val deferred = batch.map { task ->
                 executionScope.async {
                     durableTaskManager?.updateExecutionStep(
@@ -312,7 +402,7 @@ class ProductionAgentOrchestrator {
                             ?: task.context.remainingCloudTokenBudget,
                         parentTaskId = executionId
                     )
-                    val result = executeTask(task, enrichedContext, onEvent, allEvents, workspace)
+                    val result = executeTask(task, enrichedContext, onEvent, allEvents, eventMutex, workspace)
                     when (result) {
                         is TaskResult.Success -> {
                             taskResults[task.id] = result.text
@@ -324,13 +414,19 @@ class ProductionAgentOrchestrator {
                             }
                             durableTaskManager?.markStepCompleted(executionId, task.id)
                             // Reinforce success signal
-                            task.agentId?.let { ReinforcementMemory.recordSuccess("routing", it) }
+                            task.agentId?.let { agentId ->
+                                runCatching { ReinforcementMemory.recordSuccess("routing", agentId) }
+                                    .onFailure { Log.w(TAG, "Success reinforcement skipped type=${it::class.simpleName}") }
+                            }
                         }
                         is TaskResult.Failure -> {
                             taskErrors[task.id] = result.reason
                             durableTaskManager?.markStepFailed(executionId, task.id, result.reason)
                             // Reinforce failure signal
-                            task.agentId?.let { ReinforcementMemory.recordFailure("routing", it) }
+                            task.agentId?.let { agentId ->
+                                runCatching { ReinforcementMemory.recordFailure("routing", agentId) }
+                                    .onFailure { Log.w(TAG, "Failure reinforcement skipped type=${it::class.simpleName}") }
+                            }
                             Log.w(TAG, "Task ${task.id} failed: ${result.reason}")
                         }
                     }
@@ -339,12 +435,24 @@ class ProductionAgentOrchestrator {
             }
 
             // Wait for all parallel tasks to complete before advancing the wave
-                deferred.awaitAll()
+                try {
+                    deferred.awaitAll()
+                } catch (cancelled: CancellationException) {
+                    if (!currentCoroutineContext().isActive || executionScope.isActive) throw cancelled
+                    deferred.joinAll()
+                    val reason = "Execution cancelled before all tasks completed"
+                    batch.filterNot { completedIds.contains(it.id) || taskErrors.containsKey(it.id) }.forEach { task ->
+                        taskErrors.putIfAbsent(task.id, reason)
+                        durableTaskManager?.markStepFailed(executionId, task.id, reason)
+                    }
+                    break
+                }
             }
 
             val completed = completedIds.size
             val total     = plan.tasks.size
-            _state.value  = OrchestratorState.Running(executionId, total, completed)
+            execution.completedTasks = completed
+            publishState()
             Log.d(TAG, "Wave complete: $completed/$total tasks done")
 
             // ── Push live graph snapshot to observability hub ──────────────────
@@ -413,10 +521,9 @@ class ProductionAgentOrchestrator {
         workspace.clear()
 
         return if (succeeded) {
-            val finalResult = taskResults.values.lastOrNull() ?: ""
+            val finalResult = taskResults[finalTaskId].orEmpty()
             Log.i(TAG, "AIRI PLAN_SUCCESS id=$executionId duration=${durationMs}ms")
             durableTaskManager?.markCompleted(executionId, finalResult)
-            _state.value = OrchestratorState.Idle
             ExecutionResult.Success(
                 planId        = executionId,
                 taskResults   = taskResults.toMap(),
@@ -430,7 +537,6 @@ class ProductionAgentOrchestrator {
                 executionId,
                 taskErrors.values.firstOrNull() ?: "Execution failed"
             )
-            _state.value = OrchestratorState.Idle
             ExecutionResult.PartialFailure(
                 planId      = executionId,
                 taskResults = taskResults.toMap(),
@@ -449,6 +555,7 @@ class ProductionAgentOrchestrator {
         context:      SubAgentContext,
         onEvent:      suspend (AgentEvent) -> Unit,
         allEvents:    MutableList<AgentEvent>,
+        eventMutex:   Mutex,
         workspace:    AgentWorkspace = AgentWorkspace(),
         retryAttempt: Int = 0
     ): TaskResult {
@@ -462,10 +569,10 @@ class ProductionAgentOrchestrator {
 
         // Resolve agent
         val agent = if (task.agentId != null) {
-            SubAgentRegistry.findById(task.agentId)
+            findAgent(task.agentId)
                 ?: return TaskResult.Failure("Agent '${task.agentId}' not found in registry")
         } else {
-            SubAgentRegistry.route(task.input, context)
+            routeAgent(task.input, context)
                 ?: return TaskResult.Failure("No agent matched for: '${task.input.take(60)}'")
         }
 
@@ -473,6 +580,7 @@ class ProductionAgentOrchestrator {
 
         var resultText = ""
         var taskError: String? = null
+        var completionObserved = false
         val toolsUsed = mutableListOf<String>()
         val durableTaskId = context.parentTaskId.takeIf { it.isNotBlank() }
 
@@ -492,14 +600,17 @@ class ProductionAgentOrchestrator {
                         }
                     }
                     .collect { event ->
-                        allEvents.add(event)
-                        onEvent(event)
+                        eventMutex.withLock {
+                            allEvents.add(event)
+                            onEvent(event)
+                        }
 
                         when (event) {
                             is AgentEvent.PartialResult -> {
                                 resultText += event.text
                             }
                             is AgentEvent.Complete -> {
+                                completionObserved = true
                                 resultText   = event.result
                                 toolsUsed.addAll(event.toolsUsed)
                                 Log.i(TAG, "AIRI TASK_COMPLETE task=${task.id} " +
@@ -511,8 +622,10 @@ class ProductionAgentOrchestrator {
                                     durationMs = event.durationMs
                                 )
                                 // ── Record success in StrategyEvolutionEngine ──
-                                com.airi.assistant.core.ServiceLocator.strategyEvolutionEngine
-                                    .recordNodeOutcome(agent.capability.agentId, "direct", 1, true)
+                                runCatching {
+                                    com.airi.assistant.core.ServiceLocator.strategyEvolutionEngine
+                                        .recordNodeOutcome(agent.capability.agentId, "direct", 1, true)
+                                }.onFailure { Log.w(TAG, "Success outcome learning skipped type=${it::class.simpleName}") }
                             }
                             is AgentEvent.Failed -> {
                                 taskError = event.reason
@@ -523,13 +636,15 @@ class ProductionAgentOrchestrator {
                                     reason  = event.reason
                                 )
                                 // ── Record failure in StrategyEvolutionEngine ──
-                                com.airi.assistant.core.ServiceLocator.strategyEvolutionEngine
-                                    .recordNodeOutcome(agent.capability.agentId, "direct", 1, false)
+                                runCatching {
+                                    com.airi.assistant.core.ServiceLocator.strategyEvolutionEngine
+                                        .recordNodeOutcome(agent.capability.agentId, "direct", 1, false)
+                                }.onFailure { Log.w(TAG, "Failure outcome learning skipped type=${it::class.simpleName}") }
                             }
                             is AgentEvent.Delegate -> {
                                 // Delegation to another sub-agent — resolve recursively
                                 if (event.targetAgentId != "llm_backend") {
-                                    val delegateResult = resolveDelegation(event, context, onEvent, allEvents)
+                                    val delegateResult = resolveDelegation(event, context, onEvent, allEvents, eventMutex)
                                     if (delegateResult != null) resultText += delegateResult
                                 }
                                 // "llm_backend" delegation is surfaced to caller via onEvent
@@ -568,10 +683,9 @@ class ProductionAgentOrchestrator {
                         }
                     }
             }.onFailure { e ->
-                if (e !is CancellationException) {
-                    taskError = "Agent execution failed: ${e.message}"
-                    Log.e(TAG, "Task ${task.id} exception: ${e.message}")
-                }
+                if (e is CancellationException) throw e
+                taskError = "Agent execution failed: ${e.message}"
+                Log.e(TAG, "Task ${task.id} exception: ${e.message}")
             }
         }
 
@@ -593,7 +707,7 @@ class ProductionAgentOrchestrator {
                 val retryContext = context.copy(timeoutMs = timeoutMs / 2)
                 val retryResult  = executeTask(
                     task.copy(context = retryContext), retryContext,
-                    onEvent, allEvents, workspace, retryAttempt + 1
+                    onEvent, allEvents, eventMutex, workspace, retryAttempt + 1
                 )
                 taskSpanId?.let {
                     observabilityHub?.endSpan(it, success = retryResult is TaskResult.Success,
@@ -605,6 +719,10 @@ class ProductionAgentOrchestrator {
             taskSpanId?.let { observabilityHub?.endSpan(it, success = false,
                 attributes = mapOf("failure" to "timeout", "attempt" to retryAttempt.toString())) }
             return TaskResult.Failure(reason)
+        }
+
+        if (taskError == null && !completionObserved) {
+            taskError = "Agent stream ended without a terminal Complete event"
         }
 
         return if (taskError == null) {
@@ -643,7 +761,7 @@ class ProductionAgentOrchestrator {
                         stepId = task.id
                     )
                 }
-                executeTask(task, context, onEvent, allEvents, workspace, retryAttempt + 1)
+                executeTask(task, context, onEvent, allEvents, eventMutex, workspace, retryAttempt + 1)
             }
             taskSpanId?.let {
                 observabilityHub?.endSpan(it, success = finalResult is TaskResult.Success,
@@ -665,7 +783,8 @@ class ProductionAgentOrchestrator {
         delegation: AgentEvent.Delegate,
         context:    SubAgentContext,
         onEvent:    suspend (AgentEvent) -> Unit,
-        allEvents:  MutableList<AgentEvent>
+        allEvents:  MutableList<AgentEvent>,
+        eventMutex: Mutex
     ): String? {
         if (!context.canDelegate) {
             Log.w(TAG, "Max nesting depth reached — dropping delegation to ${delegation.targetAgentId}")
@@ -679,7 +798,7 @@ class ProductionAgentOrchestrator {
             input        = delegation.subInput,
             context      = context.copy(nestingDepth = context.nestingDepth + 1)
         )
-        val result = executeTask(subTask, subTask.context, onEvent, allEvents)
+        val result = executeTask(subTask, subTask.context, onEvent, allEvents, eventMutex)
         return (result as? TaskResult.Success)?.text
     }
 
@@ -690,10 +809,21 @@ class ProductionAgentOrchestrator {
     fun cancelAll() {
         val scopeToCancel = orchestrationScope
         scopeToCancel.cancel()
+        activeExecutions.values.forEach { execution ->
+            execution.job.cancel(CancellationException("All orchestrations cancelled"))
+        }
         orchestrationScope = newOrchestrationScope()
-        _state.value = OrchestratorState.Idle
+        publishState()
         // Observability must never prevent an emergency cancellation from completing.
         runCatching { Log.i(TAG, "All orchestrations cancelled; runtime ready for future plans") }
+    }
+
+    /** Cancel exactly one active plan without interrupting its siblings. */
+    fun cancel(executionId: String): Boolean {
+        val execution = activeExecutions[executionId] ?: return false
+        execution.job.cancel(CancellationException("Execution $executionId cancelled"))
+        publishState()
+        return true
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -717,7 +847,9 @@ class ProductionAgentOrchestrator {
         /** Upper bound for each ready-task wave; hard-capped by [AgentTeamPolicy]. */
         val maxParallelTasks: Int = AgentTeamPolicy.DEFAULT_MAX_PARALLEL_TASKS,
         /** Child contexts receive only completed dependency outputs when true. */
-        val isolateTaskContext: Boolean = true
+        val isolateTaskContext: Boolean = true,
+        /** Optional explicit output sink; when absent the last declared sink is used. */
+        val finalTaskId: String? = null
     )
 
     /**
@@ -783,8 +915,12 @@ class ProductionAgentOrchestrator {
         }
     }
 
-    private data class OrchestratorExecution(
-        val id:  String,
-        val job: Job
+    private class OrchestratorExecution(
+        val id: String,
+        val job: Job,
+        val scope: CoroutineScope,
+        val order: Long,
+        val totalTasks: Int,
+        @Volatile var completedTasks: Int = 0
     )
 }

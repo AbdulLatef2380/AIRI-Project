@@ -1,7 +1,18 @@
 package com.airi.assistant.agent.reflection
 
-import android.util.Log
+import android.util.Log as AndroidLog
 import java.util.concurrent.ConcurrentHashMap
+
+private object Log {
+    private inline fun write(block: () -> Int): Int = try {
+        block()
+    } catch (_: RuntimeException) {
+        0
+    }
+
+    fun d(tag: String, message: String): Int = write { AndroidLog.d(tag, message) }
+    fun w(tag: String, message: String): Int = write { AndroidLog.w(tag, message) }
+}
 
 /**
  * Recovery strategy enum — moved inline after RecoveryManager deletion ().

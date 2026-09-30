@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.airi.assistant.memory.entity.BehaviorStatsEntity
 import com.airi.assistant.memory.entity.ChatMessage
 import com.airi.assistant.memory.entity.ContextCacheEntity
@@ -36,6 +37,57 @@ interface MemoryDao {
     @Query("SELECT id FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 1 AND content = :content LIMIT 1")
     suspend fun findLongTermMemoryId(sessionId: String, content: String): Long?
 
+    /** Scope-aware exact-content lookup used inside the transactional insert path. */
+    @Query("""
+        SELECT id FROM episodic_memory
+        WHERE isMemory = 1 AND content = :content
+          AND (
+              (:memoryScope = 'USER' AND memoryScope = 'USER')
+              OR (:memoryScope = 'PROJECT' AND memoryScope = 'PROJECT' AND projectId = :projectId)
+              OR (:memoryScope = 'SESSION' AND memoryScope = 'SESSION' AND sessionId = :sessionId)
+          )
+        ORDER BY id ASC
+        LIMIT 1
+    """)
+    suspend fun findScopedLongTermMemoryId(
+        memoryScope: String,
+        sessionId: String,
+        projectId: String,
+        content: String
+    ): Long?
+
+    /**
+     * Check, insert, and prune in one Room transaction so simultaneous explicit
+     * memory writes cannot race past duplicate detection or exceed scope quotas.
+     * USER scope is installation-global because AIRI's local memory has one owner.
+     */
+    @Transaction
+    suspend fun insertScopedLongTermMemoryIfAbsent(
+        message: ChatMessage,
+        keepRecentPerScope: Int
+    ): Long? {
+        require(message.isMemory) { "Only long-term memory rows may use scoped insertion" }
+        require(message.memoryScope in setOf("SESSION", "PROJECT", "USER")) {
+            "Unsupported long-term memory scope"
+        }
+        val existing = findScopedLongTermMemoryId(
+            memoryScope = message.memoryScope,
+            sessionId = message.sessionId,
+            projectId = message.projectId,
+            content = message.content
+        )
+        if (existing != null) return null
+
+        val insertedId = insertMessage(message)
+        when (message.memoryScope) {
+            "USER" -> pruneUserLongTermMemories(keepRecentPerScope)
+            "PROJECT" -> pruneProjectLongTermMemories(message.projectId, keepRecentPerScope)
+            "SESSION" -> pruneSessionLongTermMemories(message.sessionId, keepRecentPerScope)
+            else -> error("Unsupported long-term memory scope")
+        }
+        return insertedId
+    }
+
     @Query("""
         SELECT * FROM episodic_memory
         WHERE isMemory = 1
@@ -63,8 +115,8 @@ interface MemoryDao {
     @Query("DELETE FROM episodic_memory WHERE id = :memoryId AND isMemory = 1")
     suspend fun deleteLongTermMemory(memoryId: Long): Int
 
-    /** Delete only explicitly stored memory records owned by one chat session. */
-    @Query("DELETE FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 1")
+    /** Delete session-owned long-term records without erasing project/user memories. */
+    @Query("DELETE FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 1 AND memoryScope = 'SESSION'")
     suspend fun deleteLongTermMemoriesForSession(sessionId: String): Int
 
     @Query("""
@@ -97,14 +149,51 @@ interface MemoryDao {
         DELETE FROM episodic_memory
         WHERE sessionId = :sessionId
           AND isMemory = 1
+          AND memoryScope = 'SESSION'
           AND id NOT IN (
               SELECT id FROM episodic_memory
-              WHERE sessionId = :sessionId AND isMemory = 1
+              WHERE sessionId = :sessionId AND isMemory = 1 AND memoryScope = 'SESSION'
               ORDER BY timestamp DESC, id DESC
               LIMIT :keepRecent
           )
     """)
     suspend fun pruneLongTermMemories(sessionId: String, keepRecent: Int)
+
+    @Query("""
+        DELETE FROM episodic_memory
+        WHERE memoryScope = 'SESSION' AND sessionId = :sessionId AND isMemory = 1
+          AND id NOT IN (
+              SELECT id FROM episodic_memory
+              WHERE memoryScope = 'SESSION' AND sessionId = :sessionId AND isMemory = 1
+              ORDER BY timestamp DESC, id DESC
+              LIMIT :keepRecent
+          )
+    """)
+    suspend fun pruneSessionLongTermMemories(sessionId: String, keepRecent: Int)
+
+    @Query("""
+        DELETE FROM episodic_memory
+        WHERE memoryScope = 'PROJECT' AND projectId = :projectId AND isMemory = 1
+          AND id NOT IN (
+              SELECT id FROM episodic_memory
+              WHERE memoryScope = 'PROJECT' AND projectId = :projectId AND isMemory = 1
+              ORDER BY timestamp DESC, id DESC
+              LIMIT :keepRecent
+          )
+    """)
+    suspend fun pruneProjectLongTermMemories(projectId: String, keepRecent: Int)
+
+    @Query("""
+        DELETE FROM episodic_memory
+        WHERE memoryScope = 'USER' AND isMemory = 1
+          AND id NOT IN (
+              SELECT id FROM episodic_memory
+              WHERE memoryScope = 'USER' AND isMemory = 1
+              ORDER BY timestamp DESC, id DESC
+              LIMIT :keepRecent
+          )
+    """)
+    suspend fun pruneUserLongTermMemories(keepRecent: Int)
 
     @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0 ORDER BY timestamp ASC")
     suspend fun getSessionMessages(sessionId: String): List<ChatMessage>

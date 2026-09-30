@@ -122,11 +122,9 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         val normalizedScope = MemoryMetadataPolicy.normalizeScope(request.scope, request.projectId)
         val safePrivacy = MemoryMetadataPolicy.normalizePrivacyLevel(request.privacyLevel)
         val safeImportance = MemoryMetadataPolicy.normalizeImportance(request.importance)
-        val existing = dao.findLongTermMemoryId(request.sessionId, normalized)
-        if (existing != null) return ExplicitMemoryResult.Duplicate
 
         val now = System.currentTimeMillis()
-        val id = dao.insertMessage(
+        val id = dao.insertScopedLongTermMemoryIfAbsent(
             ChatMessage(
                 sessionId = request.sessionId,
                 role = role,
@@ -143,9 +141,9 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
                 privacyLevel = safePrivacy,
                 expiresAtMs = request.expiresAtMs,
                 updatedAtMs = now
-            )
-        )
-        dao.pruneLongTermMemories(request.sessionId, MAX_LONG_TERM_FACTS_PER_SESSION)
+            ),
+            keepRecentPerScope = MAX_LONG_TERM_FACTS_PER_SESSION
+        ) ?: return ExplicitMemoryResult.Duplicate
         return ExplicitMemoryResult.Stored(id)
     }
 
@@ -199,28 +197,26 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
                         .take(MAX_LONG_TERM_FACTS_PER_TURN)
                         .forEach { fact ->
                             val storedFact = "[memory] $fact"
-                            if (dao.findLongTermMemoryId(sessionId, storedFact) == null) {
-                                val now = System.currentTimeMillis()
-                                dao.insertMessage(
-                                    ChatMessage(
-                                        sessionId = sessionId,
-                                        role = "system",
-                                        content = storedFact,
-                                        timestamp = now,
-                                        isMemory = true,
-                                        projectId = projectId,
-                                        memorySource = "EXTRACTED_FACT",
-                                        provenance = "Extracted from an explicit user memory request",
-                                        confidence = 0.82f,
-                                        importance = EXTRACTED_FACT_IMPORTANCE,
-                                        memoryScope = if (projectId.isBlank()) MemoryScope.SESSION.name else MemoryScope.PROJECT.name,
-                                        privacyLevel = DEFAULT_PRIVACY_LEVEL,
-                                        updatedAtMs = now
-                                    )
-                                )
-                            }
+                            val now = System.currentTimeMillis()
+                            dao.insertScopedLongTermMemoryIfAbsent(
+                                ChatMessage(
+                                    sessionId = sessionId,
+                                    role = "system",
+                                    content = storedFact,
+                                    timestamp = now,
+                                    isMemory = true,
+                                    projectId = projectId,
+                                    memorySource = "EXTRACTED_FACT",
+                                    provenance = "Extracted from an explicit user memory request",
+                                    confidence = 0.82f,
+                                    importance = EXTRACTED_FACT_IMPORTANCE,
+                                    memoryScope = if (projectId.isBlank()) MemoryScope.SESSION.name else MemoryScope.PROJECT.name,
+                                    privacyLevel = DEFAULT_PRIVACY_LEVEL,
+                                    updatedAtMs = now
+                                ),
+                                keepRecentPerScope = MAX_LONG_TERM_FACTS_PER_SESSION
+                            )
                         }
-                    dao.pruneLongTermMemories(sessionId, MAX_LONG_TERM_FACTS_PER_SESSION)
                 }.onFailure { android.util.Log.w("AIRI_MEMORY", "Fact admission failed: ${it.javaClass.simpleName}") }
             }
         }

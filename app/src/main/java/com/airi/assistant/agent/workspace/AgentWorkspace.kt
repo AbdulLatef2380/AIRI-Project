@@ -1,8 +1,20 @@
 package com.airi.assistant.agent.workspace
 
-import android.util.Log
+import android.util.Log as AndroidLog
 import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ConcurrentHashMap
+
+private object Log {
+    private inline fun write(block: () -> Int): Int = try {
+        block()
+    } catch (_: RuntimeException) {
+        0
+    }
+
+    fun d(tag: String, message: String): Int = write { AndroidLog.d(tag, message) }
+    fun w(tag: String, message: String): Int = write { AndroidLog.w(tag, message) }
+}
 
 /**
  * AgentWorkspace — shared, typed, session-scoped artifact store for multi-turn tool use.
@@ -54,7 +66,7 @@ class AgentWorkspace(
 
     // ── Data flow edges: producerTaskId+key → consumerTaskId ─────────────────
 
-    private val dataFlowEdges = ConcurrentHashMap<String, MutableList<DataFlowEdge>>()
+    private val dataFlowEdges = ConcurrentHashMap<String, CopyOnWriteArrayList<DataFlowEdge>>()
 
     // ── Write API ─────────────────────────────────────────────────────────────
 
@@ -62,8 +74,9 @@ class AgentWorkspace(
      * Store a text artifact under [key].
      * Overwrites any existing artifact with the same key.
      */
+    @Synchronized
     fun putText(key: String, text: String, producerTaskId: String = "") {
-        checkCapacity()
+        checkCapacity(key)
         artifacts[key] = WorkspaceArtifact(
             key           = key,
             type          = ArtifactType.TEXT,
@@ -78,22 +91,24 @@ class AgentWorkspace(
      * Used by agent and CloudBrowserAgent to hand off
      * downloaded/generated files to downstream agents.
      */
+    @Synchronized
     fun putPath(key: String, path: String, producerTaskId: String = "") {
-        checkCapacity()
+        checkCapacity(key)
         artifacts[key] = WorkspaceArtifact(
             key            = key,
             type           = ArtifactType.FILE_PATH,
             textValue      = path,
             producerTaskId = producerTaskId
         )
-        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "PUT PATH key=$key path=$path producer=$producerTaskId ws=$workspaceId")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "PUT PATH key=$key producer=$producerTaskId ws=$workspaceId")
     }
 
     /**
      * Store a JSON blob artifact under [key].
      */
+    @Synchronized
     fun putJson(key: String, json: String, producerTaskId: String = "") {
-        checkCapacity()
+        checkCapacity(key)
         artifacts[key] = WorkspaceArtifact(
             key            = key,
             type           = ArtifactType.JSON_BLOB,
@@ -106,15 +121,16 @@ class AgentWorkspace(
     /**
      * Store a binary reference (e.g. content URI, Room row ID) under [key].
      */
+    @Synchronized
     fun putRef(key: String, ref: String, producerTaskId: String = "") {
-        checkCapacity()
+        checkCapacity(key)
         artifacts[key] = WorkspaceArtifact(
             key            = key,
             type           = ArtifactType.BINARY_REF,
             textValue      = ref,
             producerTaskId = producerTaskId
         )
-        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "PUT REF key=$key ref=$ref producer=$producerTaskId ws=$workspaceId")
+        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "PUT REF key=$key producer=$producerTaskId ws=$workspaceId")
     }
 
     // ── Read API ──────────────────────────────────────────────────────────────
@@ -151,7 +167,7 @@ class AgentWorkspace(
      */
     fun link(producerTaskId: String, key: String, consumerTaskId: String) {
         val edgeKey = "${producerTaskId}::$key"
-        dataFlowEdges.getOrPut(edgeKey) { mutableListOf() }.add(
+        dataFlowEdges.computeIfAbsent(edgeKey) { CopyOnWriteArrayList() }.add(
             DataFlowEdge(producerTaskId, key, consumerTaskId)
         )
         if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "LINK $producerTaskId[$key] → $consumerTaskId ws=$workspaceId")
@@ -188,8 +204,8 @@ class AgentWorkspace(
 
     // ── Housekeeping ─────────────────────────────────────────────────────────
 
-    private fun checkCapacity() {
-        if (artifacts.size >= MAX_ENTRIES) {
+    private fun checkCapacity(incomingKey: String) {
+        if (!artifacts.containsKey(incomingKey) && artifacts.size >= MAX_ENTRIES) {
             val oldest = artifacts.values.minByOrNull { it.createdAtMs }
             oldest?.let {
                 artifacts.remove(it.key)

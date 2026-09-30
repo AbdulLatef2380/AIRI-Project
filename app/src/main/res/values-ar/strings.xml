@@ -1741,7 +1741,8 @@
     <string name="attachment_text_extraction_failed">تعذر على AIRI قراءة الملف النصي المحدد. احتُفظ به؛ اختر ملفاً مقروءاً وحاول مجدداً.</string>
     <string name="attachment_multiple_images_unsupported">لا يستطيع هذا المسار معالجة كل الصور المحددة معاً. احتُفظ بالمرفقات؛ اختر مزود رؤية يدعمها أو أرسل عدداً أقل.</string>
     <string name="attachment_dispatch_failed">لم يُقبل الطلب. احتُفظ بالمرفقات لتتمكن من المحاولة مجدداً.</string>
-    <string name="attachment_delivery_not_confirmed">حُفظت رسالتك، لكن لم يتمكن AIRI من تأكيد وصول كل المرفقات إلى النموذج. لم يُنشر رد؛ أعد المحاولة باستخدام نموذج وصيغة مدعومين ومتحقق منهما.</string>
+    <string name="attachment_delivery_not_confirmed">حُفظت رسالتك، لكن تعذر تأكيد وصول كل المرفقات إلى النموذج. قد لا يكون أي رد ظاهر قد استخدم المرفقات؛ تحقّق من وصولها قبل الاعتماد عليه.</string>
+    <string name="chat_partial_response_saved">حُفظ رد جزئي أعلاه، لكنه ليس إجابة مكتملة؛ راجعه وأعد المحاولة عند الحاجة.</string>
     <string name="local_endpoint_title">الاتصال بـ %1$s</string>
     <string name="local_endpoint_label">عنوان الخادم</string>
     <string name="local_endpoint_example">مثال: http://ollama.local:11434/v1</string>

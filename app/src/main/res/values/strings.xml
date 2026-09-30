@@ -1842,7 +1842,8 @@
     <string name="attachment_text_extraction_failed">AIRI could not read the selected text file. It was kept; choose a readable file and try again.</string>
     <string name="attachment_multiple_images_unsupported">This route cannot process all selected images together. Your attachments were kept; choose a vision provider that supports them or send fewer images.</string>
     <string name="attachment_dispatch_failed">The request was not accepted. Your attachments were kept so you can try again.</string>
-    <string name="attachment_delivery_not_confirmed">Your message was saved, but AIRI could not confirm that every attachment reached the model. No reply was published; retry with a verified model and supported format.</string>
+    <string name="attachment_delivery_not_confirmed">Your message was saved, but AIRI could not confirm that every attachment reached the model. Any reply shown may not have used the attachments; verify delivery before relying on it.</string>
+    <string name="chat_partial_response_saved">A partial response was saved above. It is not a completed answer; review it and retry if needed.</string>
     <string name="local_endpoint_title">Connect %1$s</string>
     <string name="local_endpoint_label">Server URL</string>
     <string name="local_endpoint_example">Example: http://ollama.local:11434/v1</string>

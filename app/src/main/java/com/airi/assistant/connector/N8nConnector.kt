@@ -1,112 +1,193 @@
 package com.airi.assistant.connector
 
 import android.util.Log
-import com.airi.assistant.connector.Connector
-import com.airi.assistant.connector.ConnectorAuthManager
-import com.airi.assistant.connector.ConnectorInput
-import com.airi.assistant.connector.ConnectorMeta
-import com.airi.assistant.connector.ConnectorOutput
-import com.airi.assistant.connector.ConnectorState
-import com.airi.assistant.connector.ConnectorType
+import com.airi.assistant.domain.release.ReleaseScopePolicy
 import com.airi.assistant.tools.N8nIntegration
+import com.airi.assistant.tools.N8nWebhookUrlPolicy
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.TimeUnit
 
-/**
- * AP-19: N8nConnector — first-class N8n workflow automation connector.
- *
- * Wraps [N8nIntegration] with the full [Connector] contract so N8n is:
- *   - Visible in ConnectorsScreen with health monitoring
- *   - Configurable webhook URL (stored in ConnectorAuthManager)
- *   - Not hardcoded to localhost:5678
- *
- * Auth: the user sets a webhook URL in ConnectorsScreen. Stored under
- * [ConnectorAuthManager] key ("n8n", "webhook_url").
- *
- * Health check: GET to <webhook_url_base>/healthz (strips trailing webhook path).
- * Falls back gracefully — if /healthz returns 404, connector is marked unknown-state
- * rather than failed (self-hosted N8n may not expose /healthz).
- */
+/** N8n webhook connector. A configured URL is not healthy until /healthz responds. */
 class N8nConnector(
     private val authManager: ConnectorAuthManager
 ) : Connector {
+    private val tag = "N8nConnector"
+    override val id = "n8n"
+    override val name = "N8n"
+    override val description = "Trigger N8n workflow automation via a validated webhook URL."
+    override val type = ConnectorType.API
 
-    private val TAG = "N8nConnector"
-
-    override val id          = "n8n"
-    override val name        = "N8n"
-    override val description = "Trigger N8n workflow automation via webhook URL."
-    override val type        = ConnectorType.API
-
-    private val _state = MutableStateFlow(ConnectorState(connected = false, statusLine = "No webhook URL configured"))
+    private val _state = MutableStateFlow(
+        ConnectorState(connected = false, healthy = false, statusLine = "No webhook URL configured")
+    )
+    private val lifecycleMutex = Mutex()
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
+    private val healthClient = OkHttpClient.Builder()
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(3, TimeUnit.SECONDS)
+        .callTimeout(5, TimeUnit.SECONDS)
+        .followRedirects(false)
+        .build()
+
     override fun meta() = ConnectorMeta(
-        id          = id,
-        name        = name,
+        id = id,
+        name = name,
         description = description,
-        type        = type,
-        iconUrl     = null,
-        tags        = listOf("n8n", "automation", "webhook", "workflow")
+        type = type,
+        iconUrl = null,
+        tags = listOf("n8n", "automation", "webhook", "workflow")
     )
 
-    private fun webhookUrl(): String? = authManager.getCredential("n8n", "webhook_url")
+    private fun webhookUrl(): String? = authManager.getCredential(id, "webhook_url")
 
-    override suspend fun connect(): ConnectorState = withContext(Dispatchers.IO) {
-        val url = webhookUrl()
-        if (url.isNullOrBlank()) {
-            _state.value = ConnectorState(
-                connected    = false,
-                statusLine   = "No webhook URL configured",
-                errorMessage = "Set the N8n webhook URL in Connectors settings"
-            )
-            return@withContext _state.value
+    /** Explicit configuration is the only operation that re-enables a disconnected endpoint. */
+    suspend fun configureWebhookUrl(rawUrl: String): Boolean = withContext(Dispatchers.IO) {
+        lifecycleMutex.withLock {
+            if (N8nWebhookUrlPolicy.validate(rawUrl) !is N8nWebhookUrlPolicy.Validation.Accepted) {
+                return@withLock false
+            }
+            if (!authManager.storeCredential(id, "webhook_url", rawUrl.trim())) return@withLock false
+            if (!authManager.setExplicitlyDisconnected(id, false)) {
+                authManager.setExplicitlyDisconnected(id, true)
+                authManager.clearCredential(id, "webhook_url")
+                return@withLock false
+            }
+            _state.value = ConnectorState(false, false, "Webhook configured; health not yet checked")
+            true
         }
-        // N8nIntegration has no explicit ping — treat URL presence as connected.
-        // A real connectivity check would require a test POST; that is reserved for
-        // the user tapping "Test" in ConnectorsScreen.
-        _state.value = ConnectorState(connected = true, statusLine = "Webhook set — ${url.take(50)}")
-        _state.value
     }
 
-    override suspend fun disconnect() {
-        authManager.clearCredential("n8n", "webhook_url")
-        _state.value = ConnectorState(connected = false, statusLine = "Disconnected")
+    override suspend fun connect(): ConnectorState = withContext(Dispatchers.IO) {
+        lifecycleMutex.withLock {
+            if (!ReleaseScopePolicy.externalAutomationIntegrationsEnabled) {
+                _state.value = ConnectorState(
+                    connected = false,
+                    healthy = false,
+                    statusLine = "Unavailable in this release",
+                    errorMessage = "External automation integrations are unavailable."
+                )
+                return@withLock _state.value
+            }
+            if (authManager.isExplicitlyDisconnected(id)) {
+                _state.value = ConnectorState(false, false, "Disconnected")
+                return@withLock _state.value
+            }
+            val rawUrl = webhookUrl()
+            if (rawUrl.isNullOrBlank()) {
+                _state.value = ConnectorState(
+                    false,
+                    false,
+                    "No webhook URL configured",
+                    errorMessage = "Configure the N8n webhook URL first."
+                )
+                return@withLock _state.value
+            }
+            val accepted = N8nWebhookUrlPolicy.validate(rawUrl)
+            if (accepted !is N8nWebhookUrlPolicy.Validation.Accepted) {
+                _state.value = ConnectorState(
+                    false,
+                    false,
+                    "Invalid webhook configuration",
+                    errorMessage = "Use HTTPS, or HTTP only for a loopback development endpoint."
+                )
+                return@withLock _state.value
+            }
+            val healthy = try {
+                val request = Request.Builder().url(accepted.healthCheck.toURL()).get().build()
+                healthClient.newCall(request).execute().use { it.isSuccessful }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.w(tag, "N8N_HEALTH_CHECK_FAILED type=${error.javaClass.simpleName}")
+                false
+            }
+            _state.value = ConnectorState(
+                connected = true,
+                healthy = healthy,
+                statusLine = if (healthy) "Connected and healthy" else "Webhook configured; health could not be confirmed",
+                lastUpdatedMs = System.currentTimeMillis(),
+                errorMessage = if (healthy) null else "N8n health check did not return a successful response."
+            )
+            _state.value
+        }
+    }
+
+    override suspend fun disconnect() = withContext(Dispatchers.IO) {
+        lifecycleMutex.withLock {
+            val disabled = authManager.setExplicitlyDisconnected(id, true)
+            val cleared = authManager.clearCredential(id, "webhook_url")
+            _state.value = ConnectorState(
+                connected = false,
+                healthy = false,
+                statusLine = if (disabled && cleared) "Disconnected" else "Disconnected; cleanup needs attention",
+                errorMessage = if (disabled && cleared) null else "Could not confirm durable disconnect cleanup."
+            )
+        }
     }
 
     override suspend fun execute(input: ConnectorInput): ConnectorOutput = withContext(Dispatchers.IO) {
-        val url = webhookUrl()
-            ?: return@withContext ConnectorOutput.Failure(
-                code    = "auth_required",
-                message = "Configure the N8n webhook URL in Connectors settings first."
-            )
-
-        return@withContext runCatching {
-            val integration = N8nIntegration(url)
-            val result = integration.sendAutomationRequest(
-                intent    = input.action,
-                action    = input.action,
-                title     = input.params["title"] ?: input.text.take(60).ifBlank { input.action },
-                priority  = input.params["priority"] ?: "medium",
-                context   = input.params["context"] ?: "general",
-                userId    = input.params["user_id"] ?: "user_001",
-                language  = input.params["language"] ?: "en",
-                sessionId = input.params["session_id"] ?: "airi-${System.currentTimeMillis()}"
-            )
-            ConnectorOutput.Success(
-                text = result ?: "N8n workflow triggered successfully.",
-                data = mapOf("action" to input.action, "webhookUrl" to url.take(60))
-            )
-        }.getOrElse { e ->
-            Log.e(TAG, "N8n execute failed: ${e.message}")
-            ConnectorOutput.Failure(
-                code      = "network_error",
-                message   = "N8n trigger failed: ${e.message}",
-                retryable = true
-            )
+        lifecycleMutex.withLock {
+            if (!ReleaseScopePolicy.externalAutomationIntegrationsEnabled) {
+                return@withLock ConnectorOutput.Failure(
+                    "integration_unavailable",
+                    "External automation integrations are unavailable in this release."
+                )
+            }
+            if (!_state.value.connected || !_state.value.healthy || authManager.isExplicitlyDisconnected(id)) {
+                return@withLock ConnectorOutput.Failure(
+                    "not_connected",
+                    "N8n is not confirmed healthy and connected.",
+                    retryable = false
+                )
+            }
+            val rawUrl = webhookUrl()
+                ?: return@withLock ConnectorOutput.Failure(
+                    "auth_required",
+                    "Configure the N8n webhook URL in Connectors settings first."
+                )
+            val accepted = N8nWebhookUrlPolicy.validate(rawUrl)
+            if (accepted !is N8nWebhookUrlPolicy.Validation.Accepted) {
+                return@withLock ConnectorOutput.Failure(
+                    "invalid_endpoint",
+                    "The N8n webhook endpoint is not allowed.",
+                    retryable = false
+                )
+            }
+            val result = try {
+                N8nIntegration(accepted.webhook.toString()).sendAutomationRequest(
+                    intent = input.action,
+                    action = input.action,
+                    title = input.params["title"] ?: input.text.take(60).ifBlank { input.action },
+                    priority = input.params["priority"] ?: "medium",
+                    context = input.params["context"] ?: "general",
+                    userId = input.params["user_id"] ?: "user_001",
+                    language = input.params["language"] ?: "en",
+                    sessionId = input.params["session_id"] ?: "airi-${System.currentTimeMillis()}"
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.e(tag, "N8N_EXECUTION_FAILED type=${error.javaClass.simpleName}")
+                null
+            }
+            if (result == null) {
+                ConnectorOutput.Failure("network_error", "N8n did not confirm the workflow request.", retryable = true)
+            } else {
+                ConnectorOutput.Success(
+                    text = result.ifBlank { "N8n workflow triggered successfully." },
+                    data = mapOf("action" to input.action)
+                )
+            }
         }
     }
 }

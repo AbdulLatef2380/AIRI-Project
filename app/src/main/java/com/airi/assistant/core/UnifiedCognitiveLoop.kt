@@ -537,10 +537,10 @@ class UnifiedCognitiveLoop {
         if (skillId !in directCognitiveSkills) return null
         val bridge = cognitiveSkillBridge
             ?: return CommandResult(false, "Cognitive skill bridge is unavailable.")
-        val output = bridge.invoke("skill_$skillId", params)
-        val failed = output.startsWith("Skill '") || output.startsWith("No skill found")
-        Log.i(TAG, "UCL_COGNITIVE_SKILL skill=$skillId success=${!failed} outputChars=${output.length}")
-        return CommandResult(!failed, output)
+        val result = bridge.invoke("skill_$skillId", params)
+        val output = com.airi.assistant.ai.skills.SkillToolResultFormatter.format(result)
+        Log.i(TAG, "UCL_COGNITIVE_SKILL skill=$skillId success=${result.success} outputChars=${output.length}")
+        return CommandResult(result.success, output)
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

@@ -1503,7 +1503,8 @@
     <string name="attachment_text_extraction_failed">AIRI 无法读取所选文本文件。文件已保留；请选择可读取的文件后重试。</string>
     <string name="attachment_multiple_images_unsupported">当前路径无法同时处理所有选定图像。附件已保留；请选择支持多图的视觉服务，或减少图像数量。</string>
     <string name="attachment_dispatch_failed">请求未被接受。附件已保留，您可以重试。</string>
-    <string name="attachment_delivery_not_confirmed">消息已保存，但 AIRI 无法确认每个附件都已送达模型。未发布回复；请使用已验证的模型和受支持的格式重试。</string>
+    <string name="attachment_delivery_not_confirmed">消息已保存，但 AIRI 无法确认所有附件都已送达模型。当前显示的回复可能未使用这些附件；请先确认附件送达后再依赖该回复。</string>
+    <string name="chat_partial_response_saved">上方已保存部分回复，但这不是完整答案；请检查并在需要时重试。</string>
     <string name="local_endpoint_title">连接 %1$s</string>
     <string name="local_endpoint_label">服务器 URL</string>
     <string name="local_endpoint_example">例如：http://ollama.local:11434/v1</string>

@@ -2860,6 +2860,14 @@ private fun ExecutionErrorBubble(error: ExecutionErrorProjection) {
                     fontSize = 11.sp,
                     lineHeight = 15.sp
                 )
+                if (error.partialResponseSaved) {
+                    Text(
+                        text = stringResource(R.string.chat_partial_response_saved),
+                        color = AiriTheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
+                    )
+                }
             }
         }
     }

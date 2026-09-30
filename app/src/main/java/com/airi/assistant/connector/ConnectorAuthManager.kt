@@ -11,6 +11,12 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class ConnectorAuthManager(context: Context) {
     private val tag = "ConnectorAuthManager"
+    // Lifecycle intent is not a secret, so keep it separately from encrypted
+    // credentials. This makes an explicit disconnect survive process restart.
+    private val lifecyclePreferences = (context.applicationContext ?: context).getSharedPreferences(
+        "connector_lifecycle",
+        Context.MODE_PRIVATE
+    )
 
     private val securePreferences: SharedPreferences? = runCatching {
         val masterKey = MasterKey.Builder(context)
@@ -81,6 +87,16 @@ class ConnectorAuthManager(context: Context) {
         updateSecurePreferences { editor ->
             editor.remove(key(connectorId, "cred_$credentialKey"))
         }
+
+    fun isExplicitlyDisconnected(connectorId: String): Boolean =
+        lifecyclePreferences.getBoolean("disabled_$connectorId", false)
+
+    fun setExplicitlyDisconnected(connectorId: String, disconnected: Boolean): Boolean {
+        val editor = lifecyclePreferences.edit()
+        if (disconnected) editor.putBoolean("disabled_$connectorId", true)
+        else editor.remove("disabled_$connectorId")
+        return editor.commit()
+    }
 
     private fun updateSecurePreferences(update: (SharedPreferences.Editor) -> Unit): Boolean {
         val preferences = securePreferences ?: return false

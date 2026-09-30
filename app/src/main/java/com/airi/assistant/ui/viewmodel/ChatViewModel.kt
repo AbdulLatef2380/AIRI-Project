@@ -96,6 +96,7 @@ import com.airi.assistant.ai.ResponseOptimizer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -249,6 +250,7 @@ data class ExecutionErrorProjection(
     val stage: ExecutionFailureStage = ExecutionFailureStage.RESPONSE,
     val sessionId: String? = null,
     val replyToMessageId: Long? = null,
+    val partialResponseSaved: Boolean = false,
 )
 
 enum class ExecutionStage {
@@ -2154,6 +2156,37 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             Log.i("AIRI", "AGENT_LOOP_START inputChars=${trimmedInput.length} queryType=${queryType.name} planMode=${_isPlanModeActive.value}")
             val reasoningParser = ReasoningStreamParser()
 
+            suspend fun persistAssistantResponse(content: String): Boolean {
+                val safeContent = ReasoningStreamParser.extractAnswer(content).ifBlank { content }.trim()
+                if (safeContent.isBlank()) return false
+                return try {
+                    val saved = memoryManager.recordChatMessage(
+                        sessionId = sessionId,
+                        role = "assistant",
+                        content = safeContent,
+                        projectId = activeProjectId
+                    )
+                    if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
+                        _messages.update { current ->
+                            if (current.any { it.id == saved.id }) current
+                            else current + ChatMessage(
+                                text = safeContent,
+                                isUser = false,
+                                id = saved.id,
+                                execOrigin = _lastExecOrigin.value,
+                                executionSource = hybridOrchestrator.lastExecutionSource
+                            )
+                        }
+                    }
+                    true
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Log.w("AIRI_LOOP", "Could not persist partial response type=${error.javaClass.simpleName}")
+                    false
+                }
+            }
+
             try {
                 val loopResult = agentLoop.run(
                     input        = trimmedInput,
@@ -2251,6 +2284,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         return@launch
                     }
                     GenerationResponseStatus.TIMEOUT -> {
+                        val partialSaved = if (GenerationResponsePolicy.shouldPersistIncompleteResponse(responseStatus, streamedAnswer)) {
+                            persistAssistantResponse(streamedAnswer)
+                        } else false
                         _generationPhase.value = GenerationPhase.CLEANUP
                         _lastExecutionError.value = ExecutionErrorProjection(
                             executionId = "generation-$generationId",
@@ -2258,11 +2294,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             messageResId = R.string.err_agent_loop_timeout,
                             stage = ExecutionFailureStage.AGENT_LOOP,
                             sessionId = sessionId,
-                            replyToMessageId = userMessage.id
+                            replyToMessageId = userMessage.id,
+                            partialResponseSaved = partialSaved
                         )
                         return@launch
                     }
                     GenerationResponseStatus.FAILURE -> {
+                        val partialSaved = if (GenerationResponsePolicy.shouldPersistIncompleteResponse(responseStatus, streamedAnswer)) {
+                            persistAssistantResponse(streamedAnswer)
+                        } else false
                         _generationPhase.value = GenerationPhase.CLEANUP
                         val classification = ExecutionFailurePolicy.classify(
                             rawMessage = loopResult.failureMessage,
@@ -2287,7 +2327,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             messageResId = failureResId,
                             stage = classification.stage,
                             sessionId = sessionId,
-                            replyToMessageId = userMessage.id
+                            replyToMessageId = userMessage.id,
+                            partialResponseSaved = partialSaved
                         )
                         return@launch
                     }
@@ -2308,6 +2349,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 attachmentTrace?.markExecutionCompleted()
                 if (attachmentTrace != null && !attachmentTrace.isTransportSuccessful()) {
+                    persistAssistantResponse(normalizedAnswer)
                     val evidence = attachmentTrace.snapshot().joinToString { "${it.attachmentId}:${it.status}" }
                     Log.e("AIRI_ATTACHMENT", "execution completed without attachment delivery proof: $evidence")
                     attachmentTrace.reject("The completed response did not prove delivery of every attachment.")
@@ -2401,13 +2443,34 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 Log.i("AIRI", "AGENT_LOOP_COMPLETE steps=${loopResult.stepsUsed} tools=${loopResult.toolsInvoked}")
 
+            } catch (_: TimeoutCancellationException) {
+                if (isCurrentGeneration(generationId) && !_isCancelled.get()) {
+                    val partial = (streamAccumulator.toString() + reasoningParser.finish()).trim()
+                    val partialSaved = if (GenerationResponsePolicy.shouldPersistIncompleteResponse(GenerationResponseStatus.TIMEOUT, partial)) {
+                        persistAssistantResponse(partial)
+                    } else false
+                    _lastExecutionError.value = ExecutionErrorProjection(
+                        executionId = "generation-$generationId",
+                        message = appContext.getString(R.string.err_agent_loop_timeout),
+                        messageResId = R.string.err_agent_loop_timeout,
+                        stage = ExecutionFailureStage.AGENT_LOOP,
+                        sessionId = sessionId,
+                        replyToMessageId = userMessage.id,
+                        partialResponseSaved = partialSaved
+                    )
+                    _generationPhase.value = GenerationPhase.CLEANUP
+                }
             } catch (_: CancellationException) {
                 if (isCurrentGeneration(generationId)) {
                     _generationPhase.value = GenerationPhase.CANCELLED
                 }
             } catch (e: Exception) {
                 if (isCurrentGeneration(generationId) && !_isCancelled.get()) {
-                    Log.e("AIRI_LOOP", "AgentLoop failed type=${e.javaClass.simpleName} message=${e.message}", e)
+                    val partial = (streamAccumulator.toString() + reasoningParser.finish()).trim()
+                    val partialSaved = if (GenerationResponsePolicy.shouldPersistIncompleteResponse(GenerationResponseStatus.FAILURE, partial)) {
+                        persistAssistantResponse(partial)
+                    } else false
+                    Log.e("AIRI_LOOP", "AgentLoop failed type=${e.javaClass.simpleName}", e)
                     val classification = ExecutionFailurePolicy.classify(
                         rawMessage = e.message,
                         responseStarted = firstTokenReceived
@@ -2431,7 +2494,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         messageResId = messageResId,
                         stage = classification.stage,
                         sessionId = sessionId,
-                        replyToMessageId = userMessage.id
+                        replyToMessageId = userMessage.id,
+                        partialResponseSaved = partialSaved
                     )
                 }
             } finally {
@@ -4309,6 +4373,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // ── Model import / selection ──────────────────────────────────────────────
 
     fun importModel(uri: Uri) {
+        val previousState = _modelState.value
         _modelState.update { it.copy(isModelLoading = true, loadError = null, loadErrorType = LoadErrorType.NONE, loadProgress = 0) }
         viewModelScope.launch {
             try {
@@ -4321,31 +4386,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     is ValidationResult.Valid -> {
                         ModelRegistry.addModel(model)
                         persistRegistry()
-                        preferences.edit()
-                            .putString(ModelController.KEY_MODEL_ID, model.id)
-                            .putString(ModelController.KEY_MODEL_PATH, model.path)
-                            .apply()
                         refreshModelList()
                         modelController.loadModel(model)
                     }
                     else -> {
                         file.delete()
                         val (msg, type) = modelController.validationMessage(v)
-                        _modelState.update {
-                            it.copy(isModelLoading = false, isModelReady = false, loadError = msg,
-                                loadErrorType = type, loadProgress = -1, availableModels = ModelManager.getAllModels())
-                        }
+                        _modelState.value = ModelLoadRequestPolicy.rejectBeforeUnload(
+                            previous = previousState,
+                            message = msg,
+                            errorType = type,
+                            availableModels = ModelManager.getAllModels()
+                        )
                     }
                 }
             } catch (e: Exception) {
                 Log.e("AIRI_MODEL", "IMPORT FAILED: ${e.message}", e)
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_IMPORT", false, e.message ?: "unknown")
                 val msg = AppErrorHandler.capture(e, "importModel").message
-                _modelState.update {
-                    it.copy(isModelLoading = false, isModelReady = false,
-                        loadError = msg, loadErrorType = LoadErrorType.LOAD_FAILED,
-                        loadProgress = -1, availableModels = ModelManager.getAllModels())
-                }
+                _modelState.value = ModelLoadRequestPolicy.rejectBeforeUnload(
+                    previous = previousState,
+                    message = msg,
+                    errorType = LoadErrorType.LOAD_FAILED,
+                    availableModels = ModelManager.getAllModels()
+                )
             }
         }
     }
@@ -4353,7 +4417,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun selectModel(modelId: String) {
         val model = ModelRegistry.getById(modelId) ?: return
         Log.i("AIRI", "MODEL_ACTIVATED name=${model.name} id=${model.id} type=${model.type.label} path=${model.path}")
-        preferences.edit().putString(ModelController.KEY_MODEL_ID, model.id).putString(ModelController.KEY_MODEL_PATH, model.path).apply()
         modelController.loadModel(model)
     }
 
@@ -4455,7 +4518,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val model = modelController.createModelFromFile(file, ModelSource.DOWNLOADED, "chat", catalogMeta)
         ModelRegistry.addModel(model)
         persistRegistry()
-        preferences.edit().putString(ModelController.KEY_MODEL_ID, model.id).putString(ModelController.KEY_MODEL_PATH, model.path).apply()
         refreshModelList()
         modelController.loadModel(model)
     }
@@ -4528,7 +4590,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val model = modelController.createModelFromFile(file, ModelSource.DOWNLOADED, "chat", entry)
         ModelRegistry.addModel(model)
         persistRegistry()
-        preferences.edit().putString(ModelController.KEY_MODEL_ID, model.id).putString(ModelController.KEY_MODEL_PATH, model.path).apply()
         refreshModelList()
         modelController.loadModel(model)
     }

@@ -1,7 +1,7 @@
 package com.airi.assistant.tools
-
+import com.airi.assistant.domain.release.ReleaseScopePolicy
 import com.google.gson.Gson
-import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.*
@@ -57,6 +57,9 @@ class N8nIntegration(private val webhookUrl: String = "http://localhost:5678/web
         language: String = "ar",
         sessionId: String = "airi-session-${System.currentTimeMillis()}"
     ): String? = withContext(Dispatchers.IO) {
+        if (!ReleaseScopePolicy.externalAutomationIntegrationsEnabled) return@withContext null
+        val validatedUrl = N8nWebhookUrlPolicy.validate(webhookUrl) as? N8nWebhookUrlPolicy.Validation.Accepted
+            ?: return@withContext null
         
         val requestData = N8nRequest(
             intent = intent,
@@ -72,17 +75,18 @@ class N8nIntegration(private val webhookUrl: String = "http://localhost:5678/web
         val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
         
         val request = Request.Builder()
-            .url(webhookUrl)
+            .url(validatedUrl.webhook.toString())
             .post(body)
             .build()
 
         try {
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) throw IOException("Unexpected code $response")
-                return@withContext response.body?.string()
+                if (!response.isSuccessful) return@withContext null
+                return@withContext response.body?.string().orEmpty()
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            e.printStackTrace()
             return@withContext null
         }
     }

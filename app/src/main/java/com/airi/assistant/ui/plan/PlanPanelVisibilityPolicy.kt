@@ -22,7 +22,8 @@ object PlanPanelVisibilityPolicy {
             ExecutionStage.RECOVERING,
             ExecutionStage.REFLECTING,
             ExecutionStage.COMPLETED,
-            ExecutionStage.FAILED
+            ExecutionStage.FAILED,
+            ExecutionStage.CANCELLED
         )
     }
 }

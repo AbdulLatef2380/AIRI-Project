@@ -17,6 +17,8 @@ jobs:
       RELEASE_SIGNING_READY: ${{ secrets.KEYSTORE_BASE64 != '' && secrets.STORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      AIRI_VERSION_CODE: ${{ github.run_number }}
+      AIRI_VERSION_NAME: 1.0.${{ github.run_number }}
 
     steps:
     - name: Checkout Repository
@@ -64,6 +66,7 @@ jobs:
         fi
         python3 tools/verify_core_changes.py
         python3 scripts/airi_localization_health.py --strict
+        python3 scripts/airi_release_health.py
         git diff --check
 
     - name: Build and test shared core
@@ -86,7 +89,7 @@ jobs:
       run: |
         ./gradlew --no-daemon --max-workers=1 \
           '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -XX:+UseSerialGC' \
-          :app:assembleRelease --stacktrace
+          :app:assembleRelease :app:bundleRelease --stacktrace
 
     - name: Package signed release outputs
       if: github.ref == 'refs/heads/main' && env.RELEASE_SIGNING_READY == 'true'
@@ -98,7 +101,7 @@ jobs:
       run: |
         ./gradlew --no-daemon --max-workers=1 \
           '-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -XX:+UseSerialGC' \
-          :app:assembleRelease --stacktrace
+          :app:assembleRelease :app:bundleRelease --stacktrace
 
     - name: Report unavailable release signing
       if: github.ref == 'refs/heads/main' && env.RELEASE_SIGNING_READY != 'true'
@@ -134,22 +137,31 @@ jobs:
           exit 1
         fi
 
-    - name: Prepare APK-only artifact
+    - name: Prepare Android release evidence
       if: success()
       run: |
         set -euo pipefail
         mkdir -p ci-artifacts
         cp app/build/outputs/apk/debug/*.apk ci-artifacts/debug.apk
         cp app/build/outputs/apk/release/*.apk ci-artifacts/release.apk
+        cp app/build/outputs/bundle/release/*.aab ci-artifacts/release.aab
+        cp app/build/outputs/mapping/release/mapping.txt ci-artifacts/mapping.txt
         test -s ci-artifacts/debug.apk
         test -s ci-artifacts/release.apk
-        test "$(find ci-artifacts -maxdepth 1 -type f | wc -l)" -eq 2
-        test "$(find ci-artifacts -maxdepth 1 -type f -printf '%f\n' | sort | tr '\n' ' ')" = "debug.apk release.apk "
+        test -s ci-artifacts/release.aab
+        test -s ci-artifacts/mapping.txt
+        sha256sum ci-artifacts/* > ci-artifacts/SHA256SUMS
+        if [ "${RELEASE_SIGNING_READY}" = "true" ] && [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+          apksigner verify --verbose ci-artifacts/release.apk
+          apksigner verify --verbose ci-artifacts/debug.apk || true
+        else
+          cp ci-artifacts/SHA256SUMS ci-artifacts/UNSIGNED_SHA256SUMS
+        fi
 
-    - name: Upload APK-only artifact
+    - name: Upload Android release evidence
       if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: AIRI-Android-Build-Evidence
+        name: AIRI-Android-Release-Evidence
         path: ci-artifacts/
         if-no-files-found: error

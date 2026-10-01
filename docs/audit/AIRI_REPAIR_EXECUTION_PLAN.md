@@ -40,7 +40,9 @@
 - تشفير/تقليص execution history وplan snapshots وcrash reports.
 - تحسين FileProvider، accessibility، compact layouts، وoffline UX.
 
-الحالة: **مخططة، لم تبدأ**.
+الحالة: **قيد التنفيذ**.
+
+الدفعة الحالية أضافت version inputs من GitHub run number، شغّلت `airi_release_health.py` داخل بوابة المصدر، ألزمت بناء APK وAAB وmapping، ولّدت SHA-256 evidence، وأضافت Windows إلى مسار Pull Request.
 
 ## قواعد التنفيذ
 

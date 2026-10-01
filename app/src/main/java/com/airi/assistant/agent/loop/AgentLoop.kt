@@ -287,6 +287,7 @@ Do not mix tool_call JSON with prose in the same message.
                 // Execute the tool
                 val toolName = toolCall.first
                 val toolArgs = toolCall.second
+                val toolValidationError = validateToolCall(toolName, toolArgs, tools)
                 toolsInvoked.add(toolName)
                 val toolStepId = "tool_${stepsUsed}_$toolName"
                 val toolFingerprint = ToolCallFingerprint(
@@ -343,7 +344,10 @@ Do not mix tool_call JSON with prose in the same message.
                     toolName = toolName,
                     hasDurableExecutionContext = durableExecutionContext != null
                 )
-                val toolResult = if (duplicateToolCall) {
+                val toolResult = if (toolValidationError != null) {
+                    Log.w(TAG, "AIRI TOOL_REJECTED_INVALID_SCHEMA tool=$toolName reason=$toolValidationError")
+                    ToolDispatcher.ToolResult.Error(toolValidationError)
+                } else if (duplicateToolCall) {
                     Log.w(TAG, "AIRI TOOL_DUPLICATE_BLOCKED execution=$executionId tool=$toolName step=$toolStepId")
                     ToolDispatcher.ToolResult.Error("Duplicate tool call blocked for this execution step.")
                 } else when (sideEffectDecision) {
@@ -673,6 +677,30 @@ Do not mix tool_call JSON with prose in the same message.
             Log.w(TAG, "Tool-call parsing failed: ${e.javaClass.simpleName}")
             null
         }
+    }
+
+    /**
+     * Validate model output against the exact capability set supplied to this
+     * run. The prompt is advisory; this is the enforcement boundary.
+     */
+    private fun validateToolCall(
+        toolName: String,
+        args: Map<String, String>,
+        tools: List<ToolSchema>,
+    ): String? {
+        val schema = tools.firstOrNull { it.name == toolName }
+            ?: return "Tool '$toolName' is not available in this session."
+        val unknown = args.keys - schema.parameters.keys
+        if (unknown.isNotEmpty()) {
+            return "Tool '$toolName' received unsupported parameters: ${unknown.sorted().joinToString(", ")}."
+        }
+        val missing = schema.parameters
+            .filter { (name, parameter) -> parameter.required && args[name].isNullOrBlank() }
+            .keys
+        if (missing.isNotEmpty()) {
+            return "Tool '$toolName' is missing required parameters: ${missing.sorted().joinToString(", ")}."
+        }
+        return null
     }
 
     // ── Tool schema → system prompt block ─────────────────────────────────────

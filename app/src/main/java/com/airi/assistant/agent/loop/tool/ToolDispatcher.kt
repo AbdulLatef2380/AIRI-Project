@@ -203,8 +203,14 @@ class ToolDispatcher(
                             }
                             ToolResult.Success("Memory results (semantic):\n$formatted")
                         }
+                    } else if (sessionId.isBlank()) {
+                        // Never fall back to a database-wide recent query. A
+                        // missing session identity is an authorization failure,
+                        // not permission to read another conversation.
+                        Log.w(TAG, "MEMORY_RECALL_BLOCKED reason=missing_session_scope")
+                        ToolResult.Error("Memory session is unavailable; refusing an unscoped recall.")
                     } else {
-                        val recent = manager.getRecentMessages(5)
+                        val recent = manager.getRecentMessages(sessionId, 5)
                         Log.i(TAG, "MEMORY_RECALL mode=recent queryChars=${query.length} hits=${recent.size}")
                         if (recent.isEmpty()) {
                             ToolResult.Success("No memories found for: $query")

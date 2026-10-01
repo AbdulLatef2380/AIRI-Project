@@ -323,13 +323,14 @@ fun registerNativeApkVerification(variant: String) {
     val taskName = "airiVerifyNativeIn${variant.replaceFirstChar { it.titlecase() }}Apk"
     tasks.register(taskName) {
         group = "verification"
-        description = "Asserts lib/arm64-v8a/libairi_native.so is present in the $variant APK."
+        val abi = if (variant.equals("debug", ignoreCase = true)) "x86_64" else "arm64-v8a"
+        description = "Asserts lib/$abi/libairi_native.so is present in the $variant APK."
         doLast {
             val apkDir = layout.buildDirectory.dir("outputs/apk/$variant").get().asFile
             val apk = apkDir.listFiles { file -> file.extension == "apk" }
                 ?.maxByOrNull { it.lastModified() }
                 ?: error("AIRI_VERIFY_NATIVE: no $variant APK found at ${apkDir.absolutePath}")
-            val target = "lib/arm64-v8a/libairi_native.so"
+            val target = "lib/$abi/libairi_native.so"
             ZipFile(apk).use { archive ->
                 val entry = archive.getEntry(target)
                     ?: error("AIRI_VERIFY_NATIVE: $target is absent from ${apk.name}")

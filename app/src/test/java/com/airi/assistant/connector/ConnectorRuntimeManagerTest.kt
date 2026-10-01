@@ -77,6 +77,19 @@ class ConnectorRuntimeManagerTest {
         assertTrue(runtime.execute("lifecycle", ConnectorInput(action = "read")) is ConnectorOutput.Success)
     }
 
+    @Test
+    fun reRegistrationDoesNotSilentlyClearExplicitDisconnectBarrier() = runBlocking {
+        val registry = ConnectorRegistry()
+        registry.register(FakeConnector(id = "replaced", initiallyHealthy = true))
+        assertTrue(registry.disconnect("replaced"))
+
+        registry.register(FakeConnector(id = "replaced", initiallyHealthy = true))
+        val blocked = ConnectorRuntimeManager(registry)
+            .execute("replaced", ConnectorInput(action = "read"))
+
+        assertEquals("not_connected", (blocked as ConnectorOutput.Failure).code)
+    }
+
     private class ApprovalConnector : Connector {
         override val id = "approval"
         override val name = "Approval connector"

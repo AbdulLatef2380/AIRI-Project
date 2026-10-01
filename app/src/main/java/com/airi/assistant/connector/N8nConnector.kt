@@ -181,7 +181,9 @@ class N8nConnector(
                 null
             }
             if (result == null) {
-                ConnectorOutput.Failure("network_error", "N8n did not confirm the workflow request.", retryable = true)
+                // A POST may have reached n8n even when the response was lost;
+                // retrying here can duplicate the automation side effect.
+                ConnectorOutput.Failure("network_error", "N8n did not confirm the workflow request; outcome is unknown.", retryable = false)
             } else {
                 ConnectorOutput.Success(
                     text = result.ifBlank { "N8n workflow triggered successfully." },

@@ -81,8 +81,10 @@ class ConnectorRegistry(
     fun register(connector: Connector) {
         require(connector.id.isNotBlank()) { "Connector id must not be blank" }
         store[connector.id] = connector
-        explicitlyDisconnected.remove(connector.id)
-        lifecycleGeneration[connector.id] = 0L
+        // Registration is not a user connect action. Preserve an explicit
+        // disconnect barrier and advance the generation so in-flight work
+        // from the previous instance cannot authorize the new one.
+        lifecycleGeneration[connector.id] = (lifecycleGeneration[connector.id] ?: 0L) + 1L
         registrationOrder.putIfAbsent(connector.id, sequence.getAndIncrement())
         recomputeMeta()
     }
@@ -100,6 +102,12 @@ class ConnectorRegistry(
     fun get(id: String): Connector? = store[id]
 
     fun isExplicitlyDisconnected(id: String): Boolean = explicitlyDisconnected.contains(id)
+
+    /** Snapshot used by runtimes to reject work invalidated during reconnect/disconnect. */
+    fun lifecycleToken(id: String): Long = lifecycleGeneration[id] ?: 0L
+
+    fun isExecutionAllowed(id: String, token: Long): Boolean =
+        store.containsKey(id) && lifecycleGeneration[id] == token && !isExplicitlyDisconnected(id)
 
     suspend fun connect(id: String): ConnectorState = lifecycleMutex.withLock {
         val connector = get(id) ?: return ConnectorState(false, false, errorMessage = "Connector not registered")

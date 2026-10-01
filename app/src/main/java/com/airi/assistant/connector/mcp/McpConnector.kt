@@ -9,6 +9,7 @@ import com.airi.assistant.connector.ConnectorType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CancellationException
 
 /**
  * Abstract base for Model Context Protocol connectors.
@@ -82,14 +83,17 @@ abstract class McpConnector(
             ?: return ConnectorOutput.Failure(
                 code = "unknown_tool", message = "Tool '$toolName' not found on '$id'",
             )
-        return runCatching { invoke(tool, input.text, input.params) }
-            .getOrElse { e ->
-                ConnectorOutput.Failure(
-                    code = "tool_failed",
-                    message = "${tool.name}: ${e.message ?: e.javaClass.simpleName}",
-                    retryable = true,
-                )
-            }
+        return try {
+            invoke(tool, input.text, input.params)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            ConnectorOutput.Failure(
+                code = "tool_failed",
+                message = "${tool.name}: ${e.message ?: e.javaClass.simpleName}",
+                retryable = true,
+            )
+        }
     }
 
     /** Subclass: open the transport, perform MCP handshake, return true

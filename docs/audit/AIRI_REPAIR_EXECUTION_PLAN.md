@@ -25,7 +25,9 @@
 - إغلاق SSRF والـredirect/DNS ومشاكل HTTP resource lifecycle.
 - تنظيف orphaned attachments وRoom corruption/backup recovery.
 
-الحالة: **مخططة، لم تبدأ**.
+الحالة: **قيد التنفيذ**.
+
+الدفعة الحالية أغلقت ابتلاع `CancellationException` في MCP، ومنعت retry العمياء بعد نتيجة webhook غير محسومة، وأبقت حاجز disconnect عبر إعادة التسجيل، وأضافت generation check قبل تشغيل الموصل.
 
 ### الحزمة الثالثة — الإصدار وCI وUX والخصوصية
 

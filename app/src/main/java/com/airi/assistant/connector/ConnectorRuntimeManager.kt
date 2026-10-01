@@ -37,6 +37,7 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
         if (registry.isExplicitlyDisconnected(connectorId)) {
             return ConnectorOutput.Failure("not_connected", "Connector '$connectorId' was explicitly disconnected", retryable = false)
         }
+        val lifecycleToken = registry.lifecycleToken(connectorId)
         val connector = registry.get(connectorId)
             ?: return ConnectorOutput.Failure("not_found", "Connector '$connectorId' not registered")
         val operationId = invocationSequence.incrementAndGet()
@@ -51,6 +52,13 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
                         "unhealthy",
                         "Connector '$connectorId' is not healthy after connection check",
                         retryable = true
+                    )
+                }
+                if (!registry.isExecutionAllowed(connectorId, lifecycleToken)) {
+                    return@withTimeout ConnectorOutput.Failure(
+                        "not_connected",
+                        "Connector '$connectorId' changed lifecycle before execution",
+                        retryable = false
                     )
                 }
                 executeWithRetry(connector, input, maxRetries.coerceIn(0, MAX_RETRIES))

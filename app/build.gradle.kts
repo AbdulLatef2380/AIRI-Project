@@ -24,8 +24,16 @@ android {
         applicationId = "com.airi.assistant"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // CI supplies a monotonic run number for distributable artifacts;
+        // local builds remain reproducible when the variable is absent.
+        versionCode = System.getenv("AIRI_VERSION_CODE")
+            ?.toIntOrNull()
+            ?.takeIf { it > 0 }
+            ?: 1
+        versionName = System.getenv("AIRI_VERSION_NAME")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         vectorDrawables {

@@ -11,6 +11,15 @@ on:
       - "settings.gradle.kts"
       - "gradlew.bat"
       - ".github/workflows/desktop_windows.yml"
+  pull_request:
+    paths:
+      - "app-desktop/**"
+      - "core-domain/**"
+      - "gradle/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradlew.bat"
+      - ".github/workflows/desktop_windows.yml"
   workflow_dispatch:
 
 jobs:

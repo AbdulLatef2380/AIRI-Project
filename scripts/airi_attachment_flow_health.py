@@ -19,13 +19,13 @@ def main() -> int:
     content = VIEW_MODEL.read_text(encoding="utf-8")
     failures: list[str] = []
 
-    require(content, "private fun sendMessageInternal(input: String, allowLongTextConversion: Boolean)", "Missing explicit long-text conversion boundary", failures)
-    require(content, "if (allowLongTextConversion && trimmedInput.length >= LONG_TEXT_THRESHOLD)", "Long-text conversion is not explicitly gated", failures)
-    require(content, "sendMessageWithAttachments(\n                    input = summary,", "Long-text conversion does not use the attachment send path", failures)
-    require(content, "sizeBytes = trimmedInput.toByteArray(Charsets.UTF_8).size.toLong()", "Long-text attachment lacks source size metadata", failures)
-    require(content, "sendMessageInternal(fullText, allowLongTextConversion = false)", "Text attachments can be recursively converted", failures)
+    require(content, "private fun sendMessageInternal(\n        input: String,\n        allowLongTextConversion: Boolean,", "Missing explicit long-text conversion boundary", failures)
+    require(content, "if (allowLongTextConversion && LongTextAttachmentPolicy.shouldAutoConvert(trimmedInput))", "Long-text conversion is not explicitly gated", failures)
+    require(content, "attachments = listOf(\n                        ChatAttachment(", "Long-text conversion does not use the attachment send path", failures)
+    require(content, "sizeBytes = LongTextAttachmentPolicy.utf8SizeBytes(trimmedInput)", "Long-text attachment lacks source size metadata", failures)
+    require(content, "fullText,\n                    allowLongTextConversion = false,", "Text attachments can be recursively converted", failures)
 
-    conversion_start = content.find("if (allowLongTextConversion && trimmedInput.length >= LONG_TEXT_THRESHOLD)")
+    conversion_start = content.find("if (allowLongTextConversion && LongTextAttachmentPolicy.shouldAutoConvert(trimmedInput))")
     conversion_end = content.find("// ── Intent classification", conversion_start)
     conversion_block = content[conversion_start:conversion_end]
     if "stageAttachmentUri(fileUri)" in conversion_block:

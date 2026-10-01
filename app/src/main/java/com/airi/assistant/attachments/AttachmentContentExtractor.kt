@@ -56,7 +56,7 @@ object AttachmentContentExtractor {
             for (entry in entries) {
                 if (output.length >= maxChars) break
                 val xml = zip.getInputStream(entry).bufferedReader(Charsets.UTF_8).use { reader ->
-                    reader.readText().take(maxChars - output.length)
+                    readBounded(reader, maxChars - output.length)
                 }
                 // OOXML text is carried primarily in <t> nodes. WordprocessingML
                 // normally prefixes that element as <w:t>; accept an optional
@@ -73,6 +73,18 @@ object AttachmentContentExtractor {
             }
         }
         return output.toString().replace(Regex("[ \\t]+"), " ").trim().take(maxChars)
+    }
+
+    private fun readBounded(reader: java.io.Reader, limit: Int): String {
+        if (limit <= 0) return ""
+        val bounded = StringBuilder(limit)
+        val buffer = CharArray(minOf(2_048, limit))
+        while (bounded.length < limit) {
+            val count = reader.read(buffer, 0, minOf(buffer.size, limit - bounded.length))
+            if (count <= 0) break
+            bounded.append(buffer, 0, count)
+        }
+        return bounded.toString()
     }
 
     private fun decodeXml(value: String): String = value

@@ -20,9 +20,9 @@ def has_bounded_text_attachment_read(chat: str) -> bool:
     required_fragments = (
         "bufferedReader().use { reader ->",
         "val bounded = StringBuilder()",
-        "while (bounded.length < readLimit)",
+        "while (bounded.length < maxRead)",
         "reader.read(buffer",
-        "readLimit - bounded.length",
+        "maxRead - bounded.length",
     )
     return all(fragment in chat for fragment in required_fragments)
 

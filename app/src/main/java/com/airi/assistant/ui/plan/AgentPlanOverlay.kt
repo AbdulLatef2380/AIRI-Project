@@ -80,6 +80,7 @@ fun AgentPlanOverlay(
     val goal by planViewModel.goalDescription.collectAsStateWithLifecycle()
     val traceEntries by planViewModel.traceEntries.collectAsStateWithLifecycle()
     val panelTitle = stringResource(R.string.execution_steps_label)
+    val latestSignalsLabel = stringResource(R.string.agent_plan_latest_signals)
     val stageText = stageLabel(stage)
     val completed = steps.count { it.status == PlanStepStatus.COMPLETED }
     val terminal = steps.count { it.status.isTerminal }
@@ -159,7 +160,7 @@ fun AgentPlanOverlay(
                         .clip(RoundedCornerShape(9.dp))
                         .background(AiriTheme.outline.copy(alpha = 0.22f))
                         .padding(horizontal = 10.dp, vertical = 8.dp)
-                        .semantics { contentDescription = stringResource(R.string.agent_plan_latest_signals) },
+                        .semantics { contentDescription = latestSignalsLabel },
                 ) {
                     Text(
                         stringResource(R.string.agent_plan_latest_signals),
@@ -282,6 +283,7 @@ private fun stepIcon(status: PlanStepStatus) = when (status) {
     PlanStepStatus.CANCELLED -> Icons.Outlined.Close
 }
 
+@Composable
 private fun stepColor(status: PlanStepStatus, accent: Color): Color = when (status) {
     PlanStepStatus.QUEUED -> AiriTheme.onSurface.copy(alpha = 0.38f)
     PlanStepStatus.RUNNING -> accent

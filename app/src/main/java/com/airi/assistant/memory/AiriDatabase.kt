@@ -223,9 +223,10 @@ abstract class AiriDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): AiriDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = buildDatabase(context)
-                INSTANCE = instance
-                instance
+                // Re-check inside the monitor. Without this second check two
+                // callers that observed null before entering the monitor can
+                // build separate Room handles for the same SQLite file.
+                INSTANCE ?: buildDatabase(context).also { INSTANCE = it }
             }
         }
 

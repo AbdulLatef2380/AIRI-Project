@@ -152,8 +152,10 @@ jobs:
         test -s ci-artifacts/mapping.txt
         sha256sum ci-artifacts/* > ci-artifacts/SHA256SUMS
         if [ "${RELEASE_SIGNING_READY}" = "true" ] && [ "${GITHUB_REF}" = "refs/heads/main" ]; then
-          apksigner verify --verbose ci-artifacts/release.apk
-          apksigner verify --verbose ci-artifacts/debug.apk || true
+          APKSIGNER="${ANDROID_HOME:-${ANDROID_SDK_ROOT}}/build-tools/36.0.0/apksigner"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose ci-artifacts/release.apk
+          "$APKSIGNER" verify --verbose ci-artifacts/debug.apk || true
         else
           cp ci-artifacts/SHA256SUMS ci-artifacts/UNSIGNED_SHA256SUMS
         fi

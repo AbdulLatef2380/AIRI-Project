@@ -43,6 +43,15 @@ object PrivacyGuard {
             )
         }
 
+        // Text redaction cannot make raw image/file bytes safe. Balanced
+        // privacy therefore fails closed for native attachments; callers may
+        // still use extracted text or explicitly opt into PERFORMANCE.
+        if (request.imageParts.isNotEmpty() || request.inlineDataParts.isNotEmpty()) {
+            return SanitizationResult.Blocked(
+                reason = "PrivacyGuard: raw attachments require explicit performance privacy opt-in"
+            )
+        }
+
         val stripped = mutableListOf<String>()
         val prompt = sanitizeText(request.prompt, stripped).limitTo(
             MAX_CLOUD_PROMPT_CHARS,

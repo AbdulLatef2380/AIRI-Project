@@ -44,6 +44,20 @@
 
 الدفعة الحالية أضافت version inputs من GitHub run number، شغّلت `airi_release_health.py` داخل بوابة المصدر، ألزمت بناء APK وAAB وmapping، ولّدت SHA-256 evidence، وأضافت Windows إلى مسار Pull Request.
 
+### الحزمة الرابعة — الإثبات التشغيلي وما قبل الإطلاق
+
+الأولوية: P1/P2 runtime-proof وcompatibility.
+
+- إثبات حدود PrivacyGuard مع الصور والملفات، وعدم تمرير raw attachment إلى cloud دون opt-in.
+- جعل native verification واعياً بالـvariant/ABI، ثم تثبيته باختبار build فعلي.
+- تشغيل migration/Room وattachment وplan snapshot وsecure-store instrumentation على Android.
+- تثبيت اختبارات process death وoffline/provider failure وfont-scale/RTL حيث تسمح بيئة CI.
+- فصل البنود التي تتطلب هاتف ARM64 أو OAuth/provider حي أو Play Console إلى `EXTERNAL_PENDING` بدلاً من ادعاء إغلاقها.
+
+الحالة: **قيد التنفيذ**.
+
+هذه ليست بالضرورة آخر مرحلة؛ بعد اكتمالها تأتي **مرحلة خامسة اختيارية** لإعادة التدقيق الكامل، إغلاق findings المتبقية، وتثبيت قرار GA أو سجل المخاطر المقبولة.
+
 ## قواعد التنفيذ
 
 1. كل إصلاح يملك اختبار انحدار أو دليل تحقق مناسب.

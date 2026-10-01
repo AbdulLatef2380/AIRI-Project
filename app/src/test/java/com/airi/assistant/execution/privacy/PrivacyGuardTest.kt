@@ -72,4 +72,25 @@ class PrivacyGuardTest {
         assertEquals(request, result.sanitized)
         assertTrue(result.strippedItems.isEmpty())
     }
+
+    @Test
+    fun balancedPrivacyBlocksRawCloudAttachments() {
+        val result = PrivacyGuard.evaluate(
+            request = ExecutionRequest(
+                prompt = "describe this image",
+                imageParts = listOf(
+                    ExecutionRequest.ImagePart(
+                        attachmentId = "photo-1",
+                        mimeType = "image/jpeg",
+                        base64Data = "c2Vuc2l0aXZl"
+                    )
+                )
+            ),
+            privacyLevel = PrivacyLevel.BALANCED,
+            execMode = ExecutionMode.CLOUD_ONLY
+        )
+
+        assertTrue(result is SanitizationResult.Blocked)
+        assertTrue((result as SanitizationResult.Blocked).reason.contains("raw attachments"))
+    }
 }

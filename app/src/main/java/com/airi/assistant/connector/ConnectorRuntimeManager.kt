@@ -37,7 +37,7 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
         if (registry.isExplicitlyDisconnected(connectorId)) {
             return ConnectorOutput.Failure("not_connected", "Connector '$connectorId' was explicitly disconnected", retryable = false)
         }
-        val lifecycleToken = registry.lifecycleToken(connectorId)
+        var lifecycleToken = registry.lifecycleToken(connectorId)
         val connector = registry.get(connectorId)
             ?: return ConnectorOutput.Failure("not_found", "Connector '$connectorId' not registered")
         val operationId = invocationSequence.incrementAndGet()
@@ -54,6 +54,11 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
                         retryable = true
                     )
                 }
+                // A legitimate health reconnect advances the registry
+                // generation. Capture that new token before the race check;
+                // a disconnect after this point still changes it and is
+                // rejected below.
+                lifecycleToken = registry.lifecycleToken(connectorId)
                 if (!registry.isExecutionAllowed(connectorId, lifecycleToken)) {
                     return@withTimeout ConnectorOutput.Failure(
                         "not_connected",

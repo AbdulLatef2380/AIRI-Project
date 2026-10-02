@@ -15,14 +15,16 @@ class ConnectorToolBridge(
         val action: ConnectorAgentAction,
     )
 
-    fun asToolSchemas(): List<ToolSchema> = bindings()
+    fun asToolSchemas(): List<ToolSchema> = bindings(onlyExecutable = true)
         .map { (toolName, binding) -> binding.toSchema(toolName) }
         .sortedBy { it.name }
 
-    fun handles(toolName: String): Boolean = bindings().containsKey(toolName)
+    /** Keep known bindings resolvable after a disconnect so runtime returns a
+     * stable not_connected result instead of misclassifying the call as unknown. */
+    fun handles(toolName: String): Boolean = bindings(onlyExecutable = false).containsKey(toolName)
 
     suspend fun invoke(toolName: String, args: Map<String, String>): ConnectorOutput {
-        val binding = bindings()[toolName]
+        val binding = bindings(onlyExecutable = false)[toolName]
             ?: return ConnectorOutput.Failure("unknown_tool", "Unknown connector tool: $toolName")
         val text = args["text"] ?: args["query"].orEmpty()
         return runtime.execute(
@@ -35,10 +37,10 @@ class ConnectorToolBridge(
         )
     }
 
-    private fun bindings(): Map<String, Binding> = buildMap {
+    private fun bindings(onlyExecutable: Boolean): Map<String, Binding> = buildMap {
         registry.all().forEach { connector ->
             val state = connector.state().value
-            if (!state.connected || !state.healthy) return@forEach
+            if (onlyExecutable && (!state.connected || !state.healthy)) return@forEach
             connector.agentActions()
                 .filter { it.id.isNotBlank() && it.permission == ConnectorPermissionLevel.READ }
                 .forEach { action ->

@@ -38,6 +38,20 @@ class ConnectorToolBridgeTest {
         assertEquals("list_repos", connector.lastAction)
     }
 
+    @Test
+    fun knownToolRemainsResolvableAfterDisconnectAndReturnsStableFailure() = runBlocking {
+        val registry = ConnectorRegistry()
+        val connector = TestConnector("github", connected = true, healthy = true)
+        registry.register(connector)
+        val bridge = ConnectorToolBridge(registry, ConnectorRuntimeManager(registry))
+        registry.disconnect("github")
+
+        assertFalse(bridge.asToolSchemas().any { it.name == "connector_github_list_repos" })
+        assertTrue(bridge.handles("connector_github_list_repos"))
+        val result = bridge.invoke("connector_github_list_repos", emptyMap())
+        assertEquals("not_connected", (result as ConnectorOutput.Failure).code)
+    }
+
     private class TestConnector(
         override val id: String,
         private val connected: Boolean,

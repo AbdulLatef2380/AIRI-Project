@@ -47,6 +47,24 @@ class GitHubConnector(
     override val type        = ConnectorType.APP
     private val _state = MutableStateFlow(ConnectorState(connected = false, statusLine = "Not connected"))
     override fun meta() = ConnectorMeta(id, name, description, type, "https://github.com/favicon.ico", listOf("git","code","repo","issues"))
+    override fun agentActions() = listOf(
+        ConnectorAgentAction("list_repos", "List repositories available to the authorized GitHub account."),
+        ConnectorAgentAction("list_issues", "List issues for a repository.", parameters = mapOf(
+            "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true)
+        )),
+        ConnectorAgentAction("search_code", "Search code in authorized repositories.", parameters = mapOf(
+            "query" to ConnectorAgentParameter(description = "Code search query", required = true),
+            "repo" to ConnectorAgentParameter(description = "Optional owner/name repository")
+        )),
+        ConnectorAgentAction("get_file", "Read a file from a repository.", parameters = mapOf(
+            "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true),
+            "path" to ConnectorAgentParameter(description = "Repository file path", required = true)
+        )),
+        ConnectorAgentAction("list_prs", "List pull requests for a repository.", parameters = mapOf(
+            "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true)
+        )),
+        ConnectorAgentAction("status", "Return the current GitHub connection status."),
+    )
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
     override suspend fun connect(): ConnectorState = withContext(Dispatchers.IO) {

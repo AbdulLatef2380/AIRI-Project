@@ -62,7 +62,27 @@ interface Connector {
     /** Execute a single agent action. Must NOT throw on user-visible
      *  errors — return [ConnectorOutput.Failure] instead. */
     suspend fun execute(input: ConnectorInput): ConnectorOutput
+
+    /**
+     * Actions that may be exposed to AgentLoop. Empty preserves compatibility
+     * for connectors that have not opted into the canonical tool bridge yet.
+     * Implementations must describe permission and parameters honestly.
+     */
+    fun agentActions(): List<ConnectorAgentAction> = emptyList()
 }
+
+data class ConnectorAgentAction(
+    val id: String,
+    val description: String,
+    val permission: ConnectorPermissionLevel = ConnectorPermissionLevel.READ,
+    val parameters: Map<String, ConnectorAgentParameter> = emptyMap(),
+)
+
+data class ConnectorAgentParameter(
+    val type: String = "string",
+    val description: String = "",
+    val required: Boolean = false,
+)
 
 /**
  * The four buckets the UI presents as tabs (API / Apps / MCP / System) plus

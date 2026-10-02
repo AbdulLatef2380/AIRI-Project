@@ -10,6 +10,7 @@ import com.airi.assistant.agent.loop.tool.ToolSchema
 import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.core.ExecutionStatusBus
+import com.airi.assistant.core.UniversalRuntimeTraceRecorder
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.AgentPromptTokenEstimator
 import com.airi.assistant.execution.ExecutionIdentity
@@ -27,7 +28,6 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import java.util.UUID
 import kotlinx.coroutines.isActive
-import org.json.JSONObject
 import kotlin.coroutines.coroutineContext
 
 /**
@@ -68,6 +68,10 @@ class AgentLoop(
     private val agentSandbox: com.airi.assistant.security.AgentSandbox? = null,
     /** Typed local proposal runtime; only calendar creation is eligible today. */
     private val calendarCreateRuntime: CalendarCreateRuntime? = null,
+    /** PHASE 0 diagnostics; null keeps existing callers behaviorally unchanged. */
+    private val runtimeTrace: UniversalRuntimeTraceRecorder? = null,
+    /** Generic runtime capability provider; it is diagnostic-only and connector-agnostic. */
+    private val capabilitySnapshotProvider: () -> List<com.airi.assistant.core.CapabilitySnapshotEntry> = { emptyList() },
     private val timeoutMs: Long = TIMEOUT_MS
 ) {
     companion object {
@@ -138,6 +142,8 @@ Do not mix tool_call JSON with prose in the same message.
         executionContextFactory: AgentLoopExecutionContextFactory? = null
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
+        val permissionProfile = com.airi.assistant.core.AgentPermissionProfile.resolve(queryType, modelId, providerId)
+        val effectiveTools = permissionProfile.filterTools(tools)
         val toolsInvoked = mutableListOf<String>()
         val history      = priorConversation.mapNotNull { turn ->
             when (turn.role.lowercase()) {
@@ -150,19 +156,30 @@ Do not mix tool_call JSON with prose in the same message.
         var stepsUsed    = 0
         val executionId   = UUID.randomUUID().toString()
         val requestIdentity = ChatExecutionIdentityContract.create(sessionId, executionId)
+        val traceId = runtimeTrace?.begin(
+            executionId = executionId,
+            sessionId = sessionId,
+            modelId = modelId,
+            providerId = providerId,
+            executionMode = if (providerId.isBlank()) "local_or_default" else "cloud_or_routed",
+            input = input,
+            tools = effectiveTools,
+            additionalCapabilities = runCatching { capabilitySnapshotProvider() }.getOrDefault(emptyList()),
+            permissionProfile = permissionProfile,
+        )
         val toolLedger = ToolCallLedger()
         var isPlanPublished = false
         var durableExecutionContext: AgentLoopExecutionContext? = null
         var activeToolTrace: ActiveToolTrace? = null
 
-        val fullSystemPrompt = systemPrompt + "\n\n" + buildToolBlock(tools) + TOOL_CALL_INSTRUCTION
+        val fullSystemPrompt = systemPrompt + "\n\n" + buildToolBlock(effectiveTools) + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
         // Register ownership before any completion/cancellation event. The bus
         // rejects terminal events from unknown execution ids; without this start
         // event a previous run can leave isWorking=true on the chat screen.
         ExecutionStatusBus.onGraphStarted(
             goalDescription = input.take(80),
-            totalNodes = if (tools.isEmpty()) 1 else MAX_STEPS,
+            totalNodes = if (effectiveTools.isEmpty()) 1 else MAX_STEPS,
             executionId = executionId,
         )
         isPlanPublished = true
@@ -170,12 +187,12 @@ Do not mix tool_call JSON with prose in the same message.
         try {
             return withTimeout(timeoutMs.coerceAtLeast(1L)) {
             // If no tools provided, single-pass inference.
-            if (tools.isEmpty()) {
+            if (effectiveTools.isEmpty()) {
                 val response = callLLM(
                     prompt = input,
                     systemPrompt = systemPrompt,
                     history = history,
-                    tools = tools,
+                    tools = effectiveTools,
                     queryType = queryType,
                     modelId = modelId,
                     providerId = providerId,
@@ -186,6 +203,14 @@ Do not mix tool_call JSON with prose in the same message.
                     identity = requestIdentity,
                     localHistoryStartIndex = priorHistoryCount,
                 )
+                runtimeTrace?.modelResponse(
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    response = response,
+                    containsToolCallCandidate = response.contains("tool_call"),
+                    parserInputClassification = "single_pass"
+                )
+                runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = if (response.isBlank()) "NO_RESPONSE" else "SUCCESS")
                 return@withTimeout if (response.isBlank()) {
                     ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
                     LoopResult("", 1, emptyList(), terminalState = TerminalState.NO_RESPONSE)
@@ -209,7 +234,7 @@ Do not mix tool_call JSON with prose in the same message.
                     prompt       = "", // history carries the full context
                     systemPrompt = fullSystemPrompt,
                     history      = history,
-                    tools        = tools,
+                    tools        = effectiveTools,
                     queryType    = queryType,
                     modelId = modelId,
                     providerId = providerId,
@@ -225,19 +250,42 @@ Do not mix tool_call JSON with prose in the same message.
                 )
 
                 Log.d(TAG, "Agent step completed: step=$stepsUsed responseChars=${rawResponse.length}")
+                runtimeTrace?.modelResponse(
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    response = rawResponse,
+                    containsToolCallCandidate = rawResponse.contains("tool_call"),
+                    parserInputClassification = "agent_step"
+                )
                 if (rawResponse.isBlank()) {
+                    runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = "NO_RESPONSE")
                     ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
                     return@withTimeout LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.NO_RESPONSE)
                 }
 
                 // Parse: tool_call block or final answer?
-                var toolCall = parseToolCall(rawResponse)
+                var parseResult = com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(rawResponse)
+                var toolCall = (parseResult as? com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call)
+                    ?.let { it.name to it.args }
+                runtimeTrace?.parser(
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    parsed = toolCall != null,
+                    toolName = toolCall?.first,
+                    reason = when (parseResult) {
+                        is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Invalid -> parseResult.reason.name
+                        com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.NotAToolCall -> "NO_CANDIDATE"
+                        is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call -> null
+                    },
+                )
 
                 // Retry: if the response looks like a malformed tool call (contains
                 // "tool_call" text but JSON parsing failed), ask the model to re-emit
                 // only the JSON. This handles cases where the model wraps the JSON in
                 // prose or uses a slightly wrong format on the first attempt.
-                if (toolCall == null && rawResponse.contains("tool_call") && stepsUsed < MAX_STEPS) {
+                if (parseResult is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Invalid &&
+                    rawResponse.contains("tool_call") && stepsUsed < MAX_STEPS
+                ) {
                     Log.w(TAG, "AIRI TOOL_CALL_PARSE_RETRY step=$stepsUsed — response had 'tool_call' text but parse failed; retrying")
                     val retryPrompt = "[SYSTEM] Your previous response contained a tool_call but the JSON was malformed. " +
                         "Reply with ONLY a valid JSON object in this exact format, no other text:\n" +
@@ -251,7 +299,7 @@ Do not mix tool_call JSON with prose in the same message.
                             prompt       = "",
                             systemPrompt = fullSystemPrompt,
                             history      = retryHistory,
-                            tools        = tools,
+                            tools        = effectiveTools,
                             queryType      = queryType,
                             modelId = modelId,
                             providerId = providerId,
@@ -269,7 +317,29 @@ Do not mix tool_call JSON with prose in the same message.
                         ""
                     }
                     if (retryResponse.isNotBlank()) {
-                        toolCall = parseToolCall(retryResponse)
+                        parseResult = com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(retryResponse)
+                        toolCall = (parseResult as? com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call)
+                            ?.let { it.name to it.args }
+                        runtimeTrace?.modelResponse(
+                            executionId = executionId,
+                            sessionId = sessionId,
+                            response = retryResponse,
+                            containsToolCallCandidate = retryResponse.contains("tool_call"),
+                            parserInputClassification = "tool_call_retry",
+                        )
+                        runtimeTrace?.parser(
+                            executionId = executionId,
+                            sessionId = sessionId,
+                            parsed = toolCall != null,
+                            toolName = toolCall?.first,
+                            reason = when (parseResult) {
+                                is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Invalid ->
+                                    "RETRY_${parseResult.reason.name}"
+                                com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.NotAToolCall ->
+                                    "RETRY_NO_CANDIDATE"
+                                is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call -> null
+                            },
+                        )
                         if (toolCall != null) {
                             Log.i(TAG, "AIRI TOOL_CALL_RETRY_OK step=$stepsUsed tool=${toolCall.first}")
                         }
@@ -280,6 +350,7 @@ Do not mix tool_call JSON with prose in the same message.
                     // Final answer — LLM decided it's done (or retry also failed)
                     history.add(ConversationTurn.Assistant(rawResponse))
                     onStepComplete(StepEvent.FinalAnswer(rawResponse, stepsUsed))
+                    runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = "SUCCESS")
                     ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
                     return@withTimeout LoopResult(rawResponse, stepsUsed, toolsInvoked)
                 }
@@ -287,7 +358,34 @@ Do not mix tool_call JSON with prose in the same message.
                 // Execute the tool
                 val toolName = toolCall.first
                 val toolArgs = toolCall.second
-                val toolValidationError = validateToolCall(toolName, toolArgs, tools)
+                val toolValidationError = validateToolCall(toolName, toolArgs, effectiveTools)
+                runtimeTrace?.selected(
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    toolName = toolName,
+                    valid = toolValidationError == null,
+                )
+                runtimeTrace?.capabilityStage(
+                    executionId, sessionId, toolName,
+                    com.airi.assistant.core.CapabilityRuntimeStage.MODEL_SELECTED,
+                    if (toolValidationError == null) "selected" else "rejected",
+                )
+                val selectedToolSchema = effectiveTools.firstOrNull { it.name == toolName }
+                if (selectedToolSchema != null) {
+                    val actualPath = when {
+                        toolName.startsWith("skill_") -> com.airi.assistant.core.RuntimeExecutionPath.SKILL_BRIDGE
+                        toolName.startsWith("connector_") -> com.airi.assistant.core.RuntimeExecutionPath.CONNECTOR_RUNTIME
+                        else -> com.airi.assistant.core.RuntimeExecutionPath.TOOL_DISPATCHER
+                    }
+                    runtimeTrace?.pathResolved(
+                        executionId = executionId,
+                        sessionId = sessionId,
+                        route = com.airi.assistant.core.UniversalExecutionPathResolver.resolve(
+                            tool = selectedToolSchema,
+                            runtimePath = actualPath,
+                        )
+                    )
+                }
                 toolsInvoked.add(toolName)
                 val toolStepId = "tool_${stepsUsed}_$toolName"
                 val toolFingerprint = ToolCallFingerprint(
@@ -385,6 +483,12 @@ Do not mix tool_call JSON with prose in the same message.
                         }
                     }
                     AgentLoopSideEffectPolicy.Decision.ALLOW_READ -> try {
+                        runtimeTrace?.dispatched(executionId, sessionId, toolName, "agent_sandbox_or_tool_dispatcher")
+                        runtimeTrace?.capabilityStage(
+                            executionId, sessionId, toolName,
+                            com.airi.assistant.core.CapabilityRuntimeStage.EXECUTED,
+                            "dispatch_started",
+                        )
                         // Route read-only tools through AgentSandbox when available so
                         // permission checks and workspace logging remain applied.
                         if (agentSandbox != null) {
@@ -412,6 +516,20 @@ Do not mix tool_call JSON with prose in the same message.
                 }
 
                 val toolDurationMs = System.currentTimeMillis() - toolStartedAtMs
+                runtimeTrace?.executionCompleted(
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    toolName = toolName,
+                    success = toolResult is ToolDispatcher.ToolResult.Success,
+                    durationMs = toolDurationMs,
+                    resultLength = resultText.length,
+                    errorCategory = (toolResult as? ToolDispatcher.ToolResult.Error)?.message,
+                )
+                runtimeTrace?.capabilityStage(
+                    executionId, sessionId, toolName,
+                    com.airi.assistant.core.CapabilityRuntimeStage.EXECUTED,
+                    if (toolResult is ToolDispatcher.ToolResult.Success) "success" else "failure",
+                )
                 when (toolResult) {
                     is ToolDispatcher.ToolResult.Success -> ExecutionStatusBus.onToolCompleted(
                         executionId = executionId,
@@ -449,6 +567,18 @@ Do not mix tool_call JSON with prose in the same message.
                 // sees what it asked for and what it got back.
                 history.add(ConversationTurn.Assistant(rawResponse))
                 history.add(ConversationTurn.ToolResult(toolName, effectiveResult))
+                runtimeTrace?.resultReturned(executionId, sessionId, toolName)
+                runtimeTrace?.capabilityStage(
+                    executionId, sessionId, toolName,
+                    com.airi.assistant.core.CapabilityRuntimeStage.RESULT_RETURNED,
+                    "returned_to_model_context",
+                )
+                runtimeTrace?.continuation(executionId, sessionId, continued = stepsUsed < MAX_STEPS, terminalState = "TOOL_RESULT_RETURNED")
+                runtimeTrace?.capabilityStage(
+                    executionId, sessionId, toolName,
+                    com.airi.assistant.core.CapabilityRuntimeStage.MODEL_CONTINUED,
+                    if (stepsUsed < MAX_STEPS) "continued" else "terminal",
+                )
                 if (toolResult is ToolDispatcher.ToolResult.Error && stepsUsed < MAX_STEPS) {
                     val healing = SelfHealingExecutor.recoverFromToolError(
                         failedToolName = toolName,
@@ -633,50 +763,6 @@ Do not mix tool_call JSON with prose in the same message.
 
         if (error != null) throw RuntimeException(error)
         return buf.toString().trim()
-    }
-
-    // ── Tool call parsing ──────────────────────────────────────────────────────
-
-    /**
-     * Extract tool name and args from the model's response.
-     * Returns null if the response is a plain-text final answer.
-     *
-     * Accepted formats (model might wrap in prose before the JSON):
-     *   {"tool_call":{"name":"calendar_read","args":{"days":"7"}}}
-     */
-    private fun parseToolCall(response: String): Pair<String, Map<String, String>>? {
-        // P1-3: Strip markdown code fences before searching for JSON.
-        // Some models wrap their tool_call JSON in ```json ... ``` or ``` ... ```.
-        // The regex removes the opening fence (with optional language tag) and the
-        // closing fence, leaving the raw JSON for the brace-depth parser below.
-        val cleaned = response
-            .replace(Regex("```(?:json)?\\s*", RegexOption.IGNORE_CASE), "")
-            .replace("```", "")
-            .trim()
-
-        val start = cleaned.indexOf("{\"tool_call\"")
-        if (start == -1) return null
-        return try {
-            // Find the matching closing brace
-            var depth = 0
-            var end = start
-            for (i in start until cleaned.length) {
-                when (cleaned[i]) {
-                    '{' -> depth++
-                    '}' -> { depth--; if (depth == 0) { end = i; break } }
-                }
-            }
-            val jsonStr = cleaned.substring(start, end + 1)
-            val root    = JSONObject(jsonStr).getJSONObject("tool_call")
-            val name    = root.getString("name")
-            val argsObj = root.optJSONObject("args") ?: org.json.JSONObject()
-            val args    = mutableMapOf<String, String>()
-            for (key in argsObj.keys()) args[key] = argsObj.optString(key)
-            name to args
-        } catch (e: Exception) {
-            Log.w(TAG, "Tool-call parsing failed: ${e.javaClass.simpleName}")
-            null
-        }
     }
 
     /**

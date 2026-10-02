@@ -63,6 +63,20 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
         website = "https://www.google.com",
         documentationUrl = "https://developers.google.com/identity/protocols/oauth2",
     )
+    override fun agentActions() = listOf(
+        ConnectorAgentAction("gmail_list", "List authorized Gmail messages.", parameters = mapOf(
+            "max_results" to ConnectorAgentParameter(type = "int", description = "Maximum messages to list")
+        )),
+        ConnectorAgentAction("gmail_read", "Read an authorized Gmail message.", parameters = mapOf(
+            "message_id" to ConnectorAgentParameter(description = "Gmail message ID", required = true)
+        )),
+        ConnectorAgentAction("calendar_list", "List upcoming authorized Google Calendar events.", parameters = mapOf(
+            "days" to ConnectorAgentParameter(type = "int", description = "Days ahead to query")
+        )),
+        ConnectorAgentAction("drive_search", "Search authorized Google Drive files.", parameters = mapOf(
+            "query" to ConnectorAgentParameter(description = "Drive search query", required = true)
+        )),
+    )
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
     private val http = OkHttpClient.Builder()

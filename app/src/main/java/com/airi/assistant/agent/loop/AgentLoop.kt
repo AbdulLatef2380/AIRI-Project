@@ -10,6 +10,7 @@ import com.airi.assistant.agent.loop.tool.ToolSchema
 import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.core.ExecutionStatusBus
+import com.airi.assistant.core.UniversalRuntimeTraceRecorder
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.AgentPromptTokenEstimator
 import com.airi.assistant.execution.ExecutionIdentity
@@ -68,6 +69,10 @@ class AgentLoop(
     private val agentSandbox: com.airi.assistant.security.AgentSandbox? = null,
     /** Typed local proposal runtime; only calendar creation is eligible today. */
     private val calendarCreateRuntime: CalendarCreateRuntime? = null,
+    /** PHASE 0 diagnostics; null keeps existing callers behaviorally unchanged. */
+    private val runtimeTrace: UniversalRuntimeTraceRecorder? = null,
+    /** Generic runtime capability provider; it is diagnostic-only and connector-agnostic. */
+    private val capabilitySnapshotProvider: () -> List<com.airi.assistant.core.CapabilitySnapshotEntry> = { emptyList() },
     private val timeoutMs: Long = TIMEOUT_MS
 ) {
     companion object {
@@ -150,6 +155,16 @@ Do not mix tool_call JSON with prose in the same message.
         var stepsUsed    = 0
         val executionId   = UUID.randomUUID().toString()
         val requestIdentity = ChatExecutionIdentityContract.create(sessionId, executionId)
+        val traceId = runtimeTrace?.begin(
+            executionId = executionId,
+            sessionId = sessionId,
+            modelId = modelId,
+            providerId = providerId,
+            executionMode = if (providerId.isBlank()) "local_or_default" else "cloud_or_routed",
+            input = input,
+            tools = tools,
+            additionalCapabilities = runCatching { capabilitySnapshotProvider() }.getOrDefault(emptyList()),
+        )
         val toolLedger = ToolCallLedger()
         var isPlanPublished = false
         var durableExecutionContext: AgentLoopExecutionContext? = null
@@ -186,6 +201,14 @@ Do not mix tool_call JSON with prose in the same message.
                     identity = requestIdentity,
                     localHistoryStartIndex = priorHistoryCount,
                 )
+                runtimeTrace?.modelResponse(
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    response = response,
+                    containsToolCallCandidate = response.contains("tool_call"),
+                    parserInputClassification = "single_pass"
+                )
+                runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = if (response.isBlank()) "NO_RESPONSE" else "SUCCESS")
                 return@withTimeout if (response.isBlank()) {
                     ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
                     LoopResult("", 1, emptyList(), terminalState = TerminalState.NO_RESPONSE)
@@ -225,13 +248,28 @@ Do not mix tool_call JSON with prose in the same message.
                 )
 
                 Log.d(TAG, "Agent step completed: step=$stepsUsed responseChars=${rawResponse.length}")
+                runtimeTrace?.modelResponse(
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    response = rawResponse,
+                    containsToolCallCandidate = rawResponse.contains("tool_call"),
+                    parserInputClassification = "agent_step"
+                )
                 if (rawResponse.isBlank()) {
+                    runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = "NO_RESPONSE")
                     ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
                     return@withTimeout LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.NO_RESPONSE)
                 }
 
                 // Parse: tool_call block or final answer?
                 var toolCall = parseToolCall(rawResponse)
+                runtimeTrace?.parser(
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    parsed = toolCall != null,
+                    toolName = toolCall?.first,
+                    reason = if (toolCall == null) "no_tool_call_json" else null,
+                )
 
                 // Retry: if the response looks like a malformed tool call (contains
                 // "tool_call" text but JSON parsing failed), ask the model to re-emit
@@ -280,6 +318,7 @@ Do not mix tool_call JSON with prose in the same message.
                     // Final answer — LLM decided it's done (or retry also failed)
                     history.add(ConversationTurn.Assistant(rawResponse))
                     onStepComplete(StepEvent.FinalAnswer(rawResponse, stepsUsed))
+                    runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = "SUCCESS")
                     ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
                     return@withTimeout LoopResult(rawResponse, stepsUsed, toolsInvoked)
                 }
@@ -288,6 +327,12 @@ Do not mix tool_call JSON with prose in the same message.
                 val toolName = toolCall.first
                 val toolArgs = toolCall.second
                 val toolValidationError = validateToolCall(toolName, toolArgs, tools)
+                runtimeTrace?.selected(
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    toolName = toolName,
+                    valid = toolValidationError == null,
+                )
                 toolsInvoked.add(toolName)
                 val toolStepId = "tool_${stepsUsed}_$toolName"
                 val toolFingerprint = ToolCallFingerprint(
@@ -385,6 +430,7 @@ Do not mix tool_call JSON with prose in the same message.
                         }
                     }
                     AgentLoopSideEffectPolicy.Decision.ALLOW_READ -> try {
+                        runtimeTrace?.dispatched(executionId, sessionId, toolName, "agent_sandbox_or_tool_dispatcher")
                         // Route read-only tools through AgentSandbox when available so
                         // permission checks and workspace logging remain applied.
                         if (agentSandbox != null) {
@@ -412,6 +458,15 @@ Do not mix tool_call JSON with prose in the same message.
                 }
 
                 val toolDurationMs = System.currentTimeMillis() - toolStartedAtMs
+                runtimeTrace?.executionCompleted(
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    toolName = toolName,
+                    success = toolResult is ToolDispatcher.ToolResult.Success,
+                    durationMs = toolDurationMs,
+                    resultLength = resultText.length,
+                    errorCategory = (toolResult as? ToolDispatcher.ToolResult.Error)?.message,
+                )
                 when (toolResult) {
                     is ToolDispatcher.ToolResult.Success -> ExecutionStatusBus.onToolCompleted(
                         executionId = executionId,
@@ -449,6 +504,8 @@ Do not mix tool_call JSON with prose in the same message.
                 // sees what it asked for and what it got back.
                 history.add(ConversationTurn.Assistant(rawResponse))
                 history.add(ConversationTurn.ToolResult(toolName, effectiveResult))
+                runtimeTrace?.resultReturned(executionId, sessionId, toolName)
+                runtimeTrace?.continuation(executionId, sessionId, continued = stepsUsed < MAX_STEPS, terminalState = "TOOL_RESULT_RETURNED")
                 if (toolResult is ToolDispatcher.ToolResult.Error && stepsUsed < MAX_STEPS) {
                     val healing = SelfHealingExecutor.recoverFromToolError(
                         failedToolName = toolName,

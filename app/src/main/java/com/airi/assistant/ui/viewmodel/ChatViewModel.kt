@@ -32,6 +32,7 @@ import com.airi.assistant.core.debug.GenerationPhase
 import com.airi.assistant.core.debug.ModeSource
 import com.airi.assistant.core.debug.RuntimeDiagnosticsState
 import com.airi.assistant.core.debug.RuntimeEventLog
+import com.airi.assistant.core.UniversalRuntimeTraceRecorder
 import com.airi.assistant.core.debug.ThermalLevel
 import com.airi.assistant.ai.ModelCapabilities
 import com.airi.assistant.ai.ModelCatalog
@@ -494,6 +495,45 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         },
         skillToolBridge = skillToolBridge
     )
+    /** PHASE 0: universal, redacted runtime evidence; it does not alter execution. */
+    private val universalRuntimeTrace = UniversalRuntimeTraceRecorder { event ->
+        val severity = when {
+            event.outcome == "failure" || event.outcome == "rejected" -> EventSeverity.WARN
+            else -> EventSeverity.INFO
+        }
+        RuntimeEventLog.post(
+            subsystem = "RUNTIME_TRACE",
+            severity = severity,
+            reason = "trace=${event.traceId.take(8)} exec=${event.executionId.take(8)} " +
+                "seq=${event.sequence} type=${event.eventType.name} outcome=${event.outcome} " +
+                "tools=${event.toolNames.joinToString(",").take(96)}"
+        )
+    }
+    /**
+     * PHASE 0 catalog snapshot. It enumerates the registry/catalog generically;
+     * it does not infer auth or permission and never reads credentials.
+     */
+    private fun universalCapabilitySnapshot(): List<com.airi.assistant.core.CapabilitySnapshotEntry> =
+        runCatching {
+            val registry = com.airi.assistant.core.ServiceLocator.connectorRegistry
+            registry.catalogMeta().map { meta ->
+                val connector = registry.get(meta.id)
+                val state = connector?.state()?.value
+                com.airi.assistant.core.CapabilitySnapshotEntry(
+                    id = meta.id,
+                    kind = "connector",
+                    exists = true,
+                    registered = connector != null,
+                    connected = state?.connected ?: false,
+                    authenticated = null,
+                    healthy = state?.healthy,
+                    permitted = null,
+                    executable = connector != null && state?.connected == true && state?.healthy == true,
+                    modelCompatible = null,
+                    exposed = false,
+                )
+            }
+        }.getOrDefault(emptyList())
     val agentLoop                        = com.airi.assistant.agent.loop.AgentLoop(
         orchestrator          = hybridOrchestrator,
         dispatcher            = toolDispatcher,
@@ -504,7 +544,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // : wire AgentSandbox so every tool dispatch is permission-checked
         // and workspace-logged before execution.
         agentSandbox          = com.airi.assistant.core.ServiceLocator.agentSandbox,
-        calendarCreateRuntime = com.airi.assistant.core.ServiceLocator.calendarCreateRuntime
+        calendarCreateRuntime = com.airi.assistant.core.ServiceLocator.calendarCreateRuntime,
+        runtimeTrace          = universalRuntimeTrace,
+        capabilitySnapshotProvider = ::universalCapabilitySnapshot,
     )
 
     // ── Plan Mode — step-by-step planning instruction injected into system prompt ──

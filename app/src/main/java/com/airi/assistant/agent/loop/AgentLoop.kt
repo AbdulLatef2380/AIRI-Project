@@ -142,6 +142,8 @@ Do not mix tool_call JSON with prose in the same message.
         executionContextFactory: AgentLoopExecutionContextFactory? = null
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
+        val permissionProfile = com.airi.assistant.core.AgentPermissionProfile.resolve(queryType, modelId, providerId)
+        val effectiveTools = permissionProfile.filterTools(tools)
         val toolsInvoked = mutableListOf<String>()
         val history      = priorConversation.mapNotNull { turn ->
             when (turn.role.lowercase()) {
@@ -161,22 +163,23 @@ Do not mix tool_call JSON with prose in the same message.
             providerId = providerId,
             executionMode = if (providerId.isBlank()) "local_or_default" else "cloud_or_routed",
             input = input,
-            tools = tools,
+            tools = effectiveTools,
             additionalCapabilities = runCatching { capabilitySnapshotProvider() }.getOrDefault(emptyList()),
+            permissionProfile = permissionProfile,
         )
         val toolLedger = ToolCallLedger()
         var isPlanPublished = false
         var durableExecutionContext: AgentLoopExecutionContext? = null
         var activeToolTrace: ActiveToolTrace? = null
 
-        val fullSystemPrompt = systemPrompt + "\n\n" + buildToolBlock(tools) + TOOL_CALL_INSTRUCTION
+        val fullSystemPrompt = systemPrompt + "\n\n" + buildToolBlock(effectiveTools) + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
         // Register ownership before any completion/cancellation event. The bus
         // rejects terminal events from unknown execution ids; without this start
         // event a previous run can leave isWorking=true on the chat screen.
         ExecutionStatusBus.onGraphStarted(
             goalDescription = input.take(80),
-            totalNodes = if (tools.isEmpty()) 1 else MAX_STEPS,
+            totalNodes = if (effectiveTools.isEmpty()) 1 else MAX_STEPS,
             executionId = executionId,
         )
         isPlanPublished = true
@@ -184,12 +187,12 @@ Do not mix tool_call JSON with prose in the same message.
         try {
             return withTimeout(timeoutMs.coerceAtLeast(1L)) {
             // If no tools provided, single-pass inference.
-            if (tools.isEmpty()) {
+            if (effectiveTools.isEmpty()) {
                 val response = callLLM(
                     prompt = input,
                     systemPrompt = systemPrompt,
                     history = history,
-                    tools = tools,
+                    tools = effectiveTools,
                     queryType = queryType,
                     modelId = modelId,
                     providerId = providerId,
@@ -231,7 +234,7 @@ Do not mix tool_call JSON with prose in the same message.
                     prompt       = "", // history carries the full context
                     systemPrompt = fullSystemPrompt,
                     history      = history,
-                    tools        = tools,
+                    tools        = effectiveTools,
                     queryType    = queryType,
                     modelId = modelId,
                     providerId = providerId,
@@ -296,7 +299,7 @@ Do not mix tool_call JSON with prose in the same message.
                             prompt       = "",
                             systemPrompt = fullSystemPrompt,
                             history      = retryHistory,
-                            tools        = tools,
+                            tools        = effectiveTools,
                             queryType      = queryType,
                             modelId = modelId,
                             providerId = providerId,
@@ -355,14 +358,19 @@ Do not mix tool_call JSON with prose in the same message.
                 // Execute the tool
                 val toolName = toolCall.first
                 val toolArgs = toolCall.second
-                val toolValidationError = validateToolCall(toolName, toolArgs, tools)
+                val toolValidationError = validateToolCall(toolName, toolArgs, effectiveTools)
                 runtimeTrace?.selected(
                     executionId = executionId,
                     sessionId = sessionId,
                     toolName = toolName,
                     valid = toolValidationError == null,
                 )
-                val selectedToolSchema = tools.firstOrNull { it.name == toolName }
+                runtimeTrace?.capabilityStage(
+                    executionId, sessionId, toolName,
+                    com.airi.assistant.core.CapabilityRuntimeStage.MODEL_SELECTED,
+                    if (toolValidationError == null) "selected" else "rejected",
+                )
+                val selectedToolSchema = effectiveTools.firstOrNull { it.name == toolName }
                 if (selectedToolSchema != null) {
                     val actualPath = when {
                         toolName.startsWith("skill_") -> com.airi.assistant.core.RuntimeExecutionPath.SKILL_BRIDGE
@@ -476,6 +484,11 @@ Do not mix tool_call JSON with prose in the same message.
                     }
                     AgentLoopSideEffectPolicy.Decision.ALLOW_READ -> try {
                         runtimeTrace?.dispatched(executionId, sessionId, toolName, "agent_sandbox_or_tool_dispatcher")
+                        runtimeTrace?.capabilityStage(
+                            executionId, sessionId, toolName,
+                            com.airi.assistant.core.CapabilityRuntimeStage.EXECUTED,
+                            "dispatch_started",
+                        )
                         // Route read-only tools through AgentSandbox when available so
                         // permission checks and workspace logging remain applied.
                         if (agentSandbox != null) {
@@ -511,6 +524,11 @@ Do not mix tool_call JSON with prose in the same message.
                     durationMs = toolDurationMs,
                     resultLength = resultText.length,
                     errorCategory = (toolResult as? ToolDispatcher.ToolResult.Error)?.message,
+                )
+                runtimeTrace?.capabilityStage(
+                    executionId, sessionId, toolName,
+                    com.airi.assistant.core.CapabilityRuntimeStage.EXECUTED,
+                    if (toolResult is ToolDispatcher.ToolResult.Success) "success" else "failure",
                 )
                 when (toolResult) {
                     is ToolDispatcher.ToolResult.Success -> ExecutionStatusBus.onToolCompleted(
@@ -550,7 +568,17 @@ Do not mix tool_call JSON with prose in the same message.
                 history.add(ConversationTurn.Assistant(rawResponse))
                 history.add(ConversationTurn.ToolResult(toolName, effectiveResult))
                 runtimeTrace?.resultReturned(executionId, sessionId, toolName)
+                runtimeTrace?.capabilityStage(
+                    executionId, sessionId, toolName,
+                    com.airi.assistant.core.CapabilityRuntimeStage.RESULT_RETURNED,
+                    "returned_to_model_context",
+                )
                 runtimeTrace?.continuation(executionId, sessionId, continued = stepsUsed < MAX_STEPS, terminalState = "TOOL_RESULT_RETURNED")
+                runtimeTrace?.capabilityStage(
+                    executionId, sessionId, toolName,
+                    com.airi.assistant.core.CapabilityRuntimeStage.MODEL_CONTINUED,
+                    if (stepsUsed < MAX_STEPS) "continued" else "terminal",
+                )
                 if (toolResult is ToolDispatcher.ToolResult.Error && stepsUsed < MAX_STEPS) {
                     val healing = SelfHealingExecutor.recoverFromToolError(
                         failedToolName = toolName,

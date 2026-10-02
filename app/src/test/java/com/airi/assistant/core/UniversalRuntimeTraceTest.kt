@@ -34,6 +34,10 @@ class UniversalRuntimeTraceTest {
         assertEquals(true, snapshot.capabilities.single().exposed)
         assertEquals(null, snapshot.capabilities.single().connected)
         assertTrue(recorder.events.any { it.eventType == UniversalTraceEventType.TOOLS_EXPOSED })
+        assertTrue(recorder.events.any {
+            it.eventType == UniversalTraceEventType.CAPABILITY_STAGE_RECORDED &&
+                it.attributes["stage"] == CapabilityRuntimeStage.EXPOSED_TO_MODEL.name
+        })
     }
 
     @Test

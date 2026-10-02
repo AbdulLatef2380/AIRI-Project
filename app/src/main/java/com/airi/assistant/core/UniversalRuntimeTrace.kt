@@ -27,6 +27,7 @@ class UniversalRuntimeTraceRecorder(
         input: String,
         tools: List<com.airi.assistant.agent.loop.tool.ToolSchema>,
         additionalCapabilities: List<CapabilitySnapshotEntry> = emptyList(),
+        permissionProfile: AgentPermissionProfile? = null,
     ): String {
         val traceId = UUID.randomUUID().toString()
         synchronized(lock) {
@@ -58,7 +59,7 @@ class UniversalRuntimeTraceRecorder(
                 "provider" to RuntimeTraceRedaction.token(providerId),
                 "model" to RuntimeTraceRedaction.token(modelId),
                 "executionMode" to executionMode,
-            )
+            ) + (permissionProfile?.summary()?.mapKeys { (key, _) -> "permission.$key" } ?: emptyMap())
         )
         val snapshot = additionalCapabilities + tools.map { tool ->
             CapabilitySnapshotEntry(
@@ -84,6 +85,7 @@ class UniversalRuntimeTraceRecorder(
             outcome = "resolved",
             capabilities = snapshot,
             attributes = mapOf("toolCount" to tools.size.toString())
+                .plus(permissionProfile?.summary()?.mapKeys { (key, _) -> "permission.$key" } ?: emptyMap())
         )
         record(
             traceId = traceId,
@@ -110,6 +112,25 @@ class UniversalRuntimeTraceRecorder(
                 "schema.${tool.name}.size" to RuntimeTraceRedaction.schemaSize(tool).toString()
             }
         )
+        tools.forEach { tool ->
+            capabilityStage(executionId, sessionId, tool.name, CapabilityRuntimeStage.EXPOSED_TO_MODEL, "exposed")
+        }
+        additionalCapabilities.forEach { capability ->
+            val stages = listOf(
+                CapabilityRuntimeStage.EXISTS to capability.exists,
+                CapabilityRuntimeStage.REGISTERED to capability.registered,
+                CapabilityRuntimeStage.CONNECTED to capability.connected,
+                CapabilityRuntimeStage.AUTHENTICATED to capability.authenticated,
+                CapabilityRuntimeStage.HEALTHY to capability.healthy,
+                CapabilityRuntimeStage.PERMITTED to capability.permitted,
+                CapabilityRuntimeStage.EXECUTABLE to capability.executable,
+                CapabilityRuntimeStage.MODEL_COMPATIBLE to capability.modelCompatible,
+                CapabilityRuntimeStage.EXPOSED_TO_MODEL to capability.exposed,
+            )
+            stages.forEach { (stage, value) ->
+                capabilityStage(executionId, sessionId, capability.id, stage, value?.toString() ?: "unknown")
+            }
+        }
         return traceId
     }
 
@@ -231,6 +252,23 @@ class UniversalRuntimeTraceRecorder(
         attributes = mapOf("terminalState" to terminalState)
     )
 
+    /** Evidence event for the request-scoped capability matrix. */
+    fun capabilityStage(
+        executionId: String,
+        sessionId: String,
+        capabilityId: String,
+        stage: CapabilityRuntimeStage,
+        outcome: String,
+    ) = record(
+        eventType = UniversalTraceEventType.CAPABILITY_STAGE_RECORDED,
+        executionId = executionId,
+        sessionId = sessionId,
+        component = "CapabilitySurface",
+        outcome = RuntimeTraceRedaction.safeReason(outcome),
+        toolNames = listOf(capabilityId),
+        attributes = mapOf("capabilityId" to capabilityId, "stage" to stage.name),
+    )
+
     fun uiProjection(executionId: String, sessionId: String, outcome: String) = record(
         eventType = UniversalTraceEventType.UI_PROJECTION_COMPLETED,
         executionId = executionId,
@@ -275,6 +313,7 @@ enum class UniversalTraceEventType {
     MODEL_CONTEXT_RESOLVED,
     CAPABILITY_SNAPSHOT_RESOLVED,
     CAPABILITY_FILTERED,
+    CAPABILITY_STAGE_RECORDED,
     TOOLS_EXPOSED,
     MODEL_REQUEST_BUILT,
     MODEL_RESPONSE_RECEIVED,
@@ -286,6 +325,22 @@ enum class UniversalTraceEventType {
     RESULT_RETURNED,
     MODEL_CONTINUATION_COMPLETED,
     UI_PROJECTION_COMPLETED,
+}
+
+enum class CapabilityRuntimeStage {
+    EXISTS,
+    REGISTERED,
+    CONNECTED,
+    AUTHENTICATED,
+    HEALTHY,
+    PERMITTED,
+    EXECUTABLE,
+    MODEL_COMPATIBLE,
+    EXPOSED_TO_MODEL,
+    MODEL_SELECTED,
+    EXECUTED,
+    RESULT_RETURNED,
+    MODEL_CONTINUED,
 }
 
 data class CapabilitySnapshotEntry(

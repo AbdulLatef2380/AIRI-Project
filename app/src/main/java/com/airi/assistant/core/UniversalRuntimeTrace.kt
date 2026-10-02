@@ -173,6 +173,24 @@ class UniversalRuntimeTraceRecorder(
         attributes = mapOf("executionPath" to path)
     )
 
+    fun pathResolved(
+        executionId: String,
+        sessionId: String,
+        route: UniversalExecutionPath,
+    ) = record(
+        eventType = UniversalTraceEventType.EXECUTION_PATH_RESOLVED,
+        executionId = executionId,
+        sessionId = sessionId,
+        component = "UniversalExecutionPathResolver",
+        outcome = route.classification.name.lowercase(),
+        toolNames = listOf(route.toolName),
+        attributes = buildMap {
+            put("expectedPath", route.expectedPath.name)
+            put("actualPath", route.actualPath.name)
+            route.connectorId?.let { put("connectorId", it) }
+        }
+    )
+
     fun executionCompleted(
         executionId: String,
         sessionId: String,

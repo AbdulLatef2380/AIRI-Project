@@ -333,6 +333,22 @@ Do not mix tool_call JSON with prose in the same message.
                     toolName = toolName,
                     valid = toolValidationError == null,
                 )
+                val selectedToolSchema = tools.firstOrNull { it.name == toolName }
+                if (selectedToolSchema != null) {
+                    val actualPath = if (toolName.startsWith("skill_")) {
+                        com.airi.assistant.core.RuntimeExecutionPath.SKILL_BRIDGE
+                    } else {
+                        com.airi.assistant.core.RuntimeExecutionPath.TOOL_DISPATCHER
+                    }
+                    runtimeTrace?.pathResolved(
+                        executionId = executionId,
+                        sessionId = sessionId,
+                        route = com.airi.assistant.core.UniversalExecutionPathResolver.resolve(
+                            tool = selectedToolSchema,
+                            runtimePath = actualPath,
+                        )
+                    )
+                }
                 toolsInvoked.add(toolName)
                 val toolStepId = "tool_${stepsUsed}_$toolName"
                 val toolFingerprint = ToolCallFingerprint(

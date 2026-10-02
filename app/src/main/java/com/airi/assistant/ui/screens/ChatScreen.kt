@@ -110,6 +110,7 @@ import kotlinx.coroutines.withContext
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.airi.assistant.ui.text.BidiAwareMarkdownRenderer
+import com.airi.assistant.ui.text.ContentAwareMessageRenderer
 import com.airi.assistant.ui.components.ThinkingAnimation
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.draw.drawWithContent
@@ -2575,11 +2576,17 @@ fun AiBubble(
                             .padding(horizontal = 2.dp, vertical = 2.dp)
                     ) {
                         CompositionLocalProvider(LocalLayoutDirection provides textDirection) {
-                            if (isSelectingText) {
-                                SelectionContainer { BidiAwareMarkdownRenderer(text = text, modifier = Modifier.fillMaxWidth()) }
-                            } else {
-                                BidiAwareMarkdownRenderer(text = text, modifier = Modifier.fillMaxWidth())
+                            val renderContent: @Composable () -> Unit = {
+                                ContentAwareMessageRenderer(
+                                    text = text,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onCopyCode = { code ->
+                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI code", code))
+                                    },
+                                )
                             }
+                            if (isSelectingText) SelectionContainer { renderContent() } else renderContent()
                         }
                     }
 
@@ -2889,7 +2896,7 @@ fun AiStreamingBubble(text: String) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp).padding(top = 1.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
                     CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection(text)) {
-                        BidiAwareMarkdownRenderer(text = text, modifier = Modifier.fillMaxWidth(), isStreaming = true)
+                        ContentAwareMessageRenderer(text = text, modifier = Modifier.fillMaxWidth(), isStreaming = true)
                     }
                     BlinkingCursor()
                 }

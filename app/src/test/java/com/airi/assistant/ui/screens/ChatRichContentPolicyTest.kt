@@ -14,6 +14,14 @@ class ChatRichContentPolicyTest {
     }
 
     @Test fun codeBlockGetsFullscreenViewerEvenWhenShort() {
-        assertTrue(ChatRichContentPolicy.needsFullscreen("```json\n{\"ok\":true}\n```"))
+        assertTrue(ChatRichContentPolicy.needsFullscreen("```json\n{\"ok\":true}\n```") )
+    }
+
+    @Test fun structuredJsonGetsFullscreenViewerWithoutFence() {
+        assertTrue(ChatRichContentPolicy.needsFullscreen("{\"model\":\"airi\"}"))
+    }
+
+    @Test fun markdownTableGetsFullscreenViewer() {
+        assertTrue(ChatRichContentPolicy.needsFullscreen("| A | B |\n|---|---|\n| 1 | 2 |"))
     }
 }

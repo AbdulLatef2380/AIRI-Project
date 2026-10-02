@@ -55,11 +55,48 @@ object QueryClassifier {
         "لماذا", "كيف يعمل", "لخّص", "ناقش", "خطوة بخطوة"
     )
 
+    private val LIVE_DEVICE_PATTERNS = listOf(
+        "what time", "current time", "time is it", "today's date",
+        "كم الساعة", "الساعة الآن", "الوقت الآن", "التاريخ اليوم"
+    )
+
+    private val CONNECTOR_TARGETS = listOf(
+        "github", "gitlab", "telegram", "gmail", "google calendar", "calendar",
+        "slack", "discord", "notion", "repository", "repositories", "repo",
+        "الموصل", "موصل", "مستودع", "مستودعات", "البريد", "التقويم", "رسائل"
+    )
+
+    private val CONNECTOR_ACTIONS = listOf(
+        "list", "show", "read", "check", "find", "search", "get", "access",
+        "اعرض", "اقرأ", "تحقق", "ابحث", "أحضر", "الوصول", "افتح"
+    )
+
+    /** Pure intent predicate; kept separate from Android logging for JVM tests. */
+    fun requiresLiveRuntime(input: String): Boolean {
+        val lower = input.trim().lowercase()
+        return LIVE_DEVICE_PATTERNS.any { lower.contains(it) } ||
+            (CONNECTOR_TARGETS.any { lower.contains(it) } &&
+                CONNECTOR_ACTIONS.any { lower.contains(it) })
+    }
+
     fun classifyQuery(input: String): QueryType {
         val trimmed   = input.trim()
         val lower     = trimmed.lowercase()
         val wordCount = lower.split(Regex("\\s+")).size
         val hasQuestion = trimmed.endsWith("?") || trimmed.endsWith("؟")
+
+        // These requests require live device/provider state, even when they are
+        // short questions. Keep them out of the plain-chat fast path so the
+        // model receives the current_time or connected-connector tools.
+        if (requiresLiveRuntime(trimmed) && LIVE_DEVICE_PATTERNS.any { lower.contains(it) }) {
+            Log.d(TAG, "classify=ACTION reason=live_device_state")
+            return QueryType.ACTION
+        }
+        if (requiresLiveRuntime(trimmed) &&
+            CONNECTOR_TARGETS.any { lower.contains(it) }) {
+            Log.d(TAG, "classify=ACTION reason=live_connector_state")
+            return QueryType.ACTION
+        }
 
         // ── Ultra-short → always SIMPLE ──────────────────────────────────
         if (wordCount <= 2) {

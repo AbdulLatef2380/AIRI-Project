@@ -131,6 +131,8 @@ data class ConnectorMeta(
     val website: String? = null,
     val privacyPolicyUrl: String? = null,
     val documentationUrl: String? = null,
+    /** Registered runtime connector that authenticates this catalog surface. */
+    val runtimeId: String = id,
 )
 
 /**

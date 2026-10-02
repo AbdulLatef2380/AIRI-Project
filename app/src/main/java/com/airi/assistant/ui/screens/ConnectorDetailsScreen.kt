@@ -78,6 +78,7 @@ fun ConnectorDetailsScreen(
     val isConnected = row.state.connected
     val isHealthy = row.state.healthy
     val isComingSoon = row.meta.availability == ConnectorAvailability.COMING_SOON
+    val runtimeId = row.meta.runtimeId
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
@@ -147,7 +148,9 @@ fun ConnectorDetailsScreen(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = {
-                        if (isConnected) viewModel.disconnect(connectorId) else viewModel.connect(connectorId)
+                        if (isConnected) viewModel.disconnect(connectorId)
+                        else if (runtimeId in setOf("github", "telegram", "google")) onManageAuthorization(runtimeId)
+                        else viewModel.connect(connectorId)
                         scope.launch { snackbar.showSnackbar(if (isConnected) "Disconnect requested" else "Connection requested") }
                     },
                     enabled = !isComingSoon,
@@ -159,7 +162,8 @@ fun ConnectorDetailsScreen(
                 }
                 OutlinedButton(
                     onClick = {
-                        viewModel.connect(connectorId)
+                        if (runtimeId in setOf("github", "telegram", "google")) onManageAuthorization(runtimeId)
+                        else viewModel.connect(connectorId)
                         onTry("Test the ${row.meta.name} connector with a safe read-only operation and report the result.")
                     },
                     modifier = Modifier.weight(1f)
@@ -169,9 +173,9 @@ fun ConnectorDetailsScreen(
                     Text("Test connection")
                 }
             }
-            if (connectorId == "google" || !isConnected || !isHealthy) {
+            if (runtimeId in setOf("github", "telegram", "google") || !isConnected || !isHealthy) {
                 OutlinedButton(
-                    onClick = { onManageAuthorization(connectorId) },
+                    onClick = { onManageAuthorization(runtimeId) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Manage authorization")

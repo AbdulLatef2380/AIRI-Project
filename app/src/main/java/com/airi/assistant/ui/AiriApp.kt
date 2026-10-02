@@ -115,6 +115,7 @@ object AiriRoute {
     const val SETTINGS           = "screen_settings"
     const val MEMORY             = "screen_memory"
     const val INTEGRATIONS       = "screen_integrations"
+    const val INTEGRATIONS_WITH_CONNECTOR = "screen_integrations?connectorId={connectorId}"
     const val CONNECTORS         = "screen_connectors"
     const val CONNECTOR_DETAILS  = "screen_connector_details"
     const val PROMPT_BUILDER     = "screen_prompt_builder"
@@ -600,12 +601,21 @@ fun AiriApp() {
                     composable(AiriRoute.INTEGRATIONS) {
                         IntegrationsScreen(onBack = { navController.popBackStack() })
                     }
+                    composable(
+                        route = AiriRoute.INTEGRATIONS_WITH_CONNECTOR,
+                        arguments = listOf(navArgument("connectorId") { type = NavType.StringType })
+                    ) { entry ->
+                        IntegrationsScreen(
+                            initialConnectorId = entry.arguments?.getString("connectorId"),
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
 
                     composable(AiriRoute.CONNECTORS) {
                         ConnectorsScreen(
                             onBack = { navController.popBackStack() },
-                            onManageAuthorization = {
-                                navController.navigate(AiriRoute.INTEGRATIONS) {
+                            onManageAuthorization = { connectorId ->
+                                navController.navigate("${AiriRoute.INTEGRATIONS}?connectorId=$connectorId") {
                                     launchSingleTop = true
                                 }
                             },
@@ -623,7 +633,7 @@ fun AiriApp() {
                             connectorId = entry.arguments?.getString("connectorId").orEmpty(),
                             onBack = { navController.popBackStack() },
                             onManageAuthorization = { connectorId ->
-                                navController.navigate(AiriRoute.INTEGRATIONS) { launchSingleTop = true }
+                                navController.navigate("${AiriRoute.INTEGRATIONS}?connectorId=$connectorId") { launchSingleTop = true }
                             },
                             onTry = { prompt ->
                                 chatViewModel.prefillInput(prompt)

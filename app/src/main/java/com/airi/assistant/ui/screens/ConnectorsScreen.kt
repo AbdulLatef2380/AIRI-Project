@@ -352,7 +352,14 @@ fun ConnectorsScreen(
                                 ) {
                                     contactsPermLauncher.launch(android.Manifest.permission.READ_CONTACTS)
                                 } else {
-                                    viewModel.connect(row.meta.id)
+                                    // Provider-backed connectors need the provider's
+                                    // sign-in/token flow before registry.connect can
+                                    // succeed. Never show a fake "requested" state.
+                                    if (row.meta.runtimeId in setOf("github", "telegram", "google")) {
+                                        onManageAuthorization(row.meta.runtimeId)
+                                    } else {
+                                        viewModel.connect(row.meta.id)
+                                    }
                                 }
                             },
                             onDisconnect = { viewModel.disconnect(row.meta.id) },
@@ -557,9 +564,9 @@ private fun ConnectorCard(
                             }
                         }
                     }
-                    if (needsAttention && row.meta.id == "google") {
+                    if (needsAttention && row.meta.runtimeId in setOf("github", "telegram", "google")) {
                         Spacer(Modifier.height(8.dp))
-                        TextButton(onClick = { onManageAuthorization(row.meta.id) }) {
+                        TextButton(onClick = { onManageAuthorization(row.meta.runtimeId) }) {
                             Text(stringResource(R.string.connectors_manage_authorization))
                         }
                     }

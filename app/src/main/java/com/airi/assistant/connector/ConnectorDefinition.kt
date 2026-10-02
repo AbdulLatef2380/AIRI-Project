@@ -188,7 +188,14 @@ fun ConnectorDefinition.toConnectorMeta(): ConnectorMeta = ConnectorMeta(
     website = website,
     privacyPolicyUrl = privacyPolicyUrl,
     documentationUrl = documentationUrl,
+    runtimeId = runtimeConnectorId(),
 )
+
+/** Catalog surfaces that share one first-class provider adapter. */
+fun ConnectorDefinition.runtimeConnectorId(): String = when (id) {
+    "google_gmail", "google_calendar", "google_drive" -> "google"
+    else -> id
+}
 
 fun ConnectorMeta.withCatalogDefinition(definition: ConnectorDefinition): ConnectorMeta = copy(
     provider = definition.provider,

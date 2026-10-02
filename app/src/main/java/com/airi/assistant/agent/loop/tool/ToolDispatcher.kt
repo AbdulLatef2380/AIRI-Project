@@ -238,6 +238,15 @@ class ToolDispatcher(
                 }
             }
 
+            "current_time" -> {
+                val now = java.time.ZonedDateTime.now()
+                val zone = java.time.ZoneId.systemDefault()
+                ToolResult.Success(
+                    "Current device time: ${now.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)} " +
+                        "(${zone.id}, UTC${now.offset})"
+                )
+            }
+
             "calendar_create" -> {
                 // Calendar creation is intentionally not a generic dispatcher action.
                 // AgentLoop must use CalendarCreateRuntime, which owns a private

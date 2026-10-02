@@ -53,24 +53,26 @@ class ConnectorsViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun connect(id: String) {
-        if (registry.get(id) == null) return
-        if (registry.catalogMeta().firstOrNull { it.id == id }?.availability == ConnectorAvailability.COMING_SOON) return
+        val meta = registry.catalogMeta().firstOrNull { it.id == id } ?: return
+        if (meta.runtimeId == id && registry.get(id) == null) return
+        if (meta.availability == ConnectorAvailability.COMING_SOON) return
         viewModelScope.launch {
-            registry.connect(id)
+            registry.connect(meta.runtimeId)
         }
     }
 
     fun disconnect(id: String) {
-        if (registry.get(id) == null) return
+        val runtimeId = registry.catalogMeta().firstOrNull { it.id == id }?.runtimeId ?: id
+        if (registry.get(runtimeId) == null) return
         viewModelScope.launch {
-            registry.disconnect(id)
+            registry.disconnect(runtimeId)
         }
     }
 
     private fun observeItems(metas: List<ConnectorMeta>): Flow<List<ConnectorRow>> {
         if (metas.isEmpty()) return flowOf(emptyList())
         val stateFlows = metas.map { meta ->
-            registry.get(meta.id)?.state() ?: flowOf(ConnectorState(connected = false))
+            registry.get(meta.runtimeId)?.state() ?: flowOf(ConnectorState(connected = false))
         }
         return combine(stateFlows) { states ->
             metas.mapIndexed { index, meta ->

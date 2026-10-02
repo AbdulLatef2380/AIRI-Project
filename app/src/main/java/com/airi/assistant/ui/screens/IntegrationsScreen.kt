@@ -97,7 +97,10 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun IntegrationsScreen(onBack: () -> Unit) {
+fun IntegrationsScreen(
+    onBack: () -> Unit,
+    initialConnectorId: String? = null,
+) {
     val context = LocalContext.current
     val vm: IntegrationsViewModel = viewModel()
     val items by vm.items.collectAsState()
@@ -138,6 +141,24 @@ fun IntegrationsScreen(onBack: () -> Unit) {
                         IntentSenderRequest.Builder(effect.pendingIntent.intentSender).build()
                     )
                 }
+            }
+        }
+    }
+    // Provider-backed connector cards arrive here with their runtime id. Start
+    // the real sign-in/token flow immediately; do not leave a dead-end screen.
+    LaunchedEffect(initialConnectorId) {
+        when (initialConnectorId) {
+            "github" -> vm.openGithubDialog()
+            "telegram" -> vm.openTelegramDialog()
+            "google" -> when (
+                IntegrationReadinessPolicy.googleConnectionAction(
+                    items.firstOrNull { it.id == "google" }?.readiness
+                        ?: IntegrationReadiness.DISCONNECTED
+                )
+            ) {
+                GoogleConnectionAction.START_IDENTITY_SIGN_IN -> googleLauncher.launch(vm.getGoogleSignInIntent())
+                GoogleConnectionAction.REQUEST_DATA_AUTHORIZATION -> vm.requestGoogleDataAuthorization()
+                GoogleConnectionAction.NONE -> Unit
             }
         }
     }

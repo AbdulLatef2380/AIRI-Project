@@ -30,4 +30,11 @@ class ConnectorCatalogTest {
         assertTrue(presentation.name == "GitHub")
         assertTrue(meta.capabilities.any { it.id == "repositories.read" })
     }
+
+    @Test
+    fun googleCatalogSurfaces_shareTheGoogleRuntimeConnector() {
+        assertTrue(OfficialConnectorCatalog.get("google_gmail")!!.toConnectorMeta().runtimeId == "google")
+        assertTrue(OfficialConnectorCatalog.get("google_calendar")!!.toConnectorMeta().runtimeId == "google")
+        assertTrue(OfficialConnectorCatalog.get("google_drive")!!.toConnectorMeta().runtimeId == "google")
+    }
 }

@@ -93,6 +93,12 @@ object BuiltinTools {
         category    = ToolSchema.Category.SYSTEM
     )
 
+    val CURRENT_TIME = ToolSchema(
+        name        = "current_time",
+        description = "Read the current date, time, timezone, and UTC offset from the Android device.",
+        category    = ToolSchema.Category.SYSTEM
+    )
+
     val CALENDAR_CREATE = ToolSchema(
         name        = "calendar_create",
         description = "Create a new calendar event.",
@@ -156,12 +162,12 @@ object BuiltinTools {
     val ALL: List<ToolSchema> = listOf(
         READ_SCREEN, OPEN_APP, TAP, TYPE_TEXT, SCROLL_DOWN, GO_BACK,
         WEB_SEARCH, FETCH_URL, MEMORY_RECALL,
-        CALENDAR_READ, CALENDAR_CREATE, SET_ALARM, CREATE_NOTE, TERMINAL_EXECUTE,
+        CALENDAR_READ, CURRENT_TIME, CALENDAR_CREATE, SET_ALARM, CREATE_NOTE, TERMINAL_EXECUTE,
         ASK_CONFIRMATION
     )
 
     /** Minimal set for plain chat (no accessibility, no calendar write). */
     val CHAT_ONLY: List<ToolSchema> = listOf(
-        WEB_SEARCH, FETCH_URL, MEMORY_RECALL, CALENDAR_READ, CREATE_NOTE, TERMINAL_EXECUTE
+        WEB_SEARCH, FETCH_URL, MEMORY_RECALL, CALENDAR_READ, CURRENT_TIME, CREATE_NOTE, TERMINAL_EXECUTE
     )
 }

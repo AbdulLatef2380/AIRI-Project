@@ -37,7 +37,9 @@ class ToolDispatcher(
     // Brave Search API key — injected from SecureApiKeyStore at construction time
     private val braveApiKeyProvider: (() -> String?)? = null,
     // Optional skill tool bridge — handles all "skill_*" tool names
-    private val skillToolBridge: com.airi.assistant.ai.skills.SkillToolBridge? = null
+    private val skillToolBridge: com.airi.assistant.ai.skills.SkillToolBridge? = null,
+    // Canonical live connector bridge — handles dynamically exposed connector_* tools
+    private val connectorToolBridge: com.airi.assistant.connector.ConnectorToolBridge? = null,
 ) {
     companion object {
         private const val TAG = "AIRI_ToolDispatcher"
@@ -307,6 +309,14 @@ class ToolDispatcher(
                     val result = bridge.invoke(toolName, args)
                     val output = com.airi.assistant.ai.skills.SkillToolResultFormatter.format(result)
                     if (result.success) ToolResult.Success(output) else ToolResult.Error(output)
+                } else if (connectorToolBridge != null && connectorToolBridge.handles(toolName)) {
+                    Log.i(TAG, "AIRI CONNECTOR_TOOL_DISPATCH tool=$toolName path=ConnectorRuntimeManager")
+                    when (val result = connectorToolBridge.invoke(toolName, args)) {
+                        is com.airi.assistant.connector.ConnectorOutput.Success -> ToolResult.Success(result.text)
+                        is com.airi.assistant.connector.ConnectorOutput.Streaming -> ToolResult.Error("Streaming connector output is not supported by text ToolDispatcher yet.")
+                        is com.airi.assistant.connector.ConnectorOutput.ApprovalRequired -> ToolResult.Error(result.message)
+                        is com.airi.assistant.connector.ConnectorOutput.Failure -> ToolResult.Error(result.message)
+                    }
                 } else {
                     Log.w(TAG, "Unknown tool: $toolName")
                     ToolResult.Error("Unknown tool: $toolName. Available tools: ${BuiltinTools.ALL.map { it.name }.joinToString()}")

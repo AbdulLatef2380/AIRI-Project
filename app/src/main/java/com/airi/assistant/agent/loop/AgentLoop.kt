@@ -364,10 +364,10 @@ Do not mix tool_call JSON with prose in the same message.
                 )
                 val selectedToolSchema = tools.firstOrNull { it.name == toolName }
                 if (selectedToolSchema != null) {
-                    val actualPath = if (toolName.startsWith("skill_")) {
-                        com.airi.assistant.core.RuntimeExecutionPath.SKILL_BRIDGE
-                    } else {
-                        com.airi.assistant.core.RuntimeExecutionPath.TOOL_DISPATCHER
+                    val actualPath = when {
+                        toolName.startsWith("skill_") -> com.airi.assistant.core.RuntimeExecutionPath.SKILL_BRIDGE
+                        toolName.startsWith("connector_") -> com.airi.assistant.core.RuntimeExecutionPath.CONNECTOR_RUNTIME
+                        else -> com.airi.assistant.core.RuntimeExecutionPath.TOOL_DISPATCHER
                     }
                     runtimeTrace?.pathResolved(
                         executionId = executionId,

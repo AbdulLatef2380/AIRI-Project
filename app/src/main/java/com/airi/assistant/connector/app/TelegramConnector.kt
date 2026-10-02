@@ -56,6 +56,15 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
         iconUrl     = null,
         tags        = listOf("telegram", "messaging", "bot", "chat")
     )
+    override fun agentActions() = listOf(
+        ConnectorAgentAction("get_updates", "Read recent Telegram bot updates.", parameters = mapOf(
+            "limit" to ConnectorAgentParameter(type = "int", description = "Number of updates, 1-100")
+        )),
+        ConnectorAgentAction("get_chat_info", "Read metadata for a Telegram chat.", parameters = mapOf(
+            "chat_id" to ConnectorAgentParameter(description = "Telegram chat identifier", required = true)
+        )),
+        ConnectorAgentAction("status", "Return the current Telegram connection status."),
+    )
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
     private val http = OkHttpClient.Builder()

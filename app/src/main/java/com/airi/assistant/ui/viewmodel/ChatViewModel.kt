@@ -482,6 +482,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }.getOrDefault(false)
         }
     )
+    private val connectorToolBridge      = com.airi.assistant.connector.ConnectorToolBridge(
+        registry = ServiceLocator.connectorRegistry,
+        runtime = ServiceLocator.connectorRuntimeManager,
+    )
     private val toolDispatcher           = com.airi.assistant.agent.loop.tool.ToolDispatcher(
         memoryManager     = runCatching { ServiceLocator.memoryManager }.getOrNull(),
         sessionIdProvider = { _currentSessionId.value },  // P1-1: live session for semantic memory
@@ -493,7 +497,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }.getOrNull()
         },
-        skillToolBridge = skillToolBridge
+        skillToolBridge = skillToolBridge,
+        connectorToolBridge = connectorToolBridge,
     )
     /** PHASE 0: universal, redacted runtime evidence; it does not alter execution. */
     private val universalRuntimeTrace = UniversalRuntimeTraceRecorder { event ->
@@ -519,6 +524,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val observations = registry.catalogMeta().map { meta ->
                 val connector = registry.get(meta.id)
                 val state = connector?.state()?.value
+                val hasReadActions = connector?.agentActions()?.any {
+                    it.permission == com.airi.assistant.connector.ConnectorPermissionLevel.READ
+                } == true
                 com.airi.assistant.core.CapabilityObservation(
                     id = meta.id,
                     kind = "connector",
@@ -527,10 +535,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     connected = state?.connected ?: false,
                     authenticated = null,
                     healthy = state?.healthy,
-                    permitted = null,
-                    executable = connector != null && state?.connected == true && state?.healthy == true,
+                    permitted = hasReadActions,
+                    executable = connector != null && state?.connected == true && state?.healthy == true && hasReadActions,
                     modelCompatible = null,
-                    exposed = false,
+                    exposed = connector != null && state?.connected == true && state?.healthy == true && hasReadActions,
                 )
             }
             com.airi.assistant.core.UniversalCapabilityDiscovery.snapshot(observations)
@@ -2212,13 +2220,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "you will call at each step, and what result you expect. Then execute the plan sequentially."
             } else baseSystemPrompt
 
-            // Merge skill schemas into the tool list so the LLM sees every skill_* tool
-            // that SkillToolBridge can route, in addition to the 14 builtin tools.
+            // Merge live skill and connector schemas into the tool list so the LLM sees
+            // the same executable surfaces that ToolDispatcher can route.
             // SkillToolBridge already handles these in ToolDispatcher — they just weren't
             // being advertised to the LLM in the system prompt (the gap that caused
             // skill_code_assistant, skill_research_agent, etc. to never be invoked).
             val allActiveTools = runCatching {
-                com.airi.assistant.agent.loop.tool.BuiltinTools.ALL + skillToolBridge.asToolSchemas()
+                com.airi.assistant.agent.loop.tool.BuiltinTools.ALL +
+                    skillToolBridge.asToolSchemas() +
+                    connectorToolBridge.asToolSchemas()
             }.getOrDefault(com.airi.assistant.agent.loop.tool.BuiltinTools.ALL)
             // A greeting or creative turn should not pay the latency/format cost
             // of a 16-step tool loop. Action, analytical, and unknown turns keep
@@ -2230,7 +2240,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 allActiveTools
             }
-            Log.i("AIRI", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${allActiveTools.size - com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} selected=${activeTools.size} queryType=${queryType.name}")
+            Log.i("AIRI", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${skillToolBridge.asToolSchemas().size} connectors=${connectorToolBridge.asToolSchemas().size} selected=${activeTools.size} queryType=${queryType.name}")
 
             var tokenCount = 0
             var firstTokenReceived = false

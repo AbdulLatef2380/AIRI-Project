@@ -15,7 +15,7 @@ object UniversalExecutionPathResolver {
     ): UniversalExecutionPath {
         val expected = when {
             tool.name.startsWith("skill_") -> RuntimeExecutionPath.SKILL_BRIDGE
-            connectorId != null -> RuntimeExecutionPath.CONNECTOR_RUNTIME
+            tool.name.startsWith("connector_") || connectorId != null -> RuntimeExecutionPath.CONNECTOR_RUNTIME
             else -> RuntimeExecutionPath.TOOL_DISPATCHER
         }
         return UniversalExecutionPath(

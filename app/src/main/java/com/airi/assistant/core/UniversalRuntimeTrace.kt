@@ -89,6 +89,17 @@ class UniversalRuntimeTraceRecorder(
             traceId = traceId,
             executionId = executionId,
             sessionId = sessionId,
+            eventType = UniversalTraceEventType.CAPABILITY_FILTERED,
+            component = "UniversalCapabilityDiscovery",
+            outcome = "classified",
+            attributes = UniversalCapabilityDiscovery.outcomeCounts(snapshot)
+                .mapKeys { (outcome, _) -> "outcome.${outcome.name}" }
+                .mapValues { (_, count) -> count.toString() }
+        )
+        record(
+            traceId = traceId,
+            executionId = executionId,
+            sessionId = sessionId,
             eventType = UniversalTraceEventType.TOOLS_EXPOSED,
             component = "AgentLoop",
             outcome = if (tools.isEmpty()) "empty" else "exposed",

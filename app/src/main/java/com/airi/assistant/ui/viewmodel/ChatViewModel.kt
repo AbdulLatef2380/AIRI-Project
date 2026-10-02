@@ -516,10 +516,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun universalCapabilitySnapshot(): List<com.airi.assistant.core.CapabilitySnapshotEntry> =
         runCatching {
             val registry = com.airi.assistant.core.ServiceLocator.connectorRegistry
-            registry.catalogMeta().map { meta ->
+            val observations = registry.catalogMeta().map { meta ->
                 val connector = registry.get(meta.id)
                 val state = connector?.state()?.value
-                com.airi.assistant.core.CapabilitySnapshotEntry(
+                com.airi.assistant.core.CapabilityObservation(
                     id = meta.id,
                     kind = "connector",
                     exists = true,
@@ -533,6 +533,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     exposed = false,
                 )
             }
+            com.airi.assistant.core.UniversalCapabilityDiscovery.snapshot(observations)
         }.getOrDefault(emptyList())
     val agentLoop                        = com.airi.assistant.agent.loop.AgentLoop(
         orchestrator          = hybridOrchestrator,

@@ -61,6 +61,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -3231,6 +3233,8 @@ fun AiriChatInputBar(
     onDropFiles: (List<Uri>) -> Unit = {}
 ) {
     val context          = LocalContext.current
+    val focusManager      = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     var showAttachPopup by remember { mutableStateOf(false) }
     var previewAttachment by remember { mutableStateOf<ChatAttachment?>(null) }
     var isDragActive by remember { mutableStateOf(false) }
@@ -3304,6 +3308,16 @@ fun AiriChatInputBar(
         inferenceReady = isInferenceReady,
         modelLoading = modelState.isModelLoading,
     )
+
+    // A successful send should return the chat to its full-height reading state.
+    // The composer remains available at the bottom; tapping it again requests
+    // focus and the platform keyboard brings the input state back naturally.
+    val finishAcceptedSend: () -> Unit = {
+        text = ""
+        onDraftTextChanged("")
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
+    }
 
     if (showFullScreenEditor) {
         Dialog(
@@ -3851,10 +3865,7 @@ fun AiriChatInputBar(
                                     when (mainAction) {
                                         ChatMainAction.CANCEL -> onCancel()
                                         ChatMainAction.SEND -> {
-                                            onSend(text) {
-                                                text = ""
-                                                onDraftTextChanged("")
-                                            }
+                                            onSend(text, finishAcceptedSend)
                                         }
                                         ChatMainAction.VOICE -> onVoiceChatClick()
                                         ChatMainAction.NONE -> Unit

@@ -28,7 +28,6 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import java.util.UUID
 import kotlinx.coroutines.isActive
-import org.json.JSONObject
 import kotlin.coroutines.coroutineContext
 
 /**
@@ -262,20 +261,28 @@ Do not mix tool_call JSON with prose in the same message.
                 }
 
                 // Parse: tool_call block or final answer?
-                var toolCall = parseToolCall(rawResponse)
+                var parseResult = com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(rawResponse)
+                var toolCall = (parseResult as? com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call)
+                    ?.let { it.name to it.args }
                 runtimeTrace?.parser(
                     executionId = executionId,
                     sessionId = sessionId,
                     parsed = toolCall != null,
                     toolName = toolCall?.first,
-                    reason = if (toolCall == null) "no_tool_call_json" else null,
+                    reason = when (parseResult) {
+                        is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Invalid -> parseResult.reason.name
+                        com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.NotAToolCall -> "NO_CANDIDATE"
+                        is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call -> null
+                    },
                 )
 
                 // Retry: if the response looks like a malformed tool call (contains
                 // "tool_call" text but JSON parsing failed), ask the model to re-emit
                 // only the JSON. This handles cases where the model wraps the JSON in
                 // prose or uses a slightly wrong format on the first attempt.
-                if (toolCall == null && rawResponse.contains("tool_call") && stepsUsed < MAX_STEPS) {
+                if (parseResult is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Invalid &&
+                    rawResponse.contains("tool_call") && stepsUsed < MAX_STEPS
+                ) {
                     Log.w(TAG, "AIRI TOOL_CALL_PARSE_RETRY step=$stepsUsed — response had 'tool_call' text but parse failed; retrying")
                     val retryPrompt = "[SYSTEM] Your previous response contained a tool_call but the JSON was malformed. " +
                         "Reply with ONLY a valid JSON object in this exact format, no other text:\n" +
@@ -307,7 +314,29 @@ Do not mix tool_call JSON with prose in the same message.
                         ""
                     }
                     if (retryResponse.isNotBlank()) {
-                        toolCall = parseToolCall(retryResponse)
+                        parseResult = com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(retryResponse)
+                        toolCall = (parseResult as? com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call)
+                            ?.let { it.name to it.args }
+                        runtimeTrace?.modelResponse(
+                            executionId = executionId,
+                            sessionId = sessionId,
+                            response = retryResponse,
+                            containsToolCallCandidate = retryResponse.contains("tool_call"),
+                            parserInputClassification = "tool_call_retry",
+                        )
+                        runtimeTrace?.parser(
+                            executionId = executionId,
+                            sessionId = sessionId,
+                            parsed = toolCall != null,
+                            toolName = toolCall?.first,
+                            reason = when (parseResult) {
+                                is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Invalid ->
+                                    "RETRY_${parseResult.reason.name}"
+                                com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.NotAToolCall ->
+                                    "RETRY_NO_CANDIDATE"
+                                is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call -> null
+                            },
+                        )
                         if (toolCall != null) {
                             Log.i(TAG, "AIRI TOOL_CALL_RETRY_OK step=$stepsUsed tool=${toolCall.first}")
                         }
@@ -706,50 +735,6 @@ Do not mix tool_call JSON with prose in the same message.
 
         if (error != null) throw RuntimeException(error)
         return buf.toString().trim()
-    }
-
-    // ── Tool call parsing ──────────────────────────────────────────────────────
-
-    /**
-     * Extract tool name and args from the model's response.
-     * Returns null if the response is a plain-text final answer.
-     *
-     * Accepted formats (model might wrap in prose before the JSON):
-     *   {"tool_call":{"name":"calendar_read","args":{"days":"7"}}}
-     */
-    private fun parseToolCall(response: String): Pair<String, Map<String, String>>? {
-        // P1-3: Strip markdown code fences before searching for JSON.
-        // Some models wrap their tool_call JSON in ```json ... ``` or ``` ... ```.
-        // The regex removes the opening fence (with optional language tag) and the
-        // closing fence, leaving the raw JSON for the brace-depth parser below.
-        val cleaned = response
-            .replace(Regex("```(?:json)?\\s*", RegexOption.IGNORE_CASE), "")
-            .replace("```", "")
-            .trim()
-
-        val start = cleaned.indexOf("{\"tool_call\"")
-        if (start == -1) return null
-        return try {
-            // Find the matching closing brace
-            var depth = 0
-            var end = start
-            for (i in start until cleaned.length) {
-                when (cleaned[i]) {
-                    '{' -> depth++
-                    '}' -> { depth--; if (depth == 0) { end = i; break } }
-                }
-            }
-            val jsonStr = cleaned.substring(start, end + 1)
-            val root    = JSONObject(jsonStr).getJSONObject("tool_call")
-            val name    = root.getString("name")
-            val argsObj = root.optJSONObject("args") ?: org.json.JSONObject()
-            val args    = mutableMapOf<String, String>()
-            for (key in argsObj.keys()) args[key] = argsObj.optString(key)
-            name to args
-        } catch (e: Exception) {
-            Log.w(TAG, "Tool-call parsing failed: ${e.javaClass.simpleName}")
-            null
-        }
     }
 
     /**

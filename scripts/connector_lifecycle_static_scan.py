@@ -17,8 +17,10 @@ FILES = {
 text = {name: path.read_text(encoding="utf-8") for name, path in FILES.items()}
 checks = []
 
+
 def check(name, ok, detail):
     checks.append((name, bool(ok), detail))
+
 
 r, x, h = text["registry"], text["runtime"], text["health"]
 check("registry lifecycle mutex", "private val lifecycleMutex = Mutex()" in r and "lifecycleMutex.withLock" in r,
@@ -41,8 +43,14 @@ check("bounded health notice state", "ConcurrentHashMap<String, Long>" in h and 
       "dynamic connector IDs do not retain notice entries forever")
 check("no GlobalScope", not any("GlobalScope" in value for value in text.values()),
       "no unowned global coroutine scope in lifecycle paths")
-check("UI routes lifecycle through registry", "registry.connect(id)" in text["connectors_vm"] and "registry.disconnect(id)" in text["connectors_vm"],
-      "ConnectorsViewModel does not bypass lifecycle owner")
+
+# The ViewModel may resolve a connector's runtime ID from metadata before routing
+# it through the registry. Keep the guard semantic rather than tied to one local
+# variable name.
+connects_via_registry = re.search(r"registry\.connect\((?:id|runtimeId|meta\.runtimeId)\)", text["connectors_vm"])
+disconnects_via_registry = re.search(r"registry\.disconnect\((?:id|runtimeId|meta\.runtimeId)\)", text["connectors_vm"])
+check("UI routes lifecycle through registry", connects_via_registry and disconnects_via_registry,
+      "ConnectorsViewModel routes the resolved runtime connector through Registry")
 check("integration disconnect is suspend-safe", "else -> viewModelScope.launch" in text["integrations_vm"],
       "credential cleanup runs in coroutine after connector disconnect")
 direct_bypass = re.findall(r"\bconnector\.(connect|disconnect)\s*\(", text["zapier_screen"] + text["connectors_vm"] + text["integrations_vm"])

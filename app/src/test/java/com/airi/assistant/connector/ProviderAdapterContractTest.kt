@@ -9,7 +9,9 @@ import org.junit.Test
 class ProviderAdapterContractTest {
     @Test
     fun every_remaining_catalog_definition_has_one_declarative_adapter_contract() {
-        val remaining = OfficialConnectorCatalog.all.filter { it.status == ConnectorAvailability.COMING_SOON }
+        val remaining = OfficialConnectorCatalog.all.filter {
+            it.id in RemainingProviderAdapterContracts.all.map { contract -> contract.catalogId }
+        }
         assertEquals(remaining.size, RemainingProviderAdapterContracts.all.size)
         assertEquals(remaining.size, RemainingProviderAdapterContracts.all.map { it.catalogId }.toSet().size)
         remaining.forEach { definition ->
@@ -26,6 +28,11 @@ class ProviderAdapterContractTest {
             assertTrue(contract.adapterId.isNotBlank())
             assertTrue(contract.officialDocsUrl.startsWith("https://"))
             assertFalse(contract.isExecutable)
+            if (definition.id == "microsoft_onedrive") {
+                assertEquals(ConnectorAvailability.PARTIAL, definition.status)
+            } else {
+                assertEquals(ConnectorAvailability.COMING_SOON, definition.status)
+            }
         }
     }
 

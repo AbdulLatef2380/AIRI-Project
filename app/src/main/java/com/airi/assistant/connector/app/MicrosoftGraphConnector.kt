@@ -13,7 +13,7 @@ import org.json.JSONObject
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
-/** Microsoft Graph vertical slice: signed-in identity, Outlook mail, and Calendar read. */
+/** Microsoft Graph vertical slice: identity, Outlook, Calendar, and OneDrive read. */
 class MicrosoftGraphConnector(
     private val authManager: ConnectorAuthManager,
     private val configProvider: () -> OAuthConfiguration = MicrosoftOAuthConfiguration::current,
@@ -52,7 +52,7 @@ class MicrosoftGraphConnector(
         val config = configProvider() as? OAuthConfiguration.Configured
             ?: return Result.failure(IllegalStateException("Microsoft OAuth configuration is unavailable"))
         val request = OAuthStateRegistry.issuePkce(id)
-        val scopes = listOf("openid", "profile", "email", "offline_access", "User.Read", "Mail.Read", "Calendars.Read")
+        val scopes = listOf("openid", "profile", "email", "offline_access", "User.Read", "Mail.Read", "Calendars.Read", "Files.Read")
             .joinToString(" ")
         val url = buildString {
             append("https://login.microsoftonline.com/${config.tenant}/oauth2/v2.0/authorize?")
@@ -78,7 +78,7 @@ class MicrosoftGraphConnector(
             .add("code", code)
             .add("redirect_uri", config.redirectUri)
             .add("code_verifier", request.codeVerifier)
-            .add("scope", "openid profile email offline_access User.Read Mail.Read Calendars.Read")
+            .add("scope", "openid profile email offline_access User.Read Mail.Read Calendars.Read Files.Read")
             .build()
         runCatching {
             http.newCall(
@@ -127,6 +127,16 @@ class MicrosoftGraphConnector(
         val path = when (input.action) {
             "outlook_mail_read" -> "/me/messages?\$top=10&\$select=id,subject,receivedDateTime,from"
             "outlook_calendar_read" -> "/me/calendar/events?\$top=10&\$select=id,subject,start,end,organizer"
+            "onedrive_files_read" -> {
+                val top = input.params["top"].orEmpty().toIntOrNull()?.coerceIn(1, 50) ?: 20
+                val folderPath = input.params["folder_path"]?.trim()?.trim('/')
+                val resource = if (folderPath.isNullOrBlank()) {
+                    "/me/drive/root/children"
+                } else {
+                    "/me/drive/root:/${encPath(folderPath)}:/children"
+                }
+                "$resource?\$top=$top&\$select=id,name,size,folder,file,lastModifiedDateTime,webUrl"
+            }
             "status" -> "/me?\$select=id,displayName,mail,userPrincipalName"
             else -> return ConnectorOutput.Failure("unknown_action", "Unknown Microsoft Graph action: ${input.action}")
         }
@@ -143,6 +153,14 @@ class MicrosoftGraphConnector(
     override fun agentActions() = listOf(
         ConnectorAgentAction("outlook_mail_read", "Read recent mail from the signed-in Microsoft account"),
         ConnectorAgentAction("outlook_calendar_read", "Read upcoming calendar events from the signed-in Microsoft account"),
+        ConnectorAgentAction(
+            "onedrive_files_read",
+            "List authorized OneDrive files in the root or a folder.",
+            parameters = mapOf(
+                "folder_path" to ConnectorAgentParameter(description = "Optional OneDrive folder path relative to the root."),
+                "top" to ConnectorAgentParameter(description = "Optional number of items from 1 to 50."),
+            ),
+        ),
         ConnectorAgentAction("status", "Check Microsoft Graph connection status"),
     )
 
@@ -159,4 +177,6 @@ class MicrosoftGraphConnector(
     }
 
     private fun enc(value: String): String = URLEncoder.encode(value, "UTF-8")
+
+    private fun encPath(value: String): String = value.split('/').joinToString("/") { enc(it).replace("+", "%20") }
 }

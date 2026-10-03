@@ -33,10 +33,12 @@ class ConnectorRolloutRegistryTest {
         assertEquals("microsoft_graph", OfficialConnectorCatalog.get("microsoft_outlook")!!.runtimeConnectorId())
         assertEquals("microsoft_graph", OfficialConnectorCatalog.get("microsoft_calendar")!!.runtimeConnectorId())
         assertEquals("microsoft_graph", OfficialConnectorCatalog.get("microsoft_onedrive")!!.runtimeConnectorId())
+        assertEquals("microsoft_graph", OfficialConnectorCatalog.get("microsoft_teams")!!.runtimeConnectorId())
         assertEquals("notion_mcp", OfficialConnectorCatalog.get("notion")!!.runtimeConnectorId())
         assertEquals("LIVE_ADAPTERS", ConnectorRolloutRegistry.get("google_gmail")!!.batch.name)
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("github")!!.readiness)
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("zapier")!!.readiness)
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("microsoft_onedrive")!!.readiness)
+        assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("microsoft_teams")!!.readiness)
     }
 }

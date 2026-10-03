@@ -28,7 +28,7 @@ class ProviderAdapterContractTest {
             assertTrue(contract.adapterId.isNotBlank())
             assertTrue(contract.officialDocsUrl.startsWith("https://"))
             assertFalse(contract.isExecutable)
-            if (definition.id == "microsoft_onedrive") {
+            if (definition.id in setOf("microsoft_onedrive", "microsoft_teams")) {
                 assertEquals(ConnectorAvailability.PARTIAL, definition.status)
             } else {
                 assertEquals(ConnectorAvailability.COMING_SOON, definition.status)

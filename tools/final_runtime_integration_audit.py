@@ -106,7 +106,7 @@ check("remaining connector rollout is explicit and cannot create phantom connect
     ("health gate remains mandatory", "state.connected && state.healthy" in auth_manager),
 ])
 
-check("Microsoft Outlook/Calendar/OneDrive vertical slice has a typed OAuth and token lifecycle", [
+check("Microsoft Outlook/Calendar/OneDrive/Teams vertical slice has a typed OAuth and token lifecycle", [
     ("canonical microsoft runtime descriptor", '"microsoft_outlook" to ConnectorRuntimeDescriptor("microsoft_outlook", "microsoft_graph"' in runtime_descriptors),
     ("typed OAuth configuration gate", "sealed interface OAuthConfiguration" in microsoft_config),
     ("PKCE S256 authorization", "code_challenge_method=S256" in microsoft_adapter),
@@ -118,6 +118,9 @@ check("Microsoft Outlook/Calendar/OneDrive vertical slice has a typed OAuth and 
     ("OneDrive uses the shared Graph adapter", '"microsoft_onedrive" to ConnectorRuntimeDescriptor("microsoft_onedrive", "microsoft_graph"' in runtime_descriptors),
     ("OneDrive Files.Read consent and read action", '"Files.Read"' in microsoft_adapter and "onedrive_files_read" in microsoft_adapter),
     ("OneDrive listing is bounded and metadata-only", "coerceIn(1, 50)" in microsoft_adapter and "lastModifiedDateTime" in microsoft_adapter),
+    ("Teams uses the shared Graph adapter", '"microsoft_teams" to ConnectorRuntimeDescriptor("microsoft_teams", "microsoft_graph"' in runtime_descriptors),
+    ("Teams Team.ReadBasic.All consent and read action", '"Team.ReadBasic.All"' in microsoft_adapter and "teams_list_joined" in microsoft_adapter),
+    ("Teams listing is metadata-only", "/me/joinedTeams" in microsoft_adapter and "displayName,description,visibility,webUrl" in microsoft_adapter),
 ])
 
 check("seven primary catalog surfaces have one real runtime gate", [

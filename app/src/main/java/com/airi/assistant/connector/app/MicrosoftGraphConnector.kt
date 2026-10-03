@@ -13,7 +13,7 @@ import org.json.JSONObject
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
-/** Microsoft Graph vertical slice: identity, Outlook, Calendar, and OneDrive read. */
+/** Microsoft Graph vertical slice: identity, Outlook, Calendar, OneDrive, and Teams read. */
 class MicrosoftGraphConnector(
     private val authManager: ConnectorAuthManager,
     private val configProvider: () -> OAuthConfiguration = MicrosoftOAuthConfiguration::current,
@@ -52,7 +52,7 @@ class MicrosoftGraphConnector(
         val config = configProvider() as? OAuthConfiguration.Configured
             ?: return Result.failure(IllegalStateException("Microsoft OAuth configuration is unavailable"))
         val request = OAuthStateRegistry.issuePkce(id)
-        val scopes = listOf("openid", "profile", "email", "offline_access", "User.Read", "Mail.Read", "Calendars.Read", "Files.Read")
+        val scopes = listOf("openid", "profile", "email", "offline_access", "User.Read", "Mail.Read", "Calendars.Read", "Files.Read", "Team.ReadBasic.All")
             .joinToString(" ")
         val url = buildString {
             append("https://login.microsoftonline.com/${config.tenant}/oauth2/v2.0/authorize?")
@@ -78,7 +78,7 @@ class MicrosoftGraphConnector(
             .add("code", code)
             .add("redirect_uri", config.redirectUri)
             .add("code_verifier", request.codeVerifier)
-            .add("scope", "openid profile email offline_access User.Read Mail.Read Calendars.Read Files.Read")
+            .add("scope", "openid profile email offline_access User.Read Mail.Read Calendars.Read Files.Read Team.ReadBasic.All")
             .build()
         runCatching {
             http.newCall(
@@ -137,6 +137,7 @@ class MicrosoftGraphConnector(
                 }
                 "$resource?\$top=$top&\$select=id,name,size,folder,file,lastModifiedDateTime,webUrl"
             }
+            "teams_list_joined" -> "/me/joinedTeams?\$select=id,displayName,description,visibility,webUrl"
             "status" -> "/me?\$select=id,displayName,mail,userPrincipalName"
             else -> return ConnectorOutput.Failure("unknown_action", "Unknown Microsoft Graph action: ${input.action}")
         }
@@ -161,6 +162,7 @@ class MicrosoftGraphConnector(
                 "top" to ConnectorAgentParameter(description = "Optional number of items from 1 to 50."),
             ),
         ),
+        ConnectorAgentAction("teams_list_joined", "List Microsoft Teams joined by the signed-in user."),
         ConnectorAgentAction("status", "Check Microsoft Graph connection status"),
     )
 

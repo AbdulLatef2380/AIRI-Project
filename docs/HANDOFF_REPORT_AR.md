@@ -648,3 +648,21 @@ id, name, size, folder, file, lastModifiedDateTime, webUrl
 - Microsoft To Do: COMING_SOON.
 
 هذا لا يعني أن OneDrive اجتاز OAuth على جهاز حقيقي؛ ما زال مطلوباً provider configuration وconsent وAndroid/device evidence.
+
+
+---
+
+## تحديث لاحق: Microsoft Teams Vertical Slice
+
+بعد OneDrive، تم تنفيذ Microsoft Teams كأول slice قراءة فوق نفس Microsoft Graph runtime.
+
+- `microsoft_teams` أصبح `PARTIAL` بدلاً من `COMING_SOON`.
+- canonical runtime: `microsoft_teams -> microsoft_graph`.
+- أضيف scope `Team.ReadBasic.All` إلى Microsoft OAuth consent.
+- أضيفت أداة القراءة `teams_list_joined` التي تستدعي `/me/joinedTeams` وتعيد metadata للفرق المنضم إليها فقط.
+- لا توجد كتابة أو إرسال رسائل أو إدارة أعضاء أو قراءة قنوات في هذه المرحلة.
+- تم تحديث اختبارات auth وrollout وprovider contracts وبوابة التكامل.
+
+التفاصيل الكاملة في `docs/MICROSOFT_TEAMS_VERTICAL_SLICE_AR.md`.
+
+Teams يحتاج قبل إعلان الجاهزية الإنتاجية إلى Entra configuration وconsent حقيقي واختبارات Android/device لـ401 و403 و429 و5xx وانتهاء token.

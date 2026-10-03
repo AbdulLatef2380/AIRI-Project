@@ -38,6 +38,7 @@ class ConnectorAuthStrategyTest {
             "microsoft_outlook" to ConnectorAuthMode.OAUTH2_PKCE,
             "microsoft_calendar" to ConnectorAuthMode.OAUTH2_PKCE,
             "microsoft_onedrive" to ConnectorAuthMode.OAUTH2_PKCE,
+            "microsoft_teams" to ConnectorAuthMode.OAUTH2_PKCE,
             "zapier" to ConnectorAuthMode.OAUTH2_PKCE,
         )
         expected.forEach { (id, mode) ->

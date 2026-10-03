@@ -71,3 +71,7 @@ id, name, size, folder, file, lastModifiedDateTime, webUrl
 - https://learn.microsoft.com/en-us/graph/api/driveitem-list-children?view=graph-rest-1.0
 - https://learn.microsoft.com/en-us/graph/permissions-reference
 - https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow
+
+## الشريحة التالية المنفذة: Microsoft Teams
+
+تم تنفيذ Teams فوق نفس `microsoft_graph` runtime بقراءة الفرق التي انضم إليها المستخدم عبر `GET /v1.0/me/joinedTeams` وscope `Team.ReadBasic.All`. لا تدخل الرسائل أو القنوات أو عمليات الكتابة قبل إكمال مراجعة scopes إضافية واختبارات الموافقة.

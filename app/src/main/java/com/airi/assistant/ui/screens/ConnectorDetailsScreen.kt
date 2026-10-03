@@ -43,6 +43,7 @@ import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.viewmodel.ConnectorsViewModel
 import com.airi.assistant.connector.ConnectorAvailability
+import com.airi.assistant.connector.ConnectorAuthStrategies
 import kotlinx.coroutines.launch
 
 private fun connectorDetailIcon(id: String) = when {
@@ -79,6 +80,7 @@ fun ConnectorDetailsScreen(
     val isHealthy = row.state.healthy
     val isComingSoon = row.meta.availability == ConnectorAvailability.COMING_SOON
     val runtimeId = row.meta.runtimeId
+    val authStrategy = remember(row.meta) { ConnectorAuthStrategies.forMeta(row.meta) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
@@ -122,6 +124,10 @@ fun ConnectorDetailsScreen(
                         else -> "Not connected"
                     }}", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
                     Text("Authentication: ${row.meta.authenticationType ?: "Not declared"}", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+                    Text(authStrategy.summary, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+                    if (authStrategy.requiredScopes.isNotEmpty()) {
+                        Text("Requested scopes: ${authStrategy.requiredScopes.joinToString()}", color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    }
                     if (row.state.statusLine.isNotBlank()) Text(row.state.statusLine, fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
                     if (row.meta.tags.isNotEmpty()) Text("Tags: ${row.meta.tags.joinToString()}", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
                 }
@@ -145,35 +151,34 @@ fun ConnectorDetailsScreen(
                 }
             }
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(
-                    onClick = {
-                        if (isConnected) viewModel.disconnect(connectorId)
-                        else if (runtimeId in setOf("github", "telegram", "google")) onManageAuthorization(runtimeId)
-                        else viewModel.connect(connectorId)
-                        scope.launch { snackbar.showSnackbar(if (isConnected) "Disconnect requested" else "Connection requested") }
-                    },
-                    enabled = !isComingSoon,
-                    modifier = Modifier.weight(1f)
-                ) {
+            Button(
+                onClick = {
+                    if (isConnected) viewModel.disconnect(connectorId)
+                    else if (authStrategy.officialAuthorizationRequired) onManageAuthorization(runtimeId)
+                    else viewModel.connect(connectorId)
+                    scope.launch { snackbar.showSnackbar(if (isConnected) "Disconnect requested" else "Connection requested") }
+                },
+                enabled = !isComingSoon,
+                modifier = Modifier.fillMaxWidth().height(56.dp)
+            ) {
                     Icon(Icons.Outlined.CheckCircle, contentDescription = null)
                     Spacer(Modifier.padding(3.dp))
                     Text(if (isComingSoon) stringResource(R.string.connectors_status_coming_soon) else if (isConnected) "Disconnect" else "Connect")
-                }
-                OutlinedButton(
-                    onClick = {
-                        if (runtimeId in setOf("github", "telegram", "google")) onManageAuthorization(runtimeId)
-                        else viewModel.connect(connectorId)
-                        onTry("Test the ${row.meta.name} connector with a safe read-only operation and report the result.")
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
+            }
+            OutlinedButton(
+                onClick = {
+                    if (authStrategy.officialAuthorizationRequired) onManageAuthorization(runtimeId)
+                    else viewModel.connect(connectorId)
+                    onTry("Test the ${row.meta.name} connector with a safe read-only operation and report the result.")
+                },
+                enabled = !isComingSoon,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                     Icon(Icons.Outlined.PlayArrow, contentDescription = null)
                     Spacer(Modifier.padding(3.dp))
                     Text("Test connection")
-                }
             }
-            if (runtimeId in setOf("github", "telegram", "google") || !isConnected || !isHealthy) {
+            if (!isComingSoon && (authStrategy.officialAuthorizationRequired || !isConnected || !isHealthy)) {
                 OutlinedButton(
                     onClick = { onManageAuthorization(runtimeId) },
                     modifier = Modifier.fillMaxWidth()

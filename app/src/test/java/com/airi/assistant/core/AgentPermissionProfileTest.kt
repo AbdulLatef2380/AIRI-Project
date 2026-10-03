@@ -37,6 +37,18 @@ class AgentPermissionProfileTest {
     }
 
     @Test
+    fun simpleRequestWithResolvedCapabilityCanReadTools() {
+        val profile = AgentPermissionProfile.resolve(
+            QueryType.SIMPLE, "model", "provider", toolsRequested = true
+        )
+        val exposed = profile.filterTools(listOf(connector, memory, calendarCreate))
+        assertTrue(exposed.contains(connector))
+        assertTrue(exposed.contains(memory))
+        assertFalse(exposed.contains(calendarCreate))
+        assertTrue(profile.allowReadTools)
+    }
+
+    @Test
     fun actionProfileAllowsReadAndExplicitCalendarProposalOnly() {
         val profile = AgentPermissionProfile.resolve(QueryType.ACTION, "model", "provider")
         val exposed = profile.filterTools(listOf(connector, skill, memory, calendarCreate))

@@ -132,8 +132,8 @@ object OfficialConnectorCatalog {
         soon("google_contacts", "Google Contacts", "Google", ConnectorAuthenticationType.OAUTH2, "Google", "https://contacts.google.com", tags = listOf("contacts", "google")),
         soon("google_tasks", "Google Tasks", "Google", ConnectorAuthenticationType.OAUTH2, "Google", "https://tasks.google.com", tags = listOf("tasks", "google")),
         soon("google_meet", "Google Meet", "Google", ConnectorAuthenticationType.OAUTH2, "Google", "https://meet.google.com", tags = listOf("meetings", "google")),
-        soon("microsoft_outlook", "Outlook Mail", "Microsoft", "Microsoft".let { ConnectorAuthenticationType.OAUTH2 }, "Microsoft", "https://outlook.live.com", tags = listOf("email", "mail", "microsoft")),
-        soon("microsoft_calendar", "Outlook Calendar", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://outlook.live.com/calendar", tags = listOf("calendar", "microsoft")),
+        partial("microsoft_outlook", "Outlook Mail", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://outlook.live.com", docs = "https://learn.microsoft.com/en-us/graph/api/resources/mail-api-overview", capabilities = listOf(ConnectorCapability("outlook.mail.read", "Read the signed-in user's mail")), tags = listOf("email", "mail", "microsoft"), limitations = listOf("Requires an Entra public client id and the registered AIRI redirect URI.")),
+        partial("microsoft_calendar", "Outlook Calendar", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://outlook.live.com/calendar", docs = "https://learn.microsoft.com/en-us/graph/api/resources/calendar", capabilities = listOf(ConnectorCapability("outlook.calendar.read", "Read the signed-in user's calendar")), tags = listOf("calendar", "microsoft"), limitations = listOf("Requires an Entra public client id and the registered AIRI redirect URI.")),
         soon("microsoft_onedrive", "OneDrive", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://onedrive.live.com", tags = listOf("files", "storage", "microsoft")),
         soon("microsoft_teams", "Microsoft Teams", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://teams.microsoft.com", tags = listOf("communication", "microsoft")),
         soon("microsoft_sharepoint", "SharePoint", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://www.sharepoint.com", tags = listOf("files", "microsoft")),
@@ -192,10 +192,7 @@ fun ConnectorDefinition.toConnectorMeta(): ConnectorMeta = ConnectorMeta(
 )
 
 /** Catalog surfaces that share one first-class provider adapter. */
-fun ConnectorDefinition.runtimeConnectorId(): String = when (id) {
-    "google_gmail", "google_calendar", "google_drive" -> "google"
-    else -> id
-}
+fun ConnectorDefinition.runtimeConnectorId(): String = ConnectorRuntimeDescriptors.runtimeIdFor(id)
 
 fun ConnectorMeta.withCatalogDefinition(definition: ConnectorDefinition): ConnectorMeta = copy(
     provider = definition.provider,

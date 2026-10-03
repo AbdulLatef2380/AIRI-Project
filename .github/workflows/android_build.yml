@@ -55,6 +55,7 @@ jobs:
     - name: Verify source contracts and localization
       run: |
         python3 tools/airi_runtime_simulation.py
+        python3 tools/final_runtime_integration_audit.py
         python3 tools/stability/local_model_performance_sim.py
         python3 scripts/connector_lifecycle_static_scan.py
         python3 scripts/runtime_state_simulation.py

@@ -142,7 +142,12 @@ Do not mix tool_call JSON with prose in the same message.
         executionContextFactory: AgentLoopExecutionContextFactory? = null
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
-        val permissionProfile = com.airi.assistant.core.AgentPermissionProfile.resolve(queryType, modelId, providerId)
+        val permissionProfile = com.airi.assistant.core.AgentPermissionProfile.resolve(
+            queryType = queryType,
+            modelId = modelId,
+            providerId = providerId,
+            toolsRequested = tools.isNotEmpty(),
+        )
         val effectiveTools = permissionProfile.filterTools(tools)
         val toolsInvoked = mutableListOf<String>()
         val history      = priorConversation.mapNotNull { turn ->
@@ -174,6 +179,32 @@ Do not mix tool_call JSON with prose in the same message.
 
         val fullSystemPrompt = systemPrompt + "\n\n" + buildToolBlock(effectiveTools) + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
+        // Device time/date is a deterministic system fact. Execute it before
+        // the first model turn so a short question cannot degrade into a
+        // hallucinated refusal merely because the model did not emit a tool
+        // call. The result is still returned through the normal conversation
+        // context so the model formats the answer naturally.
+        val capabilityIntent = com.airi.assistant.ai.CapabilityIntentDetector.detect(input)
+        if (capabilityIntent.requires(
+                com.airi.assistant.ai.CapabilityIntentDetector.Capability.CURRENT_TIME
+            ) && effectiveTools.any { it.name == "current_time" }
+        ) {
+            val timeResult = try {
+                dispatcher.execute("current_time", emptyMap(), appContext, executionId)
+            } catch (error: Exception) {
+                ToolDispatcher.ToolResult.Error(
+                    "Unable to read device time: ${error.message ?: "unknown error"}",
+                    code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.EXECUTION_FAILED,
+                )
+            }
+            val timeText = when (timeResult) {
+                is ToolDispatcher.ToolResult.Success -> timeResult.output
+                is ToolDispatcher.ToolResult.Error -> "Error: ${timeResult.message}"
+            }
+            toolsInvoked += "current_time"
+            history.add(ConversationTurn.ToolResult("current_time", timeText))
+            Log.i(TAG, "AIRI DETERMINISTIC_TOOL tool=current_time success=${timeResult is ToolDispatcher.ToolResult.Success}")
+        }
         // Register ownership before any completion/cancellation event. The bus
         // rejects terminal events from unknown execution ids; without this start
         // event a previous run can leave isWorking=true on the chat screen.
@@ -444,20 +475,32 @@ Do not mix tool_call JSON with prose in the same message.
                 )
                 val toolResult = if (toolValidationError != null) {
                     Log.w(TAG, "AIRI TOOL_REJECTED_INVALID_SCHEMA tool=$toolName reason=$toolValidationError")
-                    ToolDispatcher.ToolResult.Error(toolValidationError)
+                    ToolDispatcher.ToolResult.Error(
+                        toolValidationError,
+                        code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.INVALID_ARGUMENT,
+                    )
                 } else if (duplicateToolCall) {
                     Log.w(TAG, "AIRI TOOL_DUPLICATE_BLOCKED execution=$executionId tool=$toolName step=$toolStepId")
-                    ToolDispatcher.ToolResult.Error("Duplicate tool call blocked for this execution step.")
+                    ToolDispatcher.ToolResult.Error(
+                        "Duplicate tool call blocked for this execution step.",
+                        code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.DUPLICATE_CALL,
+                    )
                 } else when (sideEffectDecision) {
                     AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED -> {
                         Log.w(TAG, "AIRI TOOL_BLOCKED_NO_DURABLE_CONTEXT tool=$toolName")
-                        ToolDispatcher.ToolResult.Error(AgentLoopSideEffectPolicy.blockedMessage(toolName))
+                        ToolDispatcher.ToolResult.Error(
+                            AgentLoopSideEffectPolicy.blockedMessage(toolName),
+                            code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
+                        )
                     }
                     AgentLoopSideEffectPolicy.Decision.ALLOW_TYPED_CALENDAR_CREATE -> {
                         val execution = durableExecutionContext
                         val runtime = calendarCreateRuntime
                         if (execution == null || runtime == null) {
-                            ToolDispatcher.ToolResult.Error(AgentLoopSideEffectPolicy.blockedMessage(toolName))
+                            ToolDispatcher.ToolResult.Error(
+                                AgentLoopSideEffectPolicy.blockedMessage(toolName),
+                                code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
+                            )
                         } else {
                             when (val created = runtime.createProposal(
                                 execution = execution,
@@ -503,16 +546,24 @@ Do not mix tool_call JSON with prose in the same message.
                         throw e
                     } catch (e: com.airi.assistant.security.AgentSandbox.SandboxViolationException) {
                         Log.w(TAG, "AIRI SANDBOX_VIOLATION tool=$toolName: ${e.message}")
-                        ToolDispatcher.ToolResult.Error("Permission denied for tool: $toolName")
+                        ToolDispatcher.ToolResult.Error(
+                            "Permission denied for tool: $toolName",
+                            code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
+                            provenance = com.airi.assistant.agent.loop.tool.ToolProvenance.SYSTEM,
+                        )
                     } catch (e: Exception) {
                         Log.w(TAG, "Tool $toolName threw: ${e.message}")
-                        ToolDispatcher.ToolResult.Error("Tool failed: ${e.message}")
+                        ToolDispatcher.ToolResult.Error(
+                            "Tool failed: ${e.message}",
+                            code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.EXECUTION_FAILED,
+                        )
                     }
                 }
 
                 val resultText = when (toolResult) {
                     is ToolDispatcher.ToolResult.Success -> toolResult.output
-                    is ToolDispatcher.ToolResult.Error   -> "Error: ${toolResult.message}"
+                    is ToolDispatcher.ToolResult.Error ->
+                        "Error [${toolResult.code}${if (toolResult.retryable) ", retryable" else ""}]: ${toolResult.message}"
                 }
 
                 val toolDurationMs = System.currentTimeMillis() - toolStartedAtMs
@@ -523,7 +574,7 @@ Do not mix tool_call JSON with prose in the same message.
                     success = toolResult is ToolDispatcher.ToolResult.Success,
                     durationMs = toolDurationMs,
                     resultLength = resultText.length,
-                    errorCategory = (toolResult as? ToolDispatcher.ToolResult.Error)?.message,
+                    errorCategory = (toolResult as? ToolDispatcher.ToolResult.Error)?.code,
                 )
                 runtimeTrace?.capabilityStage(
                     executionId, sessionId, toolName,
@@ -551,7 +602,12 @@ Do not mix tool_call JSON with prose in the same message.
                     toolLedger.markCompleted(toolFingerprint)
                 }
                 activeToolTrace = null
-                Log.i(TAG, "AIRI TOOL_RESULT tool=$toolName success=${toolResult is ToolDispatcher.ToolResult.Success} len=${resultText.length}")
+                val resultCode = (toolResult as? ToolDispatcher.ToolResult.Error)?.code ?: "ok"
+                val resultProvenance = when (toolResult) {
+                    is ToolDispatcher.ToolResult.Success -> toolResult.provenance.name.lowercase()
+                    is ToolDispatcher.ToolResult.Error -> toolResult.provenance.name.lowercase()
+                }
+                Log.i(TAG, "AIRI TOOL_RESULT tool=$toolName success=${toolResult is ToolDispatcher.ToolResult.Success} code=$resultCode provenance=$resultProvenance len=${resultText.length}")
 
                 ExecutionStatusBus.onNodeCompleted(
                     toolStepId,
@@ -579,7 +635,10 @@ Do not mix tool_call JSON with prose in the same message.
                     com.airi.assistant.core.CapabilityRuntimeStage.MODEL_CONTINUED,
                     if (stepsUsed < MAX_STEPS) "continued" else "terminal",
                 )
-                if (toolResult is ToolDispatcher.ToolResult.Error && stepsUsed < MAX_STEPS) {
+                if (toolResult is ToolDispatcher.ToolResult.Error &&
+                    toolResult.retryable &&
+                    stepsUsed < MAX_STEPS
+                ) {
                     val healing = SelfHealingExecutor.recoverFromToolError(
                         failedToolName = toolName,
                         errorMessage = toolResult.message.take(300),
@@ -743,7 +802,8 @@ Do not mix tool_call JSON with prose in the same message.
                 attachmentTrace       = attachmentTrace,
                 identity              = identity,
 
-                conversationHistory   = requestProjection.conversationHistory
+                conversationHistory   = requestProjection.conversationHistory,
+                requiresToolCalling   = effectiveTools.isNotEmpty(),
             ),
             context    = appContext,
             onToken    = { tok ->

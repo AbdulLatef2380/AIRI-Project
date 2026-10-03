@@ -2075,4 +2075,15 @@
     <string name="attachment_detail_size">الحجم</string>
     <string name="attachment_size_unknown">حجم غير معروف</string>
     <string name="open_attachment">فتح المرفق</string>
+    <!-- رسائل أخطاء الأدوات الظاهرة للمستخدم -->
+    <string name="tool_error_auth_required">يجب ربط %1$s أولاً، ثم حاول مرة أخرى.</string>
+    <string name="tool_error_network_unavailable">الاتصال بالإنترنت غير متاح. تحقق من اتصالك ثم حاول مرة أخرى.</string>
+    <string name="tool_error_memory_unavailable">الذاكرة غير متاحة في هذه الجلسة. ابدأ جلسة جديدة أو حاول مرة أخرى.</string>
+    <string name="tool_error_memory_scope_unavailable">تحتاج AIRI إلى جلسة قبل أن تتمكن من البحث في الذاكرة.</string>
+    <string name="tool_error_permission_denied">لا يملك AIRI الإذن لتنفيذ هذا الإجراء.</string>
+    <string name="tool_error_approval_required">يحتاج هذا الإجراء إلى موافقتك قبل المتابعة.</string>
+    <string name="tool_error_not_connected">%1$s غير متصل. اربطه من الإعدادات ثم حاول مرة أخرى.</string>
+    <string name="tool_error_tool_not_found">هذه القدرة غير متاحة في جلسة AIRI الحالية.</string>
+    <string name="tool_error_unsupported">هذه القدرة غير مدعومة في بيئة التشغيل الحالية.</string>
+    <string name="tool_error_generic">تعذر على AIRI إكمال هذه القدرة. حاول مرة أخرى.</string>
 </resources>

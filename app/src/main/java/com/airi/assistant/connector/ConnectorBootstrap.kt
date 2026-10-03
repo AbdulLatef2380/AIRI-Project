@@ -7,6 +7,7 @@ import com.airi.assistant.connector.api.RemoteLlmConnector
 import com.airi.assistant.connector.app.GitHubConnector
 import com.airi.assistant.connector.app.GoogleConnector
 import com.airi.assistant.connector.app.IftttConnector
+import com.airi.assistant.connector.app.MicrosoftGraphConnector
 import com.airi.assistant.connector.app.TelegramConnector
 import com.airi.assistant.connector.app.ZapierConnector
 import com.airi.assistant.connector.local.AndroidIntentConnector
@@ -95,5 +96,8 @@ object ConnectorBootstrap {
         // AP-10: GoogleConnector — registered as connector #14.
         // Resolves GmailAssistantSkill, CalendarEventsSkill, DriveSearchSkill runtime crashes.
         registry.register(GoogleConnector(ServiceLocator.googleAuthService))
+        // Microsoft Outlook/Calendar vertical slice. It remains disconnected
+        // until an Entra public client id and exact redirect are configured.
+        registry.register(MicrosoftGraphConnector(authManager))
     }
 }

@@ -55,6 +55,21 @@ android {
                 .ifBlank { System.getenv("PICOVOICE_ACCESS_KEY").orEmpty() }
         buildConfigField("String", "PICOVOICE_ACCESS_KEY", "\"" + picovoiceKey.replace("\"", "\\\"") + "\"")
 
+        // Microsoft is a public OAuth client: client id is not a secret, while
+        // the flow remains disabled until a real Entra app registration and
+        // exact redirect URI are supplied by the build environment.
+        val microsoftClientId = (project.findProperty("microsoftClientId") as? String).orEmpty()
+            .ifBlank { System.getenv("MICROSOFT_CLIENT_ID").orEmpty() }
+        val microsoftTenant = (project.findProperty("microsoftTenant") as? String).orEmpty()
+            .ifBlank { System.getenv("MICROSOFT_TENANT").orEmpty() }
+            .ifBlank { "common" }
+        val microsoftOAuthEnabled = (project.findProperty("microsoftOAuthEnabled") as? String).orEmpty()
+            .ifBlank { System.getenv("MICROSOFT_OAUTH_ENABLED").orEmpty() }
+            .equals("true", ignoreCase = true)
+        buildConfigField("String", "MICROSOFT_CLIENT_ID", "\"" + microsoftClientId.replace("\"", "\\\"") + "\"")
+        buildConfigField("String", "MICROSOFT_TENANT", "\"" + microsoftTenant.replace("\"", "\\\"") + "\"")
+        buildConfigField("boolean", "MICROSOFT_OAUTH_ENABLED", microsoftOAuthEnabled.toString())
+
 
         // Native (llama.cpp + JNI bridge) is built from source — see
         // app/src/main/cpp/CMakeLists.txt. No prebuilt .so is shipped; if

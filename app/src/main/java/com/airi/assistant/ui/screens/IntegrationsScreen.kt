@@ -141,6 +141,9 @@ fun IntegrationsScreen(
                         IntentSenderRequest.Builder(effect.pendingIntent.intentSender).build()
                     )
                 }
+                is IntegrationsViewModel.GoogleAuthorizationEffect.LaunchBrowser -> {
+                    context.startActivity(effect.intent)
+                }
             }
         }
     }
@@ -150,6 +153,9 @@ fun IntegrationsScreen(
         when (initialConnectorId) {
             "github" -> vm.openGithubDialog()
             "telegram" -> vm.openTelegramDialog()
+            "notion", "notion_mcp" -> vm.openNotionDialog()
+            "zapier" -> vm.beginConnectorAuthorization("zapier")
+            "microsoft_graph" -> vm.beginConnectorAuthorization("microsoft_graph")
             "google" -> when (
                 IntegrationReadinessPolicy.googleConnectionAction(
                     items.firstOrNull { it.id == "google" }?.readiness
@@ -222,6 +228,9 @@ fun IntegrationsScreen(
                         when (item.id) {
                             "github" -> vm.openGithubDialog()
                             "telegram" -> vm.openTelegramDialog()
+                            "notion", "notion_mcp" -> vm.openNotionDialog()
+                            "zapier" -> vm.beginConnectorAuthorization("zapier")
+                            "microsoft_graph" -> vm.beginConnectorAuthorization("microsoft_graph")
                             "google" -> when (
                                 IntegrationReadinessPolicy.googleConnectionAction(item.readiness)
                             ) {
@@ -274,6 +283,27 @@ fun IntegrationsScreen(
             error = state.error,
             onTokenChange = { vm.updateTelegramToken(it) },
             onConfirm = { vm.connectTelegram() },
+            onDismiss = { vm.closeDialog() }
+        )
+    }
+    if (dialog is IntegrationsViewModel.DialogState.Notion) {
+        val state = dialog as IntegrationsViewModel.DialogState.Notion
+        TokenDialog(
+            title = "Connect Notion",
+            emoji = "",
+            steps = listOf(
+                "Create an internal integration in the official Notion settings",
+                "Copy the integration token without sharing it",
+                "Share the target pages with the integration",
+                "AIRI will verify the Notion identity before enabling tools"
+            ),
+            inputLabel = "Notion integration token",
+            inputHint = "secret_xxxxxxxxxxxxxxxxxxxx",
+            token = state.token,
+            loading = state.loading,
+            error = state.error,
+            onTokenChange = { vm.updateNotionToken(it) },
+            onConfirm = { vm.connectNotion() },
             onDismiss = { vm.closeDialog() }
         )
     }

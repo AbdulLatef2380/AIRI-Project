@@ -254,6 +254,16 @@ object ServiceLocator {
         }
     }
 
+    /** One authorization boundary for Google, Zapier, Notion, Telegram, and GitHub. */
+    val connectorAuthorizationManager: com.airi.assistant.connector.ConnectorAuthorizationManager by lazy {
+        com.airi.assistant.connector.ConnectorAuthorizationManager(
+            registry = connectorRegistry,
+            authManager = connectorAuthManager,
+            secureStorage = secureStorage,
+            googleAuthService = googleAuthService,
+        )
+    }
+
     val connectorRuntimeManager: com.airi.assistant.connector.ConnectorRuntimeManager by lazy {
         com.airi.assistant.connector.ConnectorRuntimeManager(connectorRegistry)
     }

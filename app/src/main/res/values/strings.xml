@@ -2176,4 +2176,15 @@
     <string name="attachment_detail_size">Size</string>
     <string name="attachment_size_unknown">Unknown size</string>
     <string name="open_attachment">Open attachment</string>
+    <!-- User-facing tool execution errors -->
+    <string name="tool_error_auth_required">Connect %1$s first, then try again.</string>
+    <string name="tool_error_network_unavailable">Internet connection is unavailable. Check your connection and try again.</string>
+    <string name="tool_error_memory_unavailable">Memory is unavailable in this session. Start a new session or try again.</string>
+    <string name="tool_error_memory_scope_unavailable">A session is required before AIRI can search memory.</string>
+    <string name="tool_error_permission_denied">AIRI does not have permission to perform this action.</string>
+    <string name="tool_error_approval_required">This action needs your approval before it can continue.</string>
+    <string name="tool_error_not_connected">%1$s is not connected. Connect it in Settings, then try again.</string>
+    <string name="tool_error_tool_not_found">This capability is not available in the current AIRI session.</string>
+    <string name="tool_error_unsupported">This capability is not supported in the current runtime.</string>
+    <string name="tool_error_generic">AIRI could not complete this capability. Please try again.</string>
 </resources>

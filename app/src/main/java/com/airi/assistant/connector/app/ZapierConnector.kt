@@ -86,6 +86,15 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
 
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
+    override fun agentActions() = listOf(
+        ConnectorAgentAction("list_zaps", "List Zaps owned by the authorized user."),
+        ConnectorAgentAction("list_triggers", "List available Zapier trigger types."),
+        ConnectorAgentAction("trigger_zap", "Trigger an authorized Zap.", ConnectorPermissionLevel.WRITE),
+        ConnectorAgentAction("pause_zap", "Pause an authorized Zap.", ConnectorPermissionLevel.WRITE),
+        ConnectorAgentAction("resume_zap", "Resume an authorized Zap.", ConnectorPermissionLevel.WRITE),
+        ConnectorAgentAction("status", "Return the current Zapier connection status."),
+    )
+
     fun isOAuthConfigured(): Boolean =
         ReleaseScopePolicy.externalAutomationIntegrationsEnabled &&
             CLIENT_ID != "ZAPIER_CLIENT_ID_PLACEHOLDER"

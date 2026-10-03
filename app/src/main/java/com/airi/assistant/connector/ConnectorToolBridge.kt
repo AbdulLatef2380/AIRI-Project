@@ -15,7 +15,14 @@ class ConnectorToolBridge(
         val action: ConnectorAgentAction,
     )
 
-    fun asToolSchemas(): List<ToolSchema> = bindings(onlyExecutable = true)
+    fun asToolSchemas(): List<ToolSchema> = asToolSchemas(includeUnavailable = false)
+
+    /**
+     * Expose registered read actions even when disconnected/unhealthy when the
+     * caller needs a truthful readiness result. Invocation remains guarded by
+     * ConnectorRuntimeManager and returns not_connected/unhealthy/auth errors.
+     */
+    fun asToolSchemas(includeUnavailable: Boolean): List<ToolSchema> = bindings(onlyExecutable = !includeUnavailable)
         .map { (toolName, binding) -> binding.toSchema(toolName) }
         .sortedBy { it.name }
 

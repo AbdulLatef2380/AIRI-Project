@@ -2225,22 +2225,42 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // SkillToolBridge already handles these in ToolDispatcher — they just weren't
             // being advertised to the LLM in the system prompt (the gap that caused
             // skill_code_assistant, skill_research_agent, etc. to never be invoked).
-            val allActiveTools = runCatching {
-                com.airi.assistant.agent.loop.tool.BuiltinTools.ALL +
-                    skillToolBridge.asToolSchemas() +
-                    connectorToolBridge.asToolSchemas()
-            }.getOrDefault(com.airi.assistant.agent.loop.tool.BuiltinTools.ALL)
-            // A greeting or creative turn should not pay the latency/format cost
-            // of a 16-step tool loop. Action, analytical, and unknown turns keep
-            // the full runtime surface (memory, skills, connectors, terminal).
-            // AgentLoop itself remains the single execution boundary for those
-            // turns; this only avoids forcing tool-call protocol on plain chat.
-            val activeTools = if (queryType == QueryType.SIMPLE || queryType == QueryType.CREATIVE) {
+            val capabilityIntent = com.airi.assistant.ai.CapabilityIntentDetector.detect(trimmedInput)
+            val catalog = runCatching {
+                val connectorSchemas = connectorToolBridge.asToolSchemas(includeUnavailable = true)
+                val executableConnectorNames = connectorToolBridge.asToolSchemas()
+                    .map { it.name }
+                    .toSet()
+                com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.assemble(
+                    builtins = com.airi.assistant.agent.loop.tool.BuiltinTools.ALL,
+                    skills = skillToolBridge.asToolSchemas(),
+                    connectors = connectorSchemas.map {
+                        com.airi.assistant.agent.loop.tool.RuntimeToolContract.connector(
+                            schema = it,
+                            available = it.name in executableConnectorNames,
+                        )
+                    },
+                    intent = capabilityIntent,
+                )
+            }.getOrElse {
+                com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.assemble(
+                    builtins = com.airi.assistant.agent.loop.tool.BuiltinTools.ALL,
+                    skills = emptyList(),
+                    connectors = emptyList(),
+                    intent = capabilityIntent,
+                )
+            }
+            val allActiveTools = catalog.schemas
+            // QueryType describes answer shape; CapabilityIntent describes live
+            // data dependencies. Only a capability-free simple/creative turn
+            // may use the no-tools fast path.
+            val activeTools = if (!capabilityIntent.requiresTools &&
+                (queryType == QueryType.SIMPLE || queryType == QueryType.CREATIVE)) {
                 emptyList()
             } else {
                 allActiveTools
             }
-            Log.i("AIRI", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${skillToolBridge.asToolSchemas().size} connectors=${connectorToolBridge.asToolSchemas().size} selected=${activeTools.size} queryType=${queryType.name}")
+            Log.i("AIRI", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${skillToolBridge.asToolSchemas().size} connectors=${connectorToolBridge.asToolSchemas().size} selected=${activeTools.size} queryType=${queryType.name} capabilities=${capabilityIntent.capabilities} candidates=${catalog.candidates.size} exposed=${catalog.exposed.size} filtered=${catalog.filtered.map { it.toolName + ":" + it.reason.name }}")
 
             var tokenCount = 0
             var firstTokenReceived = false
@@ -2344,6 +2364,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                     if (approved) "User confirmed: proceed with $action"
                                     else          "User denied: do not proceed with $action"
                                 } else {
+                                    ToolErrorPresentationPolicy.resolve(stepEvent.toolName, result)?.let { presentation ->
+                                        val localizedMessage = appContext.getString(
+                                            presentation.messageResId,
+                                            *presentation.formatArgs.toTypedArray(),
+                                        )
+                                        _lastExecutionError.value = ExecutionErrorProjection(
+                                            executionId = "tool-${generationId}-${stepEvent.step}",
+                                            message = localizedMessage,
+                                            messageResId = presentation.messageResId,
+                                            stage = ExecutionFailureStage.AGENT_LOOP,
+                                            sessionId = sessionId,
+                                            replyToMessageId = userMessage.id,
+                                        )
+                                        Log.w(
+                                            "AIRI_TOOL_UI",
+                                            "tool=${stepEvent.toolName} code=${presentation.code} user_message=localized",
+                                        )
+                                    }
                                     null  // no override — AgentLoop uses original result
                                 }
                             }
@@ -2439,7 +2477,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         Log.e("AIRI_LOOP", "EMPTY_RESPONSE generation=$generationId model=$requestedModelIdAtDispatch provider=$requestedProviderIdAtDispatch")
                         return@launch
                     }
-                    GenerationResponseStatus.SUCCESS -> Unit
+                    GenerationResponseStatus.SUCCESS -> {
+                        // A recovered tool error must not remain visible after a complete answer.
+                        _lastExecutionError.value = null
+                    }
                 }
                 attachmentTrace?.markExecutionCompleted()
                 if (attachmentTrace != null && !attachmentTrace.isTransportSuccessful()) {

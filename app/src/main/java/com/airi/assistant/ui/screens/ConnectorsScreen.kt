@@ -36,6 +36,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airi.assistant.connector.ConnectorType
 import com.airi.assistant.connector.ConnectorAvailability
+import com.airi.assistant.connector.ConnectorAuthStrategies
 import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
@@ -355,7 +356,7 @@ fun ConnectorsScreen(
                                     // Provider-backed connectors need the provider's
                                     // sign-in/token flow before registry.connect can
                                     // succeed. Never show a fake "requested" state.
-                                    if (row.meta.runtimeId in setOf("github", "telegram", "google")) {
+                                    if (ConnectorAuthStrategies.forMeta(row.meta).officialAuthorizationRequired) {
                                         onManageAuthorization(row.meta.runtimeId)
                                     } else {
                                         viewModel.connect(row.meta.id)
@@ -388,6 +389,7 @@ private fun ConnectorCard(
     val isConnected = row.state.connected
     val isComingSoon = row.meta.availability == ConnectorAvailability.COMING_SOON
     val isPartial = row.meta.availability == ConnectorAvailability.PARTIAL
+    val authStrategy = remember(row.meta) { ConnectorAuthStrategies.forMeta(row.meta) }
     val isReady = isConnected && row.state.healthy
     val needsAttention = isConnected && !row.state.healthy
     val statusColor = when {
@@ -564,7 +566,7 @@ private fun ConnectorCard(
                             }
                         }
                     }
-                    if (needsAttention && row.meta.runtimeId in setOf("github", "telegram", "google")) {
+                    if (needsAttention && authStrategy.officialAuthorizationRequired) {
                         Spacer(Modifier.height(8.dp))
                         TextButton(onClick = { onManageAuthorization(row.meta.runtimeId) }) {
                             Text(stringResource(R.string.connectors_manage_authorization))

@@ -45,6 +45,17 @@ abstract class McpConnector(
 
     final override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
+    /** Expose each authenticated MCP tool through the canonical connector bridge. */
+    override fun agentActions() = tools.map { tool ->
+        com.airi.assistant.connector.ConnectorAgentAction(
+            id = "invoke_tool",
+            description = tool.description,
+            parameters = tool.schema.mapValues { (_, type) ->
+                com.airi.assistant.connector.ConnectorAgentParameter(type = type)
+            } + mapOf("tool" to com.airi.assistant.connector.ConnectorAgentParameter(required = true)),
+        )
+    }
+
     final override suspend fun connect(): ConnectorState {
         val ok = runCatching { handshake() }.getOrDefault(false)
         _state.value = ConnectorState(

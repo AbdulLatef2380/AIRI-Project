@@ -1,0 +1,230 @@
+package com.airi.assistant.connector
+
+import android.content.Intent
+import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.connector.app.GitHubConnector
+import com.airi.assistant.connector.app.GoogleConnector
+import com.airi.assistant.connector.app.MicrosoftGraphConnector
+import com.airi.assistant.connector.app.ZapierConnector
+import com.airi.assistant.connector.mcp.NotionMcpConnector
+import com.airi.assistant.connector.mcp.saveNotionToken
+import com.airi.assistant.connector.mcp.getNotionToken
+import com.airi.assistant.connector.oauth.OAuthStateRegistry
+import com.airi.assistant.connector.oauth.MicrosoftOAuthConfiguration
+import com.airi.assistant.connector.oauth.OAuthConfiguration
+import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.integrations.github.GithubService
+import com.airi.assistant.integrations.google.GoogleAuthService
+import com.airi.assistant.integrations.google.GoogleDataAuthorization
+import com.airi.assistant.integrations.telegram.TelegramService
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+/**
+ * Single orchestration boundary for connector authorization.
+ *
+ * This class deliberately does not collect secrets from an arbitrary caller or
+ * put provider credentials in logs. Provider adapters validate credentials,
+ * the manager invokes the real connector health check, and only then does the
+ * registry expose a connected runtime.
+ */
+class ConnectorAuthorizationManager(
+    private val registry: ConnectorRegistry,
+    private val authManager: ConnectorAuthManager,
+    private val secureStorage: SecureStorage,
+    private val googleAuthService: GoogleAuthService,
+    private val githubService: GithubService = GithubService(secureStorage),
+    private val telegramService: TelegramService = TelegramService(secureStorage),
+) {
+    sealed interface StartResult {
+        data class OAuthBrowser(val connectorId: String, val url: String) : StartResult
+        data class GoogleIdentity(val intent: Intent) : StartResult
+        data class GoogleConsent(val connectorId: String) : StartResult
+        data class CredentialRequired(
+            val connectorId: String,
+            val label: String,
+            val provider: String,
+        ) : StartResult
+        data class Ready(val connectorId: String, val state: ConnectorState) : StartResult
+        data class Failed(val code: String, val message: String, val retryable: Boolean = false) : StartResult
+    }
+
+    sealed interface CompletionResult {
+        data class Ready(val connectorId: String, val state: ConnectorState) : CompletionResult
+        data class ConsentRequired(val connectorId: String) : CompletionResult
+        data class Failed(val code: String, val message: String, val retryable: Boolean = false) : CompletionResult
+    }
+
+    /** Starts the provider-appropriate flow for a catalog or runtime id. */
+    suspend fun begin(id: String): StartResult = withContext(Dispatchers.IO) {
+        val runtimeId = resolveRuntimeId(id)
+        val meta = registry.catalogMeta().firstOrNull { it.id == id || it.runtimeId == runtimeId }
+            ?: registry.get(runtimeId)?.meta()
+            ?: return@withContext StartResult.Failed("not_found", "Connector '$id' is not registered")
+        val strategy = ConnectorAuthStrategies.forMeta(meta)
+        if (!strategy.isExecutable) {
+            val rollout = ConnectorRolloutRegistry.get(id)
+            val adapterContract = RemainingProviderAdapterContracts.get(id)
+            val detail = rollout?.let {
+                buildString {
+                    append(it.blockedReason)
+                    append(" Rollout batch: ${it.batch.name}; required adapter: ${it.requiredAdapter}.")
+                    adapterContract?.let { contract ->
+                        append(" Auth: ${contract.authMode}; required scopes: ${contract.requiredScopes.joinToString(", ")}; health: ${contract.healthEndpoint}.")
+                    }
+                }
+            } ?: strategy.summary
+            return@withContext StartResult.Failed("adapter_not_installed", detail)
+        }
+        if (!authManager.isSecureStorageAvailable && strategy.mode != ConnectorAuthMode.OAUTH2_PKCE) {
+            return@withContext StartResult.Failed("secure_storage_unavailable", "Secure credential storage is unavailable; connector was not connected.")
+        }
+        when (runtimeId) {
+            "google" -> beginGoogle()
+            "microsoft_graph" -> beginMicrosoft()
+            "zapier" -> beginZapier(runtimeId)
+            "github" -> StartResult.CredentialRequired(runtimeId, "GitHub personal access token", "GitHub")
+            "telegram" -> StartResult.CredentialRequired(runtimeId, "Telegram bot token", "Telegram")
+            "notion_mcp" -> StartResult.CredentialRequired(runtimeId, "Notion integration token", "Notion")
+            else -> connectAndVerify(runtimeId)
+        }
+    }
+
+    private fun beginGoogle(): StartResult {
+        val email = googleAuthService.getLastSignedInEmail()
+        return when {
+            email.isNullOrBlank() -> StartResult.GoogleIdentity(googleAuthService.getSignInIntent())
+            googleAuthService.getDataAccessToken().isNullOrBlank() -> StartResult.GoogleConsent("google")
+            else -> StartResult.Failed("already_ready", "Google authorization is already complete")
+        }
+    }
+
+    private fun beginMicrosoft(): StartResult {
+        val connector = registry.get(MicrosoftOAuthConfiguration.CONNECTOR_ID) as? MicrosoftGraphConnector
+            ?: return StartResult.Failed("not_registered", "Microsoft Graph runtime adapter is not registered")
+        return when (connector.oauthConfiguration()) {
+            is OAuthConfiguration.Configured -> connector.buildAuthUrl().fold(
+                onSuccess = { StartResult.OAuthBrowser(MicrosoftOAuthConfiguration.CONNECTOR_ID, it) },
+                onFailure = { StartResult.Failed("oauth_configuration_invalid", "Microsoft OAuth configuration is invalid") },
+            )
+            OAuthConfiguration.MissingClientId -> StartResult.Failed("oauth_missing_client_id", "Microsoft OAuth client id is not configured for this build")
+            OAuthConfiguration.InvalidRedirectUri -> StartResult.Failed("oauth_invalid_redirect_uri", "Microsoft OAuth redirect URI is invalid or not registered")
+            OAuthConfiguration.DisabledForBuild -> StartResult.Failed("oauth_disabled_for_build", "Microsoft OAuth is disabled for this build")
+        }
+    }
+
+    private fun beginZapier(runtimeId: String): StartResult {
+        val connector = registry.get(runtimeId) as? ZapierConnector
+            ?: return StartResult.Failed("not_registered", "Zapier runtime adapter is not registered")
+        return runCatching { StartResult.OAuthBrowser(runtimeId, connector.buildAuthUrl()) }
+            .getOrElse { StartResult.Failed("oauth_not_configured", "Zapier OAuth is not configured for this build") }
+    }
+
+    /** Securely validates and commits PAT/API/MCP credentials, then health-checks. */
+    suspend fun submitCredential(id: String, credential: String): CompletionResult = withContext(Dispatchers.IO) {
+        if (credential.isBlank()) return@withContext CompletionResult.Failed("credential_missing", "Credential cannot be empty")
+        val runtimeId = resolveRuntimeId(id)
+        val validated = when (runtimeId) {
+            "github" -> githubService.validateAndConnect(credential).map { true }
+            "telegram" -> telegramService.validateAndConnect(credential).map { true }
+            "notion_mcp" -> {
+                if (!secureStorage.isEncrypted) Result.failure(IllegalStateException("Secure credential storage is unavailable"))
+                else runCatching { secureStorage.saveNotionToken(credential.trim()); true }
+            }
+            else -> Result.failure(IllegalArgumentException("Connector '$id' does not accept a credential form"))
+        }
+        validated.fold(
+            onSuccess = {
+                if (runtimeId == "github" && !authManager.storeCredential("github", "pat", credential.trim())) {
+                    secureStorage.disconnect("github")
+                    return@fold CompletionResult.Failed(
+                        "secure_storage_unavailable",
+                        "Secure credential storage is unavailable; GitHub was not connected."
+                    )
+                }
+                val state = registry.connect(runtimeId)
+                if (state.connected && state.healthy) CompletionResult.Ready(runtimeId, state)
+                else {
+                    if (runtimeId == "notion_mcp") secureStorage.clearIntegrationToken("notion")
+                    CompletionResult.Failed("health_check_failed", state.errorMessage ?: state.statusLine.ifBlank { "Connector health check failed" }, true)
+                }
+            },
+            onFailure = { e -> CompletionResult.Failed("credential_rejected", e.message ?: "Provider rejected the credential") }
+        )
+    }
+
+    /** Completes the registered OAuth callback and rejects unknown/replayed state. */
+    suspend fun completeOAuth(uri: android.net.Uri): CompletionResult = withContext(Dispatchers.IO) {
+        val state = uri.getQueryParameter("state")
+            ?: return@withContext CompletionResult.Failed("oauth_state_missing", "OAuth callback did not contain state")
+        val pending = OAuthStateRegistry.consumeRequest(state)
+            ?: return@withContext CompletionResult.Failed("oauth_state_invalid", "OAuth state is invalid, expired, or already consumed")
+        val code = uri.getQueryParameter("code")
+            ?: return@withContext CompletionResult.Failed("oauth_code_missing", "OAuth callback did not contain an authorization code")
+        if (pending.connectorId != "zapier" && pending.connectorId != MicrosoftOAuthConfiguration.CONNECTOR_ID) {
+            return@withContext CompletionResult.Failed("oauth_provider_unsupported", "No OAuth adapter is registered for '${pending.connectorId}'")
+        }
+        if (pending.connectorId == MicrosoftOAuthConfiguration.CONNECTOR_ID) {
+            val microsoft = registry.get(MicrosoftOAuthConfiguration.CONNECTOR_ID) as? MicrosoftGraphConnector
+                ?: return@withContext CompletionResult.Failed("not_registered", "Microsoft Graph runtime adapter is not registered")
+            if (!microsoft.handleCallback(code, pending)) {
+                return@withContext CompletionResult.Failed("token_exchange_failed", "Microsoft authorization was not saved", true)
+            }
+            return@withContext connectAndVerify(MicrosoftOAuthConfiguration.CONNECTOR_ID)
+                .toCompletion(MicrosoftOAuthConfiguration.CONNECTOR_ID)
+        }
+        val connector = registry.get("zapier") as? ZapierConnector
+            ?: return@withContext CompletionResult.Failed("not_registered", "Zapier runtime adapter is not registered")
+        val saved = connector.handleCallback(code, pending)
+        if (!saved) return@withContext CompletionResult.Failed("token_exchange_failed", "Provider authorization was not saved", true)
+        connectAndVerify("zapier").toCompletion("zapier")
+    }
+
+    suspend fun onGoogleSignIn(account: GoogleSignInAccount): CompletionResult {
+        val email = account.email
+        if (email.isNullOrBlank()) return CompletionResult.Failed("google_email_missing", "Google account did not provide an email")
+        googleAuthService.handleSignInSuccess(account)
+        return CompletionResult.ConsentRequired("google")
+    }
+
+    suspend fun onGoogleConsent(result: GoogleDataAuthorization): CompletionResult = when (result) {
+        GoogleDataAuthorization.Authorized -> connectAndVerify("google").toCompletion("google")
+        is GoogleDataAuthorization.ConsentRequired -> CompletionResult.ConsentRequired("google")
+        GoogleDataAuthorization.Cancelled -> CompletionResult.Failed("authorization_cancelled", "Google data authorization was cancelled")
+        GoogleDataAuthorization.Unavailable -> CompletionResult.Failed("authorization_unavailable", "Google data authorization is unavailable", true)
+    }
+
+    suspend fun disconnect(id: String): Boolean = withContext(Dispatchers.IO) {
+        val runtimeId = resolveRuntimeId(id)
+        registry.disconnect(runtimeId)
+        when (runtimeId) {
+            "google" -> googleAuthService.disconnect()
+            "microsoft_graph" -> authManager.revokeToken(MicrosoftOAuthConfiguration.CONNECTOR_ID)
+            "github", "telegram" -> secureStorage.disconnect(runtimeId)
+            "notion_mcp" -> secureStorage.clearIntegrationToken("notion")
+            "zapier" -> authManager.revokeToken("zapier")
+        }
+        true
+    }
+
+    private suspend fun connectAndVerify(runtimeId: String): ConnectorState {
+        val connector = registry.get(runtimeId)
+            ?: return ConnectorState(false, false, errorMessage = "Connector '$runtimeId' is not registered")
+        val state = registry.connect(runtimeId)
+        return if (state.connected && state.healthy) state else connector.state().value.copy(
+            connected = false,
+            healthy = false,
+            errorMessage = state.errorMessage ?: connector.state().value.errorMessage
+        )
+    }
+
+    private fun resolveRuntimeId(id: String): String = when (id) {
+        "google", "microsoft_graph", "notion_mcp" -> id
+        else -> ConnectorRuntimeDescriptors.runtimeIdFor(id)
+    }
+
+    private fun ConnectorState.toCompletion(id: String): CompletionResult =
+        if (connected && healthy) CompletionResult.Ready(id, this)
+        else CompletionResult.Failed("health_check_failed", errorMessage ?: statusLine.ifBlank { "Connector health check failed" }, true)
+}

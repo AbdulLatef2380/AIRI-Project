@@ -1843,4 +1843,14 @@
     <string name="attachment_detail_size">Tamaño</string>
     <string name="attachment_size_unknown">Tamaño desconocido</string>
     <string name="open_attachment">Abrir archivo adjunto</string>
+    <string name="tool_error_auth_required">Conecta %1$s primero y vuelve a intentarlo.</string>
+    <string name="tool_error_network_unavailable">La conexión a Internet no está disponible. Comprueba tu conexión y vuelve a intentarlo.</string>
+    <string name="tool_error_memory_unavailable">La memoria no está disponible en esta sesión. Inicia una sesión nueva o vuelve a intentarlo.</string>
+    <string name="tool_error_memory_scope_unavailable">Se necesita una sesión antes de buscar en la memoria.</string>
+    <string name="tool_error_permission_denied">AIRI no tiene permiso para realizar esta acción.</string>
+    <string name="tool_error_approval_required">Esta acción necesita tu aprobación antes de continuar.</string>
+    <string name="tool_error_not_connected">%1$s no está conectado. Conéctalo en Ajustes y vuelve a intentarlo.</string>
+    <string name="tool_error_tool_not_found">Esta capacidad no está disponible en la sesión actual de AIRI.</string>
+    <string name="tool_error_unsupported">Esta capacidad no es compatible con el entorno actual.</string>
+    <string name="tool_error_generic">AIRI no pudo completar esta capacidad. Vuelve a intentarlo.</string>
 </resources>

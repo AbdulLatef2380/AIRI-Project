@@ -50,15 +50,16 @@ class ConnectorRegistry(
     fun catalogMeta(): List<ConnectorMeta> {
         val catalogIds = OfficialConnectorCatalog.all.mapTo(mutableSetOf()) { it.id }
         val catalogEntries = OfficialConnectorCatalog.all.map { definition ->
-            get(definition.id)?.meta()?.withCatalogDefinition(definition)
+            get(definition.runtimeConnectorId())?.meta()?.withCatalogDefinition(definition)
                 ?: definition.toConnectorMeta()
         }
+        val catalogRuntimeIds = catalogEntries.mapTo(mutableSetOf()) { it.runtimeId }
         val liveOnly = meta.value.filterNot { it.id in catalogIds }.map { item ->
             if (item.type == ConnectorType.APP && item.availability == ConnectorAvailability.READY) {
                 item.copy(availability = ConnectorAvailability.PARTIAL)
             } else item
         }
-        return catalogEntries + liveOnly
+        return catalogEntries + liveOnly.filterNot { it.id in catalogRuntimeIds }
     }
 
     fun catalogSearch(query: String): List<ConnectorMeta> {

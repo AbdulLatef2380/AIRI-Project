@@ -28,11 +28,9 @@ import androidx.lifecycle.lifecycleScope
 import com.airi.assistant.ui.AiriApp
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.growth.ReferralManager
-import com.airi.assistant.connector.oauth.OAuthStateRegistry
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.voice.HotwordService
-import com.airi.assistant.connector.app.ZapierConnector
 import com.airi.assistant.R
 import kotlinx.coroutines.launch
 
@@ -154,30 +152,11 @@ class MainActivity : ComponentActivity() {
         if (data.scheme != "airi" || data.host != "oauth") return
         if (data.pathSegments.firstOrNull() != "callback") return
 
-        val code  = data.getQueryParameter("code") ?: return
-        val state = data.getQueryParameter("state")
-
-        if (state.isNullOrBlank()) {
-            android.util.Log.w("AIRI_OAUTH", "Rejected OAuth callback without state")
-            return
-        }
-
-        val requestContext = OAuthStateRegistry.consumeRequest(state)
-        if (requestContext == null) {
-            android.util.Log.w("AIRI_OAUTH", "Rejected OAuth callback with invalid state")
-            return
-        }
-
-        when (requestContext.connectorId) {
-            ZapierConnector.CONNECTOR_ID -> lifecycleScope.launch {
-                val connector = ServiceLocator.connectorRegistry
-                    .get(ZapierConnector.CONNECTOR_ID) as? ZapierConnector
-                val exchanged = connector?.handleCallback(code, requestContext) ?: false
-                if (!exchanged) {
-                    android.util.Log.w("AIRI_OAUTH", "OAuth code exchange failed for Zapier")
-                }
+        lifecycleScope.launch {
+            val result = ServiceLocator.connectorAuthorizationManager.completeOAuth(data)
+            if (result is com.airi.assistant.connector.ConnectorAuthorizationManager.CompletionResult.Failed) {
+                android.util.Log.w("AIRI_OAUTH", "OAuth callback rejected code=${result.code}")
             }
-            else -> android.util.Log.w("AIRI_OAUTH", "Rejected OAuth callback for unsupported connector")
         }
     }
 

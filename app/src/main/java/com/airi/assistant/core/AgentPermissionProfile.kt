@@ -48,9 +48,17 @@ data class AgentPermissionProfile(
     )
 
     companion object {
-        fun resolve(queryType: QueryType, modelId: String, providerId: String): AgentPermissionProfile {
+        fun resolve(
+            queryType: QueryType,
+            modelId: String,
+            providerId: String,
+            toolsRequested: Boolean = false,
+        ): AgentPermissionProfile {
             val mode = queryType.name.lowercase()
-            val interactive = queryType == QueryType.ACTION || queryType == QueryType.ANALYTICAL || queryType == QueryType.UNKNOWN
+            // A short request can still require current_time, memory, or a
+            // connector read. Tool access must therefore follow the resolved
+            // capability request, not QueryType alone.
+            val interactive = toolsRequested || queryType == QueryType.ACTION || queryType == QueryType.ANALYTICAL || queryType == QueryType.UNKNOWN
             return AgentPermissionProfile(
                 profileId = "agent_request_v1",
                 modelId = modelId,

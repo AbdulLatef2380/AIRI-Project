@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.airi.assistant.R
 import com.airi.assistant.connector.ConnectorAuthManager
+import com.airi.assistant.connector.ConnectorAuthorizationManager
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.integrations.github.GithubService
@@ -27,6 +28,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     // ── Private services (internal domain — ViewModels do not expose services) ─
     private val secureStorage = ServiceLocator.secureStorage
     private val authManager: ConnectorAuthManager = ServiceLocator.connectorAuthManager
+    private val authorizationManager: ConnectorAuthorizationManager = ServiceLocator.connectorAuthorizationManager
     // The registered GoogleConnector uses this same process-scoped service. Keeping
     // data access tokens only here prevents per-ViewModel token split-brain.
     private val googleAuthService = ServiceLocator.googleAuthService
@@ -86,6 +88,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     sealed interface GoogleAuthorizationEffect {
         data class LaunchConsent(val pendingIntent: PendingIntent) : GoogleAuthorizationEffect
+        data class LaunchBrowser(val intent: Intent) : GoogleAuthorizationEffect
     }
 
     private val _items = MutableStateFlow(buildItems())
@@ -102,6 +105,32 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun refresh() {
         _items.value = buildItems()
+    }
+
+    /** Starts a non-Google provider flow through the shared authorization manager. */
+    fun beginConnectorAuthorization(id: String) {
+        viewModelScope.launch {
+            when (val result = authorizationManager.begin(id)) {
+                is ConnectorAuthorizationManager.StartResult.OAuthBrowser -> {
+                    _googleAuthorizationEffects.tryEmit(
+                        GoogleAuthorizationEffect.LaunchBrowser(
+                            Intent(Intent.ACTION_VIEW, android.net.Uri.parse(result.url))
+                        )
+                    )
+                }
+                is ConnectorAuthorizationManager.StartResult.CredentialRequired -> when (result.connectorId) {
+                    "github" -> openGithubDialog()
+                    "telegram" -> openTelegramDialog()
+                    "notion_mcp" -> openNotionDialog()
+                }
+                is ConnectorAuthorizationManager.StartResult.GoogleIdentity -> Unit
+                is ConnectorAuthorizationManager.StartResult.GoogleConsent -> requestGoogleDataAuthorization()
+                is ConnectorAuthorizationManager.StartResult.Ready -> refresh()
+                is ConnectorAuthorizationManager.StartResult.Failed -> {
+                    _googleFeedback.value = R.string.integration_google_sign_in_failed
+                }
+            }
+        }
     }
 
     /** Re-evaluates the registered connector after an explicit Google account action. */
@@ -164,6 +193,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
             val loading: Boolean = false,
             val error: String? = null
         ) : DialogState()
+        data class Notion(
+            val token: String = "",
+            val loading: Boolean = false,
+            val error: String? = null
+        ) : DialogState()
     }
 
     private val _dialog = MutableStateFlow<DialogState>(DialogState.None)
@@ -171,6 +205,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun openGithubDialog()   { _dialog.value = DialogState.Github() }
     fun openTelegramDialog() { _dialog.value = DialogState.Telegram() }
+    fun openNotionDialog() { _dialog.value = DialogState.Notion() }
     fun closeDialog()        { _dialog.value = DialogState.None }
 
     fun updateGithubToken(token: String) {
@@ -180,6 +215,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun updateTelegramToken(token: String) {
         val current = _dialog.value as? DialogState.Telegram ?: return
+        _dialog.value = current.copy(token = token, error = null)
+    }
+
+    fun updateNotionToken(token: String) {
+        val current = _dialog.value as? DialogState.Notion ?: return
         _dialog.value = current.copy(token = token, error = null)
     }
 
@@ -199,31 +239,18 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         }
         _dialog.value = current.copy(loading = true, error = null)
         viewModelScope.launch {
-            githubService.validateAndConnect(current.token)
-                .onSuccess {
-                    if (!authManager.storeCredential("github", "pat", current.token.trim())) {
-                        _dialog.value = current.copy(
-                            loading = false,
-                            error = "Secure credential storage is unavailable. GitHub was not connected."
-                        )
-                    } else {
-                        val state = ServiceLocator.connectorRegistry.connect("github")
-                        if (!state.connected || !state.healthy) {
-                            authManager.clearCredential("github", "pat")
-                            _dialog.value = current.copy(
-                                loading = false,
-                                error = state.errorMessage ?: "GitHub runtime initialization failed"
-                            )
-                        } else {
-                            _dialog.value = DialogState.None
-                            refresh()
-                        }
-                    }
+            when (val result = authorizationManager.submitCredential("github", current.token)) {
+                is ConnectorAuthorizationManager.CompletionResult.Ready -> {
+                    _dialog.value = DialogState.None
+                    refresh()
                 }
-                .onFailure { e ->
-                    AppErrorHandler.capture(e, "IntegrationsViewModel.connectGithub")
-                    _dialog.value = current.copy(loading = false, error = e.message ?: "Connection failed")
+                is ConnectorAuthorizationManager.CompletionResult.Failed -> {
+                    _dialog.value = current.copy(loading = false, error = result.message)
                 }
+                is ConnectorAuthorizationManager.CompletionResult.ConsentRequired -> {
+                    _dialog.value = current.copy(loading = false, error = "Additional authorization is required")
+                }
+            }
         }
     }
 
@@ -237,24 +264,41 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         }
         _dialog.value = current.copy(loading = true, error = null)
         viewModelScope.launch {
-            telegramService.validateAndConnect(current.token)
-                .onSuccess {
-                    val state = ServiceLocator.connectorRegistry.connect("telegram")
-                    if (!state.connected || !state.healthy) {
-                        secureStorage.disconnect("telegram")
-                        _dialog.value = current.copy(
-                            loading = false,
-                            error = state.errorMessage ?: "Telegram runtime initialization failed"
-                        )
-                    } else {
-                        _dialog.value = DialogState.None
-                        refresh()
-                    }
+            when (val result = authorizationManager.submitCredential("telegram", current.token)) {
+                is ConnectorAuthorizationManager.CompletionResult.Ready -> {
+                    _dialog.value = DialogState.None
+                    refresh()
                 }
-                .onFailure { e ->
-                    AppErrorHandler.capture(e, "IntegrationsViewModel.connectTelegram")
-                    _dialog.value = current.copy(loading = false, error = e.message ?: "Connection failed")
+                is ConnectorAuthorizationManager.CompletionResult.Failed -> {
+                    _dialog.value = current.copy(loading = false, error = result.message)
                 }
+                is ConnectorAuthorizationManager.CompletionResult.ConsentRequired -> {
+                    _dialog.value = current.copy(loading = false, error = "Additional authorization is required")
+                }
+            }
+        }
+    }
+
+    fun connectNotion() {
+        val current = _dialog.value as? DialogState.Notion ?: return
+        if (current.token.isBlank()) {
+            _dialog.value = current.copy(error = "Enter a Notion integration token")
+            return
+        }
+        _dialog.value = current.copy(loading = true, error = null)
+        viewModelScope.launch {
+            when (val result = authorizationManager.submitCredential("notion", current.token)) {
+                is ConnectorAuthorizationManager.CompletionResult.Ready -> {
+                    _dialog.value = DialogState.None
+                    refresh()
+                }
+                is ConnectorAuthorizationManager.CompletionResult.Failed -> {
+                    _dialog.value = current.copy(loading = false, error = result.message)
+                }
+                is ConnectorAuthorizationManager.CompletionResult.ConsentRequired -> {
+                    _dialog.value = current.copy(loading = false, error = "Additional authorization is required")
+                }
+            }
         }
     }
 
@@ -263,9 +307,18 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
             _googleFeedback.value = GoogleIntegrationSignInPolicy.missingEmailFeedback()
             return
         }
-        googleAuthService.handleSignInSuccess(account)
-        refreshGoogleConnectorState()
-        requestGoogleDataAuthorization()
+        viewModelScope.launch {
+            when (val result = authorizationManager.onGoogleSignIn(account)) {
+                is ConnectorAuthorizationManager.CompletionResult.ConsentRequired -> {
+                    refreshGoogleConnectorState()
+                    requestGoogleDataAuthorization()
+                }
+                is ConnectorAuthorizationManager.CompletionResult.Failed -> {
+                    _googleFeedback.value = GoogleIntegrationSignInPolicy.providerFailureFeedback()
+                }
+                is ConnectorAuthorizationManager.CompletionResult.Ready -> refresh()
+            }
+        }
     }
 
     fun requestGoogleDataAuthorization() {

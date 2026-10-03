@@ -52,6 +52,17 @@ class ConnectorToolBridgeTest {
         assertEquals("not_connected", (result as ConnectorOutput.Failure).code)
     }
 
+    @Test
+    fun includeUnavailableExposesRegisteredReadActionForTruthfulFailure() {
+        val registry = ConnectorRegistry()
+        registry.register(TestConnector("google", connected = false, healthy = false))
+        val bridge = ConnectorToolBridge(registry, ConnectorRuntimeManager(registry))
+
+        val names = bridge.asToolSchemas(includeUnavailable = true).map { it.name }
+        assertTrue(names.contains("connector_google_list_repos"))
+        assertFalse(names.contains("connector_google_create_issue"))
+    }
+
     private class TestConnector(
         override val id: String,
         private val connected: Boolean,

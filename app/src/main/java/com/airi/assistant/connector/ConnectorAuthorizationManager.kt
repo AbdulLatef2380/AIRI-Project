@@ -13,6 +13,7 @@ import com.airi.assistant.connector.oauth.OAuthStateRegistry
 import com.airi.assistant.connector.oauth.MicrosoftOAuthConfiguration
 import com.airi.assistant.connector.oauth.OAuthConfiguration
 import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.domain.release.ReleaseScopePolicy
 import com.airi.assistant.integrations.github.GithubService
 import com.airi.assistant.integrations.google.GoogleAuthService
 import com.airi.assistant.integrations.google.GoogleDataAuthorization
@@ -60,6 +61,12 @@ class ConnectorAuthorizationManager(
     /** Starts the provider-appropriate flow for a catalog or runtime id. */
     suspend fun begin(id: String): StartResult = withContext<StartResult>(Dispatchers.IO) {
         val runtimeId = resolveRuntimeId(id)
+        if (isReleaseBlocked(runtimeId)) {
+            return@withContext StartResult.Failed(
+                "integration_unavailable",
+                "External automation integrations are unavailable in this release."
+            )
+        }
         val catalog = registry.catalogMeta()
         val meta = catalog.firstOrNull { it.id == id }
             ?: catalog.firstOrNull { it.runtimeId == runtimeId }
@@ -191,6 +198,12 @@ class ConnectorAuthorizationManager(
             ?: return@withContext CompletionResult.Failed("oauth_state_missing", "OAuth callback did not contain state")
         val pending = OAuthStateRegistry.consumeRequest(state)
             ?: return@withContext CompletionResult.Failed("oauth_state_invalid", "OAuth state is invalid, expired, or already consumed")
+        if (isReleaseBlocked(pending.connectorId)) {
+            return@withContext CompletionResult.Failed(
+                "integration_unavailable",
+                "External automation integrations are unavailable in this release."
+            )
+        }
         when (pending.connectorId) {
             MicrosoftOAuthConfiguration.CONNECTOR_ID -> {
                 val expectedScopes = ConnectorProviderScopes.microsoftAuthorizationScopes(requiredOAuthScopesFor(pending.connectorId))
@@ -270,6 +283,15 @@ class ConnectorAuthorizationManager(
         "google", "microsoft_graph", "notion_mcp" -> id
         else -> ConnectorRuntimeDescriptors.runtimeIdFor(id)
     }
+
+    /**
+     * Authorization is a capability boundary, not only a UI concern.  Keep the
+     * release gate here so generic integration screens, deep links, and future
+     * callers cannot start provider authorization behind the frozen release.
+     */
+    private fun isReleaseBlocked(runtimeId: String): Boolean =
+        runtimeId in setOf("zapier", "ifttt", "n8n") &&
+            !ReleaseScopePolicy.externalAutomationIntegrationsEnabled
 
     private fun ConnectorState.toCompletion(id: String): CompletionResult =
         if (connected && healthy) CompletionResult.Ready(id, this)

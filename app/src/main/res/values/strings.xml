@@ -1505,6 +1505,8 @@
     <string name="connectors_access_profile_read_write">Read and write</string>
     <string name="connectors_access_profile_full">Full access</string>
     <string name="connectors_access_profile_confirmation_note">Provider authorization is separate. Write, destructive, and administrative actions still require their own typed confirmation; this profile alone never approves them.</string>
+    <string name="connector_access_dialog_title">Choose AIRI access for %1$s</string>
+    <string name="connector_access_dialog_description">Choose the maximum access AIRI may use. Provider consent will request only the scopes covered by this choice.</string>
 
     <!-- customization -->
     <string name="customization_display_mode">Display mode</string>

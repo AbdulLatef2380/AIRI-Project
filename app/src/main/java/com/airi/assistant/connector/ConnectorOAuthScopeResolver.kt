@@ -12,7 +12,11 @@ object ConnectorOAuthScopeResolver {
             .asSequence()
             .filter { action ->
                 val surfaceId = action.surfaceId ?: runtimeId
-                ConnectorAccessPolicy.evaluate(profiles.get(surfaceId), action) == ConnectorAccessDecision.ALLOWED
+                // Provider consent must cover every action the selected profile
+                // permits, including writes that remain behind typed confirmation
+                // at execution time. Confirmation is an execution gate, not a
+                // reason to under-request the provider capability.
+                profiles.get(surfaceId).permits(action.permission)
             }
             .flatMap { action -> action.requiredOAuthScopes.asSequence() }
             .filter(String::isNotBlank)

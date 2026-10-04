@@ -50,6 +50,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -85,6 +86,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airi.assistant.R
+import com.airi.assistant.connector.ConnectorAccessProfile
 import com.airi.assistant.ui.viewmodel.GoogleConnectionAction
 import com.airi.assistant.ui.viewmodel.IntegrationsViewModel
 import com.airi.assistant.ui.viewmodel.IntegrationReadiness
@@ -105,6 +107,7 @@ fun IntegrationsScreen(
     val vm: IntegrationsViewModel = viewModel()
     val items by vm.items.collectAsState()
     val dialog by vm.dialog.collectAsState()
+    val accessProfileRequest by vm.accessProfileRequest.collectAsState()
     val googleFeedback by vm.googleFeedback.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(googleFeedback) {
@@ -307,7 +310,53 @@ fun IntegrationsScreen(
             onDismiss = { vm.closeDialog() }
         )
     }
+    accessProfileRequest?.let { request ->
+        AccessProfileDialog(
+            connectorId = request.connectorId,
+            onSelect = vm::chooseAccessProfile,
+            onDismiss = vm::cancelAccessProfileRequest,
+        )
+    }
 }
+
+@Composable
+private fun AccessProfileDialog(
+    connectorId: String,
+    onSelect: (ConnectorAccessProfile) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.connector_access_dialog_title, connectorId)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(R.string.connector_access_dialog_description),
+                    color = AiriTheme.onSurfaceVariant,
+                    fontSize = 13.sp,
+                )
+                listOf(
+                    ConnectorAccessProfile.READ_ONLY to R.string.connectors_access_profile_read_only,
+                    ConnectorAccessProfile.READ_WRITE to R.string.connectors_access_profile_read_write,
+                    ConnectorAccessProfile.FULL_ACCESS to R.string.connectors_access_profile_full,
+                ).forEach { (profile, label) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = false, onClick = { onSelect(profile) })
+                        Text(stringResource(label), color = AiriTheme.onSurface)
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
+    )
+}
+
 @Composable
 private fun IntegrationCard(
     item: IntegrationsViewModel.IntegrationItem,

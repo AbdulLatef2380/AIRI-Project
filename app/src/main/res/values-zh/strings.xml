@@ -1194,6 +1194,8 @@
     <string name="connectors_access_profile_read_write">读写</string>
     <string name="connectors_access_profile_full">完全访问</string>
     <string name="connectors_access_profile_confirmation_note">服务提供方授权是独立的。写入、破坏性和管理操作仍需单独的明确确认；仅选择此配置不会批准这些操作。</string>
+    <string name="connector_access_dialog_title">选择 AIRI 对 %1$s 的访问权限</string>
+    <string name="connector_access_dialog_description">选择 AIRI 可使用的最高权限。服务提供方只会请求此选择所涵盖的权限范围。</string>
     <string name="customization_display_mode">显示模式</string>
     <string name="debug_rerun_diagnostics">重新运行诊断</string>
     <string name="err_image_analyze_failed">图像分析失败</string>

@@ -43,6 +43,11 @@ class ConnectorAuthorizationManager(
         data class OAuthBrowser(val connectorId: String, val url: String) : StartResult
         data class GoogleIdentity(val intent: Intent) : StartResult
         data class GoogleConsent(val connectorId: String, val scopes: Set<String>) : StartResult
+        data class AccessProfileRequired(
+            val connectorId: String,
+            val runtimeId: String,
+            val surfaceIds: List<String>,
+        ) : StartResult
         data class CredentialRequired(
             val connectorId: String,
             val label: String,
@@ -86,6 +91,14 @@ class ConnectorAuthorizationManager(
                 }
             } ?: strategy.summary
             return@withContext StartResult.Failed("adapter_not_installed", detail)
+        }
+        val surfaceIds = authorizationSurfaceIds(id, runtimeId)
+        if (surfaceIds.any { accessProfileStore.get(it) == ConnectorAccessProfile.NOT_CONFIGURED }) {
+            return@withContext StartResult.AccessProfileRequired(
+                connectorId = id,
+                runtimeId = runtimeId,
+                surfaceIds = surfaceIds,
+            )
         }
         if (!authManager.isSecureStorageAvailable && strategy.mode != ConnectorAuthMode.OAUTH2_PKCE) {
             return@withContext StartResult.Failed("secure_storage_unavailable", "Secure credential storage is unavailable; connector was not connected.")
@@ -282,6 +295,16 @@ class ConnectorAuthorizationManager(
     private fun resolveRuntimeId(id: String): String = when (id) {
         "google", "microsoft_graph", "notion_mcp" -> id
         else -> ConnectorRuntimeDescriptors.runtimeIdFor(id)
+    }
+
+    private fun authorizationSurfaceIds(id: String, runtimeId: String): List<String> {
+        val catalogSurface = registry.catalogMeta().firstOrNull { it.id == id }
+        if (catalogSurface != null) return listOf(catalogSurface.id)
+        val declared = registry.get(runtimeId)?.agentActions()
+            ?.map { it.surfaceId ?: runtimeId }
+            ?.distinct()
+            .orEmpty()
+        return declared.ifEmpty { listOf(runtimeId) }
     }
 
     /**

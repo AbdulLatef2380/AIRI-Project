@@ -35,6 +35,10 @@ class ConnectorOAuthScopeResolverTest {
         profiles.set("google_gmail", ConnectorAccessProfile.READ_ONLY)
         assertEquals(setOf(gmail), ConnectorOAuthScopeResolver.requiredScopes(registry, profiles, "google"))
 
+        profiles.set("google_gmail", ConnectorAccessProfile.READ_WRITE)
+        assertEquals(setOf(gmail, "gmail.send"), ConnectorOAuthScopeResolver.requiredScopes(registry, profiles, "google"))
+        profiles.set("google_gmail", ConnectorAccessProfile.READ_ONLY)
+
         profiles.set("google_calendar", ConnectorAccessProfile.READ_ONLY)
         profiles.set("google_drive", ConnectorAccessProfile.READ_WRITE)
         assertEquals(setOf(gmail, calendar, drive), ConnectorOAuthScopeResolver.requiredScopes(registry, profiles, "google"))

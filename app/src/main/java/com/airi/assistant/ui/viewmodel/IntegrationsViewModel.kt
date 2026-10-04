@@ -6,6 +6,7 @@ import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.airi.assistant.R
+import com.airi.assistant.connector.ConnectorAccessProfile
 import com.airi.assistant.connector.ConnectorAuthManager
 import com.airi.assistant.connector.ConnectorAuthorizationManager
 import com.airi.assistant.core.ServiceLocator
@@ -104,6 +105,15 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     val googleAuthorizationEffects: SharedFlow<GoogleAuthorizationEffect> =
         _googleAuthorizationEffects.asSharedFlow()
 
+    data class AccessProfileRequest(
+        val connectorId: String,
+        val runtimeId: String,
+        val surfaceIds: List<String>,
+    )
+
+    private val _accessProfileRequest = MutableStateFlow<AccessProfileRequest?>(null)
+    val accessProfileRequest: StateFlow<AccessProfileRequest?> = _accessProfileRequest.asStateFlow()
+
     fun refresh() {
         _items.value = buildItems()
     }
@@ -126,12 +136,32 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 }
                 is ConnectorAuthorizationManager.StartResult.GoogleIdentity -> Unit
                 is ConnectorAuthorizationManager.StartResult.GoogleConsent -> requestGoogleDataAuthorization(result.scopes)
+                is ConnectorAuthorizationManager.StartResult.AccessProfileRequired -> {
+                    _accessProfileRequest.value = AccessProfileRequest(
+                        connectorId = result.connectorId,
+                        runtimeId = result.runtimeId,
+                        surfaceIds = result.surfaceIds,
+                    )
+                }
                 is ConnectorAuthorizationManager.StartResult.Ready -> refresh()
                 is ConnectorAuthorizationManager.StartResult.Failed -> {
                     _googleFeedback.value = R.string.integration_google_sign_in_failed
                 }
             }
         }
+    }
+
+    fun chooseAccessProfile(profile: ConnectorAccessProfile) {
+        val request = _accessProfileRequest.value ?: return
+        request.surfaceIds.forEach { surfaceId ->
+            ServiceLocator.connectorAccessProfileStore.set(surfaceId, profile)
+        }
+        _accessProfileRequest.value = null
+        beginConnectorAuthorization(request.connectorId)
+    }
+
+    fun cancelAccessProfileRequest() {
+        _accessProfileRequest.value = null
     }
 
     /** Re-evaluates the registered connector after an explicit Google account action. */

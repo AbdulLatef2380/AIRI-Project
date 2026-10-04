@@ -1425,6 +1425,8 @@
     <string name="connectors_access_profile_read_write">قراءة وكتابة</string>
     <string name="connectors_access_profile_full">وصول كامل</string>
     <string name="connectors_access_profile_confirmation_note">تفويض مزود الخدمة منفصل. وتظل الكتابة والحذف والإجراءات الإدارية بحاجة إلى تأكيد مستقل ومحدد؛ لا يوافق هذا الملف عليها وحده.</string>
+    <string name="connector_access_dialog_title">اختر وصول AIRI إلى %1$s</string>
+    <string name="connector_access_dialog_description">اختر الحد الأعلى للوصول الذي يمكن لـAIRI استخدامه. سيطلب المزود نطاقات الصلاحية التي يغطيها هذا الاختيار فقط.</string>
 
     <!-- customization -->
     <string name="customization_display_mode">وضع العرض</string>

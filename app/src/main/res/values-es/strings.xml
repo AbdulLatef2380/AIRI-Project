@@ -1194,6 +1194,8 @@
     <string name="connectors_access_profile_read_write">Lectura y escritura</string>
     <string name="connectors_access_profile_full">Acceso completo</string>
     <string name="connectors_access_profile_confirmation_note">La autorización del proveedor es independiente. Las acciones de escritura, destructivas y administrativas siguen requiriendo su propia confirmación explícita; este perfil no las aprueba por sí solo.</string>
+    <string name="connector_access_dialog_title">Elige el acceso de AIRI a %1$s</string>
+    <string name="connector_access_dialog_description">Elige el acceso máximo que AIRI puede usar. El consentimiento del proveedor solicitará solo los permisos cubiertos por esta elección.</string>
     <string name="customization_display_mode">Modo de visualización</string>
     <string name="debug_rerun_diagnostics">Volver a ejecutar diagnósticos</string>
     <string name="err_image_analyze_failed">Error al analizar la imagen</string>

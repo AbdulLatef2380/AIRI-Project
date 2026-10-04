@@ -358,7 +358,7 @@ fun ConnectorsScreen(
                                     // sign-in/token flow before registry.connect can
                                     // succeed. Never show a fake "requested" state.
                                     if (ConnectorAuthStrategies.forMeta(row.meta).officialAuthorizationRequired) {
-                                        onManageAuthorization(row.meta.runtimeId)
+                                        onManageAuthorization(row.meta.id)
                                     } else {
                                         viewModel.connect(row.meta.id)
                                     }
@@ -569,7 +569,7 @@ private fun ConnectorCard(
                     }
                     if (needsAttention && authStrategy.officialAuthorizationRequired) {
                         Spacer(Modifier.height(8.dp))
-                        TextButton(onClick = { onManageAuthorization(row.meta.runtimeId) }) {
+                        TextButton(onClick = { onManageAuthorization(row.meta.id) }) {
                             Text(stringResource(R.string.connectors_manage_authorization))
                         }
                     }

@@ -4,11 +4,13 @@ import com.airi.assistant.agent.loop.tool.ToolSchema
 
 /**
  * Canonical bridge between live ConnectorRegistry entries and AgentLoop.
- * Catalog-only, disconnected, unhealthy, and write actions are never exposed.
+ * Only registered, connected, healthy, and user-granted actions are exposed by default.
+ * Actions requiring separate confirmation stay hidden until a typed approval path exists.
  */
 class ConnectorToolBridge(
     private val registry: ConnectorRegistry,
     private val runtime: ConnectorRuntimeManager,
+    private val accessProfiles: ConnectorAccessProfileStore = InMemoryConnectorAccessProfileStore(),
 ) {
     private data class Binding(
         val connectorId: String,
@@ -18,38 +20,57 @@ class ConnectorToolBridge(
     fun asToolSchemas(): List<ToolSchema> = asToolSchemas(includeUnavailable = false)
 
     /**
-     * Expose registered read actions even when disconnected/unhealthy when the
+     * Expose granted actions even when disconnected/unhealthy when the
      * caller needs a truthful readiness result. Invocation remains guarded by
      * ConnectorRuntimeManager and returns not_connected/unhealthy/auth errors.
      */
-    fun asToolSchemas(includeUnavailable: Boolean): List<ToolSchema> = bindings(onlyExecutable = !includeUnavailable)
+    fun asToolSchemas(includeUnavailable: Boolean): List<ToolSchema> = bindings(
+        onlyExecutable = !includeUnavailable, onlyGranted = true
+    )
         .map { (toolName, binding) -> binding.toSchema(toolName) }
         .sortedBy { it.name }
 
     /** Keep known bindings resolvable after a disconnect so runtime returns a
      * stable not_connected result instead of misclassifying the call as unknown. */
-    fun handles(toolName: String): Boolean = bindings(onlyExecutable = false).containsKey(toolName)
+    fun handles(toolName: String): Boolean = bindings(onlyExecutable = false, onlyGranted = false).containsKey(toolName)
 
     suspend fun invoke(toolName: String, args: Map<String, String>): ConnectorOutput {
-        val binding = bindings(onlyExecutable = false)[toolName]
+        val binding = bindings(onlyExecutable = false, onlyGranted = false)[toolName]
             ?: return ConnectorOutput.Failure("unknown_tool", "Unknown connector tool: $toolName")
+        when (ConnectorAccessPolicy.evaluate(
+            accessProfiles.get(binding.action.surfaceId ?: binding.connectorId), binding.action
+        )) {
+            ConnectorAccessDecision.ALLOWED -> Unit
+            ConnectorAccessDecision.NOT_GRANTED -> return ConnectorOutput.Failure(
+                "permission_denied", "No matching user access profile is granted for this connector action"
+            )
+            ConnectorAccessDecision.CONFIRMATION_REQUIRED -> return ConnectorOutput.Failure(
+                "approval_required", "This action requires a typed approval flow and was not executed"
+            )
+        }
         val text = args["text"] ?: args["query"].orEmpty()
         return runtime.execute(
             connectorId = binding.connectorId,
             input = ConnectorInput(
-                action = binding.action.id,
+                action = binding.action.runtimeAction,
                 text = text,
-                params = args,
+                params = args + binding.action.fixedParams,
+                authorizationActionId = binding.action.id,
             )
         )
     }
 
-    private fun bindings(onlyExecutable: Boolean): Map<String, Binding> = buildMap {
+    private fun bindings(onlyExecutable: Boolean, onlyGranted: Boolean): Map<String, Binding> = buildMap {
         registry.all().forEach { connector ->
             val state = connector.state().value
             if (onlyExecutable && (!state.connected || !state.healthy)) return@forEach
             connector.agentActions()
-                .filter { it.id.isNotBlank() && it.permission == ConnectorPermissionLevel.READ }
+                .filter { it.id.isNotBlank() }
+                .filter { action -> !onlyGranted ||
+                    ConnectorAccessPolicy.evaluate(
+                        accessProfiles.get(action.surfaceId ?: connector.id), action
+                    ) == ConnectorAccessDecision.ALLOWED
+                }
                 .forEach { action ->
                     val toolName = toolName(connector.id, action.id)
                     put(toolName, Binding(connector.id, action))

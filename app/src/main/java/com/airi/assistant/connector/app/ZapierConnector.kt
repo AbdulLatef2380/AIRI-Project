@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -34,19 +35,17 @@ import java.util.concurrent.TimeUnit
  *   5. [connect] reads the stored token and verifies the API connection.
  *
  * ── SUPPORTED ACTIONS ────────────────────────────────────────────────────────
- *  - `list_zaps`         — list all Zaps owned by the authenticated user
- *  - `trigger_zap`       — trigger a specific Zap via its REST Hook URL
- *  - `pause_zap`         — pause a Zap by ID
- *  - `resume_zap`        — resume a paused Zap by ID
- *  - `list_triggers`     — list available trigger types
- *  - `send_webhook`      — send a JSON payload to a Zapier webhook URL
+ *  - `list_zaps`         — list Zaps visible to the authorized integration
+ *  - `list_triggers`     — list local AIRI trigger types
+ *  - `send_webhook`      — user-initiated test request to a Zapier hook (not an agent action)
  *  - `status`            — return the current connection status string
  *
  * ── SECURITY ─────────────────────────────────────────────────────────────────
  *  - Tokens stored in EncryptedSharedPreferences via [ConnectorAuthManager].
  *  - OAuth state is 144-bit SecureRandom (OAuthStateRegistry).
- *  - All API calls go over HTTPS; plain HTTP is rejected by OkHttp's default
- *    CertificatePinner (inherits app-wide NetworkSecurityConfig).
+ *  - Provider API calls use fixed HTTPS endpoints; cleartext traffic is disabled
+ *    by the app network policy. User-entered webhook URLs are host-allowlisted
+ *    and redirects are disabled.
  */
 class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector {
 
@@ -60,7 +59,6 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
         // These placeholders are replaced at build time via manifestPlaceholders.
         private const val CLIENT_ID     = "ZAPIER_CLIENT_ID_PLACEHOLDER"
         private const val REDIRECT_URI  = "airi://oauth/callback"
-        private const val SCOPE         = "zap"
     }
 
     override val id          = CONNECTOR_ID
@@ -73,6 +71,8 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
+        .followRedirects(false)
+        .followSslRedirects(false)
         .build()
 
     override fun meta() = ConnectorMeta(
@@ -87,11 +87,12 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
     override fun agentActions() = listOf(
-        ConnectorAgentAction("list_zaps", "List Zaps owned by the authorized user."),
+        ConnectorAgentAction(
+            "list_zaps",
+            "List Zaps visible to the AIRI Zapier integration.",
+            providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.ZAPIER_ZAP_READ)),
+        ),
         ConnectorAgentAction("list_triggers", "List available Zapier trigger types."),
-        ConnectorAgentAction("trigger_zap", "Trigger an authorized Zap.", ConnectorPermissionLevel.WRITE),
-        ConnectorAgentAction("pause_zap", "Pause an authorized Zap.", ConnectorPermissionLevel.WRITE),
-        ConnectorAgentAction("resume_zap", "Resume an authorized Zap.", ConnectorPermissionLevel.WRITE),
         ConnectorAgentAction("status", "Return the current Zapier connection status."),
     )
 
@@ -106,15 +107,18 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
      * Call this before opening the browser — the returned state token is
      * stored in [OAuthStateRegistry] and will be validated in [handleCallback].
      */
-    fun buildAuthUrl(): String {
+    fun buildAuthUrl(requestedScopes: Set<String>): String {
         check(isOAuthConfigured()) { "Zapier OAuth client ID is not configured" }
-        val authorization = OAuthStateRegistry.issuePkce(id)
+        require(requestedScopes == setOf(ConnectorProviderScopes.ZAPIER_ZAP_READ)) {
+            "Zapier authorization accepts only the declared zap scope for currently implemented OAuth actions"
+        }
+        val authorization = OAuthStateRegistry.issuePkce(id, requestedScopes)
         return buildString {
             append(AUTH_URL)
             append("?response_type=code")
             append("&client_id=$CLIENT_ID")
             append("&redirect_uri=${java.net.URLEncoder.encode(REDIRECT_URI, "UTF-8")}")
-            append("&scope=${java.net.URLEncoder.encode(SCOPE, "UTF-8")}")
+            append("&scope=${java.net.URLEncoder.encode(requestedScopes.sorted().joinToString(" "), "UTF-8")}")
             append("&state=${authorization.state}")
             append("&code_challenge=${authorization.codeChallenge}")
             append("&code_challenge_method=S256")
@@ -232,20 +236,21 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
                 "External automation integrations are unavailable in this release."
             )
         }
-        if (!authManager.isTokenValid(id)) {
+        if (input.action == "list_zaps" && !authManager.isTokenValid(id)) {
             return@withContext ConnectorOutput.Failure("not_connected", "Zapier not authenticated. Complete OAuth first.")
         }
         try {
             val t0 = System.currentTimeMillis()
             val result = when (input.action) {
                 "list_zaps"    -> listZaps()
-                "trigger_zap"  -> triggerZap(
-                    input.params["zap_id"]    ?: return@withContext ConnectorOutput.Failure("missing_param", "zap_id required"),
-                    input.params["hook_url"],
-                    input.text
+                "trigger_zap" -> return@withContext ConnectorOutput.Failure(
+                    "unsupported_action",
+                    "Zapier agent-trigger execution is disabled until a trusted REST Hook URL is securely configured.",
                 )
-                "pause_zap"    -> patchZap(input.params["zap_id"] ?: return@withContext ConnectorOutput.Failure("missing_param", "zap_id required"), "pause")
-                "resume_zap"   -> patchZap(input.params["zap_id"] ?: return@withContext ConnectorOutput.Failure("missing_param", "zap_id required"), "resume")
+                "pause_zap", "resume_zap" -> return@withContext ConnectorOutput.Failure(
+                    "unsupported_action",
+                    "Zapier pause/resume is not implemented by this adapter and was not executed.",
+                )
                 "list_triggers"-> listTriggers()
                 "send_webhook" -> sendWebhook(
                     input.params["hook_url"] ?: return@withContext ConnectorOutput.Failure("missing_param", "hook_url required"),
@@ -277,22 +282,6 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
         }
     }
 
-    private fun triggerZap(zapId: String, hookUrl: String?, payload: String): String {
-        // If a REST hook URL is provided, POST directly
-        val url = hookUrl ?: return "Hook URL required. Retrieve it from your Zap's trigger settings."
-        val body = (if (payload.startsWith("{")) payload
-                   else JSONObject().put("query", payload).toString())
-            .toRequestBody("application/json".toMediaType())
-        val request = Request.Builder().url(url).post(body).build()
-        val response = client.newCall(request).execute()
-        return if (response.isSuccessful) "Zap #$zapId triggered successfully " else "Trigger failed: HTTP ${response.code}"
-    }
-
-    private fun patchZap(zapId: String, action: String): String {
-        // Zapier doesn't expose a public pause/resume API but provides app-level controls
-        return "Zap #$zapId $action request sent (check Zapier dashboard to confirm)."
-    }
-
     private fun listTriggers(): String {
         // Returns the fixed set of AIRI-supported Zapier trigger actions
         return """
@@ -306,13 +295,19 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
     }
 
     private fun sendWebhook(hookUrl: String, payload: String): String {
+        val url = hookUrl.toHttpUrlOrNull()
+            ?: throw IllegalArgumentException("Invalid Zapier hook URL")
+        if (!url.isHttps || url.host != "hooks.zapier.com") {
+            throw IllegalArgumentException("Only HTTPS hooks.zapier.com URLs are accepted")
+        }
         val body = (if (payload.startsWith("{")) payload
                    else JSONObject().put("message", payload).put("source", "AIRI").toString())
             .toRequestBody("application/json".toMediaType())
-        val request = Request.Builder().url(hookUrl).post(body).build()
-        val response = client.newCall(request).execute()
-        return if (response.isSuccessful) "Webhook sent  (HTTP ${response.code})"
-               else "Webhook failed: HTTP ${response.code} ${response.message}"
+        val request = Request.Builder().url(url).post(body).build()
+        return client.newCall(request).execute().use { response ->
+            if (response.isSuccessful) "Webhook sent  (HTTP ${response.code})"
+            else "Webhook failed: HTTP ${response.code} ${response.message}"
+        }
     }
 
     private fun apiGet(path: String): JSONObject {

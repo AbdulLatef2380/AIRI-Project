@@ -32,12 +32,12 @@ Connect
 
 ## الجرد الحالي
 
-يوجد في `OfficialConnectorCatalog` حالياً **35 تعريف خدمة**، إضافة إلى موصلات runtime المحلية والنظامية وموصلات API التي يثبتها `ConnectorBootstrap`. لذلك نعالج نطاق المستخدم المعلن، وهو **46 سطح موصل**، ككتالوج موحد لا كـ46 تطبيق OAuth متطابق.
+يوجد في `OfficialConnectorCatalog` حالياً **35 تعريف خدمة**، إضافة إلى **9 معرفات runtime خارج الكتالوج** (قدرات محلية/نظامية وAPI وأتمتة) التي يثبتها `ConnectorBootstrap`. النطاق المعتمد في [جرد الموصلات وخطة الإغلاق](CONNECTOR_INVENTORY_AND_3_PHASE_PLAN_AR.md) هو **44 مدخلاً تشغيلياً**؛ وهي ليست كلها تطبيقات OAuth مستقلة.
 
 الحالات الحالية في الكتالوج:
 
-- 7 تعريفات `PARTIAL`: Google Gmail/Calendar/Drive، GitHub، Telegram، Notion، Zapier.
-- 28 تعريفاً `COMING_SOON`: معلومات وصفية فقط ولا يجوز أن تعرض اتصالاً تنفيذياً.
+- 11 تعريفاً `PARTIAL`: Google Gmail/Calendar/Drive، Microsoft Outlook/Calendar/OneDrive/Teams، GitHub، Telegram، Notion، Zapier.
+- 24 تعريفاً `COMING_SOON`: معلومات وصفية فقط ولا يجوز أن تعرض اتصالاً تنفيذياً.
 - الموصلات المحلية/النظامية لا تستخدم OAuth؛ تستخدم أذونات Android أو لا تحتاج مصادقة.
 
 ## المرحلة الأولى — تم البدء بها الآن: عقد موحد ومنع الاتصال الوهمي
@@ -68,6 +68,25 @@ Connect
 - كل تعريف يملك AuthStrategy قابلة للتفسير.
 - لا تظهر `Connected` إلا من حالة connector runtime الفعلية.
 - الموصل الوصفي لا يمكنه الوصول إلى `ConnectorRegistry.connect`.
+
+## ربط الأفعال بنطاقات المزود — منفذ جزئياً على `main`
+
+يُعلن كل فعل في `ConnectorAgentAction.providerGrants`. قيمة `OAUTH_SCOPE` وحدها تدخل في OAuth request؛ بقية الأنواع تصف إذن PAT أو قدرة تكامل أو صلاحية bot/webhook ولا تُمرر كسلاسل OAuth. يقوم `ConnectorOAuthScopeResolver` بجمع النطاقات من الأفعال المسموح بها بملفات السطح المختارة؛ إذا لم يوجد فعل قراءة ممنوح، لا يبدأ OAuth. لا تُضاف scopes أفعال الكتابة التي ما زالت تتطلب تأكيداً. ينفذ كل من جسر الأدوات وruntime enforcement ملف الوصول؛ وربط provider scope ليس بديلاً عن هذا الإنفاذ.
+
+| السطح/الفعل | متطلب المزود | حد التنفيذ |
+|---|---|---|
+| `google_gmail`: `gmail_list`, `gmail_read` | `gmail.readonly` | طلب النطاق من Google Identity فقط عندما يكون فعل Gmail مسموحاً؛ token/نطاقاته تبقى بذاكرة العملية ولا تحفظ على القرص. |
+| `google_calendar`: `calendar_list` | `calendar.events.owned.readonly` | قراءة أحداث تقاويم المستخدم المملوكة؛ scopes من العقد الحالي لا تتيح كتابة التقويم. |
+| `google_drive`: `drive_search` | `drive.metadata.readonly` | البحث في metadata فقط؛ لا تنزيل محتوى الملفات. |
+| Microsoft Outlook / Calendar / OneDrive / Teams | `Mail.ReadBasic`, `Calendars.ReadBasic`, `Files.Read`, `Team.ReadBasic.All`; مع OIDC و`User.Read` للـbootstrap | تُضمّن فقط scopes الأفعال التي تسمح بها profiles الفعلية في authorization URL والـtoken exchange؛ لا نطلب `Mail.Read` أو `Calendars.Read` الأوسع. Teams الحالي metadata للفرق المنضم إليها فقط، وحساب Microsoft الشخصي غير مدعوم لنداء joined teams. |
+| GitHub | `Metadata: read`, `Issues: read`, `Contents: read`, `Pull requests: read` حيث تنطبق | هذه fine-grained PAT permissions وليست OAuth scopes؛ الفعل `search_code` موسوم endpoint-specific. يذكر GitHub ترويسة `X-Accepted-GitHub-Permissions` للمساعدة على التشخيص، لكن AIRI لا يقرأها أو يثبت أذونات PAT المسجلة لدى المزود بعد؛ يلزم تحقق مزود فعلي. |
+| Notion | `Read content` للأدوات القرائية؛ `Insert content` لـ`create_page`، مع مشاركة الصفحة/قاعدة البيانات مع التكامل | ليست OAuth scopes؛ إنشاء الصفحة يبقى تحت confirmation منفصل. |
+| Telegram | Bot token صالح وقدرة البوت على الوصول إلى المحادثة/التحديث | ليست OAuth scopes؛ polling عبر `getUpdates` لا يجتمع مع webhook لنفس البوت. |
+| Zapier | OAuth `zap` لقائمة Zaps؛ REST Hook URL لا يُعامل كـscope | `trigger_zap` غير مكشوف للوكيل حتى يتوفر سجل آمن لعناوين المزود المصرح بها؛ استدعاؤه مباشرة يفشل مغلقاً. `send_webhook` مخصص لاختبار يدوي بدأه المستخدم ومقيد بـHTTPS على `hooks.zapier.com`. `pause_zap` و`resume_zap` غير معلنين لعدم وجود تنفيذ حقيقي. |
+
+مصادر التحقق: [Google Gmail scopes](https://developers.google.com/workspace/gmail/api/auth/scopes)، [Google Calendar auth](https://developers.google.com/workspace/calendar/api/auth)، [Google Drive auth](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)، [Microsoft messages](https://learn.microsoft.com/en-us/graph/api/user-list-messages?view=graph-rest-1.0)، [Microsoft calendar events](https://learn.microsoft.com/en-us/graph/api/user-list-events?view=graph-rest-1.0)، [Microsoft OneDrive list children](https://learn.microsoft.com/en-us/graph/api/driveitem-list-children?view=graph-rest-1.0)، [Microsoft joined teams](https://learn.microsoft.com/en-us/graph/api/user-list-joinedteams?view=graph-rest-1.0)، [GitHub PAT permissions](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens)، [Notion capabilities](https://developers.notion.com/reference/capabilities)، [Telegram Bot API](https://core.telegram.org/bots/api)، [Zapier OAuth scopes](https://docs.zapier.com/powered-by-zapier/api-reference/oauth-scopes).
+
+هذا mapping ليس إغلاقاً للمرحلة الثانية: يلزم اختبار مزود فعلي (consent، callback، رفض، refresh/revoke، توثيق app registration) وتغطية كل runtimes والأخطاء؛ لم تُغيّر حالة catalog إلى `READY`.
 
 ## المرحلة الثانية — تفعيل التدفقات الرسمية على دفعات
 

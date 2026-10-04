@@ -1187,6 +1187,13 @@
     <string name="connectors_tab_system">System</string>
     <string name="connectors_title">Connectors</string>
     <string name="connectors_search_hint">Buscar conectores y servicios…</string>
+    <string name="connectors_access_profile_title">Perfil de acceso del agente</string>
+    <string name="connectors_access_profile_description">Elige el nivel máximo de permisos que el agente de AIRI puede usar en este servicio. No se concede acceso hasta elegir un perfil.</string>
+    <string name="connectors_access_profile_none">Sin acceso del agente</string>
+    <string name="connectors_access_profile_read_only">Solo lectura</string>
+    <string name="connectors_access_profile_read_write">Lectura y escritura</string>
+    <string name="connectors_access_profile_full">Acceso completo</string>
+    <string name="connectors_access_profile_confirmation_note">La autorización del proveedor es independiente. Las acciones de escritura, destructivas y administrativas siguen requiriendo su propia confirmación explícita; este perfil no las aprueba por sí solo.</string>
     <string name="customization_display_mode">Modo de visualización</string>
     <string name="debug_rerun_diagnostics">Volver a ejecutar diagnósticos</string>
     <string name="err_image_analyze_failed">Error al analizar la imagen</string>

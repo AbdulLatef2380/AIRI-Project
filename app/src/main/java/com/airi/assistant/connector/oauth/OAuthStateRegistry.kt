@@ -32,7 +32,8 @@ object OAuthStateRegistry {
 
     data class ConsumedRequest(
         val connectorId: String,
-        val codeVerifier: String?
+        val codeVerifier: String?,
+        val requestedScopes: Set<String> = emptySet(),
     )
 
     data class PkceAuthorization(
@@ -43,6 +44,7 @@ object OAuthStateRegistry {
     private data class Entry(
         val connectorId: String,
         val codeVerifier: String? = null,
+        val requestedScopes: Set<String> = emptySet(),
         val issuedAtMs: Long = System.currentTimeMillis()
     )
 
@@ -54,10 +56,10 @@ object OAuthStateRegistry {
      */
     fun issue(connectorId: String): String = issueEntry(connectorId).first
 
-    fun issuePkce(connectorId: String): PkceAuthorization {
+    fun issuePkce(connectorId: String, requestedScopes: Set<String> = emptySet()): PkceAuthorization {
         val verifierBytes = ByteArray(48).also { rng.nextBytes(it) }
         val verifier = urlEncoder.encodeToString(verifierBytes)
-        val state = issueEntry(connectorId, verifier).first
+        val state = issueEntry(connectorId, verifier, requestedScopes).first
         val challenge = MessageDigest.getInstance("SHA-256")
             .digest(verifier.toByteArray(Charsets.US_ASCII))
         return PkceAuthorization(
@@ -66,12 +68,16 @@ object OAuthStateRegistry {
         )
     }
 
-    private fun issueEntry(connectorId: String, codeVerifier: String? = null): Pair<String, String?> {
+    private fun issueEntry(
+        connectorId: String,
+        codeVerifier: String? = null,
+        requestedScopes: Set<String> = emptySet(),
+    ): Pair<String, String?> {
         require(connectorId.isNotBlank()) { "connectorId must not be blank" }
         val bytes = ByteArray(18).also { rng.nextBytes(it) }
         val token = urlEncoder.encodeToString(bytes)
         evictExpired()
-        store[token] = Entry(connectorId, codeVerifier)
+        store[token] = Entry(connectorId, codeVerifier, requestedScopes.toSet())
         return token to codeVerifier
     }
 
@@ -87,7 +93,7 @@ object OAuthStateRegistry {
         val entry = store.remove(state) ?: return null
         val ageMs = System.currentTimeMillis() - entry.issuedAtMs
         return if (ageMs <= TOKEN_EXPIRY_MS) {
-            ConsumedRequest(entry.connectorId, entry.codeVerifier)
+            ConsumedRequest(entry.connectorId, entry.codeVerifier, entry.requestedScopes)
         } else {
             null
         }

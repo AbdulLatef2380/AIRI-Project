@@ -803,7 +803,7 @@ Do not mix tool_call JSON with prose in the same message.
                 identity              = identity,
 
                 conversationHistory   = requestProjection.conversationHistory,
-                requiresToolCalling   = effectiveTools.isNotEmpty(),
+                requiresToolCalling   = tools.isNotEmpty(),
             ),
             context    = appContext,
             onToken    = { tok ->

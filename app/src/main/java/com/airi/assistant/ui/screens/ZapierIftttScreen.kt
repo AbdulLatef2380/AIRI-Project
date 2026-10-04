@@ -156,12 +156,23 @@ private fun ZapierTab(
                                         statusMessage = context.getString(R.string.zapier_oauth_not_configured)
                                         return@Button
                                     }
-                                    isConnecting = true
-                                    val authUrl = connector.buildAuthUrl()
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
-                                    context.startActivity(intent)
-                                    isConnecting = false
-                                    statusMessage = context.getString(R.string.zapier_authorization_started)
+                                    scope.launch {
+                                        isConnecting = true
+                                        try {
+                                            when (val result = ServiceLocator.connectorAuthorizationManager.begin("zapier")) {
+                                                is com.airi.assistant.connector.ConnectorAuthorizationManager.StartResult.OAuthBrowser -> {
+                                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(result.url)))
+                                                    statusMessage = context.getString(R.string.zapier_authorization_started)
+                                                }
+                                                is com.airi.assistant.connector.ConnectorAuthorizationManager.StartResult.Failed -> {
+                                                    statusMessage = result.message
+                                                }
+                                                else -> statusMessage = "Choose an access profile before authorizing Zapier."
+                                            }
+                                        } finally {
+                                            isConnecting = false
+                                        }
+                                    }
                                 },
                                 enabled = !isConnecting,
                                 colors  = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4A00))

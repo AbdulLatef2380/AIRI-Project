@@ -76,7 +76,25 @@ data class ConnectorAgentAction(
     val description: String,
     val permission: ConnectorPermissionLevel = ConnectorPermissionLevel.READ,
     val parameters: Map<String, ConnectorAgentParameter> = emptyMap(),
-)
+    /** Catalog surface whose user grant controls this action; null uses the runtime connector id. */
+    val surfaceId: String? = null,
+    /** Runtime action used when this exposed action is an adapter-level alias. */
+    val runtimeAction: String = id,
+    /** Adapter-owned fixed arguments not controlled by model input. */
+    val fixedParams: Map<String, String> = emptyMap(),
+    /** Side effects always retain their own typed confirmation boundary. */
+    val requiresConfirmation: Boolean = permission != ConnectorPermissionLevel.READ,
+    /** OAuth scopes or provider-specific token/resource permissions required by this action. */
+    val providerGrants: List<ConnectorProviderGrant> = emptyList(),
+) {
+    val requiredOAuthScopes: Set<String>
+        get() = providerGrants
+            .asSequence()
+            .filter { it.kind == ConnectorProviderGrantKind.OAUTH_SCOPE }
+            .map { it.value }
+            .filter(String::isNotBlank)
+            .toSet()
+}
 
 data class ConnectorAgentParameter(
     val type: String = "string",
@@ -133,6 +151,8 @@ data class ConnectorMeta(
     val documentationUrl: String? = null,
     /** Registered runtime connector that authenticates this catalog surface. */
     val runtimeId: String = id,
+    /** Catalog identity, distinct from a shared provider runtime identity. */
+    val catalogId: String? = null,
 )
 
 /**
@@ -162,6 +182,8 @@ data class ConnectorInput(
     val binary: ByteArray? = null,
     /** Execution ownership for actions that may pause awaiting a user decision. */
     val execution: ConnectorExecutionContext? = null,
+    /** Internal bridge identity used to re-check the declared action's user grant at runtime. */
+    val authorizationActionId: String? = null,
 ) {
     // Manual equals/hashCode because of the ByteArray field — auto-generated
     // data class equals would compare the array by reference, which is
@@ -173,6 +195,7 @@ data class ConnectorInput(
         if (text   != other.text)   return false
         if (params != other.params) return false
         if (execution != other.execution) return false
+        if (authorizationActionId != other.authorizationActionId) return false
         if (binary == null) return other.binary == null
         if (other.binary == null) return false
         return binary.contentEquals(other.binary)
@@ -182,6 +205,7 @@ data class ConnectorInput(
         r = 31 * r + text.hashCode()
         r = 31 * r + params.hashCode()
         r = 31 * r + (execution?.hashCode() ?: 0)
+        r = 31 * r + (authorizationActionId?.hashCode() ?: 0)
         r = 31 * r + (binary?.contentHashCode() ?: 0)
         return r
     }

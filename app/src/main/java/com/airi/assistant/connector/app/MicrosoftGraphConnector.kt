@@ -5,6 +5,7 @@ import com.airi.assistant.connector.oauth.MicrosoftOAuthConfiguration
 import com.airi.assistant.connector.oauth.OAuthConfiguration
 import com.airi.assistant.connector.oauth.OAuthStateRegistry
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -48,12 +49,21 @@ class MicrosoftGraphConnector(
 
     fun oauthConfiguration(): OAuthConfiguration = configProvider()
 
-    fun buildAuthUrl(): Result<String> {
+    fun buildAuthUrl(actionScopes: Set<String>): Result<String> {
         val config = configProvider() as? OAuthConfiguration.Configured
             ?: return Result.failure(IllegalStateException("Microsoft OAuth configuration is unavailable"))
-        val request = OAuthStateRegistry.issuePkce(id)
-        val scopes = listOf("openid", "profile", "email", "offline_access", "User.Read", "Mail.Read", "Calendars.Read", "Files.Read", "Team.ReadBasic.All")
-            .joinToString(" ")
+        val declaredActionScopes = setOf(
+            ConnectorProviderScopes.MICROSOFT_MAIL_READ_BASIC,
+            ConnectorProviderScopes.MICROSOFT_CALENDARS_READ_BASIC,
+            ConnectorProviderScopes.MICROSOFT_FILES_READ,
+            ConnectorProviderScopes.MICROSOFT_TEAM_READ_BASIC_ALL,
+        )
+        if (actionScopes.isEmpty() || actionScopes.any { it !in declaredActionScopes }) {
+            return Result.failure(IllegalArgumentException("Microsoft authorization contains no granted action scope or an undeclared scope"))
+        }
+        val requestedScopes = ConnectorProviderScopes.microsoftAuthorizationScopes(actionScopes)
+        val request = OAuthStateRegistry.issuePkce(id, requestedScopes)
+        val scopes = requestedScopes.sorted().joinToString(" ")
         val url = buildString {
             append("https://login.microsoftonline.com/${config.tenant}/oauth2/v2.0/authorize?")
             append("client_id=${enc(config.clientId)}")
@@ -71,14 +81,14 @@ class MicrosoftGraphConnector(
 
     suspend fun handleCallback(code: String, request: OAuthStateRegistry.ConsumedRequest): Boolean = withContext(Dispatchers.IO) {
         val config = configProvider() as? OAuthConfiguration.Configured ?: return@withContext false
-        if (request.connectorId != id || request.codeVerifier.isNullOrBlank()) return@withContext false
+        if (request.connectorId != id || request.codeVerifier.isNullOrBlank() || request.requestedScopes.isEmpty()) return@withContext false
         val body = FormBody.Builder()
             .add("client_id", config.clientId)
             .add("grant_type", "authorization_code")
             .add("code", code)
             .add("redirect_uri", config.redirectUri)
             .add("code_verifier", request.codeVerifier)
-            .add("scope", "openid profile email offline_access User.Read Mail.Read Calendars.Read Files.Read Team.ReadBasic.All")
+            .add("scope", request.requestedScopes.sorted().joinToString(" "))
             .build()
         runCatching {
             http.newCall(
@@ -152,18 +162,28 @@ class MicrosoftGraphConnector(
     }
 
     override fun agentActions() = listOf(
-        ConnectorAgentAction("outlook_mail_read", "Read recent mail from the signed-in Microsoft account"),
-        ConnectorAgentAction("outlook_calendar_read", "Read upcoming calendar events from the signed-in Microsoft account"),
+        ConnectorAgentAction("outlook_mail_read", "Read recent mail from the signed-in Microsoft account", surfaceId = "microsoft_outlook", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.MICROSOFT_MAIL_READ_BASIC)
+        )),
+        ConnectorAgentAction("outlook_calendar_read", "Read upcoming calendar events from the signed-in Microsoft account", surfaceId = "microsoft_calendar", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.MICROSOFT_CALENDARS_READ_BASIC)
+        )),
         ConnectorAgentAction(
             "onedrive_files_read",
             "List authorized OneDrive files in the root or a folder.",
+            surfaceId = "microsoft_onedrive",
+            providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.MICROSOFT_FILES_READ)),
             parameters = mapOf(
                 "folder_path" to ConnectorAgentParameter(description = "Optional OneDrive folder path relative to the root."),
                 "top" to ConnectorAgentParameter(description = "Optional number of items from 1 to 50."),
             ),
         ),
-        ConnectorAgentAction("teams_list_joined", "List Microsoft Teams joined by the signed-in user."),
-        ConnectorAgentAction("status", "Check Microsoft Graph connection status"),
+        ConnectorAgentAction("teams_list_joined", "List Microsoft Teams joined by the signed-in work or school account.", surfaceId = "microsoft_teams", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.MICROSOFT_TEAM_READ_BASIC_ALL)
+        )),
+        ConnectorAgentAction("status", "Check Microsoft Graph connection status", surfaceId = "microsoft_outlook", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.MICROSOFT_USER_READ)
+        )),
     )
 
     private suspend fun graphGet(path: String, token: String): Pair<Int, String> = withContext(Dispatchers.IO) {

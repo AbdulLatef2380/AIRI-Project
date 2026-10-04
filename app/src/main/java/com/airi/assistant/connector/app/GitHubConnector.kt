@@ -48,22 +48,30 @@ class GitHubConnector(
     private val _state = MutableStateFlow(ConnectorState(connected = false, statusLine = "Not connected"))
     override fun meta() = ConnectorMeta(id, name, description, type, "https://github.com/favicon.ico", listOf("git","code","repo","issues"))
     override fun agentActions() = listOf(
-        ConnectorAgentAction("list_repos", "List repositories available to the authorized GitHub account."),
+        ConnectorAgentAction("list_repos", "List repositories available to the authorized GitHub account.", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Metadata: read")
+        )),
         ConnectorAgentAction("list_issues", "List issues for a repository.", parameters = mapOf(
             "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true)
-        )),
+        ), providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Issues: read"))),
         ConnectorAgentAction("search_code", "Search code in authorized repositories.", parameters = mapOf(
             "query" to ConnectorAgentParameter(description = "Code search query", required = true),
             "repo" to ConnectorAgentParameter(description = "Optional owner/name repository")
-        )),
+        ), providerGrants = listOf(ConnectorProviderGrant(
+            ConnectorProviderGrantKind.PROVIDER_ENDPOINT_PERMISSION,
+            "Authenticated token with access to the queried repositories; GitHub code-search token compatibility/permissions must be verified from the endpoint response.",
+        ))),
         ConnectorAgentAction("get_file", "Read a file from a repository.", parameters = mapOf(
             "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true),
             "path" to ConnectorAgentParameter(description = "Repository file path", required = true)
-        )),
+        ), providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Contents: read"))),
         ConnectorAgentAction("list_prs", "List pull requests for a repository.", parameters = mapOf(
             "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true)
-        )),
-        ConnectorAgentAction("status", "Return the current GitHub connection status."),
+        ), providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Pull requests: read"))),
+        ConnectorAgentAction("status", "Return the current GitHub connection status.", providerGrants = listOf(ConnectorProviderGrant(
+            ConnectorProviderGrantKind.PROVIDER_ENDPOINT_PERMISSION,
+            "A valid user-authorized GitHub personal access token; actual token permissions are not introspected by AIRI.",
+        ))),
     )
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 

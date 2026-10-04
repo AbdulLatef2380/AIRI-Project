@@ -34,13 +34,14 @@ class ConnectorAuthorizationManager(
     private val authManager: ConnectorAuthManager,
     private val secureStorage: SecureStorage,
     private val googleAuthService: GoogleAuthService,
+    private val accessProfileStore: ConnectorAccessProfileStore = InMemoryConnectorAccessProfileStore(),
     private val githubService: GithubService = GithubService(secureStorage),
     private val telegramService: TelegramService = TelegramService(secureStorage),
 ) {
     sealed interface StartResult {
         data class OAuthBrowser(val connectorId: String, val url: String) : StartResult
         data class GoogleIdentity(val intent: Intent) : StartResult
-        data class GoogleConsent(val connectorId: String) : StartResult
+        data class GoogleConsent(val connectorId: String, val scopes: Set<String>) : StartResult
         data class CredentialRequired(
             val connectorId: String,
             val label: String,
@@ -52,14 +53,16 @@ class ConnectorAuthorizationManager(
 
     sealed interface CompletionResult {
         data class Ready(val connectorId: String, val state: ConnectorState) : CompletionResult
-        data class ConsentRequired(val connectorId: String) : CompletionResult
+        data class ConsentRequired(val connectorId: String, val scopes: Set<String> = emptySet()) : CompletionResult
         data class Failed(val code: String, val message: String, val retryable: Boolean = false) : CompletionResult
     }
 
     /** Starts the provider-appropriate flow for a catalog or runtime id. */
-    suspend fun begin(id: String): StartResult = withContext(Dispatchers.IO) {
+    suspend fun begin(id: String): StartResult = withContext<StartResult>(Dispatchers.IO) {
         val runtimeId = resolveRuntimeId(id)
-        val meta = registry.catalogMeta().firstOrNull { it.id == id || it.runtimeId == runtimeId }
+        val catalog = registry.catalogMeta()
+        val meta = catalog.firstOrNull { it.id == id }
+            ?: catalog.firstOrNull { it.runtimeId == runtimeId }
             ?: registry.get(runtimeId)?.meta()
             ?: return@withContext StartResult.Failed("not_found", "Connector '$id' is not registered")
         val strategy = ConnectorAuthStrategies.forMeta(meta)
@@ -82,29 +85,53 @@ class ConnectorAuthorizationManager(
         }
         when (runtimeId) {
             "google" -> beginGoogle()
-            "microsoft_graph" -> beginMicrosoft()
+            "microsoft_graph" -> beginMicrosoft(runtimeId)
             "zapier" -> beginZapier(runtimeId)
             "github" -> StartResult.CredentialRequired(runtimeId, "GitHub personal access token", "GitHub")
             "telegram" -> StartResult.CredentialRequired(runtimeId, "Telegram bot token", "Telegram")
             "notion_mcp" -> StartResult.CredentialRequired(runtimeId, "Notion integration token", "Notion")
-            else -> connectAndVerify(runtimeId)
+            else -> connectAndVerify(runtimeId).let { state ->
+                if (state.connected && state.healthy) {
+                    StartResult.Ready(runtimeId, state)
+                } else {
+                    StartResult.Failed(
+                        "health_check_failed",
+                        state.errorMessage ?: state.statusLine.ifBlank { "Connector health check failed" },
+                        retryable = true,
+                    )
+                }
+            }
         }
     }
 
-    private fun beginGoogle(): StartResult {
+    fun requiredOAuthScopesFor(id: String): Set<String> = ConnectorOAuthScopeResolver.requiredScopes(
+        registry = registry,
+        profiles = accessProfileStore,
+        runtimeId = resolveRuntimeId(id),
+    )
+
+    private suspend fun beginGoogle(): StartResult {
+        val scopes = requiredOAuthScopesFor("google")
+        if (scopes.isEmpty()) {
+            return StartResult.Failed("access_profile_required", "Choose a read-access profile for at least one Google surface before authorizing data access.")
+        }
         val email = googleAuthService.getLastSignedInEmail()
         return when {
             email.isNullOrBlank() -> StartResult.GoogleIdentity(googleAuthService.getSignInIntent())
-            googleAuthService.getDataAccessToken().isNullOrBlank() -> StartResult.GoogleConsent("google")
-            else -> StartResult.Failed("already_ready", "Google authorization is already complete")
+            !googleAuthService.isDataAccessAuthorizedFor(scopes) -> StartResult.GoogleConsent("google", scopes)
+            else -> StartResult.Ready("google", registry.get("google")?.state()?.value ?: ConnectorState(true, true, "Google data access authorized"))
         }
     }
 
-    private fun beginMicrosoft(): StartResult {
+    private fun beginMicrosoft(runtimeId: String): StartResult {
         val connector = registry.get(MicrosoftOAuthConfiguration.CONNECTOR_ID) as? MicrosoftGraphConnector
             ?: return StartResult.Failed("not_registered", "Microsoft Graph runtime adapter is not registered")
+        val actionScopes = requiredOAuthScopesFor(runtimeId)
+        if (actionScopes.isEmpty()) {
+            return StartResult.Failed("access_profile_required", "Choose a read-access profile for at least one Microsoft surface before authorizing Graph access.")
+        }
         return when (connector.oauthConfiguration()) {
-            is OAuthConfiguration.Configured -> connector.buildAuthUrl().fold(
+            is OAuthConfiguration.Configured -> connector.buildAuthUrl(actionScopes).fold(
                 onSuccess = { StartResult.OAuthBrowser(MicrosoftOAuthConfiguration.CONNECTOR_ID, it) },
                 onFailure = { StartResult.Failed("oauth_configuration_invalid", "Microsoft OAuth configuration is invalid") },
             )
@@ -117,7 +144,11 @@ class ConnectorAuthorizationManager(
     private fun beginZapier(runtimeId: String): StartResult {
         val connector = registry.get(runtimeId) as? ZapierConnector
             ?: return StartResult.Failed("not_registered", "Zapier runtime adapter is not registered")
-        return runCatching { StartResult.OAuthBrowser(runtimeId, connector.buildAuthUrl()) }
+        val scopes = requiredOAuthScopesFor(runtimeId)
+        if (scopes.isEmpty()) {
+            return StartResult.Failed("access_profile_required", "Choose a read-access profile for the Zapier surface before authorizing it.")
+        }
+        return runCatching { StartResult.OAuthBrowser(runtimeId, connector.buildAuthUrl(scopes)) }
             .getOrElse { StartResult.Failed("oauth_not_configured", "Zapier OAuth is not configured for this build") }
     }
 
@@ -160,6 +191,17 @@ class ConnectorAuthorizationManager(
             ?: return@withContext CompletionResult.Failed("oauth_state_missing", "OAuth callback did not contain state")
         val pending = OAuthStateRegistry.consumeRequest(state)
             ?: return@withContext CompletionResult.Failed("oauth_state_invalid", "OAuth state is invalid, expired, or already consumed")
+        when (pending.connectorId) {
+            MicrosoftOAuthConfiguration.CONNECTOR_ID -> {
+                val expectedScopes = ConnectorProviderScopes.microsoftAuthorizationScopes(requiredOAuthScopesFor(pending.connectorId))
+                if (pending.requestedScopes != expectedScopes) {
+                    return@withContext CompletionResult.Failed("oauth_scope_set_changed", "Microsoft access profiles changed during authorization; start the consent flow again.")
+                }
+            }
+            "zapier" -> if (pending.requestedScopes != requiredOAuthScopesFor("zapier")) {
+                return@withContext CompletionResult.Failed("oauth_scope_set_changed", "Zapier access profiles changed during authorization; start the consent flow again.")
+            }
+        }
         val code = uri.getQueryParameter("code")
             ?: return@withContext CompletionResult.Failed("oauth_code_missing", "OAuth callback did not contain an authorization code")
         if (pending.connectorId != "zapier" && pending.connectorId != MicrosoftOAuthConfiguration.CONNECTOR_ID) {
@@ -185,12 +227,17 @@ class ConnectorAuthorizationManager(
         val email = account.email
         if (email.isNullOrBlank()) return CompletionResult.Failed("google_email_missing", "Google account did not provide an email")
         googleAuthService.handleSignInSuccess(account)
-        return CompletionResult.ConsentRequired("google")
+        val scopes = requiredOAuthScopesFor("google")
+        return if (scopes.isEmpty()) {
+            CompletionResult.Failed("access_profile_required", "Choose a read-access profile for a Google surface before authorizing data access.")
+        } else {
+            CompletionResult.ConsentRequired("google", scopes)
+        }
     }
 
     suspend fun onGoogleConsent(result: GoogleDataAuthorization): CompletionResult = when (result) {
         GoogleDataAuthorization.Authorized -> connectAndVerify("google").toCompletion("google")
-        is GoogleDataAuthorization.ConsentRequired -> CompletionResult.ConsentRequired("google")
+        is GoogleDataAuthorization.ConsentRequired -> CompletionResult.ConsentRequired("google", requiredOAuthScopesFor("google"))
         GoogleDataAuthorization.Cancelled -> CompletionResult.Failed("authorization_cancelled", "Google data authorization was cancelled")
         GoogleDataAuthorization.Unavailable -> CompletionResult.Failed("authorization_unavailable", "Google data authorization is unavailable", true)
     }

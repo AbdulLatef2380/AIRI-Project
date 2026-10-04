@@ -485,6 +485,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val connectorToolBridge      = com.airi.assistant.connector.ConnectorToolBridge(
         registry = ServiceLocator.connectorRegistry,
         runtime = ServiceLocator.connectorRuntimeManager,
+        accessProfiles = ServiceLocator.connectorAccessProfileStore,
     )
     private val toolDispatcher           = com.airi.assistant.agent.loop.tool.ToolDispatcher(
         memoryManager     = runCatching { ServiceLocator.memoryManager }.getOrNull(),
@@ -522,10 +523,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         runCatching {
             val registry = com.airi.assistant.core.ServiceLocator.connectorRegistry
             val observations = registry.catalogMeta().map { meta ->
-                val connector = registry.get(meta.id)
+                val connector = registry.get(meta.runtimeId)
                 val state = connector?.state()?.value
-                val hasReadActions = connector?.agentActions()?.any {
-                    it.permission == com.airi.assistant.connector.ConnectorPermissionLevel.READ
+                val hasPermittedReadActions = connector?.agentActions()?.any { action ->
+                    (action.surfaceId ?: connector.id) == meta.id &&
+                        action.permission == com.airi.assistant.connector.ConnectorPermissionLevel.READ &&
+                        com.airi.assistant.connector.ConnectorAccessPolicy.evaluate(
+                            ServiceLocator.connectorAccessProfileStore.get(action.surfaceId ?: connector.id), action
+                        ) == com.airi.assistant.connector.ConnectorAccessDecision.ALLOWED
                 } == true
                 com.airi.assistant.core.CapabilityObservation(
                     id = meta.id,
@@ -535,10 +540,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     connected = state?.connected ?: false,
                     authenticated = null,
                     healthy = state?.healthy,
-                    permitted = hasReadActions,
-                    executable = connector != null && state?.connected == true && state?.healthy == true && hasReadActions,
+                    permitted = hasPermittedReadActions,
+                    executable = connector != null && state?.connected == true && state?.healthy == true && hasPermittedReadActions,
                     modelCompatible = null,
-                    exposed = connector != null && state?.connected == true && state?.healthy == true && hasReadActions,
+                    exposed = connector != null && state?.connected == true && state?.healthy == true && hasPermittedReadActions,
                 )
             }
             com.airi.assistant.core.UniversalCapabilityDiscovery.snapshot(observations)

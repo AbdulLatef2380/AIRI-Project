@@ -48,11 +48,17 @@ abstract class McpConnector(
     /** Expose each authenticated MCP tool through the canonical connector bridge. */
     override fun agentActions() = tools.map { tool ->
         com.airi.assistant.connector.ConnectorAgentAction(
-            id = "invoke_tool",
+            id = "mcp_tool_${tool.name}",
             description = tool.description,
             parameters = tool.schema.mapValues { (_, type) ->
                 com.airi.assistant.connector.ConnectorAgentParameter(type = type)
-            } + mapOf("tool" to com.airi.assistant.connector.ConnectorAgentParameter(required = true)),
+            },
+            surfaceId = if (id == "notion_mcp") "notion" else id,
+            runtimeAction = "invoke_tool",
+            fixedParams = mapOf("tool" to tool.name),
+            permission = tool.permission,
+            requiresConfirmation = tool.requiresConfirmation,
+            providerGrants = tool.providerGrants,
         )
     }
 
@@ -125,5 +131,9 @@ abstract class McpConnector(
         val name: String,
         val description: String,
         val schema: Map<String, String> = emptyMap(),
+        val permission: com.airi.assistant.connector.ConnectorPermissionLevel =
+            com.airi.assistant.connector.ConnectorPermissionLevel.READ,
+        val requiresConfirmation: Boolean = permission != com.airi.assistant.connector.ConnectorPermissionLevel.READ,
+        val providerGrants: List<com.airi.assistant.connector.ConnectorProviderGrant> = emptyList(),
     )
 }

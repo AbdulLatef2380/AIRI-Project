@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -22,6 +23,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -43,6 +45,7 @@ import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.viewmodel.ConnectorsViewModel
 import com.airi.assistant.connector.ConnectorAvailability
+import com.airi.assistant.connector.ConnectorAccessProfile
 import com.airi.assistant.connector.ConnectorAuthStrategies
 import kotlinx.coroutines.launch
 
@@ -67,6 +70,8 @@ fun ConnectorDetailsScreen(
     viewModel: ConnectorsViewModel = viewModel()
 ) {
     val row = viewModel.items.collectAsState().value.firstOrNull { it.meta.id == connectorId }
+    val selectedProfile = viewModel.accessProfiles.collectAsState().value[connectorId]
+        ?: ConnectorAccessProfile.NOT_CONFIGURED
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -79,7 +84,6 @@ fun ConnectorDetailsScreen(
     val isConnected = row.state.connected
     val isHealthy = row.state.healthy
     val isComingSoon = row.meta.availability == ConnectorAvailability.COMING_SOON
-    val runtimeId = row.meta.runtimeId
     val authStrategy = remember(row.meta) { ConnectorAuthStrategies.forMeta(row.meta) }
 
     Scaffold(
@@ -151,10 +155,49 @@ fun ConnectorDetailsScreen(
                 }
             }
 
+            if (!isComingSoon) {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(stringResource(R.string.connectors_access_profile_title), fontSize = 17.sp)
+                        Text(
+                            stringResource(R.string.connectors_access_profile_description),
+                            color = AiriTheme.onSurfaceVariant,
+                            fontSize = 13.sp,
+                        )
+                        listOf(
+                            ConnectorAccessProfile.NOT_CONFIGURED to R.string.connectors_access_profile_none,
+                            ConnectorAccessProfile.READ_ONLY to R.string.connectors_access_profile_read_only,
+                            ConnectorAccessProfile.READ_WRITE to R.string.connectors_access_profile_read_write,
+                            ConnectorAccessProfile.FULL_ACCESS to R.string.connectors_access_profile_full,
+                        ).forEach { (profile, label) ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            ) {
+                                RadioButton(
+                                    selected = selectedProfile == profile,
+                                    onClick = { viewModel.setAccessProfile(connectorId, profile) },
+                                )
+                                Text(
+                                    text = stringResource(label),
+                                    modifier = Modifier.weight(1f),
+                                    color = AiriTheme.onSurface,
+                                )
+                            }
+                        }
+                        Text(
+                            stringResource(R.string.connectors_access_profile_confirmation_note),
+                            color = AiriTheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+            }
+
             Button(
                 onClick = {
                     if (isConnected) viewModel.disconnect(connectorId)
-                    else if (authStrategy.officialAuthorizationRequired) onManageAuthorization(runtimeId)
+                    else if (authStrategy.officialAuthorizationRequired) onManageAuthorization(connectorId)
                     else viewModel.connect(connectorId)
                     scope.launch { snackbar.showSnackbar(if (isConnected) "Disconnect requested" else "Connection requested") }
                 },
@@ -167,7 +210,7 @@ fun ConnectorDetailsScreen(
             }
             OutlinedButton(
                 onClick = {
-                    if (authStrategy.officialAuthorizationRequired) onManageAuthorization(runtimeId)
+                    if (authStrategy.officialAuthorizationRequired) onManageAuthorization(connectorId)
                     else viewModel.connect(connectorId)
                     onTry("Test the ${row.meta.name} connector with a safe read-only operation and report the result.")
                 },
@@ -180,7 +223,7 @@ fun ConnectorDetailsScreen(
             }
             if (!isComingSoon && (authStrategy.officialAuthorizationRequired || !isConnected || !isHealthy)) {
                 OutlinedButton(
-                    onClick = { onManageAuthorization(runtimeId) },
+                    onClick = { onManageAuthorization(connectorId) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Manage authorization")

@@ -49,6 +49,17 @@ class OAuthStateRegistryTest {
     }
 
     @Test
+    fun requestedScopesAreBoundToTheSingleUsePkceState() {
+        val scopes = setOf("Mail.ReadBasic", "User.Read")
+        val authorization = OAuthStateRegistry.issuePkce("microsoft_graph", scopes)
+
+        val consumed = OAuthStateRegistry.consumeRequest(authorization.state)
+        assertEquals("microsoft_graph", consumed?.connectorId)
+        assertEquals(scopes, consumed?.requestedScopes)
+        assertNull(OAuthStateRegistry.consumeRequest(authorization.state))
+    }
+
+    @Test
     fun blankConnectorIsRejectedBeforeStateIssuance() {
         var thrown = false
         try {

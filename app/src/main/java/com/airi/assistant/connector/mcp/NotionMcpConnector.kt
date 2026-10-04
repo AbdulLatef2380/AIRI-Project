@@ -383,17 +383,29 @@ class NotionMcpConnector(
             McpTool(
                 name        = "search_pages",
                 description = "Search Notion pages and databases by keyword.",
-                schema      = mapOf("query" to "string — search terms")
+                schema      = mapOf("query" to "string — search terms"),
+                providerGrants = listOf(com.airi.assistant.connector.ConnectorProviderGrant(
+                    com.airi.assistant.connector.ConnectorProviderGrantKind.NOTION_CONNECTION_CAPABILITY,
+                    "Read content; target pages/databases must be shared with this connection.",
+                )),
             ),
             McpTool(
                 name        = "get_page",
                 description = "Retrieve metadata and properties for a Notion page by ID.",
-                schema      = mapOf("page_id" to "string — Notion page UUID")
+                schema      = mapOf("page_id" to "string — Notion page UUID"),
+                providerGrants = listOf(com.airi.assistant.connector.ConnectorProviderGrant(
+                    com.airi.assistant.connector.ConnectorProviderGrantKind.NOTION_CONNECTION_CAPABILITY,
+                    "Read content; target page must be shared with this connection.",
+                )),
             ),
             McpTool(
                 name        = "get_page_blocks",
                 description = "Retrieve the block content (body text) of a Notion page or block.",
-                schema      = mapOf("block_id" to "string — page or block UUID")
+                schema      = mapOf("block_id" to "string — page or block UUID"),
+                providerGrants = listOf(com.airi.assistant.connector.ConnectorProviderGrant(
+                    com.airi.assistant.connector.ConnectorProviderGrantKind.NOTION_CONNECTION_CAPABILITY,
+                    "Read content; target page/block must be accessible to this connection.",
+                )),
             ),
             McpTool(
                 name        = "create_page",
@@ -402,7 +414,13 @@ class NotionMcpConnector(
                     "parent_page_id" to "string — UUID of the parent page",
                     "title"          to "string — page title",
                     "content"        to "string — initial paragraph body text (optional)"
-                )
+                ),
+                permission = com.airi.assistant.connector.ConnectorPermissionLevel.WRITE,
+                requiresConfirmation = true,
+                providerGrants = listOf(com.airi.assistant.connector.ConnectorProviderGrant(
+                    com.airi.assistant.connector.ConnectorProviderGrantKind.NOTION_CONNECTION_CAPABILITY,
+                    "Insert content; parent page must be shared with this connection.",
+                )),
             ),
             McpTool(
                 name        = "query_database",
@@ -410,7 +428,11 @@ class NotionMcpConnector(
                 schema      = mapOf(
                     "database_id" to "string — Notion database UUID",
                     "filter_json" to "string — Notion filter JSON (optional)"
-                )
+                ),
+                providerGrants = listOf(com.airi.assistant.connector.ConnectorProviderGrant(
+                    com.airi.assistant.connector.ConnectorProviderGrantKind.NOTION_CONNECTION_CAPABILITY,
+                    "Read content; target database must be shared with this connection.",
+                )),
             )
         )
     }

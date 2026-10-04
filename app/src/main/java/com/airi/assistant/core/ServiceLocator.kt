@@ -254,6 +254,10 @@ object ServiceLocator {
         }
     }
 
+    val connectorAccessProfileStore: com.airi.assistant.connector.ConnectorAccessProfileStore by lazy {
+        com.airi.assistant.connector.SharedPreferencesConnectorAccessProfileStore(requireContext())
+    }
+
     /** One authorization boundary for Google, Zapier, Notion, Telegram, and GitHub. */
     val connectorAuthorizationManager: com.airi.assistant.connector.ConnectorAuthorizationManager by lazy {
         com.airi.assistant.connector.ConnectorAuthorizationManager(
@@ -261,11 +265,12 @@ object ServiceLocator {
             authManager = connectorAuthManager,
             secureStorage = secureStorage,
             googleAuthService = googleAuthService,
+            accessProfileStore = connectorAccessProfileStore,
         )
     }
 
     val connectorRuntimeManager: com.airi.assistant.connector.ConnectorRuntimeManager by lazy {
-        com.airi.assistant.connector.ConnectorRuntimeManager(connectorRegistry)
+        com.airi.assistant.connector.ConnectorRuntimeManager(connectorRegistry, connectorAccessProfileStore)
     }
 
     val approvalContinuationRuntime: com.airi.assistant.connector.ApprovalContinuationRuntime by lazy {
@@ -346,7 +351,7 @@ object ServiceLocator {
     }
 
     val agentRouter: AgentRouter by lazy {
-        AgentRouter(connectorRegistry)
+        AgentRouter(connectorRegistry, connectorAccessProfileStore)
     }
 
     // ── Voice transcript bus ──────────────────────────────────────────────────

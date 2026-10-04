@@ -1418,6 +1418,13 @@
     <string name="connectors_tab_system">النظام</string>
     <string name="connectors_title">الموصلات</string>
     <string name="connectors_search_hint">ابحث عن الموصلات والخدمات…</string>
+    <string name="connectors_access_profile_title">ملف وصول الوكيل</string>
+    <string name="connectors_access_profile_description">اختر الحد الأعلى للصلاحيات التي يمكن لوكيل AIRI استخدامها مع هذه الخدمة. لا يُمنح أي وصول قبل اختيار ملف.</string>
+    <string name="connectors_access_profile_none">منع وصول الوكيل</string>
+    <string name="connectors_access_profile_read_only">قراءة فقط</string>
+    <string name="connectors_access_profile_read_write">قراءة وكتابة</string>
+    <string name="connectors_access_profile_full">وصول كامل</string>
+    <string name="connectors_access_profile_confirmation_note">تفويض مزود الخدمة منفصل. وتظل الكتابة والحذف والإجراءات الإدارية بحاجة إلى تأكيد مستقل ومحدد؛ لا يوافق هذا الملف عليها وحده.</string>
 
     <!-- customization -->
     <string name="customization_display_mode">وضع العرض</string>

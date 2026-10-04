@@ -15,6 +15,7 @@ import kotlinx.coroutines.withTimeout
  */
 class AgentRouter(
     private val registry: ConnectorRegistry,
+    private val accessProfiles: ConnectorAccessProfileStore = InMemoryConnectorAccessProfileStore(),
 ) {
     /**
      * Route a classified intent through the registered connectors.
@@ -61,6 +62,28 @@ class AgentRouter(
                 text   = text,
                 params = params,
             )
+            val matchingActions = connector.agentActions().filter { it.runtimeAction == input.action }
+            val accessFailure = when {
+                matchingActions.size > 1 -> ConnectorOutput.Failure(
+                    "permission_denied", "An explicit action authorization is required for this connector call"
+                )
+                matchingActions.isEmpty() -> null // Legacy non-agent routes retain their existing connector policy.
+                else -> when (ConnectorAccessPolicy.evaluate(
+                    accessProfiles.get(matchingActions.single().surfaceId ?: connector.id), matchingActions.single()
+                )) {
+                    ConnectorAccessDecision.ALLOWED -> null
+                    ConnectorAccessDecision.NOT_GRANTED -> ConnectorOutput.Failure(
+                        "permission_denied", "No matching user access profile is granted for this connector action"
+                    )
+                    ConnectorAccessDecision.CONFIRMATION_REQUIRED -> ConnectorOutput.Failure(
+                        "approval_required", "This action requires a typed approval flow and was not executed"
+                    )
+                }
+            }
+            if (accessFailure != null) {
+                attempts += Attempt(connector.id, accessFailure)
+                return RouteResult(connector.id, accessFailure, attempts)
+            }
             val out = try {
                 withTimeout(CONNECTOR_TIMEOUT_MS) { connector.execute(input) }
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {

@@ -1,6 +1,7 @@
 package com.airi.assistant.integrations.google
 
 import android.app.PendingIntent
+import com.airi.assistant.connector.ConnectorProviderScopes
 import com.google.android.gms.common.api.Scope
 
 /**
@@ -18,16 +19,17 @@ sealed interface GoogleDataAuthorization {
     data object Unavailable : GoogleDataAuthorization
 }
 
-/**
- * Connection-wide read-only scope bundle for the capabilities exposed in this
- * release. A user starts it deliberately from the integrations screen. OAuth
- * consent does not approve a write: Gmail sending and Calendar creation remain
- * disabled until each has a durable, user-reviewable approval path.
- */
+/** Maps only the read-only action scopes currently allowed by the user's surface profiles. */
 object GoogleDataScopes {
-    val connectionReadOnly: List<Scope> = listOf(
-        Scope("https://www.googleapis.com/auth/gmail.readonly"),
-        Scope("https://www.googleapis.com/auth/calendar.events.readonly"),
-        Scope("https://www.googleapis.com/auth/drive.metadata.readonly")
+    fun fromActionScopes(scopes: Set<String>): List<Scope> = scopes
+        .filter(String::isNotBlank)
+        .distinct()
+        .sorted()
+        .map(::Scope)
+
+    val knownReadOnlyScopes: Set<String> = setOf(
+        ConnectorProviderScopes.GOOGLE_GMAIL_READONLY,
+        ConnectorProviderScopes.GOOGLE_CALENDAR_EVENTS_OWNED_READONLY,
+        ConnectorProviderScopes.GOOGLE_DRIVE_METADATA_READONLY,
     )
 }

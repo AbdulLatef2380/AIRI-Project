@@ -1498,6 +1498,13 @@
     <string name="connectors_tab_system">System</string>
     <string name="connectors_title">Connectors</string>
     <string name="connectors_search_hint">Search connectors and services…</string>
+    <string name="connectors_access_profile_title">Agent access profile</string>
+    <string name="connectors_access_profile_description">Choose the maximum permission AIRI’s agent may use for this service. No access is granted until you choose a profile.</string>
+    <string name="connectors_access_profile_none">No agent access</string>
+    <string name="connectors_access_profile_read_only">Read only</string>
+    <string name="connectors_access_profile_read_write">Read and write</string>
+    <string name="connectors_access_profile_full">Full access</string>
+    <string name="connectors_access_profile_confirmation_note">Provider authorization is separate. Write, destructive, and administrative actions still require their own typed confirmation; this profile alone never approves them.</string>
 
     <!-- customization -->
     <string name="customization_display_mode">Display mode</string>

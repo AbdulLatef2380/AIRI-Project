@@ -103,6 +103,7 @@ object OfficialConnectorCatalog {
         website: String,
         docs: String? = null,
         capabilities: List<ConnectorCapability> = emptyList(),
+        requiredScopes: List<String> = emptyList(),
         tags: List<String> = emptyList(),
         limitations: List<String> = emptyList(),
     ) = ConnectorDefinition(
@@ -117,6 +118,7 @@ object OfficialConnectorCatalog {
         connectorType = ConnectorType.APP,
         authenticationType = auth,
         capabilities = capabilities,
+        requiredScopes = requiredScopes,
         permissions = capabilities.map { it.permission }.distinct(),
         status = ConnectorAvailability.PARTIAL,
         tags = tags.ifEmpty { listOf(name.lowercase()) },
@@ -124,18 +126,18 @@ object OfficialConnectorCatalog {
     )
 
     val all: List<ConnectorDefinition> = listOf(
-        partial("google_gmail", "Gmail", "Google", ConnectorAuthenticationType.OAUTH2, "Google", "https://mail.google.com", capabilities = listOf(ConnectorCapability("email.read", "Read authorized mail")), tags = listOf("email", "mail", "google")),
-        partial("google_calendar", "Google Calendar", "Google", ConnectorAuthenticationType.OAUTH2, "Google", "https://calendar.google.com", capabilities = listOf(ConnectorCapability("calendar.read", "Read authorized events")), tags = listOf("calendar", "schedule", "google")),
-        partial("google_drive", "Google Drive", "Google", ConnectorAuthenticationType.OAUTH2, "Google", "https://drive.google.com", capabilities = listOf(ConnectorCapability("drive.read", "Search authorized files")), tags = listOf("files", "storage", "google")),
+        partial("google_gmail", "Gmail", "Google", ConnectorAuthenticationType.OAUTH2, "Google", "https://mail.google.com", capabilities = listOf(ConnectorCapability("email.read", "Read authorized mail")), requiredScopes = listOf(ConnectorProviderScopes.GOOGLE_GMAIL_READONLY), tags = listOf("email", "mail", "google")),
+        partial("google_calendar", "Google Calendar", "Google", ConnectorAuthenticationType.OAUTH2, "Google", "https://calendar.google.com", capabilities = listOf(ConnectorCapability("calendar.read", "Read authorized events")), requiredScopes = listOf(ConnectorProviderScopes.GOOGLE_CALENDAR_EVENTS_OWNED_READONLY), tags = listOf("calendar", "schedule", "google")),
+        partial("google_drive", "Google Drive", "Google", ConnectorAuthenticationType.OAUTH2, "Google", "https://drive.google.com", capabilities = listOf(ConnectorCapability("drive.read", "Search authorized files")), requiredScopes = listOf(ConnectorProviderScopes.GOOGLE_DRIVE_METADATA_READONLY), tags = listOf("files", "storage", "google")),
         soon("google_docs", "Google Docs", "Google", ConnectorAuthenticationType.OAUTH2, "Google", "https://docs.google.com", tags = listOf("documents", "google")),
         soon("google_sheets", "Google Sheets", "Google", ConnectorAuthenticationType.OAUTH2, "Google", "https://sheets.google.com", tags = listOf("spreadsheets", "google")),
         soon("google_contacts", "Google Contacts", "Google", ConnectorAuthenticationType.OAUTH2, "Google", "https://contacts.google.com", tags = listOf("contacts", "google")),
         soon("google_tasks", "Google Tasks", "Google", ConnectorAuthenticationType.OAUTH2, "Google", "https://tasks.google.com", tags = listOf("tasks", "google")),
         soon("google_meet", "Google Meet", "Google", ConnectorAuthenticationType.OAUTH2, "Google", "https://meet.google.com", tags = listOf("meetings", "google")),
-        partial("microsoft_outlook", "Outlook Mail", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://outlook.live.com", docs = "https://learn.microsoft.com/en-us/graph/api/resources/mail-api-overview", capabilities = listOf(ConnectorCapability("outlook.mail.read", "Read the signed-in user's mail")), tags = listOf("email", "mail", "microsoft"), limitations = listOf("Requires an Entra public client id and the registered AIRI redirect URI.")),
-        partial("microsoft_calendar", "Outlook Calendar", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://outlook.live.com/calendar", docs = "https://learn.microsoft.com/en-us/graph/api/resources/calendar", capabilities = listOf(ConnectorCapability("outlook.calendar.read", "Read the signed-in user's calendar")), tags = listOf("calendar", "microsoft"), limitations = listOf("Requires an Entra public client id and the registered AIRI redirect URI.")),
-        partial("microsoft_onedrive", "OneDrive", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://onedrive.live.com", docs = "https://learn.microsoft.com/en-us/graph/api/driveitem-list-children", capabilities = listOf(ConnectorCapability("onedrive.files.read", "List authorized OneDrive files")), tags = listOf("files", "storage", "microsoft"), limitations = listOf("Read-only first slice: root and selected folder listing only.")),
-        partial("microsoft_teams", "Microsoft Teams", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://teams.microsoft.com", docs = "https://learn.microsoft.com/en-us/graph/api/user-list-joinedteams", capabilities = listOf(ConnectorCapability("teams.read", "List teams the signed-in user has joined")), tags = listOf("communication", "microsoft"), limitations = listOf("Read-only first slice: joined team metadata only.")),
+        partial("microsoft_outlook", "Outlook Mail", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://outlook.live.com", docs = "https://learn.microsoft.com/en-us/graph/api/user-list-messages", capabilities = listOf(ConnectorCapability("outlook.mail.read", "Read the signed-in user's mail")), requiredScopes = listOf(ConnectorProviderScopes.MICROSOFT_USER_READ, ConnectorProviderScopes.MICROSOFT_MAIL_READ_BASIC), tags = listOf("email", "mail", "microsoft"), limitations = listOf("Requires an Entra public client id and the registered AIRI redirect URI.")),
+        partial("microsoft_calendar", "Outlook Calendar", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://outlook.live.com/calendar", docs = "https://learn.microsoft.com/en-us/graph/api/user-list-events", capabilities = listOf(ConnectorCapability("outlook.calendar.read", "Read the signed-in user's calendar")), requiredScopes = listOf(ConnectorProviderScopes.MICROSOFT_USER_READ, ConnectorProviderScopes.MICROSOFT_CALENDARS_READ_BASIC), tags = listOf("calendar", "microsoft"), limitations = listOf("Requires an Entra public client id and the registered AIRI redirect URI.")),
+        partial("microsoft_onedrive", "OneDrive", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://onedrive.live.com", docs = "https://learn.microsoft.com/en-us/graph/api/driveitem-list-children", capabilities = listOf(ConnectorCapability("onedrive.files.read", "List authorized OneDrive files")), requiredScopes = listOf(ConnectorProviderScopes.MICROSOFT_USER_READ, ConnectorProviderScopes.MICROSOFT_FILES_READ), tags = listOf("files", "storage", "microsoft"), limitations = listOf("Read-only first slice: root and selected folder listing only.")),
+        partial("microsoft_teams", "Microsoft Teams", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://teams.microsoft.com", docs = "https://learn.microsoft.com/en-us/graph/api/user-list-joinedteams", capabilities = listOf(ConnectorCapability("teams.read", "List teams the signed-in user has joined")), requiredScopes = listOf(ConnectorProviderScopes.MICROSOFT_USER_READ, ConnectorProviderScopes.MICROSOFT_TEAM_READ_BASIC_ALL), tags = listOf("communication", "microsoft"), limitations = listOf("Read-only first slice: joined team metadata only.", "Microsoft Graph joined-team listing is not supported for personal Microsoft accounts.")),
         soon("microsoft_sharepoint", "SharePoint", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://www.sharepoint.com", tags = listOf("files", "microsoft")),
         soon("microsoft_todo", "Microsoft To Do", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://to-do.live.com", tags = listOf("tasks", "microsoft")),
         partial("github", "GitHub", "Development", ConnectorAuthenticationType.PERSONAL_ACCESS_TOKEN, website = "https://github.com", docs = "https://docs.github.com", capabilities = listOf(ConnectorCapability("repositories.read", "Read repositories"), ConnectorCapability("issues.read", "Read issues"), ConnectorCapability("issues.create", "Create issues", ConnectorPermissionLevel.WRITE, true)), tags = listOf("git", "code", "development")),
@@ -157,7 +159,7 @@ object OfficialConnectorCatalog {
         soon("figma", "Figma", "Design", ConnectorAuthenticationType.OAUTH2, website = "https://www.figma.com", tags = listOf("design")),
         soon("canva", "Canva", "Design", ConnectorAuthenticationType.OAUTH2, website = "https://www.canva.com", tags = listOf("design")),
         soon("airtable", "Airtable", "Automation", ConnectorAuthenticationType.OAUTH2_AND_API, website = "https://www.airtable.com", tags = listOf("data", "automation")),
-        partial("zapier", "Zapier", "Automation", ConnectorAuthenticationType.OAUTH2, website = "https://zapier.com", docs = "https://platform.zapier.com", tags = listOf("automation", "webhook")),
+        partial("zapier", "Zapier", "Automation", ConnectorAuthenticationType.OAUTH2, website = "https://zapier.com", docs = "https://docs.zapier.com/powered-by-zapier/api-reference/oauth-scopes", requiredScopes = listOf(ConnectorProviderScopes.ZAPIER_ZAP_READ), tags = listOf("automation", "webhook")),
         soon("zoom", "Zoom", "Meetings", ConnectorAuthenticationType.OAUTH2, website = "https://zoom.us", tags = listOf("meetings", "video")),
     )
 
@@ -189,12 +191,19 @@ fun ConnectorDefinition.toConnectorMeta(): ConnectorMeta = ConnectorMeta(
     privacyPolicyUrl = privacyPolicyUrl,
     documentationUrl = documentationUrl,
     runtimeId = runtimeConnectorId(),
+    catalogId = id,
 )
 
 /** Catalog surfaces that share one first-class provider adapter. */
 fun ConnectorDefinition.runtimeConnectorId(): String = ConnectorRuntimeDescriptors.runtimeIdFor(id)
 
 fun ConnectorMeta.withCatalogDefinition(definition: ConnectorDefinition): ConnectorMeta = copy(
+    id = definition.id,
+    name = definition.displayName,
+    description = definition.description,
+    type = definition.connectorType,
+    runtimeId = definition.runtimeConnectorId(),
+    catalogId = definition.id,
     provider = definition.provider,
     category = definition.category,
     authenticationType = definition.authenticationType,

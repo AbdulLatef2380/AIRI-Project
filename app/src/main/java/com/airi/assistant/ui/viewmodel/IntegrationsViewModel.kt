@@ -32,6 +32,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     // The registered GoogleConnector uses this same process-scoped service. Keeping
     // data access tokens only here prevents per-ViewModel token split-brain.
     private val googleAuthService = ServiceLocator.googleAuthService
+    private var pendingGoogleScopes: Set<String> = emptySet()
 
     /**
      * SECURITY: Per-session CSRF state token for OAuth flows.
@@ -124,7 +125,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                     "notion_mcp" -> openNotionDialog()
                 }
                 is ConnectorAuthorizationManager.StartResult.GoogleIdentity -> Unit
-                is ConnectorAuthorizationManager.StartResult.GoogleConsent -> requestGoogleDataAuthorization()
+                is ConnectorAuthorizationManager.StartResult.GoogleConsent -> requestGoogleDataAuthorization(result.scopes)
                 is ConnectorAuthorizationManager.StartResult.Ready -> refresh()
                 is ConnectorAuthorizationManager.StartResult.Failed -> {
                     _googleFeedback.value = R.string.integration_google_sign_in_failed
@@ -311,7 +312,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
             when (val result = authorizationManager.onGoogleSignIn(account)) {
                 is ConnectorAuthorizationManager.CompletionResult.ConsentRequired -> {
                     refreshGoogleConnectorState()
-                    requestGoogleDataAuthorization()
+                    requestGoogleDataAuthorization(result.scopes)
                 }
                 is ConnectorAuthorizationManager.CompletionResult.Failed -> {
                     _googleFeedback.value = GoogleIntegrationSignInPolicy.providerFailureFeedback()
@@ -321,22 +322,36 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    fun requestGoogleDataAuthorization() {
-        googleAuthService.authorizeDataAccess()
+    fun requestGoogleDataAuthorization(scopes: Set<String> = authorizationManager.requiredOAuthScopesFor("google")) {
+        if (scopes.isEmpty()) {
+            _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
+            return
+        }
+        pendingGoogleScopes = scopes
+        googleAuthService.authorizeDataAccess(scopes)
             .addOnSuccessListener(::handleGoogleDataAuthorization)
             .addOnFailureListener {
+                pendingGoogleScopes = emptySet()
                 refreshGoogleConnectorState()
                 _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
             }
     }
 
     fun onGoogleDataAuthorizationResult(resultIntent: Intent?) {
-        handleGoogleDataAuthorization(googleAuthService.completeDataAuthorization(resultIntent))
+        val currentScopes = authorizationManager.requiredOAuthScopesFor("google")
+        if (pendingGoogleScopes.isEmpty() || pendingGoogleScopes != currentScopes) {
+            pendingGoogleScopes = emptySet()
+            googleAuthService.clearDataAccessToken()
+            _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
+            return
+        }
+        handleGoogleDataAuthorization(googleAuthService.completeDataAuthorization(resultIntent, pendingGoogleScopes))
     }
 
     private fun handleGoogleDataAuthorization(result: GoogleDataAuthorization) {
         when (result) {
             GoogleDataAuthorization.Authorized -> {
+                pendingGoogleScopes = emptySet()
                 refreshGoogleConnectorState()
                 _googleFeedback.value = GoogleIntegrationSignInPolicy.dataAuthorizedFeedback()
             }
@@ -346,10 +361,12 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 )
             }
             GoogleDataAuthorization.Cancelled -> {
+                pendingGoogleScopes = emptySet()
                 refreshGoogleConnectorState()
                 _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationCancelledFeedback()
             }
             GoogleDataAuthorization.Unavailable -> {
+                pendingGoogleScopes = emptySet()
                 refreshGoogleConnectorState()
                 _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
             }

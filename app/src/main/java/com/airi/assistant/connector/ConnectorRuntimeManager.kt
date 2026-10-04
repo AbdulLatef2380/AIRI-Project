@@ -18,7 +18,10 @@ import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
-class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
+class ConnectorRuntimeManager(
+    private val registry: ConnectorRegistry,
+    private val accessProfiles: ConnectorAccessProfileStore = InMemoryConnectorAccessProfileStore(),
+) {
     private val TAG = "ConnectorRuntimeManager"
 
     data class InflightAction(val connectorId: String, val action: String, val startedMs: Long = System.currentTimeMillis())
@@ -40,6 +43,35 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
         var lifecycleToken = registry.lifecycleToken(connectorId)
         val connector = registry.get(connectorId)
             ?: return ConnectorOutput.Failure("not_found", "Connector '$connectorId' not registered")
+        val declaredActions = connector.agentActions()
+        val governedAction = if (input.authorizationActionId != null) {
+            declaredActions.firstOrNull { it.id == input.authorizationActionId }
+                ?: return ConnectorOutput.Failure("permission_denied", "The requested authorization action is not declared")
+        } else {
+            val matching = declaredActions.filter { it.runtimeAction == input.action }
+            if (matching.size > 1) {
+                return ConnectorOutput.Failure("permission_denied", "An explicit authorization action is required for this connector call")
+            }
+            matching.singleOrNull()
+        }
+        if (governedAction != null) {
+            if (governedAction.runtimeAction != input.action) {
+                return ConnectorOutput.Failure("permission_denied", "The requested action does not match its authorization declaration")
+            }
+            when (ConnectorAccessPolicy.evaluate(
+                accessProfiles.get(governedAction.surfaceId ?: connectorId), governedAction
+            )) {
+                ConnectorAccessDecision.ALLOWED -> Unit
+                ConnectorAccessDecision.NOT_GRANTED -> return ConnectorOutput.Failure(
+                    "permission_denied", "No matching user access profile is granted for this connector action"
+                )
+                ConnectorAccessDecision.CONFIRMATION_REQUIRED -> return ConnectorOutput.Failure(
+                    "approval_required", "This action requires a typed approval flow and was not executed"
+                )
+            }
+        } else if (input.authorizationActionId != null) {
+            return ConnectorOutput.Failure("permission_denied", "The requested authorization action is not executable")
+        }
         val operationId = invocationSequence.incrementAndGet()
         val key = "${connectorId}::${input.action}#$operationId"
         trackStart(key, InflightAction(connectorId, input.action))

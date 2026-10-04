@@ -64,16 +64,24 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
         documentationUrl = "https://developers.google.com/identity/protocols/oauth2",
     )
     override fun agentActions() = listOf(
-        ConnectorAgentAction("gmail_list", "List authorized Gmail messages.", parameters = mapOf(
+        ConnectorAgentAction("gmail_list", "List authorized Gmail messages.", surfaceId = "google_gmail", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.GOOGLE_GMAIL_READONLY)
+        ), parameters = mapOf(
             "max_results" to ConnectorAgentParameter(type = "int", description = "Maximum messages to list")
         )),
-        ConnectorAgentAction("gmail_read", "Read an authorized Gmail message.", parameters = mapOf(
+        ConnectorAgentAction("gmail_read", "Read an authorized Gmail message.", surfaceId = "google_gmail", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.GOOGLE_GMAIL_READONLY)
+        ), parameters = mapOf(
             "message_id" to ConnectorAgentParameter(description = "Gmail message ID", required = true)
         )),
-        ConnectorAgentAction("calendar_list", "List upcoming authorized Google Calendar events.", parameters = mapOf(
+        ConnectorAgentAction("calendar_list", "List upcoming authorized Google Calendar events.", surfaceId = "google_calendar", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.GOOGLE_CALENDAR_EVENTS_OWNED_READONLY)
+        ), parameters = mapOf(
             "days" to ConnectorAgentParameter(type = "int", description = "Days ahead to query")
         )),
-        ConnectorAgentAction("drive_search", "Search authorized Google Drive files.", parameters = mapOf(
+        ConnectorAgentAction("drive_search", "Search authorized Google Drive files.", surfaceId = "google_drive", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.GOOGLE_DRIVE_METADATA_READONLY)
+        ), parameters = mapOf(
             "query" to ConnectorAgentParameter(description = "Drive search query", required = true)
         )),
     )
@@ -98,7 +106,7 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
                 connected = true,
                 healthy = false,
                 statusLine = "Data authorization required",
-                errorMessage = "Authorize Gmail, Calendar, and Drive access in Integrations."
+                errorMessage = "Authorize the selected Google data surfaces in Integrations."
             )
             else -> ConnectorState(
                 connected = true,

@@ -57,13 +57,22 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
         tags        = listOf("telegram", "messaging", "bot", "chat")
     )
     override fun agentActions() = listOf(
-        ConnectorAgentAction("get_updates", "Read recent Telegram bot updates.", parameters = mapOf(
+        ConnectorAgentAction("get_updates", "Read recent Telegram bot updates.", providerGrants = listOf(ConnectorProviderGrant(
+            ConnectorProviderGrantKind.TELEGRAM_BOT_TOKEN_CAPABILITY,
+            "A valid bot token and updates delivered to the bot; Telegram polling (getUpdates) is mutually exclusive with webhooks.",
+        )), parameters = mapOf(
             "limit" to ConnectorAgentParameter(type = "int", description = "Number of updates, 1-100")
         )),
-        ConnectorAgentAction("get_chat_info", "Read metadata for a Telegram chat.", parameters = mapOf(
+        ConnectorAgentAction("get_chat_info", "Read metadata for a Telegram chat.", providerGrants = listOf(ConnectorProviderGrant(
+            ConnectorProviderGrantKind.TELEGRAM_BOT_TOKEN_CAPABILITY,
+            "A valid bot token and the bot's access to the requested chat.",
+        )), parameters = mapOf(
             "chat_id" to ConnectorAgentParameter(description = "Telegram chat identifier", required = true)
         )),
-        ConnectorAgentAction("status", "Return the current Telegram connection status."),
+        ConnectorAgentAction("status", "Return the current Telegram connection status.", providerGrants = listOf(ConnectorProviderGrant(
+            ConnectorProviderGrantKind.TELEGRAM_BOT_TOKEN_CAPABILITY,
+            "A valid Telegram Bot API token.",
+        ))),
     )
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 

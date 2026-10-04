@@ -26,6 +26,37 @@ class ConnectorCatalogTest {
     }
 
     @Test
+    fun catalogMetadata_keeps_shared_provider_surfaces_distinct() {
+        val metas = ConnectorRegistry().catalogMeta()
+        val gmail = metas.first { it.id == "google_gmail" }
+        val calendar = metas.first { it.id == "google_calendar" }
+        val teams = metas.first { it.id == "microsoft_teams" }
+
+        assertEquals("google", gmail.runtimeId)
+        assertEquals("google", calendar.runtimeId)
+        assertEquals("Gmail", gmail.name)
+        assertEquals("Google Calendar", calendar.name)
+        assertEquals("microsoft_graph", teams.runtimeId)
+        assertEquals("Microsoft Teams", teams.name)
+        assertEquals("microsoft_teams", teams.catalogId)
+    }
+
+    @Test
+    fun catalogDeclaresLeastPrivilegeOAuthScopesPerLiveSurface() {
+        assertEquals(listOf(ConnectorProviderScopes.GOOGLE_GMAIL_READONLY), OfficialConnectorCatalog.get("google_gmail")!!.requiredScopes)
+        assertEquals(listOf(ConnectorProviderScopes.GOOGLE_CALENDAR_EVENTS_OWNED_READONLY), OfficialConnectorCatalog.get("google_calendar")!!.requiredScopes)
+        assertEquals(listOf(ConnectorProviderScopes.GOOGLE_DRIVE_METADATA_READONLY), OfficialConnectorCatalog.get("google_drive")!!.requiredScopes)
+        assertEquals(
+            listOf(ConnectorProviderScopes.MICROSOFT_USER_READ, ConnectorProviderScopes.MICROSOFT_MAIL_READ_BASIC),
+            OfficialConnectorCatalog.get("microsoft_outlook")!!.requiredScopes,
+        )
+        assertTrue(OfficialConnectorCatalog.get("microsoft_calendar")!!.requiredScopes.contains(ConnectorProviderScopes.MICROSOFT_CALENDARS_READ_BASIC))
+        assertTrue(OfficialConnectorCatalog.get("microsoft_onedrive")!!.requiredScopes.contains(ConnectorProviderScopes.MICROSOFT_FILES_READ))
+        assertTrue(OfficialConnectorCatalog.get("microsoft_teams")!!.requiredScopes.contains(ConnectorProviderScopes.MICROSOFT_TEAM_READ_BASIC_ALL))
+        assertEquals(listOf(ConnectorProviderScopes.ZAPIER_ZAP_READ), OfficialConnectorCatalog.get("zapier")!!.requiredScopes)
+    }
+
+    @Test
     fun writeCapabilitiesRequireConfirmation() {
         val github = OfficialConnectorCatalog.get("github")!!
         val createIssue = github.capabilities.first { it.id == "issues.create" }

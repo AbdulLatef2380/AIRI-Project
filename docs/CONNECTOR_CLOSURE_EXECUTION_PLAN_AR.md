@@ -50,7 +50,7 @@
 
 أضيف حاجز release داخل `ConnectorAuthorizationManager` قبل أي `begin()` أو `completeOAuth()` لمعرفات الأتمتة الخارجية `zapier`, `ifttt`, `n8n`. هذا يمنع مسارات Integrations العامة وdeep links من تجاوز سياسة الإصدار حتى لو لم تمر عبر شاشة Settings.
 
-## المرحلة الثانية — إكمال adapters والأدلة الحية
+## المرحلة الثانية — إكمال adapters ودورة الاعتماد الفعلية
 
 ### العمل
 
@@ -72,14 +72,39 @@
 - اختبار Android فعلي/CI على SHA المطابق، ثم توقيع ونشر ومراجعة الخصوصية والمتجر.
 - تبقى الأسطح بلا أدلة خارجية في `BLOCKED_EXTERNAL_EVIDENCE` ولا تتحول إلى `CLOSED`.
 
+### الدفعة التنفيذية الحالية
+
+- فصل readiness حسب `catalogId` بدلاً من اعتبار runtime المشترك دليلاً على تنفيذ كل الأسطح.
+- تثبيت Microsoft scopes داخل الخزنة المشفرة مع token، ورفض refresh القديم الذي لا يملك scopes معروفة بدلاً من استخدام `.default` الواسع.
+- إضافة حدود `top` للبريد والتقويم، وتصنيف أخطاء Graph إلى `permission_denied`, `rate_limited`, `provider_unavailable`, و`provider_error`.
+- إبقاء الأسطح غير المنفذة `CATALOG_ONLY` ومنع بدء authorization لها.
+
+## المرحلة الثالثة — إثبات الإغلاق والإصدار
+
+لا تتحول أي نتيجة مصدرية إلى `CLOSED` في هذه المرحلة دون أدلة خارجية مرتبطة بالـSHA نفسه.
+
+### العمل
+
+- تشغيل Android build وunit/instrumentation/lint/release على commit مطابق.
+- اختبار كل adapter بحساب مزود فعلي: consent، cancel، deny، callback replay، expiry، refresh، revoke، disconnect، health، وrate limits.
+- اختبار الأجهزة الفعلية والصلاحيات المحلية وprocess death وDoze وTalkBack للـruntime المحلي.
+- إرفاق evidence matrix لكل سطح: adapter، actions، provider grants، profile enforcement، secure storage، health، errors، وartifact.
+- مراجعة التوقيع والخصوصية والمتجر قبل قرار مالك الإصدار.
+
+### بوابة الإغلاق النهائي
+
+- لا surface يظل `PARTIAL` أو `COMING_SOON` أو `CATALOG_ONLY`.
+- كل surface يملك artifact/evidence قابل لإعادة التشغيل على SHA المطابق.
+- لا يُعلن `CLOSED` أو `PRODUCTION_VERIFIED` من نتائج static audit وحدها.
+
 ## ترتيب التنفيذ الحالي
 
-1. تثبيت حاجز authorization المركزي — **بدأ الآن**.
-2. إضافة نموذج `AccessProfileRequired` وواجهة اختيار المنحة قبل المصادقة.
-3. ربط جميع مسارات الدخول بالهوية السطحية الصحيحة.
-4. إضافة اختبارات regression لمسارات UI/deep-link والـcallback.
-5. تشغيل الفحوص المحلية ورفع commit مرحلي إلى `main`.
-6. بدء دفعة Google/Microsoft/GitHub/Telegram/Notion بحسب توفر إعدادات المزود.
+1. حاجز authorization المركزي — **منفذ**.
+2. `AccessProfileRequired` وواجهة المنحة قبل المصادقة — **منفذ**.
+3. ربط مسارات الدخول بهوية السطح — **منفذ**.
+4. readiness على مستوى السطح ودورة Microsoft scopes — **منفذ في commit `a23978aa`**.
+5. إكمال adapters المتبقية واختبارات provider-specific — **قيد التنفيذ**.
+6. جمع أدلة Android/provider/release وربطها بالـSHA — **المرحلة الثالثة، لم تبدأ بعد**.
 
 ## قرار الصلاحيات
 

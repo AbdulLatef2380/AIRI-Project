@@ -141,7 +141,7 @@ class NotionMcpConnector(
             )
 
         return when (tool.name) {
-            "search_pages"    -> searchPages(token, params["query"] ?: text)
+            "search_pages"    -> searchPages(token, params["query"] ?: return missingParam("query"))
             "get_page"        -> getPage(token, params["page_id"]
                 ?: return missingParam("page_id"))
             "get_page_blocks" -> getPageBlocks(token, params["block_id"]
@@ -149,8 +149,8 @@ class NotionMcpConnector(
             "create_page"     -> createPage(
                 token       = token,
                 parentPageId = params["parent_page_id"] ?: return missingParam("parent_page_id"),
-                title        = params["title"]           ?: text.take(100),
-                content      = params["content"]         ?: text
+                    title        = params["title"]           ?: return missingParam("title"),
+                    content      = params["content"]         ?: ""
             )
             "query_database"  -> queryDatabase(
                 token       = token,
@@ -384,6 +384,8 @@ class NotionMcpConnector(
                 name        = "search_pages",
                 description = "Search Notion pages and databases by keyword.",
                 schema      = mapOf("query" to "string — search terms"),
+                requiredParameters = setOf("query"),
+                parameterLimits = mapOf("query" to 2_048),
                 providerGrants = listOf(com.airi.assistant.connector.ConnectorProviderGrant(
                     com.airi.assistant.connector.ConnectorProviderGrantKind.NOTION_CONNECTION_CAPABILITY,
                     "Read content; target pages/databases must be shared with this connection.",
@@ -393,6 +395,8 @@ class NotionMcpConnector(
                 name        = "get_page",
                 description = "Retrieve metadata and properties for a Notion page by ID.",
                 schema      = mapOf("page_id" to "string — Notion page UUID"),
+                requiredParameters = setOf("page_id"),
+                parameterLimits = mapOf("page_id" to 64),
                 providerGrants = listOf(com.airi.assistant.connector.ConnectorProviderGrant(
                     com.airi.assistant.connector.ConnectorProviderGrantKind.NOTION_CONNECTION_CAPABILITY,
                     "Read content; target page must be shared with this connection.",
@@ -402,6 +406,8 @@ class NotionMcpConnector(
                 name        = "get_page_blocks",
                 description = "Retrieve the block content (body text) of a Notion page or block.",
                 schema      = mapOf("block_id" to "string — page or block UUID"),
+                requiredParameters = setOf("block_id"),
+                parameterLimits = mapOf("block_id" to 64),
                 providerGrants = listOf(com.airi.assistant.connector.ConnectorProviderGrant(
                     com.airi.assistant.connector.ConnectorProviderGrantKind.NOTION_CONNECTION_CAPABILITY,
                     "Read content; target page/block must be accessible to this connection.",
@@ -415,6 +421,8 @@ class NotionMcpConnector(
                     "title"          to "string — page title",
                     "content"        to "string — initial paragraph body text (optional)"
                 ),
+                requiredParameters = setOf("parent_page_id", "title"),
+                parameterLimits = mapOf("parent_page_id" to 64, "title" to 256, "content" to 20_000),
                 permission = com.airi.assistant.connector.ConnectorPermissionLevel.WRITE,
                 requiresConfirmation = true,
                 providerGrants = listOf(com.airi.assistant.connector.ConnectorProviderGrant(
@@ -429,6 +437,8 @@ class NotionMcpConnector(
                     "database_id" to "string — Notion database UUID",
                     "filter_json" to "string — Notion filter JSON (optional)"
                 ),
+                requiredParameters = setOf("database_id"),
+                parameterLimits = mapOf("database_id" to 64, "filter_json" to 8_000),
                 providerGrants = listOf(com.airi.assistant.connector.ConnectorProviderGrant(
                     com.airi.assistant.connector.ConnectorProviderGrantKind.NOTION_CONNECTION_CAPABILITY,
                     "Read content; target database must be shared with this connection.",

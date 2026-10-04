@@ -36,8 +36,7 @@ import java.util.concurrent.TimeUnit
  *
  * ── SUPPORTED ACTIONS ────────────────────────────────────────────────────────
  *  - `list_zaps`         — list Zaps visible to the authorized integration
- *  - `list_triggers`     — list local AIRI trigger types
- *  - `send_webhook`      — user-initiated test request to a Zapier hook (not an agent action)
+ *  - Only `list_zaps` and `status` are executable; trigger/webhook actions are intentionally absent.
  *  - `status`            — return the current connection status string
  *
  * ── SECURITY ─────────────────────────────────────────────────────────────────
@@ -92,7 +91,6 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
             "List Zaps visible to the AIRI Zapier integration.",
             providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.ZAPIER_ZAP_READ)),
         ),
-        ConnectorAgentAction("list_triggers", "List available Zapier trigger types."),
         ConnectorAgentAction("status", "Return the current Zapier connection status."),
     )
 
@@ -251,10 +249,8 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
                     "unsupported_action",
                     "Zapier pause/resume is not implemented by this adapter and was not executed.",
                 )
-                "list_triggers"-> listTriggers()
-                "send_webhook" -> sendWebhook(
-                    input.params["hook_url"] ?: return@withContext ConnectorOutput.Failure("missing_param", "hook_url required"),
-                    input.text
+                "list_triggers" -> return@withContext ConnectorOutput.Failure(
+                    "unsupported_action", "Zapier trigger discovery is not implemented by this adapter."
                 )
                 "status"       -> return@withContext ConnectorOutput.Success(_state.value.statusLine)
                 else           -> return@withContext ConnectorOutput.Failure("unknown_action", "Unknown action: ${input.action}")
@@ -282,34 +278,6 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
         }
     }
 
-    private fun listTriggers(): String {
-        // Returns the fixed set of AIRI-supported Zapier trigger actions
-        return """
-            Available AIRI → Zapier trigger types:
-            • message_sent        — fires when AIRI sends a message
-            • agent_completed     — fires when an agent finishes a task
-            • skill_executed      — fires when a skill runs
-            • credit_limit_hit    — fires when daily credits are exhausted
-            • memory_stored       — fires when AIRI stores a new memory
-        """.trimIndent()
-    }
-
-    private fun sendWebhook(hookUrl: String, payload: String): String {
-        val url = hookUrl.toHttpUrlOrNull()
-            ?: throw IllegalArgumentException("Invalid Zapier hook URL")
-        if (!url.isHttps || url.host != "hooks.zapier.com") {
-            throw IllegalArgumentException("Only HTTPS hooks.zapier.com URLs are accepted")
-        }
-        val body = (if (payload.startsWith("{")) payload
-                   else JSONObject().put("message", payload).put("source", "AIRI").toString())
-            .toRequestBody("application/json".toMediaType())
-        val request = Request.Builder().url(url).post(body).build()
-        return client.newCall(request).execute().use { response ->
-            if (response.isSuccessful) "Webhook sent  (HTTP ${response.code})"
-            else "Webhook failed: HTTP ${response.code} ${response.message}"
-        }
-    }
-
     private fun apiGet(path: String): JSONObject {
         val token = authManager.getToken(id) ?: throw IllegalStateException("No access token")
         val request = Request.Builder()
@@ -317,7 +285,12 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
             .header("Authorization", "Bearer $token")
             .header("Accept", "application/json")
             .build()
-        val response = client.newCall(request).execute()
-        return JSONObject(response.body?.string() ?: "{}")
+        return client.newCall(request).execute().use { response ->
+            val responseBody = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                throw IllegalStateException("Zapier API returned HTTP ${response.code}")
+            }
+            JSONObject(responseBody.ifBlank { "{}" })
+        }
     }
 }

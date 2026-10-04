@@ -64,8 +64,8 @@ interface Connector {
     suspend fun execute(input: ConnectorInput): ConnectorOutput
 
     /**
-     * Actions that may be exposed to AgentLoop. Empty preserves compatibility
-     * for connectors that have not opted into the canonical tool bridge yet.
+     * Actions that may be exposed to AgentLoop and executed by the runtime.
+     * An empty list means no action is executable through agent/runtime routes.
      * Implementations must describe permission and parameters honestly.
      */
     fun agentActions(): List<ConnectorAgentAction> = emptyList()
@@ -86,6 +86,16 @@ data class ConnectorAgentAction(
     val requiresConfirmation: Boolean = permission != ConnectorPermissionLevel.READ,
     /** OAuth scopes or provider-specific token/resource permissions required by this action. */
     val providerGrants: List<ConnectorProviderGrant> = emptyList(),
+    /** Only actions whose adapter validates a claimed durable approval may resume after approval. */
+    val supportsApprovedContinuation: Boolean = false,
+    /** Binary payloads are denied unless the action declares a positive byte limit. */
+    val maxBinaryBytes: Int = 0,
+    /** Require a non-empty binary payload for actions such as local transcription. */
+    val binaryRequired: Boolean = false,
+    /** Free-form text is denied unless the action gives it an explicit size bound. */
+    val maxTextChars: Int = 0,
+    /** Require non-empty free-form text when it is the action's declared input channel. */
+    val textRequired: Boolean = false,
 ) {
     val requiredOAuthScopes: Set<String>
         get() = providerGrants
@@ -100,6 +110,11 @@ data class ConnectorAgentParameter(
     val type: String = "string",
     val description: String = "",
     val required: Boolean = false,
+    val minInt: Long? = null,
+    val maxInt: Long? = null,
+    val maxLength: Int? = null,
+    val minNumber: Double? = null,
+    val maxNumber: Double? = null,
 )
 
 /**

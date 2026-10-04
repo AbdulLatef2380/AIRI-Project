@@ -1,11 +1,14 @@
 package com.airi.assistant.connector.local
 
 import com.airi.assistant.connector.Connector
+import com.airi.assistant.connector.ConnectorAgentAction
 import com.airi.assistant.connector.ConnectorInput
 import com.airi.assistant.connector.ConnectorMeta
 import com.airi.assistant.connector.ConnectorOutput
+import com.airi.assistant.connector.ConnectorPermissionLevel
 import com.airi.assistant.connector.ConnectorState
 import com.airi.assistant.connector.ConnectorType
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,6 +49,17 @@ class VoiceConnector(
 
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
+    override fun agentActions() = listOf(
+        ConnectorAgentAction(
+            id = "transcribe",
+            description = "Transcribe an explicitly supplied audio payload on-device.",
+            surfaceId = "voice_mtmd",
+            permission = ConnectorPermissionLevel.READ,
+            maxBinaryBytes = 20 * 1024 * 1024,
+            binaryRequired = true,
+        )
+    )
+
     override suspend fun connect(): ConnectorState {
         // Capture the property into a local val so Kotlin's smart-cast can
         // narrow the type from `VoiceBackend?` to `VoiceBackend` after the
@@ -61,7 +75,13 @@ class VoiceConnector(
             )
             return _state.value
         }
-        val ok = runCatching { b.warmUp() }.getOrDefault(false)
+        val ok = try {
+            b.warmUp()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
         _state.value = ConnectorState(
             connected = ok, healthy = ok,
             statusLine = if (ok) "Voice backend ready" else "Voice backend failed warm-up",
@@ -72,7 +92,13 @@ class VoiceConnector(
     }
 
     override suspend fun disconnect() {
-        backend?.let { runCatching { it.release() } }
+        try {
+            backend?.release()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Best-effort release, while preserving coroutine cancellation.
+        }
         _state.value = _state.value.copy(
             connected = false, healthy = false,
             statusLine = "Released",
@@ -91,15 +117,17 @@ class VoiceConnector(
                 val audio = input.binary ?: return ConnectorOutput.Failure(
                     code = "bad_input", message = "Missing audio bytes",
                 )
-                runCatching { b.transcribe(audio) }
-                    .map { ConnectorOutput.Success(text = it) as ConnectorOutput }
-                    .getOrElse {
-                        ConnectorOutput.Failure(
-                            code = "transcribe_failed",
-                            message = it.message ?: "transcription threw",
-                            retryable = true,
-                        )
-                    }
+                try {
+                    ConnectorOutput.Success(text = b.transcribe(audio))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    ConnectorOutput.Failure(
+                        code = "transcribe_failed",
+                        message = e.message ?: "transcription threw",
+                        retryable = true,
+                    )
+                }
             }
             else -> ConnectorOutput.Failure(
                 code = "unknown_action",

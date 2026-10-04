@@ -50,6 +50,8 @@ class GitHubConnector(
     override fun agentActions() = listOf(
         ConnectorAgentAction("list_repos", "List repositories available to the authorized GitHub account.", providerGrants = listOf(
             ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Metadata: read")
+        ), parameters = mapOf(
+            "limit" to ConnectorAgentParameter(type = "int", description = "Maximum repositories to return", minInt = 1, maxInt = 100)
         )),
         ConnectorAgentAction("list_issues", "List issues for a repository.", parameters = mapOf(
             "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true)
@@ -72,6 +74,20 @@ class GitHubConnector(
             ConnectorProviderGrantKind.PROVIDER_ENDPOINT_PERMISSION,
             "A valid user-authorized GitHub personal access token; actual token permissions are not introspected by AIRI.",
         ))),
+        ConnectorAgentAction(
+            id = "create_issue",
+            description = "Create an issue in a repository after a durable task approval.",
+            permission = ConnectorPermissionLevel.WRITE,
+            parameters = mapOf(
+                "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true),
+                "title" to ConnectorAgentParameter(description = "Issue title", required = true),
+                "body" to ConnectorAgentParameter(description = "Optional issue body"),
+            ),
+            providerGrants = listOf(
+                ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Issues: write")
+            ),
+            supportsApprovedContinuation = true,
+        ),
     )
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
@@ -150,7 +166,8 @@ class GitHubConnector(
                             action = input.action,
                             text = input.text,
                             params = input.params,
-                            idempotencyKey = execution.idempotencyKey
+                            idempotencyKey = execution.idempotencyKey,
+                            authorizationActionId = input.authorizationActionId ?: "create_issue",
                         ),
                         expiresAtMs = approval.expiresAtMs
                     )
@@ -247,10 +264,10 @@ class GitHubConnector(
         return try {
         val t0 = System.currentTimeMillis()
         val result = when (input.action) {
-            "list_repos" -> listRepos(token)
+            "list_repos" -> listRepos(token, input.params["limit"]?.toIntOrNull() ?: 10)
             "list_issues" -> listIssues(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"))
-            "create_issue" -> createIssue(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.text, input.params["body"] ?: "")
-            "search_code" -> searchCode(token, input.text, input.params["repo"])
+            "create_issue" -> createIssue(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["title"] ?: return ConnectorOutput.Failure("missing_param", "title required"), input.params["body"] ?: "")
+            "search_code" -> searchCode(token, input.params["query"] ?: return ConnectorOutput.Failure("missing_param", "query required"), input.params["repo"])
             "get_file" -> getFile(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["path"] ?: return ConnectorOutput.Failure("missing_param", "path required"))
             "list_prs" -> listPRs(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"))
             "status" -> return ConnectorOutput.Success(_state.value.statusLine)
@@ -263,8 +280,9 @@ class GitHubConnector(
     }
     }
 
-    private fun listRepos(token: String): String {
-        val all = apiGetAllPages("/user/repos?sort=updated&per_page=100", token, maxPages = 5)
+    private fun listRepos(token: String, limit: Int): String {
+        val boundedLimit = limit.coerceIn(1, 100)
+        val all = apiGetAllPages("/user/repos?sort=updated&per_page=$boundedLimit", token, maxPages = 1)
         return buildString {
             appendLine("Repos (${all.length()}):")
             for (i in 0 until all.length()) {

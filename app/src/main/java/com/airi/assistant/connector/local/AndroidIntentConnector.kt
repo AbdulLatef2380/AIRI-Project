@@ -5,9 +5,12 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import com.airi.assistant.connector.Connector
+import com.airi.assistant.connector.ConnectorAgentAction
+import com.airi.assistant.connector.ConnectorAgentParameter
 import com.airi.assistant.connector.ConnectorInput
 import com.airi.assistant.connector.ConnectorMeta
 import com.airi.assistant.connector.ConnectorOutput
+import com.airi.assistant.connector.ConnectorPermissionLevel
 import com.airi.assistant.connector.ConnectorState
 import com.airi.assistant.connector.ConnectorType
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,6 +44,16 @@ class AndroidIntentConnector(
 
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
+    override fun agentActions() = listOf(
+        ConnectorAgentAction("open_app", "Open an installed application after confirmation.", permission = ConnectorPermissionLevel.WRITE, parameters = mapOf(
+            "package" to ConnectorAgentParameter(required = true, maxLength = 255)
+        )),
+        ConnectorAgentAction("open_url", "Open an allowed URL in an external application after confirmation.", permission = ConnectorPermissionLevel.WRITE, parameters = mapOf(
+            "url" to ConnectorAgentParameter(required = true, maxLength = 2_048)
+        )),
+        ConnectorAgentAction("open_settings", "Open Android system settings after confirmation.", permission = ConnectorPermissionLevel.WRITE),
+    )
+
     override suspend fun connect(): ConnectorState {
         _state.value = ConnectorState(
             connected = true, healthy = true,
@@ -52,7 +65,7 @@ class AndroidIntentConnector(
     override suspend fun disconnect() { /* always-on */ }
 
     override suspend fun execute(input: ConnectorInput): ConnectorOutput {
-        when (val decision = DeviceActionPolicy.evaluate(input.action, input.text)) {
+        when (val decision = DeviceActionPolicy.evaluate(input.action, input.params["url"] ?: input.text)) {
             DeviceActionPolicy.Decision.Allowed -> Unit
             is DeviceActionPolicy.Decision.RequiresUserTakeover -> {
                 return ConnectorOutput.Failure(
@@ -71,7 +84,7 @@ class AndroidIntentConnector(
         }
         return when (input.action) {
             "open_app" -> openApp(input.params["package"].orEmpty())
-            "open_url" -> openUrl(input.text)
+            "open_url" -> openUrl(input.params["url"].orEmpty())
             "open_settings" -> openSettings()
             else -> ConnectorOutput.Failure(
                 code = "unknown_action",

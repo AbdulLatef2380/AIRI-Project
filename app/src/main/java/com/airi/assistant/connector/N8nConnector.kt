@@ -32,6 +32,27 @@ class N8nConnector(
     private val lifecycleMutex = Mutex()
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
+    override fun agentActions() = listOf(
+        ConnectorAgentAction(
+            id = "trigger_workflow",
+            description = "Send a bounded request to the configured N8n webhook after explicit approval.",
+            surfaceId = id,
+            permission = ConnectorPermissionLevel.WRITE,
+            requiresConfirmation = true,
+            parameters = mapOf(
+                "intent" to ConnectorAgentParameter(required = true, maxLength = 100),
+                "title" to ConnectorAgentParameter(maxLength = 120),
+                "priority" to ConnectorAgentParameter(maxLength = 32),
+                "context" to ConnectorAgentParameter(maxLength = 2_000),
+                "language" to ConnectorAgentParameter(maxLength = 35),
+            ),
+            providerGrants = listOf(ConnectorProviderGrant(
+                ConnectorProviderGrantKind.WEBHOOK_ENDPOINT_AUTHORITY,
+                "User-configured HTTPS N8n webhook URL accepted by N8nWebhookUrlPolicy",
+            )),
+        )
+    )
+
     private val healthClient = OkHttpClient.Builder()
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(3, TimeUnit.SECONDS)
@@ -136,6 +157,11 @@ class N8nConnector(
     }
 
     override suspend fun execute(input: ConnectorInput): ConnectorOutput = withContext(Dispatchers.IO) {
+        if (input.action != "trigger_workflow") {
+            return@withContext ConnectorOutput.Failure(
+                "unknown_action", "N8nConnector accepts only the declared 'trigger_workflow' action."
+            )
+        }
         lifecycleMutex.withLock {
             if (!ReleaseScopePolicy.externalAutomationIntegrationsEnabled) {
                 return@withLock ConnectorOutput.Failure(
@@ -163,16 +189,18 @@ class N8nConnector(
                     retryable = false
                 )
             }
+            val intent = input.params["intent"]
+                ?: return@withLock ConnectorOutput.Failure("invalid_params", "The declared N8n intent parameter is required.")
             val result = try {
                 N8nIntegration(accepted.webhook.toString()).sendAutomationRequest(
-                    intent = input.action,
-                    action = input.action,
-                    title = input.params["title"] ?: input.text.take(60).ifBlank { input.action },
+                    intent = intent,
+                    action = "trigger_workflow",
+                    title = input.params["title"] ?: intent.take(60),
                     priority = input.params["priority"] ?: "medium",
                     context = input.params["context"] ?: "general",
-                    userId = input.params["user_id"] ?: "user_001",
+                    userId = "user_001",
                     language = input.params["language"] ?: "en",
-                    sessionId = input.params["session_id"] ?: "airi-${System.currentTimeMillis()}"
+                    sessionId = "airi-${System.currentTimeMillis()}"
                 )
             } catch (cancelled: CancellationException) {
                 throw cancelled

@@ -12,6 +12,8 @@ enum class ConnectorProviderGrantKind {
     TELEGRAM_BOT_TOKEN_CAPABILITY,
     /** Possession/authorization of a provider-issued webhook URL. */
     WEBHOOK_ENDPOINT_AUTHORITY,
+    /** IFTTT Maker Webhooks API key; this is a provider token, not an OAuth scope. */
+    IFTTT_MAKER_WEBHOOK_KEY,
     /** Provider permission needs endpoint-specific verification; do not guess a scope. */
     PROVIDER_ENDPOINT_PERMISSION,
 }

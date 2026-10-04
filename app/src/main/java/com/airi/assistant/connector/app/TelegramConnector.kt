@@ -61,14 +61,27 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
             ConnectorProviderGrantKind.TELEGRAM_BOT_TOKEN_CAPABILITY,
             "A valid bot token and updates delivered to the bot; Telegram polling (getUpdates) is mutually exclusive with webhooks.",
         )), parameters = mapOf(
-            "limit" to ConnectorAgentParameter(type = "int", description = "Number of updates, 1-100")
+            "limit" to ConnectorAgentParameter(type = "int", description = "Number of updates, 1-100", minInt = 1, maxInt = 100)
         )),
         ConnectorAgentAction("get_chat_info", "Read metadata for a Telegram chat.", providerGrants = listOf(ConnectorProviderGrant(
             ConnectorProviderGrantKind.TELEGRAM_BOT_TOKEN_CAPABILITY,
             "A valid bot token and the bot's access to the requested chat.",
         )), parameters = mapOf(
-            "chat_id" to ConnectorAgentParameter(description = "Telegram chat identifier", required = true)
+            "chat_id" to ConnectorAgentParameter(description = "Telegram chat identifier", required = true, maxLength = 128)
         )),
+        ConnectorAgentAction(
+            id = "send_message",
+            description = "Send a Telegram message only after a separate typed user approval.",
+            permission = ConnectorPermissionLevel.WRITE,
+            parameters = mapOf(
+                "chat_id" to ConnectorAgentParameter(description = "Telegram chat identifier", required = true, maxLength = 128),
+                "text" to ConnectorAgentParameter(description = "Message text", required = true, maxLength = 4_096),
+            ),
+            providerGrants = listOf(ConnectorProviderGrant(
+                ConnectorProviderGrantKind.TELEGRAM_BOT_TOKEN_CAPABILITY,
+                "A valid bot token and the bot's access to the requested chat.",
+            )),
+        ),
         ConnectorAgentAction("status", "Return the current Telegram connection status.", providerGrants = listOf(ConnectorProviderGrant(
             ConnectorProviderGrantKind.TELEGRAM_BOT_TOKEN_CAPABILITY,
             "A valid Telegram Bot API token.",
@@ -142,11 +155,8 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
                     val chatId = input.params["chat_id"]
                         ?: return@withContext ConnectorOutput.Failure("missing_param",
                             "send_message requires chat_id param. Example: chat_id=123456789")
-                    val text = input.text.ifBlank {
-                        input.params["text"]
-                            ?: return@withContext ConnectorOutput.Failure("missing_param",
-                                "send_message requires message text")
-                    }
+                    val text = input.params["text"]
+                        ?: return@withContext ConnectorOutput.Failure("missing_param", "send_message requires message text")
                     sendMessage(token, chatId, text)
                 }
                 "get_updates" -> {

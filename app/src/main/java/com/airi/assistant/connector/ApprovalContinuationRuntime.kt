@@ -40,9 +40,10 @@ class ApprovalContinuationRuntime(
             action = invocation.action,
             text = invocation.text,
             params = invocation.params,
-            execution = execution
+            execution = execution,
+            authorizationActionId = invocation.authorizationActionId,
         )
-        val output = connectorRuntimeManager.execute(
+        val output = connectorRuntimeManager.executeApprovedContinuation(
             connectorId = invocation.connectorId,
             input = input,
             // A claimed side effect may not be transport-retried automatically:

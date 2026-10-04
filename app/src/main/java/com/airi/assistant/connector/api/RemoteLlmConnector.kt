@@ -1,9 +1,13 @@
 package com.airi.assistant.connector.api
 
 import com.airi.assistant.connector.Connector
+import com.airi.assistant.connector.ConnectorAgentAction
+import com.airi.assistant.connector.ConnectorAgentParameter
 import com.airi.assistant.connector.ConnectorInput
 import com.airi.assistant.connector.ConnectorMeta
 import com.airi.assistant.connector.ConnectorOutput
+import com.airi.assistant.connector.ConnectorProviderGrant
+import com.airi.assistant.connector.ConnectorProviderGrantKind
 import com.airi.assistant.connector.ConnectorState
 import com.airi.assistant.connector.ConnectorType
 import kotlinx.coroutines.CancellationException
@@ -50,6 +54,26 @@ class RemoteLlmConnector(
     )
 
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
+
+    override fun agentActions(): List<ConnectorAgentAction> = ACCEPTED_ACTIONS.map { action ->
+        ConnectorAgentAction(
+            id = action,
+            description = "Send a user-authorized prompt to a configured remote language-model provider.",
+            surfaceId = id,
+            parameters = mapOf(
+                "prompt" to ConnectorAgentParameter(required = true, maxLength = MAX_PROMPT_CHARS),
+                "model" to ConnectorAgentParameter(maxLength = 128),
+                "temperature" to ConnectorAgentParameter(type = "number", minNumber = 0.0, maxNumber = 2.0),
+                "max_tokens" to ConnectorAgentParameter(type = "integer", minInt = 1, maxInt = 8_192),
+            ),
+            providerGrants = listOf(ConnectorProviderGrant(
+                ConnectorProviderGrantKind.PROVIDER_ENDPOINT_PERMISSION,
+                "Configured remote LLM provider; prompt content is transmitted to the selected provider endpoint.",
+            )),
+            maxTextChars = MAX_PROMPT_CHARS,
+            textRequired = true,
+        )
+    }
 
     override suspend fun connect(): ConnectorState {
         val anyReady = providers.any { it.isConfigured() }
@@ -100,7 +124,7 @@ class RemoteLlmConnector(
         for (provider in providers) {
             if (!provider.isConfigured()) continue
             try {
-                val text = provider.complete(input.text, input.params)
+                val text = provider.complete(input.text, input.params - "prompt")
                 return ConnectorOutput.Success(
                     text = text,
                     data = mapOf("provider" to provider.label),
@@ -149,6 +173,7 @@ class RemoteLlmConnector(
     }
 
     companion object {
+        private const val MAX_PROMPT_CHARS = 100_000
         private val ACCEPTED_ACTIONS = setOf(
             "chat", "analyze_code", "debug", "summarize",
         )

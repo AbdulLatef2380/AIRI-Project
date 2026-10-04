@@ -5,9 +5,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import com.airi.assistant.connector.Connector
+import com.airi.assistant.connector.ConnectorAgentAction
+import com.airi.assistant.connector.ConnectorAgentParameter
 import com.airi.assistant.connector.ConnectorInput
 import com.airi.assistant.connector.ConnectorMeta
 import com.airi.assistant.connector.ConnectorOutput
+import com.airi.assistant.connector.ConnectorPermissionLevel
 import com.airi.assistant.connector.ConnectorState
 import com.airi.assistant.connector.ConnectorType
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +48,19 @@ class DeviceAppsConnector(private val appContext: Context) : Connector {
     )
 
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
+
+    override fun agentActions() = listOf(
+        ConnectorAgentAction("list_apps", "List launchable apps installed on this device."),
+        ConnectorAgentAction("find_app", "Find an installed app by name or package.", parameters = mapOf(
+            "query" to ConnectorAgentParameter(required = true, maxLength = 128)
+        )),
+        ConnectorAgentAction("open_app", "Launch an installed app after confirmation.", permission = ConnectorPermissionLevel.WRITE, parameters = mapOf(
+            "package" to ConnectorAgentParameter(required = true, maxLength = 255)
+        )),
+        ConnectorAgentAction("open_url", "Open an allowed URL after confirmation.", permission = ConnectorPermissionLevel.WRITE, parameters = mapOf(
+            "url" to ConnectorAgentParameter(required = true, maxLength = 2_048)
+        )),
+    )
     override suspend fun connect()    = _state.value
     override suspend fun disconnect() {}
 

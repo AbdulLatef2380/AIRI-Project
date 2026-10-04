@@ -7,6 +7,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.BatteryManager
 import com.airi.assistant.connector.Connector
+import com.airi.assistant.connector.ConnectorAgentAction
 import com.airi.assistant.connector.ConnectorInput
 import com.airi.assistant.connector.ConnectorMeta
 import com.airi.assistant.connector.ConnectorOutput
@@ -42,6 +43,12 @@ class SystemInfoConnector(
         tags = listOf("battery", "network", "device"),
     )
 
+    override fun agentActions() = listOf(
+        ConnectorAgentAction("battery_status", "Read the current battery level and charging state."),
+        ConnectorAgentAction("network_status", "Read current validated network connectivity."),
+        ConnectorAgentAction("system_snapshot", "Read a combined battery and network snapshot."),
+    )
+
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
     override suspend fun connect(): ConnectorState {
@@ -59,7 +66,7 @@ class SystemInfoConnector(
         return when (input.action) {
             "battery_status"  -> batteryStatus()
             "network_status"  -> networkStatus()
-            "system_exec"     -> systemSnapshot()
+            "system_snapshot" -> systemSnapshot()
             else -> ConnectorOutput.Failure(
                 code = "unknown_action",
                 message = "SystemInfoConnector does not handle '${input.action}'",
@@ -115,10 +122,19 @@ class SystemInfoConnector(
     private fun systemSnapshot(): ConnectorOutput {
         val battery = batteryStatus()
         val network = networkStatus()
-        val parts = listOfNotNull(
-            (battery as? ConnectorOutput.Success)?.text,
-            (network as? ConnectorOutput.Success)?.text,
+        if (battery !is ConnectorOutput.Success || network !is ConnectorOutput.Success) {
+            val failed = listOfNotNull(
+                (battery as? ConnectorOutput.Failure)?.let { "battery=${it.code}" },
+                (network as? ConnectorOutput.Failure)?.let { "network=${it.code}" },
+            )
+            return ConnectorOutput.Failure(
+                code = "partial_snapshot",
+                message = "Could not produce a complete system snapshot (${failed.joinToString()})",
+            )
+        }
+        return ConnectorOutput.Success(
+            text = "${battery.text} • ${network.text}",
+            data = battery.data + network.data,
         )
-        return ConnectorOutput.Success(text = parts.joinToString(" • "))
     }
 }

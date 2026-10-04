@@ -57,6 +57,7 @@ class MicrosoftGraphConnector(
             ConnectorProviderScopes.MICROSOFT_CALENDARS_READ_BASIC,
             ConnectorProviderScopes.MICROSOFT_FILES_READ,
             ConnectorProviderScopes.MICROSOFT_TEAM_READ_BASIC_ALL,
+            ConnectorProviderScopes.MICROSOFT_USER_READ,
         )
         if (actionScopes.isEmpty() || actionScopes.any { it !in declaredActionScopes }) {
             return Result.failure(IllegalArgumentException("Microsoft authorization contains no granted action scope or an undeclared scope"))

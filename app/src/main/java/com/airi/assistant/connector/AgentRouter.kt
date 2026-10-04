@@ -1,33 +1,17 @@
 package com.airi.assistant.connector
 
 import com.airi.assistant.core.intent.IntentType
-import kotlinx.coroutines.withTimeout
 
 /**
- * AgentRouter — picks the right [Connector] for a given [IntentType] +
- * input, executes it, and falls back to the next-best connector on a
- * retryable failure.
- *
- * The router is intentionally dumb (no LLM-in-the-loop classifier here):
- * intent classification has already happened upstream in the agent stack.
- * The router's only job is to map (intent, type-bucket) → ordered list of
- * candidate connectors, then walk that list.
+ * Compatibility router for classified intents. Every candidate is executed
+ * through ConnectorRuntimeManager so lifecycle, declaration, profile, timeout,
+ * and operation tracking rules are shared with the canonical tool bridge.
  */
 class AgentRouter(
     private val registry: ConnectorRegistry,
-    private val accessProfiles: ConnectorAccessProfileStore = InMemoryConnectorAccessProfileStore(),
+    accessProfiles: ConnectorAccessProfileStore = InMemoryConnectorAccessProfileStore(),
+    private val runtime: ConnectorRuntimeManager = ConnectorRuntimeManager(registry, accessProfiles),
 ) {
-    /**
-     * Route a classified intent through the registered connectors.
-     *
-     * Resolution order:
-     *  1. If [preferConnectorId] is set and that connector is registered,
-     *     try it first.
-     *  2. Otherwise iterate over [candidatesFor] in declared priority.
-     *
-     * Returns the first non-failure result, or the last failure if every
-     * candidate failed.
-     */
     suspend fun route(
         intent: IntentType,
         text: String,
@@ -36,11 +20,8 @@ class AgentRouter(
     ): RouteResult {
         val ordered = buildList {
             preferConnectorId?.let { id -> registry.get(id)?.let(::add) }
-            for (c in candidatesFor(intent)) {
-                if (c !in this) add(c)
-            }
+            for (connector in candidatesFor(intent)) if (connector !in this) add(connector)
         }
-
         if (ordered.isEmpty()) {
             return RouteResult(
                 connectorId = null,
@@ -55,93 +36,63 @@ class AgentRouter(
 
         val attempts = mutableListOf<Attempt>()
         var lastFailure: ConnectorOutput.Failure? = null
-
         for (connector in ordered) {
-            val input = ConnectorInput(
-                action = actionFor(intent),
-                text   = text,
-                params = params,
+            val action = actionFor(intent)
+            val matches = connector.agentActions().filter { it.runtimeAction == action }
+            if (matches.size != 1) {
+                val failure = ConnectorOutput.Failure(
+                    code = "undeclared_action",
+                    message = "Connector '${connector.id}' does not declare exactly one authorized action for '$action'",
+                    retryable = false,
+                )
+                attempts += Attempt(connector.id, failure)
+                if (connector.id == preferConnectorId) return RouteResult(connector.id, failure, attempts)
+                lastFailure = failure
+                continue
+            }
+            val declaration = matches.single()
+            val output = runtime.execute(
+                connectorId = connector.id,
+                input = ConnectorInput(
+                    action = action,
+                    text = text,
+                    params = params,
+                    authorizationActionId = declaration.id,
+                ),
             )
-            val matchingActions = connector.agentActions().filter { it.runtimeAction == input.action }
-            val accessFailure = when {
-                matchingActions.size > 1 -> ConnectorOutput.Failure(
-                    "permission_denied", "An explicit action authorization is required for this connector call"
-                )
-                matchingActions.isEmpty() -> null // Legacy non-agent routes retain their existing connector policy.
-                else -> when (ConnectorAccessPolicy.evaluate(
-                    accessProfiles.get(matchingActions.single().surfaceId ?: connector.id), matchingActions.single()
-                )) {
-                    ConnectorAccessDecision.ALLOWED -> null
-                    ConnectorAccessDecision.NOT_GRANTED -> ConnectorOutput.Failure(
-                        "permission_denied", "No matching user access profile is granted for this connector action"
-                    )
-                    ConnectorAccessDecision.CONFIRMATION_REQUIRED -> ConnectorOutput.Failure(
-                        "approval_required", "This action requires a typed approval flow and was not executed"
-                    )
-                }
-            }
-            if (accessFailure != null) {
-                attempts += Attempt(connector.id, accessFailure)
-                return RouteResult(connector.id, accessFailure, attempts)
-            }
-            val out = try {
-                withTimeout(CONNECTOR_TIMEOUT_MS) { connector.execute(input) }
-            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                ConnectorOutput.Failure(
-                    code = "connector_timeout",
-                    message = "Connector '${connector.id}' timed out",
-                    retryable = true
-                )
-            }
-            attempts += Attempt(connector.id, out)
-
-            when (out) {
+            attempts += Attempt(connector.id, output)
+            when (output) {
                 is ConnectorOutput.Success,
                 is ConnectorOutput.Streaming,
-                is ConnectorOutput.ApprovalRequired -> {
-                    return RouteResult(connector.id, out, attempts)
-                }
+                is ConnectorOutput.ApprovalRequired -> return RouteResult(connector.id, output, attempts)
                 is ConnectorOutput.Failure -> {
-                    lastFailure = out
-                    if (!out.retryable) {
-                        // Hard failure (auth, unknown_action) — don't burn
-                        // through the fallback chain just to fail again.
-                        return RouteResult(connector.id, out, attempts)
+                    lastFailure = output
+                    // A policy/lifecycle denial is authoritative; do not route
+                    // around it by trying a different connector.
+                    if (!output.retryable || output.code in NON_FALLBACK_CODES) {
+                        return RouteResult(connector.id, output, attempts)
                     }
-                    // Retryable: try the next candidate.
                 }
             }
         }
-
         return RouteResult(
-            connectorId = ordered.last().id,
+            connectorId = attempts.lastOrNull()?.connectorId,
             output = lastFailure ?: ConnectorOutput.Failure(
-                code    = "exhausted",
+                code = "exhausted",
                 message = "All ${ordered.size} candidate connector(s) failed",
             ),
             attempts = attempts,
         )
     }
 
-    /**
-     * Candidate connectors for an intent, in priority order. Designed to
-     * be deterministic so failures are reproducible.
-     */
-    private fun candidatesFor(intent: IntentType): List<Connector> {
-        val bucket = tabFor(intent)
-        return registry.byType(bucket)
-    }
+    private fun candidatesFor(intent: IntentType): List<Connector> = registry.byType(tabFor(intent))
 
-    /**
-     * Map a high-level intent → which connector tab handles it. Keep this
-     * in sync with the UI tabs in ConnectorsScreen.kt.
-     */
     private fun tabFor(intent: IntentType): ConnectorType = when (intent) {
         IntentType.GENERAL,
         IntentType.CONVERSATION,
         IntentType.CODE_ANALYSIS,
         IntentType.DEBUG_ERROR,
-        IntentType.SUMMARIZE       -> ConnectorType.API   // LLM workloads
+        IntentType.SUMMARIZE -> ConnectorType.API
 
         IntentType.SYSTEM_COMMAND,
         IntentType.BATTERY_DIAGNOSIS,
@@ -154,42 +105,35 @@ class AgentRouter(
         IntentType.CLICK_INDEX,
         IntentType.TYPE,
         IntentType.BACK,
-        IntentType.SCROLL          -> ConnectorType.LOCAL
+        IntentType.SCROLL -> ConnectorType.LOCAL
 
-        IntentType.UNKNOWN         -> ConnectorType.API   // best-effort: fall back to LLM
+        IntentType.UNKNOWN -> ConnectorType.API
     }
 
-    /** Map intent → connector action string. Connectors document the
-     *  set of actions they accept; unknown actions get `unknown_action`. */
     private fun actionFor(intent: IntentType): String = when (intent) {
         IntentType.CONVERSATION,
         IntentType.GENERAL,
-        IntentType.UNKNOWN          -> "chat"
-        IntentType.CODE_ANALYSIS    -> "analyze_code"
-        IntentType.DEBUG_ERROR      -> "debug"
-        IntentType.SUMMARIZE        -> "summarize"
-        IntentType.SYSTEM_COMMAND   -> "system_exec"
-        IntentType.APP_CONTROL      -> "open_app"
-        IntentType.SCREEN_ANALYSIS  -> "screen_capture"
+        IntentType.UNKNOWN -> "chat"
+        IntentType.CODE_ANALYSIS -> "analyze_code"
+        IntentType.DEBUG_ERROR -> "debug"
+        IntentType.SUMMARIZE -> "summarize"
+        IntentType.SYSTEM_COMMAND -> "system_exec"
+        IntentType.APP_CONTROL -> "open_app"
+        IntentType.SCREEN_ANALYSIS -> "screen_capture"
         IntentType.BATTERY_DIAGNOSIS -> "battery_status"
-        IntentType.NAVIGATE         -> "navigate"
-        IntentType.CLICK            -> "click"
-        IntentType.CLICK_FIRST      -> "click_first"
-        IntentType.CLICK_INDEX      -> "click_index"
-        IntentType.TYPE             -> "type"
-        IntentType.BACK             -> "back"
-        IntentType.SCROLL           -> "scroll"
+        IntentType.NAVIGATE -> "navigate"
+        IntentType.CLICK -> "click"
+        IntentType.CLICK_FIRST -> "click_first"
+        IntentType.CLICK_INDEX -> "click_index"
+        IntentType.TYPE -> "type"
+        IntentType.BACK -> "back"
+        IntentType.SCROLL -> "scroll"
     }
 
     data class Attempt(val connectorId: String, val output: ConnectorOutput)
-
-    data class RouteResult(
-        val connectorId: String?,
-        val output: ConnectorOutput,
-        val attempts: List<Attempt>,
-    )
+    data class RouteResult(val connectorId: String?, val output: ConnectorOutput, val attempts: List<Attempt>)
 
     private companion object {
-        const val CONNECTOR_TIMEOUT_MS = 45_000L
+        val NON_FALLBACK_CODES = setOf("permission_denied", "approval_required", "not_connected", "undeclared_action")
     }
 }

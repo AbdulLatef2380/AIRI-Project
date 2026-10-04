@@ -351,7 +351,7 @@ object ServiceLocator {
     }
 
     val agentRouter: AgentRouter by lazy {
-        AgentRouter(connectorRegistry, connectorAccessProfileStore)
+        AgentRouter(connectorRegistry, connectorAccessProfileStore, connectorRuntimeManager)
     }
 
     // ── Voice transcript bus ──────────────────────────────────────────────────
@@ -475,7 +475,8 @@ object ServiceLocator {
             projectKnowledgeManager = projectKnowledgeManager,
             preferenceCoordinator = preferenceCoordinator,
             secureStorage         = secureStorage,
-            auditRepository       = auditRepository
+            auditRepository       = auditRepository,
+            connectorAccessProfileStore = connectorAccessProfileStore,
         )
     }
 

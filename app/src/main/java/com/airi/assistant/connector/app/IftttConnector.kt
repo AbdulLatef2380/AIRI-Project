@@ -79,6 +79,26 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
 
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
+    override fun agentActions() = listOf(
+        ConnectorAgentAction(
+            id = "trigger_event",
+            description = "Trigger one explicitly named IFTTT Maker Webhooks event.",
+            surfaceId = id,
+            permission = ConnectorPermissionLevel.WRITE,
+            requiresConfirmation = true,
+            parameters = mapOf(
+                "event" to ConnectorAgentParameter(required = true, maxLength = 100),
+                "value1" to ConnectorAgentParameter(maxLength = 1_024),
+                "value2" to ConnectorAgentParameter(maxLength = 1_024),
+                "value3" to ConnectorAgentParameter(maxLength = 1_024),
+            ),
+            providerGrants = listOf(ConnectorProviderGrant(
+                ConnectorProviderGrantKind.IFTTT_MAKER_WEBHOOK_KEY,
+                "User-configured IFTTT Maker Webhooks key with authority to trigger the named event",
+            )),
+        )
+    )
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     override suspend fun connect(): ConnectorState = withContext(Dispatchers.IO) {
@@ -130,7 +150,7 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
                 "External automation integrations are unavailable in this release."
             )
         }
-        if (input.action == "trigger_event" || input.action == "trigger_applet") {
+        if (input.action == "trigger_event") {
             return@withContext triggerMutex.withLock {
                 val key = authManager.getCredential(id, CRED_KEY)
                 if (!IftttTriggerAdmissionPolicy.allows(
@@ -147,11 +167,13 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
                 }
                 try {
                     val startedAt = System.currentTimeMillis()
-                    val eventName = input.params["event"] ?: input.text.trim().replace(" ", "_")
+                    val eventName = input.params["event"] ?: return@withLock ConnectorOutput.Failure(
+                        "missing_param", "The declared IFTTT event parameter is required.", retryable = false
+                    )
                     val text = triggerEvent(
                         eventName = eventName,
                         key = key!!,
-                        value1 = input.params["value1"] ?: input.text,
+                        value1 = input.params["value1"].orEmpty(),
                         value2 = input.params["value2"],
                         value3 = input.params["value3"]
                     )
@@ -168,7 +190,6 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
         try {
             val t0 = System.currentTimeMillis()
             val result = when (input.action) {
-                "set_key"      -> setKey(input.text.trim())
                 "check_status" -> checkStatus()
                 "status"       -> return@withContext ConnectorOutput.Success(_state.value.statusLine)
                 else           -> return@withContext ConnectorOutput.Failure("unknown_action", "Unknown action: ${input.action}")
@@ -242,16 +263,4 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
         return "Webhook key ••••${key.takeLast(4)} is stored. Send a test event to verify it works."
     }
 
-    /**
-     * Convenience helper for AIRI agent loop: fire an event with a flat string payload.
-     * Equivalent to trigger_event with value1=message.
-     */
-    suspend fun notify(eventName: String, message: String): Boolean {
-        val result = execute(ConnectorInput(
-            action = "trigger_event",
-            text   = message,
-            params = mapOf("event" to eventName, "value1" to message)
-        ))
-        return result is ConnectorOutput.Success
-    }
 }

@@ -11,24 +11,19 @@ import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.customskill.CustomSkill
 import com.airi.assistant.domain.customskill.CustomSkillExecutor
 import com.airi.assistant.domain.customskill.CustomSkillRepository
-import com.airi.assistant.integrations.github.GithubService
-import com.airi.assistant.integrations.telegram.TelegramService
 
 class ToolRegistry(private val context: Context) {
 
     private val secureStorage = SecureStorage(context)
-    private val githubService = GithubService(secureStorage)
-    private val telegramService = TelegramService(secureStorage)
     private val customSkillRepository = CustomSkillRepository(context)
 
     fun getAvailableTools(): List<Tool> {
         val tools = mutableListOf<Tool>()
         if (secureStorage.isGithubConnected()) {
-            tools.add(GithubGetUserTool(secureStorage, githubService))
-            tools.add(GithubGetReposTool(secureStorage, githubService))
-        }
-        if (secureStorage.isTelegramConnected()) {
-            tools.add(TelegramSendMessageTool(secureStorage, telegramService))
+            // Legacy task tools may read through the canonical runtime only;
+            // credential flags do not grant an action or bypass its profile.
+            tools.add(GithubGetUserTool(ServiceLocator.connectorRuntimeManager))
+            tools.add(GithubGetReposTool(ServiceLocator.connectorRuntimeManager))
         }
         if (secureStorage.isGoogleConnected()) {
             // These tools are adapters over the registered GoogleConnector. They
@@ -141,24 +136,21 @@ internal class CustomSkillTool(
 
 // ─── GitHub: Get User ──────────────────────────────────────────────────────────
 
-private class GithubGetUserTool(
-    private val storage: SecureStorage,
-    private val service: GithubService
-) : Tool {
+private class GithubGetUserTool(private val runtime: ConnectorRuntimeManager) : Tool {
     override val name = "github_get_user"
     override val description = "Get the authenticated GitHub user's profile info"
     override val parameters: Map<String, String> = emptyMap()
 
     override suspend fun execute(params: Map<String, String>): ToolResult =
-        service.getUser()
+        runtime.execute(
+            "github",
+            ConnectorInput(action = "status", authorizationActionId = "status")
+        ).toToolResult()
 }
 
 // ─── GitHub: Get Repos ────────────────────────────────────────────────────────
 
-private class GithubGetReposTool(
-    private val storage: SecureStorage,
-    private val service: GithubService
-) : Tool {
+private class GithubGetReposTool(private val runtime: ConnectorRuntimeManager) : Tool {
     override val name = "github_get_repos"
     override val description = "List the authenticated user's GitHub repositories"
     override val parameters: Map<String, String> = mapOf(
@@ -166,28 +158,15 @@ private class GithubGetReposTool(
     )
 
     override suspend fun execute(params: Map<String, String>): ToolResult {
-        val limit = params["limit"]?.toIntOrNull() ?: 10
-        return service.getRepos(limit)
-    }
-}
-
-// ─── Telegram: Send Message ────────────────────────────────────────────────────
-
-private class TelegramSendMessageTool(
-    private val storage: SecureStorage,
-    private val service: TelegramService
-) : Tool {
-    override val name = "telegram_send_message"
-    override val description = "Send a Telegram message to a chat via the connected bot"
-    override val parameters: Map<String, String> = mapOf(
-        "chat_id" to "Telegram chat ID or username",
-        "text" to "Message text to send"
-    )
-
-    override suspend fun execute(params: Map<String, String>): ToolResult {
-        val chatId = params["chat_id"] ?: return ToolResult(false, "", "Missing chat_id parameter")
-        val text = params["text"] ?: return ToolResult(false, "", "Missing text parameter")
-        return service.sendMessage(chatId, text)
+        val limit = params["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 10
+        return runtime.execute(
+            "github",
+            ConnectorInput(
+                action = "list_repos",
+                params = mapOf("limit" to limit.toString()),
+                authorizationActionId = "list_repos",
+            )
+        ).toToolResult()
     }
 }
 
@@ -200,8 +179,17 @@ private class GmailListEmailsTool(private val runtime: ConnectorRuntimeManager) 
         "max" to "max number of emails to return (default 5)"
     )
 
-    override suspend fun execute(params: Map<String, String>): ToolResult =
-        runtime.execute("google", ConnectorInput("gmail_list", params = params)).toToolResult()
+    override suspend fun execute(params: Map<String, String>): ToolResult {
+        val maxResults = params["max"]?.toIntOrNull()?.coerceIn(1, 100) ?: 5
+        return runtime.execute(
+            "google",
+            ConnectorInput(
+                action = "gmail_list",
+                params = mapOf("max_results" to maxResults.toString()),
+                authorizationActionId = "gmail_list",
+            )
+        ).toToolResult()
+    }
 }
 
 // ─── Google: Drive Search ─────────────────────────────────────────────────────
@@ -214,7 +202,10 @@ private class DriveSearchFileTool(private val runtime: ConnectorRuntimeManager) 
     )
 
     override suspend fun execute(params: Map<String, String>): ToolResult =
-        runtime.execute("google", ConnectorInput("drive_search", params = params)).toToolResult()
+        runtime.execute(
+            "google",
+            ConnectorInput(action = "drive_search", params = params, authorizationActionId = "drive_search")
+        ).toToolResult()
 }
 
 // ─── Google: Calendar Events ──────────────────────────────────────────────────
@@ -226,8 +217,17 @@ private class CalendarNextEventsTool(private val runtime: ConnectorRuntimeManage
         "count" to "number of upcoming events (default 5)"
     )
 
-    override suspend fun execute(params: Map<String, String>): ToolResult =
-        runtime.execute("google", ConnectorInput("calendar_list", params = params)).toToolResult()
+    override suspend fun execute(params: Map<String, String>): ToolResult {
+        val maxResults = params["count"]?.toIntOrNull()?.coerceIn(1, 100) ?: 5
+        return runtime.execute(
+            "google",
+            ConnectorInput(
+                action = "calendar_list",
+                params = mapOf("max_results" to maxResults.toString()),
+                authorizationActionId = "calendar_list",
+            )
+        ).toToolResult()
+    }
 }
 
 private fun ConnectorOutput.toToolResult(): ToolResult = when (this) {

@@ -67,22 +67,22 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
         ConnectorAgentAction("gmail_list", "List authorized Gmail messages.", surfaceId = "google_gmail", providerGrants = listOf(
             ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.GOOGLE_GMAIL_READONLY)
         ), parameters = mapOf(
-            "max_results" to ConnectorAgentParameter(type = "int", description = "Maximum messages to list")
+            "max_results" to ConnectorAgentParameter(type = "int", description = "Maximum messages to list", minInt = 1, maxInt = 100)
         )),
         ConnectorAgentAction("gmail_read", "Read an authorized Gmail message.", surfaceId = "google_gmail", providerGrants = listOf(
             ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.GOOGLE_GMAIL_READONLY)
         ), parameters = mapOf(
-            "message_id" to ConnectorAgentParameter(description = "Gmail message ID", required = true)
+            "message_id" to ConnectorAgentParameter(description = "Gmail message ID", required = true, maxLength = 512)
         )),
         ConnectorAgentAction("calendar_list", "List upcoming authorized Google Calendar events.", surfaceId = "google_calendar", providerGrants = listOf(
             ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.GOOGLE_CALENDAR_EVENTS_OWNED_READONLY)
         ), parameters = mapOf(
-            "days" to ConnectorAgentParameter(type = "int", description = "Days ahead to query")
+            "max_results" to ConnectorAgentParameter(type = "int", description = "Maximum upcoming events to list", minInt = 1, maxInt = 100)
         )),
         ConnectorAgentAction("drive_search", "Search authorized Google Drive files.", surfaceId = "google_drive", providerGrants = listOf(
             ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.GOOGLE_DRIVE_METADATA_READONLY)
         ), parameters = mapOf(
-            "query" to ConnectorAgentParameter(description = "Drive search query", required = true)
+            "query" to ConnectorAgentParameter(description = "Drive search query", required = true, maxLength = 2_048)
         )),
     )
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
@@ -181,7 +181,7 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
     }
 
     private fun executeGmailRead(token: String, input: ConnectorInput): ConnectorOutput {
-        val messageId = input.params["message_id"] ?: input.text.trim()
+        val messageId = input.params["message_id"].orEmpty()
         if (messageId.isBlank()) return ConnectorOutput.Failure("invalid_params", "message_id is required")
         return try {
             val url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/$messageId?format=full"
@@ -236,7 +236,7 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
     // ── Drive ─────────────────────────────────────────────────────────────────
 
     private fun executeDriveSearch(token: String, input: ConnectorInput): ConnectorOutput {
-        val query = input.params["query"] ?: input.text.trim().ifBlank { return ConnectorOutput.Failure("invalid_params", "'query' is required") }
+        val query = input.params["query"] ?: return ConnectorOutput.Failure("invalid_params", "'query' is required")
         val maxResults = input.params["max_results"]?.toIntOrNull() ?: 10
         return try {
             val encodedQ = java.net.URLEncoder.encode("name contains '$query'", "UTF-8")

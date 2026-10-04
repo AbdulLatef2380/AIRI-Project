@@ -37,6 +37,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airi.assistant.connector.ConnectorType
 import com.airi.assistant.connector.ConnectorAvailability
 import com.airi.assistant.connector.ConnectorAuthStrategies
+import com.airi.assistant.connector.local.ContactsConnector
 import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
@@ -124,7 +125,7 @@ fun ConnectorsScreen(
     ) { granted ->
         if (granted) {
             // Re-attempt connection after permission granted
-            viewModel.connect("contacts_local")
+            viewModel.connect(ContactsConnector.RUNTIME_ID)
         }
     }
 
@@ -344,7 +345,7 @@ fun ConnectorsScreen(
                             row          = row,
                             onConnect    = {
                                 // : Request READ_CONTACTS permission before connecting contacts
-                                if (row.meta.id == "contacts_local" &&
+                                if (row.meta.runtimeId == ContactsConnector.RUNTIME_ID &&
                                     android.content.pm.PackageManager.PERMISSION_DENIED ==
                                     androidx.core.content.ContextCompat.checkSelfPermission(
                                         context,
@@ -357,7 +358,7 @@ fun ConnectorsScreen(
                                     // sign-in/token flow before registry.connect can
                                     // succeed. Never show a fake "requested" state.
                                     if (ConnectorAuthStrategies.forMeta(row.meta).officialAuthorizationRequired) {
-                                        onManageAuthorization(row.meta.id)
+                                        onManageAuthorization(row.meta.runtimeId)
                                     } else {
                                         viewModel.connect(row.meta.id)
                                     }
@@ -568,7 +569,7 @@ private fun ConnectorCard(
                     }
                     if (needsAttention && authStrategy.officialAuthorizationRequired) {
                         Spacer(Modifier.height(8.dp))
-                        TextButton(onClick = { onManageAuthorization(row.meta.id) }) {
+                        TextButton(onClick = { onManageAuthorization(row.meta.runtimeId) }) {
                             Text(stringResource(R.string.connectors_manage_authorization))
                         }
                     }

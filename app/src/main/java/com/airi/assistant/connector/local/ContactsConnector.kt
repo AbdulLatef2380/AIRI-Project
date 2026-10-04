@@ -6,6 +6,8 @@ import android.content.pm.PackageManager
 import android.provider.ContactsContract
 import androidx.core.content.ContextCompat
 import com.airi.assistant.connector.Connector
+import com.airi.assistant.connector.ConnectorAgentAction
+import com.airi.assistant.connector.ConnectorAgentParameter
 import com.airi.assistant.connector.ConnectorInput
 import com.airi.assistant.connector.ConnectorMeta
 import com.airi.assistant.connector.ConnectorOutput
@@ -30,7 +32,11 @@ import kotlinx.coroutines.withContext
  */
 class ContactsConnector(private val appContext: Context) : Connector {
 
-    override val id          = "contacts"
+    companion object {
+        const val RUNTIME_ID = "contacts"
+    }
+
+    override val id          = RUNTIME_ID
     override val name        = "Contacts"
     override val description = "Search device contacts for messaging and scheduling."
     override val type        = ConnectorType.LOCAL
@@ -43,6 +49,13 @@ class ContactsConnector(private val appContext: Context) : Connector {
     )
 
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
+
+    override fun agentActions() = listOf(
+        ConnectorAgentAction("search", "Search locally accessible contacts by name.", surfaceId = id, parameters = mapOf(
+            "query" to ConnectorAgentParameter(required = true, maxLength = 128)
+        )),
+        ConnectorAgentAction("list", "List a bounded set of locally accessible contacts.", surfaceId = id),
+    )
 
     override suspend fun connect(): ConnectorState {
         val granted = ContextCompat.checkSelfPermission(

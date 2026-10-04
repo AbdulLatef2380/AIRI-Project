@@ -15,6 +15,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
@@ -33,7 +35,24 @@ class ConnectorRuntimeManager(
     val inflightActions: StateFlow<List<InflightAction>> = _inflightActions.asStateFlow()
     private val _operationStates = MutableStateFlow<Map<Long, ConnectorOperationState>>(emptyMap())
     val operationStates: StateFlow<Map<Long, ConnectorOperationState>> = _operationStates.asStateFlow()
-    suspend fun execute(connectorId: String, input: ConnectorInput, maxRetries: Int = 2, timeoutMs: Long = 20_000L): ConnectorOutput {
+    suspend fun execute(connectorId: String, input: ConnectorInput, maxRetries: Int = 2, timeoutMs: Long = 20_000L): ConnectorOutput =
+        executeInternal(connectorId, input, maxRetries, timeoutMs, approvedContinuation = false)
+
+    /** Only the durable approval-resume path may request this; the adapter must validate its claimed continuation. */
+    internal suspend fun executeApprovedContinuation(
+        connectorId: String,
+        input: ConnectorInput,
+        maxRetries: Int = 0,
+        timeoutMs: Long = 20_000L,
+    ): ConnectorOutput = executeInternal(connectorId, input, maxRetries, timeoutMs, approvedContinuation = true)
+
+    private suspend fun executeInternal(
+        connectorId: String,
+        input: ConnectorInput,
+        maxRetries: Int,
+        timeoutMs: Long,
+        approvedContinuation: Boolean,
+    ): ConnectorOutput {
         require(connectorId.isNotBlank()) { "connectorId must not be blank" }
         require(input.action.isNotBlank()) { "connector action must not be blank" }
         require(timeoutMs > 0L) { "timeoutMs must be positive" }
@@ -53,24 +72,31 @@ class ConnectorRuntimeManager(
                 return ConnectorOutput.Failure("permission_denied", "An explicit authorization action is required for this connector call")
             }
             matching.singleOrNull()
+        } ?: return ConnectorOutput.Failure(
+            "undeclared_action", "The requested connector action has no authorization declaration and was not executed"
+        )
+        if (governedAction.runtimeAction != input.action) {
+            return ConnectorOutput.Failure("permission_denied", "The requested action does not match its authorization declaration")
         }
-        if (governedAction != null) {
-            if (governedAction.runtimeAction != input.action) {
-                return ConnectorOutput.Failure("permission_denied", "The requested action does not match its authorization declaration")
-            }
-            when (ConnectorAccessPolicy.evaluate(
-                accessProfiles.get(governedAction.surfaceId ?: connectorId), governedAction
-            )) {
-                ConnectorAccessDecision.ALLOWED -> Unit
-                ConnectorAccessDecision.NOT_GRANTED -> return ConnectorOutput.Failure(
-                    "permission_denied", "No matching user access profile is granted for this connector action"
-                )
-                ConnectorAccessDecision.CONFIRMATION_REQUIRED -> return ConnectorOutput.Failure(
+        when (ConnectorAccessPolicy.evaluate(
+            accessProfiles.get(governedAction.surfaceId ?: connectorId), governedAction
+        )) {
+            ConnectorAccessDecision.ALLOWED -> Unit
+            ConnectorAccessDecision.NOT_GRANTED -> return ConnectorOutput.Failure(
+                "permission_denied", "No matching user access profile is granted for this connector action"
+            )
+            ConnectorAccessDecision.CONFIRMATION_REQUIRED -> {
+                val execution = input.execution
+                val mayResume = approvedContinuation && governedAction.supportsApprovedContinuation &&
+                    input.authorizationActionId == governedAction.id && execution != null &&
+                    execution.isComplete && !execution.continuationId.isNullOrBlank()
+                if (!mayResume) return ConnectorOutput.Failure(
                     "approval_required", "This action requires a typed approval flow and was not executed"
                 )
             }
-        } else if (input.authorizationActionId != null) {
-            return ConnectorOutput.Failure("permission_denied", "The requested authorization action is not executable")
+        }
+        validateInput(governedAction, input)?.let { (code, message) ->
+            return ConnectorOutput.Failure(code, message, retryable = false)
         }
         val operationId = invocationSequence.incrementAndGet()
         val key = "${connectorId}::${input.action}#$operationId"
@@ -136,6 +162,75 @@ class ConnectorRuntimeManager(
         val checked = if (current.connected && current.healthy) current else registry.connect(connector.id)
         return checked.connected && checked.healthy
     }
+
+    /** Reject undeclared, malformed, or oversized input before connecting or invoking an adapter. */
+    private fun validateInput(
+        action: ConnectorAgentAction,
+        input: ConnectorInput,
+    ): Pair<String, String>? {
+        if (input.text.isNotEmpty() && action.maxTextChars <= 0) {
+            return "invalid_text" to "This connector action does not accept free-form text"
+        }
+        if (input.text.length > action.maxTextChars) {
+            return "invalid_text" to "Text payload exceeds the ${action.maxTextChars}-character action limit"
+        }
+        if (action.textRequired && input.text.isBlank()) {
+            return "invalid_text" to "This connector action requires a non-empty text payload"
+        }
+        val acceptedKeys = action.parameters.keys + action.fixedParams.keys
+        val unexpectedKeys = input.params.keys - acceptedKeys
+        if (unexpectedKeys.isNotEmpty()) {
+            return "invalid_params" to "Undeclared parameter(s): ${unexpectedKeys.sorted().joinToString()}"
+        }
+        for ((key, fixedValue) in action.fixedParams) {
+            if (input.params[key] != fixedValue) {
+                return "invalid_params" to "Fixed connector parameter '$key' does not match its declaration"
+            }
+        }
+        for ((key, declaration) in action.parameters) {
+            val value = input.params[key]
+            if (value == null) {
+                if (declaration.required) return "invalid_params" to "Required parameter '$key' is missing"
+                continue
+            }
+            if (declaration.required && value.isBlank()) {
+                return "invalid_params" to "Required parameter '$key' must not be blank"
+            }
+            if (!matchesParameterType(value, declaration)) {
+                return "invalid_params" to "Parameter '$key' does not match declared type '${declaration.type}' or its bounds"
+            }
+        }
+        val binary = input.binary
+        if (binary == null) {
+            if (action.binaryRequired) return "invalid_binary" to "This connector action requires a binary payload"
+        } else {
+            if (action.maxBinaryBytes <= 0) {
+                return "invalid_binary" to "This connector action does not accept binary payloads"
+            }
+            if (binary.isEmpty() || binary.size > action.maxBinaryBytes) {
+                return "invalid_binary" to "Binary payload must be between 1 and ${action.maxBinaryBytes} bytes"
+            }
+        }
+        return null
+    }
+
+    private fun matchesParameterType(value: String, declaration: ConnectorAgentParameter): Boolean =
+        when (declaration.type.lowercase()) {
+            "string", "text" -> declaration.maxLength?.let { value.length <= it } ?: true
+            "int", "integer" -> value.toLongOrNull()?.let { number ->
+                (declaration.minInt == null || number >= declaration.minInt) &&
+                    (declaration.maxInt == null || number <= declaration.maxInt)
+            } ?: false
+            "number" -> value.toDoubleOrNull()?.let { number ->
+                number.isFinite() &&
+                    (declaration.minNumber == null || number >= declaration.minNumber) &&
+                    (declaration.maxNumber == null || number <= declaration.maxNumber)
+            } ?: false
+            "boolean" -> value.equals("true", ignoreCase = true) || value.equals("false", ignoreCase = true)
+            "object" -> runCatching { JSONObject(value) }.isSuccess
+            "array" -> runCatching { JSONArray(value) }.isSuccess
+            else -> false
+        }
 
     private suspend fun executeWithRetry(connector: Connector, input: ConnectorInput, maxRetries: Int): ConnectorOutput {
         var last: ConnectorOutput = ConnectorOutput.Failure("not_started", "Never executed")

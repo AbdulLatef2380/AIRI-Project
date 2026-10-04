@@ -119,9 +119,6 @@ private fun ZapierTab(
 ) {
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isConnecting  by remember { mutableStateOf(false) }
-    var testHookUrl   by remember { mutableStateOf("") }
-    var testPayload   by remember { mutableStateOf("") }
-    var testResult    by remember { mutableStateOf<String?>(null) }
 
     LazyColumn(
         contentPadding      = PaddingValues(16.dp),
@@ -240,53 +237,13 @@ private fun ZapierTab(
                 colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant),
                 shape  = AIRIShapes.md
             ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(stringResource(R.string.test_webhook), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
-                    OutlinedTextField(
-                        value         = testHookUrl,
-                        onValueChange = { testHookUrl = it },
-                        label         = { Text(stringResource(R.string.zapier_hook_url_label)) },
-                        placeholder = { Text(stringResource(R.string.zapier_webhook_placeholder)) },
-                        modifier      = Modifier.fillMaxWidth(),
-                        singleLine    = true,
-                        colors        = inputColors()
-                    )
-                    OutlinedTextField(
-                        value         = testPayload,
-                        onValueChange = { testPayload = it },
-                        label         = { Text(stringResource(R.string.zapier_payload_label)) },
-                        modifier      = Modifier.fillMaxWidth().height(80.dp),
-                        colors        = inputColors()
-                    )
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                testResult = "Sending…"
-                                val result = connector.execute(
-                                    com.airi.assistant.connector.ConnectorInput(
-                                        action = "send_webhook",
-                                        text   = testPayload.ifBlank { "{\"source\":\"AIRI test\"}" },
-                                        params = mapOf("hook_url" to testHookUrl)
-                                    )
-                                )
-                                testResult = when (result) {
-                                    is com.airi.assistant.connector.ConnectorOutput.Success -> result.text
-                                    is com.airi.assistant.connector.ConnectorOutput.Failure -> "Error: ${result.message}"
-                                    else -> "Sent"
-                                }
-                            }
-                        },
-                        enabled = testHookUrl.isNotBlank(),
-                        colors  = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
-                    ) {
-                        Icon(Icons.Default.Send, null, Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.send_test))
-                    }
-                    testResult?.let {
-                        Text(it, fontSize = 12.sp, color = if (it.startsWith("Error")) SemanticError else SemanticSuccess)
-                    }
-                }
+                Text(
+                    "Zapier currently exposes read-only Zap listing. Webhook dispatch and event triggers are not implemented or declared as executable actions.",
+                    modifier = Modifier.padding(16.dp),
+                    fontSize = 13.sp,
+                    color = AiriTheme.onSurfaceVariant,
+                    lineHeight = 18.sp,
+                )
             }
         }
     }
@@ -393,17 +350,19 @@ private fun IftttTab(
                             scope.launch {
                                 isTesting = true
                                 triggerResult = "Triggering…"
-                                val result = connector.execute(
-                                    com.airi.assistant.connector.ConnectorInput(
+                                val result = ServiceLocator.connectorRuntimeManager.execute(
+                                    connectorId = "ifttt",
+                                    input = com.airi.assistant.connector.ConnectorInput(
                                         action = "trigger_event",
-                                        text   = value1.ifBlank { "Test from AIRI" },
-                                        params = mapOf("event" to eventName, "value1" to value1.ifBlank { "AIRI test" })
+                                        params = mapOf("event" to eventName, "value1" to value1.ifBlank { "AIRI test" }),
+                                        authorizationActionId = "trigger_event",
                                     )
                                 )
                                 triggerResult = when (result) {
                                     is com.airi.assistant.connector.ConnectorOutput.Success -> result.text
                                     is com.airi.assistant.connector.ConnectorOutput.Failure -> "Error: ${result.message}"
-                                    else -> "Sent"
+                                    is com.airi.assistant.connector.ConnectorOutput.ApprovalRequired -> "Approval required: ${result.message}"
+                                    is com.airi.assistant.connector.ConnectorOutput.Streaming -> "Unexpected streaming result; no event was confirmed."
                                 }
                                 isTesting = false
                             }

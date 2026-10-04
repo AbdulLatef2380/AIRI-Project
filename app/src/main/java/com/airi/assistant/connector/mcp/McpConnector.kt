@@ -50,8 +50,16 @@ abstract class McpConnector(
         com.airi.assistant.connector.ConnectorAgentAction(
             id = "mcp_tool_${tool.name}",
             description = tool.description,
-            parameters = tool.schema.mapValues { (_, type) ->
-                com.airi.assistant.connector.ConnectorAgentParameter(type = type)
+            parameters = tool.schema.mapValues { (name, descriptor) ->
+                val rawType = descriptor.substringBefore(" —").substringBefore(' ').lowercase()
+                val supportedType = rawType.takeIf { it in setOf("string", "integer", "int", "number", "boolean", "object", "array") }
+                    ?: "string"
+                com.airi.assistant.connector.ConnectorAgentParameter(
+                    type = supportedType,
+                    description = descriptor.substringAfter(" —", descriptor),
+                    required = name in tool.requiredParameters,
+                    maxLength = tool.parameterLimits[name],
+                )
             },
             surfaceId = if (id == "notion_mcp") "notion" else id,
             runtimeAction = "invoke_tool",
@@ -131,6 +139,8 @@ abstract class McpConnector(
         val name: String,
         val description: String,
         val schema: Map<String, String> = emptyMap(),
+        val requiredParameters: Set<String> = emptySet(),
+        val parameterLimits: Map<String, Int> = emptyMap(),
         val permission: com.airi.assistant.connector.ConnectorPermissionLevel =
             com.airi.assistant.connector.ConnectorPermissionLevel.READ,
         val requiresConfirmation: Boolean = permission != com.airi.assistant.connector.ConnectorPermissionLevel.READ,

@@ -168,10 +168,13 @@ data class ResumableConnectorInvocation(
     val action: String,
     val text: String = "",
     val params: Map<String, String> = emptyMap(),
-    val idempotencyKey: String
+    val idempotencyKey: String,
+    /** Stable declared action identity; null legacy records cannot be resumed. */
+    val authorizationActionId: String? = null,
 ) {
     fun isSafeToPersist(): Boolean {
         if (connectorId.isBlank() || action.isBlank() || idempotencyKey.isBlank()) return false
+        if (authorizationActionId != null && authorizationActionId.isBlank()) return false
         if (text.length > MAX_TEXT_CHARS || params.size > MAX_PARAM_COUNT) return false
         return !looksSensitive(text) && params.all { (key, value) ->
             key.length <= MAX_PARAM_KEY_CHARS &&

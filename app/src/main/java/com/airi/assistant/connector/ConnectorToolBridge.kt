@@ -48,13 +48,17 @@ class ConnectorToolBridge(
                 "approval_required", "This action requires a typed approval flow and was not executed"
             )
         }
-        val text = args["text"] ?: args["query"].orEmpty()
+        val text = if (binding.action.maxTextChars > 0) {
+            args["text"] ?: args["prompt"] ?: args["query"].orEmpty()
+        } else {
+            ""
+        }
         return runtime.execute(
             connectorId = binding.connectorId,
             input = ConnectorInput(
                 action = binding.action.runtimeAction,
                 text = text,
-                params = args + binding.action.fixedParams,
+                params = args.filterKeys { it != "text" || it in binding.action.parameters } + binding.action.fixedParams,
                 authorizationActionId = binding.action.id,
             )
         )

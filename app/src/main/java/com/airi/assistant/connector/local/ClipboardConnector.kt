@@ -4,9 +4,12 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import com.airi.assistant.connector.Connector
+import com.airi.assistant.connector.ConnectorAgentAction
+import com.airi.assistant.connector.ConnectorAgentParameter
 import com.airi.assistant.connector.ConnectorInput
 import com.airi.assistant.connector.ConnectorMeta
 import com.airi.assistant.connector.ConnectorOutput
+import com.airi.assistant.connector.ConnectorPermissionLevel
 import com.airi.assistant.connector.ConnectorState
 import com.airi.assistant.connector.ConnectorType
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,6 +44,15 @@ class ClipboardConnector(private val appContext: Context) : Connector {
     )
 
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
+
+    override fun agentActions() = listOf(
+        ConnectorAgentAction("read", "Read the current clipboard text.", surfaceId = id),
+        ConnectorAgentAction("write", "Replace clipboard text after confirmation.", surfaceId = id, permission = ConnectorPermissionLevel.WRITE, parameters = mapOf(
+            "text" to ConnectorAgentParameter(required = true, maxLength = 100_000),
+            "label" to ConnectorAgentParameter(maxLength = 128),
+        )),
+        ConnectorAgentAction("clear", "Clear clipboard contents after confirmation.", surfaceId = id, permission = ConnectorPermissionLevel.WRITE),
+    )
 
     override suspend fun connect(): ConnectorState {
         _state.value = ConnectorState(connected = true, healthy = true,

@@ -11,7 +11,9 @@ import com.airi.assistant.settings.PreferenceCoordinator
 import com.airi.assistant.workspace.ArtifactManager
 import com.airi.assistant.workspace.ProjectFileManager
 import com.airi.assistant.knowledge.ProjectKnowledgeManager
+import com.airi.assistant.connector.ConnectorAccessProfileStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -108,7 +110,8 @@ class DataDeletionCoordinator(
     private val preferenceCoordinator: PreferenceCoordinator,
     private val secureStorage:         SecureStorage,
     private val auditRepository:       AuditRepository,
-    private val remoteAccountDataDeletion: RemoteAccountDataDeletion = UnavailableRemoteAccountDataDeletion
+    private val remoteAccountDataDeletion: RemoteAccountDataDeletion = UnavailableRemoteAccountDataDeletion,
+    private val connectorAccessProfileStore: ConnectorAccessProfileStore? = null,
 ) {
 
     // ── Public result type ────────────────────────────────────────────────────
@@ -203,7 +206,15 @@ class DataDeletionCoordinator(
         // cloud data owned by this account has been removed.
         val ownerId = authService.currentUserId
             ?: return DeletionResult.FirebaseAuthFailed("Sign in is required before deleting an account.")
-        when (val remoteResult = remoteAccountDataDeletion.deleteOwnedData(ownerId)) {
+        val remoteResult = try {
+            remoteAccountDataDeletion.deleteOwnedData(ownerId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            runCatching { auditRepository.error("GDPR", "GDPR_DELETE_REMOTE_DATA_EXCEPTION type=${e.javaClass.simpleName}") }
+            return DeletionResult.RemoteDataDeletionFailed("Remote account data deletion failed before completion.")
+        }
+        when (remoteResult) {
             RemoteAccountDataDeletionResult.Deleted -> {
                 completed += Step.REMOTE_DATA_WIPE
                 auditRepository.log("GDPR", "GDPR_DELETE_REMOTE_DATA_SUCCESS", AuditLogEntity.Level.WARN)
@@ -272,6 +283,7 @@ class DataDeletionCoordinator(
         //      and any future stores not yet registered.
         runStep(Step.PREFERENCE_RESET, failures, completed) {
             preferenceCoordinator.resetAllToDefaults()
+            connectorAccessProfileStore?.clear()
             withContext(Dispatchers.IO) {
                 val sharedPrefsDir = File(
                     context.filesDir.parent ?: return@withContext,
@@ -338,6 +350,7 @@ class DataDeletionCoordinator(
         runStep(Step.CREDENTIAL_WIPE, failures, completed) { secureStorage.clearAll() }
         runStep(Step.PREFERENCE_RESET, failures, completed) {
             preferenceCoordinator.resetAllToDefaults()
+            connectorAccessProfileStore?.clear()
             withContext(Dispatchers.IO) {
                 val sharedPrefsDir = File(context.filesDir.parent ?: return@withContext, "shared_prefs")
                 sharedPrefsDir.listFiles()?.forEach { it.delete() }
@@ -395,19 +408,19 @@ class DataDeletionCoordinator(
         block:     suspend () -> Unit
     ) {
         Log.d(TAG, "GDPR_STEP_START step=${step.name}")
-        runCatching { block() }
-            .onSuccess {
-                completed += step
-                Log.i(TAG, "GDPR_STEP_DONE step=${step.name}")
+        try {
+            block()
+            completed += step
+            Log.i(TAG, "GDPR_STEP_DONE step=${step.name}")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Exception) {
+            failures += StepFailure(step, t)
+            Log.e(TAG, "GDPR_STEP_FAILED step=${step.name} type=${t.javaClass.simpleName}")
+            runCatching {
+                auditRepository.error("GDPR", "GDPR_STEP_FAILED step=${step.name} type=${t.javaClass.simpleName}")
             }
-            .onFailure { t ->
-                failures += StepFailure(step, t)
-                Log.e(TAG, "GDPR_STEP_FAILED step=${step.name} type=${t.javaClass.simpleName}")
-                runCatching {
-                    auditRepository.error("GDPR",
-                        "GDPR_STEP_FAILED step=${step.name} type=${t.javaClass.simpleName}")
-                }
-            }
+        }
     }
 
     private companion object {

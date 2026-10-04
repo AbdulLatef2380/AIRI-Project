@@ -47,13 +47,16 @@ class ConnectorAuthManager(context: Context) {
         connectorId: String,
         accessToken: String,
         refreshToken: String? = null,
-        expiresAtMs: Long? = null
+        expiresAtMs: Long? = null,
+        scopes: Set<String> = emptySet(),
     ): Boolean = updateSecurePreferences { editor ->
         editor.putString(key(connectorId, "access_token"), accessToken)
         if (refreshToken != null) editor.putString(key(connectorId, "refresh_token"), refreshToken)
         else editor.remove(key(connectorId, "refresh_token"))
         if (expiresAtMs != null) editor.putLong(key(connectorId, "expires_at"), expiresAtMs)
         else editor.remove(key(connectorId, "expires_at"))
+        if (scopes.isNotEmpty()) editor.putStringSet(key(connectorId, "scopes"), scopes)
+        else editor.remove(key(connectorId, "scopes"))
     }
 
     fun getToken(connectorId: String): String? =
@@ -61,6 +64,9 @@ class ConnectorAuthManager(context: Context) {
 
     fun getRefreshToken(connectorId: String): String? =
         securePreferences?.getString(key(connectorId, "refresh_token"), null)
+
+    fun getTokenScopes(connectorId: String): Set<String> =
+        securePreferences?.getStringSet(key(connectorId, "scopes"), emptySet()).orEmpty()
 
     fun isTokenValid(connectorId: String): Boolean {
         val token = getToken(connectorId) ?: return false
@@ -73,6 +79,7 @@ class ConnectorAuthManager(context: Context) {
         editor.remove(key(connectorId, "access_token"))
         editor.remove(key(connectorId, "refresh_token"))
         editor.remove(key(connectorId, "expires_at"))
+        editor.remove(key(connectorId, "scopes"))
     }
 
     fun storeCredential(connectorId: String, credentialKey: String, value: String): Boolean =

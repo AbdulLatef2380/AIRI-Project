@@ -45,10 +45,18 @@ data class ConnectorRolloutEntry(
  * from the catalog so a new catalog item cannot silently skip a delivery wave.
  */
 object ConnectorRolloutRegistry {
+    /** Catalog surfaces with a registered executable adapter. Do not infer this
+     * from a shared runtime id: google and microsoft_graph each serve both
+     * implemented and catalog-only surfaces. */
+    private val liveCatalogIds = setOf(
+        "google_gmail", "google_calendar", "google_drive",
+        "microsoft_outlook", "microsoft_calendar", "microsoft_onedrive", "microsoft_teams",
+        "github", "telegram", "notion", "zapier",
+    )
+
+    /** Non-catalog runtimes are evaluated independently from catalog readiness. */
     private val liveRuntimeIds = setOf(
-        "google", "github", "telegram", "notion", "notion_mcp", "microsoft_graph", "zapier",
-        "ifttt", "n8n", "remote_llm", "android_intent", "voice_mtmd",
-        "clipboard", "device_apps", "contacts", "system_info",
+        "remote_llm", "android_intent", "voice_mtmd", "clipboard", "device_apps", "contacts", "system_info",
     )
 
     private val microsoft = setOf(
@@ -77,7 +85,8 @@ object ConnectorRolloutRegistry {
         }
         val mode = ConnectorAuthStrategies.forMeta(definition.toConnectorMeta()).mode
         val readiness = when {
-            runtimeId in liveRuntimeIds -> ConnectorAdapterReadiness.LIVE
+            id in liveCatalogIds -> ConnectorAdapterReadiness.LIVE
+            id !in OfficialConnectorCatalog.all.map { it.id } && runtimeId in liveRuntimeIds -> ConnectorAdapterReadiness.LIVE
             definition.status == ConnectorAvailability.PARTIAL -> ConnectorAdapterReadiness.CONFIGURATION_REQUIRED
             else -> ConnectorAdapterReadiness.CATALOG_ONLY
         }

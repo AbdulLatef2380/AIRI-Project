@@ -24,6 +24,7 @@ class MicrosoftGraphConnector(
         .readTimeout(20, TimeUnit.SECONDS)
         .build(),
 ) : Connector {
+    private data class GraphResponse(val code: Int, val body: String, val retryAfter: String?)
     override val id: String = MicrosoftOAuthConfiguration.CONNECTOR_ID
     override val name: String = "Microsoft Outlook & Calendar"
     override val description: String = "Read the signed-in Microsoft mailbox and calendar through Microsoft Graph."
@@ -103,7 +104,13 @@ class MicrosoftGraphConnector(
                 if (!response.isSuccessful || access.isBlank()) return@use false
                 val refresh = json.optString("refresh_token").ifBlank { null }
                 val expiresIn = json.optLong("expires_in", 3600L).coerceIn(60L, 86_400L)
-                authManager.storeToken(id, access, refresh, System.currentTimeMillis() + expiresIn * 1000L)
+                authManager.storeToken(
+                    id,
+                    access,
+                    refresh,
+                    System.currentTimeMillis() + expiresIn * 1000L,
+                    request.requestedScopes,
+                )
             }
         }.getOrDefault(false)
     }
@@ -115,12 +122,12 @@ class MicrosoftGraphConnector(
             return update(false, message)
         }
         val response = graphGet("/me?\$select=id,displayName,mail,userPrincipalName", result.getOrThrow())
-        return if (response.first in 200..299) {
-            val json = JSONObject(response.second)
+        return if (response.code in 200..299) {
+            val json = JSONObject(response.body)
             update(true, "Connected as ${json.optString("mail").ifBlank { json.optString("userPrincipalName") }}")
         } else {
-            if (response.first == 401) tokenService.clear()
-            update(false, "Microsoft Graph health check failed (${response.first})")
+            if (response.code == 401) tokenService.clear()
+            update(false, "Microsoft Graph health check failed (${response.code})")
         }
     }
 
@@ -136,8 +143,8 @@ class MicrosoftGraphConnector(
             return ConnectorOutput.Failure("authorization_expired", "Microsoft authorization expired; reconnect is required", true)
         }
         val path = when (input.action) {
-            "outlook_mail_read" -> "/me/messages?\$top=10&\$select=id,subject,receivedDateTime,from"
-            "outlook_calendar_read" -> "/me/calendar/events?\$top=10&\$select=id,subject,start,end,organizer"
+            "outlook_mail_read" -> "/me/messages?\$top=${boundedTop(input.params["top"])}&\$select=id,subject,receivedDateTime,from"
+            "outlook_calendar_read" -> "/me/calendar/events?\$top=${boundedTop(input.params["top"])}&\$select=id,subject,start,end,organizer"
             "onedrive_files_read" -> {
                 val top = input.params["top"].orEmpty().toIntOrNull()?.coerceIn(1, 50) ?: 20
                 val folderPath = input.params["folder_path"]?.trim()?.trim('/')
@@ -153,22 +160,22 @@ class MicrosoftGraphConnector(
             else -> return ConnectorOutput.Failure("unknown_action", "Unknown Microsoft Graph action: ${input.action}")
         }
         val response = graphGet(path, token)
-        if (response.first == 401) {
+        if (response.code == 401) {
             tokenService.clear()
             _state.value = ConnectorState(false, false, "Authorization expired")
             return ConnectorOutput.Failure("authorization_expired", "Microsoft authorization expired; reconnect is required", true)
         }
-        if (response.first !in 200..299) return ConnectorOutput.Failure("provider_error", "Microsoft Graph request failed (${response.first})", response.first >= 500)
-        return ConnectorOutput.Success(response.second, data = mapOf("provider" to "microsoft_graph", "action" to input.action))
+        if (response.code !in 200..299) return providerFailure(response)
+        return ConnectorOutput.Success(response.body, data = mapOf("provider" to "microsoft_graph", "action" to input.action))
     }
 
     override fun agentActions() = listOf(
         ConnectorAgentAction("outlook_mail_read", "Read recent mail from the signed-in Microsoft account", surfaceId = "microsoft_outlook", providerGrants = listOf(
             ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.MICROSOFT_MAIL_READ_BASIC)
-        )),
+        ), parameters = mapOf("top" to ConnectorAgentParameter(description = "Optional number of messages from 1 to 50."))),
         ConnectorAgentAction("outlook_calendar_read", "Read upcoming calendar events from the signed-in Microsoft account", surfaceId = "microsoft_calendar", providerGrants = listOf(
             ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.MICROSOFT_CALENDARS_READ_BASIC)
-        )),
+        ), parameters = mapOf("top" to ConnectorAgentParameter(description = "Optional number of events from 1 to 50."))),
         ConnectorAgentAction(
             "onedrive_files_read",
             "List authorized OneDrive files in the root or a folder.",
@@ -187,11 +194,20 @@ class MicrosoftGraphConnector(
         )),
     )
 
-    private suspend fun graphGet(path: String, token: String): Pair<Int, String> = withContext(Dispatchers.IO) {
+    private suspend fun graphGet(path: String, token: String): GraphResponse = withContext(Dispatchers.IO) {
         http.newCall(Request.Builder().url(MicrosoftOAuthConfiguration.GRAPH_BASE_URL + path).header("Authorization", "Bearer $token").header("Accept", "application/json").build()).execute().use { response ->
-            response.code to (response.body?.string() ?: "{}")
+            GraphResponse(response.code, response.body?.string() ?: "{}", response.header("Retry-After"))
         }
     }
+
+    private fun providerFailure(response: GraphResponse): ConnectorOutput.Failure = when {
+        response.code == 403 -> ConnectorOutput.Failure("permission_denied", "Microsoft Graph denied this capability", false)
+        response.code == 429 -> ConnectorOutput.Failure("rate_limited", "Microsoft Graph rate limit reached${response.retryAfter?.let { "; retry after $it" }.orEmpty()}", true)
+        response.code >= 500 -> ConnectorOutput.Failure("provider_unavailable", "Microsoft Graph is temporarily unavailable (${response.code})", true)
+        else -> ConnectorOutput.Failure("provider_error", "Microsoft Graph request failed (${response.code})", false)
+    }
+
+    private fun boundedTop(raw: String?): Int = raw?.toIntOrNull()?.coerceIn(1, 50) ?: 10
 
     private fun update(connected: Boolean, message: String): ConnectorState {
         val state = ConnectorState(connected, connected, message, System.currentTimeMillis(), if (connected) null else message)

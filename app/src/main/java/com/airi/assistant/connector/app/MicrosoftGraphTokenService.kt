@@ -30,11 +30,14 @@ class MicrosoftGraphTokenService(
         val refreshToken = authManager.getRefreshToken(MicrosoftOAuthConfiguration.CONNECTOR_ID)
             ?.takeIf { it.isNotBlank() }
             ?: return@withContext Result.failure(IllegalStateException("Microsoft authorization is required"))
+        val grantedScopes = authManager.getTokenScopes(MicrosoftOAuthConfiguration.CONNECTOR_ID)
+            .takeIf { it.isNotEmpty() }
+            ?: return@withContext Result.failure(IllegalStateException("Microsoft authorization scopes are unavailable; reconnect is required"))
         val config = configProvider() as? OAuthConfiguration.Configured
             ?: return@withContext Result.failure(IllegalStateException("Microsoft OAuth is not configured"))
         val body = FormBody.Builder()
             .add("client_id", config.clientId)
-            .add("scope", "https://graph.microsoft.com/.default offline_access")
+            .add("scope", grantedScopes.sorted().joinToString(" "))
             .add("refresh_token", refreshToken)
             .add("grant_type", "refresh_token")
             .build()
@@ -60,6 +63,7 @@ class MicrosoftGraphTokenService(
                     access,
                     rotatedRefresh,
                     System.currentTimeMillis() + expiresIn * 1000L,
+                    grantedScopes,
                 )) { "Secure credential storage is unavailable" }
                 access
             }

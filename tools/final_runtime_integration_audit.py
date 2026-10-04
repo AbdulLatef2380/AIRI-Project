@@ -58,6 +58,7 @@ runtime_descriptors = read("app/src/main/java/com/airi/assistant/connector/Conne
 primary_contract = read("app/src/main/java/com/airi/assistant/connector/PrimaryConnectorContract.kt")
 remaining_contract = read("app/src/main/java/com/airi/assistant/connector/ProviderAdapterContract.kt")
 mcp_connector = read("app/src/main/java/com/airi/assistant/connector/mcp/McpConnector.kt")
+connector_details = read("app/src/main/java/com/airi/assistant/ui/screens/ConnectorDetailsScreen.kt")
 worker = read("app/src/main/java/com/airi/assistant/agent/scheduler/ScheduledAgentWorker.kt")
 prod_orchestrator = read("app/src/main/java/com/airi/assistant/agent/orchestrator/ProductionAgentOrchestrator.kt")
 
@@ -103,6 +104,11 @@ check("memory and scheduled tasks retain durable ownership boundaries", [
     ("worker records failed outcome", "ScheduledJobOutcome.FAILED" in worker),
     ("production orchestrator creates durable task", "durableTaskManager" in prod_orchestrator),
     ("memory tool has scoped execution", "memory_recall" in dispatcher),
+])
+
+check("connector profile screen avoids importing an internal Compose weight symbol", [
+    ("weighted content remains inside a Row", "Modifier.weight(1f)" in connector_details and "Row(" in connector_details),
+    ("internal weight extension is not imported", "import androidx.compose.foundation.layout.weight" not in connector_details),
 ])
 
 check("remaining connector rollout is explicit and cannot create phantom connections", [

@@ -89,6 +89,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     sealed interface GoogleAuthorizationEffect {
+        data class LaunchIdentity(val intent: Intent) : GoogleAuthorizationEffect
         data class LaunchConsent(val pendingIntent: PendingIntent) : GoogleAuthorizationEffect
         data class LaunchBrowser(val intent: Intent) : GoogleAuthorizationEffect
     }
@@ -134,7 +135,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                     "telegram" -> openTelegramDialog()
                     "notion_mcp" -> openNotionDialog()
                 }
-                is ConnectorAuthorizationManager.StartResult.GoogleIdentity -> Unit
+                is ConnectorAuthorizationManager.StartResult.GoogleIdentity -> {
+                    _googleAuthorizationEffects.tryEmit(
+                        GoogleAuthorizationEffect.LaunchIdentity(result.intent)
+                    )
+                }
                 is ConnectorAuthorizationManager.StartResult.GoogleConsent -> requestGoogleDataAuthorization(result.scopes)
                 is ConnectorAuthorizationManager.StartResult.AccessProfileRequired -> {
                     _accessProfileRequest.value = AccessProfileRequest(

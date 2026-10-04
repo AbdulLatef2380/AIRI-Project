@@ -139,6 +139,9 @@ fun IntegrationsScreen(
     LaunchedEffect(vm) {
         vm.googleAuthorizationEffects.collect { effect ->
             when (effect) {
+                is IntegrationsViewModel.GoogleAuthorizationEffect.LaunchIdentity -> {
+                    googleLauncher.launch(effect.intent)
+                }
                 is IntegrationsViewModel.GoogleAuthorizationEffect.LaunchConsent -> {
                     googleAuthorizationLauncher.launch(
                         IntentSenderRequest.Builder(effect.pendingIntent.intentSender).build()
@@ -165,8 +168,8 @@ fun IntegrationsScreen(
                         ?: IntegrationReadiness.DISCONNECTED
                 )
             ) {
-                GoogleConnectionAction.START_IDENTITY_SIGN_IN -> googleLauncher.launch(vm.getGoogleSignInIntent())
-                GoogleConnectionAction.REQUEST_DATA_AUTHORIZATION -> vm.requestGoogleDataAuthorization()
+                GoogleConnectionAction.START_IDENTITY_SIGN_IN,
+                GoogleConnectionAction.REQUEST_DATA_AUTHORIZATION -> vm.beginConnectorAuthorization("google")
                 GoogleConnectionAction.NONE -> Unit
             }
         }
@@ -237,11 +240,9 @@ fun IntegrationsScreen(
                             "google" -> when (
                                 IntegrationReadinessPolicy.googleConnectionAction(item.readiness)
                             ) {
-                                GoogleConnectionAction.START_IDENTITY_SIGN_IN -> {
-                                    googleLauncher.launch(vm.getGoogleSignInIntent())
-                                }
+                                GoogleConnectionAction.START_IDENTITY_SIGN_IN,
                                 GoogleConnectionAction.REQUEST_DATA_AUTHORIZATION -> {
-                                    vm.requestGoogleDataAuthorization()
+                                    vm.beginConnectorAuthorization("google")
                                 }
                                 GoogleConnectionAction.NONE -> Unit
                             }

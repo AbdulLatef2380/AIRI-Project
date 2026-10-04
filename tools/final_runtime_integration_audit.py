@@ -154,7 +154,7 @@ check("Microsoft Outlook/Calendar/OneDrive/Teams vertical slice has a typed OAut
     ("OneDrive listing is bounded and metadata-only", "coerceIn(1, 50)" in microsoft_adapter and "lastModifiedDateTime" in microsoft_adapter),
     ("Teams uses the shared Graph adapter", '"microsoft_teams" to ConnectorRuntimeDescriptor("microsoft_teams", "microsoft_graph"' in runtime_descriptors),
     ("Teams Team.ReadBasic.All consent and read action", "MICROSOFT_TEAM_READ_BASIC_ALL" in microsoft_adapter and "teams_list_joined" in microsoft_adapter),
-    ("scope resolver requires an allowed action profile", "ConnectorAccessPolicy.evaluate" in scope_resolver and "requiredOAuthScopes" in scope_resolver),
+    ("scope resolver requires a permitted action profile", ".permits(action.permission)" in scope_resolver and "requiredOAuthScopes" in scope_resolver),
     ("PKCE state binds requested scopes", "requestedScopes" in oauth_state and "issuePkce(id, requestedScopes)" in microsoft_adapter),
     ("provider scope catalog centralizes exact identifiers", "GOOGLE_GMAIL_READONLY" in provider_scopes and "ZAPIER_ZAP_READ" in provider_scopes),
     ("Teams listing is metadata-only", "/me/joinedTeams" in microsoft_adapter and "displayName,description,visibility,webUrl" in microsoft_adapter),

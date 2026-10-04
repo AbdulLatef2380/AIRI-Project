@@ -174,8 +174,15 @@ class ConnectorAuthorizationManager(
 
     /** Securely validates and commits PAT/API/MCP credentials, then health-checks. */
     suspend fun submitCredential(id: String, credential: String): CompletionResult = withContext(Dispatchers.IO) {
-        if (credential.isBlank()) return@withContext CompletionResult.Failed("credential_missing", "Credential cannot be empty")
         val runtimeId = resolveRuntimeId(id)
+        val surfaceIds = authorizationSurfaceIds(id, runtimeId)
+        if (surfaceIds.any { accessProfileStore.get(it) == ConnectorAccessProfile.NOT_CONFIGURED }) {
+            return@withContext CompletionResult.Failed(
+                "access_profile_required",
+                "Choose an access profile before saving credentials."
+            )
+        }
+        if (credential.isBlank()) return@withContext CompletionResult.Failed("credential_missing", "Credential cannot be empty")
         val validated = when (runtimeId) {
             "github" -> githubService.validateAndConnect(credential).map { true }
             "telegram" -> telegramService.validateAndConnect(credential).map { true }
@@ -252,17 +259,19 @@ class ConnectorAuthorizationManager(
     suspend fun onGoogleSignIn(account: GoogleSignInAccount): CompletionResult {
         val email = account.email
         if (email.isNullOrBlank()) return CompletionResult.Failed("google_email_missing", "Google account did not provide an email")
-        googleAuthService.handleSignInSuccess(account)
         val scopes = requiredOAuthScopesFor("google")
         return if (scopes.isEmpty()) {
-            CompletionResult.Failed("access_profile_required", "Choose a read-access profile for a Google surface before authorizing data access.")
+            CompletionResult.Failed("access_profile_required", "Choose a read-access profile for at least one Google surface before authorizing data access.")
         } else {
+            googleAuthService.handleSignInSuccess(account)
             CompletionResult.ConsentRequired("google", scopes)
         }
     }
 
     suspend fun onGoogleConsent(result: GoogleDataAuthorization): CompletionResult = when (result) {
-        GoogleDataAuthorization.Authorized -> connectAndVerify("google").toCompletion("google")
+        GoogleDataAuthorization.Authorized -> if (requiredOAuthScopesFor("google").isEmpty()) {
+            CompletionResult.Failed("access_profile_required", "Choose an access profile before authorizing Google data.")
+        } else connectAndVerify("google").toCompletion("google")
         is GoogleDataAuthorization.ConsentRequired -> CompletionResult.ConsentRequired("google", requiredOAuthScopesFor("google"))
         GoogleDataAuthorization.Cancelled -> CompletionResult.Failed("authorization_cancelled", "Google data authorization was cancelled")
         GoogleDataAuthorization.Unavailable -> CompletionResult.Failed("authorization_unavailable", "Google data authorization is unavailable", true)

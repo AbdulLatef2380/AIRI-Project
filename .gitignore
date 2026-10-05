@@ -21,6 +21,8 @@ secrets.properties
 # Node tooling, if the separate web prototype remains local
 node_modules/
 dist/
+.agents/
+.replit
 
 # Operating system files
 .DS_Store

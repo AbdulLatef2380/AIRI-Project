@@ -66,11 +66,11 @@ class ConnectorCatalogTest {
     }
 
     @Test
-    fun registryExposesCatalogSearchWithoutMakingComingSoonExecutable() = runBlocking {
+    fun registryExposesCatalogSearchWithoutMakingCatalogEntryExecutable() = runBlocking {
         val registry = ConnectorRegistry(this)
         val results = registry.catalogSearch("Outlook")
         assertTrue(results.any { it.id == "microsoft_outlook" })
-        assertEquals(ConnectorAvailability.COMING_SOON, results.first { it.id == "microsoft_outlook" }.availability)
+        assertEquals(ConnectorAvailability.PARTIAL, results.first { it.id == "microsoft_outlook" }.availability)
         assertFalse(registry.get("microsoft_outlook") != null)
     }
 

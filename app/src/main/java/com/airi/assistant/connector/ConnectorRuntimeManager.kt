@@ -34,10 +34,15 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
         val nonIdempotent = isNonIdempotentAction(connectorId, input.action)
         val retries = if (nonIdempotent) 0 else maxRetries
         return try {
-            withTimeout(timeoutMs) { ensureConnected(connector); executeWithRetry(connector, input, retries) }
+            withTimeout(timeoutMs) {
+                ensureConnected(connector, input.action)
+                executeWithRetry(connector, input, retries)
+            }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             AgentActivityBus.emit("'$connectorId' timed out after ${timeoutMs}ms", ActivityCategory.CONNECTOR, ActivitySeverity.WARN)
             ConnectorOutput.Failure("timeout", "Timed out after ${timeoutMs}ms", retryable = !nonIdempotent)
+        } catch (e: ConnectorNotConnectedException) {
+            ConnectorOutput.Failure("not_connected", e.message ?: "Connector could not be connected")
         } catch (e: Exception) {
             ConnectorOutput.Failure("runtime_error", e.message ?: "Unknown error")
         } finally { trackEnd(key) }
@@ -52,9 +57,17 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
         return results.toMap()
     }
 
-    private suspend fun ensureConnected(connector: Connector) {
-        if (!connector.state().value.connected) connector.connect()
+    private suspend fun ensureConnected(connector: Connector, action: String) {
+        if (connector.state().value.connected || action == "status" || action == "check_status") return
+        val state = connector.connect()
+        if (!state.connected) {
+            throw ConnectorNotConnectedException(
+                state.errorMessage ?: state.statusLine.ifBlank { "Connector '${connector.id}' is not connected" }
+            )
+        }
     }
+
+    private class ConnectorNotConnectedException(message: String) : Exception(message)
 
     /** Avoid duplicate external writes when the server acted but the response was lost. */
     private fun isNonIdempotentAction(connectorId: String, action: String): Boolean =

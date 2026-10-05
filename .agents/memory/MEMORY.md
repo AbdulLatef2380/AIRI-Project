@@ -15,3 +15,4 @@
 - [Phase 2 Tasks 19–35 Completion](phase2-tasks19-35.md) — All 17 tasks done; AuditLogEntity uses `tag` (not `subsystem`); AuditRepository method is `getRecent(limit)`; LlmCertPins pins are placeholders pending production verification.
 - [Wave 3-4 Activation Decisions](wave3-4-activation.md) — AP items implemented; AP-SS sandbox uses "agent_loop" principal not tool name; B-07 serialization fix; VoicePreferencesStore has snapshotFlow not currentSnapshot().
 - [Build Fix Root Causes](build-fix-root-causes.md) — 12 compile errors fixed; ConnectorType has no WEBHOOK value (use API); SQLCipher needs explicit imports; plan overlay must live in ChatScreen scope not AiriHistoryPanel; onStageFile must be hoisted to AdvancedChatInputBar wrapper.
+- [Connector hardening scope](connector-hardening-scope.md) — Preserve registered connectors during production hardening; close gaps rather than hiding or shutting them down.

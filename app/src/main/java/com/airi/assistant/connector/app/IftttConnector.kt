@@ -135,7 +135,12 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
             Log.e(TAG, "IFTTT_EXECUTION_FAILURE action=${input.action} causeType=${e::class.simpleName}")
             // Do not automatically retry webhook triggers: a timed-out request
             // may already have fired the user's applet, causing duplicate side effects.
-            ConnectorOutput.Failure("api_error", e.message ?: "IFTTT error", retryable = false)
+            val safeMessage = when (e) {
+                is IllegalArgumentException, is IllegalStateException ->
+                    e.message ?: "Invalid IFTTT request."
+                else -> "IFTTT request failed. Check the network and webhook settings."
+            }
+            ConnectorOutput.Failure("api_error", safeMessage, retryable = false)
         }
     }
 

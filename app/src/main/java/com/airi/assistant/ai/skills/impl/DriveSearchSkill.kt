@@ -1,12 +1,13 @@
 package com.airi.assistant.ai.skills.impl
 
 import android.content.Context
-import com.airi.assistant.ai.intent.ToolCall
+import com.airi.assistant.connector.ConnectorInput
+import com.airi.assistant.connector.ConnectorOutput
 import com.airi.assistant.ai.skills.AiriSkill
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillResult
-import com.airi.assistant.ai.tools.ToolExecutor
 import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.core.ServiceLocator
 
 class DriveSearchSkill(private val context: Context) : AiriSkill {
 
@@ -16,7 +17,6 @@ class DriveSearchSkill(private val context: Context) : AiriSkill {
         "query" to "file name or search keywords"
     )
 
-    private val toolExecutor  = ToolExecutor(context)
     private val secureStorage = SecureStorage(context)
 
     private val exactPhrases = listOf(
@@ -50,8 +50,15 @@ class DriveSearchSkill(private val context: Context) : AiriSkill {
         val context = params["context"] as? SkillContext
         val query   = resolveQuery(input, context)
 
-        val r = toolExecutor.execute(ToolCall("drive_search_file", mapOf("query" to query)))
-        return SkillResult(r.success, r.data, r.error)
+        val output = ServiceLocator.connectorRuntimeManager.execute(
+            connectorId = "google",
+            input = ConnectorInput(action = "drive_search", params = mapOf("query" to query))
+        )
+        return when (output) {
+            is ConnectorOutput.Success -> SkillResult(true, output.text)
+            is ConnectorOutput.Failure -> SkillResult(false, "", output.message)
+            is ConnectorOutput.Streaming -> SkillResult(false, "", "Streaming output is not supported for Drive.")
+        }
     }
 
     private fun resolveQuery(input: String, context: SkillContext?): String {

@@ -1,5 +1,7 @@
 package com.airi.assistant.agent.loop.tool
 
+import com.airi.assistant.security.ScopedPermissionRegistry.AgentPermission
+
 /**
  * ToolSchema — the single canonical tool definition used across AgentLoop.
  *
@@ -13,7 +15,9 @@ data class ToolSchema(
     val description: String,
     val parameters:  Map<String, Param> = emptyMap(),
     val dangerous:   Boolean = false,   // requires user confirmation before execution
-    val category:    Category = Category.SYSTEM
+    val category:    Category = Category.SYSTEM,
+    /** Trusted execution capabilities declared by the app for this tool. */
+    val requiredPermissions: Set<AgentPermission> = emptySet()
 ) {
     data class Param(
         val type:        String,          // "string" | "int" | "boolean"

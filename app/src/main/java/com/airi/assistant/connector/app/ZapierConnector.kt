@@ -162,7 +162,10 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
                 return@withContext false
             }
 
-            authManager.storeToken(id, accessToken, refreshToken.ifBlank { null }, expiresAt)
+            if (!authManager.storeToken(id, accessToken, refreshToken.ifBlank { null }, expiresAt)) {
+                Log.e(TAG, "OAuth tokens could not be stored securely")
+                return@withContext false
+            }
             if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "Zapier OAuth tokens stored successfully")
             connect()
             true

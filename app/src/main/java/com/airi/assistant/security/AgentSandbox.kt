@@ -127,8 +127,14 @@ class AgentSandbox(
         val workspace: SandboxWorkspace
     ) {
         fun has(perm: ScopedPermissionRegistry.AgentPermission): Boolean = perm in grants
-        fun guardTool(toolName: String)            = firewall.guard(agentId, toolName)
-        fun allowsTool(toolName: String): Boolean  = firewall.allows(agentId, toolName)
+        fun guardTool(
+            toolName: String,
+            requiredPermissions: Set<ScopedPermissionRegistry.AgentPermission> = emptySet()
+        ) = firewall.guard(agentId, toolName, requiredPermissions)
+        fun allowsTool(
+            toolName: String,
+            requiredPermissions: Set<ScopedPermissionRegistry.AgentPermission> = emptySet()
+        ): Boolean = firewall.allows(agentId, toolName, requiredPermissions)
 
         /** Convenience: write a result file. */
         fun writeResult(path: String, content: String) =

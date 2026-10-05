@@ -106,8 +106,26 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
                     value2    = input.params["value2"],
                     value3    = input.params["value3"]
                 )
-                "set_key"      -> setKey(input.text.trim())
-                "check_status" -> checkStatus()
+                "set_key" -> {
+                    val key = input.text.trim()
+                    if (key.isBlank()) {
+                        return@withContext ConnectorOutput.Failure(
+                            "invalid_credential",
+                            "Webhook key cannot be empty."
+                        )
+                    }
+                    val saveResult = setKey(key)
+                    if (!saveResult.startsWith("IFTTT Maker Webhook key saved")) {
+                        return@withContext ConnectorOutput.Failure("secure_storage_unavailable", saveResult)
+                    }
+                    saveResult
+                }
+                "check_status" -> {
+                    if (getWebhookKey().isNullOrBlank()) {
+                        return@withContext ConnectorOutput.Failure("not_connected", "No webhook key configured.")
+                    }
+                    checkStatus()
+                }
                 "status"       -> return@withContext ConnectorOutput.Success(_state.value.statusLine)
                 else           -> return@withContext ConnectorOutput.Failure("unknown_action", "Unknown action: ${input.action}")
             }
@@ -115,7 +133,9 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
             ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
         } catch (e: Exception) {
             Log.e(TAG, "IFTTT_EXECUTION_FAILURE action=${input.action} causeType=${e::class.simpleName}")
-            ConnectorOutput.Failure("api_error", e.message ?: "IFTTT error", retryable = true)
+            // Do not automatically retry webhook triggers: a timed-out request
+            // may already have fired the user's applet, causing duplicate side effects.
+            ConnectorOutput.Failure("api_error", e.message ?: "IFTTT error", retryable = false)
         }
     }
 
@@ -123,7 +143,9 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
 
     fun setKey(key: String): String {
         if (key.isBlank()) return "Webhook key cannot be empty."
-        authManager.storeCredential(id, CRED_KEY, key)
+        if (!authManager.storeCredential(id, CRED_KEY, key)) {
+            return "Unable to save the webhook key because encrypted storage is unavailable."
+        }
         _state.value = ConnectorState(true, true, "Connected (key: ••••${key.takeLast(4)})", System.currentTimeMillis())
         return "IFTTT Maker Webhook key saved "
     }
@@ -132,7 +154,10 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
 
     private fun triggerEvent(eventName: String, value1: String, value2: String?, value3: String?): String {
         val key = authManager.getCredential(id, CRED_KEY)
-            ?: return "No webhook key configured. Use 'set_key' action first."
+            ?: throw IllegalStateException("No webhook key configured. Save it in Integrations first.")
+        require(eventName.matches(Regex("[A-Za-z0-9_-]{1,128}"))) {
+            "Event name must contain only letters, numbers, underscores, or hyphens."
+        }
 
         val payload = JSONObject().apply {
             put("value1", value1)
@@ -143,13 +168,14 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
         val url  = "$MAKER_BASE/$eventName/with/key/$key"
         val body = payload.toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url(url).post(body).build()
-        val response = client.newCall(request).execute()
-
-        return if (response.isSuccessful) {
-            val body = response.body?.string() ?: ""
-            "Applet '$eventName' triggered  — $body"
-        } else {
-            "Trigger failed: HTTP ${response.code} ${response.message}"
+        return client.newCall(request).execute().use { response ->
+            val responseBody = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                throw IllegalStateException(
+                    "IFTTT trigger failed: HTTP ${response.code} ${response.message}".trim()
+                )
+            }
+            "Applet '$eventName' triggered — $responseBody"
         }
     }
 

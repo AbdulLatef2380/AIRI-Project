@@ -94,7 +94,7 @@ fun ConnectorsScreen(
     ) { granted ->
         if (granted) {
             // Re-attempt connection after permission granted
-            viewModel.connect("contacts_local")
+            viewModel.connect("contacts")
         }
     }
 
@@ -231,7 +231,7 @@ fun ConnectorsScreen(
                             row          = row,
                             onConnect    = {
                                 // : Request READ_CONTACTS permission before connecting contacts
-                                if (row.meta.id == "contacts_local" &&
+                                if (row.meta.id == "contacts" &&
                                     android.content.pm.PackageManager.PERMISSION_DENIED ==
                                     androidx.core.content.ContextCompat.checkSelfPermission(
                                         context,

@@ -1670,6 +1670,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         streamAccumulator.append(tok)
                         _streamingText.value = streamAccumulator.toString()
                     },
+                    onDangerousTool = { tool, args ->
+                        val details = args.entries.joinToString("\n") { (name, value) ->
+                            "$name: ${value.take(240)}"
+                        }.take(1200).ifBlank { tool.description }
+                        awaitAccessibilityConfirmation(
+                            actionDisplayName = "Approve ${tool.name}",
+                            actionDescription = details
+                        )
+                    },
                     onStepComplete = { stepEvent ->
                         when (stepEvent) {
                             is com.airi.assistant.agent.loop.AgentLoop.StepEvent.ToolExecuted -> {

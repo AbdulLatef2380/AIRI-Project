@@ -44,6 +44,19 @@ class ExecutionFirewall(
     private val TAG = "ExecutionFirewall"
 
     private val toolPermissionMap: Map<String, ScopedPermissionRegistry.AgentPermission> = mapOf(
+        // AgentLoop built-ins
+        "read_screen"         to ScopedPermissionRegistry.AgentPermission.ACCESSIBILITY_ACTIONS,
+        "open_app"            to ScopedPermissionRegistry.AgentPermission.TRIGGER_INTENT,
+        "tap"                 to ScopedPermissionRegistry.AgentPermission.ACCESSIBILITY_ACTIONS,
+        "type_text"           to ScopedPermissionRegistry.AgentPermission.ACCESSIBILITY_ACTIONS,
+        "scroll_down"         to ScopedPermissionRegistry.AgentPermission.ACCESSIBILITY_ACTIONS,
+        "go_back"             to ScopedPermissionRegistry.AgentPermission.ACCESSIBILITY_ACTIONS,
+        "fetch_url"           to ScopedPermissionRegistry.AgentPermission.SEARCH_WEB,
+        "memory_recall"       to ScopedPermissionRegistry.AgentPermission.READ_MEMORY,
+        "set_alarm"           to ScopedPermissionRegistry.AgentPermission.SET_ALARM,
+        "create_note"         to ScopedPermissionRegistry.AgentPermission.WRITE_NOTES,
+        "ask_confirmation"    to ScopedPermissionRegistry.AgentPermission.REQUEST_CONFIRMATION,
+
         // Calendar
         "calendar_read"       to ScopedPermissionRegistry.AgentPermission.READ_CALENDAR,
         "calendar_create"     to ScopedPermissionRegistry.AgentPermission.WRITE_CALENDAR,
@@ -132,7 +145,11 @@ class ExecutionFirewall(
      * @throws ScopedPermissionRegistry.PermissionDeniedException if not allowed.
      * @throws UnknownToolException if [toolName] is not in the allowlist.
      */
-    fun guard(agentId: String, toolName: String) {
+    fun guard(
+        agentId: String,
+        toolName: String,
+        declaredPermissions: Set<ScopedPermissionRegistry.AgentPermission> = emptySet()
+    ) {
         // Rate limit check — before permission check for cheapness.
         if (!bucketFor(agentId).tryConsume()) {
             LoggingService.warn(TAG,
@@ -140,23 +157,35 @@ class ExecutionFirewall(
             throw RateLimitException(agentId, toolName)
         }
 
-        val permission = toolPermissionMap[toolName.lowercase()]
+        val permissions = resolveRequiredPermissions(toolName, declaredPermissions)
             ?: run {
                 LoggingService.warn(TAG, "AIRI FIREWALL_UNKNOWN_TOOL agent=$agentId tool=$toolName")
                 throw UnknownToolException(agentId, toolName)
             }
 
-        registry.require(agentId, permission)
-        LoggingService.debug(TAG, "AIRI FIREWALL_ALLOWED agent=$agentId tool=$toolName permission=$permission")
+        permissions.forEach { registry.require(agentId, it) }
+        LoggingService.debug(TAG, "AIRI FIREWALL_ALLOWED agent=$agentId tool=$toolName permissions=$permissions")
     }
+
+    /** Resolve trusted schema permissions first, then the legacy exact-name map. */
+    internal fun resolveRequiredPermissions(
+        toolName: String,
+        declaredPermissions: Set<ScopedPermissionRegistry.AgentPermission> = emptySet()
+    ): Set<ScopedPermissionRegistry.AgentPermission>? =
+        declaredPermissions.takeIf { it.isNotEmpty() }
+            ?: toolPermissionMap[toolName.lowercase()]?.let(::setOf)
 
     /**
      * Non-throwing guard — returns false if denied or rate-limited instead of throwing.
      */
-    fun allows(agentId: String, toolName: String): Boolean {
+    fun allows(
+        agentId: String,
+        toolName: String,
+        declaredPermissions: Set<ScopedPermissionRegistry.AgentPermission> = emptySet()
+    ): Boolean {
         if (!bucketFor(agentId).tryConsume()) return false
-        val permission = toolPermissionMap[toolName.lowercase()] ?: return false
-        return registry.check(agentId, permission)
+        val permissions = resolveRequiredPermissions(toolName, declaredPermissions) ?: return false
+        return permissions.all { registry.check(agentId, it) }
     }
 
     /**

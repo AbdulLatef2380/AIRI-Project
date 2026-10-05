@@ -3,6 +3,7 @@ package com.airi.assistant.ai.skills
 import android.content.Context
 import android.util.Log
 import com.airi.assistant.agent.loop.tool.ToolSchema
+import com.airi.assistant.security.ScopedPermissionRegistry.AgentPermission
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 
@@ -69,7 +70,9 @@ class SkillToolBridge(
         parameters  = skill.parameters.mapValues { (_, desc) ->
             ToolSchema.Param(type = "string", description = desc, required = false)
         },
-        category    = ToolSchema.Category.EXTERNAL
+        dangerous   = skill.dangerous || !isOfficialSkill(skill),
+        category    = ToolSchema.Category.EXTERNAL,
+        requiredPermissions = requiredPermissionsFor(skill, skill.skillId)
     )
 
     private fun toolDefToSchema(skill: AiriSkill, toolDef: SkillToolDefinition): ToolSchema = ToolSchema(
@@ -78,9 +81,50 @@ class SkillToolBridge(
         parameters  = toolDef.parameters.mapValues { (_, p) ->
             ToolSchema.Param(type = p.type, description = p.description, required = p.required)
         },
-        dangerous   = toolDef.dangerous,
-        category    = ToolSchema.Category.EXTERNAL
+        dangerous   = toolDef.dangerous || skill.dangerous || !isOfficialSkill(skill),
+        category    = ToolSchema.Category.EXTERNAL,
+        requiredPermissions = requiredPermissionsFor(skill, toolDef.name)
     )
+
+    private fun isOfficialSkill(skill: AiriSkill): Boolean =
+        OfficialSkillLibrary.manifestFor(skill.skillId) != null
+
+    /**
+     * Every skill exposed to the agent must declare the minimum capability it
+     * needs. New official skills fail closed until this mapping is reviewed.
+     */
+    private fun requiredPermissionsFor(skill: AiriSkill, toolName: String): Set<AgentPermission> {
+        val permission = when (skill.skillId) {
+            "web_search", "website_reader" ->
+                setOf(AgentPermission.SEARCH_WEB)
+            "research_agent" ->
+                setOf(AgentPermission.SEARCH_WEB, AgentPermission.CALL_REMOTE_LLM)
+            "translator", "code_assistant", "task_planner" ->
+                setOf(AgentPermission.CALL_REMOTE_LLM)
+            "memory_manager" -> when (toolName) {
+                "memory_recall" -> setOf(AgentPermission.READ_MEMORY)
+                "memory_save" -> setOf(AgentPermission.WRITE_MEMORY)
+                else -> setOf(AgentPermission.READ_MEMORY, AgentPermission.WRITE_MEMORY)
+            }
+            "document_reader", "file_manager" ->
+                setOf(AgentPermission.READ_FILES)
+            "github_guardian" ->
+                setOf(AgentPermission.CALL_GITHUB_API)
+            "gmail_assistant", "drive_search" ->
+                setOf(AgentPermission.CALL_GOOGLE_API)
+            "calendar_events" ->
+                setOf(AgentPermission.CALL_GOOGLE_API, AgentPermission.READ_CALENDAR)
+            "telegram_messenger" ->
+                setOf(AgentPermission.CALL_TELEGRAM_API)
+            else -> if (isOfficialSkill(skill)) emptySet() else
+                setOf(AgentPermission.EXECUTE_CUSTOM_SKILL)
+        }
+
+        check(permission.isNotEmpty()) {
+            "No execution permissions declared for official skill '${skill.skillId}' tool '$toolName'"
+        }
+        return permission
+    }
 
     // ── Invocation ────────────────────────────────────────────────────────────
 

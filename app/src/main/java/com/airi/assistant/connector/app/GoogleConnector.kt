@@ -84,7 +84,13 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
     }
 
     override suspend fun execute(input: ConnectorInput): ConnectorOutput = withContext(Dispatchers.IO) {
-        val token = googleAuthService.getIdToken()
+        if (input.action == "gmail_send" || input.action == "calendar_create") {
+            return@withContext ConnectorOutput.Failure(
+                code = "scope_not_granted",
+                message = "Gmail sending and calendar creation are unavailable until Google write-scope consent is implemented."
+            )
+        }
+        val token = googleAuthService.getAccessToken()
         if (token.isNullOrBlank()) {
             return@withContext ConnectorOutput.Failure(
                 code    = "auth_required",

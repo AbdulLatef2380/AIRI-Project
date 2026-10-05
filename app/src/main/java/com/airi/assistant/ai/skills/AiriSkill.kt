@@ -55,6 +55,9 @@ interface AiriSkill {
     /** LLM access level. Default: skill does not call the model. */
     val modelAccess: SkillModelAccess get() = SkillModelAccess.NONE
 
+    /** Whether each invocation requires an explicit user approval. */
+    val dangerous: Boolean get() = false
+
     // ── Wiring ────────────────────────────────────────────────────────────────
 
     /** Parameter schema advertised to the model prompt. */

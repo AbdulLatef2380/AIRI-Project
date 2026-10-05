@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 /**
@@ -32,11 +33,24 @@ class ConnectorsViewModel(application: Application) : AndroidViewModel(applicati
     val items: StateFlow<List<ConnectorRow>> = _items.asStateFlow()
 
     init {
-        // Subscribe to registry meta changes; for each connector also
-        // subscribe to its state flow so the row stays live.
+        // Rebuild the state subscriptions when the registry changes, then keep
+        // each visible row synchronized with its connector's live state.
         viewModelScope.launch {
-            registry.meta.collect { metas ->
-                refreshItems(metas)
+            registry.meta.collectLatest { metas ->
+                val entries = metas.mapNotNull { meta ->
+                    registry.get(meta.id)?.let { connector -> meta to connector }
+                }
+                if (entries.isEmpty()) {
+                    _items.value = emptyList()
+                } else {
+                    combine(entries.map { it.second.state() }) { states ->
+                        entries.mapIndexed { index, (meta, _) ->
+                            ConnectorRow(meta = meta, state = states[index])
+                        }
+                    }.collect { rows ->
+                        _items.value = rows
+                    }
+                }
             }
         }
     }

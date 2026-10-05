@@ -1,23 +1,24 @@
 package com.airi.assistant.ai.skills.impl
 
 import android.content.Context
-import com.airi.assistant.ai.intent.ToolCall
+import com.airi.assistant.connector.ConnectorInput
+import com.airi.assistant.connector.ConnectorOutput
 import com.airi.assistant.ai.skills.AiriSkill
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillResult
-import com.airi.assistant.ai.tools.ToolExecutor
 import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.core.ServiceLocator
 
 class TelegramMessengerSkill(private val context: Context) : AiriSkill {
 
     override val name = "telegram_messenger"
     override val description = "Send messages using the connected Telegram bot"
+    override val dangerous = true
     override val parameters: Map<String, String> = mapOf(
         "chat_id" to "Telegram chat ID or username",
         "text"    to "Message text to send"
     )
 
-    private val toolExecutor  = ToolExecutor(context)
     private val secureStorage = SecureStorage(context)
 
     private val exactPhrases = listOf(
@@ -62,10 +63,19 @@ class TelegramMessengerSkill(private val context: Context) : AiriSkill {
             )
         }
 
-        val r = toolExecutor.execute(
-            ToolCall("telegram_send_message", mapOf("chat_id" to chatId, "text" to text))
+        val output = ServiceLocator.connectorRuntimeManager.execute(
+            connectorId = "telegram",
+            input = ConnectorInput(
+                action = "send_message",
+                text = text,
+                params = mapOf("chat_id" to chatId)
+            )
         )
-        return SkillResult(r.success, r.data, r.error)
+        return when (output) {
+            is ConnectorOutput.Success -> SkillResult(true, output.text)
+            is ConnectorOutput.Failure -> SkillResult(false, "", output.message)
+            is ConnectorOutput.Streaming -> SkillResult(false, "", "Streaming output is not supported for Telegram.")
+        }
     }
 
     private fun inferChatId(input: String, context: SkillContext?): String? {

@@ -45,7 +45,8 @@ class GitHubConnector(private val authManager: ConnectorAuthManager) : Connector
         try {
             val t0 = System.currentTimeMillis()
             val result = when (input.action) {
-                "list_repos"   -> listRepos(token)
+                "get_user"     -> getUser(token)
+                "list_repos"   -> listRepos(token, input.params["limit"]?.toIntOrNull() ?: 10)
                 "list_issues"  -> listIssues(token, input.params["repo"] ?: return@withContext ConnectorOutput.Failure("missing_param", "repo required"))
                 "create_issue" -> createIssue(token, input.params["repo"] ?: return@withContext ConnectorOutput.Failure("missing_param", "repo required"), input.text, input.params["body"] ?: "")
                 "search_code"  -> searchCode(token, input.text, input.params["repo"])
@@ -56,14 +57,28 @@ class GitHubConnector(private val authManager: ConnectorAuthManager) : Connector
             }
             AgentActivityBus.emit("GitHub: ${input.action}", ActivityCategory.CONNECTOR)
             ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
-        } catch (e: Exception) { ConnectorOutput.Failure("api_error", e.message ?: "Error", retryable = true) }
+        } catch (e: Exception) {
+            ConnectorOutput.Failure(
+                "api_error",
+                e.message ?: "Error",
+                retryable = input.action != "create_issue"
+            )
+        }
     }
 
-    private fun listRepos(token: String): String {
-        val all = apiGetAllPages("/user/repos?sort=updated&per_page=100", token, maxPages = 5)
+    private fun getUser(token: String): String {
+        val user = apiGet("/user", token)
+        val login = user.optString("login", "unknown")
+        val name = user.optString("name").takeIf { it.isNotBlank() } ?: login
+        return "GitHub profile: $name (@$login), public repositories: ${user.optInt("public_repos")}"
+    }
+
+    private fun listRepos(token: String, requestedLimit: Int): String {
+        val limit = requestedLimit.coerceIn(1, 100)
+        val all = apiGetAllPages("/user/repos?sort=updated&per_page=$limit", token, maxPages = 1)
         return buildString {
-            appendLine("Repos (${all.length()}):")
-            for (i in 0 until all.length()) {
+            appendLine("Repos (${minOf(all.length(), limit)}):")
+            for (i in 0 until minOf(all.length(), limit)) {
                 val r = all.getJSONObject(i)
                 appendLine("• ${r.getString("full_name")} [${r.optString("language","?")}]")
             }

@@ -99,6 +99,8 @@ Do not mix tool_call JSON with prose in the same message.
      *                       [ExecutionRequest] so [OpenRouterAdapter.selectModel] can apply
      *                       task-based model routing (ANALYTICAL → DeepSeek R1, etc.).
      * @param onToken        Called with each streaming token (for live UI updates).
+     * @param onDangerousTool Called before any tool marked dangerous. Must return
+     *                       true to continue; the default denies the action.
      * @param onStepComplete Called after each completed step (tool execution or partial answer).
      *                       Return a non-null String to REPLACE the tool result that the LLM sees.
      *                       This is used by ChatViewModel to inject a user confirmation decision
@@ -110,6 +112,7 @@ Do not mix tool_call JSON with prose in the same message.
         tools:          List<ToolSchema>,
         queryType:      QueryType              = QueryType.UNKNOWN,
         onToken:        suspend (String) -> Unit,
+        onDangerousTool: suspend (ToolSchema, Map<String, String>) -> Boolean = { _, _ -> false },
         onStepComplete: suspend (StepEvent) -> String? = { null }
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
@@ -209,6 +212,7 @@ Do not mix tool_call JSON with prose in the same message.
                 // Execute the tool
                 val toolName = toolCall.first
                 val toolArgs = toolCall.second
+                val toolSchema = tools.firstOrNull { it.name == toolName }
                 toolsInvoked.add(toolName)
 
                 Log.i(TAG, "AIRI TOOL_CALL step=$stepsUsed tool=$toolName args=${toolArgs.keys.joinToString()}")
@@ -220,18 +224,24 @@ Do not mix tool_call JSON with prose in the same message.
                 // NOT the tool name. Using the tool name caused permission checks to
                 // run against unknown principals, broadly denying legitimate calls.
                 val toolResult = try {
-                    if (agentSandbox != null) {
-                        agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
-                            // Per-tool authorization: guard() throws
-                            // ScopedPermissionRegistry.PermissionDeniedException
-                            // (caught by the sandbox and re-thrown as
-                            // SandboxViolationException) if the firewall
-                            // has not allowed this tool for "agent_loop".
-                            ctx.guardTool(toolName)
-                            dispatcher.execute(toolName, toolArgs, appContext)
+                    when {
+                        toolSchema == null -> ToolDispatcher.ToolResult.Error(
+                            "Tool '$toolName' is not available in this session."
+                        )
+                        toolSchema.dangerous && !onDangerousTool(toolSchema, toolArgs) ->
+                            ToolDispatcher.ToolResult.Error("User did not approve '$toolName'.")
+                        agentSandbox != null -> {
+                            agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
+                                // Per-tool authorization: guard() throws
+                                // ScopedPermissionRegistry.PermissionDeniedException
+                                // (caught by the sandbox and re-thrown as
+                                // SandboxViolationException) if the firewall
+                                // has not allowed this tool for "agent_loop".
+                                ctx.guardTool(toolName, toolSchema.requiredPermissions)
+                                dispatcher.execute(toolName, toolArgs, appContext)
+                            }
                         }
-                    } else {
-                        dispatcher.execute(toolName, toolArgs, appContext)
+                        else -> dispatcher.execute(toolName, toolArgs, appContext)
                     }
                 } catch (e: CancellationException) {
                     throw e

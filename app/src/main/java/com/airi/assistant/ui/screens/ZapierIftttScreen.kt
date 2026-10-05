@@ -291,6 +291,7 @@ private fun IftttTab(
     var eventName      by remember { mutableStateOf("") }
     var value1         by remember { mutableStateOf("") }
     var triggerResult  by remember { mutableStateOf<String?>(null) }
+    var keySaveResult  by remember { mutableStateOf<String?>(null) }
     var isTesting      by remember { mutableStateOf(false) }
 
     LazyColumn(
@@ -338,8 +339,11 @@ private fun IftttTab(
                     Button(
                         onClick = {
                             scope.launch {
-                                connector.setKey(webhookKey.trim())
-                                connector.connect()
+                                val result = connector.setKey(webhookKey.trim())
+                                keySaveResult = result
+                                if (result.startsWith("IFTTT Maker Webhook key saved")) {
+                                    connector.connect()
+                                }
                             }
                         },
                         enabled = webhookKey.isNotBlank(),
@@ -348,6 +352,9 @@ private fun IftttTab(
                         Icon(Icons.Default.Save, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.ifttt_save_key))
+                    }
+                    keySaveResult?.let { result ->
+                        Text(result, fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
                     }
                 }
             }

@@ -31,11 +31,13 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
         val key = "${connectorId}::${input.action}_${System.currentTimeMillis()}"
         trackStart(key, InflightAction(connectorId, input.action))
         AgentActivityBus.emit("Executing '$connectorId' → ${input.action}", ActivityCategory.CONNECTOR)
+        val nonIdempotent = isNonIdempotentAction(connectorId, input.action)
+        val retries = if (nonIdempotent) 0 else maxRetries
         return try {
-            withTimeout(timeoutMs) { ensureConnected(connector); executeWithRetry(connector, input, maxRetries) }
+            withTimeout(timeoutMs) { ensureConnected(connector); executeWithRetry(connector, input, retries) }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             AgentActivityBus.emit("'$connectorId' timed out after ${timeoutMs}ms", ActivityCategory.CONNECTOR, ActivitySeverity.WARN)
-            ConnectorOutput.Failure("timeout", "Timed out after ${timeoutMs}ms", retryable = true)
+            ConnectorOutput.Failure("timeout", "Timed out after ${timeoutMs}ms", retryable = !nonIdempotent)
         } catch (e: Exception) {
             ConnectorOutput.Failure("runtime_error", e.message ?: "Unknown error")
         } finally { trackEnd(key) }
@@ -54,10 +56,31 @@ class ConnectorRuntimeManager(private val registry: ConnectorRegistry) {
         if (!connector.state().value.connected) connector.connect()
     }
 
+    /** Avoid duplicate external writes when the server acted but the response was lost. */
+    private fun isNonIdempotentAction(connectorId: String, action: String): Boolean =
+        when (connectorId to action) {
+            "telegram" to "send_message",
+            "github" to "create_issue",
+            "google" to "gmail_send",
+            "google" to "calendar_create",
+            "ifttt" to "trigger_event",
+            "ifttt" to "trigger_applet" -> true
+            else -> false
+        }
+
     private suspend fun executeWithRetry(connector: Connector, input: ConnectorInput, maxRetries: Int): ConnectorOutput {
         var last: ConnectorOutput = ConnectorOutput.Failure("not_started", "Never executed")
         for (attempt in 0..maxRetries) {
-            last = runCatching { connector.execute(input) }.getOrElse { e -> ConnectorOutput.Failure("exception", e.message ?: "Exception", retryable = true) }
+            last = runCatching { connector.execute(input) }.getOrElse { e ->
+                ConnectorOutput.Failure(
+                    "exception",
+                    e.message ?: "Exception",
+                    retryable = !isNonIdempotentAction(connector.id, input.action)
+                )
+            }
+            if (isNonIdempotentAction(connector.id, input.action) && last is ConnectorOutput.Failure && last.retryable) {
+                last = last.copy(retryable = false)
+            }
             when {
                 last is ConnectorOutput.Success   -> { AgentActivityBus.emit(" '${connector.id}' ${input.action}", ActivityCategory.CONNECTOR); return last }
                 last is ConnectorOutput.Streaming -> return last

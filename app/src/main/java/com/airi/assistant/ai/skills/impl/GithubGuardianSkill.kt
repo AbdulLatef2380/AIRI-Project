@@ -1,12 +1,13 @@
 package com.airi.assistant.ai.skills.impl
 
 import android.content.Context
-import com.airi.assistant.ai.intent.ToolCall
+import com.airi.assistant.connector.ConnectorInput
+import com.airi.assistant.connector.ConnectorOutput
 import com.airi.assistant.ai.skills.AiriSkill
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillResult
-import com.airi.assistant.ai.tools.ToolExecutor
 import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.core.ServiceLocator
 
 class GithubGuardianSkill(private val context: Context) : AiriSkill {
 
@@ -17,7 +18,6 @@ class GithubGuardianSkill(private val context: Context) : AiriSkill {
         "limit"  to "number of repos to return (optional, default 10)"
     )
 
-    private val toolExecutor  = ToolExecutor(context)
     private val secureStorage = SecureStorage(context)
 
     private val exactPhrases = listOf(
@@ -53,15 +53,25 @@ class GithubGuardianSkill(private val context: Context) : AiriSkill {
 
         return when (action) {
             "get_repos" -> {
-                val limit = (params["limit"] as? String)?.toIntOrNull() ?: 10
-                val r = toolExecutor.execute(ToolCall("github_get_repos", mapOf("limit" to limit.toString())))
-                SkillResult(r.success, r.data, r.error)
+                val limit = ((params["limit"] as? String)?.toIntOrNull() ?: 10).coerceIn(1, 100)
+                ServiceLocator.connectorRuntimeManager.execute(
+                    connectorId = "github",
+                    input = ConnectorInput(action = "list_repos", params = mapOf("limit" to limit.toString()))
+                ).toSkillResult()
             }
             else -> {
-                val r = toolExecutor.execute(ToolCall("github_get_user", emptyMap()))
-                SkillResult(r.success, r.data, r.error)
+                ServiceLocator.connectorRuntimeManager.execute(
+                    connectorId = "github",
+                    input = ConnectorInput(action = "get_user")
+                ).toSkillResult()
             }
         }
+    }
+
+    private fun ConnectorOutput.toSkillResult(): SkillResult = when (this) {
+        is ConnectorOutput.Success -> SkillResult(true, text)
+        is ConnectorOutput.Failure -> SkillResult(false, "", message)
+        is ConnectorOutput.Streaming -> SkillResult(false, "", "Streaming output is not supported for GitHub.")
     }
 
     private fun detectAction(input: String, context: SkillContext?): String {

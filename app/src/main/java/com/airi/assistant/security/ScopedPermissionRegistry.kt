@@ -52,6 +52,9 @@ class ScopedPermissionRegistry {
         CALL_REMOTE_LLM,
         CALL_GITHUB_API,
         CALL_TELEGRAM_API,
+        CALL_GOOGLE_API,
+        EXECUTE_CUSTOM_SKILL,
+        REQUEST_CONFIRMATION,
 
         // Sensitive
         READ_LOCATION,
@@ -76,23 +79,18 @@ class ScopedPermissionRegistry {
         grant("productivity_agent", AgentPermission.READ_CALENDAR, AgentPermission.WRITE_CALENDAR, AgentPermission.SET_ALARM, AgentPermission.WRITE_NOTES, AgentPermission.POST_NOTIFICATIONS)
         grant("memory_agent",       AgentPermission.READ_MEMORY, AgentPermission.WRITE_MEMORY)
 
-        // AP-SS: The main agent-loop principal. It orchestrates all user-requested
-        // tool calls and must be granted the full tool permission surface —
-        // individual tools are still rate-limited and firewall-checked; this grant
-        // sets the maximum capability ceiling, not a blanket bypass.
+        // Main agent-loop ceiling: only capabilities used by schemas exposed in
+        // AgentLoop are granted. Each invocation is still mapped and checked by
+        // the firewall; unadvertised tool names are rejected before dispatch.
         grant("agent_loop",
+            AgentPermission.ACCESSIBILITY_ACTIONS, AgentPermission.TRIGGER_INTENT,
             AgentPermission.READ_CALENDAR,   AgentPermission.WRITE_CALENDAR,
-            AgentPermission.READ_CONTACTS,   AgentPermission.READ_NOTIFICATIONS,
-            AgentPermission.POST_NOTIFICATIONS,
-            AgentPermission.SET_ALARM,       AgentPermission.OPEN_BROWSER,
-            AgentPermission.TRIGGER_INTENT,  AgentPermission.ACCESSIBILITY_ACTIONS,
+            AgentPermission.SET_ALARM,       AgentPermission.WRITE_NOTES,
             AgentPermission.READ_MEMORY,     AgentPermission.WRITE_MEMORY,
-            AgentPermission.READ_FILES,      AgentPermission.WRITE_FILES,
-            AgentPermission.SEARCH_WEB,      AgentPermission.CALL_REMOTE_LLM,
-            AgentPermission.CALL_GITHUB_API, AgentPermission.CALL_TELEGRAM_API,
-            AgentPermission.READ_LOCATION,   AgentPermission.READ_MICROPHONE,
-            AgentPermission.MANAGE_SKILLS,   AgentPermission.CLOUD_SYNC,
-            AgentPermission.SPAWN_SUBAGENT,  AgentPermission.WRITE_NOTES
+            AgentPermission.READ_FILES,      AgentPermission.SEARCH_WEB,
+            AgentPermission.CALL_REMOTE_LLM, AgentPermission.CALL_GITHUB_API,
+            AgentPermission.CALL_TELEGRAM_API, AgentPermission.CALL_GOOGLE_API,
+            AgentPermission.EXECUTE_CUSTOM_SKILL, AgentPermission.REQUEST_CONFIRMATION
         )
 
         LoggingService.info(TAG, "AIRI PERMISSION_DEFAULTS_INSTALLED agents=${grants.keys}")

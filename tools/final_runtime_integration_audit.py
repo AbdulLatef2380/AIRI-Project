@@ -44,6 +44,7 @@ request = read("app/src/main/java/com/airi/assistant/execution/ExecutionRequest.
 builtins = read("app/src/main/java/com/airi/assistant/agent/loop/tool/ToolSchema.kt")
 rollout = read("app/src/main/java/com/airi/assistant/connector/ConnectorRolloutRegistry.kt")
 auth_manager = read("app/src/main/java/com/airi/assistant/connector/ConnectorAuthorizationManager.kt")
+auth_strategy = read("app/src/main/java/com/airi/assistant/connector/ConnectorAuthStrategy.kt")
 microsoft_config = read("app/src/main/java/com/airi/assistant/connector/oauth/OAuthConfiguration.kt")
 microsoft_adapter = read("app/src/main/java/com/airi/assistant/connector/app/MicrosoftGraphConnector.kt")
 microsoft_tokens = read("app/src/main/java/com/airi/assistant/connector/app/MicrosoftGraphTokenService.kt")
@@ -132,7 +133,7 @@ check("Google data consent requests only scopes for explicitly allowed actions",
 
 check("Zapier actions use provider grants and no legacy direct consent path", [
     ("Zapier OAuth URL takes explicit scopes", "buildAuthUrl(requestedScopes: Set<String>)" in zapier_adapter),
-    ("Zapier OAuth scopes are bound to PKCE state", "issuePkce(id, requestedScopes)" in zapier_adapter),
+    ("Zapier OAuth uses the documented confidential server-side broker contract", "OAUTH2_CONFIDENTIAL" in auth_strategy and "CLIENT_TYPE = \"CONFIDENTIAL_SERVER_SIDE\"" in zapier_adapter and "server-side OAuth broker" in zapier_adapter),
     ("legacy browser entry uses the profile-aware manager", 'connectorAuthorizationManager.begin("zapier")' in zapier_screen and "connector.buildAuthUrl()" not in zapier_screen),
     ("unconfigured REST Hook trigger is not exposed to the agent", '"trigger_zap"' not in zapier_adapter.split("override fun agentActions()", 1)[1].split("fun isOAuthConfigured", 1)[0] and "trusted REST Hook URL is securely configured" in zapier_adapter),
     ("unimplemented pause/resume actions are rejected", "not implemented by this adapter" in zapier_adapter and '"pause_zap"' not in zapier_adapter.split("override fun agentActions()", 1)[1].split("fun isOAuthConfigured", 1)[0]),

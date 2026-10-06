@@ -51,4 +51,15 @@ class ConnectorRolloutRegistryTest {
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("google_tasks")!!.readiness)
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("microsoft_todo")!!.readiness)
     }
+
+    @Test
+    fun token_read_only_batch_is_live_and_authorizable() {
+        val ids = listOf("gitlab", "linear", "slack", "discord", "asana", "todoist", "figma")
+        ids.forEach { id ->
+            val entry = ConnectorRolloutRegistry.get(id)!!
+            assertEquals(ConnectorAdapterReadiness.LIVE, entry.readiness)
+            assertTrue(entry.canStartAuthorization)
+            assertTrue(entry.requiredAdapter.isNotBlank())
+        }
+    }
 }

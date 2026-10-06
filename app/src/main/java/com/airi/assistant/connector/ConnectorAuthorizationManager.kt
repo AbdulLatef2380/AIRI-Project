@@ -5,6 +5,7 @@ import com.airi.assistant.auth.SecureStorage
 import com.airi.assistant.connector.app.GitHubConnector
 import com.airi.assistant.connector.app.GoogleConnector
 import com.airi.assistant.connector.app.MicrosoftGraphConnector
+import com.airi.assistant.connector.app.ProviderTokenConnector
 import com.airi.assistant.connector.app.ZapierConnector
 import com.airi.assistant.connector.mcp.NotionMcpConnector
 import com.airi.assistant.connector.mcp.saveNotionToken
@@ -110,6 +111,10 @@ class ConnectorAuthorizationManager(
             "github" -> StartResult.CredentialRequired(runtimeId, "GitHub personal access token", "GitHub")
             "telegram" -> StartResult.CredentialRequired(runtimeId, "Telegram bot token", "Telegram")
             "notion_mcp" -> StartResult.CredentialRequired(runtimeId, "Notion integration token", "Notion")
+            in ProviderTokenConnector.configs().map { it.id } -> {
+                val config = ProviderTokenConnector.configs().first { it.id == runtimeId }
+                StartResult.CredentialRequired(runtimeId, config.credentialLabel, config.provider)
+            }
             else -> connectAndVerify(runtimeId).let { state ->
                 if (state.connected && state.healthy) {
                     StartResult.Ready(runtimeId, state)
@@ -190,6 +195,14 @@ class ConnectorAuthorizationManager(
                 if (!secureStorage.isEncrypted) Result.failure(IllegalStateException("Secure credential storage is unavailable"))
                 else runCatching { secureStorage.saveNotionToken(credential.trim()); true }
             }
+            in ProviderTokenConnector.configs().map { it.id } -> {
+                if (!authManager.storeCredential(runtimeId, "token", credential.trim())) {
+                    Result.failure(IllegalStateException("Secure credential storage is unavailable"))
+                } else {
+                    authManager.setExplicitlyDisconnected(runtimeId, false)
+                    Result.success(true)
+                }
+            }
             else -> Result.failure(IllegalArgumentException("Connector '$id' does not accept a credential form"))
         }
         validated.fold(
@@ -200,6 +213,9 @@ class ConnectorAuthorizationManager(
                         "secure_storage_unavailable",
                         "Secure credential storage is unavailable; GitHub was not connected."
                     )
+                }
+                if (runtimeId in ProviderTokenConnector.configs().map { it.id }) {
+                    authManager.setExplicitlyDisconnected(runtimeId, false)
                 }
                 val state = registry.connect(runtimeId)
                 if (state.connected && state.healthy) CompletionResult.Ready(runtimeId, state)

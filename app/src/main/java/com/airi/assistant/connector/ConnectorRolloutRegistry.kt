@@ -51,7 +51,7 @@ object ConnectorRolloutRegistry {
     private val liveCatalogIds = setOf(
         "google_gmail", "google_calendar", "google_drive", "google_docs", "google_sheets", "google_contacts", "google_tasks",
         "microsoft_outlook", "microsoft_calendar", "microsoft_onedrive", "microsoft_teams", "microsoft_todo",
-        "github", "telegram", "notion", "zapier",
+        "github", "telegram", "notion", "zapier", "gitlab", "linear", "slack", "discord", "asana", "todoist", "figma",
     )
 
     /** Non-catalog runtimes are evaluated independently from catalog readiness. */

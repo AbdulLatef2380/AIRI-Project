@@ -45,6 +45,13 @@ class ConnectorAuthStrategyTest {
             "microsoft_teams" to ConnectorAuthMode.OAUTH2_PKCE,
             "microsoft_todo" to ConnectorAuthMode.OAUTH2_PKCE,
             "zapier" to ConnectorAuthMode.OAUTH2_PKCE,
+            "gitlab" to ConnectorAuthMode.PERSONAL_ACCESS_TOKEN,
+            "linear" to ConnectorAuthMode.API_KEY,
+            "slack" to ConnectorAuthMode.API_KEY,
+            "discord" to ConnectorAuthMode.API_KEY,
+            "asana" to ConnectorAuthMode.PERSONAL_ACCESS_TOKEN,
+            "todoist" to ConnectorAuthMode.API_KEY,
+            "figma" to ConnectorAuthMode.PERSONAL_ACCESS_TOKEN,
         )
         expected.forEach { (id, mode) ->
             val strategy = ConnectorAuthStrategies.forMeta(

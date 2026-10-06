@@ -134,6 +134,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                     "github" -> openGithubDialog()
                     "telegram" -> openTelegramDialog()
                     "notion_mcp" -> openNotionDialog()
+                    else -> openProviderTokenDialog(result.connectorId, result.provider, result.label)
                 }
                 is ConnectorAuthorizationManager.StartResult.GoogleIdentity -> {
                     _googleAuthorizationEffects.tryEmit(
@@ -234,6 +235,14 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
             val loading: Boolean = false,
             val error: String? = null
         ) : DialogState()
+        data class ProviderToken(
+            val connectorId: String,
+            val provider: String,
+            val credentialLabel: String,
+            val token: String = "",
+            val loading: Boolean = false,
+            val error: String? = null,
+        ) : DialogState()
     }
 
     private val _dialog = MutableStateFlow<DialogState>(DialogState.None)
@@ -242,6 +251,9 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     fun openGithubDialog()   { _dialog.value = DialogState.Github() }
     fun openTelegramDialog() { _dialog.value = DialogState.Telegram() }
     fun openNotionDialog() { _dialog.value = DialogState.Notion() }
+    fun openProviderTokenDialog(connectorId: String, provider: String, credentialLabel: String) {
+        _dialog.value = DialogState.ProviderToken(connectorId, provider, credentialLabel)
+    }
     fun closeDialog()        { _dialog.value = DialogState.None }
 
     fun updateGithubToken(token: String) {
@@ -257,6 +269,34 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     fun updateNotionToken(token: String) {
         val current = _dialog.value as? DialogState.Notion ?: return
         _dialog.value = current.copy(token = token, error = null)
+    }
+
+    fun updateProviderToken(token: String) {
+        val current = _dialog.value as? DialogState.ProviderToken ?: return
+        _dialog.value = current.copy(token = token, error = null)
+    }
+
+    fun connectProviderToken() {
+        val current = _dialog.value as? DialogState.ProviderToken ?: return
+        if (current.token.isBlank()) {
+            _dialog.value = current.copy(error = "Enter the ${current.credentialLabel}")
+            return
+        }
+        _dialog.value = current.copy(loading = true, error = null)
+        viewModelScope.launch {
+            when (val result = authorizationManager.submitCredential(current.connectorId, current.token)) {
+                is ConnectorAuthorizationManager.CompletionResult.Ready -> {
+                    _dialog.value = DialogState.None
+                    refresh()
+                }
+                is ConnectorAuthorizationManager.CompletionResult.Failed -> {
+                    _dialog.value = current.copy(loading = false, error = result.message)
+                }
+                is ConnectorAuthorizationManager.CompletionResult.ConsentRequired -> {
+                    _dialog.value = current.copy(loading = false, error = "Additional authorization is required")
+                }
+            }
+        }
     }
 
     // ── Google Sign-In Intent ─────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import com.airi.assistant.connector.app.GitHubConnector
 import com.airi.assistant.connector.app.GoogleConnector
 import com.airi.assistant.connector.app.IftttConnector
 import com.airi.assistant.connector.app.MicrosoftGraphConnector
+import com.airi.assistant.connector.app.ProviderTokenConnector
 import com.airi.assistant.connector.app.TelegramConnector
 import com.airi.assistant.connector.app.ZapierConnector
 import com.airi.assistant.connector.local.AndroidIntentConnector
@@ -99,5 +100,9 @@ object ConnectorBootstrap {
         // Microsoft Outlook/Calendar vertical slice. It remains disconnected
         // until an Entra public client id and exact redirect are configured.
         registry.register(MicrosoftGraphConnector(authManager))
+        // Seven read-only provider adapters with isolated encrypted token slots.
+        ProviderTokenConnector.configs().forEach { config ->
+            registry.register(ProviderTokenConnector(config, authManager))
+        }
     }
 }

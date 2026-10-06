@@ -97,6 +97,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private val providerTokenConnectorIds = setOf("gitlab", "linear", "slack", "discord", "asana", "todoist", "figma")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IntegrationsScreen(
@@ -162,6 +164,7 @@ fun IntegrationsScreen(
             "notion", "notion_mcp" -> vm.openNotionDialog()
             "zapier" -> vm.beginConnectorAuthorization("zapier")
             "microsoft_graph" -> vm.beginConnectorAuthorization("microsoft_graph")
+            in providerTokenConnectorIds -> initialConnectorId?.let(vm::beginConnectorAuthorization)
             "google_docs", "google_sheets", "google_contacts", "google_tasks", "google" -> when (
                 IntegrationReadinessPolicy.googleConnectionAction(
                     items.firstOrNull { it.id == "google" }?.readiness
@@ -237,6 +240,7 @@ fun IntegrationsScreen(
                             "notion", "notion_mcp" -> vm.openNotionDialog()
                             "zapier" -> vm.beginConnectorAuthorization("zapier")
                             "microsoft_graph" -> vm.beginConnectorAuthorization("microsoft_graph")
+                            in providerTokenConnectorIds -> vm.beginConnectorAuthorization(item.id)
                             "google_docs", "google_sheets", "google_contacts", "google_tasks", "google" -> when (
                                 IntegrationReadinessPolicy.googleConnectionAction(item.readiness)
                             ) {
@@ -309,6 +313,27 @@ fun IntegrationsScreen(
             onTokenChange = { vm.updateNotionToken(it) },
             onConfirm = { vm.connectNotion() },
             onDismiss = { vm.closeDialog() }
+        )
+    }
+    if (dialog is IntegrationsViewModel.DialogState.ProviderToken) {
+        val state = dialog as IntegrationsViewModel.DialogState.ProviderToken
+        TokenDialog(
+            title = "Connect ${state.provider}",
+            emoji = "",
+            steps = listOf(
+                "Create the provider credential in the official ${state.provider} settings",
+                "Grant read-only access where the provider supports granular scopes",
+                "Paste the credential only into this encrypted AIRI form",
+                "AIRI will verify the provider identity before enabling read tools",
+            ),
+            inputLabel = state.credentialLabel,
+            inputHint = "Paste credential",
+            token = state.token,
+            loading = state.loading,
+            error = state.error,
+            onTokenChange = vm::updateProviderToken,
+            onConfirm = vm::connectProviderToken,
+            onDismiss = vm::closeDialog,
         )
     }
     accessProfileRequest?.let { request ->

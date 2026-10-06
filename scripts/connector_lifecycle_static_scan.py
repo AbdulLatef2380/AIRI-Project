@@ -48,11 +48,13 @@ check("no GlobalScope", not any("GlobalScope" in value for value in text.values(
 # it through the registry. Keep the guard semantic rather than tied to one local
 # variable name.
 connects_via_registry = re.search(r"registry\.connect\((?:id|runtimeId|meta\.runtimeId)\)", text["connectors_vm"])
+central_disconnect = "connectorAuthorizationManager.disconnect(runtimeId)" in text["connectors_vm"]
 disconnects_via_registry = re.search(r"registry\.disconnect\((?:id|runtimeId|meta\.runtimeId)\)", text["connectors_vm"])
-check("UI routes lifecycle through registry", connects_via_registry and disconnects_via_registry,
-      "ConnectorsViewModel routes the resolved runtime connector through Registry")
-check("integration disconnect is suspend-safe", "else -> viewModelScope.launch" in text["integrations_vm"],
-      "credential cleanup runs in coroutine after connector disconnect")
+check("UI routes lifecycle through registry", connects_via_registry and (disconnects_via_registry or central_disconnect),
+      "ConnectorsViewModel routes lifecycle through the central authorization manager or Registry")
+integration_disconnect_async = "viewModelScope.launch" in text["integrations_vm"] and "authorizationManager.disconnect(id)" in text["integrations_vm"]
+check("integration disconnect is suspend-safe", integration_disconnect_async,
+      "credential cleanup runs in a coroutine through the central authorization manager")
 direct_bypass = re.findall(r"\bconnector\.(connect|disconnect)\s*\(", text["zapier_screen"] + text["connectors_vm"] + text["integrations_vm"])
 check("no UI direct lifecycle bypass", not direct_bypass,
       "UI lifecycle actions route through ConnectorRegistry")

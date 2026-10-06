@@ -11,28 +11,28 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
-import okhttp3.FormBody
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * ZapierConnector — integrates AIRI with Zapier's REST Hooks and Trigger/Action
- * APIs via OAuth 2.0.
+ * ZapierConnector — read-only Powered by Zapier / Workflow API contract.
+ * The OAuth exchange is intentionally not implemented in Android: Zapier's
+ * official user-token flow is confidential and requires a server-held secret.
  *
  * ── AUTHENTICATION FLOW ──────────────────────────────────────────────────────
- * OAuth 2.0 Authorization Code flow:
- *   1. [buildAuthUrl] generates the authorization URL with a CSRF state token
- *      issued by [OAuthStateRegistry].
- *   2. The host Activity opens a Custom Tab / browser with that URL.
- *   3. Zapier redirects to `airi://oauth/callback?code=...&state=...`
- *   4. [handleCallback] validates state, exchanges the code for tokens,
- *      and stores them in [authManager].
- *   5. [connect] reads the stored token and verifies the API connection.
+ * Official mismatch analysis (verified against Zapier docs on 2026-10-06):
+ *   Product/Flow: Powered by Zapier / Workflow API (not REST Hooks)
+ *   Authorize: https://api.zapier.com/v2/authorize
+ *   Token: https://zapier.com/oauth/token/
+ *   Client: confidential; client secret must stay server-side
+ *   PKCE: not the documented user-access-token exchange for this flow
+ *   Scope: `zap` for integration-owned Zaps
+ *   Read endpoint: GET https://api.zapier.com/v2/zaps
+ *   Refresh: server-side refresh-token rotation
+ *   Revoke: provider support must be confirmed before claiming it
+ *   `code_verifier`: deliberately not accepted or stored; this is not a local PKCE exchange
  *
  * ── SUPPORTED ACTIONS ────────────────────────────────────────────────────────
  *  - `list_zaps`         — list Zaps visible to the authorized integration
@@ -51,13 +51,12 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
     companion object {
         private const val TAG           = "ZapierConnector"
         const val  CONNECTOR_ID         = "zapier"
-        private const val BASE_URL      = "https://api.zapier.com/v1"
-        private const val AUTH_URL      = "https://zapier.com/oauth/authorize"
-        private const val TOKEN_URL     = "https://zapier.com/oauth/token"
-        // NOTE: In production, CLIENT_ID/SECRET come from BuildConfig / secret backend.
-        // These placeholders are replaced at build time via manifestPlaceholders.
-        private const val CLIENT_ID     = "ZAPIER_CLIENT_ID_PLACEHOLDER"
-        private const val REDIRECT_URI  = "airi://oauth/callback"
+        const val PRODUCT_FLOW = "Powered by Zapier / Workflow API"
+        const val AUTHORIZE_URL = "https://api.zapier.com/v2/authorize"
+        const val TOKEN_URL = "https://zapier.com/oauth/token/"
+        const val API_BASE_URL = "https://api.zapier.com/v2"
+        const val CLIENT_TYPE = "CONFIDENTIAL_SERVER_SIDE"
+        const val REQUIRED_SCOPE = ConnectorProviderScopes.ZAPIER_ZAP_READ
     }
 
     override val id          = CONNECTOR_ID
@@ -94,9 +93,7 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
         ConnectorAgentAction("status", "Return the current Zapier connection status."),
     )
 
-    fun isOAuthConfigured(): Boolean =
-        ReleaseScopePolicy.externalAutomationIntegrationsEnabled &&
-            CLIENT_ID != "ZAPIER_CLIENT_ID_PLACEHOLDER"
+    fun isOAuthConfigured(): Boolean = false
 
     // ── Auth URL ──────────────────────────────────────────────────────────────
 
@@ -106,21 +103,13 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
      * stored in [OAuthStateRegistry] and will be validated in [handleCallback].
      */
     fun buildAuthUrl(requestedScopes: Set<String>): String {
-        check(isOAuthConfigured()) { "Zapier OAuth client ID is not configured" }
-        require(requestedScopes == setOf(ConnectorProviderScopes.ZAPIER_ZAP_READ)) {
-            "Zapier authorization accepts only the declared zap scope for currently implemented OAuth actions"
+        if (!ReleaseScopePolicy.externalAutomationIntegrationsEnabled) {
+            error("External automation integrations are unavailable in this release")
         }
-        val authorization = OAuthStateRegistry.issuePkce(id, requestedScopes)
-        return buildString {
-            append(AUTH_URL)
-            append("?response_type=code")
-            append("&client_id=$CLIENT_ID")
-            append("&redirect_uri=${java.net.URLEncoder.encode(REDIRECT_URI, "UTF-8")}")
-            append("&scope=${java.net.URLEncoder.encode(requestedScopes.sorted().joinToString(" "), "UTF-8")}")
-            append("&state=${authorization.state}")
-            append("&code_challenge=${authorization.codeChallenge}")
-            append("&code_challenge_method=S256")
+        require(requestedScopes == setOf(REQUIRED_SCOPE)) {
+            "Zapier authorization accepts only the declared zap scope for the read-only action"
         }
+        error("Zapier requires a server-side OAuth broker; client credentials must never be shipped in Android")
     }
 
     /**
@@ -148,50 +137,8 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
         code: String,
         requestContext: OAuthStateRegistry.ConsumedRequest
     ): Boolean = withContext(Dispatchers.IO) {
-        if (!ReleaseScopePolicy.externalAutomationIntegrationsEnabled) return@withContext false
-        if (requestContext.connectorId != id || requestContext.codeVerifier.isNullOrBlank()) {
-            Log.w(TAG, "Rejected OAuth callback with invalid request context")
-            return@withContext false
-        }
-
-        try {
-            val body = FormBody.Builder()
-                .add("grant_type",   "authorization_code")
-                .add("code",         code)
-                .add("redirect_uri", REDIRECT_URI)
-                .add("client_id", CLIENT_ID)
-                .add("code_verifier", requestContext.codeVerifier)
-                .build()
-
-            val request = Request.Builder().url(TOKEN_URL).post(body).build()
-            val response = client.newCall(request).execute()
-            val json = JSONObject(response.body?.string() ?: "{}")
-
-            val accessToken  = json.optString("access_token")
-            val refreshToken = json.optString("refresh_token")
-            val expiresIn    = json.optLong("expires_in", 3600L)
-            val expiresAt    = System.currentTimeMillis() + expiresIn * 1000L
-
-            if (accessToken.isBlank()) {
-                Log.w(TAG, "Token exchange returned empty access_token")
-                return@withContext false
-            }
-
-            if (!authManager.storeToken(id, accessToken, refreshToken.ifBlank { null }, expiresAt)) {
-                _state.value = ConnectorState(
-                    connected = false,
-                    statusLine = "Secure credential storage is unavailable",
-                    errorMessage = "Zapier authorization was not saved."
-                )
-                return@withContext false
-            }
-            if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "Zapier OAuth tokens stored successfully")
-            connect()
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Token exchange failed: ${e.message}")
-            false
-        }
+        Log.w(TAG, "Rejected Zapier callback: confidential token exchange belongs to the server-side broker")
+        false
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -281,7 +228,7 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
     private fun apiGet(path: String): JSONObject {
         val token = authManager.getToken(id) ?: throw IllegalStateException("No access token")
         val request = Request.Builder()
-            .url("$BASE_URL$path")
+            .url("$API_BASE_URL$path")
             .header("Authorization", "Bearer $token")
             .header("Accept", "application/json")
             .build()

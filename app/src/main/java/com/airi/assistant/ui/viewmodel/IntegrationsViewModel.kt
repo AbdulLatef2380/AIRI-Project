@@ -495,17 +495,9 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun disconnect(id: String) {
-        when (id) {
-            "google" -> viewModelScope.launch {
-                ServiceLocator.connectorRegistry.disconnect("google")
-                googleAuthService.disconnect()
-                refresh()
-            }
-            else -> viewModelScope.launch {
-                ServiceLocator.connectorRegistry.disconnect(id)
-                secureStorage.disconnect(id)
-                refresh()
-            }
+        viewModelScope.launch {
+            authorizationManager.disconnect(id)
+            refresh()
         }
     }
 }

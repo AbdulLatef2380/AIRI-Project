@@ -7,6 +7,8 @@ package com.airi.assistant.connector
  */
 enum class ConnectorAuthMode {
     OAUTH2_PKCE,
+    /** Authorization-code OAuth whose token exchange requires a server-held secret. */
+    OAUTH2_CONFIDENTIAL,
     API_KEY,
     PERSONAL_ACCESS_TOKEN,
     DEVICE_CODE,
@@ -28,6 +30,7 @@ data class ConnectorAuthStrategy(
     val publicClientOnly: Boolean = mode == ConnectorAuthMode.OAUTH2_PKCE,
     val officialAuthorizationRequired: Boolean = mode in setOf(
         ConnectorAuthMode.OAUTH2_PKCE,
+        ConnectorAuthMode.OAUTH2_CONFIDENTIAL,
         ConnectorAuthMode.API_KEY,
         ConnectorAuthMode.PERSONAL_ACCESS_TOKEN,
         ConnectorAuthMode.DEVICE_CODE,
@@ -41,6 +44,7 @@ data class ConnectorAuthStrategy(
     val summary: String
         get() = when (mode) {
             ConnectorAuthMode.OAUTH2_PKCE -> "Authorize through the official $provider sign-in page."
+            ConnectorAuthMode.OAUTH2_CONFIDENTIAL -> "Authorize through the official $provider page; token exchange requires AIRI's server-side OAuth broker."
             ConnectorAuthMode.API_KEY -> "Provide the user's $provider API key through secure storage."
             ConnectorAuthMode.PERSONAL_ACCESS_TOKEN -> "Provide the user's $provider personal access token through secure storage."
             ConnectorAuthMode.DEVICE_CODE -> "Show the provider device code and verification page."
@@ -59,6 +63,13 @@ data class ConnectorAuthStrategy(
                 "Validate the redirect state and code",
                 "Exchange the code without embedding a client secret",
                 "Store the user's token securely",
+                "Verify capabilities before Connected",
+            )
+            ConnectorAuthMode.OAUTH2_CONFIDENTIAL -> listOf(
+                "Create state and open the provider authorization page",
+                "Validate the redirect state and code",
+                "Exchange the code only through the server-side OAuth broker",
+                "Store the user's token in user-scoped secure storage",
                 "Verify capabilities before Connected",
             )
             ConnectorAuthMode.API_KEY,
@@ -111,7 +122,7 @@ object ConnectorAuthStrategies {
             runtimeId == "telegram" -> ConnectorAuthMode.API_KEY
             runtimeId == "google" -> ConnectorAuthMode.OAUTH2_PKCE
             runtimeId == "microsoft_graph" -> ConnectorAuthMode.OAUTH2_PKCE
-            runtimeId == "zapier" -> ConnectorAuthMode.OAUTH2_PKCE
+            runtimeId == "zapier" -> ConnectorAuthMode.OAUTH2_CONFIDENTIAL
             runtimeId == "notion" || runtimeId == "notion_mcp" -> ConnectorAuthMode.MCP_CONFIGURATION
             auth == ConnectorAuthenticationType.OAUTH2 || auth == ConnectorAuthenticationType.OAUTH2_AND_API -> ConnectorAuthMode.OAUTH2_PKCE
             auth == ConnectorAuthenticationType.API_KEY -> ConnectorAuthMode.API_KEY
@@ -137,7 +148,7 @@ object ConnectorAuthStrategies {
                 ConnectorAuthMode.PERSONAL_ACCESS_TOKEN -> "$provider personal access token"
                 else -> null
             },
-            redirectUri = if (mode == ConnectorAuthMode.OAUTH2_PKCE) "airi://oauth/callback" else null,
+            redirectUri = if (mode == ConnectorAuthMode.OAUTH2_PKCE || mode == ConnectorAuthMode.OAUTH2_CONFIDENTIAL) "airi://oauth/callback" else null,
         )
     }
 }

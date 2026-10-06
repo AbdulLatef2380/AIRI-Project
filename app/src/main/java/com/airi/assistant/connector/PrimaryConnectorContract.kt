@@ -17,7 +17,7 @@ object PrimaryConnectorContracts {
         PrimaryConnectorContract("github", "github", ConnectorAuthMode.PERSONAL_ACCESS_TOKEN),
         PrimaryConnectorContract("telegram", "telegram", ConnectorAuthMode.API_KEY),
         PrimaryConnectorContract("notion", "notion_mcp", ConnectorAuthMode.MCP_CONFIGURATION),
-        PrimaryConnectorContract("zapier", "zapier", ConnectorAuthMode.OAUTH2_PKCE),
+        PrimaryConnectorContract("zapier", "zapier", ConnectorAuthMode.OAUTH2_CONFIDENTIAL),
     )
 
     fun forCatalogId(id: String): PrimaryConnectorContract? = all.firstOrNull { it.catalogId == id }

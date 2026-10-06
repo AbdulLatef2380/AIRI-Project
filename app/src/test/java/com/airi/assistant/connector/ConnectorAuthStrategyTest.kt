@@ -45,7 +45,7 @@ class ConnectorAuthStrategyTest {
             "microsoft_teams" to ConnectorAuthMode.OAUTH2_PKCE,
             "microsoft_sharepoint" to ConnectorAuthMode.OAUTH2_PKCE,
             "microsoft_todo" to ConnectorAuthMode.OAUTH2_PKCE,
-            "zapier" to ConnectorAuthMode.OAUTH2_PKCE,
+            "zapier" to ConnectorAuthMode.OAUTH2_CONFIDENTIAL,
             "gitlab" to ConnectorAuthMode.PERSONAL_ACCESS_TOKEN,
             "linear" to ConnectorAuthMode.API_KEY,
             "slack" to ConnectorAuthMode.API_KEY,
@@ -62,5 +62,14 @@ class ConnectorAuthStrategyTest {
             assertEquals(mode, strategy.mode)
             assertTrue(strategy.officialAuthorizationRequired)
         }
+    }
+
+    @Test
+    fun zapier_is_confidential_and_cannot_be_started_without_broker_configuration() {
+        val strategy = ConnectorAuthStrategies.forMeta(OfficialConnectorCatalog.get("zapier")!!.toConnectorMeta())
+        assertEquals(ConnectorAuthMode.OAUTH2_CONFIDENTIAL, strategy.mode)
+        assertFalse(strategy.publicClientOnly)
+        assertEquals(ConnectorAdapterReadiness.CONFIGURATION_REQUIRED, ConnectorRolloutRegistry.get("zapier")!!.readiness)
+        assertFalse(ConnectorRolloutRegistry.get("zapier")!!.canStartAuthorization)
     }
 }

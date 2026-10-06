@@ -52,7 +52,7 @@ class GoogleAuthService(
         secureStorage.clearGoogleIdToken()
     }
 
-    fun disconnect() {
+    fun disconnect(): Boolean {
         dataAccessToken = null
         dataAccessScopes = emptySet()
         pendingDataScopes = emptySet()
@@ -61,7 +61,7 @@ class GoogleAuthService(
         } catch (_: Exception) {
             // Best effort only; encrypted credentials are still cleared below.
         }
-        secureStorage.disconnect("google")
+        return secureStorage.disconnect("google")
     }
 
     fun getLastSignedInEmail(): String? = GoogleSignIn.getLastSignedInAccount(context)?.email

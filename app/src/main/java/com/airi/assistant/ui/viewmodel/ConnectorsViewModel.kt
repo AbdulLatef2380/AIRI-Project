@@ -57,7 +57,7 @@ class ConnectorsViewModel(application: Application) : AndroidViewModel(applicati
     fun disconnect(id: String) {
         val runtimeId = registry.catalogMeta().firstOrNull { it.id == id }?.runtimeId ?: id
         if (registry.get(runtimeId) == null) return
-        viewModelScope.launch { registry.disconnect(runtimeId) }
+        viewModelScope.launch { ServiceLocator.connectorAuthorizationManager.disconnect(runtimeId) }
     }
 
     fun setAccessProfile(surfaceId: String, profile: ConnectorAccessProfile) {

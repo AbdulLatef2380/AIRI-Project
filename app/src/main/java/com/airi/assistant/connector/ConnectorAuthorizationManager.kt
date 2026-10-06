@@ -79,6 +79,12 @@ class ConnectorAuthorizationManager(
             ?: registry.get(runtimeId)?.meta()
             ?: return@withContext StartResult.Failed("not_found", "Connector '$id' is not registered")
         val strategy = ConnectorAuthStrategies.forMeta(meta)
+        ConnectorRolloutRegistry.get(id)?.takeUnless { it.canStartAuthorization }?.let { rollout ->
+            return@withContext StartResult.Failed(
+                "configuration_required",
+                rollout.blockedReason ?: "Provider configuration is required before authorization can start."
+            )
+        }
         if (!strategy.isExecutable) {
             val rollout = ConnectorRolloutRegistry.get(id)
             val adapterContract = RemainingProviderAdapterContracts.get(id)
@@ -265,11 +271,10 @@ class ConnectorAuthorizationManager(
             return@withContext connectAndVerify(MicrosoftOAuthConfiguration.CONNECTOR_ID)
                 .toCompletion(MicrosoftOAuthConfiguration.CONNECTOR_ID)
         }
-        val connector = registry.get("zapier") as? ZapierConnector
-            ?: return@withContext CompletionResult.Failed("not_registered", "Zapier runtime adapter is not registered")
-        val saved = connector.handleCallback(code, pending)
-        if (!saved) return@withContext CompletionResult.Failed("token_exchange_failed", "Provider authorization was not saved", true)
-        connectAndVerify("zapier").toCompletion("zapier")
+        return@withContext CompletionResult.Failed(
+            "oauth_broker_required",
+            "Zapier requires a server-side confidential OAuth broker; the authorization code was not exchanged in the Android app."
+        )
     }
 
     suspend fun onGoogleSignIn(account: GoogleSignInAccount): CompletionResult {
@@ -295,15 +300,16 @@ class ConnectorAuthorizationManager(
 
     suspend fun disconnect(id: String): Boolean = withContext(Dispatchers.IO) {
         val runtimeId = resolveRuntimeId(id)
-        registry.disconnect(runtimeId)
-        when (runtimeId) {
+        val runtimeDisconnected = registry.disconnect(runtimeId)
+        val credentialsCleared = when (runtimeId) {
             "google" -> googleAuthService.disconnect()
             "microsoft_graph" -> authManager.revokeToken(MicrosoftOAuthConfiguration.CONNECTOR_ID)
             "github", "telegram" -> secureStorage.disconnect(runtimeId)
             "notion_mcp" -> secureStorage.clearIntegrationToken("notion")
             "zapier" -> authManager.revokeToken("zapier")
+            else -> true
         }
-        true
+        runtimeDisconnected && credentialsCleared
     }
 
     private suspend fun connectAndVerify(runtimeId: String): ConnectorState {

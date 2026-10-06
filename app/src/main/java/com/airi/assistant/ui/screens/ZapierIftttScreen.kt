@@ -183,8 +183,12 @@ private fun ZapierTab(
                             OutlinedButton(
                                 onClick = {
                                     scope.launch {
-                                        ServiceLocator.connectorRegistry.disconnect("zapier")
-                                        statusMessage = context.getString(R.string.zapier_disconnected)
+                                        val disconnected = ServiceLocator.connectorAuthorizationManager.disconnect("zapier")
+                                        statusMessage = if (disconnected) {
+                                            context.getString(R.string.zapier_disconnected)
+                                        } else {
+                                            context.getString(R.string.zapier_oauth_not_configured)
+                                        }
                                     }
                                 }
                             ) {
@@ -238,7 +242,7 @@ private fun ZapierTab(
                 shape  = AIRIShapes.md
             ) {
                 Text(
-                    "Zapier currently exposes read-only Zap listing. Webhook dispatch and event triggers are not implemented or declared as executable actions.",
+                    "Zapier currently exposes read-only Zap listing. The trigger_event/webhook dispatch path is not implemented or declared as an executable action.",
                     modifier = Modifier.padding(16.dp),
                     fontSize = 13.sp,
                     color = AiriTheme.onSurfaceVariant,

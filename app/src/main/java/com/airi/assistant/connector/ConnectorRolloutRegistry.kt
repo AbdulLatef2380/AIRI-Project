@@ -51,7 +51,7 @@ object ConnectorRolloutRegistry {
     private val liveCatalogIds = setOf(
         "google_gmail", "google_calendar", "google_drive", "google_docs", "google_sheets", "google_contacts", "google_tasks",
         "microsoft_outlook", "microsoft_calendar", "microsoft_onedrive", "microsoft_teams", "microsoft_sharepoint", "microsoft_todo",
-        "github", "telegram", "notion", "zapier", "gitlab", "linear", "slack", "discord", "asana", "todoist", "figma",
+        "github", "telegram", "notion", "gitlab", "linear", "slack", "discord", "asana", "todoist", "figma",
     )
 
     /** Non-catalog runtimes are evaluated independently from catalog readiness. */
@@ -95,7 +95,9 @@ object ConnectorRolloutRegistry {
             provider = definition.provider,
             batch = batch,
             authMode = mode,
-            requiredAdapter = if (id in setOf("gitlab", "linear", "slack", "discord", "asana", "todoist", "figma")) {
+            requiredAdapter = if (id == "zapier") {
+                "ServerSideZapierOAuthBroker"
+            } else if (id in setOf("gitlab", "linear", "slack", "discord", "asana", "todoist", "figma")) {
                 "ProviderTokenConnector"
             } else {
                 "${definition.provider.replace(" ", "")}${definition.name.replace(" ", "")}Connector"

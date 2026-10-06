@@ -219,8 +219,8 @@ class SecureStorage(context: Context) {
     /**
      * Clear the stored token for the given integration (disconnect).
      */
-    fun clearIntegrationToken(integrationId: String) =
-        prefs.edit().remove(integrationTokenKey(integrationId)).apply()
+    fun clearIntegrationToken(integrationId: String): Boolean =
+        prefs.edit().remove(integrationTokenKey(integrationId)).commit()
 
     private fun integrationTokenKey(id: String): String = "integration_token_${id.lowercase()}"
 
@@ -249,32 +249,32 @@ class SecureStorage(context: Context) {
 
     // ─── Generic disconnect ────────────────────────────────────────────────────
 
-    fun disconnect(id: String) {
-        when (id) {
+    fun disconnect(id: String): Boolean {
+        val editor = when (id) {
             "github" -> prefs.edit()
                 .putBoolean(KEY_GITHUB_CONNECTED, false)
                 .remove(KEY_GITHUB_TOKEN)
                 .remove(KEY_GITHUB_USERNAME)
                 .putLong(KEY_GITHUB_UPDATED, System.currentTimeMillis())
-                .apply()
 
             "telegram" -> prefs.edit()
                 .putBoolean(KEY_TELEGRAM_CONNECTED, false)
                 .remove(KEY_TELEGRAM_TOKEN)
                 .remove(KEY_TELEGRAM_USERNAME)
                 .putLong(KEY_TELEGRAM_UPDATED, System.currentTimeMillis())
-                .apply()
 
             "google" -> prefs.edit()
                 .putBoolean(KEY_GOOGLE_CONNECTED, false)
                 .remove(KEY_GOOGLE_EMAIL)
                 .remove(KEY_GOOGLE_ID_TOKEN)
                 .putLong(KEY_GOOGLE_UPDATED, System.currentTimeMillis())
-                .apply()
 
-            "openai", "anthropic", "gemini" -> clearLlmKey(id)
-            else -> clearIntegrationToken(id)   // covers "notion" and future integrations
+            "openai", "anthropic", "gemini" -> return clearLlmKey(id).let { true }
+            else -> return clearIntegrationToken(id)   // covers "notion" and future integrations
         }
+        val committed = editor.commit()
+        if (committed) publishIntegrationConnections()
+        return committed
     }
 
     companion object {

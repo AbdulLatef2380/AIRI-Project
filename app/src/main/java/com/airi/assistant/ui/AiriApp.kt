@@ -615,7 +615,7 @@ fun AiriApp() {
                         ConnectorsScreen(
                             onBack = { navController.popBackStack() },
                             onManageAuthorization = { connectorId ->
-                                navController.navigate("${AiriRoute.INTEGRATIONS}?connectorId=$connectorId") {
+                                navController.navigate(AiriRoute.INTEGRATIONS_WITH_CONNECTOR.replace("{connectorId}", connectorId)) {
                                     launchSingleTop = true
                                 }
                             },
@@ -633,7 +633,7 @@ fun AiriApp() {
                             connectorId = entry.arguments?.getString("connectorId").orEmpty(),
                             onBack = { navController.popBackStack() },
                             onManageAuthorization = { connectorId ->
-                                navController.navigate("${AiriRoute.INTEGRATIONS}?connectorId=$connectorId") { launchSingleTop = true }
+                                navController.navigate(AiriRoute.INTEGRATIONS_WITH_CONNECTOR.replace("{connectorId}", connectorId)) { launchSingleTop = true }
                             },
                             onTry = { prompt ->
                                 chatViewModel.prefillInput(prompt)

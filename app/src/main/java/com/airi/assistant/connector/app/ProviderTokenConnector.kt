@@ -173,12 +173,6 @@ class ProviderTokenConnector(
         }
     }
 
-    internal fun appendLimit(path: String, parameter: String?, limit: Int): String {
-        if (parameter.isNullOrBlank()) return path
-        val separator = if (path.contains("?")) '&' else '?'
-        return "$path$separator$parameter=$limit"
-    }
-
     private fun update(connected: Boolean, status: String, error: String? = null): ConnectorState {
         val next = ConnectorState(connected, connected, status, System.currentTimeMillis(), error)
         state.value = next
@@ -187,6 +181,13 @@ class ProviderTokenConnector(
 
     companion object {
         private const val MAX_RESPONSE_CHARS = 256 * 1024
+
+        internal fun appendLimit(path: String, parameter: String?, limit: Int): String {
+            if (parameter.isNullOrBlank()) return path
+            val separator = if (path.contains("?")) '&' else '?'
+            return "$path$separator$parameter=$limit"
+        }
+
         fun configs(): List<Config> = listOf(
             Config("gitlab", "GitLab", "GitLab", "https://gitlab.com", "https://docs.gitlab.com/api/user/", "GitLab personal access token", "https://gitlab.com/api/v4/user", "https://gitlab.com/api/v4/projects", { "PRIVATE-TOKEN" to it }, ConnectorAuthenticationType.PERSONAL_ACCESS_TOKEN, listOf("git", "code", "projects")),
             Config("linear", "Linear", "Linear", "https://linear.app", "https://linear.app/developers/graphql", "Linear API key", "https://api.linear.app/graphql", null, { "Authorization" to it }, ConnectorAuthenticationType.API_KEY, listOf("issues", "projects"), requestBody = "{\"query\":\"{ viewer { id name } }\"}"),

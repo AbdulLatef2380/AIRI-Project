@@ -43,6 +43,7 @@ class ConnectorAuthStrategyTest {
             "microsoft_calendar" to ConnectorAuthMode.OAUTH2_PKCE,
             "microsoft_onedrive" to ConnectorAuthMode.OAUTH2_PKCE,
             "microsoft_teams" to ConnectorAuthMode.OAUTH2_PKCE,
+            "microsoft_sharepoint" to ConnectorAuthMode.OAUTH2_PKCE,
             "microsoft_todo" to ConnectorAuthMode.OAUTH2_PKCE,
             "zapier" to ConnectorAuthMode.OAUTH2_PKCE,
             "gitlab" to ConnectorAuthMode.PERSONAL_ACCESS_TOKEN,

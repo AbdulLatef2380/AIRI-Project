@@ -28,12 +28,24 @@ class ProviderAdapterContractTest {
             assertTrue(contract.adapterId.isNotBlank())
             assertTrue(contract.officialDocsUrl.startsWith("https://"))
             assertFalse(contract.isExecutable)
-            if (definition.id in setOf("microsoft_onedrive", "microsoft_teams")) {
+            if (definition.id in setOf("microsoft_onedrive", "microsoft_teams", "microsoft_sharepoint")) {
                 assertEquals(ConnectorAvailability.PARTIAL, definition.status)
             } else {
                 assertEquals(ConnectorAvailability.COMING_SOON, definition.status)
             }
         }
+    }
+
+    @Test
+    fun every_current_coming_soon_surface_has_one_non_executable_contract() {
+        val contractsById = RemainingProviderAdapterContracts.all.associateBy { it.catalogId }
+        OfficialConnectorCatalog.all
+            .filter { it.status == ConnectorAvailability.COMING_SOON }
+            .forEach { definition ->
+                val contract = contractsById[definition.id]
+                assertNotNull("missing adapter contract: ${definition.id}", contract)
+                assertFalse(contract!!.isExecutable)
+            }
     }
 
     @Test

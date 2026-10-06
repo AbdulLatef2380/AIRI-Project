@@ -6,9 +6,9 @@
 
 ## 1. الخلاصة التنفيذية
 
-الكود الحالي يحتوي على **11 موصلاً فعلياً** تحت حالة `COMING_SOON`، وليس 26 كما تذكر بعض الوثائق القديمة. كما يحتوي `RemainingProviderAdapterContracts` على **13 عقداً وصفياً**؛ العقدان الإضافيان هما `microsoft_onedrive` و`microsoft_teams`، وهما أسطح `PARTIAL`/مفعّلة ضمن Microsoft vertical slice وليسا من قائمة Coming Soon الحالية.
+الكود الحالي يحتوي على **10 موصلات فعلياً** تحت حالة `COMING_SOON`، وليس 26 كما تذكر بعض الوثائق القديمة. كما يحتوي `RemainingProviderAdapterContracts` على **13 عقداً وصفياً**؛ ثلاثة منها أصبحت أسطح `PARTIAL`/مفعّلة ضمن Microsoft vertical slices: `microsoft_onedrive`, `microsoft_teams`, و`microsoft_sharepoint`.
 
-جميع الموصلات الإحدى عشرة الحالية:
+جميع الموصلات العشرة الحالية:
 
 - `CATALOG_ONLY` في `ConnectorRolloutRegistry`.
 - لا يمكنها بدء المصادقة أو فتح متصفح المزود.
@@ -21,7 +21,7 @@
 | الموصل | الدفعة | المصادقة المخططة | health endpoint في العقد | سبب الحجب الحالي | مسار الإغلاق المقترح | الأولوية |
 |---|---|---|---|---|---|---|
 | Google Meet | Design & Meetings | OAuth2 + PKCE | `meet.googleapis.com/v2/spaces` | لا يوجد Google Meet adapter؛ الـscope الحالي يحتاج تدقيقاً لأنه لا يثبت قراءة اجتماعات قائمة | تثبيت نموذج القراءة والـscopes أولاً، ثم adapter Google مستقل أو امتداد مضبوط للـruntime | P2 — يحتاج قرار API قبل التنفيذ |
-| Microsoft SharePoint | Microsoft | OAuth2 + PKCE | Graph `/v1.0/sites/root` | Microsoft runtime موجود، لكن لا توجد أفعال SharePoint أو surface grants في adapter الحالي | إعادة استخدام Microsoft Graph بعد إضافة أفعال المواقع/الملفات read-only وربط scopes بالسطح | P0 — أقل مخاطرة نسبياً |
+| Microsoft SharePoint | Microsoft | OAuth2 + PKCE | Graph `/v1.0/sites/root` | **أُغلق كـPARTIAL/LIVE read-only**؛ الكتابة والبحث الشامل ما زالا خارج النطاق | الإصدارات اللاحقة يمكن أن تضيف site search أو content read بعد evidence مستقل | مغلق — vertical slice |
 | Jira | Development | OAuth2 + PKCE | `api.atlassian.com/me` | لا يوجد Atlassian adapter؛ يحتاج 3LO/client/redirect وعقود resource واضحة | بدء health ثم قراءة المشاريع والقضايا بحدود workspace/project | P1 |
 | Trello | Productivity | OAuth2 + PKCE | `api.trello.com/1/members/me` | لا يوجد adapter؛ صيغة OAuth في العقد تحتاج تحققاً خاصاً من Trello قبل اعتماد PKCE | تثبيت auth contract الفعلي ثم قراءة boards/lists/cards | P2 — تحقق مصادقة أولاً |
 | ClickUp | Productivity | OAuth2 + PKCE | `api.clickup.com/api/v2/user` | لا يوجد adapter أو client configuration | health ثم teams/spaces/lists read-only مع user-selected workspace | P1 |
@@ -52,7 +52,7 @@
 
 ### Microsoft SharePoint
 
-هو أفضل مرشح للدفعة التالية لأنه يشترك مع `microsoft_graph`، لكن مشاركة runtime وحدها لا تعني أن surface منفذ. يجب إضافة أفعال SharePoint وت grants خاصة به، مع إبقاء `Sites.Read.All` خلف موافقة واضحة وعدم توسيعها إلى كتابة أو إدارة.
+أُغلق كـread-only vertical slice فوق `microsoft_graph`. التنفيذ الحالي يقرأ root site وملفات موقع يحدده المستخدم، ويستخدم `Sites.Read.All` خلف permission preview وsurface grants مستقلة. لا يعني ذلك دعماً كاملاً لـSharePoint؛ البحث الشامل، قراءة المحتوى الثنائي، والكتابة ما زالت مؤجلة.
 
 ### Dropbox وMonday.com
 
@@ -118,7 +118,7 @@
 
 ## 6. ما يجب إصلاحه في الحوكمة والوثائق
 
-- تحديث الوثائق التي تقول إن المتبقي 26؛ الرقم الصحيح في الكود الحالي هو 11 `COMING_SOON` و13 عقداً وصفياً تشمل سطحين `PARTIAL`.
+- تحديث الوثائق التي تقول إن المتبقي 26؛ الرقم الصحيح بعد إغلاق SharePoint هو 10 `COMING_SOON` و13 عقداً وصفياً تشمل ثلاثة أسطح `PARTIAL`.
 - تقوية `ProviderAdapterContractTest` ليؤكد أن **كل** `COMING_SOON` في الكتالوج له عقد واحد بالضبط، لا أن يختبر تقاطع القائمتين فقط.
 - منع ازدواجية القوائم مستقبلاً عبر اشتقاق readiness من سجل عقود/adapter واحد مع إبقاء التنفيذ محمياً افتراضياً.
 - عدم استخدام `PARTIAL` كبديل عن دليل provider فعلي؛ `PARTIAL` تعني vertical slice محدوداً ومعلن القيود، وليست `LIVE` كاملة.
@@ -128,9 +128,8 @@
 
 الموصلات المتبقية يجب التعامل معها كدفعات vertical slices صغيرة، لا كإغلاق جماعي. الترتيب المقترح هو:
 
-1. **Microsoft SharePoint** لإعادة استخدام Microsoft Graph.
-2. **ClickUp / Monday / Dropbox / Box / Airtable / Zoom** بحسب توفر client configuration وحسابات sandbox.
-3. **Jira** بعد تثبيت Atlassian 3LO ونطاقات القراءة.
-4. **Google Meet / Trello / Canva** بعد حسم عقود API وscopes الخاصة بها.
+1. **ClickUp / Monday / Dropbox / Box / Airtable / Zoom** بحسب توفر client configuration وحسابات sandbox.
+2. **Jira** بعد تثبيت Atlassian 3LO ونطاقات القراءة.
+3. **Google Meet / Trello / Canva** بعد حسم عقود API وscopes الخاصة بها.
 
-حتى ذلك الحين، إبقاؤها `COMING_SOON` و`CATALOG_ONLY` هو السلوك الصحيح والآمن، وليس نقصاً في الواجهة.
+حتى ذلك الحين، إبقاء الموصلات العشرة المتبقية `COMING_SOON` و`CATALOG_ONLY` هو السلوك الصحيح والآمن، وليس نقصاً في الواجهة.

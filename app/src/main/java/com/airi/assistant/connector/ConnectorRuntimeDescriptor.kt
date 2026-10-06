@@ -20,6 +20,7 @@ object ConnectorRuntimeDescriptors {
         "microsoft_calendar" to ConnectorRuntimeDescriptor("microsoft_calendar", "microsoft_graph", "Microsoft"),
         "microsoft_onedrive" to ConnectorRuntimeDescriptor("microsoft_onedrive", "microsoft_graph", "Microsoft"),
         "microsoft_teams" to ConnectorRuntimeDescriptor("microsoft_teams", "microsoft_graph", "Microsoft"),
+        "microsoft_sharepoint" to ConnectorRuntimeDescriptor("microsoft_sharepoint", "microsoft_graph", "Microsoft"),
         "microsoft_todo" to ConnectorRuntimeDescriptor("microsoft_todo", "microsoft_graph", "Microsoft"),
         "notion" to ConnectorRuntimeDescriptor("notion", "notion_mcp", "Notion"),
     )

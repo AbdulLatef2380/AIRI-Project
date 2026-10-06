@@ -21,9 +21,10 @@ class ConnectorRolloutRegistryTest {
         assertFalse(missing.isEmpty())
         assertTrue(missing.all { !it.canStartAuthorization })
         assertTrue(missing.all { !it.blockedReason.isNullOrBlank() })
-        assertTrue(missing.any { it.batch == ConnectorRolloutBatch.MICROSOFT })
-        assertTrue(missing.any { it.batch == ConnectorRolloutBatch.COMMUNICATION })
         assertTrue(missing.any { it.batch == ConnectorRolloutBatch.FILES })
+        assertTrue(missing.any { it.batch == ConnectorRolloutBatch.PRODUCTIVITY })
+        assertTrue(missing.any { it.batch == ConnectorRolloutBatch.DEVELOPMENT })
+        assertTrue(missing.any { it.batch == ConnectorRolloutBatch.DESIGN_AND_MEETINGS })
     }
 
     @Test
@@ -45,6 +46,8 @@ class ConnectorRolloutRegistryTest {
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("zapier")!!.readiness)
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("microsoft_onedrive")!!.readiness)
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("microsoft_teams")!!.readiness)
+        assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("microsoft_sharepoint")!!.readiness)
+        assertEquals("microsoft_graph", OfficialConnectorCatalog.get("microsoft_sharepoint")!!.runtimeConnectorId())
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("google_docs")!!.readiness)
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("google_sheets")!!.readiness)
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("google_contacts")!!.readiness)

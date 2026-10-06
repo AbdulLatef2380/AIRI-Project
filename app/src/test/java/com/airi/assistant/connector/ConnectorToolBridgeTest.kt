@@ -97,6 +97,7 @@ class ConnectorToolBridgeTest {
         val names = bridge(registry, profiles).asToolSchemas().map { it.name }.toSet()
         assertTrue("connector_microsoft_graph_outlook_mail_read" in names)
         assertFalse("connector_microsoft_graph_teams_list_joined" in names)
+        assertFalse("connector_microsoft_graph_sharepoint_site_read" in names)
     }
 
     private fun bridge(registry: ConnectorRegistry, profiles: ConnectorAccessProfileStore) =
@@ -120,6 +121,7 @@ class ConnectorToolBridgeTest {
             listOf(
                 ConnectorAgentAction("outlook_mail_read", "Read Outlook", surfaceId = "microsoft_outlook"),
                 ConnectorAgentAction("teams_list_joined", "List Teams", surfaceId = "microsoft_teams"),
+                ConnectorAgentAction("sharepoint_site_read", "Read SharePoint", surfaceId = "microsoft_sharepoint"),
             )
         } else listOf(
             ConnectorAgentAction("list_repos", "List repositories"),

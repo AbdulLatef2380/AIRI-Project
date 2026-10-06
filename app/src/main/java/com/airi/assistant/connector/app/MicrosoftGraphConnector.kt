@@ -60,6 +60,7 @@ class MicrosoftGraphConnector(
             ConnectorProviderScopes.MICROSOFT_FILES_READ,
             ConnectorProviderScopes.MICROSOFT_TEAM_READ_BASIC_ALL,
             ConnectorProviderScopes.MICROSOFT_TASKS_READ,
+            ConnectorProviderScopes.MICROSOFT_SITES_READ,
             ConnectorProviderScopes.MICROSOFT_USER_READ,
         )
         if (actionScopes.isEmpty() || actionScopes.any { it !in declaredActionScopes }) {
@@ -157,6 +158,13 @@ class MicrosoftGraphConnector(
                 }
                 "$resource?\$top=$top&\$select=id,name,size,folder,file,lastModifiedDateTime,webUrl"
             }
+            "sharepoint_site_read" -> "/sites/root?\$select=id,displayName,webUrl,siteCollection"
+            "sharepoint_files_read" -> {
+                val siteId = input.params["site_id"]?.trim().orEmpty()
+                if (siteId.isBlank()) return ConnectorOutput.Failure("invalid_params", "site_id is required")
+                val top = input.params["top"].orEmpty().toIntOrNull()?.coerceIn(1, 50) ?: 20
+                "/sites/${encPath(siteId)}/drive/root/children?\$top=$top&\$select=id,name,size,folder,file,lastModifiedDateTime,webUrl"
+            }
             "teams_list_joined" -> "/me/joinedTeams?\$select=id,displayName,description,visibility,webUrl"
             "todo_lists_read" -> "/me/todo/lists?\$select=id,displayName"
             "todo_tasks_read" -> {
@@ -194,6 +202,15 @@ class MicrosoftGraphConnector(
                 "top" to ConnectorAgentParameter(description = "Optional number of items from 1 to 50."),
             ),
         ),
+        ConnectorAgentAction("sharepoint_site_read", "Read the signed-in user's SharePoint root site.", surfaceId = "microsoft_sharepoint", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.MICROSOFT_SITES_READ)
+        )),
+        ConnectorAgentAction("sharepoint_files_read", "List files in a selected SharePoint site.", surfaceId = "microsoft_sharepoint", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.MICROSOFT_SITES_READ)
+        ), parameters = mapOf(
+            "site_id" to ConnectorAgentParameter(description = "SharePoint site id", required = true, maxLength = 256),
+            "top" to ConnectorAgentParameter(description = "Optional number of files from 1 to 50."),
+        )),
         ConnectorAgentAction("teams_list_joined", "List Microsoft Teams joined by the signed-in work or school account.", surfaceId = "microsoft_teams", providerGrants = listOf(
             ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.MICROSOFT_TEAM_READ_BASIC_ALL)
         )),

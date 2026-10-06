@@ -53,6 +53,8 @@ class ProviderTokenConnector(
         val authType: ConnectorAuthenticationType,
         val tags: List<String>,
         val requestBody: String? = null,
+        /** Provider-specific bounded-list parameter; null means no pagination parameter. */
+        val readLimitParameter: String? = "per_page",
     )
 
     override val id: String = config.id
@@ -135,7 +137,9 @@ class ProviderTokenConnector(
             "read" -> config.readPath ?: return@withContext ConnectorOutput.Failure("unsupported_action", "${config.provider} has no read operation configured")
             else -> return@withContext ConnectorOutput.Failure("unknown_action", "Unknown action '${input.action}'")
         }
-        val boundedPath = if (input.action == "read") appendLimit(path, input.params["limit"]?.toIntOrNull()?.coerceIn(1, 50) ?: 20) else path
+        val boundedPath = if (input.action == "read") {
+            appendLimit(path, config.readLimitParameter, input.params["limit"]?.toIntOrNull()?.coerceIn(1, 50) ?: 20)
+        } else path
         try {
             val response = request(boundedPath, token)
             when {
@@ -169,9 +173,10 @@ class ProviderTokenConnector(
         }
     }
 
-    private fun appendLimit(path: String, limit: Int): String = when {
-        path.contains("?") -> "$path&per_page=$limit"
-        else -> "$path?per_page=$limit"
+    internal fun appendLimit(path: String, parameter: String?, limit: Int): String {
+        if (parameter.isNullOrBlank()) return path
+        val separator = if (path.contains("?")) '&' else '?'
+        return "$path$separator$parameter=$limit"
     }
 
     private fun update(connected: Boolean, status: String, error: String? = null): ConnectorState {
@@ -185,11 +190,11 @@ class ProviderTokenConnector(
         fun configs(): List<Config> = listOf(
             Config("gitlab", "GitLab", "GitLab", "https://gitlab.com", "https://docs.gitlab.com/api/user/", "GitLab personal access token", "https://gitlab.com/api/v4/user", "https://gitlab.com/api/v4/projects", { "PRIVATE-TOKEN" to it }, ConnectorAuthenticationType.PERSONAL_ACCESS_TOKEN, listOf("git", "code", "projects")),
             Config("linear", "Linear", "Linear", "https://linear.app", "https://linear.app/developers/graphql", "Linear API key", "https://api.linear.app/graphql", null, { "Authorization" to it }, ConnectorAuthenticationType.API_KEY, listOf("issues", "projects"), requestBody = "{\"query\":\"{ viewer { id name } }\"}"),
-            Config("discord", "Discord", "Discord", "https://discord.com", "https://discord.com/developers/docs/resources/user", "Discord bot token", "https://discord.com/api/v10/users/@me", "https://discord.com/api/v10/users/@me/guilds", { "Authorization" to "Bot $it" }, ConnectorAuthenticationType.API_KEY, listOf("chat", "communities")),
-            Config("asana", "Asana", "Asana", "https://asana.com", "https://developers.asana.com/reference/users-me", "Asana personal access token", "https://app.asana.com/api/1.0/users/me", "https://app.asana.com/api/1.0/users/me", { "Authorization" to "Bearer $it" }, ConnectorAuthenticationType.PERSONAL_ACCESS_TOKEN, listOf("tasks", "projects")),
-            Config("todoist", "Todoist", "Todoist", "https://todoist.com", "https://developer.todoist.com/rest/v2/", "Todoist API token", "https://api.todoist.com/api/v1/user", "https://api.todoist.com/rest/v2/tasks", { "Authorization" to "Bearer $it" }, ConnectorAuthenticationType.API_KEY, listOf("tasks", "todo")),
-            Config("slack", "Slack", "Slack", "https://slack.com", "https://api.slack.com/methods/auth.test", "Slack OAuth access token", "https://slack.com/api/auth.test", "https://slack.com/api/conversations.list", { "Authorization" to "Bearer $it" }, ConnectorAuthenticationType.API_KEY, listOf("chat", "messaging")),
-            Config("figma", "Figma", "Figma", "https://www.figma.com", "https://www.figma.com/developers/api#auth", "Figma personal access token", "https://api.figma.com/v1/me", null, { "X-Figma-Token" to it }, ConnectorAuthenticationType.PERSONAL_ACCESS_TOKEN, listOf("design", "files")),
+            Config("discord", "Discord", "Discord", "https://discord.com", "https://discord.com/developers/docs/resources/user", "Discord bot token", "https://discord.com/api/v10/users/@me", "https://discord.com/api/v10/users/@me/guilds", { "Authorization" to "Bot $it" }, ConnectorAuthenticationType.API_KEY, listOf("chat", "communities"), readLimitParameter = "limit"),
+            Config("asana", "Asana", "Asana", "https://asana.com", "https://developers.asana.com/reference/users-me", "Asana personal access token", "https://app.asana.com/api/1.0/users/me", "https://app.asana.com/api/1.0/users/me", { "Authorization" to "Bearer $it" }, ConnectorAuthenticationType.PERSONAL_ACCESS_TOKEN, listOf("tasks", "projects"), readLimitParameter = null),
+            Config("todoist", "Todoist", "Todoist", "https://todoist.com", "https://developer.todoist.com/rest/v2/", "Todoist API token", "https://api.todoist.com/api/v1/user", "https://api.todoist.com/rest/v2/tasks", { "Authorization" to "Bearer $it" }, ConnectorAuthenticationType.API_KEY, listOf("tasks", "todo"), readLimitParameter = "limit"),
+            Config("slack", "Slack", "Slack", "https://slack.com", "https://api.slack.com/methods/auth.test", "Slack OAuth access token", "https://slack.com/api/auth.test", "https://slack.com/api/conversations.list", { "Authorization" to "Bearer $it" }, ConnectorAuthenticationType.API_KEY, listOf("chat", "messaging"), readLimitParameter = "limit"),
+            Config("figma", "Figma", "Figma", "https://www.figma.com", "https://www.figma.com/developers/api#auth", "Figma personal access token", "https://api.figma.com/v1/me", null, { "X-Figma-Token" to it }, ConnectorAuthenticationType.PERSONAL_ACCESS_TOKEN, listOf("design", "files"), readLimitParameter = null),
         )
     }
 }

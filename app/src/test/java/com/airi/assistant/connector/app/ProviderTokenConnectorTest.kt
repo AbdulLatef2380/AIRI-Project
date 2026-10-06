@@ -31,4 +31,23 @@ class ProviderTokenConnectorTest {
         assertTrue(byId.values.all { it.credentialLabel.isNotBlank() })
         assertFalse(byId.values.any { it.readPath?.contains("/write") == true })
     }
+
+    @Test
+    fun bounded_read_limits_use_each_provider_api_parameter() {
+        val byId = ProviderTokenConnector.configs().associateBy { it.id }
+        assertEquals("per_page", byId.getValue("gitlab").readLimitParameter)
+        assertEquals("limit", byId.getValue("discord").readLimitParameter)
+        assertEquals("limit", byId.getValue("slack").readLimitParameter)
+        assertEquals("limit", byId.getValue("todoist").readLimitParameter)
+        assertEquals(null, byId.getValue("asana").readLimitParameter)
+        assertEquals(null, byId.getValue("figma").readLimitParameter)
+        assertEquals(
+            "https://api.example.test/items?existing=yes&limit=50",
+            ProviderTokenConnector.appendLimit("https://api.example.test/items?existing=yes", "limit", 50),
+        )
+        assertEquals(
+            "https://api.example.test/profile",
+            ProviderTokenConnector.appendLimit("https://api.example.test/profile", null, 50),
+        )
+    }
 }

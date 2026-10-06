@@ -95,7 +95,11 @@ object ConnectorRolloutRegistry {
             provider = definition.provider,
             batch = batch,
             authMode = mode,
-            requiredAdapter = "${definition.provider.replace(" ", "")}${definition.name.replace(" ", "")}Connector",
+            requiredAdapter = if (id in setOf("gitlab", "linear", "slack", "discord", "asana", "todoist", "figma")) {
+                "ProviderTokenConnector"
+            } else {
+                "${definition.provider.replace(" ", "")}${definition.name.replace(" ", "")}Connector"
+            },
             readiness = readiness,
             officialDocsUrl = definition.documentationUrl ?: definition.website,
         )

@@ -59,7 +59,7 @@ class ConnectorRolloutRegistryTest {
             val entry = ConnectorRolloutRegistry.get(id)!!
             assertEquals(ConnectorAdapterReadiness.LIVE, entry.readiness)
             assertTrue(entry.canStartAuthorization)
-            assertTrue(entry.requiredAdapter.isNotBlank())
+            assertEquals("ProviderTokenConnector", entry.requiredAdapter)
         }
     }
 }

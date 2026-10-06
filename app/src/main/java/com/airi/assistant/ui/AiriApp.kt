@@ -1,5 +1,6 @@
 package com.airi.assistant.ui
 
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.slideOutHorizontally
@@ -169,9 +170,13 @@ object AiriRoute {
     const val ARTIFACT_PREVIEW       = "screen_artifact_preview"
 
     /** Build the artifact preview route using only an internal artifact identifier. */
-    fun artifactPreview(artifactId: String): String = "$ARTIFACT_PREVIEW/$artifactId"
+    fun artifactPreview(artifactId: String): String = "$ARTIFACT_PREVIEW/${Uri.encode(artifactId)}"
 
-    fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/$skillId"
+    fun skillBuilder(skillId: String = "new") = "$SKILL_BUILDER/${Uri.encode(skillId)}"
+    fun skillDetails(skillId: String): String = "$SKILL_DETAILS/${Uri.encode(skillId)}"
+    fun connectorDetails(connectorId: String): String = "$CONNECTOR_DETAILS/${Uri.encode(connectorId)}"
+    fun connectorAuthorization(connectorId: String): String =
+        INTEGRATIONS_WITH_CONNECTOR.replace("{connectorId}", Uri.encode(connectorId))
 
     const val WELCOME              = "screen_welcome"
     const val PLANNING_DASHBOARD   = "screen_planning_dashboard"
@@ -615,12 +620,12 @@ fun AiriApp() {
                         ConnectorsScreen(
                             onBack = { navController.popBackStack() },
                             onManageAuthorization = { connectorId ->
-                                navController.navigate(AiriRoute.INTEGRATIONS_WITH_CONNECTOR.replace("{connectorId}", connectorId)) {
+                                navController.navigate(AiriRoute.connectorAuthorization(connectorId)) {
                                     launchSingleTop = true
                                 }
                             },
                             onOpenDetails = { connectorId ->
-                                navController.navigate("${AiriRoute.CONNECTOR_DETAILS}/$connectorId")
+                                navController.navigate(AiriRoute.connectorDetails(connectorId))
                             }
                         )
                     }
@@ -633,7 +638,7 @@ fun AiriApp() {
                             connectorId = entry.arguments?.getString("connectorId").orEmpty(),
                             onBack = { navController.popBackStack() },
                             onManageAuthorization = { connectorId ->
-                                navController.navigate(AiriRoute.INTEGRATIONS_WITH_CONNECTOR.replace("{connectorId}", connectorId)) { launchSingleTop = true }
+                                navController.navigate(AiriRoute.connectorAuthorization(connectorId)) { launchSingleTop = true }
                             },
                             onTry = { prompt ->
                                 chatViewModel.prefillInput(prompt)
@@ -765,7 +770,7 @@ fun AiriApp() {
                             onBack    = { navController.popBackStack() },
                             onCreate  = { navController.navigate(AiriRoute.skillBuilder()) },
                             onEdit    = { skillId -> navController.navigate(AiriRoute.skillBuilder(skillId)) },
-                            onOpenOfficial = { skillId -> navController.navigate("${AiriRoute.SKILL_DETAILS}/$skillId") }
+                            onOpenOfficial = { skillId -> navController.navigate(AiriRoute.skillDetails(skillId)) }
                         )
                     }
 

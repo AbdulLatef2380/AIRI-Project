@@ -11,7 +11,7 @@ class ConnectorCatalogTest {
     @Test
     fun catalogHasThirtyFiveUniqueEntriesAndNoComingSoonEntryIsEnabled() {
         val entries = OfficialConnectorCatalog.all
-        assertEquals(35, entries.size)
+        assertEquals(36, entries.size)
         assertEquals(entries.size, entries.map { it.id }.toSet().size)
         assertTrue(entries.filter { it.status == ConnectorAvailability.COMING_SOON }.all { !it.enabled })
         assertTrue(entries.all { it.author == "AIRI" })

@@ -46,6 +46,10 @@ class ConnectorCatalogTest {
         assertEquals(listOf(ConnectorProviderScopes.GOOGLE_GMAIL_READONLY), OfficialConnectorCatalog.get("google_gmail")!!.requiredScopes)
         assertEquals(listOf(ConnectorProviderScopes.GOOGLE_CALENDAR_EVENTS_OWNED_READONLY), OfficialConnectorCatalog.get("google_calendar")!!.requiredScopes)
         assertEquals(listOf(ConnectorProviderScopes.GOOGLE_DRIVE_METADATA_READONLY), OfficialConnectorCatalog.get("google_drive")!!.requiredScopes)
+        assertEquals(listOf(ConnectorProviderScopes.GOOGLE_DOCS_READONLY), OfficialConnectorCatalog.get("google_docs")!!.requiredScopes)
+        assertEquals(listOf(ConnectorProviderScopes.GOOGLE_SHEETS_READONLY), OfficialConnectorCatalog.get("google_sheets")!!.requiredScopes)
+        assertEquals(listOf(ConnectorProviderScopes.GOOGLE_CONTACTS_READONLY), OfficialConnectorCatalog.get("google_contacts")!!.requiredScopes)
+        assertEquals(listOf(ConnectorProviderScopes.GOOGLE_TASKS_READONLY), OfficialConnectorCatalog.get("google_tasks")!!.requiredScopes)
         assertEquals(
             listOf(ConnectorProviderScopes.MICROSOFT_USER_READ, ConnectorProviderScopes.MICROSOFT_MAIL_READ_BASIC),
             OfficialConnectorCatalog.get("microsoft_outlook")!!.requiredScopes,
@@ -53,6 +57,7 @@ class ConnectorCatalogTest {
         assertTrue(OfficialConnectorCatalog.get("microsoft_calendar")!!.requiredScopes.contains(ConnectorProviderScopes.MICROSOFT_CALENDARS_READ_BASIC))
         assertTrue(OfficialConnectorCatalog.get("microsoft_onedrive")!!.requiredScopes.contains(ConnectorProviderScopes.MICROSOFT_FILES_READ))
         assertTrue(OfficialConnectorCatalog.get("microsoft_teams")!!.requiredScopes.contains(ConnectorProviderScopes.MICROSOFT_TEAM_READ_BASIC_ALL))
+        assertTrue(OfficialConnectorCatalog.get("microsoft_todo")!!.requiredScopes.contains(ConnectorProviderScopes.MICROSOFT_TASKS_READ))
         assertEquals(listOf(ConnectorProviderScopes.ZAPIER_ZAP_READ), OfficialConnectorCatalog.get("zapier")!!.requiredScopes)
     }
 

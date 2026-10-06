@@ -162,7 +162,7 @@ fun IntegrationsScreen(
             "notion", "notion_mcp" -> vm.openNotionDialog()
             "zapier" -> vm.beginConnectorAuthorization("zapier")
             "microsoft_graph" -> vm.beginConnectorAuthorization("microsoft_graph")
-            "google" -> when (
+            "google_docs", "google_sheets", "google_contacts", "google_tasks", "google" -> when (
                 IntegrationReadinessPolicy.googleConnectionAction(
                     items.firstOrNull { it.id == "google" }?.readiness
                         ?: IntegrationReadiness.DISCONNECTED
@@ -237,7 +237,7 @@ fun IntegrationsScreen(
                             "notion", "notion_mcp" -> vm.openNotionDialog()
                             "zapier" -> vm.beginConnectorAuthorization("zapier")
                             "microsoft_graph" -> vm.beginConnectorAuthorization("microsoft_graph")
-                            "google" -> when (
+                            "google_docs", "google_sheets", "google_contacts", "google_tasks", "google" -> when (
                                 IntegrationReadinessPolicy.googleConnectionAction(item.readiness)
                             ) {
                                 GoogleConnectionAction.START_IDENTITY_SIGN_IN,

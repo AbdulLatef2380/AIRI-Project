@@ -42,6 +42,7 @@ class MicrosoftGraphConnector(
         capabilities = listOf(
             ConnectorCapability("outlook.mail.read", "Read the signed-in user's mail"),
             ConnectorCapability("outlook.calendar.read", "Read the signed-in user's calendar"),
+            ConnectorCapability("todo.read", "Read the signed-in user's To Do tasks"),
         ),
         tags = listOf("microsoft", "outlook", "calendar", "graph"),
     )
@@ -58,6 +59,7 @@ class MicrosoftGraphConnector(
             ConnectorProviderScopes.MICROSOFT_CALENDARS_READ_BASIC,
             ConnectorProviderScopes.MICROSOFT_FILES_READ,
             ConnectorProviderScopes.MICROSOFT_TEAM_READ_BASIC_ALL,
+            ConnectorProviderScopes.MICROSOFT_TASKS_READ,
             ConnectorProviderScopes.MICROSOFT_USER_READ,
         )
         if (actionScopes.isEmpty() || actionScopes.any { it !in declaredActionScopes }) {
@@ -156,6 +158,12 @@ class MicrosoftGraphConnector(
                 "$resource?\$top=$top&\$select=id,name,size,folder,file,lastModifiedDateTime,webUrl"
             }
             "teams_list_joined" -> "/me/joinedTeams?\$select=id,displayName,description,visibility,webUrl"
+            "todo_lists_read" -> "/me/todo/lists?\$select=id,displayName"
+            "todo_tasks_read" -> {
+                val listId = input.params["list_id"]?.trim().orEmpty()
+                if (listId.isBlank()) return ConnectorOutput.Failure("invalid_params", "list_id is required")
+                "/me/todo/lists/${encPath(listId)}/tasks?\$top=${boundedTop(input.params["top"])}&\$select=id,title,status,dueDateTime,importance"
+            }
             "status" -> "/me?\$select=id,displayName,mail,userPrincipalName"
             else -> return ConnectorOutput.Failure("unknown_action", "Unknown Microsoft Graph action: ${input.action}")
         }
@@ -188,6 +196,15 @@ class MicrosoftGraphConnector(
         ),
         ConnectorAgentAction("teams_list_joined", "List Microsoft Teams joined by the signed-in work or school account.", surfaceId = "microsoft_teams", providerGrants = listOf(
             ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.MICROSOFT_TEAM_READ_BASIC_ALL)
+        )),
+        ConnectorAgentAction("todo_lists_read", "List the signed-in user's Microsoft To Do lists.", surfaceId = "microsoft_todo", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.MICROSOFT_TASKS_READ)
+        )),
+        ConnectorAgentAction("todo_tasks_read", "Read tasks from a Microsoft To Do list.", surfaceId = "microsoft_todo", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.MICROSOFT_TASKS_READ)
+        ), parameters = mapOf(
+            "list_id" to ConnectorAgentParameter(description = "Microsoft To Do list id", required = true, maxLength = 256),
+            "top" to ConnectorAgentParameter(description = "Optional number of tasks from 1 to 50."),
         )),
         ConnectorAgentAction("status", "Check Microsoft Graph connection status", surfaceId = "microsoft_outlook", providerGrants = listOf(
             ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.MICROSOFT_USER_READ)

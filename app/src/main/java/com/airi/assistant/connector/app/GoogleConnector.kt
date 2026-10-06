@@ -1,5 +1,6 @@
 package com.airi.assistant.connector.app
 
+import android.net.Uri
 import android.util.Log
 import com.airi.assistant.connector.*
 import com.airi.assistant.integrations.google.GoogleAuthService
@@ -58,6 +59,10 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
             ConnectorCapability("email.read", "Read authorized Gmail messages"),
             ConnectorCapability("calendar.read", "Read upcoming Calendar events"),
             ConnectorCapability("drive.read", "Search authorized Drive files"),
+            ConnectorCapability("documents.read", "Read an authorized Google document"),
+            ConnectorCapability("spreadsheets.read", "Read an authorized spreadsheet range"),
+            ConnectorCapability("contacts.read", "Read authorized contacts"),
+            ConnectorCapability("tasks.read", "Read authorized Google Tasks"),
         ),
         availability = ConnectorAvailability.PARTIAL,
         website = "https://www.google.com",
@@ -84,6 +89,21 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
         ), parameters = mapOf(
             "query" to ConnectorAgentParameter(description = "Drive search query", required = true, maxLength = 2_048)
         )),
+        ConnectorAgentAction("docs_read", "Read an authorized Google document.", surfaceId = "google_docs", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.GOOGLE_DOCS_READONLY)
+        ), parameters = mapOf("document_id" to ConnectorAgentParameter(description = "Google document id", required = true, maxLength = 256))),
+        ConnectorAgentAction("sheets_read", "Read an authorized Google Sheets range.", surfaceId = "google_sheets", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.GOOGLE_SHEETS_READONLY)
+        ), parameters = mapOf(
+            "spreadsheet_id" to ConnectorAgentParameter(description = "Google spreadsheet id", required = true, maxLength = 256),
+            "range" to ConnectorAgentParameter(description = "A1 notation range", required = true, maxLength = 512),
+        )),
+        ConnectorAgentAction("contacts_list", "List authorized Google contacts.", surfaceId = "google_contacts", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.GOOGLE_CONTACTS_READONLY)
+        ), parameters = mapOf("max_results" to ConnectorAgentParameter(type = "int", description = "Maximum contacts to list", minInt = 1, maxInt = 100))),
+        ConnectorAgentAction("tasks_list", "List authorized Google Tasks.", surfaceId = "google_tasks", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.GOOGLE_TASKS_READONLY)
+        ), parameters = mapOf("max_results" to ConnectorAgentParameter(type = "int", description = "Maximum tasks to list", minInt = 1, maxInt = 100))),
     )
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
@@ -148,6 +168,10 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
             "gmail_read" -> executeGmailRead(token, input)
             "calendar_list" -> executeCalendarList(token, input)
             "drive_search" -> executeDriveSearch(token, input)
+            "docs_read" -> executeDocsRead(token, input)
+            "sheets_read" -> executeSheetsRead(token, input)
+            "contacts_list" -> executeContactsList(token, input)
+            "tasks_list" -> executeTasksList(token, input)
             else -> ConnectorOutput.Failure(
                 code    = "unknown_action",
                 message = "Unknown Google action: ${input.action}"
@@ -259,6 +283,56 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
         } catch (e: Exception) {
             Log.w(TAG, "drive_search request failed")
             googleRequestFailure("Drive search", e)
+        }
+    }
+
+    private fun executeDocsRead(token: String, input: ConnectorInput): ConnectorOutput {
+        val documentId = input.params["document_id"]?.trim().orEmpty()
+        if (documentId.isBlank()) return ConnectorOutput.Failure("invalid_params", "document_id is required")
+        return try {
+            val response = get("https://docs.googleapis.com/v1/documents/${Uri.encode(documentId)}", token)
+            ConnectorOutput.Success(response.toString(2), data = mapOf("documentId" to documentId))
+        } catch (e: Exception) {
+            Log.w(TAG, "docs_read request failed")
+            googleRequestFailure("Google Docs read", e)
+        }
+    }
+
+    private fun executeSheetsRead(token: String, input: ConnectorInput): ConnectorOutput {
+        val spreadsheetId = input.params["spreadsheet_id"]?.trim().orEmpty()
+        val range = input.params["range"]?.trim().orEmpty()
+        if (spreadsheetId.isBlank() || range.isBlank()) return ConnectorOutput.Failure("invalid_params", "spreadsheet_id and range are required")
+        return try {
+            val url = "https://sheets.googleapis.com/v4/spreadsheets/${Uri.encode(spreadsheetId)}/values/${Uri.encode(range)}"
+            val response = get(url, token)
+            ConnectorOutput.Success(response.toString(2), data = mapOf("spreadsheetId" to spreadsheetId, "range" to range))
+        } catch (e: Exception) {
+            Log.w(TAG, "sheets_read request failed")
+            googleRequestFailure("Google Sheets read", e)
+        }
+    }
+
+    private fun executeContactsList(token: String, input: ConnectorInput): ConnectorOutput {
+        val maxResults = input.params["max_results"]?.toIntOrNull()?.coerceIn(1, 100) ?: 25
+        return try {
+            val url = "https://people.googleapis.com/v1/people/me/connections?pageSize=$maxResults&personFields=names,emailAddresses"
+            val response = get(url, token)
+            ConnectorOutput.Success(response.toString(2), data = mapOf("count" to (response.optJSONArray("connections")?.length() ?: 0).toString()))
+        } catch (e: Exception) {
+            Log.w(TAG, "contacts_list request failed")
+            googleRequestFailure("Google Contacts list", e)
+        }
+    }
+
+    private fun executeTasksList(token: String, input: ConnectorInput): ConnectorOutput {
+        val maxResults = input.params["max_results"]?.toIntOrNull()?.coerceIn(1, 100) ?: 25
+        return try {
+            val url = "https://tasks.googleapis.com/tasks/v1/lists/@default/tasks?maxResults=$maxResults&showCompleted=false&showHidden=false"
+            val response = get(url, token)
+            ConnectorOutput.Success(response.toString(2), data = mapOf("count" to (response.optJSONArray("items")?.length() ?: 0).toString()))
+        } catch (e: Exception) {
+            Log.w(TAG, "tasks_list request failed")
+            googleRequestFailure("Google Tasks list", e)
         }
     }
 

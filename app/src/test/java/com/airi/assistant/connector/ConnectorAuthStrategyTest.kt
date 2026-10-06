@@ -32,6 +32,10 @@ class ConnectorAuthStrategyTest {
     fun implemented_provider_flows_are_resolved_without_ui_id_lists() {
         val expected = mapOf(
             "google_gmail" to ConnectorAuthMode.OAUTH2_PKCE,
+            "google_docs" to ConnectorAuthMode.OAUTH2_PKCE,
+            "google_sheets" to ConnectorAuthMode.OAUTH2_PKCE,
+            "google_contacts" to ConnectorAuthMode.OAUTH2_PKCE,
+            "google_tasks" to ConnectorAuthMode.OAUTH2_PKCE,
             "github" to ConnectorAuthMode.PERSONAL_ACCESS_TOKEN,
             "telegram" to ConnectorAuthMode.API_KEY,
             "notion" to ConnectorAuthMode.MCP_CONFIGURATION,
@@ -39,6 +43,7 @@ class ConnectorAuthStrategyTest {
             "microsoft_calendar" to ConnectorAuthMode.OAUTH2_PKCE,
             "microsoft_onedrive" to ConnectorAuthMode.OAUTH2_PKCE,
             "microsoft_teams" to ConnectorAuthMode.OAUTH2_PKCE,
+            "microsoft_todo" to ConnectorAuthMode.OAUTH2_PKCE,
             "zapier" to ConnectorAuthMode.OAUTH2_PKCE,
         )
         expected.forEach { (id, mode) ->

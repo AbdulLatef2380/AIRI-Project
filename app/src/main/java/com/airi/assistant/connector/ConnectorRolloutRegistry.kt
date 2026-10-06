@@ -49,8 +49,8 @@ object ConnectorRolloutRegistry {
      * from a shared runtime id: google and microsoft_graph each serve both
      * implemented and catalog-only surfaces. */
     private val liveCatalogIds = setOf(
-        "google_gmail", "google_calendar", "google_drive",
-        "microsoft_outlook", "microsoft_calendar", "microsoft_onedrive", "microsoft_teams",
+        "google_gmail", "google_calendar", "google_drive", "google_docs", "google_sheets", "google_contacts", "google_tasks",
+        "microsoft_outlook", "microsoft_calendar", "microsoft_onedrive", "microsoft_teams", "microsoft_todo",
         "github", "telegram", "notion", "zapier",
     )
 

@@ -31,5 +31,9 @@ object GoogleDataScopes {
         ConnectorProviderScopes.GOOGLE_GMAIL_READONLY,
         ConnectorProviderScopes.GOOGLE_CALENDAR_EVENTS_OWNED_READONLY,
         ConnectorProviderScopes.GOOGLE_DRIVE_METADATA_READONLY,
+        ConnectorProviderScopes.GOOGLE_DOCS_READONLY,
+        ConnectorProviderScopes.GOOGLE_SHEETS_READONLY,
+        ConnectorProviderScopes.GOOGLE_CONTACTS_READONLY,
+        ConnectorProviderScopes.GOOGLE_TASKS_READONLY,
     )
 }

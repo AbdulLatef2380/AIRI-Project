@@ -5,6 +5,515 @@
       <verify-signatures>false</verify-signatures>
    </configuration>
    <components>
+      <component group="androidx.annotation" name="annotation" version="1.7.1">
+         <artifact name="annotation-1.7.1.module">
+            <sha256 value="ac94dfef4f82ccd2ca7573a53779dbf3dfab650e654056a4d4df90af43572990" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.annotation" name="annotation-jvm" version="1.6.0">
+         <artifact name="annotation-jvm-1.6.0.module">
+            <sha256 value="3f5a8faa19de667e63dca9730ff8ef0e478e4bafb5feeb8258e5c086246dc90c" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.annotation" name="annotation-jvm" version="1.7.1">
+         <artifact name="annotation-jvm-1.7.1.module">
+            <sha256 value="8bf4e20342803938d75d5191ff17a00bdb26457bd7340d0ed9a272351d530897" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.collection" name="collection" version="1.4.0">
+         <artifact name="collection-1.4.0.module">
+            <sha256 value="2fd3b523e8276c0254c417b66d8e7fecc5b0b975af5d178afa7f5b813812cfab" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.collection" name="collection-jvm" version="1.4.0">
+         <artifact name="collection-jvm-1.4.0.module">
+            <sha256 value="21b0b02ea68abe418f3dd4e4d42876ecf3bd9a1cada458b460cae1cd9d58ef6d" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.collection" name="collection-ktx" version="1.4.0">
+         <artifact name="collection-ktx-1.4.0.module">
+            <sha256 value="3770999ec32d1c082d1a34cf1d64d16d9eca9b6b1263c979954407f461fba82b" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose" name="compose-bom" version="2024.01.00">
+         <artifact name="compose-bom-2024.01.00.pom">
+            <sha256 value="099891b77b3bbba52be58166495cf06938909ca4bf10e230bcd090175bc68f9a" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.animation" name="animation" version="1.6.0">
+         <artifact name="animation-1.6.0.module">
+            <sha256 value="e98defdf92ca1fcbeaf16e78a60c18052b01340da3849b93e25e944f06a4e527" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.animation" name="animation" version="1.6.1">
+         <artifact name="animation-1.6.1.module">
+            <sha256 value="92db65a617a2a704b2bef37f9b2a4529fbebea3c9ed8db9a8a71c53325f47dea" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.animation" name="animation-android" version="1.6.0">
+         <artifact name="animation-android-1.6.0.module">
+            <sha256 value="d612dc9c78dfe014039c0a384be7ed968b8527492fc094baba1b402681a855af" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.animation" name="animation-android" version="1.6.1">
+         <artifact name="animation-android-1.6.1.module">
+            <sha256 value="6434eb514621eee393b58b3bd22465c8b536befb382ea312593403ecf4033641" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="animation-release.aar">
+            <sha256 value="07a3525c6ad7dc7389a5e1e742f1e9892bc3ad417338d5ad5eb763a8f7a61e0a" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.animation" name="animation-core" version="1.6.0">
+         <artifact name="animation-core-1.6.0.module">
+            <sha256 value="61bfa244fb1979bcca6dcb80a5c040115aecbad84d7d2e29cf237b483cab2248" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.animation" name="animation-core" version="1.6.1">
+         <artifact name="animation-core-1.6.1.module">
+            <sha256 value="aab36169d882e126f62b7ee60a9d17f54a63afc03deca52c6acf4e01d45bc1fd" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.animation" name="animation-core-android" version="1.6.0">
+         <artifact name="animation-core-android-1.6.0.module">
+            <sha256 value="c571f43b5780fb80f42e85644e0ba5696af088d7228f3251c3e1d64c3bd64376" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.animation" name="animation-core-android" version="1.6.1">
+         <artifact name="animation-core-android-1.6.1.module">
+            <sha256 value="3fa3f89eecbe099a50115be81ee6a620b40a376cb48b34b6b102c41891ce771b" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="animation-core-release.aar">
+            <sha256 value="40329368854464b3dba5d3928f8bbd365041863e851499afc8c7559464befe5e" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.foundation" name="foundation" version="1.6.0">
+         <artifact name="foundation-1.6.0.module">
+            <sha256 value="9dbbdbeeb551e6bf95589d653970069e743f795c934ed536d22bf261dcc3704a" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.foundation" name="foundation" version="1.6.1">
+         <artifact name="foundation-1.6.1.module">
+            <sha256 value="f03306d2e746b32831c2078ce32faea634ad1af93f98e770ce17943c0415ab48" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.foundation" name="foundation-android" version="1.6.1">
+         <artifact name="foundation-android-1.6.1.module">
+            <sha256 value="6ccfd4a6529da39c9ba1496a1f40033582ff75412c965dddd65bca97796251d3" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="foundation-release.aar">
+            <sha256 value="1fd0e19cf3252ff3742f33b423b10e7978edbadbb97772bd1cf61b86450c4e8f" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.foundation" name="foundation-layout" version="1.6.0">
+         <artifact name="foundation-layout-1.6.0.module">
+            <sha256 value="3de795143914ffdcb3bff3f50bf62b18fce1b60bf856a9cfb84fcbcb34e94b48" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.foundation" name="foundation-layout" version="1.6.1">
+         <artifact name="foundation-layout-1.6.1.module">
+            <sha256 value="10e972d328d51e2a244ea99fd6bc1300fe416d37617d5b1449162310c5c52236" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.foundation" name="foundation-layout-android" version="1.6.0">
+         <artifact name="foundation-layout-android-1.6.0.module">
+            <sha256 value="552b5455edfeee4377ce7b2c795d530ed729717509a93ee975787e4f5ec1b1a8" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.foundation" name="foundation-layout-android" version="1.6.1">
+         <artifact name="foundation-layout-android-1.6.1.module">
+            <sha256 value="f8fc00d33dd9ea1b57231dbe12f58d091c05b7778e59330d718a60170335e8f1" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="foundation-layout-release.aar">
+            <sha256 value="f57d488af187156ade51c10f37ed78a56479525d9d72721713a5c414d534faeb" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.material" name="material" version="1.6.0">
+         <artifact name="material-1.6.0.module">
+            <sha256 value="bf08f6b522f64eef4467d56e566951039eae55b54c37023712a81d4dfb214bdd" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.material" name="material-android" version="1.6.0">
+         <artifact name="material-android-1.6.0.module">
+            <sha256 value="923f5d7b44d423605193b651023f1b4fd7e1d8cf763bd64942b80122ff7e2885" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="material-release.aar">
+            <sha256 value="bf2340bdad5f6cecdb3ba577f35bb874fc5b78512b964cd9024596ff9b8246c0" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.material" name="material-icons-core" version="1.6.0">
+         <artifact name="material-icons-core-1.6.0.module">
+            <sha256 value="2a8de13d549208eed8004463ca9240d4e73c8543a7cf53e95eee644f333f180a" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.material" name="material-icons-core-android" version="1.6.0">
+         <artifact name="material-icons-core-android-1.6.0.module">
+            <sha256 value="5fb8f22f619c3383800a4742aa9b334a5ae3880bd3825b921031c9f99b6697fd" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="material-icons-core-release.aar">
+            <sha256 value="0400755a3aa7270893445a18cd845e35064c9de02c1c41cf2083ad4724bcac6f" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.material" name="material-icons-extended" version="1.6.0">
+         <artifact name="material-icons-extended-1.6.0.module">
+            <sha256 value="f80003c48775be0f612a97552fe642eb2691025d07c7bc1318850bed23c88af8" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.material" name="material-icons-extended-android" version="1.6.0">
+         <artifact name="material-icons-extended-android-1.6.0.module">
+            <sha256 value="bfa239f0a7a678d170f8657e08fb557886dfcf36466d38cf23b4807bd59eb1dc" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="material-icons-extended-release.aar">
+            <sha256 value="f4f192b043654cc591c26b344f624adb7fbb8b2332c5f94bf92d99ce9f9d03c4" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.material" name="material-ripple" version="1.6.0">
+         <artifact name="material-ripple-1.6.0.module">
+            <sha256 value="d8cbddae925ee918eaf1f283151b02165a461f0beb88d1fa590ec99a6ed9e0f8" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.material" name="material-ripple-android" version="1.6.0">
+         <artifact name="material-ripple-android-1.6.0.module">
+            <sha256 value="349d3e0a888bfe675caa2bbcc5954d4846f9976d47ab275ca08dddfd8823b6d7" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="material-ripple-release.aar">
+            <sha256 value="394ba9369f3cbdee4345b429e38d01623dd56cd98b712b40edbe14359b83bce8" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.material3" name="material3" version="1.1.2">
+         <artifact name="material3-1.1.2.aar">
+            <sha256 value="fd9f8fe91d6661afcaf0e9c9cef30b5a196b4def5b28a370f13f2c259c26e482" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="material3-1.1.2.module">
+            <sha256 value="c99a42a1546e37872d9a3843b4f9738f66aa93c08a66c54c84f775b3da3e5d97" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.runtime" name="runtime" version="1.6.0">
+         <artifact name="runtime-1.6.0.module">
+            <sha256 value="04308194d5a582a3f66856b32f3d331eedb32c59b5c7bcd738dc21443d356cd4" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.runtime" name="runtime" version="1.6.1">
+         <artifact name="runtime-1.6.1.module">
+            <sha256 value="de94c6d852b2122d75be89cc262b651539a6affbdc7847bfea514f01969aa7eb" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.runtime" name="runtime-android" version="1.6.0">
+         <artifact name="runtime-android-1.6.0.module">
+            <sha256 value="c4509b4c04f49dcb74e48be6ae86fbe2adea767b1748588598e5ce97247e8db2" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.runtime" name="runtime-android" version="1.6.1">
+         <artifact name="runtime-android-1.6.1.module">
+            <sha256 value="af832926d5f9dc11fcd77e94a9478c6f1e65145184e1ba14de6cfadf6ea45abf" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="runtime-release.aar">
+            <sha256 value="3687b888485ead1318d11713fcd5ef674aaca96dc529b9991030bbeec2539123" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.runtime" name="runtime-saveable" version="1.6.0">
+         <artifact name="runtime-saveable-1.6.0.module">
+            <sha256 value="e49e43dba1348342329a5fef750e4ecee26d77765f2b76bf86bbb1e50f294d0f" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.runtime" name="runtime-saveable" version="1.6.1">
+         <artifact name="runtime-saveable-1.6.1.module">
+            <sha256 value="27899a491ec867c4d2dc2e544a61addd80f22bd191a6aeac5574ce4a9b321f94" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.runtime" name="runtime-saveable-android" version="1.6.0">
+         <artifact name="runtime-saveable-android-1.6.0.module">
+            <sha256 value="9dd272e5e52de829df2c2d68e8d12b7adcbd12e59eaae829e9688b9c2b85f3fe" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.runtime" name="runtime-saveable-android" version="1.6.1">
+         <artifact name="runtime-saveable-android-1.6.1.module">
+            <sha256 value="bdf242fa21fdb9ff2b02b5ce7f0f0111f6e50562c89153f5cb4db59e1fccfbf6" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="runtime-saveable-release.aar">
+            <sha256 value="6da21ad502d21868c4b8490ca8e51098775c9ba2397d896d724e7869bed0b03b" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui" version="1.6.0">
+         <artifact name="ui-1.6.0.module">
+            <sha256 value="7667e2302ea0b3033de8cf22b23459d7a7c8ce75c8fcc657c939e51509956779" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui" version="1.6.1">
+         <artifact name="ui-1.6.1.module">
+            <sha256 value="99a62207cf7894fc3ff46c1726f0c9db2390ef1a56fda02f9ea4a5ec7a6f1b07" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-android" version="1.6.1">
+         <artifact name="ui-android-1.6.1.module">
+            <sha256 value="ec6a18d265bb09ac5aa7077e01459ec03b6a3e375755abee547a1f870279e2df" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="ui-release.aar">
+            <sha256 value="bbf5431e7f84e483453dabb5a6cd5d18f553502da52f0c8be9aa955536c01d0e" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-geometry" version="1.6.1">
+         <artifact name="ui-geometry-1.6.1.module">
+            <sha256 value="e3a27d9a7f50bb13b65d6b812502473eacdef856c254ec2d7cdef3748ba2ec05" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-geometry-android" version="1.6.1">
+         <artifact name="ui-geometry-android-1.6.1.module">
+            <sha256 value="23b5bc8258a979424db028e88ce2863c906532df4e69f171c8befe4b9a7589b9" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="ui-geometry-release.aar">
+            <sha256 value="afd8bbb55879e3e75deb189dd90d5501e759487152e90bf438faaebb00e1e8aa" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-graphics" version="1.6.1">
+         <artifact name="ui-graphics-1.6.1.module">
+            <sha256 value="f77d9659c60ab7b30156cc0564609b85f5846628a996548b8081f3fa1cf98070" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-graphics-android" version="1.6.1">
+         <artifact name="ui-graphics-android-1.6.1.module">
+            <sha256 value="a73e96372ef7b10c6b94d7d9b10d98a701183316f4c640d245c2a47af5f757c5" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="ui-graphics-release.aar">
+            <sha256 value="267c4b6f80d87322ef08585358ddff7a353743f31bcc8df15056b769b2251e23" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-text" version="1.6.1">
+         <artifact name="ui-text-1.6.1.module">
+            <sha256 value="386a095d32a07175891967f1f48a31cd901c1f7996d3c04ad6304ab131538044" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-text-android" version="1.6.1">
+         <artifact name="ui-text-android-1.6.1.module">
+            <sha256 value="4e36633c3670e58e2dec929119d125bc1386ca0699aeecfa5cdde364a827dfd0" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="ui-text-release.aar">
+            <sha256 value="bd0aa08f4d5425b66e78d0c90b6afd2b19935402cd5787e5f7a13e44364710cd" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-text-google-fonts" version="1.6.1">
+         <artifact name="ui-text-google-fonts-1.6.1.aar">
+            <sha256 value="b8668a209c0d5745b9c7bc6a23ed0e1bf625950de9accef4cea7bb184adde9c1" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="ui-text-google-fonts-1.6.1.module">
+            <sha256 value="142eaad0acaf4ebdb0be4977487cd8a946cfd0b612a594d0951359df51ad4ffb" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-tooling" version="1.6.0">
+         <artifact name="ui-tooling-1.6.0.module">
+            <sha256 value="0a273522fdc24c8f1453b6e22b853a38b5b138ae0b4da7d2c8cc8425a4b485a1" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-tooling" version="1.6.1">
+         <artifact name="ui-tooling-1.6.1.module">
+            <sha256 value="fd7aa5abcea38242a785cc4249a9366671e6db0ecbbcb2455169ee928d74ac94" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-tooling-android" version="1.6.1">
+         <artifact name="ui-tooling-android-1.6.1.module">
+            <sha256 value="a2c5b2c0212a9319c2a289ba38d15d3ab3a50a560399f1186c0f6451b702970f" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="ui-tooling-release.aar">
+            <sha256 value="506a57a883a350dfb3c5b22fe24d87efd65efe1d3bb760e75552d873f15c034f" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-tooling-data" version="1.6.1">
+         <artifact name="ui-tooling-data-1.6.1.module">
+            <sha256 value="9cf8cb187db1f7cdcac6343229289d2d91ec591b6d2d9e383c9007ac1c858c10" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-tooling-data-android" version="1.6.1">
+         <artifact name="ui-tooling-data-android-1.6.1.module">
+            <sha256 value="dd92b0d63d06616fda707e86a10b7c93c716f856a1a1f08acdf560de6f54f843" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="ui-tooling-data-release.aar">
+            <sha256 value="201a71fbf43917b7387ac0a8e99feceec80c3e92e22779e66ceab9aab30eaa97" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-tooling-preview" version="1.6.0">
+         <artifact name="ui-tooling-preview-1.6.0.module">
+            <sha256 value="14c897e16c769b36b0a436ef67b5854bd1cb02d26cb3c43e15ccc013a366a123" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-tooling-preview" version="1.6.1">
+         <artifact name="ui-tooling-preview-1.6.1.module">
+            <sha256 value="7fdbb3e9fe9fad911a979dfb4716ac2395f85c867dbb163bbd44ca0d05fd2518" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-tooling-preview-android" version="1.6.1">
+         <artifact name="ui-tooling-preview-android-1.6.1.module">
+            <sha256 value="413ecbe368bada966478818e028dd8fe64ee6d12fcf2afd0e36f241b030ca749" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="ui-tooling-preview-release.aar">
+            <sha256 value="1f424d0bdadb31a11de21663855d33a884862f5d873f5b76571ca3da28bf5ba5" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-unit" version="1.6.1">
+         <artifact name="ui-unit-1.6.1.module">
+            <sha256 value="31df17013d7e02b82f59ecff68c9379f42f9612331abf5a435e2f3d1b0986d38" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-unit-android" version="1.6.1">
+         <artifact name="ui-unit-android-1.6.1.module">
+            <sha256 value="8eb78f54e8bd0c5c13f9593797395365be95d17d355245e4045191cfc5efbb06" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="ui-unit-release.aar">
+            <sha256 value="5d7a9fbf8a7f7658e2de6f10b7887ff3d6d635fb73612f08896ea053e1904a80" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-util" version="1.6.1">
+         <artifact name="ui-util-1.6.1.module">
+            <sha256 value="33b297b44e282111759db5ffd5135a080dbf3a94eae9081cbb57846feb038fd5" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.compose.ui" name="ui-util-android" version="1.6.1">
+         <artifact name="ui-util-android-1.6.1.module">
+            <sha256 value="4a3d51a8927d133b5bb81185773e2fcd15ec12390006a653b40cb3a03068a252" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="ui-util-release.aar">
+            <sha256 value="5fc80db3130efd36849da4b6c5cc51049d6006856b2c98f5b3711aff433c48c0" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.emoji2" name="emoji2" version="1.3.0">
+         <artifact name="emoji2-1.3.0.aar">
+            <sha256 value="2bf23818b23a996ddaa1b5fd5bb32129daff6bbb2dce15166e2fccdd2010b1a5" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.emoji2" name="emoji2-views-helper" version="1.3.0">
+         <artifact name="emoji2-views-helper-1.3.0.aar">
+            <sha256 value="9a1351295a4f739df0efe8344adaa9afb34856c3af584d4a9afbec105a45b90b" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="emoji2-views-helper-1.3.0.module">
+            <sha256 value="09974bb5ef9780de9d56715d71171a35c78fb2e17fd865773b0c83a3acac039c" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.lifecycle" name="lifecycle-livedata" version="2.7.0">
+         <artifact name="lifecycle-livedata-2.7.0.aar">
+            <sha256 value="9affa24c6160dc8cadaac9422d4f714e5009537d0243afc4bc74b5b7cf0de4ad" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.lifecycle" name="lifecycle-livedata-core" version="2.7.0">
+         <artifact name="lifecycle-livedata-core-2.7.0.aar">
+            <sha256 value="af8e11b87e030d6e3107ed39adcf01fa10d6259eb15c43cba6e7b4e3ffaedf27" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.lifecycle" name="lifecycle-livedata-core-ktx" version="2.7.0">
+         <artifact name="lifecycle-livedata-core-ktx-2.7.0.aar">
+            <sha256 value="a97f4c2191ebdd32f99ac229597bd1a92446b01cd1a088d13494cc05cabf0def" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.lifecycle" name="lifecycle-process" version="2.7.0">
+         <artifact name="lifecycle-process-2.7.0.aar">
+            <sha256 value="6fb33d9473a4933da9d98a0b12b606127e80681bd9b90309ccd2c2230863b939" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="lifecycle-process-2.7.0.module">
+            <sha256 value="e9370cae02e170f51f2affb34e41a062d3bee5e5270ec112ac8523b6ca6de96f" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.lifecycle" name="lifecycle-runtime" version="2.7.0">
+         <artifact name="lifecycle-runtime-2.7.0.aar">
+            <sha256 value="81c6fb1dbb6a3cd7dc827d7b08e1c8142ed3a400a3422441108480e22f8937c4" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.lifecycle" name="lifecycle-runtime-compose" version="2.7.0">
+         <artifact name="lifecycle-runtime-compose-2.7.0.aar">
+            <sha256 value="d4abcce8235683a0374dd4e9a78fd416eb65855658dda9d4fe4b34e5a27ff167" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.lifecycle" name="lifecycle-runtime-ktx" version="2.7.0">
+         <artifact name="lifecycle-runtime-ktx-2.7.0.aar">
+            <sha256 value="ef7033b15db27569771c3c0aeb6f92392b5654216195fe74136ea3e108912ad4" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.lifecycle" name="lifecycle-service" version="2.7.0">
+         <artifact name="lifecycle-service-2.7.0.aar">
+            <sha256 value="e31bd0e92bd0b31b360448ca5a5b80fc1f63507bb4ee8e9bd300437449d1789b" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.lifecycle" name="lifecycle-viewmodel" version="2.7.0">
+         <artifact name="lifecycle-viewmodel-2.7.0.aar">
+            <sha256 value="4e1d92e289920cd7b50e3671b9191bd413407349cda6f602b0285464f41c1c82" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.lifecycle" name="lifecycle-viewmodel-compose" version="2.7.0">
+         <artifact name="lifecycle-viewmodel-compose-2.7.0.aar">
+            <sha256 value="76403bb1599f6e2adc9b80372efb2674b8cbede2b0f1e6e85c4a94e10c7b94b0" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.lifecycle" name="lifecycle-viewmodel-ktx" version="2.7.0">
+         <artifact name="lifecycle-viewmodel-ktx-2.7.0.aar">
+            <sha256 value="b492dbfc85926471367112f6d0e5d2c9991e855c5421ab37399396cc0123e2af" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.lifecycle" name="lifecycle-viewmodel-savedstate" version="2.7.0">
+         <artifact name="lifecycle-viewmodel-savedstate-2.7.0.aar">
+            <sha256 value="57c578862e219e360c6957ff0bca6f169707b1e5582d4fa593e284f7f63e33f6" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.profileinstaller" name="profileinstaller" version="1.3.1">
+         <artifact name="profileinstaller-1.3.1.aar">
+            <sha256 value="d0e402ec31f24028a1dc7eb6a0a3f9d9635c1459392cd734396343b73d673948" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="profileinstaller-1.3.1.module">
+            <sha256 value="cc7eed0ed4b669de84b852f78797a50018a4f30002e1e38aaa668af22ca5b460" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.room" name="room-common" version="2.6.1">
+         <artifact name="room-common-2.6.1.module">
+            <sha256 value="0ea07ef7143ab5262cc0e48e82f3badd6adf164b3701ab2ac0f6f099e8f63d3b" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.room" name="room-ktx" version="2.6.1">
+         <artifact name="room-ktx-2.6.1.aar">
+            <sha256 value="da4c0cba7efcafa29fbeab1db41984238f25c1a33612c1d60d63b995968d70ca" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="room-ktx-2.6.1.module">
+            <sha256 value="33ac3f42307328ac19d4fe52422337b1c1ae64db36e3933438312a48c3b3b631" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.room" name="room-runtime" version="2.6.1">
+         <artifact name="room-runtime-2.6.1.aar">
+            <sha256 value="69624fd7add6ce5bfcc12362cd427341d2910e277ed5a6fcc46132a4899114d0" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="room-runtime-2.6.1.module">
+            <sha256 value="828e4bead1b8d42ff17c41e74541133dc61a959b968f3c2a2221c24b3dac6c3b" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.savedstate" name="savedstate" version="1.2.1">
+         <artifact name="savedstate-1.2.1.aar">
+            <sha256 value="21a7d4bcf6bdb94ad7b9283801529300b4fbb8808ca4f191e0cdce6fd8e4705a" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.savedstate" name="savedstate-ktx" version="1.2.1">
+         <artifact name="savedstate-ktx-1.2.1.aar">
+            <sha256 value="8553f87e7136c24ec5243560f48f1c32cba56daa77722f89589a5cafcb8f7894" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.sqlite" name="sqlite" version="2.4.0">
+         <artifact name="sqlite-2.4.0.aar">
+            <sha256 value="bb7fa113112f7e4857496e222e3051d73a910add74bf40761e1bdae55b0216af" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="sqlite-2.4.0.module">
+            <sha256 value="b7b5f5fcb12a48f7fdeea82ef205721e3daf366fc77a843a77358def088f63fc" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="androidx.sqlite" name="sqlite-framework" version="2.4.0">
+         <artifact name="sqlite-framework-2.4.0.aar">
+            <sha256 value="ca6e503322b2e60374c2b36c95c50b16709d9388fe36e80fb23de1fbf7a6eb95" origin="Retrieved from Google Maven"/>
+         </artifact>
+         <artifact name="sqlite-framework-2.4.0.module">
+            <sha256 value="15681e94286ebf7121d940765a222b9a7ada2a32a49baa1ad416ef04b6f0f780" origin="Retrieved from Google Maven"/>
+         </artifact>
+      </component>
+      <component group="org.jetbrains.kotlin" name="kotlin-stdlib" version="1.9.22">
+         <artifact name="kotlin-stdlib-1.9.22.module">
+            <sha256 value="f482314b5079c1455f6fb0d4257a745d101c6124ce961522ba86f9dc90901e47" origin="Retrieved from Maven Central"/>
+         </artifact>
+      </component>
+      <component group="org.jetbrains.kotlin" name="kotlin-stdlib-common" version="1.9.22">
+         <artifact name="kotlin-stdlib-common-1.9.22.module">
+            <sha256 value="f93c9e9abf8d52d8e8fd8e851aa802ecec55132161c4aeee7d3cd924bf794246" origin="Retrieved from Maven Central"/>
+         </artifact>
+      </component>
       <component group="ai.picovoice" name="android-voice-processor" version="1.0.2">
          <artifact name="android-voice-processor-1.0.2.aar">
             <sha256 value="6f225a9758bfdbaa7192a8297925be66a673b1b32eaaa4ed6ee0aeaa57746305" origin="Generated by Gradle"/>

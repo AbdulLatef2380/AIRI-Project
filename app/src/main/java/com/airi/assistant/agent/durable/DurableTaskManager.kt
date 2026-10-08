@@ -877,13 +877,6 @@ class DurableTaskWorker(
 
         return runCatching {
             val registry = com.airi.assistant.agent.subagent.SubAgentRegistry
-            val agent = registry.findById(task.agentId)
-                ?: registry.findById("research_agent")
-                ?: run {
-                    manager.markFailed(taskId, "No agent found for id=${task.agentId}")
-                    return Result.failure()
-                }
-
             val context = com.airi.assistant.agent.subagent.SubAgentContext(
                 sessionId         = task.projectId ?: taskId,
                 userId            = task.ownerId,
@@ -896,6 +889,12 @@ class DurableTaskWorker(
                     ?.let { mapOf("checkpoint" to it) }
                     ?: emptyMap()
             )
+            val agent = registry.authorizedAgent(task.agentId, context)
+                ?: registry.authorizedAgent("research_agent", context)
+                ?: run {
+                    manager.markFailed(taskId, "No authorized agent found for id=${task.agentId}")
+                    return Result.failure()
+                }
 
             var finalResult = ""
             agent.execute(task.input, context).collect { event ->

@@ -7,6 +7,7 @@ import com.airi.assistant.agent.calendar.CalendarCreateRuntime
 import com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy
 import com.airi.assistant.agent.loop.tool.ToolDispatcher
 import com.airi.assistant.agent.loop.tool.ToolSchema
+import com.airi.assistant.agent.loop.tool.ToolSpecAdapter
 import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.core.ExecutionStatusBus
@@ -21,6 +22,7 @@ import com.airi.assistant.execution.ToolCallLedger
 import com.airi.assistant.execution.stableArgumentsHash
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.HybridOrchestrator
+import com.airi.assistant.domain.tool.StrictArgumentValidator
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 import kotlinx.coroutines.CancellationException
@@ -192,8 +194,18 @@ the tool returns an actual error.
                 com.airi.assistant.ai.CapabilityIntentDetector.Capability.CURRENT_TIME
             ) && effectiveTools.any { it.name == "current_time" }
         ) {
-            val timeResult = try {
-                dispatcher.execute("current_time", emptyMap(), appContext, executionId)
+            val timeSchema = effectiveTools.first { it.name == "current_time" }
+            val timeValidation = StrictArgumentValidator.validate(
+                spec = ToolSpecAdapter.fromSchema(timeSchema),
+                raw = emptyMap(),
+            )
+            val timeResult = if (!timeValidation.isValid) {
+                ToolDispatcher.ToolResult.Error(
+                    timeValidation.failure?.message ?: "Invalid current_time arguments",
+                    code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.INVALID_ARGUMENT,
+                )
+            } else try {
+                dispatcher.execute("current_time", timeValidation.arguments!!.canonical, appContext, executionId)
             } catch (error: Exception) {
                 ToolDispatcher.ToolResult.Error(
                     "Unable to read device time: ${error.message ?: "unknown error"}",
@@ -391,8 +403,22 @@ the tool returns an actual error.
 
                 // Execute the tool
                 val toolName = toolCall.first
-                val toolArgs = toolCall.second
-                val toolValidationError = validateToolCall(toolName, toolArgs, effectiveTools)
+                val rawToolArgs = toolCall.second
+                val selectedToolSchema = effectiveTools.firstOrNull { it.name == toolName }
+                val strictValidation = selectedToolSchema?.let { schema ->
+                    StrictArgumentValidator.validate(
+                        spec = ToolSpecAdapter.fromSchema(schema),
+                        raw = rawToolArgs,
+                    )
+                }
+                val toolValidationError = when {
+                    selectedToolSchema == null -> "Tool '$toolName' is not available in this session."
+                    strictValidation?.failure != null -> strictValidation.failure?.message ?: "Invalid tool arguments."
+                    else -> null
+                }
+                // Handlers receive only canonical values produced by the strict
+                // validator. Raw model arguments never cross this boundary.
+                val toolArgs = strictValidation?.arguments?.canonical ?: rawToolArgs
                 runtimeTrace?.selected(
                     executionId = executionId,
                     sessionId = sessionId,
@@ -404,7 +430,6 @@ the tool returns an actual error.
                     com.airi.assistant.core.CapabilityRuntimeStage.MODEL_SELECTED,
                     if (toolValidationError == null) "selected" else "rejected",
                 )
-                val selectedToolSchema = effectiveTools.firstOrNull { it.name == toolName }
                 if (selectedToolSchema != null) {
                     val actualPath = when {
                         toolName.startsWith("skill_") -> com.airi.assistant.core.RuntimeExecutionPath.SKILL_BRIDGE
@@ -845,30 +870,6 @@ the tool returns an actual error.
 
         if (error != null) throw RuntimeException(error)
         return buf.toString().trim()
-    }
-
-    /**
-     * Validate model output against the exact capability set supplied to this
-     * run. The prompt is advisory; this is the enforcement boundary.
-     */
-    private fun validateToolCall(
-        toolName: String,
-        args: Map<String, String>,
-        tools: List<ToolSchema>,
-    ): String? {
-        val schema = tools.firstOrNull { it.name == toolName }
-            ?: return "Tool '$toolName' is not available in this session."
-        val unknown = args.keys - schema.parameters.keys
-        if (unknown.isNotEmpty()) {
-            return "Tool '$toolName' received unsupported parameters: ${unknown.sorted().joinToString(", ")}."
-        }
-        val missing = schema.parameters
-            .filter { (name, parameter) -> parameter.required && args[name].isNullOrBlank() }
-            .keys
-        if (missing.isNotEmpty()) {
-            return "Tool '$toolName' is missing required parameters: ${missing.sorted().joinToString(", ")}."
-        }
-        return null
     }
 
     // ── Tool schema → system prompt block ─────────────────────────────────────

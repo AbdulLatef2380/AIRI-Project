@@ -32,8 +32,19 @@ data class ArgumentSpec(
     data class Constraints(
         val minLength: Int? = null,
         val maxLength: Int? = null,
+        val minNumber: Long? = null,
+        val maxNumber: Long? = null,
         val allowedValues: Set<String> = emptySet(),
-    )
+        val allowedSchemes: Set<String> = emptySet(),
+    ) {
+        init {
+            require(minLength == null || minLength >= 0) { "minLength must be non-negative" }
+            require(maxLength == null || maxLength >= 0) { "maxLength must be non-negative" }
+            require(minLength == null || maxLength == null || minLength <= maxLength) { "minLength must not exceed maxLength" }
+            require(minNumber == null || maxNumber == null || minNumber <= maxNumber) { "minNumber must not exceed maxNumber" }
+            require(allowedSchemes.all { it.isNotBlank() && it == it.lowercase() }) { "URL schemes must be lowercase and non-blank" }
+        }
+    }
 }
 
 sealed interface AuthorizationDecision {

@@ -34,13 +34,17 @@ class AgentLoopSideEffectPolicyTest {
             AgentLoopSideEffectPolicy.Decision.ALLOW_TYPED_CALENDAR_CREATE,
             AgentLoopSideEffectPolicy.decide("calendar_create", hasDurableExecutionContext = true)
         )
-        listOf("create_note", "set_alarm", "open_app", "tap", "type_text", "scroll_down", "go_back", "terminal_execute")
+        listOf("create_note", "set_alarm", "open_app", "tap", "type_text", "scroll_down", "go_back")
             .forEach { tool ->
                 assertEquals(
                     AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED,
                     AgentLoopSideEffectPolicy.decide(tool, hasDurableExecutionContext = true)
                 )
             }
+        assertEquals(
+            AgentLoopSideEffectPolicy.Decision.ALLOW_TYPED_TERMINAL,
+            AgentLoopSideEffectPolicy.decide("terminal_execute", hasDurableExecutionContext = true)
+        )
         assertTrue(AgentLoopSideEffectPolicy.blockedMessage("calendar_create").contains("approval session"))
     }
 }

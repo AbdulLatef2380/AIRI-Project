@@ -1,3 +1,22 @@
+# أحدث تحقق — PR-1 (2026-10-08)
+
+- **الفرع:** `pr-0-pr-1` مبني من `origin/main`، HEAD الأساسي: `168128bd` (`docs(audit): establish runtime capability baseline`).
+- **PR-0:** بوابة الجرد وADR موجودة على خط الأساس؛ الجرد يميز `defined/registered/advertised/authorized/invoked/device-proven`، ولا توجد تغييرات تنفيذية أو إزالة legacy surface في هذه المرحلة.
+- **Toolchain:** Gradle `8.11.1`، AGP `8.10.1`، Kotlin `2.2.21`، KSP `2.2.21-2.0.5`، JDK `17.0.20`، Android SDK platform `36`، Build Tools `36.0.0`.
+- **Dependency verification:** بقي مفعلاً؛ `gradle/verification-metadata.xml` صالح XML ويحتوي artifacts KSP المطابقة للإصدار المطلوب. لم تُستخدم `--dependency-verification=off` ولم تُعدّل checksums تخميناً.
+
+| البوابة | النتيجة | الدليل |
+|---|---|---|
+| `:app:compileDebugKotlin` | **PASS** | وصل إلى ترجمة Kotlin؛ 31 مهمة |
+| `:app:testDebugUnitTest` | **PASS** | 43 مهمة، 0 فشل |
+| `:app:lintDebug` | **PASS** | 69 مهمة، 0 فشل؛ تقرير `app/build/reports/lint-results-debug.html` |
+
+**إصلاحات PR-1 المرفقة:** أزيل اعتماد `QueryClassifier` على `android.util.Log` ليبقى قابلاً لاختبار JVM، وصُحح اختبار سياسة `terminal_execute` ليتطابق مع عقد `ALLOW_TYPED_TERMINAL` عند وجود durable context.
+
+**حدود الدليل:** لم تُشغّل اختبارات instrumentation أو emulator/device أو Firebase Emulator في هذه الجولة؛ لذلك لا تُرفع أي حالة إلى `device-proven`.
+
+---
+
 # حالة البناء والتحقق
 
 **تاريخ المحاولة:** 13 أغسطس 2026

@@ -5,6 +5,7 @@ import android.util.Log
 import com.airi.assistant.agent.execution.command.AccessibilityCommandBridge
 import com.airi.assistant.agent.execution.node.NodeScanner
 import com.airi.assistant.accessibility.service.ScreenContextHolder
+import com.airi.assistant.accessibility.security.AccessibilityActionGateway
 import com.airi.assistant.memory.repository.MemoryManager
 import com.airi.assistant.tools.execution.AlarmTool
 import com.airi.assistant.tools.execution.CalendarTool
@@ -87,6 +88,13 @@ class ToolDispatcher(
                         code = ToolErrorCodes.NOT_CONNECTED,
                     )
                 } else {
+                    val activePackage = try { service.rootInActiveWindow?.packageName?.toString().orEmpty() }
+                    catch (_: Exception) { "" }
+                    when (val gate = AccessibilityActionGateway.authorize(activePackage, "read_screen")) {
+                        is AccessibilityActionGateway.Decision.Denied -> return ToolResult.Error(gate.reason, code = ToolErrorCodes.UNSUPPORTED)
+                        is AccessibilityActionGateway.Decision.NeedsConfirmation -> return ToolResult.Error(gate.reason, code = ToolErrorCodes.UNSUPPORTED)
+                        AccessibilityActionGateway.Decision.Allowed -> Unit
+                    }
                     val root = service.rootInActiveWindow
                     if (root == null) {
                         ToolResult.Error("No active window available", code = ToolErrorCodes.UNSUPPORTED)

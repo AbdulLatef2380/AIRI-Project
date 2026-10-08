@@ -1,7 +1,7 @@
 package com.airi.assistant.accessibility.execution
 
 import android.util.Log
-import com.airi.assistant.accessibility.security.AccessibilityPolicyGuard
+import com.airi.assistant.accessibility.security.AccessibilityActionGateway
 import com.airi.assistant.accessibility.service.AiriAccessibilityService
 import com.airi.assistant.agent.execution.command.AccessibilityCommandBridge
 import com.airi.assistant.agent.execution.node.NodeScanner
@@ -155,17 +155,15 @@ class AccessibilityExecutionEngine {
 
                 // ── OBSERVE ────────────────────────────────────────────────
                 emit(ExecutionEvent.PhaseChanged(ExecutionPhase.OBSERVE, "Observing screen…"))
+                // The read gate is checked on the same root reference that is scanned.
                 val screenCtx = observeScreen(service)
-                log(ExecutionPhase.OBSERVE, "App: ${screenCtx.packageName}  Nodes: ${screenCtx.nodeCount}")
-                emit(ExecutionEvent.ScreenObserved(screenCtx))
-
-                // ── SECURITY: Package deny-list ────────────────────────────
-                val policyDecision = AccessibilityPolicyGuard.checkPackage(screenCtx.packageName)
-                if (policyDecision is AccessibilityPolicyGuard.PolicyDecision.Denied) {
-                    log(ExecutionPhase.EXECUTE, "BLOCKED: ${policyDecision.reason}", false)
-                    emit(ExecutionEvent.Complete(success = false, summary = policyDecision.reason))
+                if (screenCtx == null) {
+                    log(ExecutionPhase.OBSERVE, "BLOCKED before screen read", false)
+                    emit(ExecutionEvent.Complete(success = false, summary = "Screen read blocked by accessibility policy."))
                     return@flow
                 }
+                log(ExecutionPhase.OBSERVE, "App: ${screenCtx.packageName}  Nodes: ${screenCtx.nodeCount}")
+                emit(ExecutionEvent.ScreenObserved(screenCtx))
 
                 // ── PLAN (LLM decides single next action) ──────────────────
                 emit(ExecutionEvent.PhaseChanged(ExecutionPhase.PLAN, "Deciding next action…"))
@@ -189,7 +187,7 @@ class AccessibilityExecutionEngine {
                 var retries = 0
                 var actionSucceeded = false
 
-                while (retries <= maxRetries && !killed.get()) {
+                while (retries <= maxRetries && actionCount < maxActions && !killed.get()) {
                     if (retries > 0) {
                         emit(ExecutionEvent.RecoveryAttempt(retries, action.description))
                         delay(500L * retries)
@@ -203,7 +201,7 @@ class AccessibilityExecutionEngine {
                         // ── VERIFY ─────────────────────────────────────────
                         emit(ExecutionEvent.PhaseChanged(ExecutionPhase.VERIFY, "Verifying…"))
                         delay(350L)
-                        val verified = verifyAction(service, action)
+                        val verified = verifyAction(service, action, screenCtx)
                         log(ExecutionPhase.VERIFY, "passed=${verified.passed}: ${verified.details}")
                         emit(ExecutionEvent.StepVerified(verified.passed, verified.details))
                         if (verified.passed) { actionSucceeded = true; break }
@@ -372,10 +370,11 @@ No explanation. No markdown. Just the JSON.
     // OBSERVE — capture screen context
     // ─────────────────────────────────────────────────────────────────────────
 
-    private fun observeScreen(service: AiriAccessibilityService): ScreenContext {
-        val root = service.rootInActiveWindow
-        val pkg  = root?.packageName?.toString() ?: "unknown"
-        val nodes = if (root != null) NodeScanner.collectAllNodes(root) else emptyList()
+    private fun observeScreen(service: AiriAccessibilityService): ScreenContext? {
+        val root = service.rootInActiveWindow ?: return null
+        val pkg = root.packageName?.toString().orEmpty()
+        if (AccessibilityActionGateway.authorize(pkg, "read_screen") !is AccessibilityActionGateway.Decision.Allowed) return null
+        val nodes = NodeScanner.collectAllNodes(root)
         val textSummary = nodes
             .mapNotNull { it.text?.toString()?.trim() }
             .filter { it.isNotBlank() }
@@ -443,6 +442,8 @@ No explanation. No markdown. Just the JSON.
                     }
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             ActionResult(false, "Timeout or error: ${e.message}")
         }
@@ -452,31 +453,39 @@ No explanation. No markdown. Just the JSON.
     // VERIFY — confirm UI changed as expected
     // ─────────────────────────────────────────────────────────────────────────
 
-    private fun verifyAction(service: AiriAccessibilityService, action: ExecutionAction): VerifyResult {
+    private fun verifyAction(
+        service: AiriAccessibilityService,
+        action: ExecutionAction,
+        before: ScreenContext,
+    ): VerifyResult {
         val root = service.rootInActiveWindow ?: return VerifyResult(false, "No active window")
+        val activePackage = root.packageName?.toString().orEmpty()
+        if (action is ExecutionAction.LaunchApp) {
+            val changed = activePackage.isNotBlank() && activePackage != before.packageName
+            return VerifyResult(changed, "Launch postcondition packageChanged=$changed")
+        }
+        when (val decision = AccessibilityActionGateway.authorize(activePackage, "verify_action")) {
+            is AccessibilityActionGateway.Decision.Denied -> return VerifyResult(false, decision.reason)
+            is AccessibilityActionGateway.Decision.NeedsConfirmation -> return VerifyResult(false, decision.reason)
+            AccessibilityActionGateway.Decision.Allowed -> Unit
+        }
         val nodes = NodeScanner.collectAllNodes(root)
+        val afterText = nodes.mapNotNull { it.text?.toString()?.trim() }
+            .filter(String::isNotBlank).distinct().take(20).joinToString(" | ")
+        val visibleStateChanged = activePackage != before.packageName || afterText != before.textSummary
         return when (action) {
-            is ExecutionAction.Click     -> {
-                // After click, check that the window changed or target is focused
-                val focused = nodes.any {
-                    it.isFocused || (it.text?.toString()?.lowercase()
-                        ?.contains(action.target.lowercase()) == true)
+            is ExecutionAction.Click -> {
+                val targetFocused = nodes.any { node ->
+                    node.isFocused && node.text?.toString()?.contains(action.target, ignoreCase = true) == true
                 }
-                VerifyResult(focused || nodes.isNotEmpty(), "Post-click tree: ${nodes.size} nodes")
+                val verified = targetFocused || visibleStateChanged
+                VerifyResult(verified, "Post-click stateChanged=$visibleStateChanged targetFocused=$targetFocused")
             }
-            is ExecutionAction.TypeText  -> {
-                val hasText = nodes.any {
-                    it.text?.toString()?.contains(action.text, ignoreCase = true) == true
-                }
+            is ExecutionAction.TypeText -> {
+                val hasText = nodes.any { it.text?.toString()?.contains(action.text, ignoreCase = true) == true }
                 VerifyResult(hasText, if (hasText) "Text found in tree" else "Text not confirmed")
             }
-            is ExecutionAction.LaunchApp -> {
-                val pkg = root.packageName?.toString() ?: ""
-                val nameInPkg = pkg.contains(action.appName.lowercase().replace(" ", ""))
-                VerifyResult(nameInPkg || nodes.size > 5,
-                    "Current pkg: $pkg  nodes: ${nodes.size}")
-            }
-            else -> VerifyResult(true, "Action type requires no UI verification")
+            else -> VerifyResult(visibleStateChanged, "Visible postcondition stateChanged=$visibleStateChanged")
         }
     }
 

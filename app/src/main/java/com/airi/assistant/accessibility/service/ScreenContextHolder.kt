@@ -1,6 +1,7 @@
 package com.airi.assistant.accessibility.service
 
 import android.accessibilityservice.AccessibilityService
+import com.airi.assistant.accessibility.security.AccessibilityActionGateway
 
 object ScreenContextHolder {
 
@@ -18,6 +19,8 @@ object ScreenContextHolder {
     fun triggerExtraction(): String {
         val service = serviceInstance ?: return ""
         val root = service.rootInActiveWindow ?: return ""
+        val packageName = root.packageName?.toString().orEmpty()
+        if (AccessibilityActionGateway.authorize(packageName, "read_screen") !is AccessibilityActionGateway.Decision.Allowed) return ""
         val sb = StringBuilder()
         extractText(root, sb)
         return sb.toString().trim()

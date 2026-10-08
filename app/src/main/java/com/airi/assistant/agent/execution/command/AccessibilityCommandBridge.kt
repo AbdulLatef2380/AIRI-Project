@@ -3,6 +3,7 @@ package com.airi.assistant.agent.execution.command
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import com.airi.assistant.accessibility.service.ScreenContextHolder
+import com.airi.assistant.accessibility.security.AccessibilityActionGateway
 import com.airi.assistant.agent.execution.context.ContextProvider
 import com.airi.assistant.agent.execution.node.NodeActionExecutor
 import com.airi.assistant.agent.execution.node.NodeScanner
@@ -10,7 +11,24 @@ import com.airi.assistant.agent.execution.validation.TemporalValidator
 
 object AccessibilityCommandBridge {
 
+    /** Must be called before obtaining or traversing the active node tree. */
+    private fun gate(action: String, target: String = ""): CommandResult? {
+        val service = ScreenContextHolder.serviceInstance
+            ?: return CommandResult(false, "Accessibility not connected")
+        val pkg = try { service.rootInActiveWindow?.packageName?.toString().orEmpty() }
+        catch (_: Exception) { "" }
+        return gatePackage(pkg, action, target)
+    }
+
+    private fun gatePackage(packageName: String, action: String, target: String = ""): CommandResult? =
+        when (val decision = AccessibilityActionGateway.authorize(packageName, action, target)) {
+            AccessibilityActionGateway.Decision.Allowed -> null
+            is AccessibilityActionGateway.Decision.Denied -> CommandResult(false, decision.reason)
+            is AccessibilityActionGateway.Decision.NeedsConfirmation -> CommandResult(false, decision.reason)
+        }
+
     fun launchApp(appName: String): CommandResult {
+        gate("launch_app", appName)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
@@ -42,6 +60,7 @@ object AccessibilityCommandBridge {
     }
 
     fun search(query: String): CommandResult {
+        gate("search", query)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
@@ -59,11 +78,13 @@ object AccessibilityCommandBridge {
     }
 
     suspend fun click(target: String): CommandResult {
+        gate("click", target)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
         val root = service.rootInActiveWindow
             ?: return CommandResult(false, "No active window")
+        gatePackage(root.packageName?.toString().orEmpty(), "click", target)?.let { return it }
 
         val nodes = NodeScanner.collectAllNodes(root)
 
@@ -87,11 +108,13 @@ object AccessibilityCommandBridge {
     }
 
     suspend fun typeText(text: String): CommandResult {
+        gate("type_text")?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
         val root = service.rootInActiveWindow
             ?: return CommandResult(false, "No active window")
+        gatePackage(root.packageName?.toString().orEmpty(), "type_text")?.let { return it }
 
         val nodes = NodeScanner.collectAllNodes(root)
         val editable = nodes.find { it.isEditable }
@@ -102,6 +125,7 @@ object AccessibilityCommandBridge {
     }
 
     fun performBack(): CommandResult {
+        gate("go_back")?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
@@ -114,6 +138,7 @@ object AccessibilityCommandBridge {
     }
 
     fun performHome(): CommandResult {
+        gate("go_home")?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
@@ -126,6 +151,7 @@ object AccessibilityCommandBridge {
     }
 
     fun performRecents(): CommandResult {
+        gate("open_recents")?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
@@ -143,11 +169,13 @@ object AccessibilityCommandBridge {
     fun scrollRight(): CommandResult = performScroll("right")
 
     private fun performScroll(direction: String): CommandResult {
+        gate("scroll_$direction")?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
         val root = service.rootInActiveWindow
             ?: return CommandResult(false, "No active window")
+        gatePackage(root.packageName?.toString().orEmpty(), "scroll_$direction")?.let { return it }
 
         val nodes = NodeScanner.collectAllNodes(root)
         val scrollable = nodes.find { it.isScrollable }

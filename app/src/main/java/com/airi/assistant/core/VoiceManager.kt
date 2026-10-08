@@ -15,6 +15,7 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import com.airi.assistant.domain.permission.PermissionService
 import com.airi.assistant.voice.FullDuplexVadEngine
 import com.airi.assistant.voice.HotwordService
 import com.airi.assistant.voice.VoskEngine
@@ -99,6 +100,7 @@ class VoiceManager(
     private val listener: VoiceListener
 ) {
 
+    private val permissionService = PermissionService(context.applicationContext)
     @Volatile private var isDestroyed = false
     private val microphoneOwner = "voice-manager:${UUID.randomUUID()}"
 
@@ -455,6 +457,10 @@ class VoiceManager(
     private fun startVad() {
         if (vadArmed) return
         if (!ttsReady) return
+        if (!permissionService.hasMicrophoneAccess()) {
+            Log.i(TAG, "VAD not armed: RECORD_AUDIO permission is not granted")
+            return
+        }
         vadArmed = true
         vadInterruptFired.set(false)  // reset CAS gate for this turn
 
@@ -592,6 +598,10 @@ class VoiceManager(
         VoskModelManager.isReady(context.applicationContext)
 
     fun startSpeechToText() {
+        if (!permissionService.hasMicrophoneAccess()) {
+            listener.onError("missing_record_audio_permission")
+            return
+        }
         if (sttActive) {
             Log.d(TAG, "STT already active — ignoring duplicate start")
             return

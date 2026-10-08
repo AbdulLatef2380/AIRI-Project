@@ -18,4 +18,17 @@ class PermissionDisplayPolicyTest {
         assertEquals(2, PermissionDisplayPolicy.requiredCount(statuses))
         assertEquals(1, PermissionDisplayPolicy.grantedRequiredCount(statuses))
     }
+
+    @Test
+    fun missingCaptureHardwareIsNotMisreportedAsDeniedOrAsVersionNotRequired() {
+        val unavailable = PermissionDisplayPolicy.status(
+            requiredOnDevice = true,
+            granted = false,
+            deviceAvailable = false,
+        )
+
+        assertEquals(PermissionDisplayPolicy.Status.DEVICE_UNAVAILABLE, unavailable)
+        assertEquals(0, PermissionDisplayPolicy.requiredCount(listOf(unavailable)))
+        assertEquals(0, PermissionDisplayPolicy.grantedRequiredCount(listOf(unavailable)))
+    }
 }

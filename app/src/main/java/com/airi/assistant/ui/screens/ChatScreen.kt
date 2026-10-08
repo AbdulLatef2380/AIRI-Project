@@ -376,6 +376,11 @@ fun ChatScreen(
     }
 
     fun startInAppStt(autoSend: Boolean) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            voiceState = VoiceSessionState.IDLE
+            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.microphone_permission_required)) }
+            return
+        }
         if (!VoskModelManager.isReady(context)) {
             voiceState = VoiceSessionState.IDLE
             // Route to Voice Settings so user can download a model in one tap
@@ -744,7 +749,14 @@ fun ChatScreen(
     LaunchedEffect(plusPickerRequest) {
         when (plusPickerRequest) {
             ChatViewModel.PlusPickerRequest.IMAGE     -> { imagePicker.launch("image/*");          viewModel.consumePlusPickerRequest() }
-            ChatViewModel.PlusPickerRequest.CAMERA    -> { cameraLauncher.launch(null);             viewModel.consumePlusPickerRequest() }
+            ChatViewModel.PlusPickerRequest.CAMERA    -> {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    cameraLauncher.launch(null)
+                } else {
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                }
+                viewModel.consumePlusPickerRequest()
+            }
             ChatViewModel.PlusPickerRequest.FILE      -> { filePicker.launch(arrayOf("*/*"));        viewModel.consumePlusPickerRequest() }
             ChatViewModel.PlusPickerRequest.SKILLS    -> { onNavigate(AiriRoute.SKILL_MANAGER);     viewModel.consumePlusPickerRequest() }
             ChatViewModel.PlusPickerRequest.SANDBOX   -> { onNavigate(AiriRoute.SANDBOX_WORKSPACE); viewModel.consumePlusPickerRequest() }

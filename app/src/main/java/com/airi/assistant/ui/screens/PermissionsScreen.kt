@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +42,9 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.airi.assistant.auth.identity.BiometricGatekeeper
 import com.airi.assistant.domain.permission.AccessibilityServiceState
+import com.airi.assistant.domain.permission.CaptureAvailability
+import com.airi.assistant.domain.permission.CaptureDeviceMonitor
+import com.airi.assistant.domain.permission.CaptureDeviceSnapshot
 import com.airi.assistant.domain.permission.PermissionDisplayPolicy
 import com.airi.assistant.ui.theme.*
 import androidx.compose.ui.res.stringResource
@@ -64,6 +69,33 @@ data class PermissionInfo(
 @Composable
 fun PermissionsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val captureSnapshotState = remember { mutableStateOf(CaptureDeviceSnapshot()) }
+    val captureMonitor = remember(context) {
+        CaptureDeviceMonitor(context) { captureSnapshotState.value = it }
+    }
+    val captureSnapshot = captureSnapshotState.value
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    var requestedPermission by remember { mutableStateOf<String?>(null) }
+    var previouslyDeniedPermissions by remember { mutableStateOf(emptySet<String>()) }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        requestedPermission?.let { permission ->
+            previouslyDeniedPermissions = if (granted) previouslyDeniedPermissions - permission
+            else previouslyDeniedPermissions + permission
+        }
+        requestedPermission = null
+        captureMonitor.refreshPermissions()
+    }
+    DisposableEffect(captureMonitor, lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) captureMonitor.refreshPermissions()
+        }
+        captureMonitor.start()
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            captureMonitor.close()
+        }
+    }
     val accessibilityRationale = stringResource(R.string.permissions_accessibility_rationale)
     val accessibilityWhyNeeded = stringResource(R.string.permissions_accessibility_why_needed)
 
@@ -151,8 +183,39 @@ fun PermissionsScreen(onBack: () -> Unit) {
         )
 
     // Check grant status for each regular permission
-    fun isGranted(perm: String): Boolean =
-        ContextCompat.checkSelfPermission(context, perm) == PackageManager.PERMISSION_GRANTED
+    fun isGranted(perm: String): Boolean = when (perm) {
+        Manifest.permission.CAMERA -> captureSnapshot.cameraPermissionGranted
+        Manifest.permission.RECORD_AUDIO -> captureSnapshot.microphonePermissionGranted
+        else -> ContextCompat.checkSelfPermission(context, perm) == PackageManager.PERMISSION_GRANTED
+    }
+
+    fun hardwareRequired(permission: PermissionInfo): Boolean = when (permission.permission) {
+        Manifest.permission.CAMERA -> captureSnapshot.cameraAvailability != CaptureAvailability.UNSUPPORTED
+        Manifest.permission.RECORD_AUDIO -> captureSnapshot.microphoneAvailability != CaptureAvailability.UNSUPPORTED
+        else -> true
+    }
+
+    fun captureDiagnostic(permission: PermissionInfo): String? = when (permission.permission) {
+        Manifest.permission.CAMERA -> when (captureSnapshot.cameraAvailability) {
+            CaptureAvailability.CHECKING -> context.getString(R.string.capture_camera_checking)
+            CaptureAvailability.AVAILABLE -> context.getString(R.string.capture_camera_available)
+            CaptureAvailability.BUSY -> context.getString(R.string.capture_camera_busy)
+            CaptureAvailability.UNSUPPORTED -> context.getString(R.string.capture_camera_unsupported)
+            CaptureAvailability.UNKNOWN -> context.getString(R.string.capture_camera_unknown)
+        }
+        Manifest.permission.RECORD_AUDIO -> when {
+            captureSnapshot.microphoneAvailability == CaptureAvailability.UNSUPPORTED ->
+                context.getString(R.string.capture_microphone_unsupported)
+            captureSnapshot.microphoneAvailability == CaptureAvailability.UNKNOWN ->
+                context.getString(R.string.capture_microphone_unknown)
+            captureSnapshot.microphoneRecordingObserved == true ->
+                context.getString(R.string.capture_microphone_recording_observed)
+            captureSnapshot.microphoneRecordingObserved == false ->
+                context.getString(R.string.capture_microphone_no_recording_observed)
+            else -> context.getString(R.string.capture_microphone_activity_unknown)
+        }
+        else -> null
+    }
 
     fun statusFor(permission: PermissionInfo): PermissionDisplayPolicy.Status =
         if (permission.isSpecial) {
@@ -163,7 +226,8 @@ fun PermissionsScreen(onBack: () -> Unit) {
         } else {
             PermissionDisplayPolicy.status(
                 requiredOnDevice = permission.requiredOnDevice,
-                granted = isGranted(permission.permission)
+                granted = isGranted(permission.permission),
+                deviceAvailable = hardwareRequired(permission),
             )
         }
 
@@ -246,6 +310,10 @@ fun PermissionsScreen(onBack: () -> Unit) {
                                 stringResource(R.string.permissions_summary_description),
                                 fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 16.sp
                             )
+                            Text(
+                                stringResource(R.string.permissions_capture_status_note),
+                                fontSize = 11.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 15.sp
+                            )
                         }
                     }
                 }
@@ -327,7 +395,32 @@ fun PermissionsScreen(onBack: () -> Unit) {
                                         }
                                         PermissionRow(
                                             perm = perm,
-                                            status = statusFor(perm)
+                                            status = statusFor(perm),
+                                            captureDiagnostic = captureDiagnostic(perm),
+                                            onRequestPermission = if (
+                                                !perm.isSpecial &&
+                                                perm.permission in setOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO) &&
+                                                statusFor(perm) == PermissionDisplayPolicy.Status.NOT_GRANTED &&
+                                                hardwareRequired(perm)
+                                            ) {
+                                                {
+                                                    val activity = context as? android.app.Activity
+                                                    val permanentlyDenied = perm.permission in previouslyDeniedPermissions &&
+                                                        activity != null &&
+                                                        !activity.shouldShowRequestPermissionRationale(perm.permission)
+                                                    if (permanentlyDenied) {
+                                                        context.startActivity(
+                                                            Intent(
+                                                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                                                Uri.fromParts("package", context.packageName, null),
+                                                            )
+                                                        )
+                                                    } else {
+                                                        requestedPermission = perm.permission
+                                                        permissionLauncher.launch(perm.permission)
+                                                    }
+                                                }
+                                            } else null,
                                         )
                                     }
                                 }
@@ -343,7 +436,12 @@ fun PermissionsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun PermissionRow(perm: PermissionInfo, status: PermissionDisplayPolicy.Status) {
+private fun PermissionRow(
+    perm: PermissionInfo,
+    status: PermissionDisplayPolicy.Status,
+    captureDiagnostic: String? = null,
+    onRequestPermission: (() -> Unit)? = null,
+) {
     var showRationale by remember { mutableStateOf(false) }
 
     Column(
@@ -365,6 +463,15 @@ private fun PermissionRow(perm: PermissionInfo, status: PermissionDisplayPolicy.
                 Text(perm.label, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
                 Text(perm.rationale, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant,
                     lineHeight = 15.sp, maxLines = if (showRationale) Int.MAX_VALUE else 2)
+                if (captureDiagnostic != null) {
+                    Text(
+                        captureDiagnostic,
+                        fontSize = 10.sp,
+                        color = AiriTheme.onSurfaceVariant,
+                        lineHeight = 14.sp,
+                        maxLines = 2,
+                    )
+                }
             }
             Spacer(Modifier.width(8.dp))
             if (perm.isSpecial) {
@@ -413,22 +520,29 @@ private fun PermissionRow(perm: PermissionInfo, status: PermissionDisplayPolicy.
                             fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
                     }
                 }
+            } else if (onRequestPermission != null) {
+                TextButton(onClick = onRequestPermission) {
+                    Text(stringResource(R.string.permissions_enable_label), fontSize = 11.sp)
+                }
             } else {
                 Icon(
                     imageVector = when (status) {
                         PermissionDisplayPolicy.Status.GRANTED -> Icons.Filled.CheckCircle
                         PermissionDisplayPolicy.Status.NOT_GRANTED -> Icons.Filled.Error
-                        PermissionDisplayPolicy.Status.NOT_REQUIRED -> Icons.Outlined.Info
+                        PermissionDisplayPolicy.Status.NOT_REQUIRED,
+                        PermissionDisplayPolicy.Status.DEVICE_UNAVAILABLE -> Icons.Outlined.Info
                     },
                     contentDescription = stringResource(
                         if (status == PermissionDisplayPolicy.Status.GRANTED) R.string.permissions_status_granted
                         else if (status == PermissionDisplayPolicy.Status.NOT_REQUIRED) R.string.permissions_status_not_required
+                        else if (status == PermissionDisplayPolicy.Status.DEVICE_UNAVAILABLE) R.string.permissions_status_unavailable
                         else R.string.permissions_status_not_granted
                     ),
                     tint = when (status) {
                         PermissionDisplayPolicy.Status.GRANTED -> SemanticSuccess
                         PermissionDisplayPolicy.Status.NOT_GRANTED -> SemanticError.copy(alpha = 0.7f)
-                        PermissionDisplayPolicy.Status.NOT_REQUIRED -> AiriTheme.onSurfaceVariant
+                        PermissionDisplayPolicy.Status.NOT_REQUIRED,
+                        PermissionDisplayPolicy.Status.DEVICE_UNAVAILABLE -> AiriTheme.onSurfaceVariant
                     },
                     modifier = Modifier.size(20.dp)
                 )

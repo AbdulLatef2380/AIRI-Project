@@ -13,6 +13,12 @@ class PermissionService(private val context: Context) {
     fun hasContactsAccess(): Boolean =
         hasPermission(Manifest.permission.READ_CONTACTS)
 
+    fun hasCameraAccess(): Boolean =
+        hasPermission(Manifest.permission.CAMERA)
+
+    fun hasMicrophoneAccess(): Boolean =
+        hasPermission(Manifest.permission.RECORD_AUDIO)
+
     fun hasStorageAccess(): Boolean =
         hasPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
 

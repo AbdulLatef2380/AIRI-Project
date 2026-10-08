@@ -2096,6 +2096,12 @@
     <string name="attachment_detail_size">الحجم</string>
     <string name="attachment_size_unknown">حجم غير معروف</string>
     <string name="open_attachment">فتح المرفق</string>
+    <string name="attachment_batch_too_large">يتجاوز مجموع المرفقات حد 40 ميجابايت. أزل ملفاً أو أكثر ثم حاول مرة أخرى.</string>
+    <string name="attachment_cloud_consent_required">يلزم تأكيد لمرة واحدة قبل إرسال هذه الملفات إلى نموذج سحابي.</string>
+    <string name="attachment_cloud_consent_title">إرسال المرفقات إلى الذكاء الاصطناعي السحابي؟</string>
+    <string name="attachment_cloud_consent_message">إذا وُجّه هذا الطلب إلى الذكاء الاصطناعي السحابي، فقد تتم مشاركة المحتوى التالي الذي قدمه المستخدم مع المزوّد %1$s: %2$s. تسري هذه الموافقة على عملية الإرسال هذه فقط.</string>
+    <string name="attachment_cloud_long_text_label">مسودة رسالة طويلة (%1$d حرفاً)</string>
+    <string name="attachment_cloud_consent_send_once">إرسال مرة واحدة</string>
     <!-- رسائل أخطاء الأدوات الظاهرة للمستخدم -->
     <string name="tool_error_auth_required">يجب ربط %1$s أولاً، ثم حاول مرة أخرى.</string>
     <string name="tool_error_network_unavailable">الاتصال بالإنترنت غير متاح. تحقق من اتصالك ثم حاول مرة أخرى.</string>

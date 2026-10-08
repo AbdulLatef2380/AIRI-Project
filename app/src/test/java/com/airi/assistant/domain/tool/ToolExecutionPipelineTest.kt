@@ -34,7 +34,12 @@ class ToolExecutionPipelineTest {
         var handlerCalls = 0
         val outcome = pipeline(
             authorizer = ToolAuthorizer { authorizerCalls++ ; AuthorizationDecision.Allow },
-            sandbox = ToolSandbox { _, block -> sandboxCalls++ ; block() },
+            sandbox = object : ToolSandbox {
+                override suspend fun <T> execute(invocation: ValidatedAuthorizedInvocation, block: suspend () -> T): T {
+                    sandboxCalls++
+                    return block()
+                }
+            },
             handler = ToolHandler { handlerCalls++ ; ToolHandlerResult.Success("should not run") },
         ).execute(request(mapOf("count" to "not-an-int")))
 
@@ -79,7 +84,9 @@ class ToolExecutionPipelineTest {
             },
             approvalTokens = store,
             rateLimiter = FixedWindowToolRateLimiter(10, 60_000L),
-            sandbox = ToolSandbox { _, block -> block() },
+            sandbox = object : ToolSandbox {
+                override suspend fun <T> execute(invocation: ValidatedAuthorizedInvocation, block: suspend () -> T): T = block()
+            },
             handler = ToolHandler { ToolHandlerResult.Success("approved") },
         )
 
@@ -119,7 +126,9 @@ class ToolExecutionPipelineTest {
         authorizer: ToolAuthorizer = ToolAuthorizer { AuthorizationDecision.Allow },
         approvalTokens: ApprovalTokenStore = ApprovalTokenStore { _, _ -> false },
         rateLimiter: ToolRateLimiter = ToolRateLimiter { _, _ -> true },
-        sandbox: ToolSandbox = ToolSandbox { _, block -> block() },
+        sandbox: ToolSandbox = object : ToolSandbox {
+            override suspend fun <T> execute(invocation: ValidatedAuthorizedInvocation, block: suspend () -> T): T = block()
+        },
         handler: ToolHandler = ToolHandler { ToolHandlerResult.Success("ok") },
     ) = ToolExecutionPipeline(
         specs = ToolSpecRegistry { id -> if (id == spec.id) spec else null },

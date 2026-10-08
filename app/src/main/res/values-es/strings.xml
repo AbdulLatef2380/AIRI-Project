@@ -1864,6 +1864,12 @@
     <string name="attachment_detail_size">Tamaño</string>
     <string name="attachment_size_unknown">Tamaño desconocido</string>
     <string name="open_attachment">Abrir archivo adjunto</string>
+    <string name="attachment_batch_too_large">Los archivos adjuntos superan en conjunto el límite de 40 MB. Quita uno o más archivos y vuelve a intentarlo.</string>
+    <string name="attachment_cloud_consent_required">Se requiere una confirmación única antes de enviar estos archivos a un modelo en la nube.</string>
+    <string name="attachment_cloud_consent_title">¿Enviar archivos adjuntos a la IA en la nube?</string>
+    <string name="attachment_cloud_consent_message">Si esta solicitud se dirige a una IA en la nube, el siguiente contenido proporcionado por el usuario podría compartirse con el proveedor %1$s: %2$s. Esta aprobación solo se aplica a este envío.</string>
+    <string name="attachment_cloud_long_text_label">borrador de mensaje largo (%1$d caracteres)</string>
+    <string name="attachment_cloud_consent_send_once">Enviar una vez</string>
     <string name="tool_error_auth_required">Conecta %1$s primero y vuelve a intentarlo.</string>
     <string name="tool_error_network_unavailable">La conexión a Internet no está disponible. Comprueba tu conexión y vuelve a intentarlo.</string>
     <string name="tool_error_memory_unavailable">La memoria no está disponible en esta sesión. Inicia una sesión nueva o vuelve a intentarlo.</string>

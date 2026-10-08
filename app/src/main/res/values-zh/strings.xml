@@ -1864,6 +1864,12 @@
     <string name="attachment_detail_size">大小</string>
     <string name="attachment_size_unknown">大小未知</string>
     <string name="open_attachment">打开附件</string>
+    <string name="attachment_batch_too_large">附件总大小超过 40 MB 限制。请移除一个或多个文件后重试。</string>
+    <string name="attachment_cloud_consent_required">将这些文件发送给云端模型前需要一次性确认。</string>
+    <string name="attachment_cloud_consent_title">要将附件发送给云端 AI 吗？</string>
+    <string name="attachment_cloud_consent_message">如果此请求路由至云端 AI，以下由用户提供的内容可能会与服务提供商 %1$s 共享：%2$s。此批准仅适用于本次发送。</string>
+    <string name="attachment_cloud_long_text_label">长消息草稿（%1$d 个字符）</string>
+    <string name="attachment_cloud_consent_send_once">仅发送一次</string>
     <string name="tool_error_auth_required">请先连接 %1$s，然后重试。</string>
     <string name="tool_error_network_unavailable">互联网连接不可用。请检查连接后重试。</string>
     <string name="tool_error_memory_unavailable">当前会话中的记忆不可用。请开始新会话或重试。</string>

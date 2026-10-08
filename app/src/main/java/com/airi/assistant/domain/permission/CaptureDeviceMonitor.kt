@@ -3,6 +3,8 @@ package com.airi.assistant.domain.permission
 import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.camera2.CameraManager
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
@@ -59,11 +61,6 @@ class CaptureDeviceMonitor(
             publish()
         }
 
-        override fun onCameraRemoved(cameraId: String) {
-            cameraIds -= cameraId
-            cameraAvailability.remove(cameraId)
-            publish()
-        }
     }
 
     private val audioCallback = object : AudioManager.AudioRecordingCallback() {
@@ -73,13 +70,13 @@ class CaptureDeviceMonitor(
         }
     }
 
-    private val audioDeviceCallback = object : AudioManager.AudioDeviceCallback() {
-        override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>?) {
+    private val audioDeviceCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
             refreshMicrophoneHardware()
             publish()
         }
 
-        override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>?) {
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
             refreshMicrophoneHardware()
             publish()
         }

@@ -1876,7 +1876,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val fileName = "pasted.txt"
             val fileUri = ComposerTextFileStore.create(appContext, trimmedInput, prefix = "pasted")
             if (fileUri == null) {
-                _lastExecutionError.value = appContext.getString(R.string.attachment_staging_failed)
+                _lastExecutionError.value = ExecutionErrorProjection(
+                    executionId = "attachment-staging",
+                    message = appContext.getString(R.string.attachment_staging_failed),
+                    messageResId = R.string.attachment_staging_failed,
+                    stage = ExecutionFailureStage.PREPARATION,
+                    sessionId = generationSessionId,
+                )
                 return false
             }
             Log.i("AIRI", "LONG_TEXT_CONVERSION chars=${trimmedInput.length} -> file=$fileName")

@@ -89,7 +89,7 @@ object SubAgentRegistry {
         val current = snapshot
         val agent = current.agentsById[agentId] ?: return null
         return agent.takeIf {
-            SubAgentAuthorization.evaluate(it, context, current.runtimeCapabilities) is
+            SubAgentAuthorization.evaluate(it.capability, context, current.runtimeCapabilities) is
                 SubAgentAuthorization.Decision.Allow
         }
     }

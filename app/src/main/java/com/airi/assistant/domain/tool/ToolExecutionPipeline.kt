@@ -70,7 +70,7 @@ fun interface ToolRateLimiter {
 }
 
 /** Sandbox is deliberately mandatory in the pipeline constructor. */
-fun interface ToolSandbox {
+interface ToolSandbox {
     suspend fun <T> execute(
         invocation: ValidatedAuthorizedInvocation,
         block: suspend () -> T,

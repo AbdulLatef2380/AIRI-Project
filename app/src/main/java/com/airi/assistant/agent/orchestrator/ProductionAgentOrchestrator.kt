@@ -97,7 +97,7 @@ private object Log {
  *   pipeline) and ABOVE [AgentService]. For simple single-agent tasks, use
  *   [AgentService] directly. For multi-step or parallel tasks, use this class.
  *
- *   AgentEvent.Delegate is resolved here via SubAgentRegistry.findById.
+ *   AgentEvent.Delegate is resolved here via the authorized registry lookup.
  *   AgentEvent.Delegate with targetAgentId="llm_backend" is surfaced to the
  *   caller for routing to HybridOrchestrator.
  */
@@ -106,7 +106,9 @@ class ProductionAgentOrchestrator(
     private val routeAgent: suspend (String, SubAgentContext) -> SubAgent? = { input, context ->
         SubAgentRegistry.route(input, context)
     },
-    private val findAgent: (String) -> SubAgent? = { agentId -> SubAgentRegistry.findById(agentId) }
+    private val findAgent: (String, SubAgentContext) -> SubAgent? = { agentId, context ->
+        SubAgentRegistry.authorizedAgent(agentId, context)
+    }
 ) {
 
     private val TAG = "ProductionOrchestrator"
@@ -133,18 +135,6 @@ class ProductionAgentOrchestrator(
      * selectStrategy() escalates to ABORT instead of wasting retry budget.
      */
     private val adaptiveRetryPolicy = AdaptiveRetryPolicy()
-
-    // ── Orchestration scope — SupervisorJob so task failures don't kill siblings ──
-
-    /**
-     * Scope used by a single generation of running plans. It is replaced after
-     * [cancelAll] so an emergency stop cannot permanently disable later tasks.
-     */
-    @Volatile
-    private var orchestrationScope = newOrchestrationScope()
-
-    private fun newOrchestrationScope(): CoroutineScope =
-        CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
      * Stores a bounded execution result as a project/task/run/step-owned
@@ -198,14 +188,17 @@ class ProductionAgentOrchestrator(
     val state: StateFlow<OrchestratorState> = _state.asStateFlow()
 
     @Synchronized
-    private fun createExecution(id: String, totalTasks: Int): OrchestratorExecution? {
+    private fun createExecution(
+        id: String,
+        totalTasks: Int,
+        parentContext: kotlin.coroutines.CoroutineContext,
+    ): OrchestratorExecution? {
         if (activeExecutions.containsKey(id)) return null
-        val rootScope = orchestrationScope
-        val executionJob = SupervisorJob(rootScope.coroutineContext[Job])
+        val executionJob = SupervisorJob(parentContext[Job])
         val execution = OrchestratorExecution(
             id = id,
             job = executionJob,
-            scope = CoroutineScope(rootScope.coroutineContext + executionJob),
+            scope = CoroutineScope(parentContext + Dispatchers.IO + executionJob),
             order = ++nextExecutionOrder,
             totalTasks = totalTasks
         )
@@ -268,7 +261,7 @@ class ProductionAgentOrchestrator(
         plan:    OrchestratorPlan,
         onEvent: suspend (AgentEvent) -> Unit = {}
     ): ExecutionResult = coroutineScope {
-        val execution = createExecution(plan.id, plan.tasks.size)
+        val execution = createExecution(plan.id, plan.tasks.size, currentCoroutineContext())
             ?: return@coroutineScope ExecutionResult.PartialFailure(
                 planId = plan.id,
                 taskResults = emptyMap(),
@@ -569,8 +562,8 @@ class ProductionAgentOrchestrator(
 
         // Resolve agent
         val agent = if (task.agentId != null) {
-            findAgent(task.agentId)
-                ?: return TaskResult.Failure("Agent '${task.agentId}' not found in registry")
+            findAgent(task.agentId, context)
+                ?: return TaskResult.Failure("Agent '${task.agentId}' is missing or not authorized")
         } else {
             routeAgent(task.input, context)
                 ?: return TaskResult.Failure("No agent matched for: '${task.input.take(60)}'")
@@ -807,15 +800,12 @@ class ProductionAgentOrchestrator(
      */
     @Synchronized
     fun cancelAll() {
-        val scopeToCancel = orchestrationScope
-        scopeToCancel.cancel()
         activeExecutions.values.forEach { execution ->
             execution.job.cancel(CancellationException("All orchestrations cancelled"))
         }
-        orchestrationScope = newOrchestrationScope()
         publishState()
         // Observability must never prevent an emergency cancellation from completing.
-        runCatching { Log.i(TAG, "All orchestrations cancelled; runtime ready for future plans") }
+        runCatching { Log.i(TAG, "All request-scoped orchestrations cancelled") }
     }
 
     /** Cancel exactly one active plan without interrupting its siblings. */

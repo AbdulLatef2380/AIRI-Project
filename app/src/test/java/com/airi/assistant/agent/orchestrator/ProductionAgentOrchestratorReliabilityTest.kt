@@ -46,6 +46,15 @@ class ProductionAgentOrchestratorReliabilityTest {
             val success = result as ProductionAgentOrchestrator.ExecutionResult.Success
             assertEquals("slow", success.finalResult)
             assertEquals(4, success.eventsEmitted.size)
+            val eventNames = success.eventsEmitted.map { event ->
+                when (event) {
+                    is AgentEvent.Progress -> "progress:${event.message.removePrefix("finished ")}"
+                    is AgentEvent.Complete -> "complete:${event.result}"
+                    else -> "other"
+                }
+            }
+            assertTrue(eventNames.indexOf("progress:fast") < eventNames.indexOf("complete:fast"))
+            assertTrue(eventNames.indexOf("progress:slow") < eventNames.indexOf("complete:slow"))
         } finally {
             orchestrator.cancelAll()
         }
@@ -106,7 +115,7 @@ class ProductionAgentOrchestratorReliabilityTest {
     private fun orchestratorFor(agent: TestAgent) = ProductionAgentOrchestrator(
         agentCapabilities = { listOf(agent.capability) },
         routeAgent = { _, _ -> agent },
-        findAgent = { id -> agent.takeIf { it.capability.agentId == id } }
+        findAgent = { id, _ -> agent.takeIf { it.capability.agentId == id } }
     )
 
     private fun plan(

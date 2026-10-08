@@ -1937,7 +1937,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
             return false
         }
-        val queryType = QueryClassifier.classifyQuery(trimmedInput)
+        val chatIntent = com.airi.assistant.domain.intent.CanonicalIntentClassifier.classify(trimmedInput)
+        val queryType = chatIntent.queryType
         val wordCount = trimmedInput.split(Regex("\\s+")).size
         Log.d("AIRI_INTENT", "type=${queryType.name} input_words=$wordCount")
         com.airi.assistant.domain.logging.ProofLogger.classificationResult(

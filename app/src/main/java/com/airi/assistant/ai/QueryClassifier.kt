@@ -75,83 +75,8 @@ object QueryClassifier {
                 CONNECTOR_ACTIONS.any { lower.contains(it) })
     }
 
-    fun classifyQuery(input: String): QueryType {
-        val trimmed   = input.trim()
-        val lower     = trimmed.lowercase()
-        val wordCount = lower.split(Regex("\\s+")).size
-        val hasQuestion = trimmed.endsWith("?") || trimmed.endsWith("؟")
+    /** Compatibility adapter; classification remains non-authorizing. */
+    fun classifyQuery(input: String): QueryType =
+        com.airi.assistant.domain.intent.CanonicalIntentClassifier.classify(input).queryType
 
-        // Device commands remain ACTION even when they are short or start
-        // with a polite prefix such as "قم بتشغيل".
-        if (CapabilityIntentDetector.detect(trimmed).requires(
-                CapabilityIntentDetector.Capability.DEVICE_ACTION
-            )) {
-            return QueryType.ACTION
-        }
-
-        // These requests require live device/provider state, even when they are
-        // short questions. Keep them out of the plain-chat fast path so the
-        // model receives the current_time or connected-connector tools.
-        if (requiresLiveRuntime(trimmed) && LIVE_DEVICE_PATTERNS.any { lower.contains(it) }) {
-            return QueryType.ACTION
-        }
-        if (requiresLiveRuntime(trimmed) &&
-            CONNECTOR_TARGETS.any { lower.contains(it) }) {
-            return QueryType.ACTION
-        }
-
-        // ── Ultra-short → always SIMPLE ──────────────────────────────────
-        if (wordCount <= 2) {
-            return QueryType.SIMPLE
-        }
-
-        // ── Exact greeting ────────────────────────────────────────────────
-        if (wordCount <= 4 && EXACT_GREETINGS.any { lower == it || lower.startsWith("$it ") }) {
-            return QueryType.SIMPLE
-        }
-
-        // ── Creative (highest priority — very specific patterns) ──────────
-        if (CREATIVE_PATTERNS.any { lower.contains(it) }) {
-            return QueryType.CREATIVE
-        }
-
-        // ── Action (starts with an imperative verb) ───────────────────────
-        if (ACTION_STARTERS.any { lower.startsWith(it.trim()) }) {
-            // If the action verb targets creative content, reclassify as CREATIVE
-            if (CREATIVE_CONTENT_WORDS.any { lower.contains(it) }) {
-                return QueryType.CREATIVE
-            }
-            val type = if (wordCount <= 6 && !ANALYTICAL_PATTERNS.any { lower.contains(it) })
-                QueryType.SIMPLE else QueryType.ACTION
-            return type
-        }
-
-        // ── Analytical patterns → always ANALYTICAL ───────────────────────
-        if (ANALYTICAL_PATTERNS.any { lower.contains(it) }) {
-            return QueryType.ANALYTICAL
-        }
-
-        // ── Hybrid: question + length determines SIMPLE vs ANALYTICAL ─────
-        return when {
-            // Short question (≤8 words with ?) → SIMPLE
-            hasQuestion && wordCount <= 8 -> {
-                QueryType.SIMPLE
-            }
-            // Long question (> 8 words with ?) → might be ANALYTICAL
-            hasQuestion && wordCount > 8 -> {
-                QueryType.ANALYTICAL
-            }
-            // Long statement without special markers → ANALYTICAL
-            wordCount > 15 -> {
-                QueryType.ANALYTICAL
-            }
-            // Short statement ≤ 7 words → SIMPLE
-            wordCount <= 7 -> {
-                QueryType.SIMPLE
-            }
-            else -> {
-                QueryType.UNKNOWN
-            }
-        }
-    }
 }

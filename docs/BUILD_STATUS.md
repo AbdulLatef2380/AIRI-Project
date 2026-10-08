@@ -1,3 +1,20 @@
+# تحقق المرحلة الثانية — PR-2 وPR-3 (2026-10-08)
+
+- **الفرع:** `pr-0-pr-3`، مشتق من `pr-0-pr-1` والالتزام `766dd5e7`؛ لم يتم تعديل `main`.
+- **PR-2 — العقود canonical:** أضيفت عقود pure JVM للمدخل normalized، `ChatIntent`، `ToolSpec`/`ArgumentSpec`، `AuthorizationDecision`/`ApprovalRequest`، و`ExecutionOutcome` مع `RequestId` و`generationId` وحارس terminal exactly-once. التصنيف وصفي فقط ولا يمنح صلاحية تنفيذ.
+- **PR-3 — مسار Chat الواحد:** أصبح `QueryClassifier` adapter متوافقاً للـ canonical classifier، وأصبح `ChatViewModel` يستهلك نتيجة canonical واحدة قبل بناء `ExecutionRequest`/AgentLoop؛ لا يوجد مسار تصنيف ثانٍ. الأفعال القصيرة العربية والإنجليزية لا تسقط إلى SIMPLE، والطلبات الإبداعية لا تُعامل كأفعال.
+
+| البوابة | النتيجة | الدليل |
+|---|---|---|
+| `:app:testDebugUnitTest` | **PASS** | 609 اختباراً، 0 فشل |
+| `:app:lintDebug` | **PASS** | 69 مهمة، 0 فشل؛ `app/build/reports/lint-results-debug.html` |
+
+**اختبارات القبول المضافة:** greetings، short actions، Arabic normalization، creative-vs-action، clarification، typed tool arguments، approval decision، request/generation identity، وexactly-once terminal outcome.
+
+**حدود المرحلة:** لم تُربط بعد أدوات runtime الفعلية مباشرة بعقد `ToolSpec`، ولم تُشغّل اختبارات instrumentation أو emulator/device؛ لذلك لا تُرفع أي حالة إلى `device-proven`.
+
+---
+
 # أحدث تحقق — PR-1 (2026-10-08)
 
 - **الفرع:** `pr-0-pr-1` مبني من `origin/main`، HEAD الأساسي: `168128bd` (`docs(audit): establish runtime capability baseline`).

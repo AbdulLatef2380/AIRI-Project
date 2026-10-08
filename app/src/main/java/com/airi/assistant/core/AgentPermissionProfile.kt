@@ -18,16 +18,21 @@ data class AgentPermissionProfile(
     val allowSkills: Boolean,
     val allowConnectorRead: Boolean,
     val allowMemoryRead: Boolean,
+    val allowTerminalExecute: Boolean,
     val allowApprovedProposals: Boolean,
     val allowAutomation: Boolean,
     val maxToolSteps: Int,
 ) {
     fun allows(tool: ToolSchema): Boolean {
         if (!allowReadTools) return false
-        if (tool.dangerous && !(allowApprovedProposals && tool.name == "calendar_create")) return false
+        if (tool.dangerous && !(
+                (allowApprovedProposals && tool.name == "calendar_create") ||
+                    (allowTerminalExecute && tool.name == "terminal_execute")
+            )) return false
         if (tool.name.startsWith("skill_") && !allowSkills) return false
         if (tool.name.startsWith("connector_") && !allowConnectorRead) return false
         if (tool.name == "memory_recall" && !allowMemoryRead) return false
+        if (tool.name == "terminal_execute" && !allowTerminalExecute) return false
         if (tool.category == ToolSchema.Category.AUTOMATION && !allowAutomation) return false
         return true
     }
@@ -42,6 +47,7 @@ data class AgentPermissionProfile(
         "allowSkills" to allowSkills.toString(),
         "allowConnectorRead" to allowConnectorRead.toString(),
         "allowMemoryRead" to allowMemoryRead.toString(),
+        "allowTerminalExecute" to allowTerminalExecute.toString(),
         "allowApprovedProposals" to allowApprovedProposals.toString(),
         "allowAutomation" to allowAutomation.toString(),
         "maxToolSteps" to maxToolSteps.toString(),
@@ -68,6 +74,7 @@ data class AgentPermissionProfile(
                 allowSkills = interactive,
                 allowConnectorRead = interactive,
                 allowMemoryRead = interactive,
+                allowTerminalExecute = queryType == QueryType.ACTION,
                 allowApprovedProposals = queryType == QueryType.ACTION || queryType == QueryType.ANALYTICAL,
                 allowAutomation = queryType == QueryType.ACTION,
                 maxToolSteps = if (interactive) 8 else 0,

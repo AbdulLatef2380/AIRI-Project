@@ -24,6 +24,7 @@ internal object ToolPermissionPolicy {
         "create_note" to ScopedPermissionRegistry.AgentPermission.WRITE_NOTES,
         "file_read" to ScopedPermissionRegistry.AgentPermission.READ_FILES,
         "file_write" to ScopedPermissionRegistry.AgentPermission.WRITE_FILES,
+        "terminal_execute" to ScopedPermissionRegistry.AgentPermission.EXECUTE_TERMINAL,
         "memory_read" to ScopedPermissionRegistry.AgentPermission.READ_MEMORY,
         "memory_recall" to ScopedPermissionRegistry.AgentPermission.READ_MEMORY,
         "memory_write" to ScopedPermissionRegistry.AgentPermission.WRITE_MEMORY,

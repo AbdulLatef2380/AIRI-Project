@@ -14,8 +14,8 @@ import java.util.UUID
  * A task is created only when the loop requests a supported typed operation. It
  * contains no chat prompt or raw tool arguments: private proposal storage owns
  * those values after this runtime has established task/run/step coordinates.
- * Personal calendar writes are intentionally not admitted here; this first path
- * requires an active project as the explicit ownership boundary.
+ * Terminal execution is session-scoped and receives the same durable ownership
+ * coordinates, while the interactive UI terminal keeps its own principal.
  */
 class AgentLoopTaskRuntime(
     private val durableTaskManager: DurableTaskManager,
@@ -24,9 +24,10 @@ class AgentLoopTaskRuntime(
 ) : AgentLoopExecutionContextFactory {
 
     override fun createFor(toolName: String): AgentLoopExecutionContext? {
-        if (toolName != CALENDAR_CREATE) return null
-        val resolvedProjectId = projectId?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        if (!sourceSessionId.matches(SAFE_IDENTIFIER) || !resolvedProjectId.matches(SAFE_IDENTIFIER)) {
+        if (toolName != CALENDAR_CREATE && toolName != TERMINAL_EXECUTE) return null
+        val resolvedProjectId = projectId?.trim()?.takeIf { it.isNotEmpty() }
+        if (!sourceSessionId.matches(SAFE_IDENTIFIER) ||
+            (resolvedProjectId != null && !resolvedProjectId.matches(SAFE_IDENTIFIER))) {
             return null
         }
 
@@ -37,7 +38,7 @@ class AgentLoopTaskRuntime(
             missionId = taskId,
             projectId = resolvedProjectId,
             runId = runId,
-            stepId = CALENDAR_CREATE,
+            stepId = toolName,
             agentId = AgentLoopExecutionContext.AGENT_LOOP_PRINCIPAL,
             sourceSessionId = sourceSessionId
         )
@@ -48,23 +49,23 @@ class AgentLoopTaskRuntime(
                 id = taskId,
                 missionId = taskId,
                 projectId = resolvedProjectId,
-                title = "Calendar event approval",
-                description = "Create one reviewed calendar event for the active project",
+                title = if (toolName == TERMINAL_EXECUTE) "Agent terminal session" else "Calendar event approval",
+                description = if (toolName == TERMINAL_EXECUTE) "Execute one governed terminal action for the source session" else "Create one reviewed calendar event for the active project",
                 agentId = AgentLoopExecutionContext.AGENT_LOOP_PRINCIPAL,
                 input = "",
                 showNotification = false,
-                memoryScope = TaskScope.PROJECT,
+                memoryScope = if (toolName == TERMINAL_EXECUTE) TaskScope.SESSION else TaskScope.PROJECT,
                 knowledgeScope = TaskScope.PROJECT,
                 plan = listOf(
                     TaskPlanStep(
-                        id = CALENDAR_CREATE,
-                        title = "Create approved calendar event",
-                        toolSummary = CALENDAR_CREATE
+                        id = toolName,
+                        title = if (toolName == TERMINAL_EXECUTE) "Execute governed terminal action" else "Create approved calendar event",
+                        toolSummary = toolName
                     )
                 )
             )
         )
-        durableTaskManager.beginRun(taskId = taskId, runId = runId, stepId = CALENDAR_CREATE)
+        durableTaskManager.beginRun(taskId = taskId, runId = runId, stepId = toolName)
         return context.takeIf(::ownsRunningStep)
             ?: run {
                 durableTaskManager.markFailed(taskId, "Calendar task context could not be initialized")
@@ -95,6 +96,7 @@ class AgentLoopTaskRuntime(
 
     companion object {
         const val CALENDAR_CREATE = "calendar_create"
+        const val TERMINAL_EXECUTE = "terminal_execute"
         private val SAFE_IDENTIFIER = Regex("^[A-Za-z0-9._-]{1,128}$")
     }
 }

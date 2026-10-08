@@ -46,6 +46,7 @@ class ScopedPermissionRegistry {
         WRITE_MEMORY,
         READ_FILES,
         WRITE_FILES,
+        EXECUTE_TERMINAL,
 
         // Network / external
         SEARCH_WEB,
@@ -88,12 +89,14 @@ class ScopedPermissionRegistry {
             AgentPermission.TRIGGER_INTENT,  AgentPermission.ACCESSIBILITY_ACTIONS,
             AgentPermission.READ_MEMORY,     AgentPermission.WRITE_MEMORY,
             AgentPermission.READ_FILES,      AgentPermission.WRITE_FILES,
+            AgentPermission.EXECUTE_TERMINAL,
             AgentPermission.SEARCH_WEB,      AgentPermission.CALL_REMOTE_LLM,
             AgentPermission.CALL_GITHUB_API, AgentPermission.CALL_TELEGRAM_API,
             AgentPermission.READ_LOCATION,   AgentPermission.READ_MICROPHONE,
             AgentPermission.MANAGE_SKILLS,   AgentPermission.CLOUD_SYNC,
             AgentPermission.SPAWN_SUBAGENT,  AgentPermission.WRITE_NOTES
         )
+        grant("terminal", AgentPermission.EXECUTE_TERMINAL)
 
         LoggingService.info(TAG, "AIRI PERMISSION_DEFAULTS_INSTALLED agents=${grants.keys}")
     }

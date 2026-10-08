@@ -120,7 +120,7 @@ class TerminalRuntime(
 
     // ── Command execution ─────────────────────────────────────────────────────
 
-    suspend fun execute(rawCommand: String) {
+    suspend fun execute(rawCommand: String, agentId: String = "terminal") {
         val command = rawCommand.trim()
         if (command.isBlank()) return
         if (!commandInFlight.compareAndSet(false, true)) {
@@ -145,7 +145,7 @@ class TerminalRuntime(
         }
 
         // Governance check
-        val decision = governance.evaluate("shell_command", command, "terminal", command)
+        val decision = governance.evaluate("terminal_execute", command, agentId, command)
         if (!decision.allowed) {
             appendLine(TerminalLine(text = "Permission denied: ${decision.reason}", isError = true))
             if (activeExecutionJob === executionJob) activeExecutionJob = null

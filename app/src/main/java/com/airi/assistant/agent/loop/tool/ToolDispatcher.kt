@@ -65,6 +65,7 @@ class ToolDispatcher(
         context:  Context,
         /** Explicit owner supplied by the runtime; never inferred from UI state. */
         executionId: String? = null,
+        agentId: String = "terminal",
     ): ToolResult {
         Log.i(TAG, "TOOL_DISPATCH tool=$toolName argCount=${args.size}")
         AgentActivityBus.emit(
@@ -315,7 +316,7 @@ class ToolDispatcher(
                 if (command.isBlank()) return ToolResult.Error("Missing command", code = ToolErrorCodes.INVALID_ARGUMENT)
                 val terminal = com.airi.assistant.core.ServiceLocator.terminalRuntime
                 val before = terminal.lines.value.size
-                terminal.execute(command)
+                terminal.execute(command, agentId = agentId)
                 val output = terminal.lines.value.drop(before)
                     .joinToString("\n") { it.text }
                     .trim()

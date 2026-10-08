@@ -28,11 +28,17 @@ class AgentPermissionProfileTest {
         dangerous = true,
         category = ToolSchema.Category.SYSTEM,
     )
+    private val terminal = ToolSchema(
+        name = "terminal_execute",
+        description = "terminal",
+        dangerous = true,
+        category = ToolSchema.Category.PRODUCTIVITY,
+    )
 
     @Test
     fun simpleRequestReceivesNoAgentCapabilitySurface() {
         val profile = AgentPermissionProfile.resolve(QueryType.SIMPLE, "model", "provider")
-        assertTrue(profile.filterTools(listOf(connector, skill, memory, calendarCreate)).isEmpty())
+        assertTrue(profile.filterTools(listOf(connector, skill, memory, calendarCreate, terminal)).isEmpty())
         assertFalse(profile.allowReadTools)
     }
 
@@ -51,11 +57,13 @@ class AgentPermissionProfileTest {
     @Test
     fun actionProfileAllowsReadAndExplicitCalendarProposalOnly() {
         val profile = AgentPermissionProfile.resolve(QueryType.ACTION, "model", "provider")
-        val exposed = profile.filterTools(listOf(connector, skill, memory, calendarCreate))
+        val exposed = profile.filterTools(listOf(connector, skill, memory, calendarCreate, terminal))
         assertTrue(exposed.contains(connector))
         assertTrue(exposed.contains(skill))
         assertTrue(exposed.contains(memory))
         assertTrue(exposed.contains(calendarCreate))
+        assertTrue(exposed.contains(terminal))
+        assertTrue(profile.allowTerminalExecute)
         assertTrue(profile.allowApprovedProposals)
     }
 

@@ -1,6 +1,7 @@
 package com.airi.assistant.ai
 
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class CapabilityIntentDetectorTest {
@@ -29,5 +30,20 @@ class CapabilityIntentDetectorTest {
     @Test
     fun creativeRequestWithoutLiveDependencyNeedsNoTools() {
         assertTrue(CapabilityIntentDetector.detect("اكتب لي قصة قصيرة").capabilities.isEmpty())
+    }
+
+    @Test
+    fun arabicDeviceCommandsRequireDeviceAction() {
+        assertTrue(CapabilityIntentDetector.detect("قم بتشغيل فلاش الجهاز")
+            .requires(CapabilityIntentDetector.Capability.DEVICE_ACTION))
+        assertTrue(CapabilityIntentDetector.detect("شغّل الواي فاي")
+            .requires(CapabilityIntentDetector.Capability.DEVICE_ACTION))
+        assertTrue(CapabilityIntentDetector.detect("أطفئ البلوتوث")
+            .requires(CapabilityIntentDetector.Capability.DEVICE_ACTION))
+    }
+
+    @Test
+    fun deviceCommandsAreActionsEvenWhenShort() {
+        assertEquals(QueryType.ACTION, QueryClassifier.classifyQuery("شغّل الواي فاي"))
     }
 }

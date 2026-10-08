@@ -28,6 +28,10 @@ class ExecutionFirewallTest {
             ScopedPermissionRegistry.AgentPermission.WRITE_NOTES,
             ToolPermissionPolicy.permissionFor("create_note")
         )
+        assertEquals(
+            ScopedPermissionRegistry.AgentPermission.EXECUTE_TERMINAL,
+            ToolPermissionPolicy.permissionFor("terminal_execute")
+        )
     }
 
     @Test

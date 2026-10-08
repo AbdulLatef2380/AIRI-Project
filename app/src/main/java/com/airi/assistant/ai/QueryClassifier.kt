@@ -85,6 +85,15 @@ object QueryClassifier {
         val wordCount = lower.split(Regex("\\s+")).size
         val hasQuestion = trimmed.endsWith("?") || trimmed.endsWith("؟")
 
+        // Device commands remain ACTION even when they are short or start
+        // with a polite prefix such as "قم بتشغيل".
+        if (CapabilityIntentDetector.detect(trimmed).requires(
+                CapabilityIntentDetector.Capability.DEVICE_ACTION
+            )) {
+            Log.d(TAG, "classify=ACTION reason=device_action")
+            return QueryType.ACTION
+        }
+
         // These requests require live device/provider state, even when they are
         // short questions. Keep them out of the plain-chat fast path so the
         // model receives the current_time or connected-connector tools.

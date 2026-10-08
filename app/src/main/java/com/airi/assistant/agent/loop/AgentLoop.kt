@@ -97,6 +97,9 @@ When you need to use a tool, respond ONLY with this exact JSON (no markdown, no 
 
 When you have a complete answer for the user, respond normally in plain text.
 Do not mix tool_call JSON with prose in the same message.
+When a tool is present in the tool list, use it to verify the capability before
+claiming that the capability is unavailable. Only report it as unavailable after
+the tool returns an actual error.
 """
     }
 
@@ -463,9 +466,9 @@ Do not mix tool_call JSON with prose in the same message.
                 // mutation is a typed calendar proposal, and it is admitted only
                 // after a foreground task owner has created an exact task/run/step.
                 if (
-                    toolName == "calendar_create" &&
+                    (toolName == "calendar_create" || toolName == "terminal_execute") &&
                     durableExecutionContext == null &&
-                    calendarCreateRuntime != null
+                    executionContextFactory != null
                 ) {
                     durableExecutionContext = executionContextFactory?.createFor(toolName)
                 }
@@ -524,6 +527,25 @@ Do not mix tool_call JSON with prose in the same message.
                                 else -> ToolDispatcher.ToolResult.Error("Calendar proposal could not be created")
                             }
                         }
+                    }
+                    AgentLoopSideEffectPolicy.Decision.ALLOW_TYPED_TERMINAL -> try {
+                        runtimeTrace?.dispatched(executionId, sessionId, toolName, "agent_sandbox_terminal")
+                        if (agentSandbox != null) {
+                            agentSandbox.execute(agentId = SANDBOX_AGENT_ID, goalId = durableExecutionContext?.taskId.orEmpty()) { ctx ->
+                                ctx.guardTool(toolName)
+                                dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID)
+                            }
+                        } else {
+                            dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID)
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Terminal tool failed: ${e.message}")
+                        ToolDispatcher.ToolResult.Error(
+                            "Terminal execution failed: ${e.message}",
+                            code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.EXECUTION_FAILED,
+                        )
                     }
                     AgentLoopSideEffectPolicy.Decision.ALLOW_READ -> try {
                         runtimeTrace?.dispatched(executionId, sessionId, toolName, "agent_sandbox_or_tool_dispatcher")

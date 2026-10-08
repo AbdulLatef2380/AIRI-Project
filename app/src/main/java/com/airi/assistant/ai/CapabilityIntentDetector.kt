@@ -15,6 +15,7 @@ object CapabilityIntentDetector {
         WEB_SEARCH,
         CONNECTOR_READ,
         DEVICE_STATE,
+        DEVICE_ACTION,
     }
 
     data class Intent(
@@ -62,6 +63,19 @@ object CapabilityIntentDetector {
         "افتح", "لخص", "لخّص", "استخرج", "راجع", "آخر", "اخر",
     )
 
+    private val deviceActionVerbs = listOf(
+        "turn on", "turn off", "switch on", "switch off", "enable", "disable", "toggle",
+        "activate", "deactivate", "قم بتشغيل", "قم بايقاف", "قم بإيقاف", "شغل", "شغّل",
+        "تشغيل", "فعل", "فعّل", "اطفئ", "أطفئ", "اطفاء", "إطفاء", "إيقاف", "ايقاف",
+    )
+
+    private val deviceActionTargets = listOf(
+        "flash", "flashlight", "torch", "wifi", "wi-fi", "bluetooth", "hotspot",
+        "airplane mode", "mobile data", "location", "الفلاش", "فلاش", "الكشاف",
+        "المصباح", "الواي فاي", "واي فاي", "البلوتوث", "نقطة الاتصال", "وضع الطيران",
+        "بيانات الهاتف", "الموقع",
+    )
+
     fun detect(input: String): Intent {
         val text = normalize(input)
         val capabilities = linkedSetOf<Capability>()
@@ -80,6 +94,9 @@ object CapabilityIntentDetector {
         if (text.contains("battery") || text.contains("network") ||
             text.contains("البطارية") || text.contains("الشبكة")) {
             capabilities += Capability.DEVICE_STATE
+        }
+        if (deviceActionVerbs.any(text::contains) && deviceActionTargets.any(text::contains)) {
+            capabilities += Capability.DEVICE_ACTION
         }
         return Intent(capabilities, connectors)
     }

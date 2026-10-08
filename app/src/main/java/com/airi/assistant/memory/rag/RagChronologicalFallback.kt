@@ -6,6 +6,7 @@ import com.airi.assistant.memory.entity.ChatMessage
 internal object RagChronologicalFallback {
     fun select(
         messages: List<ChatMessage>,
+        sessionId: String,
         query: String,
         limit: Int,
         projectId: String,
@@ -23,7 +24,7 @@ internal object RagChronologicalFallback {
             .filter {
                 when (it.memoryScope) {
                     "PROJECT" -> projectId.isNotBlank() && it.projectId == projectId
-                    "USER", "SESSION" -> true
+                    "SESSION" -> it.sessionId == sessionId && sessionId.isNotBlank()
                     else -> false
                 }
             }

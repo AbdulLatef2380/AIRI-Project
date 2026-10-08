@@ -138,6 +138,7 @@ $formatted
         } else {
             RagChronologicalFallback.select(
                 messages = memoryManager.getRecentMessages(sessionId, limit = safeLimit * 3),
+                sessionId = sessionId,
                 query = normalizedQuery,
                 limit = safeLimit,
                 projectId = projectId,
@@ -246,7 +247,7 @@ $formatted
         if (message.expiresAtMs >= 0 && message.expiresAtMs <= System.currentTimeMillis()) return false
         return when (message.memoryScope) {
             "PROJECT" -> projectId.isNotBlank() && message.projectId == projectId
-            "USER", "SESSION" -> true
+            "SESSION" -> message.sessionId.isNotBlank()
             else -> false
         }
     }

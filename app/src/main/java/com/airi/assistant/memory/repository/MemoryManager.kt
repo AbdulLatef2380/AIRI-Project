@@ -321,8 +321,9 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         return dao.getRecentMessages(sessionId, limit)
     }
 
-    suspend fun getSemanticMemories(limit: Int = 200): List<ChatMessage> {
-        return dao.getRecentMemories(limit)
+    suspend fun getSemanticMemories(sessionId: String, limit: Int = 200): List<ChatMessage> {
+        require(sessionId.isNotBlank()) { "A session is required for memory retrieval" }
+        return dao.getRecentMemoriesForSession(sessionId, limit.coerceIn(1, MAX_RETRIEVAL_LIMIT))
     }
 
     suspend fun getLongTermMemories(sessionId: String, limit: Int = 20): List<ChatMessage> =
@@ -448,10 +449,6 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
     /** Releases the native embedding model under critical memory pressure. */
     suspend fun releaseEmbeddingResources() {
         embeddingService.unload()
-    }
-
-    suspend fun getRecentMessages(limit: Int = 10): List<ChatMessage> {
-        return getSemanticMemories(limit)
     }
 
     suspend fun getMessageCount(): Int {

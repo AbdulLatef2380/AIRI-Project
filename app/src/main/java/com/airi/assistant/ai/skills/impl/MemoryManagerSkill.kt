@@ -117,7 +117,7 @@ class MemoryManagerSkill(private val context: Context) : AiriSkill {
                     val results = if (manager.isSemanticMemoryReady() && sessionId.isNotEmpty()) {
                         manager.semanticSearch(sessionId, query, limit).map { it.message }
                     } else {
-                        manager.getRecentMessages(limit)
+                        manager.getRecentMessages(skillCtx.sessionId, limit)
                     }
 
                     if (results.isEmpty()) {

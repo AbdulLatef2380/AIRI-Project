@@ -182,10 +182,11 @@ class StorageRepository(val db: AiriDatabase) {
         db.memoryDao().updateMessageFeedback(id, feedback)
     }
 
-    /** Get N most recent messages across all sessions (for feedback matching). */
-    suspend fun getRecentMessages(limit: Int): List<com.airi.assistant.memory.entity.ChatMessage> =
+    /** Get N recent messages from one owning session only. */
+    suspend fun getRecentMessages(sessionId: String, limit: Int): List<com.airi.assistant.memory.entity.ChatMessage> =
         withContext(Dispatchers.IO) {
-            db.memoryDao().getRecentMemories(limit)
+            require(sessionId.isNotBlank()) { "A session is required for content lookup" }
+            db.memoryDao().getRecentMemoriesForSession(sessionId, limit)
         }
 
     suspend fun deleteAllData() = withContext(Dispatchers.IO) {

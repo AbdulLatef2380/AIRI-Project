@@ -24,8 +24,9 @@ interface MemoryDao {
      * isMemory = 1 only, which made the screen look empty even after long
      * conversations (Bug #5 in the user's report).
      */
-    @Query("SELECT * FROM episodic_memory ORDER BY timestamp DESC LIMIT :limit")
-    suspend fun getRecentMemories(limit: Int): List<ChatMessage>
+    /** Session-scoped projection; there is intentionally no all-session query. */
+    @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId ORDER BY timestamp DESC, id DESC LIMIT :limit")
+    suspend fun getRecentMemoriesForSession(sessionId: String, limit: Int): List<ChatMessage>
 
     @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0 ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getRecentMessages(sessionId: String, limit: Int): List<ChatMessage>
@@ -94,8 +95,7 @@ interface MemoryDao {
           AND privacyLevel <= :maxPrivacyLevel
           AND (expiresAtMs < 0 OR expiresAtMs > :nowMs)
           AND (
-              memoryScope = 'USER'
-              OR (memoryScope = 'PROJECT' AND :projectId != '' AND projectId = :projectId)
+              (memoryScope = 'PROJECT' AND :projectId != '' AND projectId = :projectId)
               OR (memoryScope = 'SESSION' AND sessionId = :sessionId)
           )
         ORDER BY importance DESC, timestamp DESC, id DESC

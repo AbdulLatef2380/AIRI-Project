@@ -46,6 +46,8 @@ class CloudSyncWorker(
         Log.i(TAG, "CloudSyncWorker starting attempt=$runAttemptCount")
 
         val prefs = ServiceLocator.userProfileRepository.current
+        // Memory sync is intentionally not scheduled by PR-9. Profile/task
+        // continuity sync remains separately preference-gated.
         if (!prefs.cloudSyncEnabled) {
             LoggingService.info(TAG, "AIRI CLOUD_SYNC_WORKER_SKIPPED — sync disabled")
             return Result.success()

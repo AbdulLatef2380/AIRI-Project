@@ -22,8 +22,11 @@ internal object MemoryMetadataPolicy {
 
     fun normalizeScope(scope: MemoryScope, projectId: String): String = when (scope) {
         MemoryScope.PROJECT -> if (projectId.isBlank()) MemoryScope.SESSION.name else MemoryScope.PROJECT.name
-        MemoryScope.SESSION,
-        MemoryScope.USER -> scope.name
+        MemoryScope.SESSION -> MemoryScope.SESSION.name
+        // USER scope is deliberately disabled until Room rows carry a verified
+        // Firebase ownerId. Never turn an unowned installation row into
+        // cross-session memory.
+        MemoryScope.USER -> MemoryScope.SESSION.name
     }
 
     fun normalizePrivacyLevel(value: Int): Int = value.coerceIn(MIN_PRIVACY_LEVEL, MAX_PRIVACY_LEVEL)

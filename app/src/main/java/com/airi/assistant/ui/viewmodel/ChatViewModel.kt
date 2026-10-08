@@ -1783,7 +1783,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadMemoryEntries() {
         viewModelScope.launch {
-            _memoryEntries.value = runCatching { memoryManager.getSemanticMemories(200) }.getOrElse { emptyList() }
+            _memoryEntries.value = runCatching { memoryManager.getSemanticMemories(_currentSessionId.value, 200) }.getOrElse { emptyList() }
             _memoryCount.value = runCatching { memoryManager.getMessageCount() }.getOrElse { 0 }
         }
     }
@@ -1792,7 +1792,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun deleteMemoryEntry(memoryId: Long): Boolean {
         val removed = memoryManager.forgetMemory(memoryId)
         if (removed) {
-            _memoryEntries.value = memoryManager.getSemanticMemories(200)
+            _memoryEntries.value = memoryManager.getSemanticMemories(_currentSessionId.value, 200)
             _memoryCount.value = memoryManager.getMessageCount()
         }
         return removed
@@ -1802,7 +1802,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun editMemoryEntry(memoryId: Long, content: String): Boolean {
         val updated = memoryManager.editMemoryContent(memoryId, content)
         if (updated) {
-            _memoryEntries.value = memoryManager.getSemanticMemories(200)
+            _memoryEntries.value = memoryManager.getSemanticMemories(_currentSessionId.value, 200)
             _memoryCount.value = memoryManager.getMessageCount()
         }
         return updated
@@ -4524,7 +4524,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             runCatching {
-                val recentRows = ServiceLocator.storageRepository.getRecentMessages(50)
+                val recentRows = ServiceLocator.storageRepository.getRecentMessages(_currentSessionId.value, 50)
                 val matchedRow = recentRows.firstOrNull { row ->
                     row.content == msg.text && !row.isMemory
                 }

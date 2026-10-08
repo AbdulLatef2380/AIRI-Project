@@ -16,7 +16,7 @@ class MemoryMetadataPolicyTest {
             MemoryMetadataPolicy.normalizeScope(MemoryScope.PROJECT, "project-42")
         )
         assertEquals(
-            MemoryScope.USER.name,
+            MemoryScope.SESSION.name,
             MemoryMetadataPolicy.normalizeScope(MemoryScope.USER, "project-42")
         )
     }

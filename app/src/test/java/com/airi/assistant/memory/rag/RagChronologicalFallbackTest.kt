@@ -17,6 +17,7 @@ class RagChronologicalFallbackTest {
 
         val result = RagChronologicalFallback.select(
             messages = messages,
+            sessionId = "default",
             query = "current input",
             limit = 5,
             projectId = "",
@@ -39,6 +40,7 @@ class RagChronologicalFallbackTest {
 
         val result = RagChronologicalFallback.select(
             messages = messages,
+            sessionId = "default",
             query = "new question",
             limit = 5,
             projectId = "project-a",

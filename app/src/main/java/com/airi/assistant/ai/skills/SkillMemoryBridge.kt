@@ -46,7 +46,7 @@ class SkillMemoryBridge(
             return emptyList()
         }
         return try {
-            manager.getRecentMessages(limit)
+            manager.getRecentMessages(sessionId, limit)
         } catch (e: Exception) {
             Log.e(TAG, "[$skillId] getRecentMessages failed: ${e.message}")
             emptyList()
@@ -66,7 +66,7 @@ class SkillMemoryBridge(
             if (manager.isSemanticMemoryReady() && sessionId.isNotEmpty()) {
                 manager.semanticSearch(sessionId, query, k).map { it.message }
             } else {
-                manager.getRecentMessages(k)
+                manager.getRecentMessages(sessionId, k)
             }
         } catch (e: Exception) {
             Log.e(TAG, "[$skillId] search failed: ${e.message}")
@@ -88,7 +88,7 @@ class SkillMemoryBridge(
             return
         }
         try {
-            manager.recordImportantMemory(role, "[$skillId] $content")
+            manager.recordImportantMemory(role, "[$skillId] $content", explicitlyRequested = true, sessionId = sessionId)
         } catch (e: Exception) {
             Log.e(TAG, "[$skillId] record failed: ${e.message}")
         }
@@ -151,7 +151,7 @@ class SkillMemoryBridge(
             return ""
         }
         return try {
-            val messages = manager.getRecentMessages(limit)
+            val messages = manager.getRecentMessages(sessionId.ifBlank { "default" }, limit)
             if (messages.isEmpty()) return ""
             buildString {
                 append("[Memory export for session $sessionId — ${messages.size} entries]\n")
@@ -177,7 +177,7 @@ class SkillMemoryBridge(
             return -1
         }
         return try {
-            manager.getRecentMessages(Int.MAX_VALUE).size
+            manager.getRecentMessages(sessionId, Int.MAX_VALUE).size
         } catch (e: Exception) {
             Log.e(TAG, "[$skillId] getMemoryCount failed: ${e.message}")
             -1
@@ -202,7 +202,7 @@ class SkillMemoryBridge(
         }
         try {
             val tagged = "[FACT:$factType][$skillId] $content"
-            manager.recordImportantMemory("skill", tagged)
+            manager.recordImportantMemory("skill", tagged, explicitlyRequested = true, sessionId = sessionId)
         } catch (e: Exception) {
             Log.e(TAG, "[$skillId] recordTaggedFact failed: ${e.message}")
         }

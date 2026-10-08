@@ -64,6 +64,11 @@ class CloudSyncCoordinator(
 ) {
 
     private val TAG   = "CloudSyncCoordinator"
+
+    // PR-9 gate: memory sync is not deployable until consent, owner-only rules,
+    // durable outbox/tombstones, cursor restart, and emulator proof exist.
+    private val memorySyncEnabled = false
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val auth  = FirebaseAuth.getInstance()
 
@@ -180,12 +185,12 @@ class CloudSyncCoordinator(
      */
     suspend fun pushMemories(memoryManager: MemoryManager) {
         val prefs = profileRepo.current
-        if (!prefs.cloudSyncEnabled || !prefs.enableLongTermMemory) return
+        if (!memorySyncEnabled || !prefs.cloudSyncEnabled || !prefs.enableLongTermMemory) return
         val uid = auth.currentUser?.uid ?: return
         val db  = db ?: return
 
         val since = _lastMemorySyncMs.value
-        val memories = runCatching { memoryManager.getSemanticMemories(limit = 500) }
+        val memories = runCatching { memoryManager.getSemanticMemories(sessionId = "__disabled__", limit = 500) }
             .getOrElse { emptyList() }
             .filter { it.isMemory && it.timestamp > since }
             .take(MAX_MEMORY_BATCH)
@@ -223,7 +228,7 @@ class CloudSyncCoordinator(
      */
     suspend fun pullMemories(memoryManager: MemoryManager) {
         val prefs = profileRepo.current
-        if (!prefs.cloudSyncEnabled || !prefs.enableLongTermMemory) return
+        if (!memorySyncEnabled || !prefs.cloudSyncEnabled || !prefs.enableLongTermMemory) return
         val uid = auth.currentUser?.uid ?: return
         val db  = db ?: return
 
@@ -239,7 +244,7 @@ class CloudSyncCoordinator(
                 return
             }
 
-            val local = runCatching { memoryManager.getSemanticMemories(limit = 1000) }.getOrElse { emptyList() }
+            val local = runCatching { memoryManager.getSemanticMemories(sessionId = "__disabled__", limit = 1000) }.getOrElse { emptyList() }
             val localIds = local.map { it.id }.toSet()
 
             var restored = 0

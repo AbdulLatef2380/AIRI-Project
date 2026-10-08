@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.airi.assistant.R
+import com.airi.assistant.attachments.ComposerTextFileStore
 import com.airi.assistant.WakeWordDispatcher
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.core.VoiceManager
@@ -648,34 +649,39 @@ fun ChatScreen(
         mutableStateOf(recentAttachmentPrefs.getString("uri", null))
     }
 
-    fun addAttachment(att: ChatAttachment) {
+    fun addAttachment(att: ChatAttachment): Boolean {
         if (pendingAttachments.any { existing ->
                 AttachmentPolicy.isSameSource(existing.uri?.toString(), att.uri?.toString())
             }) {
             scope.launch { snackbarHost.showSnackbar(context.getString(R.string.attachment_already_added)) }
-            return
+            return false
         }
         if (pendingAttachments.size >= AttachmentPolicy.MAX_ATTACHMENTS_PER_MESSAGE) {
             scope.launch { snackbarHost.showSnackbar(context.getString(R.string.attachment_limit_reached)) }
-            return
+            return false
         }
-        when (AttachmentPolicy.validateSize(att.sizeBytes, att.contentType)) {
-            AttachmentPolicy.ValidationResult.Accepted ->
+        return when (AttachmentPolicy.validateSize(att.sizeBytes, att.contentType)) {
+            AttachmentPolicy.ValidationResult.Accepted -> {
                 viewModel.updateComposerAttachments(pendingAttachments + att)
-            AttachmentPolicy.ValidationResult.TooLarge -> scope.launch {
-                snackbarHost.showSnackbar(context.getString(R.string.attachment_too_large))
+                true
             }
-            AttachmentPolicy.ValidationResult.TextTooLarge -> scope.launch {
-                snackbarHost.showSnackbar(context.getString(R.string.text_attachment_too_large))
+            AttachmentPolicy.ValidationResult.TooLarge -> {
+                scope.launch { snackbarHost.showSnackbar(context.getString(R.string.attachment_too_large)) }
+                false
+            }
+            AttachmentPolicy.ValidationResult.TextTooLarge -> {
+                scope.launch { snackbarHost.showSnackbar(context.getString(R.string.text_attachment_too_large)) }
+                false
             }
         }
     }
     fun removeAttachment(id: String) {
-        viewModel.updateComposerAttachments(pendingAttachments.filterNot { it.id == id })
+        viewModel.updateComposerAttachments(pendingAttachments.filterNot { it.id == id || it.uid == id })
     }
 
     fun stageUriAttachment(uri: Uri, kind: ChatAttachment.Kind, fallbackName: String) {
-        if (kind == ChatAttachment.Kind.FILE) {
+        val isAppComposerUri = uri.authority == "${context.packageName}.fileprovider"
+        if (kind == ChatAttachment.Kind.FILE && !isAppComposerUri) {
             runCatching {
                 context.contentResolver.takePersistableUriPermission(
                     uri,
@@ -684,7 +690,7 @@ fun ChatScreen(
             }
         }
         val metadata = resolveAttachmentMetadata(context, uri, fallbackName)
-        addAttachment(
+        val added = addAttachment(
             ChatAttachment(
                 kind = kind,
                 uri = uri,
@@ -693,7 +699,8 @@ fun ChatScreen(
                 sizeBytes = metadata.sizeBytes
             )
         )
-        if (kind == ChatAttachment.Kind.FILE) {
+        if (!added) ComposerTextFileStore.discardIfOwned(context, uri)
+        if (kind == ChatAttachment.Kind.FILE && added && !isAppComposerUri) {
             recentFileUri = uri.toString()
             recentAttachmentPrefs.edit().putString("uri", recentFileUri).apply()
         }
@@ -1076,11 +1083,7 @@ fun ChatScreen(
                             stageUriAttachment(uri, ChatAttachment.Kind.FILE, "dropped_file")
                         }
                     },
-                    onRemoveAttachment  = { uid ->
-                        viewModel.updateComposerAttachments(
-                            pendingAttachments.filterNot { it.id == uid || it.uid == uid }
-                        )
-                    },
+                    onRemoveAttachment  = { uid -> removeAttachment(uid) },
                     bottomNavVisible = bottomNavVisible,
                     onBottomNavToggle = onBottomNavToggle,
                     imageInputEnabled = capabilityDescriptor.isReady(com.airi.assistant.execution.Capability.IMAGE_UNDERSTANDING)
@@ -3495,14 +3498,7 @@ fun AiriChatInputBar(
                 )
                 Button(
                     onClick = {
-                        val uri = runCatching {
-                            val dir = java.io.File(context.cacheDir, "chat_attachments").apply { mkdirs() }
-                            val file = java.io.File(dir, "prompt_${System.currentTimeMillis()}.txt")
-                            file.writeText(text)
-                            androidx.core.content.FileProvider.getUriForFile(
-                                context, "${context.packageName}.fileprovider", file
-                            )
-                        }.getOrNull()
+                        val uri = ComposerTextFileStore.create(context, text)
                         if (uri != null) {
                             onStageFile(uri)
                             onDraftTextChanged("")

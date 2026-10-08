@@ -55,7 +55,9 @@ import kotlin.coroutines.resume
  *   Step 5: FILESYSTEM_WIPE
  *     - Artifact files under <filesDir>/workspace/artifacts/ (in-memory map
  *       cleared; disk directory deleted recursively).
- *     - Chat attachment cache under cacheDir/chat_attachments/.
+ *     - Accepted attachment payloads and account-scoped profile photos under
+ *       <filesDir>/attachments/ and <filesDir>/profile/.
+ *     - Pending composer attachment cache under cacheDir/chat_attachments/.
  *     - Multimodal projection model cache cacheDir/mmproj_active.gguf.
  *
  *   Step 6: CREDENTIAL_WIPE
@@ -263,6 +265,7 @@ class DataDeletionCoordinator(
                 artifactManager.deleteAll()
                 projectFileManager.deleteAll()
                 projectKnowledgeManager.deleteAll()
+                SensitiveLocalFileCleaner(context.filesDir).clear()
                 File(context.cacheDir, "chat_attachments").deleteRecursively()
                 File(context.cacheDir, "mmproj_active.gguf").delete()
             }
@@ -343,6 +346,7 @@ class DataDeletionCoordinator(
                 artifactManager.deleteAll()
                 projectFileManager.deleteAll()
                 projectKnowledgeManager.deleteAll()
+                SensitiveLocalFileCleaner(context.filesDir).clear()
                 File(context.cacheDir, "chat_attachments").deleteRecursively()
                 File(context.cacheDir, "mmproj_active.gguf").delete()
             }

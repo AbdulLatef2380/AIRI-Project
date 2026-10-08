@@ -23,11 +23,13 @@ import com.airi.assistant.sync.CloudSyncWorker
 import com.airi.assistant.agent.learning.reinforcement.ReinforcementMemory
 import com.airi.assistant.runtime.recovery.RuntimeRecoveryEngine
 import com.airi.assistant.resources.ResourceMonitorWorker
+import com.airi.assistant.attachments.TransientAttachmentCache
 import com.airi.assistant.system.LanguageManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.io.File
 
 class AIRIApplication : Application() {
 
@@ -60,6 +62,23 @@ class AIRIApplication : Application() {
             val recoveryEngine = RuntimeRecoveryEngine(applicationContext)
             recoveryEngine.init()
             LoggingService.info(TAG, " RuntimeRecoveryEngine initialized")
+            applicationScope.launch {
+                val oldComposerFiles = runCatching {
+                    TransientAttachmentCache.pruneExpired(
+                        File(cacheDir, "chat_attachments"),
+                        System.currentTimeMillis(),
+                    )
+                }.getOrDefault(0)
+                val interruptedWrites = runCatching {
+                    TransientAttachmentCache.pruneStalePartFiles(
+                        File(filesDir, "attachments"),
+                        System.currentTimeMillis(),
+                    )
+                }.getOrDefault(0)
+                if (oldComposerFiles + interruptedWrites > 0) {
+                    LoggingService.info(TAG, "Transient attachment cache pruned files=${oldComposerFiles + interruptedWrites}")
+                }
+            }
 
             // ── Infrastructure ─────────────────────────────────────────────────
             // ── Identity Layer ─────────────────────────────────────────────────
@@ -264,11 +283,9 @@ class AIRIApplication : Application() {
         // Evict stale graph workspaces — these hold in-memory file trees and
         // snapshot logs from completed or abandoned executeGraph() runs.
         com.airi.assistant.agent.workspace.WorkspaceRegistry.pruneStale()
-        // AP-17: Clear camera JPEG cache when app is backgrounded — prevents heavy camera
-        // users accumulating hundreds of MB in cacheDir/chat_attachments/.
-        if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
-            runCatching { cacheDir.resolve("chat_attachments").deleteRecursively() }
-        }
+        // Do not evict composer attachments here: the live draft state may still
+        // reference them when the user returns. Expired cache entries and stale
+        // partial writes are pruned at process startup instead.
         // Update health monitor so Diagnostics screen reflects the memory event
         runCatching { ServiceLocator.runtimeHealthMonitor }.getOrNull()
             ?.recordMemoryPressure(level)

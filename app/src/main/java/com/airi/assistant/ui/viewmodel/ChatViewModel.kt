@@ -55,7 +55,9 @@ import com.airi.core.attachments.AttachmentPolicy
 import com.airi.assistant.domain.ChatAttachment
 import com.airi.assistant.domain.ConversationTitlePolicy
 import com.airi.assistant.domain.LongTextAttachmentPolicy
+import com.airi.assistant.domain.storage.PrivateFileSegmentPolicy
 import com.airi.assistant.attachments.AttachmentContentExtractor
+import com.airi.assistant.attachments.ComposerTextFileStore
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
@@ -89,8 +91,6 @@ import kotlin.coroutines.suspendCoroutine
 import com.google.gson.reflect.TypeToken
 import java.io.File
 import java.io.FileOutputStream
-import java.io.OutputStreamWriter
-import java.nio.charset.StandardCharsets
 import com.airi.assistant.ai.QueryClassifier
 import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.ResponseOptimizer
@@ -934,14 +934,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val attachment = withContext(Dispatchers.IO) {
                 runCatching {
-                    val directory = File(appContext.cacheDir, "chat_attachments").apply { mkdirs() }
-                    val file = File(directory, "long_message_${java.util.UUID.randomUUID()}.txt")
-                    file.writeText(text)
-                    val uri = androidx.core.content.FileProvider.getUriForFile(
-                        appContext,
-                        "${appContext.packageName}.fileprovider",
-                        file
-                    )
+                    val uri = ComposerTextFileStore.create(appContext, text, prefix = "long_message")
+                        ?: return@runCatching null
                     ChatAttachment(
                         kind = ChatAttachment.Kind.FILE,
                         uri = uri,
@@ -976,6 +970,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateComposerAttachments(attachments: List<ChatAttachment>) {
         val sessionId = _currentSessionId.value
+        val previous = ChatComposerDraftPolicy.current(_composerDrafts.value, sessionId).attachments
+        val retainedUris = attachments.mapNotNull { it.uri?.toString() }.toSet()
+        previous.filter { attachment ->
+            attachment.uri?.toString()?.let { it !in retainedUris } == true
+        }.forEach { removed -> removed.uri?.let { ComposerTextFileStore.discardIfOwned(appContext, it) } }
         _composerDrafts.update { drafts ->
             ChatComposerDraftPolicy.replaceAttachments(drafts, sessionId, attachments)
         }
@@ -983,12 +982,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearCurrentComposerAttachments() {
         val sessionId = _currentSessionId.value
+        ChatComposerDraftPolicy.current(_composerDrafts.value, sessionId).attachments
+            .forEach { attachment -> attachment.uri?.let { ComposerTextFileStore.discardIfOwned(appContext, it) } }
         _composerDrafts.update { drafts ->
             ChatComposerDraftPolicy.clearAttachments(drafts, sessionId)
         }
     }
 
     private fun removeComposerDraft(sessionId: String) {
+        ChatComposerDraftPolicy.current(_composerDrafts.value, sessionId).attachments
+            .forEach { attachment -> attachment.uri?.let { ComposerTextFileStore.discardIfOwned(appContext, it) } }
         _composerDrafts.update { drafts -> ChatComposerDraftPolicy.removeSession(drafts, sessionId) }
     }
 
@@ -1531,11 +1534,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun createNewSession() {
-        // : Clear camera JPEG cache on every new session to prevent unbounded growth.
-        // deleteRecursively() is safe when the directory doesn't exist (returns true).
-        runCatching { File(appContext.cacheDir, "chat_attachments").deleteRecursively() }
-            .onFailure { android.util.Log.w("AIRI", " cache clear failed: ${it.message}") }
-
         viewModelScope.launch {
             val hadMessages = _messages.value.isNotEmpty()
             val generationRunning = activeGenerationId != 0L
@@ -1875,49 +1873,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // convert it to a .txt file attachment instead of embedding it inline.
         // This prevents token overflow and keeps the conversation manageable.
         if (allowLongTextConversion && LongTextAttachmentPolicy.shouldAutoConvert(trimmedInput)) {
-            val file = File(appContext.cacheDir, "chat_attachments")
-            file.mkdirs()
-            val fileName = "pasted_${System.currentTimeMillis()}.txt"
-            val fileUri = runCatching {
-                val f = File(file, fileName)
-                val temp = File(file, ".${fileName}.part")
-                FileOutputStream(temp, false).use { stream ->
-                    OutputStreamWriter(stream, StandardCharsets.UTF_8).buffered().use { writer ->
-                        var offset = 0
-                        while (offset < trimmedInput.length) {
-                            val end = minOf(offset + 64 * 1024, trimmedInput.length)
-                            writer.write(trimmedInput, offset, end - offset)
-                            offset = end
-                        }
-                        writer.flush()
-                    }
-                    stream.fd.sync()
-                }
-                if (!temp.renameTo(f)) error("Unable to publish long-text attachment atomically")
-                androidx.core.content.FileProvider.getUriForFile(
-                    appContext, "${appContext.packageName}.fileprovider", f
-                )
-            }.onFailure {
-                File(file, ".${fileName}.part").delete()
-            }.getOrNull()
-            if (fileUri != null) {
-                Log.i("AIRI", "LONG_TEXT_CONVERSION chars=${trimmedInput.length} -> file=$fileName")
-                val summary = "[Attached file: $fileName]\n\n${trimmedInput.take(200)}..."
-                sendMessageWithAttachments(
-                    input = summary,
-                    cloudAttachmentConsent = cloudAttachmentConsent,
-                    attachments = listOf(
-                        ChatAttachment(
-                            kind = ChatAttachment.Kind.FILE,
-                            uri = fileUri,
-                            displayName = fileName,
-                            mimeType = "text/plain",
-                            sizeBytes = LongTextAttachmentPolicy.utf8SizeBytes(trimmedInput)
-                        )
+            val fileName = "pasted.txt"
+            val fileUri = ComposerTextFileStore.create(appContext, trimmedInput, prefix = "pasted")
+            if (fileUri == null) {
+                _lastExecutionError.value = appContext.getString(R.string.attachment_staging_failed)
+                return false
+            }
+            Log.i("AIRI", "LONG_TEXT_CONVERSION chars=${trimmedInput.length} -> file=$fileName")
+            val summary = "[Attached file: $fileName]\n\n${trimmedInput.take(200)}..."
+            sendMessageWithAttachments(
+                input = summary,
+                cloudAttachmentConsent = cloudAttachmentConsent,
+                attachments = listOf(
+                    ChatAttachment(
+                        kind = ChatAttachment.Kind.FILE,
+                        uri = fileUri,
+                        displayName = fileName,
+                        mimeType = "text/plain",
+                        sizeBytes = LongTextAttachmentPolicy.utf8SizeBytes(trimmedInput)
                     )
                 )
-                return true
-            }
+            )
+            return true
         }
         // ── Intent classification (before any async work) ─────────────────────
         val selectedModelIdAtDispatch = _modelState.value.selectedModelId
@@ -2865,17 +2842,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * @return the Uri on success, null on failure.
      */
     fun saveInputAsFile(text: String): android.net.Uri? {
-        return runCatching {
-            val dir = java.io.File(appContext.cacheDir, "chat_attachments").apply { mkdirs() }
-            val file = java.io.File(dir, "prompt_${System.currentTimeMillis()}.txt")
-            file.writeText(text)
-            androidx.core.content.FileProvider.getUriForFile(
-                appContext,
-                "${appContext.packageName}.fileprovider",
-                file
-            )
-        }.onFailure { android.util.Log.e("AIRI", " saveInputAsFile failed: ${it.message}") }
-         .getOrNull()
+        return ComposerTextFileStore.create(appContext, text)
+            .also { if (it == null) android.util.Log.w("AIRI", " saveInputAsFile rejected or failed") }
     }
 
     val inputBarMode: StateFlow<InputBarMode> = kotlinx.coroutines.flow.combine(
@@ -3538,6 +3506,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val newlyStagedFiles = java.util.Collections.synchronizedList(mutableListOf<File>())
             val keepStagedFiles = java.util.concurrent.atomic.AtomicBoolean(false)
             val imageDispatchPending = java.util.concurrent.atomic.AtomicBoolean(false)
+            fun discardOwnedComposerSources() {
+                attachments.forEach { attachment ->
+                    attachment.uri?.let { ComposerTextFileStore.discardIfOwned(appContext, it) }
+                }
+            }
             fun discardNewlyStagedFiles() {
                 synchronized(newlyStagedFiles) {
                     newlyStagedFiles.forEach { runCatching { it.delete() } }
@@ -3568,15 +3541,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     requireNotNull(AttachmentDispatchPolicy.sizeFailure(maxBytes + 1L, att.contentType))
                 }
-                val attachDir = File(appContext.filesDir, "attachments").also { it.mkdirs() }
+                val attachDir = File(appContext.filesDir, "attachments")
+                if (!attachDir.exists()) check(attachDir.mkdirs()) { "Attachment directory could not be created" }
+                check(attachDir.isDirectory && !java.nio.file.Files.isSymbolicLink(attachDir.toPath())) {
+                    "Attachment directory is not a private directory"
+                }
+                check(attachDir.canonicalFile.parentFile == appContext.filesDir.canonicalFile) {
+                    "Attachment directory escaped app-private storage"
+                }
                 val sourceName = att.fileName ?: "file"
                 val safeName = sourceName
                     .substringAfterLast('/')
                     .replace(Regex("[^A-Za-z0-9._-]"), "_")
                     .take(80)
                     .ifBlank { "file" }
-                val destFile = File(attachDir, "${att.uid}_$safeName")
-                val tempFile = File(attachDir, ".${att.uid}_$safeName.part")
+                val safeAttachmentId = att.uid.takeIf { PrivateFileSegmentPolicy.isSafeSegment(it) }
+                    ?: throw IllegalArgumentException("Attachment identifier is not a safe file segment")
+                val destFile = File(attachDir, "${safeAttachmentId}_$safeName")
+                val tempFile = File(attachDir, ".${safeAttachmentId}_$safeName.part")
+                check(!java.nio.file.Files.isSymbolicLink(destFile.toPath()) &&
+                    !java.nio.file.Files.isSymbolicLink(tempFile.toPath())
+                ) { "Attachment path must not be a symbolic link" }
                 if (destFile.exists() && destFile.length() == 0L) destFile.delete()
                 if (!destFile.exists()) {
                     tempFile.delete()
@@ -3806,7 +3791,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         visionParts = imageParts,
                         attachmentParts = extraInlineParts,
                         attachmentTrace = attachmentTrace,
-                        onAccepted = onAccepted,
+                        onAccepted = {
+                            discardOwnedComposerSources()
+                            onAccepted()
+                        },
                     )) {
                     if (pendingAttachmentSessionId == sessionAtDispatch) {
                         pendingAttachmentSessionId = null
@@ -3837,6 +3825,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     onAccepted = {
                         keepStagedFiles.set(true)
                         imageDispatchPending.set(false)
+                        discardOwnedComposerSources()
                         onAccepted()
                     },
                     onRejected = { failure ->
@@ -3871,7 +3860,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     expectedSessionId = sessionAtDispatch,
                     attachmentParts = inlineParts,
                     attachmentTrace = attachmentTrace,
-                    onAccepted = onAccepted,
+                    onAccepted = {
+                        discardOwnedComposerSources()
+                        onAccepted()
+                    },
                 )) {
                     keepStagedFiles.set(true)
                 } else {

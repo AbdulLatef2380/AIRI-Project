@@ -34,6 +34,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.airi.assistant.R
 import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.domain.storage.PrivateFileSegmentPolicy
 import com.airi.assistant.ui.theme.*
 import com.google.firebase.auth.userProfileChangeRequest
 import java.io.File
@@ -619,13 +620,22 @@ private fun AccountInfoRow(
  *   - blank uid (in which case the photo would not be account-scoped)
  */
 internal fun cachePhotoForAccount(context: Context, uri: Uri, uid: String): String? {
-    if (uid.isBlank()) return null
+    if (!PrivateFileSegmentPolicy.isSafeSegment(uid)) return null
     val mimeType = context.contentResolver.getType(uri)
     if (mimeType?.startsWith("image/") != true) return null
 
-    val directory   = File(context.filesDir, "profile/$uid").also { it.mkdirs() }
+    val profileRoot = File(context.filesDir, "profile")
+    if (!profileRoot.exists() && !profileRoot.mkdirs()) return null
+    if (!profileRoot.isDirectory || java.nio.file.Files.isSymbolicLink(profileRoot.toPath())) return null
+    val directory = File(profileRoot, uid)
+    if (directory.exists() && java.nio.file.Files.isSymbolicLink(directory.toPath())) return null
+    if (directory.canonicalFile.parentFile != profileRoot.canonicalFile) return null
+    if (!directory.exists() && !directory.mkdirs()) return null
     val destination = File(directory, "avatar.jpg")
-    val temporary   = File(directory, "avatar.tmp")
+    val temporary   = File(directory, ".avatar-${java.util.UUID.randomUUID()}.tmp")
+    if (java.nio.file.Files.isSymbolicLink(destination.toPath()) ||
+        java.nio.file.Files.isSymbolicLink(temporary.toPath())
+    ) return null
 
     return try {
         context.contentResolver.openInputStream(uri)?.use { input ->
@@ -643,8 +653,14 @@ internal fun cachePhotoForAccount(context: Context, uri: Uri, uid: String): Stri
                 }
             }
         } ?: return null
-        if (destination.exists()) destination.delete()
-        if (!temporary.renameTo(destination)) return null
+        if (destination.exists() && !destination.delete()) {
+            temporary.delete()
+            return null
+        }
+        if (!temporary.renameTo(destination)) {
+            temporary.delete()
+            return null
+        }
         destination.absolutePath
     } catch (_: Exception) {
         temporary.delete()

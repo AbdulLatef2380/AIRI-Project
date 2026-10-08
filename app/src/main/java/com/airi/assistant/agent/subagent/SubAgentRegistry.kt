@@ -2,6 +2,7 @@ package com.airi.assistant.agent.subagent
 
 import android.util.Log
 import com.airi.assistant.agent.learning.reinforcement.AdaptivePolicy
+import kotlinx.coroutines.CancellationException
 
 /**
  * Central registry of AIRI sub-agents.
@@ -114,7 +115,13 @@ object SubAgentRegistry {
             .sortedByDescending { (_, score) -> score }
 
         for ((agent, score) in scored) {
-            val handles = runCatching { agent.canHandle(input, effectiveContext) }.getOrDefault(false)
+            val handles = try {
+                agent.canHandle(input, effectiveContext)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                false
+            }
             if (handles) {
                 Log.i(TAG, "Routed to '${agent.capability.displayName}' score=$score")
                 return agent

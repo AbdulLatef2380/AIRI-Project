@@ -142,6 +142,7 @@ data class DurableTask(
         )
         return copy(
             status = DurableTaskStatus.RUNNING,
+            attemptCount = (attemptCount + 1).coerceAtMost(maxAttempts),
             startedAtMs = startedAtMs.takeIf { it > 0 } ?: nowMs,
             updatedAtMs = nowMs,
             currentRunId = runId,
@@ -268,6 +269,21 @@ data class DurableTask(
             }
         },
         runs = finishCurrentRun(TaskRunStatus.FAILED, nowMs, reason)
+    )
+
+    /** Return the task to the queue without claiming a terminal outcome. */
+    fun retry(
+        nowMs: Long = System.currentTimeMillis()
+    ): DurableTask = copy(
+        status = DurableTaskStatus.QUEUED,
+        finishedAtMs = -1L,
+        updatedAtMs = nowMs,
+        progressMessage = "Waiting for retry",
+        runs = runs.map { run ->
+            if (run.id == currentRunId && run.status == TaskRunStatus.RUNNING) {
+                run.copy(status = TaskRunStatus.FAILED, finishedAtMs = nowMs, error = "Retry scheduled")
+            } else run
+        }
     )
 
     fun cancel(

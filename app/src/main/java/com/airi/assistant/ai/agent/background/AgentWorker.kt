@@ -13,7 +13,9 @@ import com.airi.assistant.ai.tools.ToolExecutor
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.logging.LoggingService
+import com.airi.assistant.domain.background.BackgroundWorkNames
 import com.airi.assistant.domain.retention.RetentionManager
+import kotlinx.coroutines.CancellationException
 import java.util.concurrent.TimeUnit
 
 class AgentWorker(
@@ -23,7 +25,7 @@ class AgentWorker(
 
     companion object {
         private const val TAG = "AgentWorker"
-        private const val WORK_NAME             = "airi_background_agent"
+        private const val WORK_NAME             = BackgroundWorkNames.AGENT
         private const val REPEAT_INTERVAL_HOURS = 2L
 
         fun schedule(context: Context) {
@@ -86,6 +88,7 @@ class AgentWorker(
                     findings.add("GitHub: ${result.data.lines().firstOrNull() ?: "Active"}")
                 }
             }.onFailure { e ->
+                if (e is CancellationException) throw e
                 AppErrorHandler.capture(e, "AgentWorker.github")
             }
         }
@@ -100,6 +103,7 @@ class AgentWorker(
                     findings.add("Gmail: ${result.data.take(100)}")
                 }
             }.onFailure { e ->
+                if (e is CancellationException) throw e
                 AppErrorHandler.capture(e, "AgentWorker.gmail")
             }
         }

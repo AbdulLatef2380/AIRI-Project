@@ -1,6 +1,5 @@
 package com.airi.assistant.agent.subagent
 
-import android.util.Log
 import com.airi.assistant.agent.learning.reinforcement.AdaptivePolicy
 import kotlinx.coroutines.CancellationException
 
@@ -13,7 +12,6 @@ import kotlinx.coroutines.CancellationException
  * [SubAgentAuthorization] gate.
  */
 object SubAgentRegistry {
-    private const val TAG = "SubAgentRegistry"
     private val writeLock = Any()
 
     @Volatile
@@ -29,13 +27,11 @@ object SubAgentRegistry {
         synchronized(writeLock) {
             val current = snapshot
             if (current.frozen) {
-                Log.w(TAG, "initialize() called after freeze() — ignored")
                 return
             }
             val replacement = linkedMapOf<String, SubAgent>()
             agentList.forEach { replacement[it.capability.agentId] = it }
             snapshot = current.copy(agentsById = replacement.toMap())
-            Log.i(TAG, "Initialized with ${replacement.size} agents")
         }
     }
 
@@ -46,7 +42,6 @@ object SubAgentRegistry {
             val replacement = current.agentsById.toMutableMap()
             replacement[agent.capability.agentId] = agent
             snapshot = current.copy(agentsById = replacement.toMap())
-            Log.i(TAG, "Registered agent: ${agent.capability.displayName}")
         }
     }
 
@@ -54,7 +49,6 @@ object SubAgentRegistry {
         synchronized(writeLock) {
             if (!snapshot.frozen) {
                 snapshot = snapshot.copy(frozen = true)
-                Log.i(TAG, "SubAgentRegistry frozen with ${snapshot.agentsById.size} agents")
             }
         }
     }
@@ -63,14 +57,12 @@ object SubAgentRegistry {
         synchronized(writeLock) {
             snapshot = snapshot.copy(runtimeCapabilities = snapshot.runtimeCapabilities + capability)
         }
-        Log.i(TAG, "Runtime capability granted: $capability")
     }
 
     fun revokeCapability(capability: String) {
         synchronized(writeLock) {
             snapshot = snapshot.copy(runtimeCapabilities = snapshot.runtimeCapabilities - capability)
         }
-        Log.i(TAG, "Runtime capability revoked: $capability")
     }
 
     fun hasCapability(capability: String): Boolean = capability in snapshot.runtimeCapabilities
@@ -114,7 +106,7 @@ object SubAgentRegistry {
             }
             .sortedByDescending { (_, score) -> score }
 
-        for ((agent, score) in scored) {
+        for ((agent, _) in scored) {
             val handles = try {
                 agent.canHandle(input, effectiveContext)
             } catch (cancelled: CancellationException) {
@@ -123,7 +115,6 @@ object SubAgentRegistry {
                 false
             }
             if (handles) {
-                Log.i(TAG, "Routed to '${agent.capability.displayName}' score=$score")
                 return agent
             }
         }

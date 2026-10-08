@@ -19,6 +19,7 @@ import com.airi.assistant.crash.OrchestratorCrashReporter
 import com.airi.assistant.crash.RuntimeHealthMonitor
 import com.airi.assistant.domain.auth.AuthService
 import com.airi.assistant.domain.error.AppErrorHandler
+import com.airi.assistant.domain.background.BackgroundWorkNames
 import com.airi.assistant.agent.observability.AgentObservabilityHub
 // ExecutionGraphRuntime — preserved as class; not instantiated at startup ( dead-code cleanup)
 // import com.airi.assistant.agent.execution.runtime.ExecutionGraphRuntime
@@ -561,7 +562,7 @@ object ServiceLocator {
             payload         = "sandbox_reaper",
             label           = "Prune stale sandbox workspaces",
             intervalMinutes = 30L,
-            stableJobId     = "system_sandbox_reaper"
+            stableJobId     = BackgroundWorkNames.MAINTENANCE_SANDBOX_REAPER
         )
 
         // Job 2: Audit log pruner (every 24h, 30-day retention window)
@@ -570,7 +571,7 @@ object ServiceLocator {
             payload         = "audit_log_pruner",
             label           = "Prune audit log entries older than 30 days",
             intervalMinutes = 24 * 60L,
-            stableJobId     = "system_audit_log_pruner"
+            stableJobId     = BackgroundWorkNames.MAINTENANCE_AUDIT_PRUNER
         )
 
         // Job 3: Context cache pruner (every 24h)
@@ -579,7 +580,7 @@ object ServiceLocator {
             payload         = "context_cache_pruner",
             label           = "Prune expired context cache entries",
             intervalMinutes = 24 * 60L,
-            stableJobId     = "system_context_cache_pruner"
+            stableJobId     = BackgroundWorkNames.MAINTENANCE_CONTEXT_CACHE_PRUNER
         )
 
         orchestrator

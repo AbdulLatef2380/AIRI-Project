@@ -1,13 +1,11 @@
 package com.airi.assistant.agent.learning.reinforcement
 
-import android.util.Log
 
 /**
  * AdaptivePolicy — learned agent routing bias built on ReinforcementMemory.
  */
 object AdaptivePolicy {
 
-    private const val TAG = "AdaptivePolicy"
 
     // 0.0 = keyword only, 1.0 = learned only
     private const val LEARNED_WEIGHT = 0.35
@@ -22,13 +20,6 @@ object AdaptivePolicy {
     ): Int {
         val learnedDelta = ReinforcementMemory.getAdjustment(context, key)
         val blended = baseScore + (learnedDelta * LEARNED_WEIGHT).toInt()
-
-        if (com.airi.assistant.BuildConfig.DEBUG) {
-            Log.d(
-                TAG,
-                "adjustScore base=$baseScore learned=$learnedDelta blended=$blended ctx=$context key=$key"
-            )
-        }
 
         return blended
     }
@@ -52,10 +43,6 @@ object AdaptivePolicy {
             .maxByOrNull { it.second }
             ?.first
 
-        if (com.airi.assistant.BuildConfig.DEBUG && winner != null) {
-            Log.d(TAG, "preferredAgent=$winner context=$context")
-        }
-
         return winner
     }
 
@@ -73,10 +60,6 @@ object AdaptivePolicy {
             positive
         )
 
-        Log.i(
-            TAG,
-            "User feedback ${if (positive) "+" else "-"} → agent=$agentId ctx=$context"
-        )
     }
 
     /**
@@ -93,10 +76,6 @@ object AdaptivePolicy {
             preferredAgentId
         )
 
-        Log.i(
-            TAG,
-            "Routing correction: $originalAgentId → $preferredAgentId ctx=$context"
-        )
     }
 
     /**

@@ -9,18 +9,21 @@ import androidx.core.app.NotificationCompat
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.Data
+import androidx.work.BackoffPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import com.airi.assistant.R
+import com.airi.assistant.domain.background.BackgroundWorkNames
 
 /**
  * Manager for durable long-running tasks that survive app closure.
@@ -274,6 +277,23 @@ class DurableTaskManager(private val context: Context) {
         }
         Log.w(TAG, "AIRI DURABLE_TASK_FAILED id=$taskId reason=$reason")
     }
+
+    /** Keep a transient failure non-terminal while WorkManager retries it. */
+    fun markRetrying(taskId: String, reason: String) {
+        updateTask(taskId) {
+            retry().appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.RECOVERY_ATTEMPTED,
+                    summary = "Transient failure; retry scheduled",
+                    detail = safeTimelineText(reason),
+                    runId = currentRunId,
+                    stepId = currentStepId
+                )
+            )
+        }
+        Log.w(TAG, "AIRI_DURABLE_TASK_RETRYING id=$taskId")
+    }
+
 
     /** Creates a task-owned approval request with an explicit expiry. */
     fun requestApproval(
@@ -746,12 +766,13 @@ class DurableTaskManager(private val context: Context) {
         val request = OneTimeWorkRequestBuilder<DurableTaskWorker>()
             .setConstraints(constraints)
             .setInputData(inputData)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, java.util.concurrent.TimeUnit.SECONDS)
             .addTag(task.agentId)
             .build()
 
         WorkManager.getInstance(context)
             .enqueueUniqueWork(
-                workName(task.id),
+                BackgroundWorkNames.durableTask(task.id),
                 androidx.work.ExistingWorkPolicy.KEEP,
                 request
             )
@@ -839,7 +860,7 @@ class DurableTaskManager(private val context: Context) {
         private val SENSITIVE_TIMELINE_PATTERN = Regex(
             "(?i)(api[_ -]?key|password|secret|authorization|bearer\\s+[a-z0-9._-]+)"
         )
-        fun workName(taskId: String) = "durable_task_$taskId"
+        fun workName(taskId: String) = BackgroundWorkNames.durableTask(taskId)
     }
 }
 
@@ -857,72 +878,56 @@ class DurableTaskWorker(
     override suspend fun doWork(): Result {
         val taskId = inputData.getString(KEY_TASK_ID) ?: return Result.failure()
         Log.i(TAG, "DurableTaskWorker starting taskId=$taskId attempt=$runAttemptCount")
-
         val manager = com.airi.assistant.core.ServiceLocator.durableTaskManager
-        val task = manager.getTask(taskId) ?: run {
-            Log.w(TAG, "Task $taskId not found in store — aborting")
-            return Result.failure()
-        }
-        if (task.status == DurableTaskStatus.PAUSED) {
-            Log.i(TAG, "DurableTaskWorker leaving paused task untouched taskId=$taskId")
-            return Result.success()
-        }
+        val task = manager.getTask(taskId) ?: return Result.failure()
+        if (task.status == DurableTaskStatus.PAUSED || task.isTerminal) return Result.success()
 
-        manager.beginRun(
-            taskId = taskId,
-            runId = task.currentRunId ?: taskId,
-            stepId = task.currentStepId
-        )
+        manager.beginRun(taskId, task.currentRunId ?: taskId, task.currentStepId)
         manager.updateCheckpoint(taskId, task.checkpointData, 0, "Starting…")
-
-        return runCatching {
-            val registry = com.airi.assistant.agent.subagent.SubAgentRegistry
+        return try {
+            val current = manager.getTask(taskId) ?: return Result.failure()
             val context = com.airi.assistant.agent.subagent.SubAgentContext(
-                sessionId         = task.projectId ?: taskId,
-                userId            = task.ownerId,
-                projectId         = task.projectId,
-                worldState        = emptyMap(),
+                sessionId = current.projectId ?: taskId,
+                userId = current.ownerId,
+                projectId = current.projectId,
+                worldState = emptyMap(),
                 grantedPermissions = emptyList(),
-                parentTaskId      = taskId,
-                nestingDepth      = 0,
-                dependencyResults = task.checkpointData.takeIf { it.isNotBlank() }
-                    ?.let { mapOf("checkpoint" to it) }
-                    ?: emptyMap()
+                parentTaskId = taskId,
+                nestingDepth = 0,
+                dependencyResults = current.checkpointData.takeIf { it.isNotBlank() }
+                    ?.let { mapOf("checkpoint" to it) } ?: emptyMap()
             )
-            val agent = registry.authorizedAgent(task.agentId, context)
+            val registry = com.airi.assistant.agent.subagent.SubAgentRegistry
+            val agent = registry.authorizedAgent(current.agentId, context)
                 ?: registry.authorizedAgent("research_agent", context)
-                ?: run {
-                    manager.markFailed(taskId, "No authorized agent found for id=${task.agentId}")
-                    return Result.failure()
-                }
-
+                ?: error("No authorized agent found for id=${current.agentId}")
             var finalResult = ""
-            agent.execute(task.input, context).collect { event ->
+            var failure: String? = null
+            agent.execute(current.input, context).collect { event ->
                 when (event) {
-                    is com.airi.assistant.agent.subagent.AgentEvent.Complete ->
-                        finalResult = event.result
-                    is com.airi.assistant.agent.subagent.AgentEvent.Failed ->
-                        manager.markFailed(taskId, event.reason)
+                    is com.airi.assistant.agent.subagent.AgentEvent.Complete -> finalResult = event.result
+                    is com.airi.assistant.agent.subagent.AgentEvent.Failed -> failure = event.reason
                     is com.airi.assistant.agent.subagent.AgentEvent.Progress ->
-                        manager.updateCheckpoint(taskId, "", event.percentComplete, event.message)
+                        manager.updateCheckpoint(taskId, current.checkpointData, event.percentComplete, event.message)
                     else -> Unit
                 }
             }
-
-            if (finalResult.isNotBlank()) {
-                manager.markCompleted(taskId, finalResult)
-                Log.i(TAG, "AIRI DURABLE_TASK_DONE taskId=$taskId")
-            }
+            failure?.let { error(it) }
+            if (finalResult.isBlank()) error("Agent completed without a result")
+            manager.markCompleted(taskId, finalResult)
             Result.success()
-        }.getOrElse { e ->
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
             Log.e(TAG, "DurableTaskWorker failed taskId=$taskId: ${e.message}", e)
-            com.airi.assistant.core.ServiceLocator.crashReporter.reportDurableTaskCrash(
-                taskId  = taskId,
-                agentId = task.agentId,
-                throwable = e
-            )
-            manager.markFailed(taskId, e.message ?: "unknown error")
-            if (runAttemptCount < MAX_RETRIES) Result.retry() else Result.failure()
+            com.airi.assistant.core.ServiceLocator.crashReporter.reportDurableTaskCrash(taskId, task.agentId, e)
+            if (runAttemptCount < MAX_RETRIES) {
+                manager.markRetrying(taskId, e.message ?: "transient task failure")
+                Result.retry()
+            } else {
+                manager.markFailed(taskId, e.message ?: "unknown task failure")
+                Result.failure()
+            }
         }
     }
 

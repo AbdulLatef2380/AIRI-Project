@@ -12,6 +12,8 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.logging.LoggingService
+import com.airi.assistant.domain.background.BackgroundWorkNames
+import kotlinx.coroutines.CancellationException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -51,14 +53,16 @@ class CloudSyncWorker(
             return Result.success()
         }
 
-        return runCatching {
+        return try {
             ServiceLocator.cloudSyncCoordinator.pull()
             ServiceLocator.cloudSyncCoordinator.pullTaskContinuity(ServiceLocator.durableTaskManager)
             ServiceLocator.cloudSyncCoordinator.push()
             ServiceLocator.cloudSyncCoordinator.pushTaskContinuity(ServiceLocator.durableTaskManager)
             LoggingService.info(TAG, "AIRI CLOUD_SYNC_WORKER_OK")
             Result.success()
-        }.getOrElse { e ->
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
             Log.w(TAG, "CloudSyncWorker failed: ${e.message}")
             if (runAttemptCount < MAX_RETRIES) Result.retry() else Result.failure()
         }
@@ -66,7 +70,7 @@ class CloudSyncWorker(
 
     companion object {
         private const val TAG          = "CloudSyncWorker"
-        private const val WORK_NAME    = "airi_cloud_sync"
+        private const val WORK_NAME    = BackgroundWorkNames.CLOUD_SYNC
         private const val MAX_RETRIES  = 3
         const val SYNC_PERIOD_HOURS    = 6L
 

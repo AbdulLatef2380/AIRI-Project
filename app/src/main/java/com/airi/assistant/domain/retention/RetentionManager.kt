@@ -6,6 +6,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.airi.assistant.domain.logging.LoggingService
+import com.airi.assistant.domain.background.BackgroundWorkNames
 import java.util.concurrent.TimeUnit
 
 object RetentionManager {
@@ -86,7 +87,7 @@ object RetentionManager {
         // B-01: Use KEEP so a second call within the same 8-hour window does not
         // create a duplicate worker (was REPLACE, causing multiple notifications).
         WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
-            "airi_reengagement_reminder",
+            BackgroundWorkNames.REENGAGEMENT,
             ExistingWorkPolicy.KEEP,
             request
         )

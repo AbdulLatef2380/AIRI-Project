@@ -332,11 +332,19 @@ object ServiceLocator {
     }
 
     // ── Terminal runtime ───────────────────────────────────────────────────────
+    /** Single coordinator for TerminalScreen and SandboxWorkspaceScreen. */
+    val terminalExecutionGateway: com.airi.assistant.terminal.TerminalExecutionGateway by lazy {
+        com.airi.assistant.terminal.TerminalExecutionGateway(
+            sandboxManager = sandboxManager,
+            governance = permissionGovernanceLayer
+        )
+    }
     val terminalRuntime: com.airi.assistant.terminal.TerminalRuntime by lazy {
         com.airi.assistant.terminal.TerminalRuntime(
             sandboxManager = sandboxManager,
-            governance     = permissionGovernanceLayer,
-            context        = requireContext()
+            governance = permissionGovernanceLayer,
+            executionGateway = terminalExecutionGateway,
+            context = requireContext()
         )
     }
 

@@ -25,10 +25,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airi.assistant.R
-import com.airi.assistant.agent.sandbox.SandboxExecutor
 import com.airi.assistant.agent.sandbox.SandboxLogEntry
 import com.airi.assistant.agent.sandbox.SandboxSession
 import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.security.CommandRedactor
 import com.airi.assistant.ui.theme.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -51,6 +51,7 @@ private val SandboxTagColor    = Color(0xFF7C6FF0)
 fun SandboxWorkspaceScreen(onBack: () -> Unit) {
     val context         = LocalContext.current
     val sandboxManager  = ServiceLocator.sandboxManager
+    val executionGateway = ServiceLocator.terminalExecutionGateway
     val activeSessions  by sandboxManager.activeSessions.collectAsStateWithLifecycle()
     var selectedSession by remember { mutableStateOf<SandboxSession?>(null) }
     var commandInput    by remember { mutableStateOf("") }
@@ -284,12 +285,13 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                                         isExecuting  = true
                                         execJob = scope.launch {
                                             try {
-                                                SandboxExecutor(target).execute(
-                                                    SandboxExecutor.SandboxTask(
-                                                        type    = SandboxExecutor.TaskType.SHELL_COMMAND,
-                                                        command = cmd
-                                                    )
-                                                )
+                                                val result = executionGateway.execute(target, cmd, agentId = "sandbox-ui")
+                                                val message = when (result) {
+                                                    is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Disabled -> result.reason
+                                                    is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Denied -> "Denied: ${result.reason}"
+                                                    is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Completed -> "Completed: ${result.result}"
+                                                }
+                                                target.appendLog(SandboxLogEntry(message = CommandRedactor.redact(message)))
                                             } finally {
                                                 isExecuting = false
                                                 execJob     = null

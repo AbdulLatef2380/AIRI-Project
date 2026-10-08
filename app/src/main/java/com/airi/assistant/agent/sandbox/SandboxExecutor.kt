@@ -1,6 +1,8 @@
 package com.airi.assistant.agent.sandbox
 
 import android.util.Log
+import com.airi.assistant.security.CommandRedactor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -54,7 +56,7 @@ class SandboxExecutor(private val session: SandboxSession) {
     }
 
     suspend fun execute(task: SandboxTask): ExecutionResult = withContext(Dispatchers.IO) {
-        session.appendLog(SandboxLogEntry(message = "EXEC ${task.type} → ${task.command.take(80)}"))
+        session.appendLog(SandboxLogEntry(message = "EXEC ${task.type} → ${CommandRedactor.redact(task.command).take(80)}"))
         val result = withTimeoutOrNull(task.timeoutMs) {
             when (task.type) {
                 TaskType.FILE_WRITE    -> executeFileWrite(task)
@@ -66,7 +68,7 @@ class SandboxExecutor(private val session: SandboxSession) {
         } ?: ExecutionResult.Timeout
         session.appendLog(SandboxLogEntry(
             level = if (result is ExecutionResult.Success) "INFO" else "ERROR",
-            message = "RESULT $result"
+            message = "RESULT ${CommandRedactor.redact(result.toString())}"
         ))
         result
     }
@@ -74,10 +76,22 @@ class SandboxExecutor(private val session: SandboxSession) {
     private fun executeFileWrite(task: SandboxTask): ExecutionResult {
         val path = safePath(task.command)
             ?: return ExecutionResult.SecurityViolation("Path escapes sandbox: ${task.command}")
+        val content = task.content ?: ""
+        val bytes = content.toByteArray(Charsets.UTF_8)
+        if (bytes.size > MAX_FILE_BYTES) {
+            return ExecutionResult.SecurityViolation("File exceeds ${MAX_FILE_BYTES} byte write limit")
+        }
         return try {
             path.parentFile?.mkdirs()
-            path.writeText(task.content ?: "")
-            ExecutionResult.Success("Written ${task.content?.length ?: 0} bytes")
+            val temp = File(path.parentFile, ".${path.name}.tmp-${System.nanoTime()}")
+            temp.outputStream().use { it.write(bytes) }
+            if (!temp.renameTo(path)) {
+                temp.delete()
+                return ExecutionResult.Failure("Atomic rename failed")
+            }
+            ExecutionResult.Success("Written ${bytes.size} bytes")
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             ExecutionResult.Failure("Write failed: ${e.message}")
         }
@@ -89,11 +103,13 @@ class SandboxExecutor(private val session: SandboxSession) {
         return try {
             if (!path.exists()) {
                 ExecutionResult.Failure("Not found: ${path.name}")
-            } else if (path.length() > OUTPUT_LIMIT_BYTES) {
-                ExecutionResult.SecurityViolation("File exceeds ${OUTPUT_LIMIT_BYTES} byte read limit")
+            } else if (path.length() > MAX_FILE_BYTES) {
+                ExecutionResult.SecurityViolation("File exceeds ${MAX_FILE_BYTES} byte read limit")
             } else {
-                ExecutionResult.Success(path.readText())
+                ExecutionResult.Success(path.inputStream().use { it.readBytes() }.toString(Charsets.UTF_8))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             ExecutionResult.Failure("Read failed: ${e.message}")
         }
@@ -177,8 +193,9 @@ class SandboxExecutor(private val session: SandboxSession) {
                     while (true) {
                         val n = reader.read(buf)
                         if (n < 0) break
-                        if (output.length + n > OUTPUT_LIMIT_BYTES) {
-                            output.append(buf, 0, OUTPUT_LIMIT_BYTES - output.length)
+                        if (output.toString().toByteArray(Charsets.UTF_8).size + n > OUTPUT_LIMIT_BYTES) {
+                            val remaining = (OUTPUT_LIMIT_BYTES - output.toString().toByteArray(Charsets.UTF_8).size).coerceAtLeast(0)
+                            output.append(buf, 0, remaining.coerceAtMost(n))
                             output.append("\n[output truncated at $OUTPUT_LIMIT_BYTES bytes]")
                             runCatching { proc.destroyForcibly() }
                             break
@@ -203,6 +220,8 @@ class SandboxExecutor(private val session: SandboxSession) {
                 // Runs on normal exit, exception, AND coroutine cancellation.
                 runCatching { proc.destroyForcibly() }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Shell error: ${e.message}")
             ExecutionResult.Failure("Error: ${e.message}")
@@ -282,5 +301,6 @@ class SandboxExecutor(private val session: SandboxSession) {
 
         private const val SAFE_PATH = "/system/bin:/system/xbin"
         private const val OUTPUT_LIMIT_BYTES = 256 * 1024  // 256 KiB
+        private const val MAX_FILE_BYTES = 256 * 1024
     }
 }

@@ -1,11 +1,11 @@
 package com.airi.assistant.terminal
 
 import android.util.Log
-import com.airi.assistant.agent.sandbox.SandboxExecutor
 import com.airi.assistant.agent.sandbox.SandboxLogEntry
 import com.airi.assistant.agent.sandbox.SandboxManager
 import com.airi.assistant.agent.sandbox.SandboxSession
 import com.airi.assistant.security.PermissionGovernanceLayer
+import com.airi.assistant.security.CommandRedactor
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.CancellationException
@@ -36,9 +36,12 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class TerminalRuntime(
     private val sandboxManager: SandboxManager,
-    private val governance:     PermissionGovernanceLayer,
-    /** T33: Optional context for persisting command history across process restarts. */
-    private val context: android.content.Context? = null
+    private val governance: PermissionGovernanceLayer,
+    private val executionGateway: TerminalExecutionGateway =
+        TerminalExecutionGateway(sandboxManager, governance),
+    /** Optional context for history persistence; disabled by default for privacy. */
+    private val context: android.content.Context? = null,
+    private val historyPersistenceEnabled: Boolean = false
 ) {
     private val TAG = "TerminalRuntime"
 
@@ -82,7 +85,8 @@ class TerminalRuntime(
 
     // T33: Persist history across process restarts via SharedPreferences.
     private val historyPrefs by lazy {
-        context?.getSharedPreferences("airi_terminal_history", android.content.Context.MODE_PRIVATE)
+        context?.takeIf { historyPersistenceEnabled }
+            ?.getSharedPreferences("airi_terminal_history", android.content.Context.MODE_PRIVATE)
     }
     private val PREF_HISTORY = "cmd_history"
     private val MAX_PERSISTED_HISTORY = 50
@@ -109,7 +113,7 @@ class TerminalRuntime(
 
     fun ensureSession(label: String = "Terminal") {
         if (activeSession != null) return
-        val sandbox = sandboxManager.createSession("terminal:$label") ?: return
+        val sandbox = executionGateway.createSession("terminal:$label") ?: return
         activeSession = TerminalSession(
             sessionId = UUID.randomUUID().toString().take(8),
             label     = label,
@@ -130,9 +134,10 @@ class TerminalRuntime(
         val executionJob = currentCoroutineContext()[Job]
         activeExecutionJob = executionJob
 
-        // Record input line
-        appendLine(TerminalLine(text = "$ $command", isInput = true))
-        historyBuffer.addFirst(command)
+        // Persist and display only a redacted form; execute the original in the gateway.
+        val safeCommand = CommandRedactor.redact(command)
+        appendLine(TerminalLine(text = "$ $safeCommand", isInput = true))
+        historyBuffer.addFirst(safeCommand)
         _commandHistoryFlow.value = historyBuffer.toList()
         historyIndex = -1
         persistHistory()
@@ -141,26 +146,18 @@ class TerminalRuntime(
         when (command.lowercase()) {
             "clear"  -> { _lines.value = emptyList(); commandInFlight.set(false); return }
             "help"   -> { appendHelp(); commandInFlight.set(false); return }
-            "exit"   -> { activeSession?.let { sandboxManager.closeSession(it.sandboxId) }; activeSession = null; commandInFlight.set(false); return }
+            "exit"   -> { activeSession?.let { executionGateway.closeSession(it.sandboxId) }; activeSession = null; commandInFlight.set(false); return }
         }
 
         // Governance check
-        val decision = governance.evaluate("terminal_execute", command, agentId, command)
-        if (!decision.allowed) {
-            appendLine(TerminalLine(text = "Permission denied: ${decision.reason}", isError = true))
-            if (activeExecutionJob === executionJob) activeExecutionJob = null
-            commandInFlight.set(false)
-            return
-        }
-
         _isRunning.value = true
-        AgentActivityBus.emit("Terminal: $command", ActivityCategory.SANDBOX)
+        AgentActivityBus.emit("Terminal: $safeCommand", ActivityCategory.SANDBOX)
 
         val sandboxSessionId = activeSession?.sandboxId
-        val sandboxSession   = sandboxSessionId?.let { sandboxManager.getSession(it) }
+        val sandboxSession   = sandboxSessionId?.let { executionGateway.getSession(it) }
             ?: run {
                 ensureSession()
-                activeSession?.sandboxId?.let { sandboxManager.getSession(it) }
+                activeSession?.sandboxId?.let { executionGateway.getSession(it) }
             }
 
         if (sandboxSession == null) {
@@ -172,34 +169,35 @@ class TerminalRuntime(
         }
 
         try {
-            val result = withContext(Dispatchers.IO) {
-                SandboxExecutor(sandboxSession).execute(
-                    SandboxExecutor.SandboxTask(
-                        type    = SandboxExecutor.TaskType.SHELL_COMMAND,
-                        command = command
-                    )
-                )
+            val gatewayResult = withContext(Dispatchers.IO) {
+                executionGateway.execute(sandboxSession, command, agentId)
             }
 
-            when (result) {
-                is SandboxExecutor.ExecutionResult.Success -> {
+            when (gatewayResult) {
+                is TerminalExecutionGateway.Result.Disabled ->
+                    appendLine(TerminalLine(text = gatewayResult.reason, isError = true))
+                is TerminalExecutionGateway.Result.Denied ->
+                    appendLine(TerminalLine(text = "Permission denied: ${gatewayResult.reason}", isError = true))
+                is TerminalExecutionGateway.Result.Completed -> when (val result = gatewayResult.result) {
+                is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.Success -> {
                     val output = stripAnsi(result.output)
                     if (output.isNotBlank()) {
                         output.lines().forEach { appendLine(TerminalLine(text = it)) }
                     }
                 }
-                is SandboxExecutor.ExecutionResult.Failure -> {
+                is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.Failure -> {
                     appendLine(TerminalLine(text = result.error, isError = true))
                 }
-                SandboxExecutor.ExecutionResult.Timeout -> {
+                com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.Timeout -> {
                     appendLine(TerminalLine(text = "Timeout: command exceeded time limit", isError = true))
                 }
-                SandboxExecutor.ExecutionResult.UnsupportedOnDevice -> {
+                com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.UnsupportedOnDevice -> {
                     appendLine(TerminalLine(text = "Command not available on this device", isError = true))
                 }
-                is SandboxExecutor.ExecutionResult.SecurityViolation -> {
+                is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.SecurityViolation -> {
                     appendLine(TerminalLine(text = "Security violation: ${result.reason}", isError = true))
                 }
+            }
             }
         } catch (_: CancellationException) {
             appendLine(TerminalLine(text = "Command cancelled", isError = true))

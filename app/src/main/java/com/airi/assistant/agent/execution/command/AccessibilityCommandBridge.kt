@@ -3,14 +3,25 @@ package com.airi.assistant.agent.execution.command
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import com.airi.assistant.accessibility.service.ScreenContextHolder
+import com.airi.assistant.accessibility.security.AccessibilityActionGateway
 import com.airi.assistant.agent.execution.context.ContextProvider
 import com.airi.assistant.agent.execution.node.NodeActionExecutor
 import com.airi.assistant.agent.execution.node.NodeScanner
 import com.airi.assistant.agent.execution.validation.TemporalValidator
 
 object AccessibilityCommandBridge {
+    private fun authorize(action: AccessibilityActionGateway.Action, payload: String = ""): CommandResult? {
+        val service = ScreenContextHolder.serviceInstance ?: return CommandResult(false, "Accessibility not connected")
+        val pkg = service.rootInActiveWindow?.packageName?.toString().orEmpty()
+        return when (val decision = AccessibilityActionGateway.authorize(pkg, action, payload)) {
+            AccessibilityActionGateway.Decision.Allow -> null
+            is AccessibilityActionGateway.Decision.Deny -> CommandResult(false, "Accessibility denied: ${decision.reason}")
+            is AccessibilityActionGateway.Decision.NeedsConfirmation -> CommandResult(false, "Confirmation required: ${decision.reason}")
+        }
+    }
 
     fun launchApp(appName: String): CommandResult {
+        authorize(AccessibilityActionGateway.Action.OPEN_APP, appName)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
@@ -42,6 +53,7 @@ object AccessibilityCommandBridge {
     }
 
     fun search(query: String): CommandResult {
+        authorize(AccessibilityActionGateway.Action.SEARCH, query)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
@@ -59,6 +71,7 @@ object AccessibilityCommandBridge {
     }
 
     suspend fun click(target: String): CommandResult {
+        authorize(AccessibilityActionGateway.Action.TAP, target)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
@@ -87,6 +100,7 @@ object AccessibilityCommandBridge {
     }
 
     suspend fun typeText(text: String): CommandResult {
+        authorize(AccessibilityActionGateway.Action.TYPE_TEXT, text)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
@@ -102,6 +116,7 @@ object AccessibilityCommandBridge {
     }
 
     fun performBack(): CommandResult {
+        authorize(AccessibilityActionGateway.Action.NAVIGATE_BACK)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
@@ -114,6 +129,7 @@ object AccessibilityCommandBridge {
     }
 
     fun performHome(): CommandResult {
+        authorize(AccessibilityActionGateway.Action.NAVIGATE_HOME)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
@@ -143,6 +159,7 @@ object AccessibilityCommandBridge {
     fun scrollRight(): CommandResult = performScroll("right")
 
     private fun performScroll(direction: String): CommandResult {
+        authorize(AccessibilityActionGateway.Action.SCROLL, direction)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 

@@ -2,6 +2,7 @@ package com.airi.assistant.accessibility.execution
 
 import android.util.Log
 import com.airi.assistant.accessibility.security.AccessibilityPolicyGuard
+import com.airi.assistant.accessibility.security.AccessibilityActionGateway
 import com.airi.assistant.accessibility.service.AiriAccessibilityService
 import com.airi.assistant.agent.execution.command.AccessibilityCommandBridge
 import com.airi.assistant.agent.execution.node.NodeScanner
@@ -154,6 +155,19 @@ class AccessibilityExecutionEngine {
             while (actionCount < maxActions && !killed.get()) {
 
                 // ── OBSERVE ────────────────────────────────────────────────
+                // Gate before extracting the tree or emitting ScreenObserved.
+                val activePackage = service.rootInActiveWindow?.packageName?.toString().orEmpty()
+                when (val admission = AccessibilityActionGateway.authorize(activePackage, AccessibilityActionGateway.Action.READ_SCREEN)) {
+                    AccessibilityActionGateway.Decision.Allow -> Unit
+                    is AccessibilityActionGateway.Decision.Deny -> {
+                        emit(ExecutionEvent.Complete(false, "Screen read denied: ${admission.reason}"))
+                        return@flow
+                    }
+                    is AccessibilityActionGateway.Decision.NeedsConfirmation -> {
+                        emit(ExecutionEvent.Complete(false, "Screen read requires confirmation"))
+                        return@flow
+                    }
+                }
                 emit(ExecutionEvent.PhaseChanged(ExecutionPhase.OBSERVE, "Observing screen…"))
                 val screenCtx = observeScreen(service)
                 log(ExecutionPhase.OBSERVE, "App: ${screenCtx.packageName}  Nodes: ${screenCtx.nodeCount}")

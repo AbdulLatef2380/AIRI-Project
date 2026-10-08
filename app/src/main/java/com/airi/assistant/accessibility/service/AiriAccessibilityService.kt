@@ -6,6 +6,7 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.airi.assistant.accessibility.execution.AccessibilityExecutionEngine
 import com.airi.assistant.accessibility.security.AccessibilityScopePolicy
+import com.airi.assistant.accessibility.security.AccessibilityActionGateway
 import com.airi.assistant.agent.subagent.SubAgentRegistry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -115,7 +116,8 @@ class AiriAccessibilityService : AccessibilityService() {
                 // Only log when reads are policy-allowed for the focused package
                 // and the field is not a password/secure input.
                 val pkg = event.packageName?.toString().orEmpty()
-                if (!policy.readsAllowedFor(pkg)) return
+                if (AccessibilityActionGateway.authorize(pkg, AccessibilityActionGateway.Action.READ_SCREEN)
+                    !is AccessibilityActionGateway.Decision.Allow) return
                 if (event.source?.isPassword == true) return
                 val text = event.source?.text?.toString() ?: ""
                 if (text.isNotBlank()) {
@@ -157,7 +159,8 @@ class AiriAccessibilityService : AccessibilityService() {
         // Policy-gated read. For denylisted packages we still publish the
         // package name (so the UI can reflect "AIRI is paused for this app")
         // but we do NOT walk the node tree.
-        if (!policy.readsAllowedFor(pkg)) {
+        val admission = AccessibilityActionGateway.authorize(pkg, AccessibilityActionGateway.Action.READ_SCREEN)
+        if (admission !is AccessibilityActionGateway.Decision.Allow) {
             _screenContext.value = ScreenState(
                 packageName = pkg,
                 className   = className,

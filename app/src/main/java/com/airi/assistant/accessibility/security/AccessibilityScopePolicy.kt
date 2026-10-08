@@ -50,14 +50,7 @@ class AccessibilityScopePolicy private constructor(context: Context) {
      *  - System UI / Launcher components that could expose notification tickers
      *  - Keyboard / IME packages (would expose keystrokes across every app)
      */
-    fun readsAllowedFor(packageName: String): Boolean {
-        if (packageName.isBlank()) return false
-        // Exact package name matches
-        if (packageName in DENIED_PACKAGES) return false
-        // Prefix-based denylist for family groups (e.g. all "com.google.android.apps.authenticator2.*")
-        if (DENIED_PREFIXES.any { packageName.startsWith(it) }) return false
-        return true
-    }
+    fun readsAllowedFor(packageName: String): Boolean = isPackageReadAllowed(packageName)
 
     companion object {
         private const val TAG = "AccessibilityScopePolicy"
@@ -116,6 +109,13 @@ class AccessibilityScopePolicy private constructor(context: Context) {
             "com.android.packageinstaller",
             "com.android.permissioncontroller"
         )
+
+        /** Pure entry point used by AccessibilityActionGateway before any node access. */
+        fun isPackageReadAllowed(packageName: String): Boolean {
+            if (packageName.isBlank()) return false
+            if (packageName in DENIED_PACKAGES) return false
+            return DENIED_PREFIXES.none { packageName.startsWith(it) }
+        }
 
         private val DENIED_PREFIXES: Set<String> = setOf(
             "com.android.bankapp",

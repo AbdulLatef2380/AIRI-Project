@@ -2551,7 +2551,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (!destFile.exists()) {
                     when {
                         att.uri != null -> appContext.contentResolver.openInputStream(att.uri)?.use { input ->
-                            destFile.outputStream().use { out -> input.copyTo(out) }
+                            destFile.outputStream().use { out ->
+                                com.airi.assistant.domain.AttachmentStreamPolicy.copyBounded(
+                                    input, out,
+                                    if (att.isTextual) AttachmentPolicy.MAX_TEXT_ATTACHMENT_BYTES
+                                    else AttachmentPolicy.MAX_ATTACHMENT_BYTES
+                                )
+                            }
                         }
                         att.bitmap != null -> destFile.outputStream().use { output ->
                             check(att.bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)) {
@@ -2575,7 +2581,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 att.copy(persistedPath = destFile.absolutePath)
-            }.getOrDefault(att)
+            }.getOrElse { error ->
+                runCatching { File(attachDir, "${att.uid}_${(att.fileName ?: "file").substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_").take(80)}").delete() }
+                Log.w("AIRI", "ATTACHMENT_COPY_REJECTED reason=${error::class.simpleName}")
+                att
+            }
             }
         }
         pendingAttachmentJsonForNextSend = attachmentMetadataJson(persistedAttachments)

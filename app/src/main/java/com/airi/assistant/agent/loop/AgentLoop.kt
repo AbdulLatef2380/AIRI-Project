@@ -232,16 +232,12 @@ Do not mix tool_call JSON with prose in the same message.
                             ToolDispatcher.ToolResult.Error("User did not approve '$toolName'.")
                         agentSandbox != null -> {
                             agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
-                                // Per-tool authorization: guard() throws
-                                // ScopedPermissionRegistry.PermissionDeniedException
-                                // (caught by the sandbox and re-thrown as
-                                // SandboxViolationException) if the firewall
-                                // has not allowed this tool for "agent_loop".
-                                ctx.guardTool(toolName, toolSchema.requiredPermissions)
-                                dispatcher.execute(toolName, toolArgs, appContext)
+                                // ToolExecutionPipeline owns validation and authorization.
+                                // The sandbox remains responsible for workspace isolation.
+                                dispatcher.execute(toolName, toolArgs, appContext, toolSchema)
                             }
                         }
-                        else -> dispatcher.execute(toolName, toolArgs, appContext)
+                        else -> dispatcher.execute(toolName, toolArgs, appContext, toolSchema)
                     }
                 } catch (e: CancellationException) {
                     throw e

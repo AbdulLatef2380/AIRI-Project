@@ -5,6 +5,7 @@ import android.util.Log
 import com.airi.assistant.agent.execution.command.AccessibilityCommandBridge
 import com.airi.assistant.agent.execution.node.NodeScanner
 import com.airi.assistant.accessibility.service.ScreenContextHolder
+import com.airi.assistant.accessibility.security.AccessibilityActionGateway
 import com.airi.assistant.memory.repository.MemoryManager
 import com.airi.assistant.tools.execution.AlarmTool
 import com.airi.assistant.tools.execution.CalendarTool
@@ -35,7 +36,8 @@ class ToolDispatcher(
     // Brave Search API key — injected from SecureApiKeyStore at construction time
     private val braveApiKeyProvider: (() -> String?)? = null,
     // Optional skill tool bridge — handles all "skill_*" tool names
-    private val skillToolBridge: com.airi.assistant.ai.skills.SkillToolBridge? = null
+    private val skillToolBridge: com.airi.assistant.ai.skills.SkillToolBridge? = null,
+    private val executionPipeline: ToolExecutionPipeline = ToolExecutionPipeline.production()
 ) {
     companion object {
         private const val TAG = "AIRI_ToolDispatcher"
@@ -49,8 +51,21 @@ class ToolDispatcher(
     suspend fun execute(
         toolName: String,
         args:     Map<String, String>,
-        context:  Context
+        context:  Context,
+        schema: ToolSchema? = null
     ): ToolResult {
+        val trustedSchema = schema ?: BuiltinTools.BY_NAME[toolName]
+        if (trustedSchema == null) {
+            Log.w(TAG, "TOOL_DENIED_UNKNOWN_SCHEMA tool=$toolName")
+            return ToolResult.Error("Tool is not registered: $toolName")
+        }
+        when (val decision = executionPipeline.authorize(trustedSchema, args)) {
+            is ToolExecutionPipeline.Decision.Deny -> {
+                Log.w(TAG, "TOOL_DENIED tool=$toolName reason=${decision.reason}")
+                return ToolResult.Error("Tool denied: ${decision.reason}")
+            }
+            is ToolExecutionPipeline.Decision.Allow -> Unit
+        }
         Log.i(TAG, "TOOL_DISPATCH tool=$toolName argCount=${args.size}")
         AgentActivityBus.emit("Tool: $toolName", ActivityCategory.TOOL)
 
@@ -62,19 +77,33 @@ class ToolDispatcher(
                 if (service == null) {
                     ToolResult.Error("Accessibility service not connected. Enable AIRI in Accessibility settings.")
                 } else {
-                    val root = service.rootInActiveWindow
-                    if (root == null) {
-                        ToolResult.Error("No active window available")
+                    val packageName = service.rootInActiveWindow?.packageName?.toString().orEmpty()
+                    val admission = AccessibilityActionGateway.authorize(
+                        packageName,
+                        AccessibilityActionGateway.Action.READ_SCREEN
+                    )
+                    if (admission !is AccessibilityActionGateway.Decision.Allow) {
+                        val reason = when (admission) {
+                            is AccessibilityActionGateway.Decision.Deny -> admission.reason
+                            is AccessibilityActionGateway.Decision.NeedsConfirmation -> "confirmation required"
+                            AccessibilityActionGateway.Decision.Allow -> ""
+                        }
+                        ToolResult.Error("Screen read denied: $reason")
                     } else {
-                        val nodes = NodeScanner.collectAllNodes(root)
-                        val texts = nodes.mapNotNull { it.text?.toString()?.trim() }
-                            .filter { it.isNotBlank() }
-                            .distinct()
-                            .take(40)
-                        val pkg   = service.rootInActiveWindow?.packageName?.toString() ?: "unknown"
-                        val summary = "App: $pkg\nVisible text:\n${texts.joinToString("\n").take(800)}"
-                        Log.i(TAG, "AIRI READ_SCREEN pkg=$pkg nodes=${nodes.size} textItems=${texts.size}")
-                        ToolResult.Success(summary)
+                        val root = service.rootInActiveWindow
+                        if (root == null) {
+                            ToolResult.Error("No active window available")
+                        } else {
+                            val nodes = NodeScanner.collectAllNodes(root)
+                            val texts = nodes.mapNotNull { it.text?.toString()?.trim() }
+                                .filter { it.isNotBlank() }
+                                .distinct()
+                                .take(40)
+                            val pkg = root.packageName?.toString() ?: packageName
+                            val summary = "App: $pkg\nVisible text:\n${texts.joinToString("\n").take(800)}"
+                            Log.i(TAG, "AIRI READ_SCREEN pkg=$pkg nodes=${nodes.size} textItems=${texts.size}")
+                            ToolResult.Success(summary)
+                        }
                     }
                 }
             }

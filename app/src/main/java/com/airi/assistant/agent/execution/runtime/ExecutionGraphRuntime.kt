@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.UUID
+import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
 class ExecutionGraphRuntime(
@@ -24,6 +24,7 @@ class ExecutionGraphRuntime(
 ) {
     private val mutex = Mutex()
     private val activeSnapshots = ConcurrentHashMap<String, ExecutionGraphSnapshot>()
+    private val activeJobs = ConcurrentHashMap<String, kotlinx.coroutines.Job>()
     private val tag = "ExecutionGraphRuntime"
 
     fun currentSnapshot(planId: String): ExecutionGraphSnapshot? = activeSnapshots[planId]
@@ -45,6 +46,7 @@ class ExecutionGraphRuntime(
         val cancelled = current.copy(executionState = PlanExecutionState.CANCELLED)
         activeSnapshots[planId] = cancelled
         snapshotStore?.save(cancelled)
+        activeJobs[planId]?.cancel(CancellationException("Execution graph $planId cancelled"))
     }
 
     /**
@@ -55,9 +57,18 @@ class ExecutionGraphRuntime(
         mutex.withLock {
             val runtimePlan = buildRuntimePlan(plan)
             snapshotStore?.load(runtimePlan.planId)?.let { restore(it) }
-            emit(ExecutionGraphEvent.PlanStarted(plan.intent, plan.steps.size))
-            val result = executeGraph(runtimePlan, context) { emit(it) }
-            emit(ExecutionGraphEvent.PlanCompleted(result.finalText, result.snapshot))
+            val runJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
+            if (runJob != null) activeJobs[runtimePlan.planId] = runJob
+            try {
+                emit(ExecutionGraphEvent.PlanStarted(plan.intent, plan.steps.size))
+                val result = executeGraph(runtimePlan, context) { emit(it) }
+                emit(ExecutionGraphEvent.PlanCompleted(result.finalText, result.snapshot))
+            } catch (cancelled: CancellationException) {
+                markCancelled(runtimePlan.planId)
+                throw cancelled
+            } finally {
+                if (runJob != null) activeJobs.remove(runtimePlan.planId, runJob)
+            }
         }
     }
 
@@ -72,7 +83,16 @@ class ExecutionGraphRuntime(
     ): ExecutionGraphResult = mutex.withLock {
         val runtimePlan = buildRuntimePlan(plan)
         snapshotStore?.load(runtimePlan.planId)?.let { restore(it) }
-        executeGraph(runtimePlan, context, emitEvent)
+        val runJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
+        if (runJob != null) activeJobs[runtimePlan.planId] = runJob
+        try {
+            executeGraph(runtimePlan, context, emitEvent)
+        } catch (cancelled: CancellationException) {
+            markCancelled(runtimePlan.planId)
+            throw cancelled
+        } finally {
+            if (runJob != null) activeJobs.remove(runtimePlan.planId, runJob)
+        }
     }
 
     // ── Core graph execution ────────────────────────────────────────────────
@@ -98,6 +118,7 @@ class ExecutionGraphRuntime(
         var lastText = ""
 
         while (completed.size + failed.size < runtimePlan.nodes.size) {
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
             // Compute the next wave: nodes whose deps are all completed
             val ready = runtimePlan.nodes.values
                 .filter { it.id !in completed && it.id !in failed }
@@ -273,7 +294,27 @@ class ExecutionGraphRuntime(
                 input = describe(step)
             )
         }.associateBy { it.id }
-        return RuntimePlan(UUID.randomUUID().toString(), plan.intent, nodes)
+        return RuntimePlan(stablePlanId(plan), plan.intent, nodes)
+    }
+
+    private fun stablePlanId(plan: ActionPlan): String {
+        val canonical = buildString {
+            append(plan.intent).append('|').append(plan.confidence).append('|')
+            append(plan.requiresConfirmation).append('|')
+            plan.steps.forEach { step -> append(step.toString()).append(';') }
+        }
+        val digest = MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray())
+        return "plan_" + digest.joinToString("") { "%02x".format(it) }.take(32)
+    }
+
+    private fun markCancelled(planId: String) {
+        val current = activeSnapshots[planId] ?: return
+        val cancelled = current.copy(
+            executionState = PlanExecutionState.CANCELLED,
+            updatedAtMs = System.currentTimeMillis(),
+        )
+        activeSnapshots[planId] = cancelled
+        snapshotStore?.save(cancelled)
     }
 
     private fun inferAgent(step: PlanStep): String? = when (step) {

@@ -22,13 +22,17 @@ enum class AttachmentDispatchFailure {
     TEXT_EXTRACTION_FAILED,
     MULTI_IMAGE_UNSUPPORTED,
     ATTACHMENT_TOO_LARGE,
+    ATTACHMENT_BATCH_TOO_LARGE,
     TEXT_ATTACHMENT_TOO_LARGE,
+    CLOUD_ATTACHMENT_CONSENT_REQUIRED,
     DISPATCH_FAILED,
 }
 
 internal enum class ImageDispatchRoute { LOCAL_SINGLE_IMAGE, CLOUD_VISION }
 
 internal object AttachmentDispatchPolicy {
+    const val MAX_TOTAL_ATTACHMENT_BYTES = 40L * 1024L * 1024L
+
     /** A capability declaration is not sufficient unless this runtime has a payload path. */
     fun payloadTransportFailure(
         contentType: AttachmentPolicy.ContentType,
@@ -87,6 +91,9 @@ internal object AttachmentDispatchPolicy {
 
     fun afterStaging(allAttachmentsPersisted: Boolean): AttachmentDispatchFailure? =
         if (allAttachmentsPersisted) null else AttachmentDispatchFailure.STAGING_FAILED
+
+    fun cloudConsentFailure(cloudCanReceiveAttachments: Boolean, oneShotConsent: Boolean): AttachmentDispatchFailure? =
+        if (cloudCanReceiveAttachments && !oneShotConsent) AttachmentDispatchFailure.CLOUD_ATTACHMENT_CONSENT_REQUIRED else null
 
     fun sessionOwnership(
         sessionAtDispatch: String,

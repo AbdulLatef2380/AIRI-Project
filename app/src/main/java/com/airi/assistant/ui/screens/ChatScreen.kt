@@ -332,6 +332,9 @@ fun ChatScreen(
     var showMenu            by remember { mutableStateOf(false) }
     var showGenSettings     by remember { mutableStateOf(false) }
     var showModelPicker     by remember { mutableStateOf(false) }
+    var pendingCloudAttachmentDispatch by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var cloudAttachmentNames by remember { mutableStateOf("") }
+    var cloudAttachmentProvider by remember { mutableStateOf("") }
     val isPlanModeActive    by viewModel.isPlanModeActive.collectAsState()
     val activeSkillCount    by viewModel.activeSkillCount.collectAsState()
     var voiceInput          by remember { mutableStateOf("") }
@@ -894,32 +897,50 @@ fun ChatScreen(
                     onSend        = { text, onAccepted ->
                         val toSend = pendingAttachments
                         if (toSend.isNotEmpty()) {
-                            viewModel.sendMessageWithAttachments(
-                                input = text,
-                                attachments = toSend,
-                                onAccepted = {
-                                    viewModel.clearCurrentComposerAttachments()
-                                    onAccepted()
-                                },
-                                onRejected = { failure ->
-                                    val messageRes = when (failure) {
-                                        AttachmentDispatchFailure.MODEL_LOADING -> R.string.attachment_model_loading
-                                        AttachmentDispatchFailure.GENERATION_IN_PROGRESS -> R.string.attachment_generation_in_progress
-                                        AttachmentDispatchFailure.SESSION_CHANGED -> R.string.attachment_session_changed
-                                        AttachmentDispatchFailure.VISION_UNAVAILABLE -> R.string.attachment_vision_unavailable
-                                        AttachmentDispatchFailure.CAPABILITY_UNAVAILABLE -> R.string.attachment_capability_unavailable
-                                        AttachmentDispatchFailure.CAPABILITY_UNKNOWN -> R.string.attachment_capability_unknown
-                                        AttachmentDispatchFailure.STAGING_FAILED -> R.string.attachment_staging_failed
-                                        AttachmentDispatchFailure.UNSUPPORTED_CONTENT -> R.string.attachment_unsupported_content
-                                        AttachmentDispatchFailure.TEXT_EXTRACTION_FAILED -> R.string.attachment_text_extraction_failed
-                                        AttachmentDispatchFailure.MULTI_IMAGE_UNSUPPORTED -> R.string.attachment_multiple_images_unsupported
-                                        AttachmentDispatchFailure.ATTACHMENT_TOO_LARGE -> R.string.attachment_too_large
-                                        AttachmentDispatchFailure.TEXT_ATTACHMENT_TOO_LARGE -> R.string.text_attachment_too_large
-                                        AttachmentDispatchFailure.DISPATCH_FAILED -> R.string.attachment_dispatch_failed
-                                    }
-                                    scope.launch { snackbarHost.showSnackbar(context.getString(messageRes)) }
-                                },
-                            )
+                            val dispatch: () -> Unit = {
+                                viewModel.sendMessageWithAttachments(
+                                    input = text,
+                                    attachments = toSend,
+                                    cloudAttachmentConsent = true,
+                                    onAccepted = {
+                                        viewModel.clearCurrentComposerAttachments()
+                                        onAccepted()
+                                    },
+                                    onRejected = { failure ->
+                                        val messageRes = when (failure) {
+                                            AttachmentDispatchFailure.MODEL_LOADING -> R.string.attachment_model_loading
+                                            AttachmentDispatchFailure.GENERATION_IN_PROGRESS -> R.string.attachment_generation_in_progress
+                                            AttachmentDispatchFailure.SESSION_CHANGED -> R.string.attachment_session_changed
+                                            AttachmentDispatchFailure.VISION_UNAVAILABLE -> R.string.attachment_vision_unavailable
+                                            AttachmentDispatchFailure.CAPABILITY_UNAVAILABLE -> R.string.attachment_capability_unavailable
+                                            AttachmentDispatchFailure.CAPABILITY_UNKNOWN -> R.string.attachment_capability_unknown
+                                            AttachmentDispatchFailure.STAGING_FAILED -> R.string.attachment_staging_failed
+                                            AttachmentDispatchFailure.UNSUPPORTED_CONTENT -> R.string.attachment_unsupported_content
+                                            AttachmentDispatchFailure.TEXT_EXTRACTION_FAILED -> R.string.attachment_text_extraction_failed
+                                            AttachmentDispatchFailure.MULTI_IMAGE_UNSUPPORTED -> R.string.attachment_multiple_images_unsupported
+                                            AttachmentDispatchFailure.ATTACHMENT_TOO_LARGE -> R.string.attachment_too_large
+                                            AttachmentDispatchFailure.ATTACHMENT_BATCH_TOO_LARGE -> R.string.attachment_batch_too_large
+                                            AttachmentDispatchFailure.TEXT_ATTACHMENT_TOO_LARGE -> R.string.text_attachment_too_large
+                                            AttachmentDispatchFailure.CLOUD_ATTACHMENT_CONSENT_REQUIRED -> R.string.attachment_cloud_consent_required
+                                            AttachmentDispatchFailure.DISPATCH_FAILED -> R.string.attachment_dispatch_failed
+                                        }
+                                        scope.launch { snackbarHost.showSnackbar(context.getString(messageRes)) }
+                                    },
+                                )
+                            }
+                            if (viewModel.requiresCloudAttachmentConsent()) {
+                                cloudAttachmentNames = toSend.joinToString(limit = 5, truncated = "…") { it.safeDisplayName }
+                                cloudAttachmentProvider = modelState.activeCloudProvider?.name.orEmpty()
+                                pendingCloudAttachmentDispatch = dispatch
+                            } else {
+                                dispatch()
+                            }
+                        } else if (viewModel.requiresLongTextCloudConsent(text)) {
+                            cloudAttachmentNames = context.getString(R.string.attachment_cloud_long_text_label, text.length)
+                            cloudAttachmentProvider = modelState.activeCloudProvider?.name.orEmpty()
+                            pendingCloudAttachmentDispatch = {
+                                if (viewModel.sendMessage(text, cloudAttachmentConsent = true)) onAccepted()
+                            }
                         } else if (viewModel.sendMessage(text)) {
                             onAccepted()
                         }
@@ -1314,6 +1335,39 @@ fun ChatScreen(
 
     if (showGenSettings) {
         GenerationSettingsDialog(viewModel = viewModel, onDismiss = { showGenSettings = false })
+    }
+    pendingCloudAttachmentDispatch?.let { dispatch ->
+        AlertDialog(
+            onDismissRequest = {
+                pendingCloudAttachmentDispatch = null
+                cloudAttachmentNames = ""
+                cloudAttachmentProvider = ""
+            },
+            containerColor = AiriTheme.surface,
+            shape = AIRIShapes.xl,
+            title = { Text(stringResource(R.string.attachment_cloud_consent_title), color = AiriTheme.onBackground) },
+            text = {
+                Text(
+                    stringResource(R.string.attachment_cloud_consent_message, cloudAttachmentProvider, cloudAttachmentNames),
+                    color = AiriTheme.onBackground.copy(alpha = 0.8f),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingCloudAttachmentDispatch = null
+                    cloudAttachmentNames = ""
+                    cloudAttachmentProvider = ""
+                    dispatch()
+                }) { Text(stringResource(R.string.attachment_cloud_consent_send_once)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    pendingCloudAttachmentDispatch = null
+                    cloudAttachmentNames = ""
+                    cloudAttachmentProvider = ""
+                }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
     }
     // Shown when AndroidAgent requests confirmation for a destructive action
     // (send message, post content, share, delete).
@@ -2984,7 +3038,14 @@ private fun AttachmentChip(
                 runCatching {
                     context.contentResolver.openInputStream(attachment.uri)?.bufferedReader()?.use { reader ->
                         var count = 1
-                        while (reader.readLine() != null) count++
+                        var consumed = 0
+                        val buffer = CharArray(2_048)
+                        while (consumed < 20_000) {
+                            val length = reader.read(buffer, 0, minOf(buffer.size, 20_000 - consumed))
+                            if (length <= 0) break
+                            for (index in 0 until length) if (buffer[index] == '\n') count++
+                            consumed += length
+                        }
                         count
                     }
                 }.getOrNull()

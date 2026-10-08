@@ -24,6 +24,7 @@ internal object AgentLoopSideEffectPolicy {
         "type_text",
         "scroll_down",
         "go_back",
+        "flashlight",
         // terminal_execute can mutate the workspace and consume process resources;
         // it must never be treated as a read-only tool by the chat loop.
         "terminal_execute"
@@ -40,6 +41,7 @@ internal object AgentLoopSideEffectPolicy {
         "calendar_create" -> "Calendar creation requires a task-owned approval session before it can run."
         "create_note" -> "Creating a note requires a task-owned approval session before it can run."
         "set_alarm" -> "Setting an alarm requires a task-owned approval session before it can run."
+        "flashlight" -> "Torch control requires a task-owned approval session before it can run."
         "terminal_execute" -> "Terminal execution requires a task-owned approval session before it can run."
         else -> "This device action requires a task-owned approval session before it can run."
     }

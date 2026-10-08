@@ -1840,8 +1840,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return InputDirectives(remaining, skillId, knowledgeId)
     }
 
-    fun sendMessage(input: String): Boolean =
-        sendMessageInternal(input, allowLongTextConversion = true)
+    fun sendMessage(input: String, cloudAttachmentConsent: Boolean = false): Boolean =
+        sendMessageInternal(
+            input,
+            allowLongTextConversion = true,
+            cloudAttachmentConsent = cloudAttachmentConsent,
+        )
+
+    fun requiresLongTextCloudConsent(input: String): Boolean =
+        requiresCloudAttachmentConsent() && LongTextAttachmentPolicy.shouldAutoConvert(input)
 
     private fun sendMessageInternal(
         input: String,
@@ -1851,6 +1858,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         attachmentParts: List<com.airi.assistant.execution.ExecutionRequest.InlineDataPart> = emptyList(),
         attachmentTrace: com.airi.assistant.execution.AttachmentDeliveryTrace? = null,
         onAccepted: () -> Unit = {},
+        cloudAttachmentConsent: Boolean = false,
     ): Boolean {
         if (activeGenerationId != 0L || _agentState.value.isWorking) return false
         val generationSessionId = expectedSessionId ?: _currentSessionId.value
@@ -1897,6 +1905,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val summary = "[Attached file: $fileName]\n\n${trimmedInput.take(200)}..."
                 sendMessageWithAttachments(
                     input = summary,
+                    cloudAttachmentConsent = cloudAttachmentConsent,
                     attachments = listOf(
                         ChatAttachment(
                             kind = ChatAttachment.Kind.FILE,
@@ -3369,9 +3378,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _attachmentDispatchInFlight = MutableStateFlow(false)
     val attachmentDispatchInFlight: StateFlow<Boolean> = _attachmentDispatchInFlight.asStateFlow()
 
+    /** One-shot confirmation is required when cloud routing is allowed and a provider is ready. */
+    fun requiresCloudAttachmentConsent(): Boolean =
+        execModePrefs.effectiveMode != ExecutionMode.LOCAL_ONLY &&
+            _modelState.value.isCloudReady && _modelState.value.activeCloudProvider != null
+
     fun sendMessageWithAttachments(
         input: String,
         attachments: List<com.airi.assistant.domain.ChatAttachment>,
+        cloudAttachmentConsent: Boolean = false,
         onAccepted: () -> Unit = {},
         onRejected: (AttachmentDispatchFailure) -> Unit = {},
     ) {
@@ -3394,6 +3409,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         val localAllowed = execModePrefs.effectiveMode != ExecutionMode.CLOUD_ONLY
         val cloudAllowed = execModePrefs.effectiveMode != ExecutionMode.LOCAL_ONLY
+        val cloudCanReceiveAttachments = cloudAllowed && _modelState.value.isCloudReady &&
+            _modelState.value.activeCloudProvider != null
+        AttachmentDispatchPolicy.cloudConsentFailure(cloudCanReceiveAttachments, cloudAttachmentConsent)?.let { failure ->
+            onRejected(failure)
+            return
+        }
         val localVisionReady = localAllowed && _modelState.value.capabilities.vision &&
             runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
         val cloudProvider = _modelState.value.activeCloudProvider
@@ -3514,13 +3535,39 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         _attachmentDispatchInFlight.value = true
         viewModelScope.launch {
+            val newlyStagedFiles = java.util.Collections.synchronizedList(mutableListOf<File>())
+            val keepStagedFiles = java.util.concurrent.atomic.AtomicBoolean(false)
+            val imageDispatchPending = java.util.concurrent.atomic.AtomicBoolean(false)
+            fun discardNewlyStagedFiles() {
+                synchronized(newlyStagedFiles) {
+                    newlyStagedFiles.forEach { runCatching { it.delete() } }
+                    newlyStagedFiles.clear()
+                }
+                runCatching {
+                    File(appContext.filesDir, "attachments").listFiles()
+                        ?.filter { it.name.startsWith(".") && it.name.endsWith(".part") }
+                        ?.forEach(File::delete)
+                }
+            }
             try {
         // Persist attachment bytes before sending. Only a generated local file
         // name is retained in message metadata; source URIs and absolute paths
         // are intentionally not written to Room.
         val persistedAttachments: List<ChatAttachment> = withContext(Dispatchers.IO) {
+            var totalStagedBytes = 0L
             attachments.mapNotNull { att ->
             runCatching<ChatAttachment?> {
+                val perAttachmentLimit = AttachmentDispatchPolicy.maximumSizeBytes(att.contentType)
+                val remainingBatchBytes = AttachmentDispatchPolicy.MAX_TOTAL_ATTACHMENT_BYTES - totalStagedBytes
+                if (remainingBatchBytes <= 0L) {
+                    throw AttachmentSizeLimitException(AttachmentDispatchFailure.ATTACHMENT_BATCH_TOO_LARGE)
+                }
+                val maxBytes = minOf(perAttachmentLimit, remainingBatchBytes)
+                val tooLargeFailure = if (remainingBatchBytes < perAttachmentLimit) {
+                    AttachmentDispatchFailure.ATTACHMENT_BATCH_TOO_LARGE
+                } else {
+                    requireNotNull(AttachmentDispatchPolicy.sizeFailure(maxBytes + 1L, att.contentType))
+                }
                 val attachDir = File(appContext.filesDir, "attachments").also { it.mkdirs() }
                 val sourceName = att.fileName ?: "file"
                 val safeName = sourceName
@@ -3533,17 +3580,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (destFile.exists() && destFile.length() == 0L) destFile.delete()
                 if (!destFile.exists()) {
                     tempFile.delete()
-                    val maxBytes = AttachmentDispatchPolicy.maximumSizeBytes(att.contentType)
-                    val tooLargeFailure = requireNotNull(
-                        AttachmentDispatchPolicy.sizeFailure(maxBytes + 1L, att.contentType)
-                    )
                     when {
                         att.uri != null -> appContext.contentResolver.openInputStream(att.uri)?.use { input ->
                             tempFile.outputStream().use { out ->
                                 copyAttachmentBounded(input, out, maxBytes, tooLargeFailure)
                             }
                         }
-                        att.bitmap != null -> tempFile.outputStream().use { output ->
+                        att.bitmap != null -> BoundedAttachmentOutputStream(
+                            tempFile.outputStream(), maxBytes, tooLargeFailure
+                        ).use { output ->
                             check(att.bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)) {
                                 "Camera image could not be encoded"
                             }
@@ -3555,6 +3600,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                         check(tempFile.length() > 0L) { "Attachment is empty" }
                         check(tempFile.renameTo(destFile)) { "Attachment could not be committed" }
+                        newlyStagedFiles.add(destFile)
                     }
                 }
                 if (!destFile.exists() || destFile.length() == 0L) {
@@ -3565,6 +3611,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 AttachmentDispatchPolicy.sizeFailure(destFile.length(), att.contentType)?.let {
                     throw AttachmentSizeLimitException(it)
                 }
+                if (destFile.length() > remainingBatchBytes) {
+                    throw AttachmentSizeLimitException(AttachmentDispatchFailure.ATTACHMENT_BATCH_TOO_LARGE)
+                }
+                totalStagedBytes += destFile.length()
 
                 val mediaType = when (att.contentType) {
                     com.airi.core.attachments.AttachmentPolicy.ContentType.IMAGE -> com.airi.assistant.media.MediaLibrary.MediaType.IMAGE
@@ -3764,6 +3814,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         pendingAttachmentJsonForNextSend = null
                     }
                     onRejected(AttachmentDispatchFailure.DISPATCH_FAILED)
+                } else {
+                    keepStagedFiles.set(true)
                 }
             } else {
                 val persistedUri = primaryImage.persistedPath?.let { Uri.fromFile(File(it)) }
@@ -3775,14 +3827,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     onRejected(AttachmentDispatchFailure.STAGING_FAILED)
                     return@launch
                 }
+                imageDispatchPending.set(true)
                 sendMessageWithImage(
                     input = fullText,
                     imageUri = persistedUri,
                     capturedBitmap = null,
                     attachmentTrace = attachmentTrace,
                     localVisionAttachmentId = primaryImage.id,
-                    onAccepted = onAccepted,
-                    onRejected = onRejected,
+                    onAccepted = {
+                        keepStagedFiles.set(true)
+                        imageDispatchPending.set(false)
+                        onAccepted()
+                    },
+                    onRejected = { failure ->
+                        imageDispatchPending.set(false)
+                        discardNewlyStagedFiles()
+                        onRejected(failure)
+                    },
                 )
             }
         } else {
@@ -3812,7 +3873,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     attachmentTrace = attachmentTrace,
                     onAccepted = onAccepted,
                 )) {
-            } else {
+                    keepStagedFiles.set(true)
+                } else {
                 if (pendingAttachmentSessionId == sessionAtDispatch) {
                     pendingAttachmentSessionId = null
                     pendingAttachmentJsonForNextSend = null
@@ -3842,6 +3904,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 runCatching { onRejected(AttachmentDispatchFailure.STAGING_FAILED) }
             } finally {
+                if (!keepStagedFiles.get() && !imageDispatchPending.get()) discardNewlyStagedFiles()
                 _attachmentDispatchInFlight.value = false
             }
         }
@@ -3859,7 +3922,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun inlineDataPart(attachment: ChatAttachment): ExecutionRequest.InlineDataPart? {
         val file = attachment.persistedPath?.let(::File) ?: return null
         if (!file.isFile || file.length() > 20L * 1024L * 1024L) return null
-        val bytes = runCatching { file.readBytes() }.getOrNull() ?: return null
+        val bytes = readFileBounded(file, 20L * 1024L * 1024L) ?: return null
         val mimeType = attachment.normalizedMimeType.substringBefore(';').trim().lowercase()
         // Native binary transport is currently implemented for PDF only. Require
         // both the declared MIME and a PDF signature before constructing payload.
@@ -3964,7 +4027,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val path = attachment.persistedPath ?: return null
         val file = File(path)
         if (!file.exists() || file.length() <= 0L || file.length() > 12L * 1024L * 1024L) return null
-        val bytes = runCatching { file.readBytes() }.getOrNull() ?: return null
+        val bytes = readFileBounded(file, 12L * 1024L * 1024L) ?: return null
         val detectedMime = detectImageMime(bytes) ?: return null
         val declaredMime = attachment.normalizedMimeType.takeIf { it.startsWith("image/") }
         // The bytes are authoritative. Never relabel PNG/WebP/HEIC bytes as
@@ -3988,6 +4051,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         bytes.size >= 12 && String(bytes, 4, 8, Charsets.US_ASCII) == "ftyp" &&
             String(bytes, 8, 12, Charsets.US_ASCII) in setOf("heic", "heix", "hevc", "hevx") -> "image/heic"
         else -> null
+    }
+
+    /** Reads only after a size check, then rejects growth/truncation during the read. */
+    private fun readFileBounded(file: File, maxBytes: Long): ByteArray? {
+        val expectedLength = file.length()
+        if (!file.isFile || expectedLength <= 0L || expectedLength > maxBytes || expectedLength > Int.MAX_VALUE) return null
+        val bytes = ByteArray(expectedLength.toInt())
+        return runCatching {
+            java.io.FileInputStream(file).use { input ->
+                var offset = 0
+                while (offset < bytes.size) {
+                    val count = input.read(bytes, offset, bytes.size - offset)
+                    if (count <= 0) throw java.io.EOFException("Attachment changed while being read")
+                    offset += count
+                }
+                if (input.read() != -1 || file.length() != expectedLength) {
+                    throw java.io.IOException("Attachment changed while being read")
+                }
+            }
+            bytes
+        }.getOrNull()
     }
 
     fun sendMessageWithImage(

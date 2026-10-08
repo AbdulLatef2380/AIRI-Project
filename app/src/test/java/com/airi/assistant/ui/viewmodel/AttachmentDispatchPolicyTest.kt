@@ -3,6 +3,7 @@ package com.airi.assistant.ui.viewmodel
 import com.airi.core.attachments.AttachmentPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AttachmentDispatchPolicyTest {
@@ -175,5 +176,21 @@ class AttachmentDispatchPolicyTest {
                 AttachmentPolicy.ContentType.TEXT,
             ),
         )
+    }
+
+    @Test
+    fun cloudAttachmentTransportRequiresOneShotConsent() {
+        assertEquals(
+            AttachmentDispatchFailure.CLOUD_ATTACHMENT_CONSENT_REQUIRED,
+            AttachmentDispatchPolicy.cloudConsentFailure(cloudCanReceiveAttachments = true, oneShotConsent = false),
+        )
+        assertNull(AttachmentDispatchPolicy.cloudConsentFailure(cloudCanReceiveAttachments = true, oneShotConsent = true))
+        assertNull(AttachmentDispatchPolicy.cloudConsentFailure(cloudCanReceiveAttachments = false, oneShotConsent = false))
+    }
+
+    @Test
+    fun aggregateAttachmentCapIsFiniteAndAtLeastOneGeneralFileLimit() {
+        assertEquals(40L * 1024L * 1024L, AttachmentDispatchPolicy.MAX_TOTAL_ATTACHMENT_BYTES)
+        assertTrue(AttachmentDispatchPolicy.MAX_TOTAL_ATTACHMENT_BYTES >= AttachmentPolicy.MAX_ATTACHMENT_BYTES)
     }
 }

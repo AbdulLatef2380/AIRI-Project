@@ -11,6 +11,8 @@ import com.airi.assistant.tools.execution.AlarmTool
 import com.airi.assistant.tools.execution.CalendarTool
 import com.airi.assistant.tools.execution.NotesTool
 import com.airi.assistant.tools.execution.SearchTool
+import com.airi.assistant.torch.TorchController
+import com.airi.assistant.torch.TorchResult
 import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.ActivityEvent
@@ -277,6 +279,18 @@ class ToolDispatcher(
                     "Current device time: ${now.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)} " +
                         "(${zone.id}, UTC${now.offset})"
                 )
+            }
+
+            "flashlight" -> {
+                val enabled = args["enabled"]?.toBooleanStrictOrNull()
+                    ?: return ToolResult.Error("enabled must be exactly true or false", code = ToolErrorCodes.INVALID_ARGUMENT)
+                when (val result = TorchController(context).setEnabled(enabled)) {
+                    is TorchResult.Success -> ToolResult.Success(if (result.enabled) "Torch is on" else "Torch is off")
+                    TorchResult.PermissionRequired -> ToolResult.Error("Camera permission is required to control the torch", code = ToolErrorCodes.PERMISSION_DENIED)
+                    TorchResult.NotReady -> ToolResult.Error("A rear camera torch is unavailable or busy", code = ToolErrorCodes.UNSUPPORTED)
+                    TorchResult.UnknownOutcome -> ToolResult.Error("Torch state was not confirmed before timeout; check the device before retrying", code = ToolErrorCodes.TIMEOUT)
+                    is TorchResult.Failed -> ToolResult.Error("Torch operation failed: ${result.reason}", code = ToolErrorCodes.EXECUTION_FAILED)
+                }
             }
 
             "calendar_create" -> {

@@ -19,6 +19,7 @@ import com.airi.assistant.voice.FullDuplexVadEngine
 import com.airi.assistant.voice.HotwordService
 import com.airi.assistant.voice.VoskEngine
 import com.airi.assistant.voice.VoskModelManager
+import com.airi.assistant.voice.VoiceCaptureArbiter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -27,6 +28,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.vosk.Model
 import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -98,6 +100,7 @@ class VoiceManager(
 ) {
 
     @Volatile private var isDestroyed = false
+    private val microphoneOwner = "voice-manager:${UUID.randomUUID()}"
 
     // ─────────────────────────────────────────────────────────────────────
     // Public listener interface
@@ -458,6 +461,12 @@ class VoiceManager(
         // Stop any lingering engine from the previous turn (safety net).
         val old = vadEngineRef.getAndSet(null)
         old?.stop()
+        VoiceCaptureArbiter.release(microphoneOwner)
+        if (!VoiceCaptureArbiter.acquire(microphoneOwner, preemptExisting = true)) {
+            vadArmed = false
+            listener.onError("microphone_busy")
+            return
+        }
 
         Log.i(TAG, "AIRI VAD_ARMING")
 
@@ -497,6 +506,7 @@ class VoiceManager(
                 // and returns. The VOICE_COMMUNICATION hardware path is free.
                 // VoskEngine can now safely open VOICE_RECOGNITION.
                 me.stop()
+                VoiceCaptureArbiter.release(microphoneOwner)
 
                 // ── Step 2: Stop TTS ────────────────────────────────────
                 val wasSpeaking = tts?.isSpeaking == true
@@ -517,6 +527,7 @@ class VoiceManager(
                 // Clear engine reference and reset armed flag for next turn.
                 val me = thisEngine
                 if (me != null) vadEngineRef.compareAndSet(me, null)
+                VoiceCaptureArbiter.release(microphoneOwner)
                 vadArmed = false
                 Log.i(TAG, "AIRI VAD_STOPPED_NO_INTERRUPT reason=$reason")
             }
@@ -538,6 +549,7 @@ class VoiceManager(
         vadArmed = false
         val e = vadEngineRef.getAndSet(null) ?: return
         e.stop()
+        VoiceCaptureArbiter.release(microphoneOwner)
         Log.i(TAG, "AIRI VAD_STOP reason=$reason")
     }
 
@@ -586,6 +598,10 @@ class VoiceManager(
         }
         // Stop VAD BEFORE opening any AudioRecord for STT.
         stopVad("stt_starting")
+        if (!VoiceCaptureArbiter.acquire(microphoneOwner, preemptExisting = true)) {
+            listener.onError("microphone_busy")
+            return
+        }
 
         val androidAvail = SpeechRecognizer.isRecognitionAvailable(context.applicationContext)
         Log.i(TAG, "AIRI STT_AVAILABILITY android=$androidAvail vosk=${isVoskAvailable()}")
@@ -594,6 +610,7 @@ class VoiceManager(
             startPlatformSpeechToText(); return
         }
         if (!isVoskAvailable()) {
+            VoiceCaptureArbiter.release(microphoneOwner)
             listener.onError("stt_unavailable"); return
         }
 
@@ -603,42 +620,69 @@ class VoiceManager(
         com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "LISTENING") }
 
         sttJob = sttScope.launch {
-            val model = sttModel ?: VoskModelManager.loadActiveModel(context.applicationContext)
-            if (model == null) {
-                sttActive = false
-                postToMain { listener.onListeningStopped() }
-                postToMain { listener.onError("vosk_model_load_failed") }
-                return@launch
-            }
-            sttModel = model
-            val engine = VoskEngine(context.applicationContext, model)
-            sttEngine = engine
-            engine.start(
-                scope     = sttScope,
-                onPartial = { p -> postToMain { listener.onPartialResult(p) } },
-                onFinal   = { text ->
+            try {
+                val model = sttModel ?: VoskModelManager.loadActiveModel(context.applicationContext)
+                if (model == null) {
                     sttActive = false
-                    sttEngine?.release(); sttEngine = null
-                    postToMain {
-                        listener.onListeningStopped()
-                        if (text.isNotBlank()) listener.onSpeechResult(text)
-                        else listener.onError("stt_empty_result")
-                    }
-                    com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
-                },
-                onError   = { err ->
-                    sttActive = false
-                    sttEngine?.release(); sttEngine = null
-                    postToMain { listener.onListeningStopped(); listener.onError(err) }
-                    com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
+                    VoiceCaptureArbiter.release(microphoneOwner)
+                    postToMain { listener.onListeningStopped() }
+                    postToMain { listener.onError("vosk_model_load_failed") }
+                    return@launch
                 }
-            )
+                sttModel = model
+                val engine = VoskEngine(context.applicationContext, model)
+                sttEngine = engine
+                engine.start(
+                    scope     = sttScope,
+                    onPartial = { p -> postToMain { listener.onPartialResult(p) } },
+                    onFinal   = { text ->
+                        sttActive = false
+                        sttEngine?.release(); sttEngine = null
+                        VoiceCaptureArbiter.release(microphoneOwner)
+                        postToMain {
+                            listener.onListeningStopped()
+                            if (text.isNotBlank()) listener.onSpeechResult(text)
+                            else listener.onError("stt_empty_result")
+                        }
+                        com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
+                    },
+                    onError   = { err ->
+                        sttActive = false
+                        sttEngine?.release(); sttEngine = null
+                        VoiceCaptureArbiter.release(microphoneOwner)
+                        postToMain { listener.onListeningStopped(); listener.onError(err) }
+                        com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
+                    }
+                )
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                sttActive = false
+                sttEngine?.release(); sttEngine = null
+                VoiceCaptureArbiter.release(microphoneOwner)
+                throw cancelled
+            } catch (error: Exception) {
+                sttActive = false
+                sttEngine?.release(); sttEngine = null
+                VoiceCaptureArbiter.release(microphoneOwner)
+                postToMain { listener.onListeningStopped(); listener.onError("stt_initialization_failed") }
+                Log.w(TAG, "STT initialization failed: ${error.javaClass.simpleName}")
+            }
         }
     }
 
     fun stopSpeechToText() {
-        sttEngine?.stop()
-        platformRecognizer?.let { r -> try { r.stopListening() } catch (_: Throwable) {} }
+        sttJob?.cancel()
+        sttJob = null
+        // release() cancels the capture job and releases AudioRecord synchronously;
+        // only then may the global lease be handed to another capture owner.
+        sttEngine?.release()
+        sttEngine = null
+        platformRecognizer?.let { recognizer ->
+            runCatching { recognizer.cancel() }
+            runCatching { recognizer.destroy() }
+            if (platformRecognizer === recognizer) platformRecognizer = null
+        }
+        sttActive = false
+        VoiceCaptureArbiter.release(microphoneOwner)
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -646,7 +690,7 @@ class VoiceManager(
     // ─────────────────────────────────────────────────────────────────────
 
     private fun startPlatformSpeechToText() {
-        if (isDestroyed) return
+        if (isDestroyed) { VoiceCaptureArbiter.release(microphoneOwner); return }
         sttActive = true
         listener.onListeningStarted()
         com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "LISTENING")
@@ -658,6 +702,7 @@ class VoiceManager(
                 SpeechRecognizer.createSpeechRecognizer(context.applicationContext)
             } catch (t: Throwable) {
                 sttActive = false
+                VoiceCaptureArbiter.release(microphoneOwner)
                 listener.onListeningStopped()
                 listener.onError("stt_unavailable")
                 return@post
@@ -681,6 +726,7 @@ class VoiceManager(
                     sttActive = false
                     try { rec.destroy() } catch (_: Throwable) {}
                     if (platformRecognizer === rec) platformRecognizer = null
+                    VoiceCaptureArbiter.release(microphoneOwner)
                     listener.onListeningStopped()
                     if (text.isNotBlank()) listener.onSpeechResult(text)
                     else listener.onError("stt_empty_result")
@@ -690,6 +736,7 @@ class VoiceManager(
                     sttActive = false
                     try { rec.destroy() } catch (_: Throwable) {}
                     if (platformRecognizer === rec) platformRecognizer = null
+                    VoiceCaptureArbiter.release(microphoneOwner)
                     listener.onListeningStopped()
                     listener.onError("stt_platform_error_$code")
                     com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
@@ -709,6 +756,7 @@ class VoiceManager(
                 sttActive = false
                 try { rec.destroy() } catch (_: Throwable) {}
                 platformRecognizer = null
+                VoiceCaptureArbiter.release(microphoneOwner)
                 listener.onListeningStopped()
                 listener.onError("stt_unavailable")
             }
@@ -723,6 +771,7 @@ class VoiceManager(
         stopWakeWordDetection()
         stopSpeechToText()
         stopVad("stop_all")
+        VoiceCaptureArbiter.release(microphoneOwner)
         tts?.stop()
     }
 
@@ -733,6 +782,7 @@ class VoiceManager(
         isListeningForWakeWord = false
 
         sttJob?.cancel()
+        VoiceCaptureArbiter.release(microphoneOwner)
         sttEngine?.release(); sttEngine = null
         try { sttModel?.close() } catch (_: Throwable) {}
         sttModel = null

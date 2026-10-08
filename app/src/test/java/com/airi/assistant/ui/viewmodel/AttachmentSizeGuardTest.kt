@@ -39,4 +39,23 @@ class AttachmentSizeGuardTest {
             assertArrayEquals(byteArrayOf(), output.toByteArray())
         }
     }
+
+    @Test
+    fun boundedProducerCannotWritePastActualByteLimit() {
+        val output = ByteArrayOutputStream()
+        try {
+            BoundedAttachmentOutputStream(
+                output = output,
+                maxBytes = 3L,
+                tooLargeFailure = AttachmentDispatchFailure.ATTACHMENT_TOO_LARGE,
+            ).use { bounded ->
+                bounded.write(byteArrayOf(1, 2, 3))
+                bounded.write(4)
+            }
+            fail("Expected producer overrun to be rejected")
+        } catch (error: AttachmentSizeLimitException) {
+            assertEquals(AttachmentDispatchFailure.ATTACHMENT_TOO_LARGE, error.dispatchFailure)
+            assertArrayEquals(byteArrayOf(1, 2, 3), output.toByteArray())
+        }
+    }
 }

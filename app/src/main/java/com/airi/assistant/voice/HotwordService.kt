@@ -41,12 +41,14 @@ class HotwordService : Service() {
     @Volatile private var captureThread: Thread? = null
     @Volatile private var running = false
     @Volatile private var lastWakeAtMs = 0L
+    private val microphoneOwner get() = "hotword:$packageName"
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "HotwordService onCreate")
+        VoiceCaptureArbiter.registerPreemptionHandler(microphoneOwner) { stopCaptureForPreemption() }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -55,6 +57,11 @@ class HotwordService : Service() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED) {
             Log.w(TAG, "Hotword: RECORD_AUDIO not granted — stopping")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (!VoiceCaptureArbiter.acquire(microphoneOwner)) {
+            Log.i(TAG, "Hotword deferred: microphone owned by ${VoiceCaptureArbiter.currentOwner}")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -173,7 +180,11 @@ class HotwordService : Service() {
                 Log.w(TAG, "OWW capture loop failed: ${t.message}", t)
             } finally {
                 runCatching { rec.stop() }
+                runCatching { rec.release() }
+                if (audioRecord === rec) audioRecord = null
                 runCatching { interpreter.close() }
+                running = false
+                VoiceCaptureArbiter.release(microphoneOwner)
             }
         }
         return START_STICKY
@@ -252,6 +263,10 @@ class HotwordService : Service() {
                 Log.w(TAG, "Porcupine capture loop failed: ${t.message}", t)
             } finally {
                 runCatching { rec.stop() }
+                runCatching { rec.release() }
+                if (audioRecord === rec) audioRecord = null
+                running = false
+                VoiceCaptureArbiter.release(microphoneOwner)
             }
         }
         return START_STICKY
@@ -303,6 +318,19 @@ class HotwordService : Service() {
         startForeground(NOTIF_ID, notif)
     }
 
+    private fun stopCaptureForPreemption() {
+        running = false
+        val recorder = audioRecord
+        audioRecord = null
+        if (recorder != null) {
+            runCatching { if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) recorder.stop() }
+            runCatching { recorder.release() }
+        }
+        captureThread?.interrupt()
+        VoiceCaptureArbiter.release(microphoneOwner)
+        stopSelf()
+    }
+
     override fun onDestroy() {
         running = false
         try { captureThread?.join(500) } catch (_: Throwable) {}
@@ -311,6 +339,8 @@ class HotwordService : Service() {
         audioRecord = null
         try { porcupine?.delete() } catch (_: Throwable) {}
         porcupine = null
+        VoiceCaptureArbiter.release(microphoneOwner)
+        VoiceCaptureArbiter.unregisterPreemptionHandler(microphoneOwner)
         Log.i(TAG, "HotwordService destroyed")
         super.onDestroy()
     }

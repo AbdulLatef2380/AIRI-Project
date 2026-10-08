@@ -2,6 +2,7 @@ package com.airi.assistant.agent.subagent.impl
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.util.Log
 import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgent
@@ -9,8 +10,7 @@ import com.airi.assistant.agent.subagent.SubAgentCapability
 import com.airi.assistant.agent.subagent.SubAgentContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import java.io.File
 
 /**
  * DocumentProcessorAgent — on-device document and file reading & analysis.
@@ -19,15 +19,15 @@ import java.io.InputStreamReader
  *   - Plain text files (.txt, .md, .csv, .json, .xml, .log, .kt, .py …):
  *     read via [ContentResolver] stream, UTF-8 decoded, first [MAX_CHARS]
  *     characters injected into an LLM synthesis prompt.
- *   - PDF files: basic byte extraction with text-layer scanning (no render).
- *     Works for text-based PDFs; image-only PDFs return a useful error.
+ *   - PDF and Office files: bounded local extraction through the shared
+ *     AttachmentContentExtractor. Unsupported binary formats fail closed.
  *   - Arbitrary URIs from the Android file picker (content:// or file://).
  *
  * PRIVACY:
  *   - All reading happens on-device.
- *   - Content is sent to the LLM backend only if [context.cloudAllowed].
- *   - In PRIVACY_MAXIMUM mode, the raw extracted text is returned directly
- *     without LLM synthesis.
+ *   - Content is sent to the LLM backend only if cloud access AND private-data
+ *     consent are both present in [context].
+ *   - Otherwise, a bounded local excerpt is returned without LLM synthesis.
  *
  * SUPPORTED OPERATIONS (detected from user input):
  *   SUMMARIZE — condense the document.
@@ -43,6 +43,7 @@ class DocumentProcessorAgent(
     companion object {
         private const val TAG       = "DocumentProcessorAgent"
         private const val MAX_CHARS = 8_000
+        private const val MAX_SOURCE_BYTES = 12L * 1024L * 1024L
         private val TEXT_EXTENSIONS = setOf(
             "txt", "md", "csv", "json", "xml", "log", "yaml", "yml",
             "kt", "py", "java", "js", "ts", "html", "css", "ini", "toml"
@@ -120,8 +121,8 @@ class DocumentProcessorAgent(
 
         emit(AgentEvent.Progress("Processing ${chars} characters…", 55, "process"))
 
-        if (!context.cloudAllowed || context.privacyLevel == SubAgentContext.PRIVACY_MAXIMUM) {
-            // LOCAL_ONLY: return raw text without LLM synthesis
+        if (!context.cloudAllowed || !context.privateDataAllowed || context.privacyLevel == SubAgentContext.PRIVACY_MAXIMUM) {
+            // Keep attachment contents local unless the context carries private-data consent.
             val preview = excerpt.take(2_000)
             emit(AgentEvent.PartialResult(
                 "Document content (${chars} chars, local mode):\n\n$preview" +
@@ -161,34 +162,64 @@ class DocumentProcessorAgent(
         return match?.value
     }
 
-    private fun readFromUri(uri: Uri): String? =
-        runCatching {
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                val ext = uri.lastPathSegment?.substringAfterLast('.')?.lowercase() ?: ""
-                when {
-                    ext == "pdf"             -> extractPdfText(stream.readBytes())
-                    ext in TEXT_EXTENSIONS   -> stream.bufferedReader(Charsets.UTF_8).readText()
-                    else                     -> stream.bufferedReader(Charsets.UTF_8).readText()
-                }
+    private fun readFromUri(uri: Uri): String? = runCatching {
+        val resolver = context.contentResolver
+        val mime = resolver.getType(uri).orEmpty().substringBefore(';').trim().lowercase()
+        val displayName = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
             }
-        }.onFailure { Log.w(TAG, "URI read failed: ${it.message}") }.getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')
+            ?: "attachment"
+        val extension = displayName.substringAfterLast('.', "").lowercase()
+        val staged = File.createTempFile("airi_document_", ".bounded", context.cacheDir)
+        try {
+            val source = resolver.openInputStream(uri) ?: return@runCatching null
+            source.use { input -> staged.outputStream().buffered().use { output ->
+                copyBounded(input, output, MAX_SOURCE_BYTES)
+            } }
+            when {
+                mime.startsWith("text/") || extension in TEXT_EXTENSIONS ->
+                    staged.inputStream().bufferedReader(Charsets.UTF_8).use { readBounded(it, MAX_CHARS) }
+                com.airi.assistant.attachments.AttachmentContentExtractor.supports(mime, displayName) ->
+                    com.airi.assistant.attachments.AttachmentContentExtractor.extract(
+                        file = staged,
+                        mimeType = mime,
+                        fileName = displayName,
+                        maxChars = MAX_CHARS,
+                    )
+                else -> throw IllegalArgumentException("This attachment format has no local text extractor.")
+            }
+        } finally {
+            staged.delete()
+        }
+    }.onFailure { Log.w(TAG, "URI read failed: ${it.javaClass.simpleName}") }.getOrNull()
 
-    /**
-     * Naive PDF text extraction — scans for BT/ET (Begin/End Text) blocks
-     * and collects raw PDF string tokens. Works only for text-layer PDFs.
-     */
-    private fun extractPdfText(bytes: ByteArray): String {
-        val raw    = String(bytes, Charsets.ISO_8859_1)
-        val tokens = mutableListOf<String>()
-        val regex  = Regex("\\(([^)]{1,400})\\)")
-        regex.findAll(raw).forEach { tokens.add(it.groupValues[1]) }
-        val text = tokens
-            .filter { it.any { c -> c.isLetterOrDigit() || c.isWhitespace() } }
-            .joinToString(" ")
-            .replace(Regex("\\s{2,}"), " ")
-            .trim()
-        return text.ifBlank { "[PDF appears to be image-only — no text layer found]" }
+    private fun copyBounded(input: java.io.InputStream, output: java.io.OutputStream, maxBytes: Long) {
+        val buffer = ByteArray(8 * 1024)
+        var total = 0L
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) return
+            if (count == 0) continue
+            if (total + count > maxBytes) throw IllegalArgumentException("Attachment exceeds local processing limit")
+            output.write(buffer, 0, count)
+            total += count
+        }
     }
+
+    private fun readBounded(reader: java.io.Reader, maxChars: Int): String {
+        val out = StringBuilder(minOf(maxChars, 2_048))
+        val buffer = CharArray(minOf(maxChars, 2_048))
+        while (out.length < maxChars) {
+            val count = reader.read(buffer, 0, minOf(buffer.size, maxChars - out.length))
+            if (count <= 0) break
+            out.append(buffer, 0, count)
+        }
+        return out.toString()
+    }
+
 
     private fun buildSynthesisPrompt(
         userQuery: String,

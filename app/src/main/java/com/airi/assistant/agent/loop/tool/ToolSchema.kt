@@ -105,6 +105,14 @@ object BuiltinTools {
         category    = ToolSchema.Category.SYSTEM
     )
 
+    val FLASHLIGHT = ToolSchema(
+        name = "flashlight",
+        description = "Turn the rear camera torch on or off and verify the hardware state.",
+        parameters = mapOf("enabled" to ToolSchema.Param("boolean", "true to turn on, false to turn off")),
+        category = ToolSchema.Category.SYSTEM,
+        dangerous = true,
+    )
+
     val CALENDAR_CREATE = ToolSchema(
         name        = "calendar_create",
         description = "Create a new calendar event.",
@@ -168,7 +176,7 @@ object BuiltinTools {
     val ALL: List<ToolSchema> = listOf(
         READ_SCREEN, OPEN_APP, TAP, TYPE_TEXT, SCROLL_DOWN, GO_BACK,
         WEB_SEARCH, FETCH_URL, MEMORY_RECALL,
-        CALENDAR_READ, CURRENT_TIME, CALENDAR_CREATE, SET_ALARM, CREATE_NOTE, TERMINAL_EXECUTE,
+        CALENDAR_READ, CURRENT_TIME, FLASHLIGHT, CALENDAR_CREATE, SET_ALARM, CREATE_NOTE, TERMINAL_EXECUTE,
         ASK_CONFIRMATION
     )
 

@@ -19,7 +19,7 @@ class AgentLoopSideEffectPolicyTest {
 
     @Test
     fun writeAndLiveDeviceToolsFailClosedWithoutDurableContext() {
-        listOf("calendar_create", "create_note", "set_alarm", "open_app", "tap", "type_text", "scroll_down", "go_back", "terminal_execute")
+        listOf("calendar_create", "create_note", "set_alarm", "open_app", "tap", "type_text", "scroll_down", "go_back", "flashlight", "terminal_execute")
             .forEach { tool ->
                 assertEquals(
                     AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED,

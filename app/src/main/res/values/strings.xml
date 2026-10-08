@@ -839,6 +839,7 @@
     <string name="attachment_limit_reached">You can add up to 6 attachments to one message.</string>
     <string name="attachment_already_added">This attachment is already in the message.</string>
     <string name="attachment_too_large">This attachment is larger than 25 MB.</string>
+    <string name="attachment_batch_too_large">The combined attachments exceed the 40 MB limit. Remove one or more files and try again.</string>
     <string name="text_attachment_too_large">Text attachments must be 512 KB or smaller.</string>
     <string name="attachment_type_image">Image</string>
     <string name="attachment_type_video">Video</string>
@@ -1851,6 +1852,11 @@
     <string name="attachment_text_extraction_failed">AIRI could not read the selected text file. It was kept; choose a readable file and try again.</string>
     <string name="attachment_multiple_images_unsupported">This route cannot process all selected images together. Your attachments were kept; choose a vision provider that supports them or send fewer images.</string>
     <string name="attachment_dispatch_failed">The request was not accepted. Your attachments were kept so you can try again.</string>
+    <string name="attachment_cloud_consent_required">A one-time confirmation is required before sending these files to a cloud model.</string>
+    <string name="attachment_cloud_consent_title">Send attachments to cloud AI?</string>
+    <string name="attachment_cloud_consent_message">If this request is routed to cloud AI, the following user-provided content may be shared with provider %1$s: %2$s. This approval applies only to this send.</string>
+    <string name="attachment_cloud_long_text_label">long message draft (%1$d characters)</string>
+    <string name="attachment_cloud_consent_send_once">Send once</string>
     <string name="attachment_delivery_not_confirmed">Your message was saved, but AIRI could not confirm that every attachment reached the model. Any reply shown may not have used the attachments; verify delivery before relying on it.</string>
     <string name="chat_partial_response_saved">A partial response was saved above. It is not a completed answer; review it and retry if needed.</string>
     <string name="local_endpoint_title">Connect %1$s</string>

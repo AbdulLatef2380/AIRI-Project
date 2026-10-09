@@ -2816,27 +2816,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }.getOrDefault(emptyList())
 
     private fun sandboxCapabilityInventoryEntries(): List<com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry> {
-        val inventory = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory
         val guardRegistered = runCatching { ServiceLocator.agentSandbox }.isSuccess
         val terminalRuntimeRegistered = runCatching { ServiceLocator.terminalRuntime }.isSuccess
         val sandboxManagerRegistered = runCatching { ServiceLocator.sandboxManager }.isSuccess
         return listOf(
-            inventory.Entry(
+            com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry(
                 id = "agent_sandbox_guard",
-                family = inventory.Family.OTHER,
+                family = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Family.OTHER,
                 registered = guardRegistered,
-                availability = if (guardRegistered) inventory.Availability.READY else inventory.Availability.ERROR,
+                availability = if (guardRegistered) com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.READY else com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.ERROR,
                 inRequestCatalog = false,
                 exposedToAgent = false,
                 admittedToDispatcher = false,
                 detail = "Permission/workspace guard; it is not an operating-system shell or process executor.",
             ),
-            inventory.Entry(
+            com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry(
                 id = "sandbox_process_execution",
-                family = inventory.Family.OTHER,
+                family = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Family.OTHER,
                 registered = terminalRuntimeRegistered && sandboxManagerRegistered,
                 availability = if (terminalRuntimeRegistered && sandboxManagerRegistered)
-                    inventory.Availability.BLOCKED else inventory.Availability.CONFIGURATION_REQUIRED,
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.BLOCKED else com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.CONFIGURATION_REQUIRED,
                 inRequestCatalog = false,
                 exposedToAgent = false,
                 admittedToDispatcher = false,
@@ -2849,7 +2848,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         catalogToolNames: Set<String>,
         dispatcherAdmittedNames: Set<String>,
     ): List<com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry> = runCatching {
-        val inventory = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory
         val runtimeSkills = skillRegistry.getAvailableSkills().associateBy { it.skillId }
         skillRegistry.getAllSkillInfos().map { info ->
             val runtimeSkill = runtimeSkills[info.id]
@@ -2864,19 +2862,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val decision = runtimeSkill?.let(skillToolBridge::readiness)
             val deniedByPolicy = decision as? com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.Decision.Deny
             val availability = when {
-                !info.isEnabled -> inventory.Availability.BLOCKED
-                missingDependencies.isNotEmpty() -> inventory.Availability.DEPENDENCY_MISSING
-                !info.isConnected && connectorDependencies.isEmpty() -> inventory.Availability.CONFIGURATION_REQUIRED
-                runtimeSkill == null -> inventory.Availability.ERROR
+                !info.isEnabled -> com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.BLOCKED
+                missingDependencies.isNotEmpty() -> com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.DEPENDENCY_MISSING
+                !info.isConnected && connectorDependencies.isEmpty() -> com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.CONFIGURATION_REQUIRED
+                runtimeSkill == null -> com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.ERROR
                 deniedByPolicy?.reason == com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.MISSING_PERMISSION ->
-                    inventory.Availability.PERMISSION_REQUIRED
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.PERMISSION_REQUIRED
                 deniedByPolicy?.reason == com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.CONNECTOR_UNHEALTHY ->
-                    inventory.Availability.DEPENDENCY_MISSING
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.DEPENDENCY_MISSING
                 deniedByPolicy?.reason == com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.MEMORY_UNAVAILABLE ||
                     deniedByPolicy?.reason == com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.MODEL_UNAVAILABLE ->
-                    inventory.Availability.CONFIGURATION_REQUIRED
-                deniedByPolicy != null -> inventory.Availability.ERROR
-                else -> inventory.Availability.READY
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.CONFIGURATION_REQUIRED
+                deniedByPolicy != null -> com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.ERROR
+                else -> com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.READY
             }
             val manifest = com.airi.assistant.ai.skills.OfficialSkillLibrary.manifestFor(info.id)
             val manifestToolNames = manifest?.tools?.map { "skill_${it.name}" }.orEmpty()
@@ -2887,20 +2885,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 else -> listOf("skill_${info.id}")
             }
             val exposed = toolNames.any { it in dispatcherAdmittedNames }
-            inventory.Entry(
+            com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry(
                 id = "skill:${info.id}",
-                family = inventory.Family.SKILL,
+                family = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Family.SKILL,
                 registered = true,
                 availability = availability,
                 inRequestCatalog = toolNames.any { it in catalogToolNames },
                 exposedToAgent = exposed,
-                admittedToDispatcher = exposed && availability == inventory.Availability.READY,
+                admittedToDispatcher = exposed && availability == com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.READY,
                 detail = when (availability) {
-                    inventory.Availability.BLOCKED -> "Skill is disabled in SkillRegistry."
-                    inventory.Availability.PERMISSION_REQUIRED -> "One or more declared Android permissions are not granted."
-                    inventory.Availability.DEPENDENCY_MISSING -> "Missing or unhealthy connector dependencies: ${missingDependencies.joinToString().ifBlank { "see skill authorization policy" }}."
-                    inventory.Availability.CONFIGURATION_REQUIRED -> "A required endpoint, memory service, or model bridge is not configured."
-                    inventory.Availability.ERROR -> "Registered skill could not be built or failed its runtime authorization policy."
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.BLOCKED -> "Skill is disabled in SkillRegistry."
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.PERMISSION_REQUIRED -> "One or more declared Android permissions are not granted."
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.DEPENDENCY_MISSING -> "Missing or unhealthy connector dependencies: ${missingDependencies.joinToString().ifBlank { "see skill authorization policy" }}."
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.CONFIGURATION_REQUIRED -> "A required endpoint, memory service, or model bridge is not configured."
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.ERROR -> "Registered skill could not be built or failed its runtime authorization policy."
                     else -> null
                 },
             )

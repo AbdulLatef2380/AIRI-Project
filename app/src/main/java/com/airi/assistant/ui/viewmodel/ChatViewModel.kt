@@ -2837,7 +2837,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     schema.name,
                     com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.StatusOverride(
                         readiness = com.airi.assistant.agent.loop.tool.RuntimeToolContract.Readiness.REQUIRES_AUTH,
-                        reason = "Google data access for ${action.id} is not authorized; reauthorize Google and grant the requested Gmail scope. This is separate from Android Accessibility.",
+                        reason = "Google data access for action ${action.id} is not authorized; reauthorize Google and grant the scope requested for this action. This is separate from Android Accessibility.",
                     ),
                 )
             }

@@ -7,6 +7,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.onEach
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -19,6 +22,7 @@ class ExecutionHistoryStore(private val context: Context) {
         val timestamp: Long,
         val details: String,
         val success: Boolean?,
+        val runId: String = "",
         val formattedTime: String = SimpleDateFormat(
             "HH:mm:ss", Locale.getDefault()
         ).format(Date(System.currentTimeMillis()))
@@ -27,6 +31,10 @@ class ExecutionHistoryStore(private val context: Context) {
     private val prefs = context.getSharedPreferences("airi_execution_history", Context.MODE_PRIVATE)
     private val gson  = Gson()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val lock = Any()
+    private val _entries = MutableStateFlow<List<HistoryEntry>>(loadEntries())
+    /** Single persisted/history source for observability screens and exports. */
+    val entries: StateFlow<List<HistoryEntry>> = _entries.asStateFlow()
 
     companion object {
         private const val MAX_ENTRIES = 200
@@ -42,10 +50,14 @@ class ExecutionHistoryStore(private val context: Context) {
 
     fun record(event: AppEvent) {
         val entry = event.toHistoryEntry() ?: return
-        val current = getEntries().toMutableList()
-        current.add(entry)
-        if (current.size > MAX_ENTRIES) current.removeAt(0)
-        prefs.edit().putString(KEY_HISTORY, gson.toJson(current)).apply()
+        synchronized(lock) {
+            val current = _entries.value.toMutableList()
+            current.add(entry)
+            while (current.size > MAX_ENTRIES) current.removeAt(0)
+            val snapshot = current.toList()
+            prefs.edit().putString(KEY_HISTORY, gson.toJson(snapshot)).apply()
+            _entries.value = snapshot
+        }
     }
 
     fun getEntries(): List<HistoryEntry> {
@@ -64,20 +76,32 @@ class ExecutionHistoryStore(private val context: Context) {
         getEntries().filter { it.eventType == type }
 
     fun clear() {
-        prefs.edit().remove(KEY_HISTORY).apply()
+        synchronized(lock) {
+            prefs.edit().remove(KEY_HISTORY).apply()
+            _entries.value = emptyList()
+        }
+    }
+
+    private fun loadEntries(): List<HistoryEntry> {
+        val json = prefs.getString(KEY_HISTORY, null) ?: return emptyList()
+        return runCatching {
+            gson.fromJson<List<HistoryEntry>>(
+                json, object : TypeToken<List<HistoryEntry>>() {}.type
+            )
+        }.getOrElse { emptyList() }.takeLast(MAX_ENTRIES)
     }
 
     private fun AppEvent.toHistoryEntry(): HistoryEntry? = when (this) {
         is AppEvent.AgentExecutionStarted ->
-            HistoryEntry("AgentStarted", timestamp, "Input: ${input.take(80)}", null)
+            HistoryEntry("AgentStarted", timestamp, "Execution started", null, traceId.take(40))
         is AppEvent.AgentExecutionSuccess ->
-            HistoryEntry("AgentSuccess", timestamp, "Trace: $traceId (${durationMs}ms)", true)
+            HistoryEntry("AgentSuccess", timestamp, "Execution completed (${durationMs.coerceAtLeast(0)}ms)", true, traceId.take(40))
         is AppEvent.AgentExecutionFailed ->
-            HistoryEntry("AgentFailed",  timestamp, "Error: $error",              false)
+            HistoryEntry("AgentFailed",  timestamp, "Execution failed: ${safeTag(error)}", false, traceId.take(40))
         is AppEvent.AgentExecutionTimeout ->
-            HistoryEntry("AgentTimeout", timestamp, "Trace: $traceId",            false)
+            HistoryEntry("AgentTimeout", timestamp, "Execution timed out", false, traceId.take(40))
         is AppEvent.AgentExecutionCancelled ->
-            HistoryEntry("AgentCancelled", timestamp, reason,                     null)
+            HistoryEntry("AgentCancelled", timestamp, "Execution cancelled: ${safeTag(reason)}", null, traceId.take(40))
         is AppEvent.PolicyChecked ->
             HistoryEntry("Policy", timestamp, "$rule: ${if (passed) "" else ""}${reason?.let { " — $it" } ?: ""}", passed)
         is AppEvent.SkillExecutionStarted ->
@@ -91,7 +115,7 @@ class ExecutionHistoryStore(private val context: Context) {
         is AppEvent.UserSignedOut ->
             HistoryEntry("SignOut", timestamp, "", null)
         is AppEvent.AuthFailed ->
-            HistoryEntry("AuthFail", timestamp, reason, false)
+            HistoryEntry("AuthFail", timestamp, safeTag(reason), false)
         is AppEvent.SubscriptionChecked ->
             HistoryEntry("Sub", timestamp, "$feature: ${if (featureAllowed) "OK" else "BLOCKED"} [$tier]", featureAllowed)
         is AppEvent.UsageLimitReached ->
@@ -104,4 +128,13 @@ class ExecutionHistoryStore(private val context: Context) {
             HistoryEntry("Permission", timestamp, "Denied: $permission (permanent=$permanent)", false)
         else -> null
     }
+
+    /** Keep local history useful without persisting prompts, stack traces, or tokens. */
+    private fun safeTag(raw: String): String = raw
+        .replace(Regex("https?://\\S+", RegexOption.IGNORE_CASE), "[url]")
+        .replace(Regex("[\\r\\n\\t]+"), " ")
+        .replace(Regex("[^a-zA-Z0-9_ .:/-]"), "_")
+        .trim()
+        .take(120)
+        .ifBlank { "unknown" }
 }

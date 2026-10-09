@@ -1,10 +1,12 @@
 package com.airi.assistant.ai
 
+import android.os.Build
 import android.util.Log
 
 object LlamaNative {
     private var available = false
     private var loadFailure: String? = null
+    private val runtimeAbi: String = Build.SUPPORTED_ABIS.firstOrNull().orEmpty().ifBlank { "unknown" }
 
     init {
         try {
@@ -18,7 +20,7 @@ object LlamaNative {
             // any of the runtime code paths. See:
             //   .github/workflows/android_build.yml (CI verification)
             //   app/build.gradle.kts task airiVerifyNativeInApk
-            Log.i("AIRI", "NATIVE_LIB_LOADED lib=airi_native abi=arm64-v8a")
+            Log.i("AIRI", "NATIVE_LIB_LOADED lib=airi_native abi=$runtimeAbi")
         } catch (e: UnsatisfiedLinkError) {
             available = false
             loadFailure = e.message
@@ -29,13 +31,16 @@ object LlamaNative {
             // .so is missing from the installed APK. Fix the BUILD, not the
             // runtime code.
             Log.e("AIRI",
-                "NATIVE_LIB_MISSING lib=airi_native abi=arm64-v8a reason=${e.message}")
+                "NATIVE_LIB_MISSING lib=airi_native abi=$runtimeAbi reason=${e.message}")
         }
     }
 
     fun isAvailable(): Boolean = available
 
     fun loadFailureMessage(): String? = loadFailure
+
+    /** ABI used by this process; packaging/build checks must still verify the .so. */
+    fun loadedAbi(): String = runtimeAbi
 
     interface ProgressCallback {
         fun onProgress(percent: Int)

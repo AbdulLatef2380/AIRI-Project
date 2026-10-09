@@ -99,12 +99,8 @@ fun ObservabilityScreen(onBack: () -> Unit) {
 }
 @Composable
 private fun EventsTab() {
-    var entries by remember { mutableStateOf<List<ExecutionHistoryStore.HistoryEntry>>(emptyList()) }
-    LaunchedEffect(Unit) {
-        runCatching {
-            entries = ServiceLocator.executionHistoryStore.getRecentEntries(80)
-        }
-    }
+    val persistedEntries by ServiceLocator.executionHistoryStore.entries.collectAsState()
+    val entries = persistedEntries.takeLast(80).reversed()
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -123,7 +119,6 @@ private fun EventsTab() {
             IconButton(
                 onClick = {
                     runCatching { ServiceLocator.executionHistoryStore.clear() }
-                    entries = emptyList()
                 },
                 modifier = Modifier.size(32.dp)
             ) {

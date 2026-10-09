@@ -177,11 +177,27 @@ object AnalyticsService {
             runCatching {
                 val analytics = firebaseAnalytics ?: return@runCatching
                 val bundle = Bundle()
-                params.forEach { (k, v) -> bundle.putString(k.take(40), v.take(100)) }
+                params.forEach { (key, value) ->
+                    val safeKey = key.replace(Regex("[^a-zA-Z0-9_]"), "_").take(40)
+                    val safeValue = sanitizeValue(value)
+                    if (safeKey.isNotBlank() && safeValue.isNotBlank()) {
+                        bundle.putString(safeKey, safeValue)
+                    }
+                }
                 analytics.javaClass
                     .getMethod("logEvent", String::class.java, Bundle::class.java)
                     .invoke(analytics, event.take(40), bundle)
             }
         }
+    }
+
+    /** Analytics never receives prompts, free-form errors, tokens, or full URLs. */
+    private fun sanitizeValue(raw: String): String {
+        val withoutUrl = raw.replace(Regex("https?://[^\\s]+", RegexOption.IGNORE_CASE), "[url]")
+        return withoutUrl
+            .replace(Regex("[\\r\\n\\t]+"), " ")
+            .replace(Regex("[^a-zA-Z0-9_.:/\\-\\[\\] ]"), "_")
+            .trim()
+            .take(100)
     }
 }

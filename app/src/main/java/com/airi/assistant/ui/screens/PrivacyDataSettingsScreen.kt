@@ -51,6 +51,8 @@ fun PrivacyDataSettingsScreen(
     val coordinator = remember { ServiceLocator.dataDeletionCoordinator }
     val profileRepository = remember { ServiceLocator.userProfileRepository }
     val profile by profileRepository.profile.collectAsState()
+    val telemetryStore = remember { ServiceLocator.telemetryConsentStore }
+    val telemetryConsent by telemetryStore.consentState.collectAsState()
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showEraseLocalDataDialog by remember { mutableStateOf(false) }
@@ -225,6 +227,37 @@ fun PrivacyDataSettingsScreen(
                 ) { showDeleteDialog = true }
             }
 
+            SettingsSurface {
+                SettingsCategoryHeader(
+                    icon = Icons.Outlined.Analytics,
+                    title = stringResource(R.string.telemetry_controls)
+                )
+                Text(
+                    text = stringResource(R.string.telemetry_controls_summary),
+                    color = AiriTheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 6.dp, bottom = 4.dp)
+                )
+                ConsentToggleRow(
+                    label = stringResource(R.string.analytics_consent),
+                    summary = stringResource(R.string.analytics_consent_summary),
+                    checked = telemetryConsent.analyticsEnabled,
+                    onCheckedChange = telemetryStore::setAnalyticsEnabled
+                )
+                ConsentToggleRow(
+                    label = stringResource(R.string.crash_consent),
+                    summary = stringResource(R.string.crash_consent_summary),
+                    checked = telemetryConsent.crashReportingEnabled,
+                    onCheckedChange = telemetryStore::setCrashReportingEnabled
+                )
+                ConsentToggleRow(
+                    label = stringResource(R.string.agent_telemetry_consent),
+                    summary = stringResource(R.string.agent_telemetry_consent_summary),
+                    checked = telemetryConsent.agentTelemetryEnabled,
+                    onCheckedChange = telemetryStore::setAgentTelemetryEnabled
+                )
+            }
+
             ObservabilitySection(onNavigate = onNavigate)
 
             Spacer(Modifier.height(8.dp))
@@ -358,5 +391,25 @@ fun PrivacyDataSettingsScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun ConsentToggleRow(
+    label: String,
+    summary: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, color = AiriTheme.onSurface, style = MaterialTheme.typography.bodyMedium)
+            Text(summary, color = AiriTheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }

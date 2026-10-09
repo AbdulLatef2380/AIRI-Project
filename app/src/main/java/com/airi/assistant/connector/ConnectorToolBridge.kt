@@ -38,6 +38,10 @@ class ConnectorToolBridge(
     fun connectorIdForTool(toolName: String): String? =
         bindings(onlyExecutable = false, onlyGranted = false)[toolName]?.connectorId
 
+    /** Declared authorization contract for readiness checks; does not execute or grant access. */
+    fun actionForTool(toolName: String): ConnectorAgentAction? =
+        bindings(onlyExecutable = false, onlyGranted = false)[toolName]?.action
+
     suspend fun invoke(toolName: String, args: Map<String, String>): ConnectorOutput {
         val binding = bindings(onlyExecutable = false, onlyGranted = false)[toolName]
             ?: return ConnectorOutput.Failure("unknown_tool", "Unknown connector tool: $toolName")

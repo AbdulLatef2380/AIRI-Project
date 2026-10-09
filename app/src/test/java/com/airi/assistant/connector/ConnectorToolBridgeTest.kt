@@ -100,6 +100,7 @@ class ConnectorToolBridgeTest {
         assertFalse("connector_microsoft_graph_teams_list_joined" in names)
         assertFalse("connector_microsoft_graph_sharepoint_site_read" in names)
         assertEquals("microsoft_graph", bridge.connectorIdForTool("connector_microsoft_graph_outlook_mail_read"))
+        assertEquals("outlook_mail_read", bridge.actionForTool("connector_microsoft_graph_outlook_mail_read")?.id)
     }
 
     private fun bridge(registry: ConnectorRegistry, profiles: ConnectorAccessProfileStore) =

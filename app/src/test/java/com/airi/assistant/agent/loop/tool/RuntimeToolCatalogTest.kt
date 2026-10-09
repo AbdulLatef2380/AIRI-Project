@@ -84,6 +84,32 @@ class RuntimeToolCatalogTest {
     }
 
     @Test
+    fun connectorOAuthScopeOverrideKeepsRegisteredActionOutOfExecutableSchemas() {
+        val intent = CapabilityIntentDetector.Intent(
+            capabilities = setOf(CapabilityIntentDetector.Capability.CONNECTOR_READ),
+            connectorIds = setOf("google"),
+        )
+        val result = RuntimeToolCatalog.assemble(
+            builtins = emptyList(),
+            skills = emptyList(),
+            connectors = listOf(RuntimeToolContract.connector(connectorSchema, available = true)),
+            intent = intent,
+            statusOverrides = mapOf(
+                connectorSchema.name to RuntimeToolCatalog.StatusOverride(
+                    RuntimeToolContract.Readiness.REQUIRES_AUTH,
+                    "Google data scope is missing",
+                ),
+            ),
+        )
+
+        assertTrue(result.schemas.isEmpty())
+        assertEquals(RuntimeToolContract.Readiness.REQUIRES_AUTH, result.candidates.single().readiness)
+        assertEquals(RuntimeToolCatalog.Reason.NOT_READY, result.filtered.single().reason)
+        val inventory = RuntimeCapabilityInventory.from(result, emptySet())
+        assertEquals(RuntimeCapabilityInventory.Availability.AUTH_REQUIRED, inventory.entries.single().availability)
+    }
+
+    @Test
     fun duplicateToolNamesAreExposedOnce() {
         val same = ToolSchema("same_tool", "builtin")
         val result = RuntimeToolCatalog.assemble(

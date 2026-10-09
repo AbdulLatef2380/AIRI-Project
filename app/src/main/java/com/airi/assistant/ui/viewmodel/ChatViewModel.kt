@@ -2237,6 +2237,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val executableConnectorNames = connectorToolBridge.asToolSchemas()
                     .map { it.name }
                     .toSet()
+                val connectorStatusOverrides = connectorActionStatusOverrides(connectorSchemas)
                 com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.assemble(
                     builtins = com.airi.assistant.agent.loop.tool.BuiltinTools.ALL,
                     skills = liveSkillSchemas,
@@ -2248,7 +2249,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     },
                     intent = capabilityIntent,
-                    statusOverrides = agentLoopBuiltinStatusOverrides(),
+                    statusOverrides = agentLoopBuiltinStatusOverrides() + connectorStatusOverrides,
                     requestText = trimmedInput,
                 )
             }.getOrElse {
@@ -2814,6 +2815,34 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
     }.getOrDefault(emptyList())
+
+    /** Provider data scopes are independent from Android permissions and connector profile grants. */
+    private fun connectorActionStatusOverrides(
+        schemas: List<com.airi.assistant.agent.loop.tool.ToolSchema>,
+    ): Map<String, com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.StatusOverride> = buildMap {
+        schemas.forEach { schema ->
+            val connectorId = connectorToolBridge.connectorIdForTool(schema.name) ?: return@forEach
+            if (connectorId != "google") return@forEach
+            val action = connectorToolBridge.actionForTool(schema.name) ?: return@forEach
+            if (action.requiredOAuthScopes.isEmpty()) return@forEach
+            val state = runCatching { ServiceLocator.connectorRegistry.get(connectorId)?.state()?.value }
+                .getOrNull()
+            // Preserve the more immediate disconnected/unhealthy classification.
+            if (state?.connected != true || state.healthy != true) return@forEach
+            val scopesAuthorized = runCatching {
+                ServiceLocator.googleAuthService.hasAuthorizedDataScopes(action.requiredOAuthScopes)
+            }.getOrDefault(false)
+            if (!scopesAuthorized) {
+                put(
+                    schema.name,
+                    com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.StatusOverride(
+                        readiness = com.airi.assistant.agent.loop.tool.RuntimeToolContract.Readiness.REQUIRES_AUTH,
+                        reason = "Google data access for ${action.id} is not authorized; reauthorize Google and grant the requested Gmail scope. This is separate from Android Accessibility.",
+                    ),
+                )
+            }
+        }
+    }
 
     private fun sandboxCapabilityInventoryEntries(): List<com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry> {
         val guardRegistered = runCatching { ServiceLocator.agentSandbox }.isSuccess

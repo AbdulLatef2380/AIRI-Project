@@ -116,6 +116,12 @@ class GoogleAuthService(
     /** Only user-data OAuth access tokens may authenticate Google API calls. */
     fun getDataAccessToken(): String? = dataAccessToken
 
+    /** Reports scope readiness without exposing the access token or persisting grants. */
+    fun hasAuthorizedDataScopes(requiredScopes: Set<String>): Boolean =
+        requiredScopes.isNotEmpty() &&
+            !dataAccessToken.isNullOrBlank() &&
+            requiredScopes.all { it in dataAccessScopes }
+
     /** Called when a Google resource server rejects the cached short-lived token. */
     fun clearDataAccessToken() {
         dataAccessToken = null

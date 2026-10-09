@@ -34,6 +34,10 @@ class ConnectorToolBridge(
      * stable not_connected result instead of misclassifying the call as unknown. */
     fun handles(toolName: String): Boolean = bindings(onlyExecutable = false, onlyGranted = false).containsKey(toolName)
 
+    /** Runtime connector identity for request-intent filtering; never inferred from action-name tokens. */
+    fun connectorIdForTool(toolName: String): String? =
+        bindings(onlyExecutable = false, onlyGranted = false)[toolName]?.connectorId
+
     suspend fun invoke(toolName: String, args: Map<String, String>): ConnectorOutput {
         val binding = bindings(onlyExecutable = false, onlyGranted = false)[toolName]
             ?: return ConnectorOutput.Failure("unknown_tool", "Unknown connector tool: $toolName")

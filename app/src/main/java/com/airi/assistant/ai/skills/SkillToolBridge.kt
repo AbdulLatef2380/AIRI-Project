@@ -38,7 +38,8 @@ class SkillToolBridge(
     private val skillCtx: () -> SkillContext = { SkillContext() },
     // A bridge without an injected connector registry must not assume that
     // external dependencies are available; callers can opt in with live state.
-    private val isConnectorHealthy: (String) -> Boolean = { false }
+    private val isConnectorHealthy: (String) -> Boolean = { false },
+    private val readinessCtx: () -> SkillContext = skillCtx,
 ) {
     private val permissionService = PermissionService(context.applicationContext)
     companion object {
@@ -54,7 +55,9 @@ class SkillToolBridge(
      * the [AgentLoop] injects into the system prompt.
      */
     fun asToolSchemas(): List<ToolSchema> {
-        val skills = registry.getAvailableSkills()
+        val skills = registry.getAvailableSkills().filter { skill ->
+            readiness(skill) is SkillInvocationAccessPolicy.Decision.Allow
+        }
         val schemas = mutableListOf<ToolSchema>()
         skills.forEach { skill ->
             if (skill.toolDefinitions.isEmpty()) {
@@ -67,6 +70,18 @@ class SkillToolBridge(
         }
         Log.d(TAG, "AIRI SKILL_SCHEMAS_BUILT count=${schemas.size} names=${schemas.map { it.name }.joinToString()}")
         return schemas
+    }
+
+    /** Uses the same permission, connector, memory, and model gates as invocation. */
+    fun readiness(skill: AiriSkill): SkillInvocationAccessPolicy.Decision {
+        val providedContext = readinessCtx()
+        val requestedContext = providedContext.copy(modelBridge = modelBridge ?: providedContext.modelBridge)
+        return SkillInvocationAccessPolicy.authorize(
+            skill = skill,
+            context = requestedContext,
+            hasPermission = permissionService::hasPermission,
+            isConnectorHealthy = isConnectorHealthy,
+        )
     }
 
     private fun skillToSchema(skill: AiriSkill): ToolSchema = ToolSchema(

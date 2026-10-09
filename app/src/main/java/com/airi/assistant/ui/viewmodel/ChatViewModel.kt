@@ -449,8 +449,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // genuine iterative loop: LLM sees tool schemas → emits structured JSON →
     // ToolDispatcher executes → result fed back into next LLM turn.
     // Used for ACTION queries when agentLoopEnabled=true.
+    private val skillRegistry            = SkillRegistry(appContext)
     private val skillToolBridge          = SkillToolBridge(
-        registry    = SkillRegistry(appContext),
+        registry    = skillRegistry,
         context     = appContext,
         modelBridge = SkillModelBridge.create(hybridOrchestrator, appContext),
         
@@ -480,7 +481,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     ?.let { state -> state.connected && state.healthy }
                     ?: false
             }.getOrDefault(false)
-        }
+        },
+        readinessCtx = {
+            com.airi.assistant.ai.skills.SkillContext(
+                memoryManager = runCatching { ServiceLocator.memoryManager }.getOrNull(),
+                sessionId = _currentSessionId.value,
+            )
+        },
     )
     private val connectorToolBridge      = com.airi.assistant.connector.ConnectorToolBridge(
         registry = ServiceLocator.connectorRegistry,
@@ -2224,6 +2231,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // being advertised to the LLM in the system prompt (the gap that caused
             // skill_code_assistant, skill_research_agent, etc. to never be invoked).
             val capabilityIntent = com.airi.assistant.ai.CapabilityIntentDetector.detect(trimmedInput)
+            val liveSkillSchemas = runCatching { skillToolBridge.asToolSchemas() }.getOrElse { emptyList() }
             val catalog = runCatching {
                 val connectorSchemas = connectorToolBridge.asToolSchemas(includeUnavailable = true)
                 val executableConnectorNames = connectorToolBridge.asToolSchemas()
@@ -2231,14 +2239,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     .toSet()
                 com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.assemble(
                     builtins = com.airi.assistant.agent.loop.tool.BuiltinTools.ALL,
-                    skills = skillToolBridge.asToolSchemas(),
+                    skills = liveSkillSchemas,
                     connectors = connectorSchemas.map {
                         com.airi.assistant.agent.loop.tool.RuntimeToolContract.connector(
                             schema = it,
                             available = it.name in executableConnectorNames,
+                            capabilityId = connectorToolBridge.connectorIdForTool(it.name),
                         )
                     },
                     intent = capabilityIntent,
+                    statusOverrides = agentLoopBuiltinStatusOverrides(),
+                    requestText = trimmedInput,
                 )
             }.getOrElse {
                 com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.assemble(
@@ -2246,19 +2257,50 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     skills = emptyList(),
                     connectors = emptyList(),
                     intent = capabilityIntent,
+                    statusOverrides = agentLoopBuiltinStatusOverrides(),
+                    requestText = trimmedInput,
                 )
             }
             val allActiveTools = catalog.schemas
             // QueryType describes answer shape; CapabilityIntent describes live
             // data dependencies. Only a capability-free simple/creative turn
             // may use the no-tools fast path.
-            val activeTools = if (!capabilityIntent.requiresTools &&
+            val candidateTools = if (!capabilityIntent.requiresTools &&
                 (queryType == QueryType.SIMPLE || queryType == QueryType.CREATIVE)) {
                 emptyList()
             } else {
                 allActiveTools
             }
-            Log.i("AIRI", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${skillToolBridge.asToolSchemas().size} connectors=${connectorToolBridge.asToolSchemas().size} selected=${activeTools.size} queryType=${queryType.name} capabilities=${capabilityIntent.capabilities} candidates=${catalog.candidates.size} exposed=${catalog.exposed.size} filtered=${catalog.filtered.map { it.toolName + ":" + it.reason.name }}")
+            val requestPermissionProfile = com.airi.assistant.core.AgentPermissionProfile.resolve(
+                queryType = queryType,
+                modelId = requestedModelIdAtDispatch,
+                providerId = requestedProviderIdAtDispatch,
+                toolsRequested = candidateTools.isNotEmpty(),
+            )
+            val permissionFilteredTools = requestPermissionProfile.filterTools(candidateTools)
+            val toolPromptBudget = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
+                .toolCharsCap(llamaManager.contextBudget.availableForContent)
+            val activeTools = com.airi.assistant.agent.loop.tool.ToolSchemaPromptBudget.select(
+                permissionFilteredTools,
+                toolPromptBudget,
+            ).tools
+            val dispatcherAdmittedNames = activeTools.mapTo(mutableSetOf()) { it.name }
+            val runtimeInventory = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.from(
+                catalog = catalog,
+                dispatcherAdmittedNames = dispatcherAdmittedNames,
+                additionalEntries = connectorCapabilityInventoryEntries(
+                    input = trimmedInput,
+                    connectorIdsRequested = capabilityIntent.connectorIds,
+                    dispatcherAdmittedNames = dispatcherAdmittedNames,
+                ) + skillCapabilityInventoryEntries(
+                    catalogToolNames = catalog.exposed.mapTo(mutableSetOf()) { it.schema.name },
+                    dispatcherAdmittedNames = dispatcherAdmittedNames,
+                ) + sandboxCapabilityInventoryEntries(),
+            )
+            val fullSystemPrompt = systemPrompt + "\n\n" + runtimeInventory.promptBlock(trimmedInput)
+            llamaManager.systemPromptTokenEstimate =
+                com.airi.assistant.ai.prompt.budget.PromptBudgetLedger.estimateTokens(fullSystemPrompt)
+            Log.i("AIRI", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${liveSkillSchemas.size} connectors=${connectorToolBridge.asToolSchemas().size} selected=${activeTools.size} queryType=${queryType.name} capabilities=${capabilityIntent.capabilities} candidates=${catalog.candidates.size} exposed=${catalog.exposed.size} filtered=${catalog.filtered.map { it.toolName + ":" + it.reason.name }}")
 
             var tokenCount = 0
             var firstTokenReceived = false
@@ -2302,7 +2344,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val loopResult = agentLoop.run(
                     input        = trimmedInput,
-                    systemPrompt = systemPrompt,
+                    systemPrompt = fullSystemPrompt,
                     tools        = activeTools,
                     queryType    = queryType,
                     modelId      = requestedModelIdAtDispatch,
@@ -2678,6 +2720,205 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ── Prompt building (delegates to PromptService) ──────────────────────────
+
+    /** Only describes the current chat execution path; does not change UI-only capabilities. */
+    private fun agentLoopBuiltinStatusOverrides(): Map<String, com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.StatusOverride> {
+        val result = mutableMapOf<String, com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.StatusOverride>()
+
+        val screenReady = com.airi.assistant.accessibility.service.ScreenContextHolder.serviceInstance != null
+        if (!screenReady) {
+            result["read_screen"] = com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.StatusOverride(
+                com.airi.assistant.agent.loop.tool.RuntimeToolContract.Readiness.PERMISSION_REQUIRED,
+                "Android Accessibility service is not connected; enable AIRI in Accessibility settings.",
+            )
+        }
+
+        val calendarPermissionGranted = runCatching {
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                appContext,
+                android.Manifest.permission.READ_CALENDAR,
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        }.getOrDefault(false)
+        if (!calendarPermissionGranted) {
+            result["calendar_read"] = com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.StatusOverride(
+                com.airi.assistant.agent.loop.tool.RuntimeToolContract.Readiness.PERMISSION_REQUIRED,
+                "Android calendar read permission is not granted.",
+            )
+        }
+        return result
+    }
+
+    /** Snapshot only: reads existing runtime/catalog/profile stores; never starts OAuth or connects a provider. */
+    private fun connectorCapabilityInventoryEntries(
+        input: String,
+        connectorIdsRequested: Set<String>,
+        dispatcherAdmittedNames: Set<String>,
+    ): List<com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry> = runCatching {
+        val registry = ServiceLocator.connectorRegistry
+        val profiles = ServiceLocator.connectorAccessProfileStore
+        val normalizedInput = com.airi.assistant.ai.CapabilityIntentDetector.normalize(input)
+        registry.catalogMeta().map { meta ->
+            val connector = registry.get(meta.runtimeId)
+            val actions = connector?.agentActions().orEmpty().filter { action ->
+                (action.surfaceId ?: meta.runtimeId) == meta.id
+            }
+            val profile = profiles.get(meta.id)
+            val permittedActions = actions.filter { profile.permits(it.permission) }
+            val state = connector?.state()?.value
+            val providerAuthorizationRequired = listOf(
+                state?.statusLine.orEmpty(), state?.errorMessage.orEmpty()
+            ).any { it.contains("authoriz", ignoreCase = true) || it.contains("consent", ignoreCase = true) || it.contains("sign in", ignoreCase = true) }
+            val requiredProviderScopesGranted = meta.runtimeId != "google" ||
+                ServiceLocator.googleAuthService.hasAuthorizedDataScopes(
+                    permittedActions.flatMap { it.requiredOAuthScopes }.toSet()
+                )
+            val readiness = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.connectorAvailability(
+                com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.ConnectorReadinessFacts(
+                    supported = meta.availability != com.airi.assistant.connector.ConnectorAvailability.COMING_SOON,
+                    registered = connector != null,
+                    hasActions = actions.isNotEmpty(),
+                    hasPermittedActions = permittedActions.isNotEmpty(),
+                    connected = state?.connected == true,
+                    healthy = state?.healthy == true,
+                    providerAuthorizationRequired = providerAuthorizationRequired,
+                    requiredProviderScopesGranted = requiredProviderScopesGranted,
+                )
+            )
+            val surfaceToolNames = actions.map { action ->
+                ("connector_${meta.runtimeId}_${action.id}").lowercase()
+                    .replace(Regex("[^a-z0-9_]+"), "_").trim('_')
+            }
+            val terms = (listOf(meta.id, meta.name, meta.provider.orEmpty()) + meta.tags)
+                .map { term -> com.airi.assistant.ai.CapabilityIntentDetector.normalize(term) }
+                .filter { it.length >= 3 }
+            val mentioned = terms.any(normalizedInput::contains)
+            val selected = "*" in connectorIdsRequested || meta.runtimeId in connectorIdsRequested || mentioned
+            val exposed = surfaceToolNames.any { it in dispatcherAdmittedNames }
+            com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry(
+                id = meta.id,
+                family = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Family.CONNECTOR,
+                registered = connector != null && actions.isNotEmpty(),
+                availability = readiness,
+                inRequestCatalog = selected,
+                exposedToAgent = exposed,
+                admittedToDispatcher = exposed && readiness == com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.READY,
+                detail = when (readiness) {
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.PERMISSION_REQUIRED -> "User access profile is not granted for this surface."
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.AUTH_REQUIRED -> "Provider sign-in or the requested OAuth data scope is missing; this is separate from Android Accessibility."
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.CONFIGURATION_REQUIRED -> "A provider runtime/configuration is required before this surface can run."
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.UNSUPPORTED -> "No live runtime action is registered for this catalog surface."
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.DISCONNECTED -> "The registered provider runtime is disconnected."
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.ERROR -> "The registered provider runtime is unhealthy."
+                    else -> null
+                },
+            )
+        }
+    }.getOrDefault(emptyList())
+
+    private fun sandboxCapabilityInventoryEntries(): List<com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry> {
+        val inventory = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory
+        val guardRegistered = runCatching { ServiceLocator.agentSandbox }.isSuccess
+        val terminalRuntimeRegistered = runCatching { ServiceLocator.terminalRuntime }.isSuccess
+        val sandboxManagerRegistered = runCatching { ServiceLocator.sandboxManager }.isSuccess
+        return listOf(
+            inventory.Entry(
+                id = "agent_sandbox_guard",
+                family = inventory.Family.OTHER,
+                registered = guardRegistered,
+                availability = if (guardRegistered) inventory.Availability.READY else inventory.Availability.ERROR,
+                inRequestCatalog = false,
+                exposedToAgent = false,
+                admittedToDispatcher = false,
+                detail = "Permission/workspace guard; it is not an operating-system shell or process executor.",
+            ),
+            inventory.Entry(
+                id = "sandbox_process_execution",
+                family = inventory.Family.OTHER,
+                registered = terminalRuntimeRegistered && sandboxManagerRegistered,
+                availability = if (terminalRuntimeRegistered && sandboxManagerRegistered)
+                    inventory.Availability.BLOCKED else inventory.Availability.CONFIGURATION_REQUIRED,
+                inRequestCatalog = false,
+                exposedToAgent = false,
+                admittedToDispatcher = false,
+                detail = com.airi.assistant.domain.terminal.TerminalExecutionPolicy.DISABLED_REASON,
+            ),
+        )
+    }
+
+    private fun skillCapabilityInventoryEntries(
+        catalogToolNames: Set<String>,
+        dispatcherAdmittedNames: Set<String>,
+    ): List<com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry> = runCatching {
+        val inventory = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory
+        val runtimeSkills = skillRegistry.getAvailableSkills().associateBy { it.skillId }
+        skillRegistry.getAllSkillInfos().map { info ->
+            val runtimeSkill = runtimeSkills[info.id]
+            val connectorDependencies = info.dependencies.filter { it.startsWith("connector:") }
+                .map { it.removePrefix("connector:") }
+            val missingDependencies = connectorDependencies.filter { dependency ->
+                runCatching {
+                    val state = ServiceLocator.connectorRegistry.get(dependency)?.state()?.value
+                    state?.connected != true || state?.healthy != true
+                }.getOrDefault(true)
+            }
+            val decision = runtimeSkill?.let(skillToolBridge::readiness)
+            val deniedByPolicy = decision as? com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.Decision.Deny
+            val availability = when {
+                !info.isEnabled -> inventory.Availability.BLOCKED
+                missingDependencies.isNotEmpty() -> inventory.Availability.DEPENDENCY_MISSING
+                !info.isConnected && connectorDependencies.isEmpty() -> inventory.Availability.CONFIGURATION_REQUIRED
+                runtimeSkill == null -> inventory.Availability.ERROR
+                deniedByPolicy?.reason == com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.MISSING_PERMISSION ->
+                    inventory.Availability.PERMISSION_REQUIRED
+                deniedByPolicy?.reason == com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.CONNECTOR_UNHEALTHY ->
+                    inventory.Availability.DEPENDENCY_MISSING
+                deniedByPolicy?.reason == com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.MEMORY_UNAVAILABLE ||
+                    deniedByPolicy?.reason == com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.MODEL_UNAVAILABLE ->
+                    inventory.Availability.CONFIGURATION_REQUIRED
+                deniedByPolicy != null -> inventory.Availability.ERROR
+                else -> inventory.Availability.READY
+            }
+            val manifest = com.airi.assistant.ai.skills.OfficialSkillLibrary.manifestFor(info.id)
+            val manifestToolNames = manifest?.tools?.map { "skill_${it.name}" }.orEmpty()
+            val toolNames = when {
+                runtimeSkill != null && runtimeSkill.toolDefinitions.isNotEmpty() ->
+                    runtimeSkill.toolDefinitions.map { "skill_${it.name}" }
+                manifestToolNames.isNotEmpty() -> manifestToolNames
+                else -> listOf("skill_${info.id}")
+            }
+            val exposed = toolNames.any { it in dispatcherAdmittedNames }
+            inventory.Entry(
+                id = "skill:${info.id}",
+                family = inventory.Family.SKILL,
+                registered = true,
+                availability = availability,
+                inRequestCatalog = toolNames.any { it in catalogToolNames },
+                exposedToAgent = exposed,
+                admittedToDispatcher = exposed && availability == inventory.Availability.READY,
+                detail = when (availability) {
+                    inventory.Availability.BLOCKED -> "Skill is disabled in SkillRegistry."
+                    inventory.Availability.PERMISSION_REQUIRED -> "One or more declared Android permissions are not granted."
+                    inventory.Availability.DEPENDENCY_MISSING -> "Missing or unhealthy connector dependencies: ${missingDependencies.joinToString().ifBlank { "see skill authorization policy" }}."
+                    inventory.Availability.CONFIGURATION_REQUIRED -> "A required endpoint, memory service, or model bridge is not configured."
+                    inventory.Availability.ERROR -> "Registered skill could not be built or failed its runtime authorization policy."
+                    else -> null
+                },
+            )
+        }
+    }.getOrElse { error ->
+        listOf(
+            com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry(
+                id = "skill_inventory",
+                family = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Family.OTHER,
+                registered = false,
+                availability = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.ERROR,
+                inRequestCatalog = false,
+                exposedToAgent = false,
+                admittedToDispatcher = false,
+                detail = "SkillRegistry snapshot failed (${error.javaClass.simpleName}).",
+            )
+        )
+    }
 
     private fun buildEffectiveSystemPrompt(
         perfMode:      PerformanceMode = _performanceMode.value,

@@ -94,10 +94,12 @@ class ConnectorToolBridgeTest {
         val profiles = InMemoryConnectorAccessProfileStore().apply {
             set("microsoft_outlook", ConnectorAccessProfile.READ_ONLY)
         }
-        val names = bridge(registry, profiles).asToolSchemas().map { it.name }.toSet()
+        val bridge = bridge(registry, profiles)
+        val names = bridge.asToolSchemas().map { it.name }.toSet()
         assertTrue("connector_microsoft_graph_outlook_mail_read" in names)
         assertFalse("connector_microsoft_graph_teams_list_joined" in names)
         assertFalse("connector_microsoft_graph_sharepoint_site_read" in names)
+        assertEquals("microsoft_graph", bridge.connectorIdForTool("connector_microsoft_graph_outlook_mail_read"))
     }
 
     private fun bridge(registry: ConnectorRegistry, profiles: ConnectorAccessProfileStore) =

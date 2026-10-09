@@ -12,7 +12,18 @@ data class RuntimeToolContract(
     val reason: String? = null,
     val capabilityId: String? = null,
 ) {
-    enum class Readiness { AVAILABLE, NOT_READY, REQUIRES_AUTH, DISCONNECTED }
+    enum class Readiness {
+        AVAILABLE,
+        NOT_READY,
+        REQUIRES_AUTH,
+        PERMISSION_REQUIRED,
+        CONFIGURATION_REQUIRED,
+        DEPENDENCY_MISSING,
+        DISCONNECTED,
+        ERROR,
+        UNSUPPORTED,
+        BLOCKED,
+    }
     enum class Source { BUILTIN, SKILL, CONNECTOR }
 
     companion object {

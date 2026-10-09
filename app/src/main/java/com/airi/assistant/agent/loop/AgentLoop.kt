@@ -153,7 +153,27 @@ the tool returns an actual error.
             providerId = providerId,
             toolsRequested = tools.isNotEmpty(),
         )
-        val effectiveTools = permissionProfile.filterTools(tools)
+        val permissionFilteredTools = permissionProfile.filterTools(tools).filter { schema ->
+            val typedContextAvailable = when (schema.name) {
+                "calendar_create" -> executionContextFactory != null && calendarCreateRuntime != null
+                "terminal_execute" -> executionContextFactory != null
+                else -> false
+            }
+            val sideEffectAllowed = com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy
+                .decide(schema.name, typedContextAvailable) !=
+                com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED
+            val terminalEnabled = schema.name != "terminal_execute" ||
+                com.airi.assistant.domain.terminal.TerminalExecutionPolicy.evaluate("echo").allowed
+            sideEffectAllowed && terminalEnabled
+        }
+        val toolPromptBudget = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
+            .toolCharsCap(contextBudgetProvider().availableForContent)
+        val toolSelection = com.airi.assistant.agent.loop.tool.ToolSchemaPromptBudget.select(
+            permissionFilteredTools,
+            toolPromptBudget,
+        )
+        // Schemas omitted by the context budget are not dispatcher-eligible.
+        val effectiveTools = toolSelection.tools
         val toolsInvoked = mutableListOf<String>()
         val history      = priorConversation.mapNotNull { turn ->
             when (turn.role.lowercase()) {
@@ -182,7 +202,7 @@ the tool returns an actual error.
         var durableExecutionContext: AgentLoopExecutionContext? = null
         var activeToolTrace: ActiveToolTrace? = null
 
-        val fullSystemPrompt = systemPrompt + "\n\n" + buildToolBlock(effectiveTools) + TOOL_CALL_INSTRUCTION
+        val fullSystemPrompt = systemPrompt + "\n\n" + toolSelection.promptBlock + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
         // Device time/date is a deterministic system fact. Execute it before
         // the first model turn so a short question cannot degrade into a
@@ -881,32 +901,6 @@ the tool returns an actual error.
      * [ContributorBudgetPolicy.toolCharsCap] — the hardcoded 25% fraction
      * and 512-char floor live exclusively in the policy object, not here.
      */
-    private fun buildToolBlock(tools: List<ToolSchema>): String {
-        val raw = buildString {
-            appendLine("AVAILABLE TOOLS:")
-            for (tool in tools) {
-                appendLine("• ${tool.name}: ${tool.description}")
-                if (tool.parameters.isNotEmpty()) {
-                    appendLine("  Parameters: ${tool.parameters.entries.joinToString(", ") {
-                        "${it.key} (${it.value.type}${if (it.value.required) ", required" else ""})"
-                    }}")
-                }
-            }
-            appendLine()
-        }
-        val budget = contextBudgetProvider()
-        val maxChars = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
-            .toolCharsCap(budget.availableForContent)
-        return if (raw.length <= maxChars) {
-            raw
-        } else {
-            Log.w(TAG,
-                "AIRI TOOL_BLOCK_TRIMMED raw=${raw.length}chars max=${maxChars}chars " +
-                "nCtx=${budget.nCtx} tools=${tools.size}")
-            raw.take(maxChars) + "\n[...tools trimmed by ContextBudget]"
-        }
-    }
-
     // ── Conversation model ─────────────────────────────────────────────────────
 
     private data class ActiveToolTrace(

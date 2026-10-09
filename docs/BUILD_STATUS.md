@@ -1,3 +1,22 @@
+# أحدث تحقق — PR-9 (2026-10-09)
+
+- **الفرع:** `pr-0-pr-3`; تم توصيل Firebase memory sync فعلياً عبر Room outbox وtombstones وcursor owner-scoped.
+- **Room:** تمت الترقية إلى v11 مع migration `10→11` وجدول `memory_sync_mutations`.
+- **النتيجة:** بوابات compile، الاختبارات المستهدفة، الفحص العام، localization، release health، وفحص Firestore المصدرية كلها ناجحة.
+
+| البوابة | النتيجة |
+|---|---|
+| `:app:compileDebugKotlin` | **PASS** |
+| `:app:testDebugUnitTest` (memory/sync/orchestrator/permission) | **PASS** |
+| `tools/verify_core_changes.py` | **96/96 PASS** |
+| `scripts/airi_localization_health.py --strict` | **PASS** |
+| `scripts/airi_release_health.py` | **PASS** |
+| `scripts/airi_firestore_rules_test.py` | **PASS** |
+
+التفاصيل الكاملة في `docs/PR9_CLOSEOUT_REPORT.md`. اختبار Firebase Emulator الفعلي متروك لبوابة CI لأن binary المحاكي غير موجود في هذه البيئة.
+
+---
+
 # تحقق المرحلة الثانية — PR-2 وPR-3 (2026-10-08)
 
 - **الفرع:** `pr-0-pr-3`، مشتق من `pr-0-pr-1` والالتزام `766dd5e7`؛ لم يتم تعديل `main`.

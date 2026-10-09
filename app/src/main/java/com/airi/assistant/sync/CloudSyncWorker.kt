@@ -30,8 +30,8 @@ import java.util.concurrent.TimeUnit
  *   1. UserPreferences → Firestore (push)
  *   2. Firestore       → UserPreferences (pull / merge)
  *
- *   Memory entries are NOT synced here (they are large). Memory sync is a
- *   future opt-in feature gated behind a separate preference flag.
+ *   3. Opt-in durable long-term-memory outbox → Firestore (push)
+ *   4. Owner-scoped Firestore memory tombstones/rows → local memory (pull)
  *
  * ── ENQUEUE ───────────────────────────────────────────────────────────────
  *
@@ -55,8 +55,10 @@ class CloudSyncWorker(
 
         return try {
             ServiceLocator.cloudSyncCoordinator.pull()
+            ServiceLocator.cloudSyncCoordinator.pullMemories(ServiceLocator.memoryManager)
             ServiceLocator.cloudSyncCoordinator.pullTaskContinuity(ServiceLocator.durableTaskManager)
             ServiceLocator.cloudSyncCoordinator.push()
+            ServiceLocator.cloudSyncCoordinator.pushMemories(ServiceLocator.memoryManager)
             ServiceLocator.cloudSyncCoordinator.pushTaskContinuity(ServiceLocator.durableTaskManager)
             LoggingService.info(TAG, "AIRI CLOUD_SYNC_WORKER_OK")
             Result.success()

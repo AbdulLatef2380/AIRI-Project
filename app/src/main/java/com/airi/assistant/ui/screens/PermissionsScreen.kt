@@ -1,7 +1,6 @@
 package com.airi.assistant.ui.screens
 
 import android.Manifest
-import android.app.AlarmManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -181,18 +180,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
                 includedInSummary = false,
                 isSpecial   = true
             ),
-            PermissionInfo(
-                permission  = Manifest.permission.SCHEDULE_EXACT_ALARM,
-                label       = stringResource(R.string.permissions_exact_alarm_label),
-                icon        = Icons.Outlined.Alarm,
-                iconTint    = Color(0xFFFFC107),
-                rationale   = stringResource(R.string.permissions_exact_alarm_rationale),
-                whyNeeded   = stringResource(R.string.permissions_exact_alarm_why_needed),
-                group       = stringResource(R.string.permissions_group_alarm),
-                includedInSummary = false,
-                requiredOnDevice = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
-                isSpecial   = true
-            )
+
         )
 
     // Check grant status for each regular permission
@@ -233,9 +221,6 @@ fun PermissionsScreen(onBack: () -> Unit) {
     fun statusFor(permission: PermissionInfo): PermissionDisplayPolicy.Status =
         if (permission.isSpecial) {
             val granted = when (permission.permission) {
-                Manifest.permission.SCHEDULE_EXACT_ALARM ->
-                    Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-                        (context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true)
                 else -> AccessibilityServiceState.isEnabled(context)
             }
             PermissionDisplayPolicy.status(
@@ -523,27 +508,6 @@ private fun PermissionRow(
                                     } else {
                                         ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                                     }
-                                }
-                            }
-                    ) {
-                        Text(stringResource(R.string.permissions_enable_label), fontSize = 10.sp, color = CosmicAccent,
-                            fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
-                    }
-                } else if (perm.permission == Manifest.permission.SCHEDULE_EXACT_ALARM &&
-                    status != PermissionDisplayPolicy.Status.GRANTED) {
-                    Surface(
-                        shape = AIRIShapes.xs,
-                        color = CosmicAccent.copy(0.12f),
-                        modifier = Modifier
-                            .border(0.5.dp, CosmicAccent.copy(0.35f), AIRIShapes.xs)
-                            .clickable {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                    ctx.startActivity(
-                                        Intent(
-                                            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                                            Uri.parse("package:${ctx.packageName}")
-                                        )
-                                    )
                                 }
                             }
                     ) {

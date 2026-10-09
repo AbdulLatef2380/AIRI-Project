@@ -160,105 +160,86 @@ class CloudSyncCoordinator(
         }
     }
 
-    // ── Memory Sync () ─────────────────────────────────────────────────
+    // ── Memory Sync: opt-in, durable outbox, idempotent tombstones ─────────
 
     /**
-     * Incremental push of long-term memories to Firestore.
-     *
-     * Only memories with [ChatMessage.timestamp] > [lastMemorySyncMs] are
-     * uploaded, making repeated calls cheap after the first full push.
-     * The batch is capped at [MAX_MEMORY_BATCH] rows per call to avoid
-     * oversized Firestore writes.
-     *
-     * Skipped silently if:
-     *   - [UserPreferences.cloudSyncEnabled] = false
-     *   - [UserPreferences.enableLongTermMemory] = false
-     *   - User is signed out
-     *   - Firestore unavailable
-     *
-     * @param memoryManager   The local MemoryManager to read memories from.
+     * Uploads durable-memory mutations in bounded Firestore batches. The local
+     * outbox is acknowledged only after commit succeeds, so offline/restarted
+     * workers retry safely. Episodic chat rows never enter this path.
      */
     suspend fun pushMemories(memoryManager: MemoryManager) {
         val prefs = profileRepo.current
         if (!prefs.cloudSyncEnabled || !prefs.enableLongTermMemory) return
         val uid = auth.currentUser?.uid ?: return
-        val db  = db ?: return
-
-        val since = _lastMemorySyncMs.value
-        val memories = runCatching { memoryManager.getSemanticMemories(limit = 500) }
-            .getOrElse { emptyList() }
-            .filter { it.isMemory && it.timestamp > since }
-            .take(MAX_MEMORY_BATCH)
-
-        if (memories.isEmpty()) {
-            Log.d(TAG, "AIRI MEMORY_PUSH_SKIPPED reason=no_new_rows since=$since")
-            return
-        }
-
+        val firestore = db ?: return
         _syncStatus.value = SyncStatus.SYNCING
         runCatching {
-            val batch = db.batch()
-            memories.forEach { msg ->
-                val ref = db.collection("users").document(uid)
-                    .collection("memory").document(msg.id.toString())
-                batch.set(ref, memoryToDocument(msg), SetOptions.merge())
+            var total = 0
+            while (true) {
+                val pending = memoryManager.pendingSyncMutations(MAX_MEMORY_BATCH)
+                if (pending.isEmpty()) break
+                val batch = firestore.batch()
+                var maxUpdated = 0L
+                pending.forEach { mutation ->
+                    val ref = firestore.collection("users").document(uid)
+                        .collection("memory").document(mutation.memoryId.toString())
+                    val memory = memoryManager.getMemoryForSync(mutation.memoryId)
+                    val document = if (mutation.operation == "DELETE_TOMBSTONE" || memory == null) {
+                        mapOf("memoryId" to mutation.memoryId, "deleted" to true,
+                            "updatedAtMs" to mutation.updatedAtMs)
+                    } else {
+                        maxUpdated = maxOf(maxUpdated, memory.updatedAtMs)
+                        memoryToDocument(memory) + mapOf("deleted" to false)
+                    }
+                    batch.set(ref, document, SetOptions.merge())
+                }
+                batch.commit().await()
+                memoryManager.acknowledgeSyncMutations(pending.map { it.id })
+                total += pending.size
+                if (maxUpdated > 0L) _lastMemorySyncMs.value = maxUpdated
             }
-            batch.commit().await()
-            _lastMemorySyncMs.value = System.currentTimeMillis()
+            firestore.collection("users").document(uid).collection("sync_meta").document("memory")
+                .set(mapOf("cursorUpdatedAtMs" to _lastMemorySyncMs.value,
+                    "lastSyncMs" to System.currentTimeMillis()), SetOptions.merge()).await()
             _syncStatus.value = SyncStatus.SUCCESS
-            LoggingService.info(TAG, "AIRI MEMORY_PUSH_OK uid=${uid.take(8)}… rows=${memories.size}")
+            LoggingService.info(TAG, "AIRI MEMORY_PUSH_OK uid=${uid.take(8)}… rows=$total")
         }.onFailure { e ->
             _syncStatus.value = SyncStatus.FAILED
-            LoggingService.warn(TAG, "AIRI MEMORY_PUSH_FAILED: ${e.message}")
+            LoggingService.warn(TAG, "AIRI MEMORY_PUSH_FAILED type=${e.javaClass.simpleName}")
         }
     }
 
-    /**
-     * Pull long-term memories from Firestore and restore any missing rows
-     * into [memoryManager]. Uses last-write-wins conflict resolution:
-     * if a remote row's timestamp is newer than the local equivalent,
-     * the remote version is preferred.
-     *
-     * @param memoryManager   The local MemoryManager to merge memories into.
-     */
+    /** Pulls owner-scoped memory documents and applies last-write-wins locally. */
     suspend fun pullMemories(memoryManager: MemoryManager) {
         val prefs = profileRepo.current
         if (!prefs.cloudSyncEnabled || !prefs.enableLongTermMemory) return
         val uid = auth.currentUser?.uid ?: return
-        val db  = db ?: return
-
+        val firestore = db ?: return
         _syncStatus.value = SyncStatus.SYNCING
         runCatching {
-            val snap = db.collection("users").document(uid)
-                .collection("memory")
-                .limit(MAX_MEMORY_PULL.toLong())
-                .get().await()
-
-            if (snap.isEmpty) {
-                _syncStatus.value = SyncStatus.SUCCESS
-                return
-            }
-
-            val local = runCatching { memoryManager.getSemanticMemories(limit = 1000) }.getOrElse { emptyList() }
-            val localIds = local.map { it.id }.toSet()
-
+            val snap = firestore.collection("users").document(uid).collection("memory")
+                .limit(MAX_MEMORY_PULL.toLong()).get().await()
             var restored = 0
-            snap.documents.forEach { doc ->
-                val remoteMsg = documentToMemory(doc.data ?: return@forEach)
-                if (remoteMsg != null && remoteMsg.id !in localIds) {
-                    // Record as a long-term memory; the DAO prevents duplicates by PK.
-                    runCatching {
-                        memoryManager.recordImportantMemory(remoteMsg.role, remoteMsg.content, remoteMsg.emotionState)
+            snap.documents.forEach { document ->
+                val data = document.data ?: return@forEach
+                val memoryId = (data["memoryId"] as? Long)
+                    ?: document.id.toLongOrNull() ?: return@forEach
+                if (data["deleted"] == true) {
+                    memoryManager.removeSyncedMemory(memoryId)
+                } else {
+                    documentToMemory(data)?.let {
+                        memoryManager.restoreSyncedMemory(it)
+                        restored++
                     }
-                    restored++
                 }
             }
-
+            firestore.collection("users").document(uid).collection("sync_meta").document("memory")
+                .get().await().getLong("cursorUpdatedAtMs")?.let { _lastMemorySyncMs.value = it }
             _syncStatus.value = SyncStatus.SUCCESS
             LoggingService.info(TAG, "AIRI MEMORY_PULL_OK uid=${uid.take(8)}… restored=$restored total=${snap.size()}")
         }.onFailure { e ->
             _syncStatus.value = SyncStatus.FAILED
-            LoggingService.warn(TAG, "AIRI MEMORY_PULL_FAILED: ${e.message}")
+            LoggingService.warn(TAG, "AIRI MEMORY_PULL_FAILED type=${e.javaClass.simpleName}")
         }
     }
 
@@ -388,26 +369,44 @@ class CloudSyncCoordinator(
     val lastMemorySyncMs: StateFlow<Long> = _lastMemorySyncMs.asStateFlow()
 
     private fun memoryToDocument(msg: ChatMessage): Map<String, Any?> = mapOf(
-        "id"           to msg.id,
+        "memoryId"     to msg.id,
         "role"         to msg.role,
         "content"      to msg.content.take(MAX_MEMORY_CONTENT_CHARS),
         "emotionState" to msg.emotionState,
         "sessionId"    to msg.sessionId,
         "timestamp"    to msg.timestamp,
-        "isMemory"     to true
+        "isMemory"     to true,
+        "projectId"    to msg.projectId,
+        "memorySource" to msg.memorySource,
+        "provenance"   to msg.provenance.take(500),
+        "confidence"   to msg.confidence,
+        "importance"   to msg.importance,
+        "memoryScope"  to msg.memoryScope,
+        "privacyLevel" to msg.privacyLevel,
+        "expiresAtMs"  to msg.expiresAtMs,
+        "updatedAtMs"  to msg.updatedAtMs
     )
 
     private fun documentToMemory(doc: Map<String, Any?>): ChatMessage? {
         val role    = (doc["role"]    as? String) ?: return null
         val content = (doc["content"] as? String) ?: return null
         return ChatMessage(
-            id           = (doc["id"] as? Long) ?: 0L,
+            id           = (doc["memoryId"] as? Long) ?: (doc["id"] as? Long) ?: 0L,
             role         = role,
             content      = content,
             emotionState = doc["emotionState"] as? String,
             sessionId    = (doc["sessionId"] as? String) ?: "",
-            timestamp    = (doc["timestamp"] as? Long) ?: 0L,
-            isMemory     = true
+            timestamp    = (doc["timestamp"]    as? Long) ?: 0L,
+            isMemory     = true,
+            projectId    = (doc["projectId"] as? String).orEmpty(),
+            memorySource = (doc["memorySource"] as? String) ?: "SYNCED_MEMORY",
+            provenance   = (doc["provenance"] as? String).orEmpty(),
+            confidence   = (doc["confidence"] as? Double)?.toFloat() ?: 0f,
+            importance   = (doc["importance"] as? Long)?.toInt() ?: 0,
+            memoryScope  = (doc["memoryScope"] as? String) ?: "SESSION",
+            privacyLevel = (doc["privacyLevel"] as? Long)?.toInt() ?: 1,
+            expiresAtMs  = (doc["expiresAtMs"] as? Long) ?: -1L,
+            updatedAtMs  = (doc["updatedAtMs"] as? Long) ?: ((doc["timestamp"] as? Long) ?: 0L)
         )
     }
 

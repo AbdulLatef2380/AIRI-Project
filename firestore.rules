@@ -89,6 +89,55 @@ service cloud.firestore {
         && commandPayloadIsValid();
     }
 
+    function validMemory(memoryId) {
+      return request.resource.data.keys().hasOnly([
+          'memoryId', 'role', 'content', 'emotionState', 'sessionId', 'timestamp',
+          'isMemory', 'projectId', 'memorySource', 'provenance', 'confidence',
+          'importance', 'memoryScope', 'privacyLevel', 'expiresAtMs', 'updatedAtMs',
+          'deleted'
+        ])
+        && request.resource.data.memoryId == memoryId
+        && request.resource.data.deleted is bool
+        && request.resource.data.updatedAtMs is int
+        && (request.resource.data.deleted == true || (
+          request.resource.data.isMemory == true
+          && request.resource.data.content is string
+          && request.resource.data.content.size() > 0
+          && request.resource.data.content.size() <= 2000
+          && request.resource.data.role is string
+          && request.resource.data.sessionId is string
+          && request.resource.data.provenance.size() <= 500
+        ));
+    }
+
+    function validMemoryCursor() {
+      return request.resource.data.keys().hasOnly(['cursorUpdatedAtMs', 'lastSyncMs'])
+        && request.resource.data.cursorUpdatedAtMs is int
+        && request.resource.data.lastSyncMs is int;
+    }
+
+    match /users/{userId}/profile/{profileId} {
+      allow read, write: if ownsUser(userId) && profileId == 'preferences';
+    }
+
+    match /users/{userId}/sync_meta/{metaId} {
+      allow read: if ownsUser(userId);
+      allow create, update: if ownsUser(userId)
+        && (metaId == 'memory' && validMemoryCursor()
+            || metaId == 'device');
+      allow delete: if false;
+    }
+
+    match /users/{userId}/memory/{memoryId} {
+      allow read: if ownsUser(userId);
+      allow create, update: if ownsUser(userId) && validMemory(memoryId);
+      allow delete: if false;
+    }
+
+    match /users/{userId}/task_continuity/{taskId} {
+      allow read, write: if ownsUser(userId);
+    }
+
     match /users/{userId}/devices/{deviceId} {
       allow read: if ownsUser(userId);
       allow create: if ownsUser(userId)

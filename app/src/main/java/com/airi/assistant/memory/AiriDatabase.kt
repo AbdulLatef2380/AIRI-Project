@@ -14,6 +14,7 @@ import com.airi.assistant.memory.dao.BehaviorStatsDao
 import com.airi.assistant.memory.dao.ContextCacheDao
 import com.airi.assistant.memory.dao.EmbeddingDao
 import com.airi.assistant.memory.dao.MemoryDao
+import com.airi.assistant.memory.dao.MemorySyncDao
 import com.airi.assistant.memory.dao.SessionDao
 import com.airi.assistant.memory.dao.UsageStatsDao
 import com.airi.assistant.memory.entity.ArtifactEntity
@@ -25,6 +26,7 @@ import com.airi.assistant.memory.entity.ContextCacheEntity
 import com.airi.assistant.memory.entity.MessageEmbedding
 import com.airi.assistant.memory.entity.UsageStatEntity
 import com.airi.assistant.memory.entity.UserPreference
+import com.airi.assistant.memory.entity.MemorySyncMutationEntity
 import java.io.File
 
 /**
@@ -40,6 +42,7 @@ import java.io.File
      *   v7 → v8: Added memory provenance, scope, confidence, retention, and privacy metadata.
      *   v8 → v9: Added project/task/run/step/tool/model provenance to workspace artifacts.
      *   v9 → v10: Normalized episodic-memory index names to match the Room entities.
+     *   v10 → v11: Added durable opt-in memory-sync outbox mutations.
 
  *
  * [exportBackup] copies the live database file to a destination [File] using
@@ -55,14 +58,16 @@ import java.io.File
         UsageStatEntity::class,
         MessageEmbedding::class,
         AuditLogEntity::class,
-        ArtifactEntity::class
+        ArtifactEntity::class,
+        MemorySyncMutationEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = true
 )
 @TypeConverters(AuditLogTypeConverters::class)
 abstract class AiriDatabase : RoomDatabase() {
     abstract fun memoryDao():       MemoryDao
+    abstract fun memorySyncDao():   MemorySyncDao
     abstract fun sessionDao():      SessionDao
     abstract fun behaviorStatsDao(): BehaviorStatsDao
     abstract fun contextCacheDao(): ContextCacheDao
@@ -209,6 +214,20 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS memory_sync_mutations (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        memoryId INTEGER NOT NULL,
+                        operation TEXT NOT NULL,
+                        updatedAtMs INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_sync_mutations_memoryId ON memory_sync_mutations(memoryId)")
+            }
+        }
+
         internal fun migrations(): Array<Migration> = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -218,7 +237,8 @@ abstract class AiriDatabase : RoomDatabase() {
             MIGRATION_6_7,
             MIGRATION_7_8,
             MIGRATION_8_9,
-            MIGRATION_9_10
+            MIGRATION_9_10,
+            MIGRATION_10_11
         )
 
         fun getDatabase(context: Context): AiriDatabase {

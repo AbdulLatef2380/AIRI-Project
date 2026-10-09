@@ -183,6 +183,7 @@ class ProductionAgentOrchestrator(
 
     private val activeExecutions = ConcurrentHashMap<String, OrchestratorExecution>()
     private var nextExecutionOrder = 0L
+    private var orchestrationScope = newOrchestrationScope()
 
     private val _state = MutableStateFlow<OrchestratorState>(OrchestratorState.Idle)
     val state: StateFlow<OrchestratorState> = _state.asStateFlow()
@@ -194,11 +195,12 @@ class ProductionAgentOrchestrator(
         parentContext: kotlin.coroutines.CoroutineContext,
     ): OrchestratorExecution? {
         if (activeExecutions.containsKey(id)) return null
-        val executionJob = SupervisorJob(parentContext[Job])
+        val rootScope = orchestrationScope
+        val executionJob = SupervisorJob(rootScope.coroutineContext[Job])
         val execution = OrchestratorExecution(
             id = id,
             job = executionJob,
-            scope = CoroutineScope(parentContext + Dispatchers.IO + executionJob),
+            scope = CoroutineScope(rootScope.coroutineContext + parentContext.minusKey(Job) + Dispatchers.IO + executionJob),
             order = ++nextExecutionOrder,
             totalTasks = totalTasks
         )
@@ -803,6 +805,8 @@ class ProductionAgentOrchestrator(
         activeExecutions.values.forEach { execution ->
             execution.job.cancel(CancellationException("All orchestrations cancelled"))
         }
+        orchestrationScope.cancel()
+        orchestrationScope = newOrchestrationScope()
         publishState()
         // Observability must never prevent an emergency cancellation from completing.
         runCatching { Log.i(TAG, "All request-scoped orchestrations cancelled") }
@@ -815,6 +819,9 @@ class ProductionAgentOrchestrator(
         publishState()
         return true
     }
+
+    private fun newOrchestrationScope(): CoroutineScope =
+        CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     // ─────────────────────────────────────────────────────────────────────────
     // Data types

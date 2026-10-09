@@ -7,6 +7,7 @@ import com.airi.assistant.agent.memory.AgentMemoryDecision
 import com.airi.core.memory.MemoryAdmissionPolicy
 import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.memory.dao.ChatSessionSummary
+import com.airi.assistant.memory.entity.MemorySyncMutationEntity
 import com.airi.assistant.memory.embedding.EmbeddingService
 import com.airi.assistant.memory.entity.ChatMessage
 import com.airi.assistant.memory.entity.ChatSession
@@ -55,6 +56,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
     private val appContext = context.applicationContext
     private val db = AiriDatabase.getDatabase(appContext)
     private val dao = db.memoryDao()
+    private val syncDao = db.memorySyncDao()
     private val sessionDao = db.sessionDao()
     // SupervisorJob required: without it, a single child exception cancels the
     // entire scope and all subsequent scope.launch {} calls become no-ops —
@@ -144,6 +146,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
             ),
             keepRecentPerScope = MAX_LONG_TERM_FACTS_PER_SESSION
         ) ?: return ExplicitMemoryResult.Duplicate
+        enqueueSyncMutation(id, "UPSERT")
         return ExplicitMemoryResult.Stored(id)
     }
 
@@ -198,7 +201,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
                         .forEach { fact ->
                             val storedFact = "[memory] $fact"
                             val now = System.currentTimeMillis()
-                            dao.insertScopedLongTermMemoryIfAbsent(
+                            val insertedId = dao.insertScopedLongTermMemoryIfAbsent(
                                 ChatMessage(
                                     sessionId = sessionId,
                                     role = "system",
@@ -216,6 +219,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
                                 ),
                                 keepRecentPerScope = MAX_LONG_TERM_FACTS_PER_SESSION
                             )
+                            if (insertedId != null) enqueueSyncMutation(insertedId, "UPSERT")
                         }
                 }.onFailure { android.util.Log.w("AIRI_MEMORY", "Fact admission failed: ${it.javaClass.simpleName}") }
             }
@@ -256,11 +260,13 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
     }
 
     suspend fun deleteMessage(messageId: Long): Boolean {
-        val attachmentJson = db.withTransaction {
+        val deleted = db.withTransaction {
             val message = dao.getMessageById(messageId) ?: return@withTransaction null
             dao.deleteMessageById(messageId)
-            message.attachmentJson.orEmpty()
+            message
         } ?: return false
+        if (deleted.isMemory) enqueueSyncMutation(deleted.id, "DELETE_TOMBSTONE")
+        val attachmentJson = deleted.attachmentJson.orEmpty()
 
         if (attachmentJson.isNotBlank()) {
             withContext(Dispatchers.IO) { deleteAttachmentFiles(listOf(attachmentJson)) }
@@ -325,6 +331,32 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         return dao.getRecentMemories(limit)
     }
 
+    internal suspend fun getMemoryForSync(memoryId: Long): ChatMessage? = dao.getMessageById(memoryId)
+
+    internal suspend fun pendingSyncMutations(limit: Int = 100): List<MemorySyncMutationEntity> =
+        syncDao.pending(limit.coerceIn(1, 100))
+
+    internal suspend fun acknowledgeSyncMutations(ids: List<Long>) {
+        if (ids.isNotEmpty()) syncDao.remove(ids)
+    }
+
+    /** Applies a remote deletion without creating a second outbox mutation. */
+    internal suspend fun removeSyncedMemory(memoryId: Long) {
+        dao.deleteLongTermMemory(memoryId)
+        syncDao.removeForMemory(memoryId)
+    }
+
+    /** Inserts a server-owned row with its stable local id; never creates an outbox echo. */
+    internal suspend fun restoreSyncedMemory(message: ChatMessage) {
+        if (!message.isMemory || message.content.isBlank()) return
+        val local = dao.getMessageById(message.id)
+        if (local == null || message.updatedAtMs >= local.updatedAtMs) dao.insertMessage(message)
+    }
+
+    private suspend fun enqueueSyncMutation(memoryId: Long, operation: String) {
+        syncDao.enqueue(MemorySyncMutationEntity(memoryId = memoryId, operation = operation))
+    }
+
     suspend fun getLongTermMemories(sessionId: String, limit: Int = 20): List<ChatMessage> =
         dao.getRecentLongTermMemories(sessionId, limit)
 
@@ -368,13 +400,20 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
             )
         }
 
-    suspend fun forgetMemory(memoryId: Long): Boolean =
-        dao.deleteLongTermMemory(memoryId) > 0
+    suspend fun forgetMemory(memoryId: Long): Boolean {
+        val existed = dao.getMessageById(memoryId)?.isMemory == true
+        val deleted = dao.deleteLongTermMemory(memoryId) > 0
+        if (deleted && existed) enqueueSyncMutation(memoryId, "DELETE_TOMBSTONE")
+        return deleted
+    }
 
     /** Clears only durable memories attached to the supplied conversation. */
     suspend fun clearSessionMemories(sessionId: String): Int {
         require(sessionId.isNotBlank()) { "A non-empty owning session is required to clear memories" }
-        return dao.deleteLongTermMemoriesForSession(sessionId)
+        val ids = dao.getRecentLongTermMemories(sessionId, 10_000).map { it.id }
+        val deleted = dao.deleteLongTermMemoriesForSession(sessionId)
+        ids.forEach { enqueueSyncMutation(it, "DELETE_TOMBSTONE") }
+        return deleted
     }
 
     suspend fun editMemory(
@@ -391,7 +430,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         val normalized = content.trim()
         if (!canStoreImportantMemory(normalized)) return false
         val normalizedScope = MemoryMetadataPolicy.normalizeScope(scope, projectId)
-        return dao.updateLongTermMemory(
+        val updated = dao.updateLongTermMemory(
             memoryId = memoryId,
             content = normalized,
             provenance = MemoryMetadataPolicy.sanitizeProvenance(provenance),
@@ -403,6 +442,8 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
             expiresAtMs = expiresAtMs,
             updatedAtMs = System.currentTimeMillis()
         ) > 0
+        if (updated) enqueueSyncMutation(memoryId, "UPSERT")
+        return updated
     }
 
     /** Updates only user-authored content while preserving durable memory metadata. */
@@ -459,7 +500,9 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
     }
 
     suspend fun clearAll() {
-        dao.clearSemanticMemories()
+        val durable = dao.getRecentMemories(10_000).filter { it.isMemory }
+        db.withTransaction { dao.clearSemanticMemories() }
+        durable.forEach { enqueueSyncMutation(it.id, "DELETE_TOMBSTONE") }
     }
 
     private companion object {

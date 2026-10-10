@@ -46,4 +46,19 @@ class CapabilityIntentDetectorTest {
     fun deviceCommandsAreActionsEvenWhenShort() {
         assertEquals(QueryType.ACTION, QueryClassifier.classifyQuery("شغّل الواي فاي"))
     }
+
+    @Test
+    fun terminalCommandRequestsToolsAndActionProfile() {
+        val intent = CapabilityIntentDetector.detect("اعرض ملفات sandbox")
+        assertTrue(intent.requires(CapabilityIntentDetector.Capability.TERMINAL_EXECUTE))
+        assertTrue(intent.requiresTools)
+        assertEquals(QueryType.ACTION, QueryClassifier.classifyQuery("اعرض ملفات sandbox"))
+    }
+
+    @Test
+    fun terminalMentionWithoutCommandDoesNotAuthorizeExecution() {
+        val intent = CapabilityIntentDetector.detect("ماذا عن terminal؟")
+        assertTrue(intent.capabilities.isEmpty())
+        assertEquals(QueryType.SIMPLE, QueryClassifier.classifyQuery("ماذا عن terminal؟"))
+    }
 }

@@ -85,6 +85,7 @@ object RuntimeToolCatalog {
             }
             if (intent.requires(CapabilityIntentDetector.Capability.DEVICE_STATE) &&
                 (requestText.contains("screen", ignoreCase = true) || requestText.contains("الشاشة"))) add("read_screen")
+            if (intent.requires(CapabilityIntentDetector.Capability.TERMINAL_EXECUTE)) add("terminal_execute")
         }
         val normalizedRequest = CapabilityIntentDetector.normalize(requestText)
         val ordered = exposed.distinctBy { it.schema.name }.sortedWith(

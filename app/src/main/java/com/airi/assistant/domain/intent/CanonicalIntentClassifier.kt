@@ -35,13 +35,15 @@ object CanonicalIntentClassifier {
 
         val capabilityIntent = CapabilityIntentDetector.detect(text)
         val deviceAction = capabilityIntent.requires(CapabilityIntentDetector.Capability.DEVICE_ACTION)
+        val terminalExecute = capabilityIntent.requires(CapabilityIntentDetector.Capability.TERMINAL_EXECUTE)
         val connectorRead = capabilityIntent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ)
-        val liveRead = capabilityIntent.requiresTools && !deviceAction
+        val liveRead = capabilityIntent.requiresTools && !deviceAction && !terminalExecute
         val startsAction = actionVerbs.any(text::startsWith)
-        val possibleAction = deviceAction || startsAction || connectorRead
+        val possibleAction = deviceAction || terminalExecute || startsAction || connectorRead
         if (possibleAction) {
             val capability = when {
                 deviceAction -> "device_action"
+                terminalExecute -> "terminal_execute"
                 connectorRead -> "connector_read"
                 startsAction && text.contains("settings") -> "open_settings"
                 startsAction -> "user_action"
@@ -57,7 +59,7 @@ object CanonicalIntentClassifier {
                 canonicalCapability = capability,
                 typedSlots = slots,
                 confidence = if (capability == "user_action") ChatIntent.Confidence.MEDIUM else ChatIntent.Confidence.HIGH,
-                risk = if (deviceAction || startsAction) ChatIntent.Risk.SIDE_EFFECT else ChatIntent.Risk.READ,
+                risk = if (deviceAction || terminalExecute || startsAction) ChatIntent.Risk.SIDE_EFFECT else ChatIntent.Risk.READ,
                 rationale = "capability_or_imperative_detected",
             )
         }

@@ -51,9 +51,36 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
         val context = params["context"] as? SkillContext
         val max     = resolveMax(input, context)
 
-        val r = toolExecutor.execute(ToolCall("gmail_list_emails", mapOf("max" to max.toString())))
-        return SkillResult(r.success, r.data, r.error)
+        val list = toolExecutor.execute(
+            ToolCall(
+                "gmail_list_emails",
+                mapOf("max" to max.toString(), "query" to "in:sent")
+            )
+        )
+        if (!list.success) return SkillResult(false, "", list.error)
+
+        // The connector intentionally returns IDs only from list; message content
+        // is fetched through the separately authorized read action.
+        val messageId = Regex("(?m)^Message ID:\\s*([A-Za-z0-9_-]+)\\s*$")
+            .find(list.data)
+            ?.groupValues
+            ?.getOrNull(1)
+        if (messageId.isNullOrBlank()) {
+            return SkillResult(true, "No sent Gmail messages found.", null)
+        }
+
+        val read = toolExecutor.execute(
+            ToolCall("gmail_read_email", mapOf("message_id" to messageId))
+        )
+        if (!read.success) return SkillResult(false, "", read.error)
+        return SkillResult(
+            success = true,
+            data = "Latest sent Gmail message (for summarization):\n${read.data.take(MAX_RESULT_CHARS)}",
+            error = null,
+        )
     }
+
+    private companion object { const val MAX_RESULT_CHARS = 12_000 }
 
     private fun resolveMax(input: String, context: SkillContext?): Int {
         val numRegex = Regex("\\d+")

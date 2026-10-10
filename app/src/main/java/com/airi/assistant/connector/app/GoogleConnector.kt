@@ -72,7 +72,8 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
         ConnectorAgentAction("gmail_list", "List authorized Gmail messages.", surfaceId = "google_gmail", providerGrants = listOf(
             ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.GOOGLE_GMAIL_READONLY)
         ), parameters = mapOf(
-            "max_results" to ConnectorAgentParameter(type = "int", description = "Maximum messages to list", minInt = 1, maxInt = 100)
+            "max_results" to ConnectorAgentParameter(type = "int", description = "Maximum messages to list", minInt = 1, maxInt = 100),
+            "query" to ConnectorAgentParameter(description = "Validated Gmail search query", maxLength = 512),
         )),
         ConnectorAgentAction("gmail_read", "Read an authorized Gmail message.", surfaceId = "google_gmail", providerGrants = listOf(
             ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, ConnectorProviderScopes.GOOGLE_GMAIL_READONLY)
@@ -184,7 +185,9 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
     private fun executeGmailList(token: String, input: ConnectorInput): ConnectorOutput {
         val maxResults = input.params["max_results"]?.toIntOrNull() ?: 10
         return try {
-            val url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=$maxResults"
+            val query = input.params["query"].orEmpty().trim()
+            val queryPart = if (query.isBlank()) "" else "&q=${java.net.URLEncoder.encode(query, "UTF-8") }"
+            val url = "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=$maxResults$queryPart"
             val response = get(url, token)
             val messages = response.optJSONArray("messages")
             val count = messages?.length() ?: 0
@@ -217,9 +220,10 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
                 .firstOrNull { it?.optString("name") == "Subject" }
                 ?.optString("value") ?: "(no subject)"
             val snippet = response.optString("snippet", "")
+            val body = GmailMessageDecoder.decode(payload)
             ConnectorOutput.Success(
-                text = "Subject: $subject\n\n$snippet",
-                data = mapOf("messageId" to messageId, "subject" to subject)
+                text = "Subject: $subject\n\n${body.ifBlank { snippet }}",
+                data = mapOf("messageId" to messageId, "subject" to subject, "hasBody" to body.isNotBlank().toString())
             )
         } catch (e: Exception) {
             Log.w(TAG, "gmail_read request failed")

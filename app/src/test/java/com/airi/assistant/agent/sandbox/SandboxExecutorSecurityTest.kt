@@ -47,6 +47,38 @@ class SandboxExecutorSecurityTest {
     }
 
     @Test
+    fun symlinkReadAndWriteCannotEscapeWorkspace() = runBlocking {
+        val root = Files.createTempDirectory("airi-sandbox-").toFile()
+        val outside = java.io.File(root.parentFile, "airi-secret-${root.name}").apply { writeText("private") }
+        try {
+            Files.createSymbolicLink(java.io.File(root, "link.txt").toPath(), outside.toPath())
+            val executor = SandboxExecutor(SandboxSession("test", "test", root))
+            val read = executor.execute(SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.FILE_READ, "link.txt"))
+            val write = executor.execute(SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.FILE_WRITE, "link.txt", "changed"))
+            assertTrue(read is SandboxExecutor.ExecutionResult.SecurityViolation)
+            assertTrue(write is SandboxExecutor.ExecutionResult.SecurityViolation)
+            assertTrue(outside.readText() == "private")
+        } finally {
+            root.deleteRecursively()
+            outside.delete()
+        }
+    }
+
+    @Test
+    fun shellPathArgumentsAndDestructiveCommandsAreRejected() = runBlocking {
+        val root = Files.createTempDirectory("airi-sandbox-").toFile()
+        try {
+            val executor = SandboxExecutor(SandboxSession("test", "test", root))
+            val traversal = executor.execute(SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "cat ../secret.txt"))
+            val destructive = executor.execute(SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "rm -rf ./output"))
+            assertTrue(traversal is SandboxExecutor.ExecutionResult.SecurityViolation)
+            assertTrue(destructive is SandboxExecutor.ExecutionResult.SecurityViolation)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun shellInjectionAbsolutePathsAndNetworkGitAreRejected() = runBlocking {
         val root = Files.createTempDirectory("airi-sandbox-").toFile()
         try {

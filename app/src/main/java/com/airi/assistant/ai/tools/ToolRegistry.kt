@@ -29,6 +29,7 @@ class ToolRegistry(private val context: Context) {
             // These tools are adapters over the registered GoogleConnector. They
             // must never become independent API clients or success-shaped stubs.
             tools.add(GmailListEmailsTool(ServiceLocator.connectorRuntimeManager))
+            tools.add(GmailReadEmailTool(ServiceLocator.connectorRuntimeManager))
             tools.add(DriveSearchFileTool(ServiceLocator.connectorRuntimeManager))
             tools.add(CalendarNextEventsTool(ServiceLocator.connectorRuntimeManager))
         }
@@ -99,7 +100,11 @@ class ToolRegistry(private val context: Context) {
             ),
             "gmail_list_emails" to ToolMeta(
                 whenToUse = "When user asks to check, read, or list their Gmail emails",
-                expectedInput = "max (optional): number of emails to return"
+                expectedInput = "max (optional): number of emails; query (optional): validated Gmail search query"
+            ),
+            "gmail_read_email" to ToolMeta(
+                whenToUse = "When the agent needs the body of one authorized Gmail message",
+                expectedInput = "message_id: Gmail message identifier"
             ),
             "drive_search_file" to ToolMeta(
                 whenToUse = "When user wants to find a specific file or document in Google Drive",
@@ -176,7 +181,8 @@ private class GmailListEmailsTool(private val runtime: ConnectorRuntimeManager) 
     override val name = "gmail_list_emails"
     override val description = "List recent Gmail emails (requires OAuth access token)"
     override val parameters: Map<String, String> = mapOf(
-        "max" to "max number of emails to return (default 5)"
+        "max" to "max number of emails to return (default 5)",
+        "query" to "validated Gmail search query (optional)"
     )
 
     override suspend fun execute(params: Map<String, String>): ToolResult {
@@ -185,8 +191,32 @@ private class GmailListEmailsTool(private val runtime: ConnectorRuntimeManager) 
             "google",
             ConnectorInput(
                 action = "gmail_list",
-                params = mapOf("max_results" to maxResults.toString()),
+                params = buildMap {
+                    put("max_results", maxResults.toString())
+                    params["query"]?.trim()?.takeIf { it.isNotBlank() }?.let { put("query", it) }
+                },
                 authorizationActionId = "gmail_list",
+            )
+        ).toToolResult()
+    }
+}
+
+private class GmailReadEmailTool(private val runtime: ConnectorRuntimeManager) : Tool {
+    override val name = "gmail_read_email"
+    override val description = "Read one authorized Gmail email body (requires OAuth access token)"
+    override val parameters: Map<String, String> = mapOf("message_id" to "Gmail message identifier")
+
+    override suspend fun execute(params: Map<String, String>): ToolResult {
+        val messageId = params["message_id"]?.trim().orEmpty()
+        if (messageId.isBlank() || messageId.length > 512 || !messageId.matches(Regex("[A-Za-z0-9_-]+"))) {
+            return ToolResult(false, "", "A valid Gmail message_id is required")
+        }
+        return runtime.execute(
+            "google",
+            ConnectorInput(
+                action = "gmail_read",
+                params = mapOf("message_id" to messageId),
+                authorizationActionId = "gmail_read",
             )
         ).toToolResult()
     }

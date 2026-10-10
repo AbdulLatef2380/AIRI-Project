@@ -68,7 +68,8 @@ class SandboxExecutor(private val session: SandboxSession) {
         } ?: ExecutionResult.Timeout
         session.appendLog(SandboxLogEntry(
             level = if (result is ExecutionResult.Success) "INFO" else "ERROR",
-            message = "RESULT ${CommandRedactor.redact(result.toString())}"
+            // Never put command output in the activity log; it may contain user data.
+            message = "RESULT type=${result::class.simpleName}"
         ))
         result
     }
@@ -154,18 +155,7 @@ class SandboxExecutor(private val session: SandboxSession) {
             }
         }
 
-        // : Argument scope restriction — prevent path traversal attacks.
-        // Find the first non-flag argument (doesn't start with '-') and check it
-        // against the per-binary restriction if one exists.
-        val restriction = BINARY_ARG_RESTRICTIONS[binary]
-        if (restriction != null) {
-            val firstPathArg = argv.drop(1).firstOrNull { !it.startsWith("-") }
-            if (firstPathArg != null && !restriction.containsMatchIn(firstPathArg)) {
-                return ExecutionResult.SecurityViolation(
-                    "Argument scope violation: '$binary $firstPathArg' — only relative paths permitted ()"
-                )
-            }
-        }
+        validateArguments(binary, argv)?.let { return ExecutionResult.SecurityViolation(it) }
 
         return try {
             val pb = ProcessBuilder(argv)
@@ -241,6 +231,31 @@ class SandboxExecutor(private val session: SandboxSession) {
     private fun tokenize(cmd: String): List<String> =
         cmd.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
 
+    private fun validateArguments(binary: String, argv: List<String>): String? {
+        if (binary in setOf("mkdir", "cp", "mv", "rm", "zip", "unzip", "tar")) {
+            return "Mutating or archive commands require the approved workspace edit route"
+        }
+        if (argv.any { it in setOf("-exec", "-execdir", "-delete") }) {
+            return "Command option can escape the bounded executor"
+        }
+        for (token in argv.drop(1)) {
+            if (token.startsWith("--output") || token.startsWith("--work-tree") || token.startsWith("--git-dir")) {
+                return "Command option can escape the bounded executor"
+            }
+            if (token.startsWith("/")) return "Absolute paths are outside the workspace"
+            if (token.split('/').any { it == ".." }) return "Path traversal is not allowed"
+            if (token.contains('/') && !token.startsWith("./")) return "Only workspace-relative paths are allowed"
+            if (token.startsWith("./")) {
+                val root = session.workspaceDir.canonicalFile
+                val candidate = File(root, token).canonicalFile
+                if (candidate != root && !candidate.path.startsWith(root.path + File.separator)) {
+                    return "Path escapes the workspace"
+                }
+            }
+        }
+        return null
+    }
+
     companion object {
         // Allowed leading binary. Everything else is rejected.
         private val BINARY_ALLOWLIST: Set<String> = setOf(
@@ -251,9 +266,9 @@ class SandboxExecutor(private val session: SandboxSession) {
             // be wrapped by a higher-level capability and not exposed via raw shell.
         )
 
-        // git: only read-only subcommands. Push/fetch/pull/commit are blocked.
+        // git: only read-only subcommands. Push/fetch/pull/commit/config are blocked.
         private val GIT_SUBCOMMAND_ALLOWLIST: Set<String> = setOf(
-            "status", "log", "diff", "show", "ls-files", "rev-parse", "branch", "config"
+            "status", "log", "diff", "show", "ls-files", "rev-parse", "branch"
             // "clone" intentionally removed — would touch the network and write FS
             // outside sandbox if a path arg were supplied.
         )
@@ -272,32 +287,6 @@ class SandboxExecutor(private val session: SandboxSession) {
             '\\', '"', '\''
         )
 
-        /**
-         * : Per-binary argument scope restrictions.
-         *
-         * Several allowlisted binaries accept path arguments that could be exploited
-         * to read sensitive files outside the sandbox even when shell injection is
-         * prevented. For example, `find /data -name "*.db"` passes binary-name
-         * validation (find is in BINARY_ALLOWLIST) but accesses sensitive paths.
-         *
-         * The restriction regex describes ALLOWED argument patterns. If the first
-         * non-flag argument fails to match, the command is rejected as a
-         * SecurityViolation before any subprocess is spawned.
-         *
-         * Rules:
-         *  - `find` / `ls` / `cat` / `grep` / `head` / `tail` / `wc`:
-         *    only relative paths (starting with ./) or plain filenames.
-         *    Absolute paths (/...) are rejected.
-         */
-        private val BINARY_ARG_RESTRICTIONS: Map<String, Regex> = mapOf(
-            "find" to Regex("""^\./.*|^\.${'$'}"""),
-            "ls"   to Regex("""^(\./.*|\.)?${'$'}"""),
-            "cat"  to Regex("""^\./[^/].*"""),
-            "grep" to Regex("""^[^/].*"""),
-            "head" to Regex("""^[^/].*"""),
-            "tail" to Regex("""^[^/].*"""),
-            "wc"   to Regex("""^[^/].*"""),
-        )
 
         private const val SAFE_PATH = "/system/bin:/system/xbin"
         private const val OUTPUT_LIMIT_BYTES = 256 * 1024  // 256 KiB

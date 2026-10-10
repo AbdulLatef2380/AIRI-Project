@@ -156,4 +156,30 @@ class RuntimeCapabilityInventoryTest {
         assertTrue(prompt.contains("auth_required"))
         assertTrue(prompt.contains("blocked"))
     }
+
+    @Test
+    fun traceProjectionPreservesRequestStateAndDoesNotInventExecution() {
+        val inventory = RuntimeCapabilityInventory(
+            listOf(
+                RuntimeCapabilityInventory.Entry(
+                    id = "google_gmail",
+                    family = RuntimeCapabilityInventory.Family.CONNECTOR,
+                    registered = true,
+                    availability = RuntimeCapabilityInventory.Availability.AUTH_REQUIRED,
+                    inRequestCatalog = true,
+                    exposedToAgent = false,
+                    admittedToDispatcher = false,
+                )
+            )
+        )
+
+        val trace = inventory.traceEntries().single()
+        assertEquals("google_gmail", trace.id)
+        assertEquals(false, trace.authenticated)
+        assertEquals(false, trace.executable)
+        assertEquals(true, trace.selected)
+        assertEquals(false, trace.exposed)
+        assertEquals(null, trace.executed)
+        assertEquals(null, trace.resultReturned)
+    }
 }

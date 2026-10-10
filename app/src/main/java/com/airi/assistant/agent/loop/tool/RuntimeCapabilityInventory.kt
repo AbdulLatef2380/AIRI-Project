@@ -1,5 +1,7 @@
 package com.airi.assistant.agent.loop.tool
 
+import com.airi.assistant.core.CapabilitySnapshotEntry
+
 /**
  * Per-request facts projected from the existing runtime catalog. This is a
  * snapshot, not another registry and not an authorization grant.
@@ -93,6 +95,29 @@ data class RuntimeCapabilityInventory(
                 }
             }
         }.trimEnd()
+    }
+
+    /** Project this request snapshot into the existing runtime trace contract. */
+    fun traceEntries(): List<CapabilitySnapshotEntry> = entries.map { entry ->
+        CapabilitySnapshotEntry(
+            id = entry.id,
+            kind = entry.family.name.lowercase(),
+            exists = entry.registered,
+            registered = entry.registered,
+            connected = when (entry.availability) {
+                Availability.DISCONNECTED, Availability.AUTH_REQUIRED -> false
+                else -> null
+            },
+            authenticated = if (entry.availability == Availability.AUTH_REQUIRED) false else null,
+            healthy = if (entry.availability == Availability.ERROR) false else null,
+            permitted = if (entry.availability == Availability.PERMISSION_REQUIRED) false else null,
+            executable = entry.admittedToDispatcher,
+            modelCompatible = entry.exposedToAgent,
+            exposed = entry.exposedToAgent,
+            selected = entry.inRequestCatalog,
+            executed = null,
+            resultReturned = null,
+        )
     }
 
     companion object {

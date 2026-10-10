@@ -46,15 +46,14 @@ internal object AgentLoopSideEffectPolicy {
         else -> "This device action requires a task-owned approval session before it can run."
     }
 
-    /** Chat schemas must not advertise side effects without an injected typed task-owned route. */
+    /** Catalog-level blocks apply to device actions; terminal is admitted by the
+     * AgentLoop durable-context filter and the gateway's bounded command policy. */
     fun blockedToolOverrides(): Map<String, RuntimeToolCatalog.StatusOverride> =
-        sideEffectingTools
+        (sideEffectingTools - "terminal_execute")
             .associateWith { toolName ->
                 RuntimeToolCatalog.StatusOverride(
                     readiness = RuntimeToolContract.Readiness.BLOCKED,
-                    reason = if (toolName == "terminal_execute") {
-                        com.airi.assistant.domain.terminal.TerminalExecutionPolicy.DISABLED_REASON
-                    } else blockedMessage(toolName),
+                    reason = blockedMessage(toolName),
                 )
             }
 }

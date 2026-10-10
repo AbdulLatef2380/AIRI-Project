@@ -331,19 +331,35 @@ class ToolDispatcher(
                 ToolResult.Success("Note created: ${note.title}")
             }
 
-            // ── Restricted terminal ──────────────────────────────────────────
-            // TerminalRuntime owns the per-command governance check and sandbox.
+            // ── Bounded agent terminal ────────────────────────────────────────
+            // The gateway owns the task workspace, policy, governance and executor.
             "terminal_execute" -> {
                 val command = args["command"]?.trim().orEmpty()
                 if (command.isBlank()) return ToolResult.Error("Missing command", code = ToolErrorCodes.INVALID_ARGUMENT)
-                val terminal = com.airi.assistant.core.ServiceLocator.terminalRuntime
-                val before = terminal.lines.value.size
-                terminal.execute(command, agentId = agentId)
-                val output = terminal.lines.value.drop(before)
-                    .joinToString("\n") { it.text }
-                    .trim()
-                Log.i(TAG, "TERMINAL_TOOL_COMPLETE commandChars=${command.length} outputChars=${output.length}")
-                ToolResult.Success(output.ifBlank { "Command completed without output." })
+                when (val result = com.airi.assistant.core.ServiceLocator.terminalExecutionGateway
+                    .executeForAgent(command, agentId)) {
+                    is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Disabled ->
+                        ToolResult.Error(
+                            result.reason,
+                            code = if (result.requiresApproval) ToolErrorCodes.APPROVAL_REQUIRED else ToolErrorCodes.PERMISSION_DENIED
+                        )
+                    is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Denied ->
+                        ToolResult.Error(result.reason, code = ToolErrorCodes.PERMISSION_DENIED)
+                    is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Completed -> when (val execution = result.result) {
+                        is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.Success -> {
+                            Log.i(TAG, "TERMINAL_TOOL_COMPLETE commandChars=${command.length} outputChars=${execution.output.length}")
+                            ToolResult.Success(execution.output.ifBlank { "Command completed without output." })
+                        }
+                        is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.Timeout ->
+                            ToolResult.Error("Command timed out", code = ToolErrorCodes.EXECUTION_FAILED)
+                        is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.Failure ->
+                            ToolResult.Error(execution.error, code = ToolErrorCodes.EXECUTION_FAILED)
+                        is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.SecurityViolation ->
+                            ToolResult.Error(execution.reason, code = ToolErrorCodes.PERMISSION_DENIED)
+                        com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.UnsupportedOnDevice ->
+                            ToolResult.Error("Command is unsupported on this device", code = ToolErrorCodes.UNSUPPORTED)
+                    }
+                }
             }
 
             // ── Confirmation request (LLM asks user) ──────────────────────────

@@ -6,13 +6,19 @@ object ToolSchemaPromptBudget {
         val tools: List<ToolSchema>,
         val promptBlock: String,
         val omittedCount: Int,
+        val omittedToolNames: List<String> = emptyList(),
     )
 
     fun select(tools: List<ToolSchema>, maxChars: Int): Selection {
         val budget = maxChars.coerceAtLeast(0)
         val header = "AVAILABLE TOOLS:\n"
         if (tools.isEmpty()) return Selection(emptyList(), header, 0)
-        if (budget < header.length) return Selection(emptyList(), "AVAILABLE TOOLS:".take(budget), tools.size)
+        if (budget < header.length) return Selection(
+            emptyList(),
+            "AVAILABLE TOOLS:".take(budget),
+            tools.size,
+            tools.map { it.name },
+        )
 
         val chunks = tools.map(::renderTool)
         val selected = mutableListOf<ToolSchema>()
@@ -42,7 +48,12 @@ object ToolSchemaPromptBudget {
             val finalSuffix = "[${omitted} tool schemas omitted by context budget; omitted tools are not available in this request.]\n"
             block += finalSuffix.take((budget - block.length).coerceAtLeast(0))
         }
-        return Selection(selected, block, omitted)
+        return Selection(
+            tools = selected,
+            promptBlock = block,
+            omittedCount = omitted,
+            omittedToolNames = tools.map { it.name }.filterNot { name -> selected.any { it.name == name } },
+        )
     }
 
     private fun renderTool(tool: ToolSchema): String = buildString {

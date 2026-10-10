@@ -46,8 +46,8 @@ python3 scripts/airi_core_health.py
 ## PR-10 — Terminal وSandbox
 
 - `TerminalExecutionGateway` هو المنفذ الوحيد المشترك بين `TerminalScreen` و`SandboxWorkspaceScreen`؛ لا يجوز للواجهة إنشاء `SandboxExecutor` مباشرة.
-- تنفيذ الأوامر معطّل افتراضياً عبر `TerminalExecutionPolicy` إلى أن يثبت حد Android isolated process مع IPC/FD محدود وبدون شبكة. وجود `filesDir` أو `ProcessBuilder` داخل UID التطبيق ليس عزلاً.
-- عند إعادة التمكين مستقبلاً يجب أن يمر الطلب بالـGateway ثم الحوكمة، مع argv typed/allowlist، حدود bytes للملفات والمخرجات، مسارات canonical تمنع symlink escape، وامتلاك عملية قابل للقتل.
+- التنفيذ المتاح حالياً read-only ومقيد بمساحة عمل مؤقتة مملوكة للطلب عبر `TerminalExecutionGateway`؛ لا يُعد ذلك Android isolated process، ولذلك لا تُكشف أوامر النظام العامة أو الشبكة.
+- يمر كل طلب بالـGateway ثم الحوكمة، مع argv typed/allowlist، رفض traversal وsymlink escape، حدود bytes للملفات والمخرجات، وامتلاك عملية قابل للقتل. أوامر التغيير والأرشفة تعيد `approval_required` ولا تُنفذ من هذا المسار.
 - `CancellationException` لا تتحول إلى نجاح أو فشل قابل لإعادة المحاولة؛ ينفذ المنفذ cleanup ويعيد الإلغاء، بينما timeout يعيد نتيجة timeout صريحة.
 - كتابة الملفات atomic وبحد UTF-8 bytes، وقراءة الملفات والمخرجات bounded. history/activity/sandbox logs تنقح credentials، وحفظ history الدائم opt-in فقط.
 - `AgentWorkspace` و`SandboxWorkspace` وfilesystem scratch حدود مختلفة؛ rollback لمساحة VFS لا يتراجع عن side effects خارجية.

@@ -2438,7 +2438,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             projectId = activeProjectId.takeIf { it.isNotBlank() },
                             sourceSessionId = sessionId
                         ).createFor(toolName)
-                    }
+                    },
+                    runtimeCapabilities = runtimeInventory.traceEntries(),
                 )
                 if (loopResult.terminalState == com.airi.assistant.agent.loop.AgentLoop.TerminalState.CANCELLED ||
                     _isCancelled.get() || !isCurrentGeneration(generationId)
@@ -2846,7 +2847,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun sandboxCapabilityInventoryEntries(): List<com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry> {
         val guardRegistered = runCatching { ServiceLocator.agentSandbox }.isSuccess
-        val terminalRuntimeRegistered = runCatching { ServiceLocator.terminalRuntime }.isSuccess
+        val terminalRuntimeRegistered = runCatching { ServiceLocator.terminalExecutionGateway }.isSuccess
         val sandboxManagerRegistered = runCatching { ServiceLocator.sandboxManager }.isSuccess
         return listOf(
             com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry(
@@ -2864,11 +2865,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 family = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Family.OTHER,
                 registered = terminalRuntimeRegistered && sandboxManagerRegistered,
                 availability = if (terminalRuntimeRegistered && sandboxManagerRegistered)
-                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.BLOCKED else com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.CONFIGURATION_REQUIRED,
+                    com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.READY else com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.CONFIGURATION_REQUIRED,
                 inRequestCatalog = false,
                 exposedToAgent = false,
                 admittedToDispatcher = false,
-                detail = com.airi.assistant.domain.terminal.TerminalExecutionPolicy.DISABLED_REASON,
+                detail = "Read-only argv execution is bounded to an ephemeral workspace; mutations require approval.",
             ),
         )
     }

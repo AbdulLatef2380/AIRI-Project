@@ -64,6 +64,16 @@ object CapabilityIntentDetector {
         "افتح", "لخص", "لخّص", "استخرج", "راجع", "آخر", "اخر",
     )
 
+    /** Capability-discovery questions must request the complete connector surface. */
+    private val capabilityDiscoveryPatterns = listOf(
+        "what tools", "available tools", "what skills", "available skills", "what connectors",
+        "ما هي الادوات", "ما هي الأدوات", "الأدوات المتاحة", "الادوات المتاحة",
+        "ما هي المهارات", "المهارات المتاحة", "ما هي الموصلات", "الموصلات المتاحة",
+        "ما هي الخدمات الخارجية", "الخدمات الخارجية المتاحة",
+        "ما الذي تستطيع", "ماذا تستطيع", "بماذا يمكنك مساعدتي", "ما قدراتك",
+        "ما الذي يمكنك فعله", "ما يمكنك فعله", "اعطني قائمة الادوات", "أعطني قائمة الأدوات",
+    )
+
     private val deviceActionVerbs = listOf(
         "turn on", "turn off", "switch on", "switch off", "enable", "disable", "toggle",
         "activate", "deactivate", "قم بتشغيل", "قم بايقاف", "قم بإيقاف", "شغل", "شغّل",
@@ -100,7 +110,15 @@ object CapabilityIntentDetector {
         val target = connectorTargets.entries.firstOrNull { text.contains(it.key) }
         if (target != null && connectorActions.any(text::contains)) {
             capabilities += Capability.CONNECTOR_READ
-            if (target.value != "*") connectors += target.value
+            // `*` explicitly requests every connector. An empty set means
+            // "no connector requested" to RuntimeToolCatalog, so it must not
+            // be discarded here.
+            connectors += target.value
+        }
+
+        if (capabilityDiscoveryPatterns.any(text::contains)) {
+            capabilities += Capability.CONNECTOR_READ
+            connectors += "*"
         }
 
         if (text.contains("battery") || text.contains("network") ||
@@ -115,6 +133,10 @@ object CapabilityIntentDetector {
         }
         return Intent(capabilities, connectors)
     }
+
+    /** True when the user asks for a capability inventory, not an action. */
+    fun isCapabilityDiscovery(input: String): Boolean =
+        capabilityDiscoveryPatterns.any(normalize(input)::contains)
 
     /** Normalizes Arabic orthography and diacritics before matching phrases. */
     fun normalize(input: String): String = input

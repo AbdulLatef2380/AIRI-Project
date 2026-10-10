@@ -28,6 +28,22 @@ class CapabilityIntentDetectorTest {
     }
 
     @Test
+    fun genericArabicCapabilityQuestionRequestsAllConnectors() {
+        val intent = CapabilityIntentDetector.detect("ما هي الأدوات والمهارات والموصلات المتاحة؟")
+        assertTrue(intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+        assertTrue(intent.connectorIds.contains("*"))
+        assertTrue(intent.requiresTools)
+        assertEquals(QueryType.ANALYTICAL, QueryClassifier.classifyQuery("ما هي الأدوات والمهارات والموصلات المتاحة؟"))
+    }
+
+    @Test
+    fun ArabicAllConnectorsTargetIsNotDroppedByWildcardHandling() {
+        val intent = CapabilityIntentDetector.detect("اعرض الموصلات المتصلة")
+        assertTrue(intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+        assertTrue(intent.connectorIds.contains("*"))
+    }
+
+    @Test
     fun creativeRequestWithoutLiveDependencyNeedsNoTools() {
         assertTrue(CapabilityIntentDetector.detect("اكتب لي قصة قصيرة").capabilities.isEmpty())
     }

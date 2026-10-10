@@ -34,6 +34,16 @@ object CanonicalIntentClassifier {
         }
 
         val capabilityIntent = CapabilityIntentDetector.detect(text)
+        if (CapabilityIntentDetector.isCapabilityDiscovery(text)) {
+            return ChatIntent(
+                kind = ChatIntent.Kind.QUESTION,
+                queryType = QueryType.ANALYTICAL,
+                canonicalCapability = "capability_discovery",
+                confidence = ChatIntent.Confidence.HIGH,
+                risk = ChatIntent.Risk.READ,
+                rationale = "capability_inventory_question",
+            )
+        }
         val deviceAction = capabilityIntent.requires(CapabilityIntentDetector.Capability.DEVICE_ACTION)
         val terminalExecute = capabilityIntent.requires(CapabilityIntentDetector.Capability.TERMINAL_EXECUTE)
         val connectorRead = capabilityIntent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ)

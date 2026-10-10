@@ -34,6 +34,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     // data access tokens only here prevents per-ViewModel token split-brain.
     private val googleAuthService = ServiceLocator.googleAuthService
     private var pendingGoogleScopes: Set<String> = emptySet()
+    private var pendingGoogleSurfaceId: String = "google"
 
     /**
      * SECURITY: Per-session CSRF state token for OAuth flows.
@@ -89,7 +90,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     sealed interface GoogleAuthorizationEffect {
-        data class LaunchIdentity(val intent: Intent) : GoogleAuthorizationEffect
+        data class LaunchIdentity(val connectorId: String, val intent: Intent) : GoogleAuthorizationEffect
         data class LaunchConsent(val pendingIntent: PendingIntent) : GoogleAuthorizationEffect
         data class LaunchBrowser(val intent: Intent) : GoogleAuthorizationEffect
     }
@@ -110,6 +111,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         val connectorId: String,
         val runtimeId: String,
         val surfaceIds: List<String>,
+        val allowedProfiles: List<ConnectorAccessProfile>,
     )
 
     private val _accessProfileRequest = MutableStateFlow<AccessProfileRequest?>(null)
@@ -137,16 +139,24 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                     else -> openProviderTokenDialog(result.connectorId, result.provider, result.label)
                 }
                 is ConnectorAuthorizationManager.StartResult.GoogleIdentity -> {
+                    pendingGoogleSurfaceId = result.connectorId
                     _googleAuthorizationEffects.tryEmit(
-                        GoogleAuthorizationEffect.LaunchIdentity(result.intent)
+                        GoogleAuthorizationEffect.LaunchIdentity(result.connectorId, result.intent)
                     )
                 }
-                is ConnectorAuthorizationManager.StartResult.GoogleConsent -> requestGoogleDataAuthorization(result.scopes)
+                is ConnectorAuthorizationManager.StartResult.GoogleConsent ->
+                    requestGoogleDataAuthorization(result.connectorId, result.scopes)
                 is ConnectorAuthorizationManager.StartResult.AccessProfileRequired -> {
+                    val permissions = ServiceLocator.connectorRegistry.get(result.runtimeId)?.agentActions()
+                        .orEmpty()
+                        .filter { (it.surfaceId ?: result.runtimeId) in result.surfaceIds }
+                        .map { it.permission }
+                        .toSet()
                     _accessProfileRequest.value = AccessProfileRequest(
                         connectorId = result.connectorId,
                         runtimeId = result.runtimeId,
                         surfaceIds = result.surfaceIds,
+                        allowedProfiles = ConnectorAccessProfile.selectableFor(permissions),
                     )
                 }
                 is ConnectorAuthorizationManager.StartResult.Ready -> refresh()
@@ -159,11 +169,12 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun chooseAccessProfile(profile: ConnectorAccessProfile) {
         val request = _accessProfileRequest.value ?: return
+        if (profile !in request.allowedProfiles) return
         request.surfaceIds.forEach { surfaceId ->
             ServiceLocator.connectorAccessProfileStore.set(surfaceId, profile)
         }
         _accessProfileRequest.value = null
-        beginConnectorAuthorization(request.connectorId)
+        if (profile != ConnectorAccessProfile.NOT_CONFIGURED) beginConnectorAuthorization(request.connectorId)
     }
 
     fun cancelAccessProfileRequest() {
@@ -206,10 +217,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 name        = ctx.getString(R.string.integration_google_name),
                 description = ctx.getString(R.string.integration_google_description),
                 emoji       = "",
-                readiness   = IntegrationReadinessPolicy.google(
-                    hasSignedInIdentity = !googleAuthService.getLastSignedInEmail().isNullOrBlank(),
-                    hasDataAccessToken = !googleAuthService.getDataAccessToken().isNullOrBlank()
-                ),
+                readiness   = IntegrationReadinessPolicy.credentialBacked(secureStorage.isGoogleConnected()),
                 connectedAs = googleAuthService.getLastSignedInEmail().orEmpty(),
                 lastUpdated = secureStorage.getGoogleUpdated()
             )
@@ -384,10 +392,9 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
             return
         }
         viewModelScope.launch {
-            when (val result = authorizationManager.onGoogleSignIn(account)) {
+            when (val result = authorizationManager.onGoogleSignIn(account, pendingGoogleSurfaceId)) {
                 is ConnectorAuthorizationManager.CompletionResult.ConsentRequired -> {
-                    refreshGoogleConnectorState()
-                    requestGoogleDataAuthorization(result.scopes)
+                    requestGoogleDataAuthorization(result.connectorId, result.scopes)
                 }
                 is ConnectorAuthorizationManager.CompletionResult.Failed -> {
                     _googleFeedback.value = GoogleIntegrationSignInPolicy.providerFailureFeedback()
@@ -397,38 +404,60 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    fun requestGoogleDataAuthorization(scopes: Set<String> = authorizationManager.requiredOAuthScopesFor("google")) {
+    fun requestGoogleDataAuthorization(surfaceId: String, scopes: Set<String>) {
         if (scopes.isEmpty()) {
             _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
             return
         }
+        pendingGoogleSurfaceId = surfaceId
         pendingGoogleScopes = scopes
-        googleAuthService.authorizeDataAccess(scopes)
-            .addOnSuccessListener(::handleGoogleDataAuthorization)
+        googleAuthService.authorizeDataAccess(surfaceId, scopes)
+            .addOnSuccessListener { result -> handleGoogleDataAuthorization(result, surfaceId) }
             .addOnFailureListener {
                 pendingGoogleScopes = emptySet()
+                googleAuthService.clearDataAccessToken(surfaceId)
                 refreshGoogleConnectorState()
                 _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
             }
     }
 
     fun onGoogleDataAuthorizationResult(resultIntent: Intent?) {
-        val currentScopes = authorizationManager.requiredOAuthScopesFor("google")
+        val currentScopes = authorizationManager.requiredOAuthScopesFor(pendingGoogleSurfaceId)
         if (pendingGoogleScopes.isEmpty() || pendingGoogleScopes != currentScopes) {
             pendingGoogleScopes = emptySet()
-            googleAuthService.clearDataAccessToken()
+            googleAuthService.clearDataAccessToken(pendingGoogleSurfaceId)
             _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
             return
         }
-        handleGoogleDataAuthorization(googleAuthService.completeDataAuthorization(resultIntent, pendingGoogleScopes))
+        handleGoogleDataAuthorization(
+            googleAuthService.completeDataAuthorization(resultIntent, pendingGoogleSurfaceId, pendingGoogleScopes),
+            pendingGoogleSurfaceId,
+        )
     }
 
-    private fun handleGoogleDataAuthorization(result: GoogleDataAuthorization) {
+    fun onGoogleDataAuthorizationCancelled() {
+        val surfaceId = pendingGoogleSurfaceId
+        pendingGoogleScopes = emptySet()
+        googleAuthService.clearDataAccessToken(surfaceId)
+        _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationCancelledFeedback()
+    }
+
+    private fun handleGoogleDataAuthorization(result: GoogleDataAuthorization, surfaceId: String) {
         when (result) {
             GoogleDataAuthorization.Authorized -> {
                 pendingGoogleScopes = emptySet()
-                refreshGoogleConnectorState()
-                _googleFeedback.value = GoogleIntegrationSignInPolicy.dataAuthorizedFeedback()
+                viewModelScope.launch {
+                    when (val completion = authorizationManager.onGoogleConsent(result, surfaceId)) {
+                        is ConnectorAuthorizationManager.CompletionResult.Ready -> {
+                            refresh()
+                            _googleFeedback.value = GoogleIntegrationSignInPolicy.dataAuthorizedFeedback()
+                        }
+                        is ConnectorAuthorizationManager.CompletionResult.ConsentRequired ->
+                            requestGoogleDataAuthorization(completion.connectorId, completion.scopes)
+                        is ConnectorAuthorizationManager.CompletionResult.Failed ->
+                            _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
+                    }
+                }
             }
             is GoogleDataAuthorization.ConsentRequired -> {
                 _googleAuthorizationEffects.tryEmit(
@@ -437,12 +466,12 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
             }
             GoogleDataAuthorization.Cancelled -> {
                 pendingGoogleScopes = emptySet()
-                refreshGoogleConnectorState()
+                googleAuthService.clearDataAccessToken(surfaceId)
                 _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationCancelledFeedback()
             }
             GoogleDataAuthorization.Unavailable -> {
                 pendingGoogleScopes = emptySet()
-                refreshGoogleConnectorState()
+                googleAuthService.clearDataAccessToken(surfaceId)
                 _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
             }
         }

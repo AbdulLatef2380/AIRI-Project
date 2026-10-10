@@ -48,6 +48,29 @@ class ConnectorAccessProfileTest {
     }
 
     @Test
+    fun write_only_never_grants_read_and_selector_hides_unsupported_profiles() {
+        assertTrue(ConnectorAccessProfile.WRITE_ONLY.permits(ConnectorPermissionLevel.WRITE))
+        assertFalse(ConnectorAccessProfile.WRITE_ONLY.permits(ConnectorPermissionLevel.READ))
+        assertFalse(ConnectorAccessProfile.WRITE_ONLY.permits(ConnectorPermissionLevel.ADMIN))
+        assertEquals(
+            listOf(ConnectorAccessProfile.NOT_CONFIGURED, ConnectorAccessProfile.READ_ONLY),
+            ConnectorAccessProfile.selectableFor(setOf(ConnectorPermissionLevel.READ)),
+        )
+        assertEquals(
+            listOf(
+                ConnectorAccessProfile.NOT_CONFIGURED,
+                ConnectorAccessProfile.READ_ONLY,
+                ConnectorAccessProfile.WRITE_ONLY,
+                ConnectorAccessProfile.READ_WRITE,
+                ConnectorAccessProfile.FULL_ACCESS,
+            ),
+            ConnectorAccessProfile.selectableFor(
+                setOf(ConnectorPermissionLevel.READ, ConnectorPermissionLevel.WRITE, ConnectorPermissionLevel.ADMIN)
+            ),
+        )
+    }
+
+    @Test
     fun in_memory_profile_store_isolated_and_revoke_removes_grant() {
         val store = InMemoryConnectorAccessProfileStore()
         assertEquals(ConnectorAccessProfile.NOT_CONFIGURED, store.get("github"))

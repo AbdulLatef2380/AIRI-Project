@@ -1892,4 +1892,17 @@
     <string name="tool_error_tool_not_found">当前 AIRI 会话中不提供此能力。</string>
     <string name="tool_error_unsupported">当前运行环境不支持此能力。</string>
     <string name="tool_error_generic">AIRI 无法完成此能力。请重试。</string>
+    <string name="connectors_access_profile_write_only">仅写入</string>
+    <string name="connectors_access_profile_none_description">AIRI 不会通过代理操作使用此服务。</string>
+    <string name="connectors_access_profile_read_only_description">AIRI 可以查看或搜索数据，但不能创建或修改数据。</string>
+    <string name="connectors_access_profile_write_only_description">AIRI 可以创建或更新数据，但不能读取现有数据。</string>
+    <string name="connectors_access_profile_read_write_description">AIRI 可以读取、创建和更新数据；破坏性操作仍需单独确认。</string>
+    <string name="connectors_access_profile_full_description">可启用所有已声明的操作类型；破坏性和管理操作仍需单独确认。</string>
+    <string name="connectors_access_profile_continue">继续</string>
+    <string name="connectors_access_profile_change">更改访问权限</string>
+    <string name="connector_open_provider">打开服务应用或网站</string>
+    <string name="connectors_test_connection_started">已开始连接检查；完成后将更新连接器状态。</string>
+    <string name="connector_auth_context_description">仅查看并授权此连接器，不会更改其他集成。</string>
+    <string name="connector_auth_context_targeted">此授权流程仅针对所选连接器。</string>
+    <string name="connector_auth_retry">继续授权</string>
 </resources>

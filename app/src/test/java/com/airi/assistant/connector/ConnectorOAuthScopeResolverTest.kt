@@ -55,6 +55,27 @@ class ConnectorOAuthScopeResolverTest {
         )
     }
 
+    @Test
+    fun targetSurfaceFiltersScopesEvenWhenOtherSurfacesHaveSavedProfiles() {
+        val gmail = "https://www.googleapis.com/auth/gmail.readonly"
+        val calendar = "https://www.googleapis.com/auth/calendar.events.owned.readonly"
+        val registry = ConnectorRegistry().also {
+            it.register(TestConnector("google", listOf(
+                action("gmail_list", "google_gmail", gmail),
+                action("calendar_list", "google_calendar", calendar),
+            )))
+        }
+        val profiles = InMemoryConnectorAccessProfileStore().apply {
+            set("google_gmail", ConnectorAccessProfile.READ_ONLY)
+            set("google_calendar", ConnectorAccessProfile.READ_ONLY)
+        }
+
+        assertEquals(
+            setOf(gmail),
+            ConnectorOAuthScopeResolver.requiredScopes(registry, profiles, "google", targetSurfaceId = "google_gmail"),
+        )
+    }
+
     private fun action(id: String, surfaceId: String, scope: String) = ConnectorAgentAction(
         id = id,
         description = id,

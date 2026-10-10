@@ -4,6 +4,7 @@ import android.net.Uri
 import android.util.Log
 import com.airi.assistant.connector.*
 import com.airi.assistant.integrations.google.GoogleAuthService
+import com.airi.assistant.integrations.google.GoogleDataScopes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,6 +45,16 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
 
     private val _state = MutableStateFlow(
         ConnectorState(connected = false, statusLine = "Not signed in")
+    )
+    private val surfaceByAction = mapOf(
+        "gmail_list" to "google_gmail",
+        "gmail_read" to "google_gmail",
+        "calendar_list" to "google_calendar",
+        "drive_search" to "google_drive",
+        "docs_read" to "google_docs",
+        "sheets_read" to "google_sheets",
+        "contacts_list" to "google_contacts",
+        "tasks_list" to "google_tasks",
     )
     override fun meta() = ConnectorMeta(
         id          = id,
@@ -114,26 +125,33 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
         .build()
 
     override suspend fun connect(): ConnectorState = withContext(Dispatchers.IO) {
+        googleAuthService.restorePreviouslyGrantedAccess()
         val email = googleAuthService.getLastSignedInEmail()
-        val accessToken = googleAuthService.getDataAccessToken()
-        _state.value = when {
-            email.isNullOrBlank() -> ConnectorState(
+        if (email.isNullOrBlank()) {
+            _state.value = ConnectorState(
                 connected = false,
                 healthy = false,
                 statusLine = "Google sign-in required",
-                errorMessage = "Sign in before authorizing Google data access."
+                errorMessage = "Sign in before authorizing Google data access.",
             )
-            accessToken.isNullOrBlank() -> ConnectorState(
+            return@withContext _state.value
+        }
+        val states = GoogleDataScopes.surfaceIds.map { googleAuthService.stateForSurface(it).value }
+        val active = states.any { it.connected }
+        val healthy = states.any { it.connected && it.healthy }
+        _state.value = when {
+            healthy -> ConnectorState(true, true, "At least one Google surface is authorized", lastUpdatedMs = System.currentTimeMillis())
+            active -> ConnectorState(
                 connected = true,
                 healthy = false,
-                statusLine = "Data authorization required",
-                errorMessage = "Authorize the selected Google data surfaces in Integrations."
+                statusLine = "Google authorization needs attention",
+                errorMessage = "Review authorization for the affected Google surface.",
             )
             else -> ConnectorState(
-                connected = true,
-                healthy = true,
-                statusLine = "Google data access authorized",
-                lastUpdatedMs = System.currentTimeMillis()
+                connected = false,
+                healthy = false,
+                statusLine = "No Google data surfaces authorized",
+                errorMessage = "Choose and authorize a Google surface to enable its tools.",
             )
         }
         _state.value
@@ -145,17 +163,19 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
     }
 
     override suspend fun execute(input: ConnectorInput): ConnectorOutput = withContext(Dispatchers.IO) {
-        val token = googleAuthService.getDataAccessToken()
+        val surfaceId = surfaceByAction[input.action]
+            ?: return@withContext ConnectorOutput.Failure("unknown_action", "Unknown Google action: ${input.action}")
+        val token = googleAuthService.getDataAccessToken(surfaceId)
         if (token.isNullOrBlank()) {
             _state.value = ConnectorState(
-                connected = !googleAuthService.getLastSignedInEmail().isNullOrBlank(),
+                connected = googleAuthService.stateForSurface(surfaceId).value.connected,
                 healthy = false,
-                statusLine = "Data authorization required",
-                errorMessage = "Authorize Google data access in Integrations."
+                statusLine = "Google surface authorization required",
+                errorMessage = "Authorize this Google product surface before use."
             )
             return@withContext ConnectorOutput.Failure(
                 code = "authorization_required",
-                message = "Google data access requires user authorization in Integrations."
+                message = "This Google product requires its own user authorization."
             )
         }
         GoogleConnectorActionPolicy.blockedWriteAction(input.action)?.let { message ->
@@ -173,10 +193,7 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
             "sheets_read" -> executeSheetsRead(token, input)
             "contacts_list" -> executeContactsList(token, input)
             "tasks_list" -> executeTasksList(token, input)
-            else -> ConnectorOutput.Failure(
-                code    = "unknown_action",
-                message = "Unknown Google action: ${input.action}"
-            )
+            else -> ConnectorOutput.Failure(code = "unknown_action", message = "Unknown Google action: ${input.action}")
         }
     }
 
@@ -203,7 +220,7 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
             )
         } catch (e: Exception) {
             Log.w(TAG, "gmail_list request failed")
-            googleRequestFailure("Gmail list", e)
+            googleRequestFailure("Gmail list", e, "google_gmail")
         }
     }
 
@@ -227,7 +244,7 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
             )
         } catch (e: Exception) {
             Log.w(TAG, "gmail_read request failed")
-            googleRequestFailure("Gmail read", e)
+            googleRequestFailure("Gmail read", e, "google_gmail")
         }
     }
 
@@ -257,7 +274,7 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
             )
         } catch (e: Exception) {
             Log.w(TAG, "calendar_list request failed")
-            googleRequestFailure("Calendar list", e)
+            googleRequestFailure("Calendar list", e, "google_calendar")
         }
     }
 
@@ -286,7 +303,7 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
             )
         } catch (e: Exception) {
             Log.w(TAG, "drive_search request failed")
-            googleRequestFailure("Drive search", e)
+            googleRequestFailure("Drive search", e, "google_drive")
         }
     }
 
@@ -298,7 +315,7 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
             ConnectorOutput.Success(response.toString(2), data = mapOf("documentId" to documentId))
         } catch (e: Exception) {
             Log.w(TAG, "docs_read request failed")
-            googleRequestFailure("Google Docs read", e)
+            googleRequestFailure("Google Docs read", e, "google_docs")
         }
     }
 
@@ -312,7 +329,7 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
             ConnectorOutput.Success(response.toString(2), data = mapOf("spreadsheetId" to spreadsheetId, "range" to range))
         } catch (e: Exception) {
             Log.w(TAG, "sheets_read request failed")
-            googleRequestFailure("Google Sheets read", e)
+            googleRequestFailure("Google Sheets read", e, "google_sheets")
         }
     }
 
@@ -324,7 +341,7 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
             ConnectorOutput.Success(response.toString(2), data = mapOf("count" to (response.optJSONArray("connections")?.length() ?: 0).toString()))
         } catch (e: Exception) {
             Log.w(TAG, "contacts_list request failed")
-            googleRequestFailure("Google Contacts list", e)
+            googleRequestFailure("Google Contacts list", e, "google_contacts")
         }
     }
 
@@ -336,7 +353,7 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
             ConnectorOutput.Success(response.toString(2), data = mapOf("count" to (response.optJSONArray("items")?.length() ?: 0).toString()))
         } catch (e: Exception) {
             Log.w(TAG, "tasks_list request failed")
-            googleRequestFailure("Google Tasks list", e)
+            googleRequestFailure("Google Tasks list", e, "google_tasks")
         }
     }
 
@@ -355,14 +372,14 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
         }
     }
 
-    private fun googleRequestFailure(operation: String, error: Exception): ConnectorOutput.Failure =
+    private fun googleRequestFailure(operation: String, error: Exception, surfaceId: String): ConnectorOutput.Failure =
         if (error is GoogleApiHttpException) {
             val authorizationInvalid = error.statusCode == 401 || error.statusCode == 403
-            if (authorizationInvalid) googleAuthService.clearDataAccessToken()
+            if (authorizationInvalid) googleAuthService.clearDataAccessToken(surfaceId)
             ConnectorOutput.Failure(
                 code = if (authorizationInvalid) "authorization_required" else "api_error",
                 message = if (authorizationInvalid) {
-                    "Google data authorization must be renewed in Integrations."
+                    "Google authorization for this product surface must be renewed."
                 } else {
                     "$operation request was rejected (HTTP ${error.statusCode})."
                 },

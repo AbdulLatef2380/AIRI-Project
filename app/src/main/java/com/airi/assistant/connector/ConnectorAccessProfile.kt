@@ -5,14 +5,27 @@ enum class ConnectorAccessProfile {
     /** No explicit user decision: deny every agent action. */
     NOT_CONFIGURED,
     READ_ONLY,
+    WRITE_ONLY,
     READ_WRITE,
     FULL_ACCESS;
 
     fun permits(permission: ConnectorPermissionLevel): Boolean = when (this) {
         NOT_CONFIGURED -> false
         READ_ONLY -> permission == ConnectorPermissionLevel.READ
+        WRITE_ONLY -> permission == ConnectorPermissionLevel.WRITE
         READ_WRITE -> permission == ConnectorPermissionLevel.READ || permission == ConnectorPermissionLevel.WRITE
         FULL_ACCESS -> true
+    }
+
+    companion object {
+        /** Hide choices that cannot authorize any action declared by this surface. */
+        fun selectableFor(permissions: Set<ConnectorPermissionLevel>): List<ConnectorAccessProfile> = buildList {
+            add(NOT_CONFIGURED)
+            if (ConnectorPermissionLevel.READ in permissions) add(READ_ONLY)
+            if (ConnectorPermissionLevel.WRITE in permissions) add(WRITE_ONLY)
+            if (ConnectorPermissionLevel.READ in permissions && ConnectorPermissionLevel.WRITE in permissions) add(READ_WRITE)
+            if (permissions.any { it == ConnectorPermissionLevel.DESTRUCTIVE || it == ConnectorPermissionLevel.ADMIN }) add(FULL_ACCESS)
+        }
     }
 }
 

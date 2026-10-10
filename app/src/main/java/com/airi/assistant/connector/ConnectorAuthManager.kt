@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class ConnectorAuthManager(context: Context) {
+class ConnectorAuthManager(context: Context) : ConnectorConnectionStateStore {
     private val tag = "ConnectorAuthManager"
     // Lifecycle intent is not a secret, so keep it separately from encrypted
     // credentials. This makes an explicit disconnect survive process restart.
@@ -95,6 +95,23 @@ class ConnectorAuthManager(context: Context) {
             editor.remove(key(connectorId, "cred_$credentialKey"))
         }
 
+    override fun connectedIds(): Set<String> = securePreferences?.all.orEmpty()
+        .filter { (storedKey, value) ->
+            storedKey.startsWith(CONNECTION_STATE_PREFIX) && value == true
+        }
+        .keys
+        .map { it.removePrefix(CONNECTION_STATE_PREFIX) }
+        .filter(String::isNotBlank)
+        .toSet()
+
+    override fun setConnected(connectorId: String, connected: Boolean): Boolean {
+        require(connectorId.isNotBlank()) { "connectorId must not be blank" }
+        return updateSecurePreferences { editor ->
+            val stateKey = CONNECTION_STATE_PREFIX + connectorId
+            if (connected) editor.putBoolean(stateKey, true) else editor.remove(stateKey)
+        }
+    }
+
     fun isExplicitlyDisconnected(connectorId: String): Boolean =
         lifecyclePreferences.getBoolean("disabled_$connectorId", false)
 
@@ -102,7 +119,9 @@ class ConnectorAuthManager(context: Context) {
         val editor = lifecyclePreferences.edit()
         if (disconnected) editor.putBoolean("disabled_$connectorId", true)
         else editor.remove("disabled_$connectorId")
-        return editor.commit()
+        val lifecycleSaved = editor.commit()
+        val connectionCleared = if (disconnected) setConnected(connectorId, false) else true
+        return lifecycleSaved && connectionCleared
     }
 
     private fun updateSecurePreferences(update: (SharedPreferences.Editor) -> Unit): Boolean {
@@ -115,6 +134,10 @@ class ConnectorAuthManager(context: Context) {
     }
 
     private fun key(connectorId: String, field: String): String = "auth_${connectorId}_$field"
+
+    private companion object {
+        const val CONNECTION_STATE_PREFIX = "connector_connected:"
+    }
 
     private fun refreshAuthStates() {
         val preferences = securePreferences ?: run {

@@ -234,7 +234,7 @@ object ServiceLocator {
             AnthropicProvider (keyProvider = { keys.getLlmKey("anthropic") }),
             GeminiProvider    (keyProvider = { keys.getLlmKey("gemini")    }),
         )
-        ConnectorRegistry().also { reg ->
+        ConnectorRegistry(connectionStateStore = connectorAuthManager).also { reg ->
             reg.markInitializing()
             runCatching {
                 ConnectorBootstrap.installDefaults(

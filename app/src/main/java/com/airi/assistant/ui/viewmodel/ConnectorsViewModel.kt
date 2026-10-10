@@ -9,6 +9,7 @@ import com.airi.assistant.connector.ConnectorMeta
 import com.airi.assistant.connector.ConnectorState
 import com.airi.assistant.connector.ConnectorType
 import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.integrations.google.GoogleDataScopes
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -51,21 +52,36 @@ class ConnectorsViewModel(application: Application) : AndroidViewModel(applicati
         val meta = registry.catalogMeta().firstOrNull { it.id == id } ?: return
         if (meta.runtimeId == id && registry.get(id) == null) return
         if (meta.availability == ConnectorAvailability.COMING_SOON) return
-        viewModelScope.launch { registry.connect(meta.runtimeId) }
+        viewModelScope.launch { registry.connect(meta.runtimeId, persistConnection = true) }
     }
 
     fun disconnect(id: String) {
-        val runtimeId = registry.catalogMeta().firstOrNull { it.id == id }?.runtimeId ?: id
+        val meta = registry.catalogMeta().firstOrNull { it.id == id }
+        val runtimeId = meta?.runtimeId ?: id
         if (registry.get(runtimeId) == null) return
-        viewModelScope.launch { ServiceLocator.connectorAuthorizationManager.disconnect(runtimeId) }
+        viewModelScope.launch { ServiceLocator.connectorAuthorizationManager.disconnect(meta?.id ?: id) }
+    }
+
+    fun selectableAccessProfiles(surfaceId: String): List<ConnectorAccessProfile> {
+        val meta = registry.catalogMeta().firstOrNull { it.id == surfaceId }
+            ?: return listOf(ConnectorAccessProfile.NOT_CONFIGURED)
+        val permissions = registry.get(meta.runtimeId)?.agentActions().orEmpty()
+            .filter { (it.surfaceId ?: meta.runtimeId) == surfaceId }
+            .map { it.permission }
+            .toSet()
+        return ConnectorAccessProfile.selectableFor(permissions)
     }
 
     fun setAccessProfile(surfaceId: String, profile: ConnectorAccessProfile) {
         if (_items.value.none { it.meta.id == surfaceId }) return
+        val previous = accessProfileStore.get(surfaceId)
         accessProfileStore.set(surfaceId, profile)
         _accessProfiles.value = _accessProfiles.value.toMutableMap().apply {
             if (profile == ConnectorAccessProfile.NOT_CONFIGURED) remove(surfaceId)
             else put(surfaceId, profile)
+        }
+        if (profile != previous && surfaceId in GoogleDataScopes.surfaceIds) {
+            viewModelScope.launch { ServiceLocator.connectorAuthorizationManager.disconnect(surfaceId) }
         }
     }
 
@@ -80,7 +96,11 @@ class ConnectorsViewModel(application: Application) : AndroidViewModel(applicati
     private fun observeItems(metas: List<ConnectorMeta>): Flow<List<ConnectorRow>> {
         if (metas.isEmpty()) return flowOf(emptyList())
         val stateFlows = metas.map { meta ->
-            registry.get(meta.runtimeId)?.state() ?: flowOf(ConnectorState(connected = false))
+            if (meta.runtimeId == "google" && meta.id in GoogleDataScopes.surfaceIds) {
+                ServiceLocator.googleAuthService.stateForSurface(meta.id)
+            } else {
+                registry.get(meta.runtimeId)?.state() ?: flowOf(ConnectorState(connected = false))
+            }
         }
         return combine(stateFlows) { states ->
             metas.mapIndexed { index, meta -> ConnectorRow(meta = meta, state = states[index]) }

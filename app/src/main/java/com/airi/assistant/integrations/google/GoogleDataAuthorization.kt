@@ -21,6 +21,23 @@ sealed interface GoogleDataAuthorization {
 
 /** Maps only the read-only action scopes currently allowed by the user's surface profiles. */
 object GoogleDataScopes {
+    private val scopesBySurface: Map<String, Set<String>> = mapOf(
+        "google_gmail" to setOf(ConnectorProviderScopes.GOOGLE_GMAIL_READONLY),
+        "google_calendar" to setOf(ConnectorProviderScopes.GOOGLE_CALENDAR_EVENTS_OWNED_READONLY),
+        "google_drive" to setOf(ConnectorProviderScopes.GOOGLE_DRIVE_METADATA_READONLY),
+        "google_docs" to setOf(ConnectorProviderScopes.GOOGLE_DOCS_READONLY),
+        "google_sheets" to setOf(ConnectorProviderScopes.GOOGLE_SHEETS_READONLY),
+        "google_contacts" to setOf(ConnectorProviderScopes.GOOGLE_CONTACTS_READONLY),
+        "google_tasks" to setOf(ConnectorProviderScopes.GOOGLE_TASKS_READONLY),
+    )
+
+    fun scopesForSurface(surfaceId: String): Set<String> = scopesBySurface[surfaceId].orEmpty()
+
+    fun isValidSurfaceRequest(surfaceId: String, scopes: Set<String>): Boolean =
+        scopes.isNotEmpty() && scopes.all { it in scopesForSurface(surfaceId) }
+
+    val surfaceIds: Set<String> get() = scopesBySurface.keys
+
     fun fromActionScopes(scopes: Set<String>): List<Scope> = scopes
         .filter(String::isNotBlank)
         .distinct()

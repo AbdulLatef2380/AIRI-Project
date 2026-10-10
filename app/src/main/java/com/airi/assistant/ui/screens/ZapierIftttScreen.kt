@@ -312,7 +312,7 @@ private fun IftttTab(
                         onClick = {
                             scope.launch {
                                 connector.setKey(webhookKey.trim())
-                                ServiceLocator.connectorRegistry.connect("ifttt")
+                                ServiceLocator.connectorRegistry.connect("ifttt", persistConnection = true)
                             }
                         },
                         enabled = webhookKey.isNotBlank(),

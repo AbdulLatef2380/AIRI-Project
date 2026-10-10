@@ -640,10 +640,6 @@ fun AiriApp() {
                             onManageAuthorization = { connectorId ->
                                 navController.navigate(AiriRoute.connectorAuthorization(connectorId)) { launchSingleTop = true }
                             },
-                            onTry = { prompt ->
-                                chatViewModel.prefillInput(prompt)
-                                navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }
-                            },
                             onExplain = { prompt ->
                                 chatViewModel.prefillInput(prompt)
                                 navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }

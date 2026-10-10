@@ -1892,4 +1892,17 @@
     <string name="tool_error_tool_not_found">Esta capacidad no está disponible en la sesión actual de AIRI.</string>
     <string name="tool_error_unsupported">Esta capacidad no es compatible con el entorno actual.</string>
     <string name="tool_error_generic">AIRI no pudo completar esta capacidad. Vuelve a intentarlo.</string>
+    <string name="connectors_access_profile_write_only">Solo escritura</string>
+    <string name="connectors_access_profile_none_description">AIRI no utilizará este servicio mediante acciones del agente.</string>
+    <string name="connectors_access_profile_read_only_description">AIRI puede ver o buscar datos, pero no crearlos ni modificarlos.</string>
+    <string name="connectors_access_profile_write_only_description">AIRI puede crear o actualizar datos, pero no leer los existentes.</string>
+    <string name="connectors_access_profile_read_write_description">AIRI puede leer, crear y actualizar datos. Las acciones destructivas requieren confirmación.</string>
+    <string name="connectors_access_profile_full_description">Pueden habilitarse todos los tipos de acción declarados; las acciones destructivas y administrativas requieren confirmación.</string>
+    <string name="connectors_access_profile_continue">Continuar</string>
+    <string name="connectors_access_profile_change">Cambiar acceso</string>
+    <string name="connector_open_provider">Abrir la aplicación o el sitio del proveedor</string>
+    <string name="connectors_test_connection_started">Se inició la comprobación; el estado del conector se actualizará al finalizar.</string>
+    <string name="connector_auth_context_description">Revisa y autoriza este conector sin cambiar las demás integraciones.</string>
+    <string name="connector_auth_context_targeted">Este flujo de autorización corresponde solo al conector seleccionado.</string>
+    <string name="connector_auth_retry">Continuar autorización</string>
 </resources>

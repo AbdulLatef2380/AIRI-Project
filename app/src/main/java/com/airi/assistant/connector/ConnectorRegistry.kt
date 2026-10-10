@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class ConnectorRegistry(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    private val connectionStateStore: ConnectorConnectionStateStore = InMemoryConnectorConnectionStateStore(),
 ) {
     private val store = ConcurrentHashMap<String, Connector>()
     private val registrationOrder = ConcurrentHashMap<String, Long>()
@@ -93,6 +94,7 @@ class ConnectorRegistry(
     fun unregister(id: String) {
         val removed = store.remove(id) ?: return
         explicitlyDisconnected.add(id)
+        connectionStateStore.setConnected(id, false)
         lifecycleGeneration[id] = (lifecycleGeneration[id] ?: 0L) + 1L
         registrationOrder.remove(id)
         // Best-effort disconnect; failure is logged by the connector itself.
@@ -104,13 +106,17 @@ class ConnectorRegistry(
 
     fun isExplicitlyDisconnected(id: String): Boolean = explicitlyDisconnected.contains(id)
 
+    fun clearPersistedConnection(id: String) {
+        if (id.isNotBlank()) connectionStateStore.setConnected(id, false)
+    }
+
     /** Snapshot used by runtimes to reject work invalidated during reconnect/disconnect. */
     fun lifecycleToken(id: String): Long = lifecycleGeneration[id] ?: 0L
 
     fun isExecutionAllowed(id: String, token: Long): Boolean =
         store.containsKey(id) && lifecycleGeneration[id] == token && !isExplicitlyDisconnected(id)
 
-    suspend fun connect(id: String): ConnectorState = lifecycleMutex.withLock {
+    suspend fun connect(id: String, persistConnection: Boolean = false): ConnectorState = lifecycleMutex.withLock {
         val connector = get(id) ?: return ConnectorState(false, false, errorMessage = "Connector not registered")
         val token = (lifecycleGeneration[id] ?: 0L) + 1L
         lifecycleGeneration[id] = token
@@ -118,8 +124,9 @@ class ConnectorRegistry(
             explicitlyDisconnected.add(id)
             ConnectorState(false, false, errorMessage = it.message ?: "Connection failed")
         }.also {
-            if (lifecycleGeneration[id] == token && it.connected && it.healthy) {
-                explicitlyDisconnected.remove(id)
+            if (persistConnection && lifecycleGeneration[id] == token && it.connected) {
+                connectionStateStore.setConnected(id, true)
+                if (it.healthy) explicitlyDisconnected.remove(id)
             }
         }
     }
@@ -129,7 +136,18 @@ class ConnectorRegistry(
         val token = (lifecycleGeneration[id] ?: 0L) + 1L
         lifecycleGeneration[id] = token
         explicitlyDisconnected.add(id)
-        return runCatching { connector.disconnect(); true }.getOrDefault(false)
+        val persisted = connectionStateStore.setConnected(id, false)
+        val disconnected = runCatching { connector.disconnect(); true }.getOrDefault(false)
+        return disconnected && persisted
+    }
+
+    /** Reconnect only runtime IDs explicitly persisted after a successful user-authorized connection. */
+    fun restorePersistedConnections() {
+        connectionStateStore.connectedIds().forEach { id ->
+            if (store.containsKey(id) && !isExplicitlyDisconnected(id)) {
+                scope.launch { connect(id) }
+            }
+        }
     }
 
     fun all(): List<Connector> = store.values.sortedBy { registrationOrder[it.id] ?: Long.MAX_VALUE }

@@ -2125,4 +2125,17 @@
     <string name="tool_error_tool_not_found">هذه القدرة غير متاحة في جلسة AIRI الحالية.</string>
     <string name="tool_error_unsupported">هذه القدرة غير مدعومة في بيئة التشغيل الحالية.</string>
     <string name="tool_error_generic">تعذر على AIRI إكمال هذه القدرة. حاول مرة أخرى.</string>
+    <string name="connectors_access_profile_write_only">كتابة فقط</string>
+    <string name="connectors_access_profile_none_description">لن يستخدم AIRI هذه الخدمة لتنفيذ أي إجراء للوكيل.</string>
+    <string name="connectors_access_profile_read_only_description">يمكن لـAIRI عرض البيانات أو البحث فيها دون إنشائها أو تعديلها.</string>
+    <string name="connectors_access_profile_write_only_description">يمكن لـAIRI إنشاء البيانات أو تحديثها دون قراءة البيانات الموجودة.</string>
+    <string name="connectors_access_profile_read_write_description">يمكن لـAIRI قراءة البيانات وإنشاءها أو تحديثها. وتتطلب الإجراءات الإتلافية تأكيدًا مستقلًا.</string>
+    <string name="connectors_access_profile_full_description">قد تتاح جميع أنواع الإجراءات المعلنة، مع بقاء الإجراءات الإتلافية والإدارية بحاجة إلى تأكيد.</string>
+    <string name="connectors_access_profile_continue">متابعة</string>
+    <string name="connectors_access_profile_change">تغيير مستوى الوصول</string>
+    <string name="connector_open_provider">فتح تطبيق أو موقع الخدمة</string>
+    <string name="connectors_test_connection_started">بدأ فحص الاتصال؛ ستتحدث حالة الموصل عند اكتماله.</string>
+    <string name="connector_auth_context_description">راجع هذا الموصل وصادقه دون تغيير إعدادات التكاملات الأخرى.</string>
+    <string name="connector_auth_context_targeted">تدفق التفويض هذا خاص بالموصل المحدد فقط.</string>
+    <string name="connector_auth_retry">متابعة التفويض</string>
 </resources>

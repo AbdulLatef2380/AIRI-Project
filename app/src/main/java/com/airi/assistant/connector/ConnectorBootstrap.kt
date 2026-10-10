@@ -104,5 +104,8 @@ object ConnectorBootstrap {
         ProviderTokenConnector.configs().forEach { config ->
             registry.register(ProviderTokenConnector(config, authManager))
         }
+
+        // Rehydrate only IDs whose encrypted connection flag was committed after a successful user-authorized connect.
+        registry.restorePersistedConnections()
     }
 }

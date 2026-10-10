@@ -169,6 +169,40 @@ class SecureStorage(context: Context) {
     fun getGoogleEmail(): String? = prefs.getString(KEY_GOOGLE_EMAIL, null)
     fun getGoogleUpdated(): Long = prefs.getLong(KEY_GOOGLE_UPDATED, 0L)
 
+    /** Persist only the granted scope names per Google product surface, never short-lived bearer tokens. */
+    fun saveGoogleSurfaceScopes(surfaceId: String, scopes: Set<String>): Boolean {
+        require(surfaceId.isNotBlank()) { "surfaceId must not be blank" }
+        val key = googleSurfaceScopesKey(surfaceId)
+        val editor = prefs.edit()
+        if (scopes.isEmpty()) editor.remove(key) else editor.putStringSet(key, scopes.toSet())
+        return editor.commit()
+    }
+
+    fun getGoogleSurfaceScopes(surfaceId: String): Set<String> =
+        if (surfaceId.isBlank()) emptySet() else prefs.getStringSet(googleSurfaceScopesKey(surfaceId), emptySet()).orEmpty().toSet()
+
+    fun getGoogleSurfaceGrants(): Map<String, Set<String>> = prefs.all.keys
+        .filter { it.startsWith(KEY_GOOGLE_SURFACE_SCOPES_PREFIX) }
+        .mapNotNull { key ->
+            val surfaceId = key.removePrefix(KEY_GOOGLE_SURFACE_SCOPES_PREFIX).takeIf(String::isNotBlank)
+                ?: return@mapNotNull null
+            getGoogleSurfaceScopes(surfaceId).takeIf { it.isNotEmpty() }?.let { surfaceId to it }
+        }
+        .toMap()
+
+    fun clearGoogleSurfaceGrant(surfaceId: String): Boolean {
+        require(surfaceId.isNotBlank()) { "surfaceId must not be blank" }
+        return prefs.edit().remove(googleSurfaceScopesKey(surfaceId)).commit()
+    }
+
+    fun clearGoogleSurfaceGrants(): Boolean {
+        val editor = prefs.edit()
+        prefs.all.keys.filter { it.startsWith(KEY_GOOGLE_SURFACE_SCOPES_PREFIX) }.forEach { key -> editor.remove(key) }
+        return editor.commit()
+    }
+
+    private fun googleSurfaceScopesKey(surfaceId: String) = KEY_GOOGLE_SURFACE_SCOPES_PREFIX + surfaceId
+
     // ─── LLM provider API keys ─────────────────────────────────────────────────
 
     fun saveLlmKey(provider: String, key: String) =
@@ -263,7 +297,9 @@ class SecureStorage(context: Context) {
                 .remove(KEY_TELEGRAM_USERNAME)
                 .putLong(KEY_TELEGRAM_UPDATED, System.currentTimeMillis())
 
-            "google" -> prefs.edit()
+            "google" -> prefs.edit().also { editor ->
+                prefs.all.keys.filter { it.startsWith(KEY_GOOGLE_SURFACE_SCOPES_PREFIX) }.forEach { key -> editor.remove(key) }
+            }
                 .putBoolean(KEY_GOOGLE_CONNECTED, false)
                 .remove(KEY_GOOGLE_EMAIL)
                 .remove(KEY_GOOGLE_ID_TOKEN)
@@ -295,6 +331,7 @@ class SecureStorage(context: Context) {
         private const val KEY_GOOGLE_EMAIL     = "google_email"
         private const val KEY_GOOGLE_ID_TOKEN  = "google_id_token"
         private const val KEY_GOOGLE_UPDATED   = "google_updated"
+        private const val KEY_GOOGLE_SURFACE_SCOPES_PREFIX = "google_surface_scopes:"
     }
 }
 

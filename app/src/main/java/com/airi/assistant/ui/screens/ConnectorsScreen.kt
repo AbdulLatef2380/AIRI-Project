@@ -355,10 +355,9 @@ fun ConnectorsScreen(
                                     contactsPermLauncher.launch(android.Manifest.permission.READ_CONTACTS)
                                 } else {
                                     // Provider-backed connectors need the provider's
-                                    // sign-in/token flow before registry.connect can
-                                    // succeed. Never show a fake "requested" state.
+                                    // explicit connector context before authorization.
                                     if (ConnectorAuthStrategies.forMeta(row.meta).officialAuthorizationRequired) {
-                                        onManageAuthorization(row.meta.id)
+                                        onOpenDetails(row.meta.id)
                                     } else {
                                         viewModel.connect(row.meta.id)
                                     }

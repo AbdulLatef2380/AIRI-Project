@@ -86,8 +86,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airi.assistant.R
+import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.connector.ConnectorAccessProfile
-import com.airi.assistant.ui.viewmodel.GoogleConnectionAction
+import com.airi.assistant.ui.components.ConnectorAccessProfileDialog
 import com.airi.assistant.ui.viewmodel.IntegrationsViewModel
 import com.airi.assistant.ui.viewmodel.IntegrationReadiness
 import com.airi.assistant.ui.viewmodel.IntegrationReadinessPolicy
@@ -111,6 +112,16 @@ fun IntegrationsScreen(
     val dialog by vm.dialog.collectAsState()
     val accessProfileRequest by vm.accessProfileRequest.collectAsState()
     val googleFeedback by vm.googleFeedback.collectAsState()
+    val focusedMeta = remember(initialConnectorId) {
+        initialConnectorId?.let { id ->
+            runCatching {
+                ServiceLocator.connectorRegistry.catalogMeta().firstOrNull { it.id == id }
+                    ?: ServiceLocator.connectorRegistry.get(id)?.meta()
+            }.getOrNull()
+        }
+    }
+    val focusedIntegration = items.firstOrNull { it.id == initialConnectorId }
+    val locale = LocalConfiguration.current.locales[0]
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(googleFeedback) {
         googleFeedback?.let { feedback ->
@@ -136,7 +147,8 @@ fun IntegrationsScreen(
     val googleAuthorizationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
-        vm.onGoogleDataAuthorizationResult(result.data)
+        if (result.resultCode == Activity.RESULT_OK) vm.onGoogleDataAuthorizationResult(result.data)
+        else vm.onGoogleDataAuthorizationCancelled()
     }
     LaunchedEffect(vm) {
         vm.googleAuthorizationEffects.collect { effect ->
@@ -155,27 +167,9 @@ fun IntegrationsScreen(
             }
         }
     }
-    // Provider-backed connector cards arrive here with their runtime id. Start
-    // the real sign-in/token flow immediately; do not leave a dead-end screen.
+    // When entered from a connector detail route, authorize only that selected connector.
     LaunchedEffect(initialConnectorId) {
-        when (initialConnectorId) {
-            "github" -> vm.openGithubDialog()
-            "telegram" -> vm.openTelegramDialog()
-            "notion", "notion_mcp" -> vm.openNotionDialog()
-            "zapier" -> vm.beginConnectorAuthorization("zapier")
-            "microsoft_graph" -> vm.beginConnectorAuthorization("microsoft_graph")
-            in providerTokenConnectorIds -> initialConnectorId?.let(vm::beginConnectorAuthorization)
-            "google_docs", "google_sheets", "google_contacts", "google_tasks", "google" -> when (
-                IntegrationReadinessPolicy.googleConnectionAction(
-                    items.firstOrNull { it.id == "google" }?.readiness
-                        ?: IntegrationReadiness.DISCONNECTED
-                )
-            ) {
-                GoogleConnectionAction.START_IDENTITY_SIGN_IN,
-                GoogleConnectionAction.REQUEST_DATA_AUTHORIZATION -> vm.beginConnectorAuthorization("google")
-                GoogleConnectionAction.NONE -> Unit
-            }
-        }
+        initialConnectorId?.takeIf(String::isNotBlank)?.let(vm::beginConnectorAuthorization)
     }
 
     Scaffold(
@@ -188,7 +182,9 @@ fun IntegrationsScreen(
                 ),
                 title = {
                     Text(
-                        stringResource(R.string.integrations_title),
+                        focusedMeta?.presentation(locale)?.name
+                            ?: focusedIntegration?.name
+                            ?: stringResource(R.string.integrations_title),
                         color = AiriTheme.onBackground,
                         fontWeight = FontWeight.Bold
                     )
@@ -212,7 +208,7 @@ fun IntegrationsScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
+            if (initialConnectorId == null) item {
                 Column {
                     Text(
                         stringResource(R.string.integrations_section_title),
@@ -230,7 +226,7 @@ fun IntegrationsScreen(
                 }
             }
 
-            items(items, key = { it.id }) { item ->
+            if (initialConnectorId == null) items(items, key = { it.id }) { item ->
                 IntegrationCard(
                     item = item,
                     onConnect = {
@@ -241,19 +237,51 @@ fun IntegrationsScreen(
                             "zapier" -> vm.beginConnectorAuthorization("zapier")
                             "microsoft_graph" -> vm.beginConnectorAuthorization("microsoft_graph")
                             in providerTokenConnectorIds -> vm.beginConnectorAuthorization(item.id)
-                            "google_docs", "google_sheets", "google_contacts", "google_tasks", "google" -> when (
-                                IntegrationReadinessPolicy.googleConnectionAction(item.readiness)
-                            ) {
-                                GoogleConnectionAction.START_IDENTITY_SIGN_IN,
-                                GoogleConnectionAction.REQUEST_DATA_AUTHORIZATION -> {
-                                    vm.beginConnectorAuthorization("google")
-                                }
-                                GoogleConnectionAction.NONE -> Unit
-                            }
+                            "google" -> vm.beginConnectorAuthorization("google")
                         }
                     },
                     onDisconnect = { vm.disconnect(item.id) }
                 )
+            }
+
+            if (initialConnectorId != null) {
+                item(key = "focused_connector_context") {
+                    androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                focusedMeta?.presentation(locale)?.name ?: focusedIntegration?.name ?: initialConnectorId,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = AiriTheme.onSurface,
+                            )
+                            Text(
+                                focusedMeta?.presentation(locale)?.description
+                                    ?: focusedIntegration?.description
+                                    ?: stringResource(R.string.connector_auth_context_description),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = AiriTheme.onSurfaceVariant,
+                            )
+                            Text(
+                                stringResource(R.string.connector_auth_context_targeted),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = { vm.beginConnectorAuthorization(initialConnectorId) },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text(stringResource(R.string.connector_auth_retry)) }
+                        }
+                    }
+                }
+                focusedIntegration?.let { focusedItem ->
+                    item(key = "focused_integration_${focusedItem.id}") {
+                        IntegrationCard(
+                            item = focusedItem,
+                            onConnect = { vm.beginConnectorAuthorization(focusedItem.id) },
+                            onDisconnect = { vm.disconnect(focusedItem.id) },
+                        )
+                    }
+                }
             }
 
             item { Spacer(Modifier.height(24.dp)) }
@@ -337,50 +365,15 @@ fun IntegrationsScreen(
         )
     }
     accessProfileRequest?.let { request ->
-        AccessProfileDialog(
-            connectorId = request.connectorId,
-            onSelect = vm::chooseAccessProfile,
+        ConnectorAccessProfileDialog(
+            title = stringResource(R.string.connector_access_dialog_title, request.connectorId),
+            description = stringResource(R.string.connector_access_dialog_description),
+            currentProfile = ConnectorAccessProfile.NOT_CONFIGURED,
+            availableProfiles = request.allowedProfiles,
+            onConfirm = vm::chooseAccessProfile,
             onDismiss = vm::cancelAccessProfileRequest,
         )
     }
-}
-
-@Composable
-private fun AccessProfileDialog(
-    connectorId: String,
-    onSelect: (ConnectorAccessProfile) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.connector_access_dialog_title, connectorId)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    stringResource(R.string.connector_access_dialog_description),
-                    color = AiriTheme.onSurfaceVariant,
-                    fontSize = 13.sp,
-                )
-                listOf(
-                    ConnectorAccessProfile.READ_ONLY to R.string.connectors_access_profile_read_only,
-                    ConnectorAccessProfile.READ_WRITE to R.string.connectors_access_profile_read_write,
-                    ConnectorAccessProfile.FULL_ACCESS to R.string.connectors_access_profile_full,
-                ).forEach { (profile, label) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = false, onClick = { onSelect(profile) })
-                        Text(stringResource(label), color = AiriTheme.onSurface)
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-        },
-    )
 }
 
 @Composable

@@ -6,17 +6,19 @@ object ConnectorOAuthScopeResolver {
         registry: ConnectorRegistry,
         profiles: ConnectorAccessProfileStore,
         runtimeId: String,
+        targetSurfaceId: String? = null,
     ): Set<String> {
         val connector = registry.get(runtimeId) ?: return emptySet()
         return connector.agentActions()
             .asSequence()
             .filter { action ->
-                val surfaceId = action.surfaceId ?: runtimeId
+                val actionSurfaceId = action.surfaceId ?: runtimeId
+                if (targetSurfaceId != null && actionSurfaceId != targetSurfaceId) return@filter false
                 // Provider consent must cover every action the selected profile
                 // permits, including writes that remain behind typed confirmation
                 // at execution time. Confirmation is an execution gate, not a
                 // reason to under-request the provider capability.
-                profiles.get(surfaceId).permits(action.permission)
+                profiles.get(actionSurfaceId).permits(action.permission)
             }
             .flatMap { action -> action.requiredOAuthScopes.asSequence() }
             .filter(String::isNotBlank)

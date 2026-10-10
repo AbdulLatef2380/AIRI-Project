@@ -18,6 +18,7 @@ import com.airi.assistant.domain.release.ReleaseScopePolicy
 import com.airi.assistant.integrations.github.GithubService
 import com.airi.assistant.integrations.google.GoogleAuthService
 import com.airi.assistant.integrations.google.GoogleDataAuthorization
+import com.airi.assistant.integrations.google.GoogleDataScopes
 import com.airi.assistant.integrations.telegram.TelegramService
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import kotlinx.coroutines.Dispatchers
@@ -42,7 +43,7 @@ class ConnectorAuthorizationManager(
 ) {
     sealed interface StartResult {
         data class OAuthBrowser(val connectorId: String, val url: String) : StartResult
-        data class GoogleIdentity(val intent: Intent) : StartResult
+        data class GoogleIdentity(val connectorId: String, val intent: Intent) : StartResult
         data class GoogleConsent(val connectorId: String, val scopes: Set<String>) : StartResult
         data class AccessProfileRequired(
             val connectorId: String,
@@ -99,6 +100,8 @@ class ConnectorAuthorizationManager(
             } ?: strategy.summary
             return@withContext StartResult.Failed("adapter_not_installed", detail)
         }
+        // The global Google card signs in the identity only. Data authorization is always per catalog surface.
+        if (runtimeId == "google" && id == "google") return@withContext beginGoogle("google")
         val surfaceIds = authorizationSurfaceIds(id, runtimeId)
         if (surfaceIds.any { accessProfileStore.get(it) == ConnectorAccessProfile.NOT_CONFIGURED }) {
             return@withContext StartResult.AccessProfileRequired(
@@ -107,11 +110,14 @@ class ConnectorAuthorizationManager(
                 surfaceIds = surfaceIds,
             )
         }
-        if (!authManager.isSecureStorageAvailable && strategy.mode != ConnectorAuthMode.OAUTH2_PKCE) {
-            return@withContext StartResult.Failed("secure_storage_unavailable", "Secure credential storage is unavailable; connector was not connected.")
+        if (!authManager.isSecureStorageAvailable || !secureStorage.isEncrypted) {
+            return@withContext StartResult.Failed(
+                "secure_storage_unavailable",
+                "Encrypted credential and authorization storage is unavailable; connector was not connected."
+            )
         }
         when (runtimeId) {
-            "google" -> beginGoogle()
+            "google" -> beginGoogle(surfaceIds.firstOrNull() ?: id)
             "microsoft_graph" -> beginMicrosoft(runtimeId)
             "zapier" -> beginZapier(runtimeId)
             "github" -> StartResult.CredentialRequired(runtimeId, "GitHub personal access token", "GitHub")
@@ -139,19 +145,24 @@ class ConnectorAuthorizationManager(
         registry = registry,
         profiles = accessProfileStore,
         runtimeId = resolveRuntimeId(id),
+        targetSurfaceId = registry.catalogMeta().firstOrNull { it.id == id }?.id,
     )
 
-    private suspend fun beginGoogle(): StartResult {
-        val scopes = requiredOAuthScopesFor("google")
+    private fun beginGoogle(surfaceId: String): StartResult {
+        if (surfaceId == "google") {
+            return if (googleAuthService.getLastSignedInEmail().isNullOrBlank()) {
+                StartResult.GoogleIdentity("google", googleAuthService.getSignInIntent())
+            } else {
+                StartResult.Ready("google", ConnectorState(true, true, "Google identity signed in"))
+            }
+        }
+        val scopes = requiredOAuthScopesFor(surfaceId)
         if (scopes.isEmpty()) {
-            return StartResult.Failed("access_profile_required", "Choose a read-access profile for at least one Google surface before authorizing data access.")
+            return StartResult.Failed("access_profile_required", "Choose an access profile that permits an action on this Google surface.")
         }
         val email = googleAuthService.getLastSignedInEmail()
-        return when {
-            email.isNullOrBlank() -> StartResult.GoogleIdentity(googleAuthService.getSignInIntent())
-            !googleAuthService.isDataAccessAuthorizedFor(scopes) -> StartResult.GoogleConsent("google", scopes)
-            else -> StartResult.Ready("google", registry.get("google")?.state()?.value ?: ConnectorState(true, true, "Google data access authorized"))
-        }
+        return if (email.isNullOrBlank()) StartResult.GoogleIdentity(surfaceId, googleAuthService.getSignInIntent())
+        else StartResult.GoogleConsent(surfaceId, scopes)
     }
 
     private fun beginMicrosoft(runtimeId: String): StartResult {
@@ -185,6 +196,12 @@ class ConnectorAuthorizationManager(
 
     /** Securely validates and commits PAT/API/MCP credentials, then health-checks. */
     suspend fun submitCredential(id: String, credential: String): CompletionResult = withContext(Dispatchers.IO) {
+        if (!authManager.isSecureStorageAvailable || !secureStorage.isEncrypted) {
+            return@withContext CompletionResult.Failed(
+                "secure_storage_unavailable",
+                "Encrypted credential storage is unavailable; the credential was not accepted."
+            )
+        }
         val runtimeId = resolveRuntimeId(id)
         val surfaceIds = authorizationSurfaceIds(id, runtimeId)
         if (surfaceIds.any { accessProfileStore.get(it) == ConnectorAccessProfile.NOT_CONFIGURED }) {
@@ -223,7 +240,7 @@ class ConnectorAuthorizationManager(
                 if (runtimeId in ProviderTokenConnector.configs().map { it.id }) {
                     authManager.setExplicitlyDisconnected(runtimeId, false)
                 }
-                val state = registry.connect(runtimeId)
+                val state = registry.connect(runtimeId, persistConnection = true)
                 if (state.connected && state.healthy) CompletionResult.Ready(runtimeId, state)
                 else {
                     if (runtimeId == "notion_mcp") secureStorage.clearIntegrationToken("notion")
@@ -236,6 +253,12 @@ class ConnectorAuthorizationManager(
 
     /** Completes the registered OAuth callback and rejects unknown/replayed state. */
     suspend fun completeOAuth(uri: android.net.Uri): CompletionResult = withContext(Dispatchers.IO) {
+        if (!authManager.isSecureStorageAvailable || !secureStorage.isEncrypted) {
+            return@withContext CompletionResult.Failed(
+                "secure_storage_unavailable",
+                "Encrypted credential storage is unavailable; OAuth completion was rejected."
+            )
+        }
         val state = uri.getQueryParameter("state")
             ?: return@withContext CompletionResult.Failed("oauth_state_missing", "OAuth callback did not contain state")
         val pending = OAuthStateRegistry.consumeRequest(state)
@@ -277,29 +300,34 @@ class ConnectorAuthorizationManager(
         )
     }
 
-    suspend fun onGoogleSignIn(account: GoogleSignInAccount): CompletionResult {
+    suspend fun onGoogleSignIn(account: GoogleSignInAccount, connectorId: String = "google"): CompletionResult {
         val email = account.email
         if (email.isNullOrBlank()) return CompletionResult.Failed("google_email_missing", "Google account did not provide an email")
-        val scopes = requiredOAuthScopesFor("google")
-        return if (scopes.isEmpty()) {
-            CompletionResult.Failed("access_profile_required", "Choose a read-access profile for at least one Google surface before authorizing data access.")
-        } else {
-            googleAuthService.handleSignInSuccess(account)
-            CompletionResult.ConsentRequired("google", scopes)
-        }
+        googleAuthService.handleSignInSuccess(account)
+        if (connectorId == "google") return CompletionResult.Ready("google", ConnectorState(true, true, "Google identity signed in"))
+        val scopes = requiredOAuthScopesFor(connectorId)
+        return if (scopes.isEmpty()) CompletionResult.Failed(
+            "access_profile_required",
+            "Choose an access profile that permits an action on this Google surface."
+        ) else CompletionResult.ConsentRequired(connectorId, scopes)
     }
 
-    suspend fun onGoogleConsent(result: GoogleDataAuthorization): CompletionResult = when (result) {
-        GoogleDataAuthorization.Authorized -> if (requiredOAuthScopesFor("google").isEmpty()) {
-            CompletionResult.Failed("access_profile_required", "Choose an access profile before authorizing Google data.")
+    suspend fun onGoogleConsent(result: GoogleDataAuthorization, connectorId: String): CompletionResult = when (result) {
+        GoogleDataAuthorization.Authorized -> if (requiredOAuthScopesFor(connectorId).isEmpty()) {
+            CompletionResult.Failed("access_profile_required", "Choose an access profile before authorizing this Google surface.")
         } else connectAndVerify("google").toCompletion("google")
-        is GoogleDataAuthorization.ConsentRequired -> CompletionResult.ConsentRequired("google", requiredOAuthScopesFor("google"))
+        is GoogleDataAuthorization.ConsentRequired -> CompletionResult.ConsentRequired(connectorId, requiredOAuthScopesFor(connectorId))
         GoogleDataAuthorization.Cancelled -> CompletionResult.Failed("authorization_cancelled", "Google data authorization was cancelled")
         GoogleDataAuthorization.Unavailable -> CompletionResult.Failed("authorization_unavailable", "Google data authorization is unavailable", true)
     }
 
     suspend fun disconnect(id: String): Boolean = withContext(Dispatchers.IO) {
         val runtimeId = resolveRuntimeId(id)
+        if (runtimeId == "google" && id != "google" && id in GoogleDataScopes.surfaceIds) {
+            val cleared = googleAuthService.disconnectSurface(id)
+            if (secureStorage.getGoogleSurfaceGrants().isEmpty()) registry.clearPersistedConnection("google")
+            return@withContext cleared
+        }
         val runtimeDisconnected = registry.disconnect(runtimeId)
         val credentialsCleared = when (runtimeId) {
             "google" -> googleAuthService.disconnect()
@@ -315,7 +343,7 @@ class ConnectorAuthorizationManager(
     private suspend fun connectAndVerify(runtimeId: String): ConnectorState {
         val connector = registry.get(runtimeId)
             ?: return ConnectorState(false, false, errorMessage = "Connector '$runtimeId' is not registered")
-        val state = registry.connect(runtimeId)
+        val state = registry.connect(runtimeId, persistConnection = true)
         return if (state.connected && state.healthy) state else connector.state().value.copy(
             connected = false,
             healthy = false,

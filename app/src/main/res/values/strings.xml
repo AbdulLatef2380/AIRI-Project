@@ -2226,4 +2226,17 @@
     <string name="tool_error_tool_not_found">This capability is not available in the current AIRI session.</string>
     <string name="tool_error_unsupported">This capability is not supported in the current runtime.</string>
     <string name="tool_error_generic">AIRI could not complete this capability. Please try again.</string>
+    <string name="connectors_access_profile_write_only">Write only</string>
+    <string name="connectors_access_profile_none_description">AIRI will not use this service through agent actions.</string>
+    <string name="connectors_access_profile_read_only_description">AIRI may view or search data, but cannot create or change it.</string>
+    <string name="connectors_access_profile_write_only_description">AIRI may create or update data, but cannot read existing data.</string>
+    <string name="connectors_access_profile_read_write_description">AIRI may read and create or update data. Destructive actions still need confirmation.</string>
+    <string name="connectors_access_profile_full_description">All declared action types may be available; destructive and administrative actions still need confirmation.</string>
+    <string name="connectors_access_profile_continue">Continue</string>
+    <string name="connectors_access_profile_change">Change access</string>
+    <string name="connector_open_provider">Open provider app or website</string>
+    <string name="connectors_test_connection_started">Connection check started; the connector status will update when it finishes.</string>
+    <string name="connector_auth_context_description">Review and authorize this connector without changing other integrations.</string>
+    <string name="connector_auth_context_targeted">This authorization flow is scoped to the selected connector.</string>
+    <string name="connector_auth_retry">Continue authorization</string>
 </resources>

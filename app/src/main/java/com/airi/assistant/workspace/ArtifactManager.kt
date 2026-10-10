@@ -145,7 +145,8 @@ class ArtifactManager(
         artifactDao?.insert(artifact.toEntity())
         AgentActivityBus.emit(
             "${type.emoji} Artifact created: $name (${file.length() / 1024}KB)",
-            ActivityCategory.SANDBOX
+            ActivityCategory.SANDBOX,
+            machineTag = "file_created",
         )
         Log.i(TAG, "Artifact created: $name at ${file.absolutePath}")
         artifact
@@ -167,6 +168,11 @@ class ArtifactManager(
         artifacts[id] = updated
         publishAll()
         artifactDao?.update(updated.toEntity())
+        AgentActivityBus.emit(
+            "Artifact updated: ${updated.name}",
+            ActivityCategory.SANDBOX,
+            machineTag = "file_created",
+        )
         updated
     }
 

@@ -101,7 +101,9 @@ import coil.request.ImageRequest
 import com.airi.assistant.ui.viewmodel.ModelUiState
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.ui.activity.TaskInfoBottomSheet
-import com.airi.assistant.ui.activity.TaskInfoTrigger
+import com.airi.assistant.ui.activity.TaskInfoMenu
+import com.airi.assistant.ui.activity.taskActivityMetrics
+import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.auth.identity.BiometricGatekeeper
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
@@ -201,6 +203,7 @@ fun ChatScreen(
     val messages      by viewModel.messages.collectAsState()
     val streamingText by viewModel.streamingText.collectAsState()
     val agentState    by viewModel.agentState.collectAsState()
+    val agentActivityEvents by AgentActivityBus.recentEvents.collectAsState()
     val lastExecutionError by viewModel.lastExecutionError.collectAsState()
     val modelState    by viewModel.modelState.collectAsState()
     val capabilityDescriptor = remember(modelState) { viewModel.currentCapabilityDescriptor() }
@@ -788,7 +791,9 @@ fun ChatScreen(
     // History panel state (replaces drawer for RTL history side panel)
     var showHistoryPanel by remember { mutableStateOf(false) }
     var showTaskInfo by remember { mutableStateOf(false) }
-    val isTaskConversation = agentState.isWorking || isPlanModeActive
+    val taskMetrics = remember(agentActivityEvents, agentState.executionId) {
+        taskActivityMetrics(agentActivityEvents, agentState.executionId.takeIf { it.isNotBlank() })
+    }
 
     Scaffold(
         modifier             = Modifier.fillMaxSize(),
@@ -827,6 +832,8 @@ fun ChatScreen(
                 planLabel          = if (isProPlan) "Pro" else "Free",
                 onPointsClick     = { onNavigate(if (isProPlan) AiriRoute.PRO_PLAN else AiriRoute.FREE_PLAN) },
                 onSearchOpen      = { showChatSearch = true },
+                taskMetrics       = taskMetrics,
+                onTaskInfoOpen    = { showTaskInfo = true },
                 onNavigate        = onNavigate
             )
         },
@@ -842,12 +849,6 @@ fun ChatScreen(
                             planViewModel = agentPlanViewModel
                         )
                     }
-                    TaskInfoTrigger(
-                        isWorking = agentState.isWorking,
-                        isTaskConversation = isTaskConversation,
-                        executionId = agentState.executionId.takeIf { it.isNotBlank() },
-                        onClick = { showTaskInfo = true }
-                    )
                     // Activity feed only visible while agent is executing
                 if (agentState.isWorking) {
                     com.airi.assistant.ui.activity.ActivityFeedComposable(
@@ -1571,6 +1572,8 @@ private fun AiriChatTopBar(
     onNewChat: () -> Unit,
     onPointsClick: () -> Unit = {},
     onSearchOpen: () -> Unit = {},
+    taskMetrics: com.airi.assistant.ui.activity.TaskActivityMetrics = com.airi.assistant.ui.activity.TaskActivityMetrics(),
+    onTaskInfoOpen: () -> Unit = {},
     onNavigate: (String) -> Unit = {}
 ) {
     TopAppBar(
@@ -1693,6 +1696,11 @@ private fun AiriChatTopBar(
                     modifier = Modifier.size(20.dp)
                 )
             }
+            TaskInfoMenu(
+                metrics = taskMetrics,
+                onSearch = onSearchOpen,
+                onTaskInfo = onTaskInfoOpen,
+            )
             // History / clock
             IconButton(onClick = onHistoryOpen) {
                 Icon(

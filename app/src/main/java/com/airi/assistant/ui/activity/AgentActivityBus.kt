@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.activity
 
+import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.runtime.profiler.FlowPressureMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,12 +54,19 @@ object AgentActivityBus {
 
     fun emit(event: ActivityEvent) {
         scope.launch {
+            // Runtime services often emit through this shared bus without a UI
+            // dependency. Attribute those events to the active execution here,
+            // so the task panel can count terminal, sandbox, connector, and
+            // artifact work without each producer inventing its own linkage.
+            val ownedEvent = if (event.executionId.isNullOrBlank()) {
+                event.copy(executionId = ExecutionStatusBus.status.value.executionId.takeIf { it.isNotBlank() })
+            } else event
             // Feed emit counter before the actual emit. The monitor sees emit
             // pressure even when the buffer is full and the event is dropped.
             runCatching {
                 com.airi.assistant.core.ServiceLocator.runtimeHealthMonitor.recordBusEmit()
             }
-            _events.emit(event)
+            _events.emit(ownedEvent)
         }
     }
 

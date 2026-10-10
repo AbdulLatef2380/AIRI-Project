@@ -1913,6 +1913,10 @@
     <string name="task_info_conditions">شروط الظهور</string>
     <string name="task_info_conditions_value">يجب أن يكون تنفيذ الوكيل أو وضع الخطة نشطاً؛ وتستخدم اللوحة أحداث التنفيذ الحالي فقط.</string>
     <string name="task_info_has_errors">أبلغت بعض أحداث التنفيذ عن خطأ.</string>
+    <string name="task_info_locked_hint">يتطلب نشاطين مختلفين على الأقل</string>
+    <string name="task_info_signal_title">إشارات التنفيذ</string>
+    <string name="task_info_signal_value">تظهر التفاصيل بعد تحقق شرطين من الصفحات والأوامر وواجهات API والملفات.</string>
+    <string name="task_metric_pages">الصفحات المعروضة</string>
     <string name="task_metric_tools">استدعاءات الأدوات</string>
     <string name="task_metric_files">أحداث مساحة العمل</string>
     <string name="task_metric_api">استدعاءات الموصلات</string>

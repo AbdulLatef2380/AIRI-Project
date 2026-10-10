@@ -1659,6 +1659,10 @@
     <string name="task_info_conditions">Condiciones de aparición</string>
     <string name="task_info_conditions_value">Debe estar activo el agente o el modo plan; solo se usan eventos de la ejecución actual.</string>
     <string name="task_info_has_errors">Algunos eventos de ejecución informaron de un error.</string>
+    <string name="task_info_locked_hint">Requiere dos señales de actividad distintas</string>
+    <string name="task_info_signal_title">Señales de ejecución</string>
+    <string name="task_info_signal_value">Los detalles se desbloquean al registrar dos señales entre páginas, comandos, API o archivos.</string>
+    <string name="task_metric_pages">Páginas vistas</string>
     <string name="task_metric_tools">Llamadas de herramientas</string>
     <string name="task_metric_files">Eventos del espacio</string>
     <string name="task_metric_api">Llamadas de conectores</string>

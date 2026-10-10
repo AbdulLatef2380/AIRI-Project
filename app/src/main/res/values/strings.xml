@@ -2020,6 +2020,10 @@
     <string name="task_info_conditions">Display conditions</string>
     <string name="task_info_conditions_value">Agent execution or plan mode must be active; the panel uses only events from the current execution.</string>
     <string name="task_info_has_errors">Some execution events reported an error.</string>
+    <string name="task_info_locked_hint">Requires two different activity signals</string>
+    <string name="task_info_signal_title">Execution signals</string>
+    <string name="task_info_signal_value">Details unlock after two of pages, commands, API calls, or files are recorded.</string>
+    <string name="task_metric_pages">Pages viewed</string>
     <string name="task_metric_tools">Tool calls</string>
     <string name="task_metric_files">Workspace events</string>
     <string name="task_metric_api">Connector calls</string>

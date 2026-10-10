@@ -76,6 +76,11 @@ class ToolDispatcher(
                 message = PrivacyGuard.redactForTrace("Tool dispatched: $toolName"),
                 executionId = executionId?.takeIf { it.isNotBlank() },
                 category = ActivityCategory.TOOL,
+                machineTag = when (toolName) {
+                    "read_screen", "web_search", "fetch_url" -> "page_viewed"
+                    "terminal_execute" -> "command_executed"
+                    else -> "tool_executed"
+                },
             )
         )
 

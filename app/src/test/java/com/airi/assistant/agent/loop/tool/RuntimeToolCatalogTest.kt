@@ -171,6 +171,21 @@ class RuntimeToolCatalogTest {
     }
 
     @Test
+    fun requestedTerminalIsPrioritizedAheadOfUnrelatedBuiltins() {
+        val intent = CapabilityIntentDetector.Intent(
+            capabilities = setOf(CapabilityIntentDetector.Capability.TERMINAL_EXECUTE),
+        )
+        val result = RuntimeToolCatalog.assemble(
+            builtins = listOf(BuiltinTools.CURRENT_TIME, BuiltinTools.TERMINAL_EXECUTE, BuiltinTools.WEB_SEARCH),
+            skills = emptyList(),
+            connectors = emptyList(),
+            intent = intent,
+            requestText = "نفذ ls في terminal",
+        )
+        assertEquals("terminal_execute", result.schemas.first().name)
+    }
+
+    @Test
     fun sideEffectsWithoutTypedTaskRouteAreNotAdvertisedAsExecutable() {
         val result = RuntimeToolCatalog.assemble(
             builtins = BuiltinTools.ALL,

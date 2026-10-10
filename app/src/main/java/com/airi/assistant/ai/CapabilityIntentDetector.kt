@@ -16,6 +16,7 @@ object CapabilityIntentDetector {
         CONNECTOR_READ,
         DEVICE_STATE,
         DEVICE_ACTION,
+        TERMINAL_EXECUTE,
     }
 
     data class Intent(
@@ -76,6 +77,17 @@ object CapabilityIntentDetector {
         "بيانات الهاتف", "الموقع",
     )
 
+    private val terminalTargets = listOf(
+        "terminal", "shell", "sandbox", "command line",
+        "الطرفية", "طرفية", "سطر الاوامر", "سطر الأوامر", "بيئة الاختبار",
+    )
+
+    private val terminalActionPatterns = listOf(
+        "run", "execute", "list", "show", "read", "print", "pwd", "ls", "cat",
+        "نفذ", "شغل", "اعرض", "اقرا", "اقرأ", "اطبع", "اعرض الملفات",
+        "نفذ امرا", "نفذ أمرا", "شغل امرا", "شغل أمرا",
+    )
+
     fun detect(input: String): Intent {
         val text = normalize(input)
         val capabilities = linkedSetOf<Capability>()
@@ -97,6 +109,9 @@ object CapabilityIntentDetector {
         }
         if (deviceActionVerbs.any(text::contains) && deviceActionTargets.any(text::contains)) {
             capabilities += Capability.DEVICE_ACTION
+        }
+        if (terminalTargets.any(text::contains) && terminalActionPatterns.any(text::contains)) {
+            capabilities += Capability.TERMINAL_EXECUTE
         }
         return Intent(capabilities, connectors)
     }

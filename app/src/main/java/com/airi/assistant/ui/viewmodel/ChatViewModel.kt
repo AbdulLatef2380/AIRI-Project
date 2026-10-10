@@ -2438,7 +2438,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             projectId = activeProjectId.takeIf { it.isNotBlank() },
                             sourceSessionId = sessionId
                         ).createFor(toolName)
-                    }
+                    },
+                    runtimeCapabilities = runtimeInventory.traceEntries(),
                 )
                 if (loopResult.terminalState == com.airi.assistant.agent.loop.AgentLoop.TerminalState.CANCELLED ||
                     _isCancelled.get() || !isCurrentGeneration(generationId)

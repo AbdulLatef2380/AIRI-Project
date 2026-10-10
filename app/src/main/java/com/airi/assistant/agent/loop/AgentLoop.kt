@@ -144,7 +144,9 @@ the tool returns an actual error.
         attachmentTrace: com.airi.assistant.execution.AttachmentDeliveryTrace? = null,
         onToken:        suspend (String) -> Unit,
         onStepComplete: suspend (StepEvent) -> String? = { null },
-        executionContextFactory: AgentLoopExecutionContextFactory? = null
+        executionContextFactory: AgentLoopExecutionContextFactory? = null,
+        /** Request-scoped capability state produced by the canonical runtime catalog. */
+        runtimeCapabilities: List<com.airi.assistant.core.CapabilitySnapshotEntry> = emptyList(),
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
         val permissionProfile = com.airi.assistant.core.AgentPermissionProfile.resolve(
@@ -174,6 +176,12 @@ the tool returns an actual error.
         )
         // Schemas omitted by the context budget are not dispatcher-eligible.
         val effectiveTools = toolSelection.tools
+        if (toolSelection.omittedToolNames.isNotEmpty()) {
+            Log.w(
+                TAG,
+                "TOOL_BLOCK_TRIMMED kept=${effectiveTools.map { it.name }} omitted=${toolSelection.omittedToolNames} budgetChars=$toolPromptBudget"
+            )
+        }
         val toolsInvoked = mutableListOf<String>()
         val history      = priorConversation.mapNotNull { turn ->
             when (turn.role.lowercase()) {
@@ -194,7 +202,9 @@ the tool returns an actual error.
             executionMode = if (providerId.isBlank()) "local_or_default" else "cloud_or_routed",
             input = input,
             tools = effectiveTools,
-            additionalCapabilities = runCatching { capabilitySnapshotProvider() }.getOrDefault(emptyList()),
+            additionalCapabilities = runtimeCapabilities.ifEmpty {
+                runCatching { capabilitySnapshotProvider() }.getOrDefault(emptyList())
+            },
             permissionProfile = permissionProfile,
         )
         val toolLedger = ToolCallLedger()

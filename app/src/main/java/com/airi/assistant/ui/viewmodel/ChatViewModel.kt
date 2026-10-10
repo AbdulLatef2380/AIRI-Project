@@ -2772,6 +2772,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             ).any { it.contains("authoriz", ignoreCase = true) || it.contains("consent", ignoreCase = true) || it.contains("sign in", ignoreCase = true) }
             val requiredProviderScopesGranted = meta.runtimeId != "google" ||
                 ServiceLocator.googleAuthService.hasAuthorizedDataScopes(
+                    meta.id,
                     permittedActions.flatMap { it.requiredOAuthScopes }.toSet()
                 )
             val readiness = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.connectorAvailability(
@@ -2831,7 +2832,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // Preserve the more immediate disconnected/unhealthy classification.
             if (state?.connected != true || state.healthy != true) return@forEach
             val scopesAuthorized = runCatching {
-                ServiceLocator.googleAuthService.hasAuthorizedDataScopes(action.requiredOAuthScopes)
+                ServiceLocator.googleAuthService.hasAuthorizedDataScopes(
+                    action.surfaceId ?: connectorId,
+                    action.requiredOAuthScopes,
+                )
             }.getOrDefault(false)
             if (!scopesAuthorized) {
                 put(

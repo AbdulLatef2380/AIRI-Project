@@ -165,8 +165,8 @@ class RuntimeToolCatalogTest {
         val terminalEntry = inventory.entries.single()
 
         assertTrue(result.schemas.any { it.name == "terminal_execute" })
-        assertEquals(RuntimeCapabilityInventory.Availability.READY, terminalEntry.availability)
-        assertTrue(terminalEntry.exposedToAgent)
+        assertEquals(RuntimeCapabilityInventory.Availability.UNKNOWN, terminalEntry.availability)
+        assertFalse(terminalEntry.exposedToAgent)
         assertTrue(inventory.promptBlock("Can you use the terminal?").contains("terminal_execute"))
     }
 

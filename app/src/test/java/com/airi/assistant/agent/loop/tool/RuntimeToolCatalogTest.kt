@@ -153,7 +153,7 @@ class RuntimeToolCatalogTest {
     }
 
     @Test
-    fun policyBlockedTerminalIsNotExposedAndInventoryNamesTheBlock() {
+    fun terminalIsCatalogedAndAgentLoopOwnsDurableContextAdmission() {
         val terminal = ToolSchema("terminal_execute", "Run a shell command")
         val result = RuntimeToolCatalog.assemble(
             builtins = listOf(terminal),
@@ -164,10 +164,10 @@ class RuntimeToolCatalogTest {
         val inventory = RuntimeCapabilityInventory.from(result, emptySet())
         val terminalEntry = inventory.entries.single()
 
-        assertTrue(result.schemas.isEmpty())
-        assertEquals(RuntimeCapabilityInventory.Availability.BLOCKED, terminalEntry.availability)
-        assertFalse(terminalEntry.exposedToAgent)
-        assertTrue(inventory.promptBlock("Can you use the terminal?").contains("disabled until an isolated process boundary"))
+        assertTrue(result.schemas.any { it.name == "terminal_execute" })
+        assertEquals(RuntimeCapabilityInventory.Availability.READY, terminalEntry.availability)
+        assertTrue(terminalEntry.exposedToAgent)
+        assertTrue(inventory.promptBlock("Can you use the terminal?").contains("terminal_execute"))
     }
 
     @Test
@@ -179,7 +179,7 @@ class RuntimeToolCatalogTest {
             intent = CapabilityIntentDetector.Intent(),
         )
         val exposed = result.schemas.mapTo(mutableSetOf()) { it.name }
-        val blocked = setOf("calendar_create", "create_note", "set_alarm", "open_app", "tap", "type_text", "scroll_down", "go_back", "flashlight", "terminal_execute")
+        val blocked = setOf("calendar_create", "create_note", "set_alarm", "open_app", "tap", "type_text", "scroll_down", "go_back", "flashlight")
 
         assertTrue(exposed.intersect(blocked).isEmpty())
         assertTrue(blocked.all { name -> result.filtered.any { it.toolName == name } })

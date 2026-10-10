@@ -35,11 +35,11 @@ class SandboxManager(private val context: Context) {
         return session
     }
 
-    suspend fun execute(label: String, task: SandboxExecutor.SandboxTask): SandboxExecutor.ExecutionResult {
+    private suspend fun execute(label: String, task: SandboxExecutor.SandboxTask): SandboxExecutor.ExecutionResult {
         val session = createSession(label) ?: return SandboxExecutor.ExecutionResult.Failure("Could not allocate session")
         AgentActivityBus.emit("Sandbox task: ${task.type} — ${task.command.take(50)}", ActivityCategory.SANDBOX)
         val result = SandboxExecutor(session).execute(task)
-        AgentActivityBus.emit("Sandbox complete: $result", ActivityCategory.SANDBOX)
+        AgentActivityBus.emit("Sandbox complete: ${result::class.simpleName}", ActivityCategory.SANDBOX)
         return result
     }
 

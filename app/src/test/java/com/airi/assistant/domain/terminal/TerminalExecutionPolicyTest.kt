@@ -6,15 +6,18 @@ import org.junit.Test
 
 class TerminalExecutionPolicyTest {
     @Test
-    fun terminalExecutionIsDisabledBeforeIsolationProof() {
+    fun readOnlyCommandsAreAllowedByTheBoundedPolicy() {
         val decision = TerminalExecutionPolicy.evaluate("ls")
-        assertFalse(decision.allowed)
-        assertTrue(decision.reason.contains("isolated", ignoreCase = true))
+        assertTrue(decision.allowed)
     }
 
     @Test
     fun blankAndOversizedCommandsAreRejectedWithoutExecution() {
         assertFalse(TerminalExecutionPolicy.evaluate(" ").allowed)
         assertFalse(TerminalExecutionPolicy.evaluate("x".repeat(8_193)).allowed)
+        assertFalse(TerminalExecutionPolicy.evaluate("cat ../secret.txt").allowed)
+        assertFalse(TerminalExecutionPolicy.evaluate("rm -rf ./output").allowed)
+        assertTrue(TerminalExecutionPolicy.evaluate("rm -rf ./output").requiresApproval)
+        assertFalse(TerminalExecutionPolicy.evaluate("echo safe; cat /etc/passwd").allowed)
     }
 }

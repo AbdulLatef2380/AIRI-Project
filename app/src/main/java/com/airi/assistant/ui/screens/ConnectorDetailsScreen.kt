@@ -231,7 +231,7 @@ fun ConnectorDetailsScreen(
             Spacer(Modifier.height(4.dp))
             ConnectorHero(meta, presentation.iconUrl, presentation.description, state)
             ConnectorStatusPill(state, row.state.statusLine, row.state.errorMessage)
-            CompactConnectorFacts(meta, presentation.category, authStrategy.mode, definition?.supportedPlatforms.orEmpty())
+            CompactConnectorFacts(meta, presentation.category, authStrategy.mode, definition?.supportedPlatforms?.firstOrNull().orEmpty())
 
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -315,12 +315,12 @@ private fun ConnectorStatusPill(state: DetailConnectionState, runtimeStatus: Str
 }
 
 @Composable
-private fun CompactConnectorFacts(meta: ConnectorMeta, category: String, authMode: ConnectorAuthMode, platforms: List<String>) {
+private fun CompactConnectorFacts(meta: ConnectorMeta, category: String, authMode: ConnectorAuthMode, platform: String) {
     Surface(modifier = Modifier.fillMaxWidth(), color = AiriTheme.surfaceVariant.copy(alpha = 0.65f), shape = AIRIShapes.md) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             Fact("Type", category.ifBlank { meta.type.name })
             Fact("Access", authMode.displayLabel())
-            if (platforms.isNotEmpty()) Fact("Platform", platforms.first())
+            if (platform.isNotBlank()) Fact("Platform", platform)
         }
     }
 }

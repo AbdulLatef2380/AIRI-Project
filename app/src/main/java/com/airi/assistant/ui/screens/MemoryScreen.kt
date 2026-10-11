@@ -24,6 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.airi.assistant.R
 import com.airi.assistant.memory.entity.ChatMessage  // Long id, non-nullable
 import com.airi.assistant.ui.theme.*
@@ -48,6 +50,9 @@ fun MemoryScreen(
     var searchQuery    by remember { mutableStateOf("") }
     var showSearch     by remember { mutableStateOf(false) }
     var showKnowledgeDialog by remember { mutableStateOf(false) }
+    var selectedKnowledge by remember { mutableStateOf<com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile?>(null) }
+    var editingKnowledge by remember { mutableStateOf<com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile?>(null) }
+    var deletingKnowledge by remember { mutableStateOf<com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile?>(null) }
     val knowledgeManager = remember { ServiceLocator.projectKnowledgeManager }
     val knowledgeProfiles by knowledgeManager.profiles.collectAsState()
     val context        = LocalContext.current
@@ -184,8 +189,42 @@ fun MemoryScreen(
 
     if (showKnowledgeDialog) {
         KnowledgeProfilesDialog(knowledgeProfiles, { showKnowledgeDialog = false },
+            { profile -> showKnowledgeDialog = false; selectedKnowledge = profile },
             { name, usage, content -> knowledgeManager.createKnowledge(name, usage, content) },
             { id, active -> knowledgeManager.setKnowledgeActive(id, active) })
+    }
+    selectedKnowledge?.let { profile ->
+        KnowledgeProfileDetailDialog(
+            profile = knowledgeProfiles.firstOrNull { it.id == profile.id } ?: profile,
+            onDismiss = { selectedKnowledge = null },
+            onToggle = { id, active -> knowledgeManager.setKnowledgeActive(id, active) },
+            onEdit = { current -> selectedKnowledge = null; editingKnowledge = current },
+            onDelete = { current -> selectedKnowledge = null; deletingKnowledge = current }
+        )
+    }
+    editingKnowledge?.let { profile ->
+        KnowledgeProfileEditorDialog(
+            profile = profile,
+            onDismiss = { editingKnowledge = null },
+            onSave = { id, name, usage, content ->
+                if (knowledgeManager.updateKnowledge(id, name, usage, content) != null) editingKnowledge = null
+            }
+        )
+    }
+    deletingKnowledge?.let { profile ->
+        AlertDialog(
+            onDismissRequest = { deletingKnowledge = null },
+            containerColor = AiriTheme.surface,
+            title = { Text("حذف المعرفة؟", color = AiriTheme.onSurface, fontWeight = FontWeight.Bold) },
+            text = { Text("سيتم حذف المعرفة «${profile.name}» نهائياً من قائمة المعرفة.", color = AiriTheme.onSurfaceVariant) },
+            confirmButton = {
+                Button(
+                    onClick = { knowledgeManager.deleteKnowledge(profile.id); deletingKnowledge = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = SemanticError)
+                ) { Text("حذف") }
+            },
+            dismissButton = { TextButton(onClick = { deletingKnowledge = null }) { Text("إلغاء") } }
+        )
     }
 
     Scaffold(
@@ -496,6 +535,7 @@ private fun SearchBar(
 private fun KnowledgeProfilesDialog(
     profiles: List<com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile>,
     onDismiss: () -> Unit,
+    onOpen: (com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile) -> Unit,
     onCreate: (String, String, String) -> Unit,
     onToggle: (String, Boolean) -> Unit
 ) {
@@ -503,29 +543,133 @@ private fun KnowledgeProfilesDialog(
     var name by remember { mutableStateOf("") }
     var usage by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss, containerColor = AiriTheme.surface, shape = AIRIShapes.xl,
-        title = { Text("Knowledge", fontWeight = FontWeight.Bold, color = AiriTheme.onSurface) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (profiles.isNotEmpty()) {
-                    Text("Knowledge selected automatically by AIRI", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
-                    profiles.forEach { profile ->
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.weight(1f)) { Text(profile.name, fontWeight = FontWeight.SemiBold, color = AiriTheme.onSurface); Text(profile.usage, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant, maxLines = 2) }
-                            Switch(profile.active, { onToggle(profile.id, it) })
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize(), color = AiriTheme.background) {
+            Column(Modifier.fillMaxSize()) {
+                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onDismiss) { Icon(Icons.Outlined.ArrowBack, "رجوع", tint = AiriTheme.onBackground) }
+                    Text("المعرفة", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { creating = true }) { Icon(Icons.Outlined.Add, "إضافة معرفة", tint = CosmicAccent) }
+                }
+                Divider(color = AiriTheme.outline)
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(profiles, key = { it.id }) { profile ->
+                        Surface(onClick = { onOpen(profile) }, shape = AIRIShapes.xl, color = AiriTheme.surface, border = BorderStroke(.5.dp, if (profile.active) CosmicAccent.copy(.28f) else AiriTheme.outline), modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.size(9.dp).clip(CircleShape).background(if (profile.active) CosmicAccent else AiriTheme.outline))
+                                    Spacer(Modifier.width(8.dp)); Text(profile.name, color = AiriTheme.onSurface, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                    Text(if (profile.active) "مفعل" else "معطل", color = if (profile.active) CosmicAccent else AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                                }
+                                Text(profile.usage, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Divider(color = AiriTheme.outline.copy(.6f))
+                                Text(profile.content, color = AiriTheme.onBackground.copy(.78f), fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                                    Text("استخدام المعرفة", color = AiriTheme.onSurfaceVariant, fontSize = 11.sp); Spacer(Modifier.width(8.dp)); Switch(profile.active, { onToggle(profile.id, it) })
+                                }
+                            }
+                        }
+                    }
+                    if (creating) item {
+                        KnowledgeEditorFields("معرفة جديدة", name, usage, content, { name = it }, { usage = it }, { content = it }) {
+                            if (name.isNotBlank() && usage.isNotBlank() && content.isNotBlank()) { onCreate(name, usage, content); name = ""; usage = ""; content = ""; creating = false }
                         }
                     }
                 }
-                TextButton(onClick = { creating = !creating }, modifier = Modifier.fillMaxWidth()) { Text("+ New knowledge") }
-                if (creating) {
-                    OutlinedTextField(name, { name = it }, label = { Text("Knowledge name") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(usage, { usage = it }, label = { Text("Use when") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(content, { content = it }, label = { Text("Knowledge content") }, minLines = 3, modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+@Composable
+private fun KnowledgeProfileDetailDialog(
+    profile: com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile,
+    onDismiss: () -> Unit,
+    onToggle: (String, Boolean) -> Unit,
+    onEdit: (com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile) -> Unit,
+    onDelete: (com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile) -> Unit
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize(), color = AiriTheme.background) {
+            Column(Modifier.fillMaxSize()) {
+                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onDismiss) { Icon(Icons.Outlined.ArrowBack, "رجوع", tint = AiriTheme.onBackground) }
+                    Text(profile.name, color = AiriTheme.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) { Icon(Icons.Outlined.MoreVert, "المزيد", tint = AiriTheme.onBackground) }
+                        DropdownMenu(menuOpen, { menuOpen = false }, modifier = Modifier.background(AiriTheme.surface)) {
+                            DropdownMenuItem(
+                                text = { Text("تعديل") },
+                                leadingIcon = { Icon(Icons.Outlined.Edit, null) },
+                                onClick = { menuOpen = false; onEdit(profile) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("حذف", color = SemanticError) },
+                                leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = SemanticError) },
+                                onClick = { menuOpen = false; onDelete(profile) }
+                            )
+                        }
+                    }
+                }
+                Divider(color = AiriTheme.outline)
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                    KnowledgeDetailBlock("تستخدم عندما...", profile.usage)
+                    KnowledgeDetailBlock("المحتوى", profile.content)
+                }
+                Spacer(Modifier.weight(1f))
+                Button(onClick = { onToggle(profile.id, !profile.active) }, modifier = Modifier.fillMaxWidth().padding(20.dp), colors = ButtonDefaults.buttonColors(containerColor = if (profile.active) AiriTheme.surfaceVariant else CosmicAccent, contentColor = if (profile.active) SemanticError else Color.White), shape = AIRIShapes.lg) { Text(if (profile.active) "تعطيل المعرفة" else "تفعيل المعرفة", fontWeight = FontWeight.Bold) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun KnowledgeDetailBlock(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(label, color = AiriTheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Surface(shape = AIRIShapes.lg, color = AiriTheme.surface, border = BorderStroke(.5.dp, AiriTheme.outline), modifier = Modifier.fillMaxWidth()) { Text(value, color = AiriTheme.onSurface, fontSize = 15.sp, lineHeight = 23.sp, modifier = Modifier.padding(16.dp)) }
+    }
+}
+
+@Composable
+private fun KnowledgeEditorFields(title: String, name: String, usage: String, content: String, onName: (String) -> Unit, onUsage: (String) -> Unit, onContent: (String) -> Unit, onSave: () -> Unit) {
+    Surface(shape = AIRIShapes.xl, color = AiriTheme.surfaceVariant, border = BorderStroke(1.dp, CosmicAccent.copy(.3f)), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(title, color = AiriTheme.onSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            KnowledgeField("اسم المعرفة", name, onName, "اسم واضح وقابل للبحث")
+            KnowledgeField("تستخدم عندما...", usage, onUsage, "متى يحتاجها AIRI؟")
+            KnowledgeField("المحتوى", content, onContent, "اكتب المعرفة هنا", 5)
+            Button(onClick = onSave, enabled = name.isNotBlank() && usage.isNotBlank() && content.isNotBlank(), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent), shape = AIRIShapes.md) { Text("حفظ المعرفة", fontWeight = FontWeight.Bold) }
+        }
+    }
+}
+
+@Composable
+private fun KnowledgeProfileEditorDialog(profile: com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile, onDismiss: () -> Unit, onSave: (String, String, String, String) -> Unit) {
+    var name by remember(profile.id) { mutableStateOf(profile.name) }
+    var usage by remember(profile.id) { mutableStateOf(profile.usage) }
+    var content by remember(profile.id) { mutableStateOf(profile.content) }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize(), color = AiriTheme.background) {
+            Column(Modifier.fillMaxSize()) {
+                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "إلغاء", tint = AiriTheme.onBackground) }
+                    Text("تعديل المعرفة", color = AiriTheme.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { if (name.isNotBlank() && usage.isNotBlank() && content.isNotBlank()) onSave(profile.id, name, usage, content) }) { Text("حفظ", color = CosmicAccent, fontWeight = FontWeight.Bold) }
+                }
+                Divider(color = AiriTheme.outline)
+                Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    KnowledgeField("اسم المعرفة", name, { name = it }, "اسم واضح")
+                    KnowledgeField("تستخدم عندما...", usage, { usage = it }, "اشرح الحالة المناسبة")
+                    KnowledgeField("المحتوى", content, { content = it }, "محتوى المعرفة", 10)
                 }
             }
-        },
-        confirmButton = { Button(enabled = name.isNotBlank() && usage.isNotBlank() && content.isNotBlank(), onClick = { onCreate(name, usage, content); name = ""; usage = ""; content = ""; creating = false }, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
-    )
+        }
+    }
+}
+
+@Composable
+private fun KnowledgeField(label: String, value: String, onChange: (String) -> Unit, hint: String, minLines: Int = 2) {
+    OutlinedTextField(value, onChange, label = { Text(label) }, placeholder = { Text(hint, color = AiriTheme.outline) }, modifier = Modifier.fillMaxWidth(), minLines = minLines, maxLines = if (minLines > 4) 16 else 4, shape = AIRIShapes.md, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = AiriTheme.outline, focusedLabelColor = CosmicAccent, focusedTextColor = AiriTheme.onSurface, unfocusedTextColor = AiriTheme.onSurface, cursorColor = CosmicAccent))
 }

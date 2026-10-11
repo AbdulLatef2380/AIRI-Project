@@ -80,6 +80,23 @@ class ProjectKnowledgeManager(
         persistProfiles(_profiles.value.map { if (it.id == id) it.copy(active = active) else it })
     }
 
+    fun updateKnowledge(id: String, name: String, usage: String, content: String): KnowledgeProfile? {
+        if (id.isBlank() || name.isBlank() || usage.isBlank() || content.isBlank()) return null
+        val current = _profiles.value.firstOrNull { it.id == id } ?: return null
+        val updated = current.copy(name = name.trim(), usage = usage.trim(), content = content.trim())
+        persistProfiles(_profiles.value.map { if (it.id == id) updated else it })
+        return updated
+    }
+
+    fun deleteKnowledge(id: String): Boolean {
+        if (id.isBlank() || _profiles.value.none { it.id == id }) return false
+        persistProfiles(_profiles.value.filterNot { it.id == id })
+        return true
+    }
+
+    fun activeKnowledgeProfiles(): List<KnowledgeProfile> =
+        _profiles.value.filter { it.active }
+
     /**
      * Builds or replaces the index for one user-selected project file. The
      * file must first enter ProjectFileManager's explicit index state.

@@ -68,6 +68,15 @@ class ConnectorCatalogTest {
     }
 
     @Test
+    fun registryCatalogSurface_containsEveryCanonicalConnectorId() {
+        val catalogIds = OfficialConnectorCatalog.all.map { it.id }
+        val surfaceIds = ConnectorRegistry().catalogMeta().map { it.id }
+
+        assertEquals(catalogIds, surfaceIds.take(catalogIds.size))
+        assertTrue(surfaceIds.containsAll(catalogIds))
+    }
+
+    @Test
     fun catalogMetadata_keeps_shared_provider_surfaces_distinct() {
         val metas = ConnectorRegistry().catalogMeta()
         val gmail = metas.first { it.id == "google_gmail" }

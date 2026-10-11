@@ -46,6 +46,28 @@ class ConnectorCatalogTest {
     }
 
     @Test
+    fun everyCatalogConnector_usesTheSharedDetailMetadataAndAuthContract() {
+        OfficialConnectorCatalog.all.forEach { definition ->
+            val meta = definition.toConnectorMeta()
+            val strategy = ConnectorAuthStrategies.forMeta(meta)
+
+            assertEquals(definition.id, meta.catalogId)
+            assertEquals(definition.id, strategy.connectorId)
+            assertTrue(meta.name.isNotBlank())
+            assertTrue(meta.description.isNotBlank())
+            assertTrue(strategy.provider.isNotBlank())
+            assertTrue(strategy.isExecutable == (definition.status != ConnectorAvailability.COMING_SOON))
+            definition.capabilities.forEach { capability ->
+                assertTrue(capability.id.isNotBlank())
+                assertTrue(capability.description.isNotBlank())
+                if (capability.permission != ConnectorPermissionLevel.READ) {
+                    assertTrue(capability.requiresConfirmation)
+                }
+            }
+        }
+    }
+
+    @Test
     fun catalogMetadata_keeps_shared_provider_surfaces_distinct() {
         val metas = ConnectorRegistry().catalogMeta()
         val gmail = metas.first { it.id == "google_gmail" }

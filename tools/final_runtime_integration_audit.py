@@ -70,7 +70,6 @@ check("single runtime tool catalog is assembled at the chat boundary", [
     ("catalog schemas become active tools", "val allActiveTools = catalog.schemas" in chat),
     ("active tools passed to agent loop", "tools        = activeTools" in chat),
 ])
-
 check("agent loop preserves tool calling for both execution backends", [
     ("effective tools passed to LLM", "tools = effectiveTools" in loop),
     ("tool requirement encoded from the filtered tools parameter", "requiresToolCalling   = tools.isNotEmpty()" in loop),
@@ -79,7 +78,6 @@ check("agent loop preserves tool calling for both execution backends", [
     ("local and cloud use same orchestrator request", "orchestrator.executeStream" in loop or "hybridOrchestrator" in loop),
     ("request has explicit tool requirement", "val requiresToolCalling" in request),
 ])
-
 check("hybrid local/cloud routing keeps tool context and failover", [
     ("router selects primary and fallbacks", "val decision = router.route" in hybrid),
     ("cloud privacy copy is prepared", "applyPrivacyGate" in hybrid),
@@ -87,7 +85,6 @@ check("hybrid local/cloud routing keeps tool context and failover", [
     ("each backend receives target request", "backend.generateStream(" in hybrid and "request    = targetRequest" in hybrid),
     ("router exposes all backends", "val allBackends: List<RuntimeBackend>" in router),
 ])
-
 check("skills, connectors, and builtins converge on ToolDispatcher", [
     ("skill bridge dispatch", "skillToolBridge" in dispatcher and "bridge.invoke(toolName, args)" in dispatcher),
     ("connector bridge dispatch", "connectorToolBridge" in dispatcher and "connectorToolBridge.invoke(toolName, args)" in dispatcher),
@@ -97,7 +94,6 @@ check("skills, connectors, and builtins converge on ToolDispatcher", [
     ("time execution exists", '"current_time" ->' in dispatcher),
     ("known connector actions remain resolvable while only granted actions are exposed", "bindings(onlyExecutable = false, onlyGranted = false)" in bridge and "onlyGranted = true" in bridge and "handles(toolName: String)" in bridge),
 ])
-
 check("memory and scheduled tasks retain durable ownership boundaries", [
     ("scheduled worker exists", "class ScheduledAgentWorker" in worker),
     ("worker dispatches production orchestrator", "ProductionAgentOrchestrator" in worker),
@@ -106,12 +102,13 @@ check("memory and scheduled tasks retain durable ownership boundaries", [
     ("production orchestrator creates durable task", "durableTaskManager" in prod_orchestrator),
     ("memory tool has scoped execution", "memory_recall" in dispatcher),
 ])
-
-check("connector profile screen avoids importing an internal Compose weight symbol", [
+check("connector detail UI is a data presentation layer, not an auth bypass", [
     ("weighted content remains inside a Row", "Modifier.weight(1f)" in connector_details and "Row(" in connector_details),
     ("internal weight extension is not imported", "import androidx.compose.foundation.layout.weight" not in connector_details),
+    ("details never calls generic registry connect", "viewModel.connect(" not in connector_details and "registry.connect(" not in connector_details),
+    ("details routes non-connected actions to provider auth", "onManageAuthorization(connectorId)" in connector_details),
+    ("details disconnect uses the view-model authorization path", "viewModel.disconnect(connectorId)" in connector_details),
 ])
-
 check("remaining connector rollout is explicit and cannot create phantom connections", [
     ("rollout registry exists", "object ConnectorRolloutRegistry" in rollout),
     ("all catalog definitions are mapped", "OfficialConnectorCatalog.all.map(::forDefinition)" in rollout),
@@ -122,7 +119,6 @@ check("remaining connector rollout is explicit and cannot create phantom connect
     ("authorization start has a sealed result type", "withContext<StartResult>(Dispatchers.IO)" in auth_manager),
     ("generic runtime connect is translated to a typed healthy or failed result", "StartResult.Ready(runtimeId, state)" in auth_manager and '"health_check_failed"' in auth_manager),
 ])
-
 check("Google data consent requests only scopes for explicitly allowed actions", [
     ("Google data request accepts explicit scope set", "authorizeDataAccess(requestedScopes: Set<String>)" in google_auth),
     ("Google authorization maps action scopes to identity scopes", "GoogleDataScopes.fromActionScopes(scopes)" in google_auth and "fun fromActionScopes(scopes: Set<String>)" in google_scope_mapping),
@@ -130,7 +126,6 @@ check("Google data consent requests only scopes for explicitly allowed actions",
     ("Google cached token is not reused for a broader or changed scope set", "dataAccessScopes == scopes" in google_auth),
     ("Google OAuth allowlist contains only the declared read-only surfaces", all(scope in provider_scopes for scope in ("GOOGLE_GMAIL_READONLY", "GOOGLE_CALENDAR_EVENTS_OWNED_READONLY", "GOOGLE_DRIVE_METADATA_READONLY"))),
 ])
-
 check("Zapier actions use provider grants and no legacy direct consent path", [
     ("Zapier OAuth URL takes explicit scopes", "buildAuthUrl(requestedScopes: Set<String>)" in zapier_adapter),
     ("Zapier OAuth uses the documented confidential server-side broker contract", "OAUTH2_CONFIDENTIAL" in auth_strategy and "CLIENT_TYPE = \"CONFIDENTIAL_SERVER_SIDE\"" in zapier_adapter and "server-side OAuth broker" in zapier_adapter),
@@ -138,7 +133,6 @@ check("Zapier actions use provider grants and no legacy direct consent path", [
     ("unconfigured REST Hook trigger is not exposed to the agent", '"trigger_zap"' not in zapier_adapter.split("override fun agentActions()", 1)[1].split("fun isOAuthConfigured", 1)[0] and "trusted REST Hook URL is securely configured" in zapier_adapter),
     ("unimplemented pause/resume actions are rejected", "not implemented by this adapter" in zapier_adapter and '"pause_zap"' not in zapier_adapter.split("override fun agentActions()", 1)[1].split("fun isOAuthConfigured", 1)[0]),
 ])
-
 check("Microsoft Outlook/Calendar/OneDrive/Teams vertical slice has a typed OAuth and token lifecycle", [
     ("canonical microsoft runtime descriptor", '"microsoft_outlook" to ConnectorRuntimeDescriptor("microsoft_outlook", "microsoft_graph"' in runtime_descriptors),
     ("typed OAuth configuration gate", "sealed interface OAuthConfiguration" in microsoft_config),
@@ -161,7 +155,6 @@ check("Microsoft Outlook/Calendar/OneDrive/Teams vertical slice has a typed OAut
     ("Teams listing is metadata-only", "/me/joinedTeams" in microsoft_adapter and "displayName,description,visibility,webUrl" in microsoft_adapter),
     ("StateFlow exposes a valid read-only view", "import kotlinx.coroutines.flow.asStateFlow" in microsoft_adapter and "_state.asStateFlow()" in microsoft_adapter),
 ])
-
 check("seven primary catalog surfaces have one real runtime gate", [
     ("primary contract is explicit", "object PrimaryConnectorContracts" in primary_contract),
     ("exactly seven surfaces", 'PrimaryConnectorContract("zapier"' in primary_contract),
@@ -169,7 +162,6 @@ check("seven primary catalog surfaces have one real runtime gate", [
     ("MCP dispatch uses a unique exposed action routed to invoke_tool", 'id = "mcp_tool_${tool.name}"' in mcp_connector and 'runtimeAction = "invoke_tool"' in mcp_connector and "fixedParams = mapOf(\"tool\" to tool.name)" in mcp_connector),
     ("MCP health precedes connected state", "connected = ok, healthy = ok" in mcp_connector),
 ])
-
 check("all remaining catalog connectors have declarative provider contracts", [
     ("remaining contract registry exists", "object RemainingProviderAdapterContracts" in remaining_contract),
     ("all current catalog remainder is represented", "private val byId = all.associateBy { it.catalogId }" in remaining_contract),
@@ -177,7 +169,6 @@ check("all remaining catalog connectors have declarative provider contracts", [
     ("contracts are non-executable by design", "val isExecutable: Boolean = false" in remaining_contract),
     ("manager includes contract diagnostics", "required scopes:" in auth_manager and "health:" in auth_manager),
 ])
-
 check("regression tests cover the final path", [
     ("catalog contract test", (ROOT / "app/src/test/java/com/airi/assistant/agent/loop/tool/RuntimeToolCatalogTest.kt").is_file()),
     ("connector bridge test", (ROOT / "app/src/test/java/com/airi/assistant/connector/ConnectorToolBridgeTest.kt").is_file()),
@@ -188,7 +179,6 @@ check("regression tests cover the final path", [
     ("primary seven connector contract test", (ROOT / "app/src/test/java/com/airi/assistant/connector/PrimaryConnectorContractTest.kt").is_file()),
     ("remaining provider adapter contract test", (ROOT / "app/src/test/java/com/airi/assistant/connector/ProviderAdapterContractTest.kt").is_file()),
 ])
-
 failed = [item for item in checks if item["status"] == "FAIL"]
 result = {
     "status": "PASS" if not failed else "FAIL",

@@ -1575,9 +1575,11 @@
     <string name="agent_plan_trace_hide_details">隐藏详情</string>
     <string name="agent_plan_trace_duration_ms">%1$d 毫秒</string>
     <string name="agent_trace_kind_planning">规划</string>
+    <string name="agent_trace_kind_runtime_signal">运行时信号</string>
     <string name="agent_trace_kind_step_started">步骤已开始</string>
     <string name="agent_trace_kind_step_completed">步骤已完成</string>
     <string name="agent_trace_kind_tool_started">工具已开始</string>
+    <string name="agent_trace_kind_tool_output">工具输出</string>
     <string name="agent_trace_kind_tool_completed">工具已完成</string>
     <string name="agent_trace_kind_tool_failed">工具失败</string>
     <string name="agent_trace_kind_tool_cancelled">工具已取消</string>

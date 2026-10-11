@@ -1563,9 +1563,11 @@
     <string name="agent_plan_trace_hide_details">Ocultar detalles</string>
     <string name="agent_plan_trace_duration_ms">%1$d ms</string>
     <string name="agent_trace_kind_planning">Planificación</string>
+    <string name="agent_trace_kind_runtime_signal">Señal de ejecución</string>
     <string name="agent_trace_kind_step_started">Paso iniciado</string>
     <string name="agent_trace_kind_step_completed">Paso completado</string>
     <string name="agent_trace_kind_tool_started">Herramienta iniciada</string>
+    <string name="agent_trace_kind_tool_output">Salida de herramienta</string>
     <string name="agent_trace_kind_tool_completed">Herramienta completada</string>
     <string name="agent_trace_kind_tool_failed">Herramienta fallida</string>
     <string name="agent_trace_kind_tool_cancelled">Herramienta cancelada</string>

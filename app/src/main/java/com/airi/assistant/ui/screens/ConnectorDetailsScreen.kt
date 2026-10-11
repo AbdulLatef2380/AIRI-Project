@@ -133,13 +133,16 @@ fun ConnectorDetailsScreen(
                     Text("What this connector does", fontSize = 17.sp)
                     Text("${presentation.projectAccess}.", color = AiriTheme.onSurfaceVariant)
                     Text("Model dependency: ${presentation.modelDependency}.", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
-                    Text("Status: ${when {
-                        isComingSoon -> stringResource(R.string.connectors_status_coming_soon)
-                        isConnected && isHealthy -> stringResource(R.string.connectors_status_connected)
-                        isConnected -> stringResource(R.string.connectors_status_needs_attention)
-                        row.meta.availability == ConnectorAvailability.PARTIAL -> stringResource(R.string.connectors_status_configuration_required)
-                        else -> stringResource(R.string.connectors_status_disconnected)
-                    }}", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+                    Row(Modifier.fillMaxWidth()) {
+                        Text("Status", Modifier.weight(1f), color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+                        Text(when {
+                            isComingSoon -> stringResource(R.string.connectors_status_coming_soon)
+                            isConnected && isHealthy -> stringResource(R.string.connectors_status_connected)
+                            isConnected -> stringResource(R.string.connectors_status_needs_attention)
+                            row.meta.availability == ConnectorAvailability.PARTIAL -> stringResource(R.string.connectors_status_configuration_required)
+                            else -> stringResource(R.string.connectors_status_disconnected)
+                        }, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+                    }
                     Text("Authentication: ${row.meta.authenticationType ?: "Not declared"}", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
                     Text(authStrategy.summary, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
                     if (authStrategy.requiredScopes.isNotEmpty()) {

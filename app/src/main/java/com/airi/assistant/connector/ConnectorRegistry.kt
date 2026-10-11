@@ -124,9 +124,9 @@ class ConnectorRegistry(
             explicitlyDisconnected.add(id)
             ConnectorState(false, false, errorMessage = it.message ?: "Connection failed")
         }.also {
-            if (persistConnection && lifecycleGeneration[id] == token && it.connected) {
-                connectionStateStore.setConnected(id, true)
-                if (it.healthy) explicitlyDisconnected.remove(id)
+            if (lifecycleGeneration[id] == token && it.connected && it.healthy) {
+                explicitlyDisconnected.remove(id)
+                if (persistConnection) connectionStateStore.setConnected(id, true)
             }
         }
     }

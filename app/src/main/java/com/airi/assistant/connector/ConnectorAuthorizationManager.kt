@@ -148,6 +148,16 @@ class ConnectorAuthorizationManager(
         targetSurfaceId = registry.catalogMeta().firstOrNull { it.id == id }?.id,
     )
 
+    private fun isDataAccessAuthorizedFor(scopes: Set<String>): Boolean =
+        scopes.isNotEmpty() && GoogleDataScopes.surfaceIds.any { surfaceId ->
+            googleAuthService.hasAuthorizedDataScopes(surfaceId, scopes)
+        }
+
+    private fun isCurrentGoogleProfileAuthorized(scopes: Set<String>): Boolean {
+        val currentProfileScopes = requiredOAuthScopesFor("google")
+        return currentProfileScopes == scopes && isDataAccessAuthorizedFor(scopes)
+    }
+
     private fun beginGoogle(surfaceId: String): StartResult {
         if (surfaceId == "google") {
             return if (googleAuthService.getLastSignedInEmail().isNullOrBlank()) {
@@ -313,9 +323,14 @@ class ConnectorAuthorizationManager(
     }
 
     suspend fun onGoogleConsent(result: GoogleDataAuthorization, connectorId: String): CompletionResult = when (result) {
-        GoogleDataAuthorization.Authorized -> if (requiredOAuthScopesFor(connectorId).isEmpty()) {
-            CompletionResult.Failed("access_profile_required", "Choose an access profile before authorizing this Google surface.")
-        } else connectAndVerify("google").toCompletion("google")
+        GoogleDataAuthorization.Authorized -> {
+            val scopes = requiredOAuthScopesFor(connectorId)
+            when {
+                scopes.isEmpty() -> CompletionResult.Failed("access_profile_required", "Choose an access profile before authorizing this Google surface.")
+                !isCurrentGoogleProfileAuthorized(scopes) -> CompletionResult.Failed("oauth_scope_set_changed", "Google authorization no longer matches the current access profile; consent is required again.")
+                else -> connectAndVerify("google").toCompletion("google")
+            }
+        }
         is GoogleDataAuthorization.ConsentRequired -> CompletionResult.ConsentRequired(connectorId, requiredOAuthScopesFor(connectorId))
         GoogleDataAuthorization.Cancelled -> CompletionResult.Failed("authorization_cancelled", "Google data authorization was cancelled")
         GoogleDataAuthorization.Unavailable -> CompletionResult.Failed("authorization_unavailable", "Google data authorization is unavailable", true)

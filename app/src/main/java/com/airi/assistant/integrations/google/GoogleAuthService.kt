@@ -81,9 +81,23 @@ class GoogleAuthService(
 
     fun getDataAccessToken(surfaceId: String): String? = sessions[surfaceId]?.accessToken
 
+    /** A cached token is valid only for the exact action scope set requested. */
+    fun getDataAccessToken(surfaceId: String, scopes: Set<String>): String? {
+        val dataAccessScopes = sessions[surfaceId]?.scopes.orEmpty()
+        return sessions[surfaceId]?.accessToken?.takeIf { dataAccessScopes == scopes }
+    }
+
     fun hasAuthorizedDataScopes(surfaceId: String, requiredScopes: Set<String>): Boolean {
-        val session = sessions[surfaceId] ?: return false
-        return requiredScopes.isNotEmpty() && requiredScopes.all { it in session.scopes }
+        val dataAccessScopes = sessions[surfaceId]?.scopes.orEmpty()
+        return requiredScopes.isNotEmpty() && dataAccessScopes == requiredScopes
+    }
+
+    /** Convenience overload that accepts one complete catalog surface grant. */
+    fun authorizeDataAccess(requestedScopes: Set<String>): Task<GoogleDataAuthorization> {
+        val surfaceId = GoogleDataScopes.surfaceIds.singleOrNull {
+            GoogleDataScopes.scopesForSurface(it) == requestedScopes
+        } ?: return Tasks.forException(IllegalArgumentException("Google authorization scope set is not tied to one surface"))
+        return authorizeDataAccess(surfaceId, requestedScopes)
     }
 
     /** Requests scopes for exactly one catalog surface; cross-surface scopes are rejected. */

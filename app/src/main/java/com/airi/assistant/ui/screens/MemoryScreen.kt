@@ -53,8 +53,11 @@ fun MemoryScreen(
     var selectedKnowledge by remember { mutableStateOf<com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile?>(null) }
     var editingKnowledge by remember { mutableStateOf<com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile?>(null) }
     var deletingKnowledge by remember { mutableStateOf<com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile?>(null) }
+    var selectedProposal by remember { mutableStateOf<com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProposal?>(null) }
+    var dismissedProposalIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     val knowledgeManager = remember { ServiceLocator.projectKnowledgeManager }
     val knowledgeProfiles by knowledgeManager.profiles.collectAsState()
+    val pendingProposals = knowledgeManager.pendingKnowledgeProposals().filterNot { it.id in dismissedProposalIds }
     val context        = LocalContext.current
     val snackbarHost   = remember { SnackbarHostState() }
     val listState      = rememberLazyListState()
@@ -188,10 +191,28 @@ fun MemoryScreen(
     }
 
     if (showKnowledgeDialog) {
-        KnowledgeProfilesDialog(knowledgeProfiles, { showKnowledgeDialog = false },
+        KnowledgeProfilesDialog(knowledgeProfiles, pendingProposals, { showKnowledgeDialog = false },
             { profile -> showKnowledgeDialog = false; selectedKnowledge = profile },
+            { proposal -> showKnowledgeDialog = false; selectedProposal = proposal },
             { name, usage, content -> knowledgeManager.createKnowledge(name, usage, content) },
             { id, active -> knowledgeManager.setKnowledgeActive(id, active) })
+    }
+    selectedProposal?.let { proposal ->
+        KnowledgeProposalDialog(
+            proposal = proposal,
+            onDismiss = { selectedProposal = null },
+            onReject = {
+                knowledgeManager.rejectKnowledgeProposal(proposal.id)
+                dismissedProposalIds = dismissedProposalIds + proposal.id
+                selectedProposal = null
+            },
+            onAccept = { name, usage, content ->
+                knowledgeManager.createKnowledge(name, usage, content)?.also {
+                    knowledgeManager.resolveKnowledgeProposal(proposal.id)
+                }
+                selectedProposal = null
+            }
+        )
     }
     selectedKnowledge?.let { profile ->
         KnowledgeProfileDetailDialog(
@@ -534,8 +555,10 @@ private fun SearchBar(
 @Composable
 private fun KnowledgeProfilesDialog(
     profiles: List<com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile>,
+    proposals: List<com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProposal>,
     onDismiss: () -> Unit,
     onOpen: (com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile) -> Unit,
+    onOpenProposal: (com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProposal) -> Unit,
     onCreate: (String, String, String) -> Unit,
     onToggle: (String, Boolean) -> Unit
 ) {
@@ -553,6 +576,27 @@ private fun KnowledgeProfilesDialog(
                 }
                 Divider(color = AiriTheme.outline)
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(proposals, key = { "proposal:${it.id}" }) { proposal ->
+                        Surface(
+                            onClick = { onOpenProposal(proposal) },
+                            shape = AIRIShapes.xl,
+                            color = CosmicAccent.copy(alpha = .10f),
+                            border = BorderStroke(1.dp, CosmicAccent.copy(alpha = .55f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.Lightbulb, null, tint = CosmicAccent)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("معرفة مقترحة", color = CosmicAccent, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                    Text("قيد الانتظار", color = CosmicAccent, fontSize = 12.sp)
+                                }
+                                Text(proposal.name, color = AiriTheme.onSurface, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                                Text(proposal.usage, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                Text("اضغط للمراجعة ثم القبول أو التجاهل", color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                            }
+                        }
+                    }
                     items(profiles, key = { it.id }) { profile ->
                         Surface(onClick = { onOpen(profile) }, shape = AIRIShapes.xl, color = AiriTheme.surface, border = BorderStroke(.5.dp, if (profile.active) CosmicAccent.copy(.28f) else AiriTheme.outline), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -574,6 +618,62 @@ private fun KnowledgeProfilesDialog(
                         KnowledgeEditorFields("معرفة جديدة", name, usage, content, { name = it }, { usage = it }, { content = it }) {
                             if (name.isNotBlank() && usage.isNotBlank() && content.isNotBlank()) { onCreate(name, usage, content); name = ""; usage = ""; content = ""; creating = false }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun KnowledgeProposalDialog(
+    proposal: com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProposal,
+    onDismiss: () -> Unit,
+    onReject: () -> Unit,
+    onAccept: (String, String, String) -> Unit
+) {
+    var editing by remember(proposal.id) { mutableStateOf(false) }
+    var name by remember(proposal.id) { mutableStateOf(proposal.name) }
+    var usage by remember(proposal.id) { mutableStateOf(proposal.usage) }
+    var content by remember(proposal.id) { mutableStateOf(proposal.content) }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize(), color = AiriTheme.background) {
+            Column(Modifier.fillMaxSize()) {
+                Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "إغلاق", tint = AiriTheme.onBackground) }
+                    Text("المعرفة المقترحة", color = AiriTheme.onBackground, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { editing = !editing }) { Icon(Icons.Outlined.Edit, "تعديل", tint = CosmicAccent) }
+                }
+                Divider(color = AiriTheme.outline)
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Surface(shape = AIRIShapes.xl, color = CosmicAccent.copy(alpha = .10f), border = BorderStroke(1.dp, CosmicAccent.copy(alpha = .55f)), modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Outlined.Schedule, null, tint = Color(0xFFFFC857))
+                                Spacer(Modifier.width(8.dp))
+                                Text("بانتظار قبولك", color = Color(0xFFFFC857), fontWeight = FontWeight.Bold)
+                            }
+                            Text("هذه المعرفة ستصبح مرجعاً لـRAG وAgentLoop بعد قبولها فقط.", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+                        }
+                    }
+                    if (editing) {
+                        KnowledgeField("اسم المعرفة", name, { name = it }, "اسم واضح")
+                        KnowledgeField("تستخدم عندما...", usage, { usage = it }, "متى يحتاجها AIRI؟")
+                        KnowledgeField("المحتوى", content, { content = it }, "المحتوى", 8)
+                    } else {
+                        Text(name, color = AiriTheme.onSurface, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                        KnowledgeDetailBlock("تستخدم عندما...", usage)
+                        KnowledgeDetailBlock("المحتوى", content)
+                    }
+                    Text("لن تُرسل المعرفة أو تُضاف إلى السياق قبل قرارك. بعد القبول تُحفظ محلياً وتدخل في الاسترجاع ضمن حدود الخصوصية والميزانية.", color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(onClick = onReject, modifier = Modifier.weight(1f), shape = AIRIShapes.md) { Text("تجاهل") }
+                        Button(
+                            onClick = { if (name.isNotBlank() && usage.isNotBlank() && content.isNotBlank()) onAccept(name.trim(), usage.trim(), content.trim()) },
+                            enabled = name.isNotBlank() && usage.isNotBlank() && content.isNotBlank(),
+                            modifier = Modifier.weight(1f), shape = AIRIShapes.md,
+                            colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
+                        ) { Text("قبول وإضافة") }
                     }
                 }
             }

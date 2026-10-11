@@ -30,11 +30,11 @@ class TerminalExecutionGateway(
     fun closeSession(id: String) = sandboxManager.closeSession(id)
 
     /** Execute one agent request in a task-owned ephemeral workspace. */
-    suspend fun executeForAgent(command: String, agentId: String): Result {
+    suspend fun executeForAgent(command: String, agentId: String, onOutput: ((String) -> Unit)? = null): Result {
         val session = createSession("agent:$agentId")
             ?: return Result.Denied("Could not allocate an agent workspace")
         return try {
-            execute(session, command, agentId)
+            execute(session, command, agentId, onOutput)
         } finally {
             closeSession(session.sessionId)
         }
@@ -43,7 +43,8 @@ class TerminalExecutionGateway(
     suspend fun execute(
         session: SandboxSession,
         command: String,
-        agentId: String = "terminal"
+        agentId: String = "terminal",
+        onOutput: ((String) -> Unit)? = null,
     ): Result {
         val policy = TerminalExecutionPolicy.evaluate(command)
         if (!policy.allowed) return Result.Disabled(policy.reason, policy.requiresApproval)
@@ -62,7 +63,8 @@ class TerminalExecutionGateway(
             SandboxExecutor(session).execute(
                 SandboxExecutor.SandboxTask(
                     type = SandboxExecutor.TaskType.SHELL_COMMAND,
-                    command = command
+                    command = command,
+                    onOutput = onOutput,
                 )
             )
         )

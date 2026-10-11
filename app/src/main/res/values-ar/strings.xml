@@ -1817,9 +1817,11 @@
     <string name="agent_plan_trace_hide_details">إخفاء التفاصيل</string>
     <string name="agent_plan_trace_duration_ms">%1$d مللي ث</string>
     <string name="agent_trace_kind_planning">التخطيط</string>
+    <string name="agent_trace_kind_runtime_signal">إشارة وقت التشغيل</string>
     <string name="agent_trace_kind_step_started">بدأت الخطوة</string>
     <string name="agent_trace_kind_step_completed">اكتملت الخطوة</string>
     <string name="agent_trace_kind_tool_started">بدأت الأداة</string>
+    <string name="agent_trace_kind_tool_output">مخرجات الأداة</string>
     <string name="agent_trace_kind_tool_completed">اكتملت الأداة</string>
     <string name="agent_trace_kind_tool_failed">فشلت الأداة</string>
     <string name="agent_trace_kind_tool_cancelled">أُلغيت الأداة</string>

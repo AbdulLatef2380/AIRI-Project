@@ -78,9 +78,11 @@ data class ExecutionTraceEvent(
 
 enum class ExecutionTraceKind {
     PLANNING,
+    RUNTIME_SIGNAL,
     STEP_STARTED,
     STEP_COMPLETED,
     TOOL_STARTED,
+    TOOL_OUTPUT,
     TOOL_COMPLETED,
     TOOL_FAILED,
     TOOL_CANCELLED,

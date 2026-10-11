@@ -1924,9 +1924,11 @@
     <string name="agent_plan_trace_hide_details">Hide details</string>
     <string name="agent_plan_trace_duration_ms">%1$d ms</string>
     <string name="agent_trace_kind_planning">Planning</string>
+    <string name="agent_trace_kind_runtime_signal">Runtime signal</string>
     <string name="agent_trace_kind_step_started">Step started</string>
     <string name="agent_trace_kind_step_completed">Step completed</string>
     <string name="agent_trace_kind_tool_started">Tool started</string>
+    <string name="agent_trace_kind_tool_output">Tool output</string>
     <string name="agent_trace_kind_tool_completed">Tool completed</string>
     <string name="agent_trace_kind_tool_failed">Tool failed</string>
     <string name="agent_trace_kind_tool_cancelled">Tool cancelled</string>

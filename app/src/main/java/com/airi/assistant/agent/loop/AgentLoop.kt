@@ -258,6 +258,11 @@ the tool returns an actual error.
             totalNodes = if (effectiveTools.isEmpty()) 1 else MAX_STEPS,
             executionId = executionId,
         )
+        ExecutionStatusBus.onRuntimeSignal(
+            executionId,
+            "Inspecting runtime capabilities",
+            "${effectiveTools.size} tools exposed; sandbox and connector policy applied",
+        )
         isPlanPublished = true
 
         try {
@@ -304,6 +309,11 @@ the tool returns an actual error.
                 }
 
                 stepsUsed++
+                ExecutionStatusBus.onRuntimeSignal(
+                    executionId,
+                    "Waiting for model decision",
+                    "Agent step $stepsUsed",
+                )
 
                 val tokenBuffer = StringBuilder()
                 val rawResponse = callLLM(
@@ -333,6 +343,11 @@ the tool returns an actual error.
                     containsToolCallCandidate = rawResponse.contains("tool_call"),
                     parserInputClassification = "agent_step"
                 )
+                ExecutionStatusBus.onRuntimeSignal(
+                    executionId,
+                    "Model response received",
+                    "Evaluating whether a tool action is required",
+                )
                 if (rawResponse.isBlank()) {
                     runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = "NO_RESPONSE")
                     ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
@@ -353,6 +368,11 @@ the tool returns an actual error.
                         com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.NotAToolCall -> "NO_CANDIDATE"
                         is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call -> null
                     },
+                )
+                ExecutionStatusBus.onRuntimeSignal(
+                    executionId,
+                    if (toolCall == null) "Model chose to answer" else "Model selected an action",
+                    toolCall?.first ?: "No tool call; preparing final response",
                 )
 
                 // Retry: if the response looks like a malformed tool call (contains
@@ -474,6 +494,11 @@ the tool returns an actual error.
                             runtimePath = actualPath,
                         )
                     )
+                    ExecutionStatusBus.onRuntimeSignal(
+                        executionId,
+                        "Routing action",
+                        "${toolName.take(64)} → ${actualPath.name}",
+                    )
                 }
                 toolsInvoked.add(toolName)
                 val toolStepId = "tool_${stepsUsed}_$toolName"
@@ -588,10 +613,20 @@ the tool returns an actual error.
                         if (agentSandbox != null) {
                             agentSandbox.execute(agentId = SANDBOX_AGENT_ID, goalId = durableExecutionContext?.taskId.orEmpty()) { ctx ->
                                 ctx.guardTool(toolName)
-                                dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID)
+                                dispatcher.execute(
+                                    toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID,
+                                    onOutput = { output ->
+                                        ExecutionStatusBus.onToolOutput(executionId, toolStepId, toolName, output)
+                                    },
+                                )
                             }
                         } else {
-                            dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID)
+                            dispatcher.execute(
+                                toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID,
+                                onOutput = { output ->
+                                    ExecutionStatusBus.onToolOutput(executionId, toolStepId, toolName, output)
+                                },
+                            )
                         }
                     } catch (e: CancellationException) {
                         throw e

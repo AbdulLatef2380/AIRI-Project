@@ -344,9 +344,11 @@ private fun traceFilterLabel(filter: ExecutionTraceFilter): String = stringResou
 @Composable
 private fun traceKindLabel(kind: ExecutionTraceKind): String = stringResource(when (kind) {
     ExecutionTraceKind.PLANNING -> R.string.agent_trace_kind_planning
+    ExecutionTraceKind.RUNTIME_SIGNAL -> R.string.agent_trace_kind_runtime_signal
     ExecutionTraceKind.STEP_STARTED -> R.string.agent_trace_kind_step_started
     ExecutionTraceKind.STEP_COMPLETED -> R.string.agent_trace_kind_step_completed
     ExecutionTraceKind.TOOL_STARTED -> R.string.agent_trace_kind_tool_started
+    ExecutionTraceKind.TOOL_OUTPUT -> R.string.agent_trace_kind_tool_output
     ExecutionTraceKind.TOOL_COMPLETED -> R.string.agent_trace_kind_tool_completed
     ExecutionTraceKind.TOOL_FAILED -> R.string.agent_trace_kind_tool_failed
     ExecutionTraceKind.TOOL_CANCELLED -> R.string.agent_trace_kind_tool_cancelled
@@ -360,6 +362,7 @@ private fun traceKindLabel(kind: ExecutionTraceKind): String = stringResource(wh
 @Composable
 private fun traceKindColor(kind: ExecutionTraceKind): Color = when (kind) {
     ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED -> SemanticError
+    ExecutionTraceKind.TOOL_OUTPUT -> AiriTheme.onSurface.copy(alpha = 0.65f)
     ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED -> AiriTheme.onSurface.copy(alpha = 0.5f)
     ExecutionTraceKind.RECOVERING -> SemanticWarn
     ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.COMPLETED -> SemanticSuccess

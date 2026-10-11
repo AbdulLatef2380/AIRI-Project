@@ -42,6 +42,7 @@ object ExecutionTracePresentation {
         ExecutionTraceFilter.ALL -> true
         ExecutionTraceFilter.PLANNING -> kind in setOf(
             ExecutionTraceKind.PLANNING,
+            ExecutionTraceKind.RUNTIME_SIGNAL,
             ExecutionTraceKind.REFLECTING,
         )
         ExecutionTraceFilter.STEPS -> kind in setOf(
@@ -51,6 +52,7 @@ object ExecutionTracePresentation {
         )
         ExecutionTraceFilter.TOOLS -> kind in setOf(
             ExecutionTraceKind.TOOL_STARTED,
+            ExecutionTraceKind.TOOL_OUTPUT,
             ExecutionTraceKind.TOOL_COMPLETED,
             ExecutionTraceKind.TOOL_FAILED,
             ExecutionTraceKind.TOOL_CANCELLED,

@@ -136,6 +136,31 @@ object ExecutionStatusBus {
             actionId = actionId,
         )
     }
+    /** Adds a redacted operational signal from AgentLoop/runtime discovery. */
+    fun onRuntimeSignal(
+        executionId: String,
+        summary: String,
+        detail: String? = null,
+    ) {
+        if (!acceptsEvent(_status.value.executionId, executionId)) return
+        appendTrace(executionId, ExecutionTraceKind.RUNTIME_SIGNAL, summary, detail)
+    }
+    /** Adds a bounded, redacted stdout/stderr chunk for the active tool. */
+    fun onToolOutput(
+        executionId: String,
+        actionId: String,
+        toolName: String,
+        output: String,
+    ) {
+        if (!acceptsEvent(_status.value.executionId, executionId) || output.isBlank()) return
+        appendTrace(
+            executionId = executionId,
+            kind = ExecutionTraceKind.TOOL_OUTPUT,
+            summary = "Output: $toolName",
+            detail = output.take(1_200),
+            actionId = actionId,
+        )
+    }
 
     /** Adds the single successful terminal event for an owned tool action. */
     fun onToolCompleted(

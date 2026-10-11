@@ -2,6 +2,7 @@ package com.airi.assistant.agent.sandbox
 
 import android.util.Log
 import com.airi.assistant.security.CommandRedactor
+import com.airi.assistant.execution.privacy.PrivacyGuard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -44,7 +45,9 @@ class SandboxExecutor(private val session: SandboxSession) {
         val command: String,
         val content: String? = null,
         val timeoutMs: Long = 30_000L,
-        val env: Map<String, String> = emptyMap()
+        val env: Map<String, String> = emptyMap(),
+        /** Redacted live process output; never contains the raw command. */
+        val onOutput: ((String) -> Unit)? = null,
     )
 
     sealed class ExecutionResult {
@@ -191,6 +194,9 @@ class SandboxExecutor(private val session: SandboxSession) {
                             break
                         }
                         output.append(buf, 0, n)
+                        task.onOutput?.invoke(
+                            PrivacyGuard.redactForTrace(String(buf, 0, n)).take(1_200)
+                        )
                     }
                 }
                 // P0-4: Use timed waitFor to prevent ANR when subprocess hangs.

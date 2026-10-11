@@ -26,6 +26,78 @@ class ConnectorCatalogTest {
     }
 
     @Test
+    fun firstConnectorExperienceBatch_hasTwentyCanonicalDetailSurfaces() {
+        val expected = listOf(
+            "google_gmail", "google_calendar", "google_drive", "google_docs", "google_sheets",
+            "google_contacts", "google_tasks", "google_meet", "microsoft_outlook", "microsoft_calendar",
+            "microsoft_onedrive", "microsoft_teams", "microsoft_sharepoint", "microsoft_todo", "github",
+            "gitlab", "figma", "jira", "linear", "slack",
+        )
+
+        assertEquals(expected, OfficialConnectorCatalog.all.take(expected.size).map { it.id })
+        expected.forEach { id ->
+            val definition = OfficialConnectorCatalog.get(id)
+            requireNotNull(definition)
+            assertEquals(id, definition.toConnectorMeta().catalogId)
+            assertTrue(definition.name.isNotBlank())
+            assertTrue(definition.description.isNotBlank())
+            assertTrue(definition.website?.startsWith("https://") == true)
+        }
+    }
+
+    @Test
+    fun everyCatalogConnector_usesTheSharedDetailMetadataAndAuthContract() {
+        OfficialConnectorCatalog.all.forEach { definition ->
+            val meta = definition.toConnectorMeta()
+            val strategy = ConnectorAuthStrategies.forMeta(meta)
+
+            assertEquals(definition.id, meta.catalogId)
+            assertEquals(definition.id, strategy.connectorId)
+            assertTrue(meta.name.isNotBlank())
+            assertTrue(meta.description.isNotBlank())
+            assertTrue(strategy.provider.isNotBlank())
+            assertTrue(strategy.isExecutable == (definition.status != ConnectorAvailability.COMING_SOON))
+            definition.capabilities.forEach { capability ->
+                assertTrue(capability.id.isNotBlank())
+                assertTrue(capability.description.isNotBlank())
+                if (capability.permission != ConnectorPermissionLevel.READ) {
+                    assertTrue(capability.requiresConfirmation)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun registryCatalogSurface_containsEveryCanonicalConnectorId() {
+        val catalogIds = OfficialConnectorCatalog.all.map { it.id }
+        val surfaceIds = ConnectorRegistry().catalogMeta().map { it.id }
+
+        assertEquals(catalogIds, surfaceIds.take(catalogIds.size))
+        assertTrue(surfaceIds.containsAll(catalogIds))
+    }
+
+    @Test
+    fun bootstrappedConnectorSurface_coversAllFortyThreeConnectors() {
+        val liveOnlyIds = listOf(
+            "remote_llm", "android_intent", "voice_mtmd", "clipboard", "device_apps",
+            "contacts", "system_info", "ifttt", "n8n",
+        )
+        val registry = ConnectorRegistry().also { target ->
+            liveOnlyIds.forEach { id -> target.register(FakeConnector(id, id)) }
+        }
+        val surface = registry.catalogMeta()
+
+        assertEquals(43, surface.size)
+        assertEquals(OfficialConnectorCatalog.all.map { it.id }, surface.take(OfficialConnectorCatalog.all.size).map { it.id })
+        assertEquals(liveOnlyIds.toSet(), surface.drop(OfficialConnectorCatalog.all.size).map { it.id }.toSet())
+        surface.forEach { meta ->
+            assertTrue(meta.id.isNotBlank())
+            assertTrue(meta.name.isNotBlank())
+            assertTrue(meta.description.isNotBlank())
+        }
+    }
+
+    @Test
     fun catalogMetadata_keeps_shared_provider_surfaces_distinct() {
         val metas = ConnectorRegistry().catalogMeta()
         val gmail = metas.first { it.id == "google_gmail" }

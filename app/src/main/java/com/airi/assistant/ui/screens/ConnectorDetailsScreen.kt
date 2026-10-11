@@ -100,7 +100,7 @@ private fun detailConnectionState(
         ConnectorAuthMode.MCP_CONFIGURATION,
         ConnectorAuthMode.OAUTH2_CONFIDENTIAL,
     ) -> DetailConnectionState.CONFIGURATION_REQUIRED
-    authMode.officialAuthorizationRequired -> DetailConnectionState.AUTHORIZATION_REQUIRED
+    authMode != ConnectorAuthMode.NONE -> DetailConnectionState.AUTHORIZATION_REQUIRED
     else -> DetailConnectionState.DISCONNECTED
 }
 

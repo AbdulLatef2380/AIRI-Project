@@ -47,9 +47,9 @@ check("no GlobalScope", not any("GlobalScope" in value for value in text.values(
 # The ViewModel may resolve a connector's runtime ID from metadata before routing
 # it through the registry. Keep the guard semantic rather than tied to one local
 # variable name.
-connects_via_registry = re.search(r"registry\.connect\((?:id|runtimeId|meta\.runtimeId)\)", text["connectors_vm"])
+connects_via_registry = re.search(r"registry\.connect\((?:id|runtimeId|meta\.runtimeId)(?:,|\))", text["connectors_vm"])
 central_disconnect = "connectorAuthorizationManager.disconnect(runtimeId)" in text["connectors_vm"]
-disconnects_via_registry = re.search(r"registry\.disconnect\((?:id|runtimeId|meta\.runtimeId)\)", text["connectors_vm"])
+disconnects_via_registry = re.search(r"registry\.disconnect\((?:id|runtimeId|meta\.runtimeId)(?:,|\))", text["connectors_vm"])
 check("UI routes lifecycle through registry", connects_via_registry and (disconnects_via_registry or central_disconnect),
       "ConnectorsViewModel routes lifecycle through the central authorization manager or Registry")
 integration_disconnect_async = "viewModelScope.launch" in text["integrations_vm"] and "authorizationManager.disconnect(id)" in text["integrations_vm"]

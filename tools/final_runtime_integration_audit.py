@@ -60,6 +60,8 @@ primary_contract = read("app/src/main/java/com/airi/assistant/connector/PrimaryC
 remaining_contract = read("app/src/main/java/com/airi/assistant/connector/ProviderAdapterContract.kt")
 mcp_connector = read("app/src/main/java/com/airi/assistant/connector/mcp/McpConnector.kt")
 connector_details = read("app/src/main/java/com/airi/assistant/ui/screens/ConnectorDetailsScreen.kt")
+integrations_vm = read("app/src/main/java/com/airi/assistant/ui/viewmodel/IntegrationsViewModel.kt")
+isolation_policy = read("app/src/main/java/com/airi/assistant/ui/viewmodel/ConnectorScreenIsolationPolicy.kt")
 worker = read("app/src/main/java/com/airi/assistant/agent/scheduler/ScheduledAgentWorker.kt")
 prod_orchestrator = read("app/src/main/java/com/airi/assistant/agent/orchestrator/ProductionAgentOrchestrator.kt")
 
@@ -108,6 +110,16 @@ check("connector detail UI is a data presentation layer, not an auth bypass", [
     ("details never calls generic registry connect", "viewModel.connect(" not in connector_details and "registry.connect(" not in connector_details),
     ("details routes non-connected actions to provider auth", "onManageAuthorization(connectorId)" in connector_details),
     ("details disconnect uses the view-model authorization path", "viewModel.disconnect(connectorId)" in connector_details),
+])
+check("connector authorization UI state is isolated by connector identity", [
+    ("active connector target exists", "private var activeConnectorId: String?" in integrations_vm),
+    ("authorization selects the active target", "activeConnectorId = id" in integrations_vm),
+    ("dialog models carry connector identity", "val connectorId: String = \"github\"" in integrations_vm and "val connectorId: String = \"telegram\"" in integrations_vm and "val connectorId: String = \"notion\"" in integrations_vm),
+    ("provider token dialog carries connector identity", "data class ProviderToken(\n            val connectorId: String" in integrations_vm),
+    ("stale async results are rejected", "acceptsResult(current.connectorId, activeConnectorId)" in integrations_vm),
+    ("Google callback is surface-bound", "acceptsResult(pendingGoogleSurfaceId, activeConnectorId)" in integrations_vm),
+    ("closing a dialog invalidates pending target", "activeConnectorId = null" in integrations_vm and "pendingGoogleScopes = emptySet()" in integrations_vm),
+    ("isolation rule has JVM coverage", "acceptsResult(expectedConnectorId" in isolation_policy and (ROOT / "app/src/test/java/com/airi/assistant/ui/viewmodel/ConnectorScreenIsolationPolicyTest.kt").is_file()),
 ])
 check("remaining connector rollout is explicit and cannot create phantom connections", [
     ("rollout registry exists", "object ConnectorRolloutRegistry" in rollout),

@@ -35,6 +35,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     private val googleAuthService = ServiceLocator.googleAuthService
     private var pendingGoogleScopes: Set<String> = emptySet()
     private var pendingGoogleSurfaceId: String = "google"
+    private var activeConnectorId: String? = null
 
     /**
      * SECURITY: Per-session CSRF state token for OAuth flows.
@@ -123,6 +124,14 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     /** Starts a non-Google provider flow through the shared authorization manager. */
     fun beginConnectorAuthorization(id: String) {
+        if (id.isBlank()) return
+        if (activeConnectorId != id) {
+            _dialog.value = DialogState.None
+            _accessProfileRequest.value = null
+            _googleFeedback.value = null
+            pendingGoogleScopes = emptySet()
+        }
+        activeConnectorId = id
         viewModelScope.launch {
             when (val result = authorizationManager.begin(id)) {
                 is ConnectorAuthorizationManager.StartResult.OAuthBrowser -> {
@@ -169,6 +178,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun chooseAccessProfile(profile: ConnectorAccessProfile) {
         val request = _accessProfileRequest.value ?: return
+        if (!ConnectorScreenIsolationPolicy.acceptsResult(request.connectorId, activeConnectorId)) return
         if (profile !in request.allowedProfiles) return
         request.surfaceIds.forEach { surfaceId ->
             ServiceLocator.connectorAccessProfileStore.set(surfaceId, profile)
@@ -179,6 +189,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun cancelAccessProfileRequest() {
         _accessProfileRequest.value = null
+        activeConnectorId = null
     }
 
     /** Re-evaluates the registered connector after an explicit Google account action. */
@@ -229,16 +240,19 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     sealed class DialogState {
         object None : DialogState()
         data class Github(
+            val connectorId: String = "github",
             val token: String = "",
             val loading: Boolean = false,
             val error: String? = null
         ) : DialogState()
         data class Telegram(
+            val connectorId: String = "telegram",
             val token: String = "",
             val loading: Boolean = false,
             val error: String? = null
         ) : DialogState()
         data class Notion(
+            val connectorId: String = "notion",
             val token: String = "",
             val loading: Boolean = false,
             val error: String? = null
@@ -256,36 +270,47 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     private val _dialog = MutableStateFlow<DialogState>(DialogState.None)
     val dialog: StateFlow<DialogState> = _dialog.asStateFlow()
 
-    fun openGithubDialog()   { _dialog.value = DialogState.Github() }
-    fun openTelegramDialog() { _dialog.value = DialogState.Telegram() }
-    fun openNotionDialog() { _dialog.value = DialogState.Notion() }
+    fun openGithubDialog()   { activeConnectorId = "github"; _dialog.value = DialogState.Github() }
+    fun openTelegramDialog() { activeConnectorId = "telegram"; _dialog.value = DialogState.Telegram() }
+    fun openNotionDialog() { activeConnectorId = "notion"; _dialog.value = DialogState.Notion() }
     fun openProviderTokenDialog(connectorId: String, provider: String, credentialLabel: String) {
+        if (connectorId.isBlank()) return
+        activeConnectorId = connectorId
         _dialog.value = DialogState.ProviderToken(connectorId, provider, credentialLabel)
     }
-    fun closeDialog()        { _dialog.value = DialogState.None }
+    fun closeDialog()        {
+        _dialog.value = DialogState.None
+        activeConnectorId = null
+        pendingGoogleScopes = emptySet()
+    }
 
     fun updateGithubToken(token: String) {
         val current = _dialog.value as? DialogState.Github ?: return
+        if (!ConnectorScreenIsolationPolicy.acceptsDialogUpdate(current.connectorId, activeConnectorId)) return
         _dialog.value = current.copy(token = token, error = null)
     }
 
     fun updateTelegramToken(token: String) {
         val current = _dialog.value as? DialogState.Telegram ?: return
+        if (!ConnectorScreenIsolationPolicy.acceptsDialogUpdate(current.connectorId, activeConnectorId)) return
         _dialog.value = current.copy(token = token, error = null)
     }
 
     fun updateNotionToken(token: String) {
         val current = _dialog.value as? DialogState.Notion ?: return
+        if (!ConnectorScreenIsolationPolicy.acceptsDialogUpdate(current.connectorId, activeConnectorId)) return
         _dialog.value = current.copy(token = token, error = null)
     }
 
     fun updateProviderToken(token: String) {
         val current = _dialog.value as? DialogState.ProviderToken ?: return
+        if (!ConnectorScreenIsolationPolicy.acceptsDialogUpdate(current.connectorId, activeConnectorId)) return
         _dialog.value = current.copy(token = token, error = null)
     }
 
     fun connectProviderToken() {
         val current = _dialog.value as? DialogState.ProviderToken ?: return
+        if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return
         if (current.token.isBlank()) {
             _dialog.value = current.copy(error = "Enter the ${current.credentialLabel}")
             return
@@ -294,13 +319,16 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             when (val result = authorizationManager.submitCredential(current.connectorId, current.token)) {
                 is ConnectorAuthorizationManager.CompletionResult.Ready -> {
+                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
                     _dialog.value = DialogState.None
                     refresh()
                 }
                 is ConnectorAuthorizationManager.CompletionResult.Failed -> {
+                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
                     _dialog.value = current.copy(loading = false, error = result.message)
                 }
                 is ConnectorAuthorizationManager.CompletionResult.ConsentRequired -> {
+                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
                     _dialog.value = current.copy(loading = false, error = "Additional authorization is required")
                 }
             }
@@ -315,6 +343,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun connectGithub() {
         val current = _dialog.value as? DialogState.Github ?: return
+        if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return
         if (current.token.isBlank()) {
             _dialog.value = current.copy(
                 error = getApplication<Application>().getString(R.string.integration_error_paste_github)
@@ -325,13 +354,16 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             when (val result = authorizationManager.submitCredential("github", current.token)) {
                 is ConnectorAuthorizationManager.CompletionResult.Ready -> {
+                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
                     _dialog.value = DialogState.None
                     refresh()
                 }
                 is ConnectorAuthorizationManager.CompletionResult.Failed -> {
+                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
                     _dialog.value = current.copy(loading = false, error = result.message)
                 }
                 is ConnectorAuthorizationManager.CompletionResult.ConsentRequired -> {
+                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
                     _dialog.value = current.copy(loading = false, error = "Additional authorization is required")
                 }
             }
@@ -340,6 +372,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun connectTelegram() {
         val current = _dialog.value as? DialogState.Telegram ?: return
+        if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return
         if (current.token.isBlank()) {
             _dialog.value = current.copy(
                 error = getApplication<Application>().getString(R.string.integration_error_paste_telegram)
@@ -350,13 +383,16 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             when (val result = authorizationManager.submitCredential("telegram", current.token)) {
                 is ConnectorAuthorizationManager.CompletionResult.Ready -> {
+                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
                     _dialog.value = DialogState.None
                     refresh()
                 }
                 is ConnectorAuthorizationManager.CompletionResult.Failed -> {
+                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
                     _dialog.value = current.copy(loading = false, error = result.message)
                 }
                 is ConnectorAuthorizationManager.CompletionResult.ConsentRequired -> {
+                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
                     _dialog.value = current.copy(loading = false, error = "Additional authorization is required")
                 }
             }
@@ -365,6 +401,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun connectNotion() {
         val current = _dialog.value as? DialogState.Notion ?: return
+        if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return
         if (current.token.isBlank()) {
             _dialog.value = current.copy(error = "Enter a Notion integration token")
             return
@@ -373,13 +410,16 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             when (val result = authorizationManager.submitCredential("notion", current.token)) {
                 is ConnectorAuthorizationManager.CompletionResult.Ready -> {
+                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
                     _dialog.value = DialogState.None
                     refresh()
                 }
                 is ConnectorAuthorizationManager.CompletionResult.Failed -> {
+                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
                     _dialog.value = current.copy(loading = false, error = result.message)
                 }
                 is ConnectorAuthorizationManager.CompletionResult.ConsentRequired -> {
+                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
                     _dialog.value = current.copy(loading = false, error = "Additional authorization is required")
                 }
             }
@@ -387,6 +427,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun onGoogleSignInSuccess(account: GoogleSignInAccount) {
+        if (!ConnectorScreenIsolationPolicy.acceptsResult(pendingGoogleSurfaceId, activeConnectorId)) return
         if (!GoogleIntegrationSignInPolicy.canConnect(account.email)) {
             _googleFeedback.value = GoogleIntegrationSignInPolicy.missingEmailFeedback()
             return
@@ -405,6 +446,8 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun requestGoogleDataAuthorization(surfaceId: String, scopes: Set<String>) {
+        if (surfaceId.isBlank()) return
+        activeConnectorId = surfaceId
         if (scopes.isEmpty()) {
             _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
             return
@@ -422,6 +465,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun onGoogleDataAuthorizationResult(resultIntent: Intent?) {
+        if (!ConnectorScreenIsolationPolicy.acceptsResult(pendingGoogleSurfaceId, activeConnectorId)) return
         val currentScopes = authorizationManager.requiredOAuthScopesFor(pendingGoogleSurfaceId)
         if (pendingGoogleScopes.isEmpty() || pendingGoogleScopes != currentScopes) {
             pendingGoogleScopes = emptySet()
@@ -437,6 +481,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun onGoogleDataAuthorizationCancelled() {
         val surfaceId = pendingGoogleSurfaceId
+        if (!ConnectorScreenIsolationPolicy.acceptsResult(surfaceId, activeConnectorId)) return
         pendingGoogleScopes = emptySet()
         googleAuthService.clearDataAccessToken(surfaceId)
         _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationCancelledFeedback()
@@ -478,10 +523,12 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun onGoogleSignInCancelled() {
+        if (!ConnectorScreenIsolationPolicy.acceptsResult(pendingGoogleSurfaceId, activeConnectorId)) return
         _googleFeedback.value = GoogleIntegrationSignInPolicy.cancelledFeedback()
     }
 
     fun onGoogleSignInFailed() {
+        if (!ConnectorScreenIsolationPolicy.acceptsResult(pendingGoogleSurfaceId, activeConnectorId)) return
         _googleFeedback.value = GoogleIntegrationSignInPolicy.providerFailureFeedback()
     }
 

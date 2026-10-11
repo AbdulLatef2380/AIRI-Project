@@ -160,11 +160,54 @@ $formatted
                     memoryId = 0L
                 )
             }
+        val activeKnowledge = projectKnowledgeManager
+            ?.activeKnowledgeProfiles()
+            .orEmpty()
+            .mapNotNull { profile ->
+                val score = knowledgeProfileScore(profile, normalizedQuery)
+                if (score <= 0f) null else RetrievedPassage(
+                    citationId = "knowledge-profile-${profile.id}",
+                    role = "knowledge_profile",
+                    content = profile.content,
+                    score = score,
+                    source = "ACTIVE_KNOWLEDGE_PROFILE",
+                    provenance = "${profile.name}: ${profile.usage}",
+                    scope = "USER",
+                    confidence = 1f,
+                    memoryId = 0L
+                )
+            }
+            .sortedByDescending { it.score }
+            .take(3)
         return RagRetrievalRanker.rank(
-            passages = (longTerm + semantic + chronologicalFallback + projectKnowledge)
+            passages = (longTerm + semantic + chronologicalFallback + projectKnowledge + activeKnowledge)
                 .filter(::isPromptSafe),
             limit = safeLimit
         )
+    }
+
+    private fun knowledgeProfileScore(
+        profile: ProjectKnowledgeManager.KnowledgeProfile,
+        query: String
+    ): Float {
+        val terms = query.lowercase().split(Regex("[^\\p{L}\\p{N}_-]+"))
+            .filter { it.length >= 2 }
+            .distinct()
+            .take(12)
+        if (terms.isEmpty()) return 0f
+        val searchable = "${profile.name} ${profile.usage} ${profile.content}".lowercase()
+        val matches = terms.sumOf { term ->
+            var count = 0
+            var start = 0
+            while (true) {
+                val index = searchable.indexOf(term, start)
+                if (index < 0) break
+                count++
+                start = index + term.length
+            }
+            count
+        }
+        return if (matches == 0) 0f else (matches.toFloat() / terms.size).coerceAtMost(4f)
     }
 
     /**

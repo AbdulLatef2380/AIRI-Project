@@ -1820,13 +1820,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private data class InputDirectives(
         val userText: String,
         val skillId: String? = null,
-        val knowledgeId: Long? = null
+        val knowledgeId: String? = null
     )
 
     private fun parseInputDirectives(input: String): InputDirectives {
         var remaining = input.trimStart()
         var skillId: String? = null
-        var knowledgeId: Long? = null
+        var knowledgeId: String? = null
         while (remaining.isNotBlank()) {
             val skill = SKILL_DIRECTIVE.find(remaining)
             val knowledge = KNOWLEDGE_DIRECTIVE.find(remaining)
@@ -1836,7 +1836,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     remaining = remaining.removeRange(skill.range).trimStart()
                 }
                 knowledge != null && knowledge.range.first == 0 && knowledgeId == null -> {
-                    knowledgeId = knowledge.groupValues[1].toLongOrNull()
+                    knowledgeId = knowledge.groupValues[1]
                     remaining = remaining.removeRange(knowledge.range).trimStart()
                 }
                 else -> break
@@ -2173,7 +2173,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 runCatching {
                     selectedKnowledgeContext(
                         sessionId = sessionId,
-                        messageId = id,
+                        knowledgeId = id,
                         projectId = activeProjectId,
                         maxPrivacyLevel = ragPrivacyLevel
                     )
@@ -4680,17 +4680,31 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val sessionId = _currentSessionId.value
         val projectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
         val privacyLevel = if (execModePrefs.effectiveMode == ExecutionMode.LOCAL_ONLY) 0 else 1
-        return memoryManager.getScopedLongTermMemories(
+        val profiles = ServiceLocator.projectKnowledgeManager.activeKnowledgeProfiles()
+            .asSequence()
+            .filter { profile ->
+                normalized.isBlank() ||
+                    profile.name.lowercase().contains(normalized) ||
+                    profile.usage.lowercase().contains(normalized) ||
+                    profile.content.lowercase().contains(normalized)
+            }
+            .map { profile ->
+                ChatInputSuggestion(
+                    id = profile.id,
+                    title = profile.name.take(72),
+                    subtitle = profile.usage.take(120),
+                    isKnowledge = true
+                )
+            }
+            .toList()
+        val memories = memoryManager.getScopedLongTermMemories(
             sessionId = sessionId,
             projectId = projectId,
             maxPrivacyLevel = privacyLevel,
             limit = MAX_KNOWLEDGE_SHORTCUT_SCAN
         )
             .asSequence()
-            .filter { memory ->
-                normalized.isBlank() || memory.content.lowercase().contains(normalized)
-            }
-            .take(MAX_SHORTCUT_SUGGESTIONS)
+            .filter { memory -> normalized.isBlank() || memory.content.lowercase().contains(normalized) }
             .map { memory ->
                 ChatInputSuggestion(
                     id = memory.id.toString(),
@@ -4700,15 +4714,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             .toList()
+        return (profiles + memories).take(MAX_SHORTCUT_SUGGESTIONS)
     }
 
     private suspend fun selectedKnowledgeContext(
         sessionId: String,
-        messageId: Long,
+        knowledgeId: String,
         projectId: String,
         maxPrivacyLevel: Int
-    ): String? =
-        memoryManager.getScopedLongTermMemories(
+    ): String? {
+        ServiceLocator.projectKnowledgeManager.activeKnowledgeProfile(knowledgeId)?.let { profile ->
+            return "${profile.name}: ${profile.content}".take(MAX_SELECTED_KNOWLEDGE_CHARS)
+        }
+        val messageId = knowledgeId.toLongOrNull() ?: return null
+        return memoryManager.getScopedLongTermMemories(
             sessionId = sessionId,
             projectId = projectId,
             maxPrivacyLevel = maxPrivacyLevel,
@@ -4717,6 +4736,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             ?.content
             ?.removePrefix("[memory] ")
             ?.take(MAX_SELECTED_KNOWLEDGE_CHARS)
+    }
 
     fun setSkillEnabled(skillName: String, enabled: Boolean) {
         skillService.setSkillEnabled(skillName, enabled)
@@ -5240,6 +5260,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val MAX_KNOWLEDGE_SHORTCUT_SCAN = 50
         const val MAX_SELECTED_KNOWLEDGE_CHARS = 500
         val SKILL_DIRECTIVE = Regex("""^/skill:([A-Za-z0-9_.-]+)\s*""")
-        val KNOWLEDGE_DIRECTIVE = Regex("""^@knowledge:(\d+)\s*""")
+        val KNOWLEDGE_DIRECTIVE = Regex("""^@knowledge:([A-Za-z0-9-]+)\s*""")
     }
 }

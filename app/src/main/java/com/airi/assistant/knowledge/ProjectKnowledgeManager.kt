@@ -58,10 +58,18 @@ class ProjectKnowledgeManager(
         val content: String, val active: Boolean = true, val createdAtMs: Long = System.currentTimeMillis()
     )
 
+    data class KnowledgeProposal(
+        val id: String,
+        val name: String,
+        val usage: String,
+        val content: String
+    )
+
     private val gson = Gson()
     private val chunksById = ConcurrentHashMap<String, KnowledgeChunk>()
     private val indexFile = File(context.filesDir, "knowledge/project-file-index.json")
     private val profilesFile = File(context.filesDir, "knowledge/profiles.json")
+    private val proposalPreferences = context.getSharedPreferences(PROPOSAL_PREFS, Context.MODE_PRIVATE)
     private val _chunks = MutableStateFlow<List<KnowledgeChunk>>(emptyList())
     val chunks: StateFlow<List<KnowledgeChunk>> = _chunks.asStateFlow()
     private val _profiles = MutableStateFlow<List<KnowledgeProfile>>(emptyList())
@@ -78,6 +86,51 @@ class ProjectKnowledgeManager(
 
     fun setKnowledgeActive(id: String, active: Boolean) {
         persistProfiles(_profiles.value.map { if (it.id == id) it.copy(active = active) else it })
+    }
+
+    fun updateKnowledge(id: String, name: String, usage: String, content: String): KnowledgeProfile? {
+        if (id.isBlank() || name.isBlank() || usage.isBlank() || content.isBlank()) return null
+        val current = _profiles.value.firstOrNull { it.id == id } ?: return null
+        val updated = current.copy(name = name.trim(), usage = usage.trim(), content = content.trim())
+        persistProfiles(_profiles.value.map { if (it.id == id) updated else it })
+        return updated
+    }
+
+    fun deleteKnowledge(id: String): Boolean {
+        if (id.isBlank() || _profiles.value.none { it.id == id }) return false
+        persistProfiles(_profiles.value.filterNot { it.id == id })
+        return true
+    }
+
+    fun activeKnowledgeProfiles(): List<KnowledgeProfile> =
+        _profiles.value.filter { it.active }
+
+    /** Resolves one active profile for an explicit @knowledge selection. */
+    fun activeKnowledgeProfile(id: String): KnowledgeProfile? =
+        _profiles.value.firstOrNull { it.id == id && it.active }
+
+    fun pendingKnowledgeProposals(): List<KnowledgeProposal> = KNOWLEDGE_PROPOSALS.filter { proposal ->
+        !proposalPreferences.getBoolean("resolved:${proposal.id}", false) &&
+            _profiles.value.none { it.name == proposal.name }
+    }
+
+    fun acceptKnowledgeProposal(id: String): KnowledgeProfile? {
+        val proposal = KNOWLEDGE_PROPOSALS.firstOrNull { it.id == id } ?: return null
+        val profile = createKnowledge(proposal.name, proposal.usage, proposal.content)
+        if (profile != null) resolveKnowledgeProposal(id)
+        return profile
+    }
+
+    fun resolveKnowledgeProposal(id: String) {
+        if (KNOWLEDGE_PROPOSALS.any { it.id == id }) {
+            proposalPreferences.edit().putBoolean("resolved:$id", true).apply()
+        }
+    }
+
+    fun rejectKnowledgeProposal(id: String): Boolean {
+        if (KNOWLEDGE_PROPOSALS.none { it.id == id }) return false
+        proposalPreferences.edit().putBoolean("resolved:$id", true).apply()
+        return true
     }
 
     /**
@@ -262,6 +315,7 @@ class ProjectKnowledgeManager(
 
     private companion object {
         const val TAG = "ProjectKnowledgeManager"
+        const val PROPOSAL_PREFS = "knowledge_proposals"
         const val MAX_RESULTS = 12
         const val DEFAULT_LIMIT = 5
         const val MAX_QUERY_TERMS = 12
@@ -269,5 +323,13 @@ class ProjectKnowledgeManager(
         const val MAX_ERROR_CHARS = 220
         const val MAX_SCORE = 8f
         val TERM_SEPARATOR = Regex("[^\\p{L}\\p{N}_-]+")
+        val KNOWLEDGE_PROPOSALS = listOf(
+            KnowledgeProposal(
+                id = "airi-core-layer-integration-v1",
+                name = "AIRI Project Architecture and Core Layer Integration Requirements",
+                usage = "When working on or updating AIRI, especially architecture, RAG, memory, and AgentLoop layers.",
+                content = "Every knowledge or memory change must connect to the canonical RAG retrieval path, prompt assembly, and AgentLoop boundary. Preserve project scope, provenance, privacy, deletion, and explicit user approval; never leave knowledge as a UI-only feature."
+            )
+        )
     }
 }

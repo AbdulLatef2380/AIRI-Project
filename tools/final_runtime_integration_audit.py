@@ -62,6 +62,9 @@ mcp_connector = read("app/src/main/java/com/airi/assistant/connector/mcp/McpConn
 connector_details = read("app/src/main/java/com/airi/assistant/ui/screens/ConnectorDetailsScreen.kt")
 integrations_vm = read("app/src/main/java/com/airi/assistant/ui/viewmodel/IntegrationsViewModel.kt")
 isolation_policy = read("app/src/main/java/com/airi/assistant/ui/viewmodel/ConnectorScreenIsolationPolicy.kt")
+knowledge_manager = read("app/src/main/java/com/airi/assistant/knowledge/ProjectKnowledgeManager.kt")
+rag_retriever = read("app/src/main/java/com/airi/assistant/memory/rag/RagRetriever.kt")
+memory_screen = read("app/src/main/java/com/airi/assistant/ui/screens/MemoryScreen.kt")
 worker = read("app/src/main/java/com/airi/assistant/agent/scheduler/ScheduledAgentWorker.kt")
 prod_orchestrator = read("app/src/main/java/com/airi/assistant/agent/orchestrator/ProductionAgentOrchestrator.kt")
 
@@ -120,6 +123,14 @@ check("connector authorization UI state is isolated by connector identity", [
     ("Google callback is surface-bound", "acceptsResult(pendingGoogleSurfaceId, activeConnectorId)" in integrations_vm),
     ("closing a dialog invalidates pending target", "activeConnectorId = null" in integrations_vm and "pendingGoogleScopes = emptySet()" in integrations_vm),
     ("isolation rule has JVM coverage", "acceptsResult(expectedConnectorId" in isolation_policy and (ROOT / "app/src/test/java/com/airi/assistant/ui/viewmodel/ConnectorScreenIsolationPolicyTest.kt").is_file()),
+])
+check("knowledge profiles remain wired to persistence and runtime retrieval", [
+    ("profiles support durable update", "fun updateKnowledge" in knowledge_manager and "persistProfiles" in knowledge_manager),
+    ("profiles support durable deletion", "fun deleteKnowledge" in knowledge_manager),
+    ("active state is explicit", "fun activeKnowledgeProfiles" in knowledge_manager and "profile.active" in knowledge_manager),
+    ("RAG retrieves active profiles", "activeKnowledgeProfiles()" in rag_retriever and 'role = "knowledge_profile"' in rag_retriever),
+    ("profile retrieval is bounded", ".take(3)" in rag_retriever),
+    ("knowledge UI exposes details and editor", "KnowledgeProfileDetailDialog" in memory_screen and "KnowledgeProfileEditorDialog" in memory_screen),
 ])
 check("remaining connector rollout is explicit and cannot create phantom connections", [
     ("rollout registry exists", "object ConnectorRolloutRegistry" in rollout),

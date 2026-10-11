@@ -41,7 +41,7 @@ class ConnectorCatalogTest {
             assertEquals(id, definition.toConnectorMeta().catalogId)
             assertTrue(definition.name.isNotBlank())
             assertTrue(definition.description.isNotBlank())
-            assertTrue(definition.website.startsWith("https://"))
+            assertTrue(definition.website?.startsWith("https://") == true)
         }
     }
 

@@ -182,8 +182,7 @@ fun ConnectorDetailsScreen(
                                     leadingIcon = { Icon(Icons.Outlined.Link, null) },
                                     onClick = {
                                         showMenu = false
-                                        viewModel.connect(connectorId)
-                                        scope.launch { snackbar.showSnackbar("Connection check started") }
+                                        onManageAuthorization(connectorId)
                                     }
                                 )
                                 DropdownMenuItem(
@@ -208,10 +207,9 @@ fun ConnectorDetailsScreen(
                     onClick = {
                         when {
                             active -> viewModel.disconnect(connectorId)
-                            authStrategy.officialAuthorizationRequired -> onManageAuthorization(connectorId)
-                            else -> viewModel.connect(connectorId)
+                            else -> onManageAuthorization(connectorId)
                         }
-                        scope.launch { snackbar.showSnackbar(primaryActionLabel(state, authStrategy)) }
+                        if (active) scope.launch { snackbar.showSnackbar("Connector disconnected") }
                     },
                     enabled = state != DetailConnectionState.COMING_SOON,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(52.dp),
@@ -387,7 +385,7 @@ private fun ConnectorOverviewDialog(
                 }
                 if (meta.capabilities.isNotEmpty()) OverviewBlock("Supported capabilities") { meta.capabilities.forEach { OverviewBullet(it.description) } }
                 if (definition?.limitations?.isNotEmpty() == true) OverviewBlock("Requirements and limits") { definition.limitations.distinct().forEach { OverviewBullet(it) } }
-                if (authMode != ConnectorAuthMode.NONE) OverviewBlock("Declared permissions") { ConnectorAuthStrategies.forMeta(meta).requiredScopes.forEach { OverviewBullet(it) } }
+                if (authMode != ConnectorAuthMode.NONE) OverviewBlock("Declared permissions") { ConnectorAuthStrategies.forMeta(meta).requiredScopes.toList().forEach { OverviewBullet(it) } }
                 OverviewBlock("Official links") {
                     listOf("Website" to meta.website, "Documentation" to meta.documentationUrl, "Privacy" to meta.privacyPolicyUrl).forEach { (label, value) ->
                         safeHttpsUri(value)?.let { uri ->

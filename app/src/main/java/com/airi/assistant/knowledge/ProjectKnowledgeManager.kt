@@ -103,7 +103,7 @@ class ProjectKnowledgeManager(
     }
 
     fun activeKnowledgeProfiles(): List<KnowledgeProfile> =
-        _profiles.value.filter { it.active }
+        _profiles.value.filter { profile -> profile.active }
 
     /** Resolves one active profile for an explicit @knowledge selection. */
     fun activeKnowledgeProfile(id: String): KnowledgeProfile? =

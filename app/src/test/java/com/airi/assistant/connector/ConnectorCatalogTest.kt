@@ -26,6 +26,26 @@ class ConnectorCatalogTest {
     }
 
     @Test
+    fun firstConnectorExperienceBatch_hasTwentyCanonicalDetailSurfaces() {
+        val expected = listOf(
+            "google_gmail", "google_calendar", "google_drive", "google_docs", "google_sheets",
+            "google_contacts", "google_tasks", "google_meet", "microsoft_outlook", "microsoft_calendar",
+            "microsoft_onedrive", "microsoft_teams", "microsoft_sharepoint", "microsoft_todo", "github",
+            "gitlab", "figma", "jira", "linear", "slack",
+        )
+
+        assertEquals(expected, OfficialConnectorCatalog.all.take(expected.size).map { it.id })
+        expected.forEach { id ->
+            val definition = OfficialConnectorCatalog.get(id)
+            requireNotNull(definition)
+            assertEquals(id, definition.toConnectorMeta().catalogId)
+            assertTrue(definition.name.isNotBlank())
+            assertTrue(definition.description.isNotBlank())
+            assertTrue(definition.website.startsWith("https://"))
+        }
+    }
+
+    @Test
     fun catalogMetadata_keeps_shared_provider_surfaces_distinct() {
         val metas = ConnectorRegistry().catalogMeta()
         val gmail = metas.first { it.id == "google_gmail" }

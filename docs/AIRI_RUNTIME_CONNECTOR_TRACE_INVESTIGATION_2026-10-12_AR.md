@@ -645,3 +645,41 @@ ExecutionStatusBus.status.value.executionId
 - Android device/emulator proof.
 
 هذه البنود أكبر من تعديل correlation الموضعي، وقد تتطلب عقوداً واختبارات تكامل قبل دمجها حتى لا تكسر AgentLoop أو provider adapters.
+
+
+---
+
+## 16. حزمة إصلاح Execution Logs والتتبع المتعدد
+
+تم تنفيذ إصلاحين إضافيين على `main` بعد مراجعة المرفق:
+
+### أ. سجل كامل داخل Chat
+
+أصبح `AgentPlanOverlay` يعرض عند التوسيع نفس `AgentTraceSection` التفصيلي الموجود في لوحة التخطيط، ويشمل:
+
+- كل أحداث trace الخاصة بالتنفيذ الحالي بدلاً من آخر ثلاث إشارات فقط.
+- فلاتر الأحداث.
+- auto-scroll ومتابعة آخر حدث.
+- عداد الأحداث غير المقروءة.
+- تفاصيل الحدث عند توفرها.
+
+تمت إعادة استخدام `AgentPlanViewModel` و`ExecutionStatusBus` الحاليين؛ لم تتم إضافة runtime أو قناة تنفيذ ثانية.
+
+### ب. عزل UniversalRuntimeTraceRecorder
+
+كان recorder يحتفظ بـ`currentTraceId` وقائمة واحدة وعداد sequence واحد، لذلك كان `begin` لتشغيل جديد يمسح trace السابق، كما أن استدعاءات لاحقة لتشغيل قديم قد تُنسب إلى trace الحالي.
+
+أصبح recorder الآن:
+
+- يحتفظ بtrace مستقل لكل execution.
+- يربط `executionId` بـ`traceId`.
+- يحافظ على sequence مستقل لكل trace.
+- يفرض حدّاً أقصى ثابتاً لعدد traces وعدد الأحداث في كل trace.
+- يوفر `eventsForExecution(executionId)` للاسترجاع المعزول.
+- يحافظ على getter `events` للتوافق، لكنه يعرض trace الحالي فقط.
+
+وأضيف اختبار يثبت عدم اختلاط أحداث تنفيذين متزامنين.
+
+### القيود المتبقية
+
+اختبار Gradle/Android الفعلي ما زال يحتاج Android SDK؛ الفحوص الساكنة وحدها لا تثبت Compose rendering أو process recreation. كما أن `AgentObservabilityHub` وlegacy producers تحتاج حزمة مستقلة لاحقة بعد تثبيت عقد execution identity، حتى لا يُفرض تغيير واسع على مئات الاستدعاءات دفعة واحدة.

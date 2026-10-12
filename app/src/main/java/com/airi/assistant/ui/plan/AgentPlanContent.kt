@@ -174,7 +174,7 @@ fun AgentPlanContent(
 // ── Structured execution trace ────────────────────────────────────────────
 
 @Composable
-private fun AgentTraceSection(
+internal fun AgentTraceSection(
     entries: List<ExecutionTraceEvent>,
     selectedFilter: ExecutionTraceFilter,
     autoScroll: Boolean,

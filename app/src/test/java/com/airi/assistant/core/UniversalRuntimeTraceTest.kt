@@ -61,6 +61,22 @@ class UniversalRuntimeTraceTest {
     }
 
     @Test
+    fun concurrentExecutionsKeepIndependentTraceOwnership() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        val traceA = recorder.begin("exec-a", "session-a", "model", "provider", "cloud", "a", emptyList())
+        val traceB = recorder.begin("exec-b", "session-b", "model", "provider", "cloud", "b", emptyList())
+
+        recorder.modelResponse("exec-a", "session-a", "response-a", false, "agent_step")
+        recorder.modelResponse("exec-b", "session-b", "response-b", false, "agent_step")
+
+        assertTrue(traceA != traceB)
+        assertEquals("exec-a", recorder.eventsForExecution("exec-a").last().executionId)
+        assertEquals("exec-b", recorder.eventsForExecution("exec-b").last().executionId)
+        assertTrue(recorder.eventsForExecution("exec-a").none { it.executionId == "exec-b" })
+        assertTrue(recorder.eventsForExecution("exec-b").none { it.executionId == "exec-a" })
+    }
+
+    @Test
     fun toolSchemaHashIsStableAndDoesNotContainDescriptionOrArguments() {
         val tool = ToolSchema(
             name = "safe_read",

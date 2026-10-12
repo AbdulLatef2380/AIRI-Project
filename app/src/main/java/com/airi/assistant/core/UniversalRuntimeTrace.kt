@@ -10,13 +10,24 @@ import java.util.UUID
 class UniversalRuntimeTraceRecorder(
     private val sink: (UniversalRuntimeTraceEvent) -> Unit = {}
 ) {
+    private companion object {
+        const val MAX_TRACES = 16
+        const val MAX_EVENTS_PER_TRACE = 500
+    }
+
     private val lock = Any()
-    private val _events = mutableListOf<UniversalRuntimeTraceEvent>()
-    private var sequence = 0L
+    private val eventsByTrace = linkedMapOf<String, MutableList<UniversalRuntimeTraceEvent>>()
+    private val sequenceByTrace = mutableMapOf<String, Long>()
+    private val traceByExecution = mutableMapOf<String, String>()
     private var currentTraceId: String? = null
 
     val events: List<UniversalRuntimeTraceEvent>
-        get() = synchronized(lock) { _events.toList() }
+        get() = synchronized(lock) { currentTraceId?.let { eventsByTrace[it].orEmpty() }.orEmpty().toList() }
+
+    /** Returns only the trace owned by [executionId], even when another run is current. */
+    fun eventsForExecution(executionId: String): List<UniversalRuntimeTraceEvent> = synchronized(lock) {
+        eventsByTrace[traceByExecution[executionId]].orEmpty().toList()
+    }
 
     fun begin(
         executionId: String,
@@ -32,8 +43,15 @@ class UniversalRuntimeTraceRecorder(
         val traceId = UUID.randomUUID().toString()
         synchronized(lock) {
             currentTraceId = traceId
-            sequence = 0L
-            _events.clear()
+            while (eventsByTrace.size >= MAX_TRACES) {
+                val evicted = eventsByTrace.keys.firstOrNull { it != currentTraceId } ?: break
+                eventsByTrace.remove(evicted)
+                sequenceByTrace.remove(evicted)
+                traceByExecution.entries.removeIf { it.value == evicted }
+            }
+            eventsByTrace[traceId] = mutableListOf()
+            sequenceByTrace[traceId] = 0L
+            traceByExecution[executionId] = traceId
         }
         record(
             traceId = traceId,
@@ -288,20 +306,28 @@ class UniversalRuntimeTraceRecorder(
         capabilities: List<CapabilitySnapshotEntry> = emptyList(),
         attributes: Map<String, String> = emptyMap(),
     ): UniversalRuntimeTraceEvent {
-        val event = synchronized(lock) {
-            val resolvedTraceId = traceId ?: currentTraceId ?: "unbound"
+            val event = synchronized(lock) {
+            val resolvedTraceId = traceId ?: traceByExecution[executionId] ?: currentTraceId ?: "unbound"
+            val nextSequence = (sequenceByTrace[resolvedTraceId] ?: 0L) + 1L
             UniversalRuntimeTraceEvent(
                 traceId = resolvedTraceId,
                 executionId = executionId,
                 sessionId = sessionId.takeIf { it.isNotBlank() },
-                sequence = ++sequence,
+                sequence = nextSequence,
                 eventType = eventType,
                 component = component,
                 outcome = outcome,
                 toolNames = toolNames.map(RuntimeTraceRedaction::token),
                 capabilities = capabilities,
                 attributes = attributes.mapValues { (_, value) -> RuntimeTraceRedaction.attribute(value) },
-            ).also { _events += it }
+            ).also {
+                sequenceByTrace[resolvedTraceId] = nextSequence
+                val traceEvents = eventsByTrace.getOrPut(resolvedTraceId) { mutableListOf() }
+                traceEvents += it
+                if (traceEvents.size > MAX_EVENTS_PER_TRACE) {
+                    traceEvents.subList(0, traceEvents.size - MAX_EVENTS_PER_TRACE).clear()
+                }
+            }
         }
         sink(event)
         return event

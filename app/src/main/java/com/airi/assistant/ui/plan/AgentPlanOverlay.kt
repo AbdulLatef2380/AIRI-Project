@@ -79,6 +79,10 @@ fun AgentPlanOverlay(
     val stage by planViewModel.currentStage.collectAsStateWithLifecycle()
     val goal by planViewModel.goalDescription.collectAsStateWithLifecycle()
     val traceEntries by planViewModel.traceEntries.collectAsStateWithLifecycle()
+    val traceFilter by planViewModel.traceFilter.collectAsStateWithLifecycle()
+    val traceAutoScroll by planViewModel.traceAutoScroll.collectAsStateWithLifecycle()
+    val unreadTraceCount by planViewModel.unreadTraceCount.collectAsStateWithLifecycle()
+    val showTraceJumpToLatest by planViewModel.showTraceJumpToLatest.collectAsStateWithLifecycle()
     val panelTitle = stringResource(R.string.execution_steps_label)
     val latestSignalsLabel = stringResource(R.string.agent_plan_latest_signals)
     val stageText = stageLabel(stage)
@@ -181,11 +185,24 @@ fun AgentPlanOverlay(
                 }
             }
             AnimatedVisibility(visible = isExpanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                if (steps.isEmpty()) {
-                    Text(stringResource(R.string.agent_plan_initialising), color = AiriTheme.onSurface.copy(alpha = 0.45f), fontSize = 12.sp, modifier = Modifier.padding(16.dp))
-                } else {
-                    LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp), contentPadding = PaddingValues(bottom = 8.dp)) {
-                        items(steps, key = { it.id }) { step -> AirisStepRow(step, accent) }
+                Column(Modifier.fillMaxWidth()) {
+                    AgentTraceSection(
+                        entries = traceEntries,
+                        selectedFilter = traceFilter,
+                        autoScroll = traceAutoScroll,
+                        unreadCount = unreadTraceCount,
+                        showJumpToLatest = showTraceJumpToLatest,
+                        onSelectFilter = planViewModel::setTraceFilter,
+                        onPauseFollowing = planViewModel::pauseTraceAutoScroll,
+                        onFollowLatest = planViewModel::followTraceLatest,
+                        onObserved = planViewModel::markTraceObserved,
+                    )
+                    if (steps.isEmpty()) {
+                        Text(stringResource(R.string.agent_plan_initialising), color = AiriTheme.onSurface.copy(alpha = 0.45f), fontSize = 12.sp, modifier = Modifier.padding(16.dp))
+                    } else {
+                        LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp), contentPadding = PaddingValues(bottom = 8.dp)) {
+                            items(steps, key = { it.id }) { step -> AirisStepRow(step, accent) }
+                        }
                     }
                 }
             }

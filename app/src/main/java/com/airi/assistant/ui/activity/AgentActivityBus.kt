@@ -53,14 +53,17 @@ object AgentActivityBus {
     }
 
     fun emit(event: ActivityEvent) {
+        // Capture ownership before queueing the asynchronous emission. Reading
+        // ExecutionStatusBus.status inside the launched coroutine can attribute
+        // an event produced by execution A to a newer execution B.
+        val activeExecutionId = ExecutionStatusBus.status.value.executionId
+            .takeIf { it.isNotBlank() }
         scope.launch {
             // Runtime services often emit through this shared bus without a UI
             // dependency. Attribute those events to the active execution here,
             // so the task panel can count terminal, sandbox, connector, and
             // artifact work without each producer inventing its own linkage.
-            val ownedEvent = if (event.executionId.isNullOrBlank()) {
-                event.copy(executionId = ExecutionStatusBus.status.value.executionId.takeIf { it.isNotBlank() })
-            } else event
+            val ownedEvent = attachExecutionId(event, activeExecutionId)
             // Feed emit counter before the actual emit. The monitor sees emit
             // pressure even when the buffer is full and the event is dropped.
             runCatching {
@@ -69,6 +72,14 @@ object AgentActivityBus {
             _events.emit(ownedEvent)
         }
     }
+
+    /**
+     * Pure ownership projection used by the emission path and JVM tests.
+     * Explicit event ownership always wins; otherwise the caller's synchronous
+     * execution snapshot is used. A later global status must not rewrite it.
+     */
+    internal fun attachExecutionId(event: ActivityEvent, activeExecutionId: String?): ActivityEvent =
+        if (event.executionId.isNullOrBlank()) event.copy(executionId = activeExecutionId?.takeIf { it.isNotBlank() }) else event
 
     fun emit(
         message: String,

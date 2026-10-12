@@ -683,3 +683,7 @@ ExecutionStatusBus.status.value.executionId
 ### القيود المتبقية
 
 اختبار Gradle/Android الفعلي ما زال يحتاج Android SDK؛ الفحوص الساكنة وحدها لا تثبت Compose rendering أو process recreation. كما أن `AgentObservabilityHub` وlegacy producers تحتاج حزمة مستقلة لاحقة بعد تثبيت عقد execution identity، حتى لا يُفرض تغيير واسع على مئات الاستدعاءات دفعة واحدة.
+
+### ج. منع فقدان تحديثات Observability المتزامنة
+
+تم تعديل `AgentObservabilityHub` لاستخدام `MutableStateFlow.update` الذري بدلاً من نمط القراءة ثم assignment (`_snapshot.value = _snapshot.value.transform()`). هذا يمنع فقدان تحديثات متزامنة من voice collectors وtool counters وspan lifecycle عندما تصل في الوقت نفسه. لم يتغير شكل `ObservabilitySnapshot` ولا صلاحيات أي runtime.

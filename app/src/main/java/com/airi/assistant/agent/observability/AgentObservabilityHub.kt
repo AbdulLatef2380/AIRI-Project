@@ -17,6 +17,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -195,12 +196,12 @@ class AgentObservabilityHub {
             errorRing.clear()
             activeSpanMap.clear()
             completedSpans.clear()
-            _snapshot.value = ObservabilitySnapshot()
+            _snapshot.update { ObservabilitySnapshot() }
         }
     }
 
     private fun update(transform: ObservabilitySnapshot.() -> ObservabilitySnapshot) {
-        _snapshot.value = _snapshot.value.transform()
+        _snapshot.update { it.transform() }
     }
 
     data class ObservabilitySnapshot(

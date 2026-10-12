@@ -22,7 +22,6 @@ import com.airi.assistant.domain.customskill.CustomSkillExecutor
 import com.airi.assistant.domain.customskill.CustomSkillRepository
 import com.airi.assistant.domain.customskill.SkillConfig
 import com.airi.assistant.domain.customskill.SkillType
-import java.net.URI
 import java.util.UUID
 import kotlinx.coroutines.flow.StateFlow
 
@@ -276,9 +275,10 @@ class SkillRegistry(private val context: Context) {
         val resolvedMethod = method.trim().uppercase()
         if (
             !isValidDynamicManifest(manifest) ||
-            !isTrustedHttpsEndpoint(resolvedEndpoint) ||
+            manifest.signature.isNullOrBlank() ||
+            !DynamicSkillSecurityPolicy.validateEndpoint(resolvedEndpoint) ||
             resolvedMethod !in SUPPORTED_HTTP_METHODS ||
-            bodyTemplate.isBlank() ||
+            !DynamicSkillSecurityPolicy.validateRequestTemplate(bodyTemplate, headers) ||
             type !in REMOTE_SKILL_TYPES
         ) {
             android.util.Log.w("SkillRegistry", "Rejected dynamic skill registration id=$skillId")
@@ -378,14 +378,11 @@ class SkillRegistry(private val context: Context) {
             manifest.version.matches(Regex("^\\d+\\.\\d+\\.\\d+(-[A-Za-z0-9.]+)?(\\+[A-Za-z0-9.]+)?$"))
 
     private fun hasRunnableEndpoint(skill: CustomSkill): Boolean =
-        isTrustedHttpsEndpoint(skill.config.endpoint)
-
-    private fun isTrustedHttpsEndpoint(value: String): Boolean = runCatching {
-        val uri = URI(value)
-        uri.scheme.equals("https", ignoreCase = true) &&
-            !uri.host.isNullOrBlank() &&
-            uri.userInfo.isNullOrBlank()
-    }.getOrDefault(false)
+        DynamicSkillSecurityPolicy.validateEndpoint(skill.config.endpoint) &&
+            DynamicSkillSecurityPolicy.validateRequestTemplate(
+                skill.config.bodyTemplate,
+                skill.config.headers,
+            )
 
     /** Result of [installSkillWithVersion]. */
     sealed class InstallResult {

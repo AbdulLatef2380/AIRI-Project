@@ -9,10 +9,11 @@ import java.security.MessageDigest
  * Checks performed:
  *  1. SHA-256 checksum verification (when declared in manifest)
  *  2. airi_min_version compatibility against the running app version
- *  3. Signature field awareness (full Ed25519 verification is a future milestone)
+ *  3. Remote signature presence (unsigned remote packages fail closed)
  *
  * This verifier is called by [GitHubSkillImporter] and [MarketplaceRepository]
  * as a pre-install gate. Failures block installation; warnings are advisory.
+ * Signature presence is not authenticity proof without a configured trust root.
  */
 object SkillPackageVerifier {
 
@@ -104,11 +105,14 @@ object SkillPackageVerifier {
             }
         }
 
-        // 3. Signature awareness (full crypto verification = future milestone)
-        if (!manifest.signature.isNullOrBlank()) {
+        // 3. Remote packages must carry provenance material. Official built-ins
+        // are shipped as application code and are exempt from this package gate.
+        if (!manifest.isOfficial && manifest.signature.isNullOrBlank()) {
+            errors.add("Unsigned remote skill package — installation is blocked until a trusted signature is provided.")
+        } else if (!manifest.signature.isNullOrBlank()) {
             warnings.add(
                 "Manifest declares a 'signature' field. Cryptographic signature verification " +
-                "will be enforced in a future AIRI release. The field is recorded but not yet validated."
+                "requires the configured trust root; the field is not treated as authenticity proof by this verifier."
             )
         }
 

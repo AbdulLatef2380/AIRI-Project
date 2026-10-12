@@ -60,14 +60,8 @@ class AgentLoop(
     private val dispatcher:            ToolDispatcher,
     private val appContext:            Context,
     private val contextBudgetProvider: () -> ContextBudget = { ContextBudget.UNLOADED },
-    /**
-     * : Optional sandbox wrapper. When non-null, every tool dispatch is
-     * routed through [agentSandbox.execute] so permission checks, workspace
-     * logging, and rollback-on-violation are applied to every tool call.
-     * Null keeps the legacy direct-dispatch path for callers that have not
-     * yet been updated (conservative default).
-     */
-    private val agentSandbox: com.airi.assistant.security.AgentSandbox? = null,
+    /** Required production boundary for every tool dispatch. */
+    private val agentSandbox: com.airi.assistant.security.AgentSandbox,
     /** Typed local proposal runtime; only calendar creation is eligible today. */
     private val calendarCreateRuntime: CalendarCreateRuntime? = null,
     /** PHASE 0 diagnostics; null keeps existing callers behaviorally unchanged. */
@@ -263,7 +257,10 @@ the tool returns an actual error.
                     code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.INVALID_ARGUMENT,
                 )
             } else try {
-                dispatcher.execute("current_time", timeValidation.arguments!!.canonical, appContext, executionId)
+                agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
+                    ctx.guardTool("current_time")
+                    dispatcher.execute("current_time", timeValidation.arguments!!.canonical, appContext, executionId)
+                }
             } catch (error: Exception) {
                 ToolDispatcher.ToolResult.Error(
                     "Unable to read device time: ${error.message ?: "unknown error"}",
@@ -675,17 +672,8 @@ the tool returns an actual error.
                     }
                     AgentLoopSideEffectPolicy.Decision.ALLOW_TYPED_TERMINAL -> try {
                         runtimeTrace?.dispatched(executionId, sessionId, toolName, "agent_sandbox_terminal")
-                        if (agentSandbox != null) {
-                            agentSandbox.execute(agentId = SANDBOX_AGENT_ID, goalId = durableExecutionContext?.taskId.orEmpty()) { ctx ->
-                                ctx.guardTool(toolName)
-                                dispatcher.execute(
-                                    toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID,
-                                    onOutput = { output ->
-                                        ExecutionStatusBus.onToolOutput(executionId, toolStepId, toolName, output)
-                                    },
-                                )
-                            }
-                        } else {
+                        agentSandbox.execute(agentId = SANDBOX_AGENT_ID, goalId = durableExecutionContext?.taskId.orEmpty()) { ctx ->
+                            ctx.guardTool(toolName)
                             dispatcher.execute(
                                 toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID,
                                 onOutput = { output ->
@@ -709,14 +697,8 @@ the tool returns an actual error.
                             com.airi.assistant.core.CapabilityRuntimeStage.EXECUTED,
                             "dispatch_started",
                         )
-                        // Route read-only tools through AgentSandbox when available so
-                        // permission checks and workspace logging remain applied.
-                        if (agentSandbox != null) {
-                            agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
-                                ctx.guardTool(toolName)
-                                dispatcher.execute(toolName, toolArgs, appContext, executionId)
-                            }
-                        } else {
+                        agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
+                            ctx.guardTool(toolName)
                             dispatcher.execute(toolName, toolArgs, appContext, executionId)
                         }
                     } catch (e: CancellationException) {

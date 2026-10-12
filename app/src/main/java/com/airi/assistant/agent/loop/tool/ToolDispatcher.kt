@@ -343,7 +343,13 @@ class ToolDispatcher(
                 val command = args["command"]?.trim().orEmpty()
                 if (command.isBlank()) return ToolResult.Error("Missing command", code = ToolErrorCodes.INVALID_ARGUMENT)
                 when (val result = com.airi.assistant.core.ServiceLocator.terminalExecutionGateway
-                    .executeForAgent(command, agentId, onOutput)) {
+                    .executeForAgent(
+                        command = command,
+                        agentId = agentId,
+                        onOutput = onOutput,
+                        executionId = executionId,
+                        actionId = "terminal_execute",
+                    )) {
                     is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Disabled ->
                         ToolResult.Error(
                             result.reason,

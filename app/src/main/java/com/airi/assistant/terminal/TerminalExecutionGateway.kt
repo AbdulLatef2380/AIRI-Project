@@ -22,7 +22,11 @@ class TerminalExecutionGateway(
     sealed class Result {
         data class Disabled(val reason: String, val requiresApproval: Boolean = false) : Result()
         data class Denied(val reason: String) : Result()
-        data class Completed(val result: SandboxExecutor.ExecutionResult) : Result()
+        data class Completed(
+            val result: SandboxExecutor.ExecutionResult,
+            val executionId: String = "",
+            val actionId: String = "",
+        ) : Result()
     }
 
     fun createSession(label: String): SandboxSession? = sandboxManager.createSession(label)
@@ -30,11 +34,20 @@ class TerminalExecutionGateway(
     fun closeSession(id: String) = sandboxManager.closeSession(id)
 
     /** Execute one agent request in a task-owned ephemeral workspace. */
-    suspend fun executeForAgent(command: String, agentId: String, onOutput: ((String) -> Unit)? = null): Result {
+    suspend fun executeForAgent(
+        command: String,
+        agentId: String,
+        onOutput: ((String) -> Unit)? = null,
+        executionId: String = "",
+        actionId: String = "",
+    ): Result {
         val session = createSession("agent:$agentId")
             ?: return Result.Denied("Could not allocate an agent workspace")
         return try {
-            execute(session, command, agentId, onOutput)
+            when (val result = execute(session, command, agentId, onOutput)) {
+                is Result.Completed -> result.copy(executionId = executionId, actionId = actionId)
+                else -> result
+            }
         } finally {
             closeSession(session.sessionId)
         }

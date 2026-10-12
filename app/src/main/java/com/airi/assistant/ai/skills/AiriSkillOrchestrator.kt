@@ -2,6 +2,7 @@ package com.airi.assistant.ai.skills
 
 import android.content.Context
 import android.util.Log
+import com.airi.assistant.connector.ConnectorRegistry
 import com.airi.assistant.core.ServiceLocator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -275,7 +276,7 @@ private object CompatibilityValidator {
     fun validate(
         context:    android.content.Context,
         descriptor: AiriSkillOrchestrator.SkillDescriptor,
-        connectorRegistry: Any?
+        connectorRegistry: ConnectorRegistry?
     ): Boolean {
         // Check Android permissions
         for (perm in descriptor.permissions) {
@@ -286,7 +287,16 @@ private object CompatibilityValidator {
                 return false
             }
         }
-        // Connector check deferred to runtime (connectors may self-heal)
+        // A plan is an execution promise. Do not include connector-backed
+        // skills merely because a connector object exists; it must be live,
+        // healthy, and registered in the canonical registry at plan time.
+        for (connectorId in descriptor.connectorIds) {
+            val state = connectorRegistry?.getConnectionState(connectorId)
+            if (state?.connected != true || state.healthy != true) {
+                Log.d("AIRI_COMPAT", "Skill ${descriptor.skillId} rejected: connector $connectorId is not healthy")
+                return false
+            }
+        }
         return true
     }
 }

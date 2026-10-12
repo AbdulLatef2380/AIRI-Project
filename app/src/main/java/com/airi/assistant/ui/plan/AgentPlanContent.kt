@@ -52,7 +52,6 @@ import androidx.compose.ui.semantics.semantics
 import kotlinx.coroutines.delay
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airi.assistant.ui.theme.*
-import com.airi.assistant.core.ExecutionTraceEvent
 import com.airi.assistant.core.ExecutionTraceKind
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 
@@ -75,7 +74,7 @@ fun AgentPlanContent(
     val steps by viewModel.steps.collectAsStateWithLifecycle()
     val stage by viewModel.currentStage.collectAsStateWithLifecycle()
     val goal  by viewModel.goalDescription.collectAsStateWithLifecycle()
-    val traceEntries by viewModel.traceEntries.collectAsStateWithLifecycle()
+    val logEntries by viewModel.logEntries.collectAsStateWithLifecycle()
     val traceFilter by viewModel.traceFilter.collectAsStateWithLifecycle()
     val traceAutoScroll by viewModel.traceAutoScroll.collectAsStateWithLifecycle()
     val unreadTraceCount by viewModel.unreadTraceCount.collectAsStateWithLifecycle()
@@ -133,7 +132,7 @@ fun AgentPlanContent(
         Divider(color = AiriTheme.outline)
 
         AgentTraceSection(
-            entries = traceEntries,
+            entries = logEntries,
             selectedFilter = traceFilter,
             autoScroll = traceAutoScroll,
             unreadCount = unreadTraceCount,
@@ -175,7 +174,7 @@ fun AgentPlanContent(
 
 @Composable
 internal fun AgentTraceSection(
-    entries: List<ExecutionTraceEvent>,
+    entries: List<ExecutionLogEntry>,
     selectedFilter: ExecutionTraceFilter,
     autoScroll: Boolean,
     unreadCount: Int,
@@ -272,11 +271,11 @@ internal fun AgentTraceSection(
 }
 
 @Composable
-private fun TraceEntryRow(entry: ExecutionTraceEvent) {
+private fun TraceEntryRow(entry: ExecutionLogEntry) {
     var expanded by remember(entry.sequence) { mutableStateOf(false) }
-    val kindLabel = traceKindLabel(entry.kind)
+    val kindLabel = executionLogStageLabel(entry.stage)
     val label = "${entry.sequence} · $kindLabel"
-    val rowColor = traceKindColor(entry.kind)
+    val rowColor = executionLogColor(entry.status)
     val entryContentDescription = stringResource(
         R.string.agent_plan_trace_entry_cd,
         entry.sequence,
@@ -302,14 +301,14 @@ private fun TraceEntryRow(entry: ExecutionTraceEvent) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(
-                imageVector = traceKindIcon(entry.kind),
+                imageVector = executionLogIcon(entry.status),
                 contentDescription = null,
                 tint = rowColor,
                 modifier = Modifier.size(15.dp),
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(label, fontSize = 10.sp, color = rowColor, fontWeight = FontWeight.SemiBold)
-                Text(entry.summary, fontSize = 12.sp, color = AiriTheme.onSurface, maxLines = 2)
+                Text(entry.title, fontSize = 12.sp, color = AiriTheme.onSurface, maxLines = 2)
             }
             entry.durationMs?.let { duration ->
                 Text(
@@ -374,6 +373,34 @@ private fun traceKindIcon(kind: ExecutionTraceKind) = when (kind) {
     ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.COMPLETED -> Icons.Outlined.Check
     ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED -> Icons.Outlined.Close
     else -> Icons.Outlined.PlayArrow
+}
+
+@Composable
+private fun executionLogStageLabel(stage: ExecutionLogStage): String = stringResource(when (stage) {
+    ExecutionLogStage.UNDERSTANDING -> R.string.agent_plan_stage_planning
+    ExecutionLogStage.CAPABILITY_CHECK -> R.string.agent_trace_kind_runtime_signal
+    ExecutionLogStage.TOOL_SELECTION -> R.string.agent_trace_kind_tool_started
+    ExecutionLogStage.CONNECTOR -> R.string.agent_trace_kind_tool_started
+    ExecutionLogStage.EXECUTION -> R.string.agent_trace_kind_step_started
+    ExecutionLogStage.RESULT -> R.string.agent_trace_kind_tool_output
+    ExecutionLogStage.REVIEW -> R.string.agent_plan_stage_reflecting
+    ExecutionLogStage.COMPLETED -> R.string.agent_plan_stage_completed
+})
+
+private fun executionLogColor(status: ExecutionLogStatus): Color = when (status) {
+    ExecutionLogStatus.FAILED -> SemanticError
+    ExecutionLogStatus.CANCELLED -> AiriTheme.onSurface.copy(alpha = 0.5f)
+    ExecutionLogStatus.WARNING -> SemanticWarn
+    ExecutionLogStatus.SUCCESS -> SemanticSuccess
+    ExecutionLogStatus.ACTIVE -> CosmicAccent
+}
+
+private fun executionLogIcon(status: ExecutionLogStatus) = when (status) {
+    ExecutionLogStatus.FAILED -> Icons.Outlined.ErrorOutline
+    ExecutionLogStatus.SUCCESS -> Icons.Outlined.Check
+    ExecutionLogStatus.CANCELLED -> Icons.Outlined.Close
+    ExecutionLogStatus.WARNING -> Icons.Outlined.HourglassEmpty
+    ExecutionLogStatus.ACTIVE -> Icons.Outlined.PlayArrow
 }
 
 // ── Step row with live timing () ────────────────────────────────────────

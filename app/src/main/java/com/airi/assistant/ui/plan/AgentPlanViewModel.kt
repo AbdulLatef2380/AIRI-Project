@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -23,9 +24,11 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
     private val _planContext = MutableStateFlow(PlanContext())
     val planContext: StateFlow<PlanContext> = _planContext.asStateFlow()
     private val _restoredPlan = MutableStateFlow(false)
+    private val _retainTerminalLog = MutableStateFlow(false)
 
     val steps: StateFlow<List<PlanStepModel>> = tracker.steps
-    val isVisible: StateFlow<Boolean> = tracker.isVisible
+    val isVisible: StateFlow<Boolean> = combine(tracker.isVisible, _retainTerminalLog) { visible, retained -> visible || retained }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val _isPanelExpanded = MutableStateFlow(true)
     val isPanelExpanded: StateFlow<Boolean> = _isPanelExpanded.asStateFlow()
@@ -49,10 +52,15 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
         if (executionId.isBlank()) emptyList()
         else ExecutionTracePresentation.visibleEntries(events, executionId, filter)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val logEntries: StateFlow<List<ExecutionLogEntry>> = traceEntries
+        .map { events -> ExecutionLogProjection.project(events) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    /** Only expose the panel for a real multi-step execution; Plan Mode can still force it from ChatScreen. */
-    val showPanel: StateFlow<Boolean> = combine(steps, ExecutionStatusBus.status, _restoredPlan) { planSteps, state, restored ->
-        restored && planSteps.isNotEmpty() || PlanPanelVisibilityPolicy.shouldShow(
+    /** Expose the panel for an admitted execution or for a bounded terminal-log window. */
+    val showPanel: StateFlow<Boolean> = combine(
+        steps, ExecutionStatusBus.status, _restoredPlan, _retainTerminalLog
+    ) { planSteps, state, restored, retained ->
+        restored && planSteps.isNotEmpty() || retained || PlanPanelVisibilityPolicy.shouldShow(
             stage = state.executionStage, nodesTotal = state.nodesTotal, stepCount = planSteps.size
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -91,6 +99,7 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
                 _executionId.value = state.executionId
                 _observedTraceSequence.value = 0L
                 _traceAutoScroll.value = true
+                _retainTerminalLog.value = false
             }
             if (state.activeGoalDescription.isNotBlank()) _goalDescription.value = state.activeGoalDescription
             if (state.executionStage == ExecutionStage.COMPLETED ||
@@ -98,11 +107,15 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
                 state.executionStage == ExecutionStage.CANCELLED ||
                 (state.executionStage == ExecutionStage.IDLE && !_restoredPlan.value)) {
                 viewModelScope.launch {
-                    delay(4_000)
+                    _retainTerminalLog.value = true
+                    val completedExecutionId = state.executionId
+                    delay(30_000)
                     val cur = ExecutionStatusBus.status.value.executionStage
-                    if (cur == ExecutionStage.COMPLETED || cur == ExecutionStage.FAILED ||
-                        cur == ExecutionStage.CANCELLED || cur == ExecutionStage.IDLE) {
+                    if (_executionId.value == completedExecutionId &&
+                        (cur == ExecutionStage.COMPLETED || cur == ExecutionStage.FAILED ||
+                            cur == ExecutionStage.CANCELLED || cur == ExecutionStage.IDLE)) {
                         tracker.clear()
+                        _retainTerminalLog.value = false
                         _restoredPlan.value = false
                         snapshotStore.clear()
                     }
@@ -127,8 +140,8 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
         )
         persistSnapshot(steps.value)
     }
-    fun dismissPanel() { tracker.clear(); _restoredPlan.value = false; snapshotStore.clear() }
-    fun collapse() { tracker.clear(); _restoredPlan.value = false; snapshotStore.clear() }
+    fun dismissPanel() { tracker.clear(); _retainTerminalLog.value = false; _restoredPlan.value = false; snapshotStore.clear() }
+    fun collapse() { tracker.clear(); _retainTerminalLog.value = false; _restoredPlan.value = false; snapshotStore.clear() }
 
     private fun persistSnapshot(currentSteps: List<PlanStepModel>) {
         if (currentSteps.isEmpty()) return

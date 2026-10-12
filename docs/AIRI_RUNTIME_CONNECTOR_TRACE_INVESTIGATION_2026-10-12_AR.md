@@ -687,3 +687,20 @@ ExecutionStatusBus.status.value.executionId
 ### ج. منع فقدان تحديثات Observability المتزامنة
 
 تم تعديل `AgentObservabilityHub` لاستخدام `MutableStateFlow.update` الذري بدلاً من نمط القراءة ثم assignment (`_snapshot.value = _snapshot.value.transform()`). هذا يمنع فقدان تحديثات متزامنة من voice collectors وtool counters وspan lifecycle عندما تصل في الوقت نفسه. لم يتغير شكل `ObservabilitySnapshot` ولا صلاحيات أي runtime.
+
+
+---
+
+## 17. تنفيذ المرحلة الأولى لتحسين تجربة سجل التنفيذ
+
+تم تنفيذ المرحلة الأولى على `main`:
+
+- إنشاء `ExecutionLogProjection` مستقل عن Compose يحول أحداث runtime إلى عقد عرض موحد يحتوي المرحلة والحالة والعنوان والتفاصيل والأداة والمدة.
+- استخدام projection نفسه في العرض المختصر وفي القائمة التفصيلية داخل `AgentPlanContent` و`AgentPlanOverlay`.
+- تمييز حالات السجل بصرياً: نشط، نجاح، تحذير/استرداد، فشل، وإلغاء.
+- عرض مراحل مفهومة مثل التخطيط، فحص القدرات، اختيار الأداة، التنفيذ، النتيجة، المراجعة، والإكمال.
+- الاحتفاظ بآخر سجل نهائي في الواجهة لمدة 30 ثانية بعد اكتمال/فشل/إلغاء التنفيذ بدلاً من إخفائه بعد 4 ثوانٍ.
+- إبقاء السجل مرتبطاً بـ`executionId` الحالي ومنع الاحتفاظ بسجل قديم عند بدء تنفيذ جديد.
+- إضافة اختبارات JVM لـprojection وحفظ ترتيب الأحداث وملكية التنفيذ.
+
+فحوص العقود الساكنة بقيت ناجحة: `verify_core_changes.py` بنتيجة `96/96`، وتدقيق runtime وlifecycle ناجحان. تشغيل Gradle يحتاج Android SDK غير المتاح في بيئة Sandbox الحالية.

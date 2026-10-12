@@ -79,6 +79,7 @@ fun AgentPlanOverlay(
     val stage by planViewModel.currentStage.collectAsStateWithLifecycle()
     val goal by planViewModel.goalDescription.collectAsStateWithLifecycle()
     val traceEntries by planViewModel.traceEntries.collectAsStateWithLifecycle()
+    val logEntries by planViewModel.logEntries.collectAsStateWithLifecycle()
     val traceFilter by planViewModel.traceFilter.collectAsStateWithLifecycle()
     val traceAutoScroll by planViewModel.traceAutoScroll.collectAsStateWithLifecycle()
     val unreadTraceCount by planViewModel.unreadTraceCount.collectAsStateWithLifecycle()
@@ -173,9 +174,9 @@ fun AgentPlanOverlay(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.8.sp,
                     )
-                    traceEntries.takeLast(3).forEach { entry ->
+                    logEntries.takeLast(3).forEach { entry ->
                         Text(
-                            text = "#${entry.sequence}  ${entry.summary}",
+                            text = "#${entry.sequence}  ${entry.title}",
                             color = AiriTheme.onSurface.copy(alpha = 0.72f),
                             fontSize = 10.sp,
                             maxLines = 1,
@@ -187,7 +188,7 @@ fun AgentPlanOverlay(
             AnimatedVisibility(visible = isExpanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
                 Column(Modifier.fillMaxWidth()) {
                     AgentTraceSection(
-                        entries = traceEntries,
+                        entries = logEntries,
                         selectedFilter = traceFilter,
                         autoScroll = traceAutoScroll,
                         unreadCount = unreadTraceCount,

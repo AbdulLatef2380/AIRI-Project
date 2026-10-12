@@ -231,16 +231,23 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
             val url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/$messageId?format=full"
             val response = get(url, token)
             val payload = response.optJSONObject("payload")
-            val headers = payload?.optJSONArray("headers")
-            val subject = (0 until (headers?.length() ?: 0))
-                .map { headers!!.optJSONObject(it) }
-                .firstOrNull { it?.optString("name") == "Subject" }
-                ?.optString("value") ?: "(no subject)"
+            val subject = GmailMessageDecoder.header(payload, "Subject").ifBlank { "(no subject)" }
+            val date = GmailMessageDecoder.header(payload, "Date")
             val snippet = response.optString("snippet", "")
             val body = GmailMessageDecoder.decode(payload)
             ConnectorOutput.Success(
-                text = "Subject: $subject\n\n${body.ifBlank { snippet }}",
-                data = mapOf("messageId" to messageId, "subject" to subject, "hasBody" to body.isNotBlank().toString())
+                text = buildString {
+                    appendLine("Subject: $subject")
+                    if (date.isNotBlank()) appendLine("Date: $date")
+                    appendLine()
+                    append(body.ifBlank { snippet })
+                },
+                data = buildMap {
+                    put("messageId", messageId)
+                    put("subject", subject)
+                    if (date.isNotBlank()) put("date", date)
+                    put("hasBody", body.isNotBlank().toString())
+                }
             )
         } catch (e: Exception) {
             Log.w(TAG, "gmail_read request failed")

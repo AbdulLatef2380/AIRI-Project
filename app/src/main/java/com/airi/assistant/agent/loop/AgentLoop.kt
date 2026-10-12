@@ -214,6 +214,15 @@ the tool returns an actual error.
 
         val fullSystemPrompt = systemPrompt + "\n\n" + toolSelection.promptBlock + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
+        // Register execution ownership before any deterministic tool can run.
+        // Otherwise current_time may produce a result before the live trace has
+        // an active execution owner, making that tool invocation uncorrelated.
+        ExecutionStatusBus.onGraphStarted(
+            goalDescription = input.take(80),
+            totalNodes = if (effectiveTools.isEmpty()) 1 else MAX_STEPS,
+            executionId = executionId,
+        )
+        isPlanPublished = true
         // Device time/date is a deterministic system fact. Execute it before
         // the first model turn so a short question cannot degrade into a
         // hallucinated refusal merely because the model did not emit a tool
@@ -224,6 +233,25 @@ the tool returns an actual error.
                 com.airi.assistant.ai.CapabilityIntentDetector.Capability.CURRENT_TIME
             ) && effectiveTools.any { it.name == "current_time" }
         ) {
+            val timeActionId = "tool_0_current_time"
+            val timeStartedAtMs = System.currentTimeMillis()
+            ExecutionStatusBus.onWaveStarted(
+                nodeIds = listOf(timeActionId),
+                nodeActions = listOf("current_time"),
+                executionId = executionId,
+            )
+            ExecutionStatusBus.onToolStarted(
+                executionId = executionId,
+                actionId = timeActionId,
+                toolName = "current_time",
+                detail = "Deterministic system fact",
+            )
+            activeToolTrace = ActiveToolTrace(
+                executionId = executionId,
+                actionId = timeActionId,
+                toolName = "current_time",
+                startedAtMs = timeStartedAtMs,
+            )
             val timeSchema = effectiveTools.first { it.name == "current_time" }
             val timeValidation = StrictArgumentValidator.validate(
                 spec = ToolSpecAdapter.fromSchema(timeSchema),
@@ -246,18 +274,29 @@ the tool returns an actual error.
                 is ToolDispatcher.ToolResult.Success -> timeResult.output
                 is ToolDispatcher.ToolResult.Error -> "Error: ${timeResult.message}"
             }
+            val timeDurationMs = System.currentTimeMillis() - timeStartedAtMs
+            when (timeResult) {
+                is ToolDispatcher.ToolResult.Success -> ExecutionStatusBus.onToolCompleted(
+                    executionId = executionId,
+                    actionId = timeActionId,
+                    toolName = "current_time",
+                    durationMs = timeDurationMs,
+                    detail = "Deterministic result returned.",
+                )
+                is ToolDispatcher.ToolResult.Error -> ExecutionStatusBus.onToolFailed(
+                    executionId = executionId,
+                    actionId = timeActionId,
+                    toolName = "current_time",
+                    durationMs = timeDurationMs,
+                    detail = timeResult.code,
+                )
+            }
+            ExecutionStatusBus.onNodeCompleted(timeActionId, 1, executionId)
+            activeToolTrace = null
             toolsInvoked += "current_time"
             history.add(ConversationTurn.ToolResult("current_time", timeText))
             Log.i(TAG, "AIRI DETERMINISTIC_TOOL tool=current_time success=${timeResult is ToolDispatcher.ToolResult.Success}")
         }
-        // Register ownership before any completion/cancellation event. The bus
-        // rejects terminal events from unknown execution ids; without this start
-        // event a previous run can leave isWorking=true on the chat screen.
-        ExecutionStatusBus.onGraphStarted(
-            goalDescription = input.take(80),
-            totalNodes = if (effectiveTools.isEmpty()) 1 else MAX_STEPS,
-            executionId = executionId,
-        )
         ExecutionStatusBus.onRuntimeSignal(
             executionId,
             "Inspecting runtime capabilities",
@@ -443,6 +482,32 @@ the tool returns an actual error.
                 }
 
                 if (toolCall == null) {
+                    // A live-data request cannot be completed truthfully by a
+                    // plain model response. Do not label a parser miss or a
+                    // model refusal as SUCCESS when no tool produced evidence.
+                    if (capabilityIntent.requiresLiveData && toolsInvoked.isEmpty()) {
+                        val failure = "Live capability was requested, but no tool execution produced evidence."
+                        Log.w(TAG, "AIRI TOOL_REQUIRED_BUT_NOT_SELECTED capabilities=${capabilityIntent.capabilities}")
+                        ExecutionStatusBus.onRuntimeSignal(
+                            executionId = executionId,
+                            summary = "Live data unavailable",
+                            detail = "Required tool was not selected; final answer blocked.",
+                        )
+                        runtimeTrace?.continuation(
+                            executionId = executionId,
+                            sessionId = sessionId,
+                            continued = false,
+                            terminalState = "TOOL_REQUIRED_BUT_NOT_SELECTED",
+                        )
+                        ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
+                        return@withTimeout LoopResult(
+                            finalAnswer = "",
+                            stepsUsed = stepsUsed,
+                            toolsInvoked = toolsInvoked,
+                            terminalState = TerminalState.FAILURE,
+                            failureMessage = failure,
+                        )
+                    }
                     // Final answer — LLM decided it's done (or retry also failed)
                     history.add(ConversationTurn.Assistant(rawResponse))
                     onStepComplete(StepEvent.FinalAnswer(rawResponse, stepsUsed))

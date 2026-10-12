@@ -34,6 +34,29 @@ class GmailMessageDecoderTest {
         assertEquals("", GmailMessageDecoder.decode(JSONObject().put("mimeType", "text/plain")))
     }
 
+    @Test
+    fun readsSubjectAndDateHeadersCaseInsensitively() {
+        val payload = JSONObject().put(
+            "headers",
+            JSONArray()
+                .put(JSONObject().put("name", "subject").put("value", "Latest update"))
+                .put(JSONObject().put("name", "DATE").put("value", "Tue, 13 Oct 2026 08:00:00 +0000"))
+        )
+
+        assertEquals("Latest update", GmailMessageDecoder.header(payload, "Subject"))
+        assertEquals("Tue, 13 Oct 2026 08:00:00 +0000", GmailMessageDecoder.header(payload, "Date"))
+    }
+
+    @Test
+    fun missingHeaderDoesNotInventMetadata() {
+        val payload = JSONObject().put(
+            "headers",
+            JSONArray().put(JSONObject().put("name", "Subject").put("value", "Known subject"))
+        )
+
+        assertEquals("", GmailMessageDecoder.header(payload, "Date"))
+    }
+
     private fun encode(value: String): String =
         Base64.getUrlEncoder().withoutPadding().encodeToString(value.toByteArray())
 }

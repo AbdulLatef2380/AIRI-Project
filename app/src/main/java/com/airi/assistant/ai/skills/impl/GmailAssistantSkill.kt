@@ -20,10 +20,11 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
     private val secureStorage = SecureStorage(context)
 
     private val exactPhrases = listOf(
-        "latest email", "check email", "read emails", "my inbox", "check inbox"
+        "latest email", "check email", "read emails", "my inbox", "check inbox",
+        "أحدث رسالة", "احدث رسالة", "آخر رسالة", "اخر رسالة", "رسالة وصلت", "الرسائل الواردة",
     )
     private val singleWords = listOf(
-        "email", "emails", "gmail", "inbox", "unread", "mail"
+        "email", "emails", "gmail", "inbox", "unread", "mail", "جيميل", "البريد", "رسائل", "الواردة",
     )
 
     override fun score(input: String, context: SkillContext): Int {
@@ -54,7 +55,9 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
         val list = toolExecutor.execute(
             ToolCall(
                 "gmail_list_emails",
-                mapOf("max" to max.toString(), "query" to "in:sent")
+                // Gmail's default list is newest-first. Exclude self-sent mail
+                // so archived received messages remain eligible as "received".
+                mapOf("max" to max.toString(), "query" to "-from:me")
             )
         )
         if (!list.success) return SkillResult(false, "", list.error)
@@ -66,7 +69,7 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
             ?.groupValues
             ?.getOrNull(1)
         if (messageId.isNullOrBlank()) {
-            return SkillResult(true, "No sent Gmail messages found.", null)
+            return SkillResult(true, "No received Gmail messages found.", null)
         }
 
         val read = toolExecutor.execute(
@@ -75,7 +78,7 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
         if (!read.success) return SkillResult(false, "", read.error)
         return SkillResult(
             success = true,
-            data = "Latest sent Gmail message (for summarization):\n${read.data.take(MAX_RESULT_CHARS)}",
+            data = "Latest received Gmail message (for summarization):\n${read.data.take(MAX_RESULT_CHARS)}",
             error = null,
         )
     }

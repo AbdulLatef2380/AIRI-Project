@@ -14,6 +14,19 @@ internal object GmailMessageDecoder {
             ?: ""
     }
 
+    /** Returns a message header without trusting its casing or leaking payload data. */
+    fun header(payload: JSONObject?, name: String): String {
+        if (payload == null || name.isBlank()) return ""
+        val headers = payload.optJSONArray("headers") ?: return ""
+        for (index in 0 until headers.length()) {
+            val header = headers.optJSONObject(index) ?: continue
+            if (header.optString("name").equals(name, ignoreCase = true)) {
+                return header.optString("value").trim()
+            }
+        }
+        return ""
+    }
+
     private fun collect(part: JSONObject, out: MutableList<Pair<String, String>>) {
         val mime = part.optString("mimeType").lowercase()
         val body = part.optJSONObject("body")

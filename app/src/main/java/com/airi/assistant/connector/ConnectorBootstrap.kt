@@ -5,7 +5,6 @@ import android.util.Log
 import com.airi.assistant.connector.N8nConnector
 import com.airi.assistant.connector.api.RemoteLlmConnector
 import com.airi.assistant.connector.app.GitHubConnector
-import com.airi.assistant.connector.oauth.GitHubAppBrokerClient
 import com.airi.assistant.connector.app.GoogleConnector
 import com.airi.assistant.connector.app.IftttConnector
 import com.airi.assistant.connector.app.MicrosoftGraphConnector
@@ -78,7 +77,7 @@ object ConnectorBootstrap {
         registry.register(N8nConnector(authManager))
 
         // P1-7 / AP-06: First-class GitHubConnector — no legacy adapter fallback.
-        registry.register(GitHubConnector(authManager, durableTaskManager, secretVault, githubBrokerClient = GitHubAppBrokerClient()))
+        registry.register(GitHubConnector(authManager, durableTaskManager, secretVault))
 
         // B-20 / AP-06: TelegramConnector — first-class; legacy adapter removed.
         // AP-04 guarantees SecureStorage is always available; log and skip if not.

@@ -114,9 +114,8 @@
                     android:host="referral" />
             </intent-filter>
 
-            <!-- OAuth callback deep-link — receives airi://oauth/callback?code=...
-                 Used by future OAuth providers (Slack, Discord, Notion, Google Drive).
-                 MainActivity routes this to IntegrationsViewModel.handleOAuthCallback(). -->
+            <!-- OAuth callback deep-link — receives code=... or broker_ticket=...
+                 and is validated by OAuthStateRegistry in MainActivity's shared path. -->
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

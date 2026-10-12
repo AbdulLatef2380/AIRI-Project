@@ -70,6 +70,13 @@ android {
         buildConfigField("String", "MICROSOFT_TENANT", "\"" + microsoftTenant.replace("\"", "\\\"") + "\"")
         buildConfigField("boolean", "MICROSOFT_OAUTH_ENABLED", microsoftOAuthEnabled.toString())
 
+        // Public broker origin only. GitHub client secrets and App private keys
+        // must never be supplied to, or packaged with, the Android build.
+        val githubBrokerBaseUrl = (project.findProperty("githubBrokerBaseUrl") as? String).orEmpty()
+            .ifBlank { System.getenv("GITHUB_BROKER_BASE_URL").orEmpty() }
+            .ifBlank { "https://github-broker.example.com" }
+        buildConfigField("String", "GITHUB_BROKER_BASE_URL", "\"" + githubBrokerBaseUrl.replace("\"", "\\\"") + "\"")
+
 
         // Native (llama.cpp + JNI bridge) is built from source — see
         // app/src/main/cpp/CMakeLists.txt. No prebuilt .so is shipped; if

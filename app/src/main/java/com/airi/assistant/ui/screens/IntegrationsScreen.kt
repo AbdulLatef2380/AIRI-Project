@@ -288,25 +288,6 @@ fun IntegrationsScreen(
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
-    if (dialog is IntegrationsViewModel.DialogState.Github) {
-        val state = dialog as IntegrationsViewModel.DialogState.Github
-        TokenDialog(
-            title = stringResource(R.string.integration_github_dialog_title),
-            emoji = "",
-            // Token-acquisition steps stay in English because every label they
-            // reference (GitHub menu names, scopes) is itself English in the
-            // GitHub UI — translating them would make the steps unfollowable.
-            steps = stringArrayResource(R.array.integration_github_steps).toList(),
-            inputLabel = stringResource(R.string.integration_github_token_label),
-            inputHint = "ghp_xxxxxxxxxxxxxxxxxxxx",
-            token = state.token,
-            loading = state.loading,
-            error = state.error,
-            onTokenChange = { vm.updateGithubToken(it) },
-            onConfirm = { vm.connectGithub() },
-            onDismiss = { vm.closeDialog() }
-        )
-    }
     if (dialog is IntegrationsViewModel.DialogState.Telegram) {
         val state = dialog as IntegrationsViewModel.DialogState.Telegram
         TokenDialog(

@@ -13,9 +13,10 @@ import com.airi.assistant.connector.mcp.getNotionToken
 import com.airi.assistant.connector.oauth.OAuthStateRegistry
 import com.airi.assistant.connector.oauth.MicrosoftOAuthConfiguration
 import com.airi.assistant.connector.oauth.OAuthConfiguration
+import com.airi.assistant.connector.oauth.GitHubAppBrokerClient
+import com.airi.assistant.connector.oauth.GitHubAppOAuthConfiguration
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.release.ReleaseScopePolicy
-import com.airi.assistant.integrations.github.GithubService
 import com.airi.assistant.integrations.google.GoogleAuthService
 import com.airi.assistant.integrations.google.GoogleDataAuthorization
 import com.airi.assistant.integrations.google.GoogleDataScopes
@@ -38,7 +39,7 @@ class ConnectorAuthorizationManager(
     private val secureStorage: SecureStorage,
     private val googleAuthService: GoogleAuthService,
     private val accessProfileStore: ConnectorAccessProfileStore = InMemoryConnectorAccessProfileStore(),
-    private val githubService: GithubService = GithubService(secureStorage),
+    private val githubBrokerClient: GitHubAppBrokerClient = GitHubAppBrokerClient(),
     private val telegramService: TelegramService = TelegramService(secureStorage),
 ) {
     sealed interface StartResult {
@@ -120,7 +121,7 @@ class ConnectorAuthorizationManager(
             "google" -> beginGoogle(surfaceIds.firstOrNull() ?: id)
             "microsoft_graph" -> beginMicrosoft(runtimeId)
             "zapier" -> beginZapier(runtimeId)
-            "github" -> StartResult.CredentialRequired(runtimeId, "GitHub personal access token", "GitHub")
+            "github" -> beginGitHub(runtimeId)
             "telegram" -> StartResult.CredentialRequired(runtimeId, "Telegram bot token", "Telegram")
             "notion_mcp" -> StartResult.CredentialRequired(runtimeId, "Notion integration token", "Notion")
             in ProviderTokenConnector.configs().map { it.id } -> {
@@ -204,6 +205,16 @@ class ConnectorAuthorizationManager(
             .getOrElse { StartResult.Failed("oauth_not_configured", "Zapier OAuth is not configured for this build") }
     }
 
+    private suspend fun beginGitHub(runtimeId: String): StartResult {
+        val state = OAuthStateRegistry.issue(runtimeId)
+        return runCatching {
+            StartResult.OAuthBrowser(runtimeId, githubBrokerClient.beginInstall(state).authorizationUrl)
+        }.getOrElse {
+            OAuthStateRegistry.consumeRequest(state)
+            StartResult.Failed("oauth_broker_unavailable", "GitHub authorization service is not configured or unreachable", retryable = true)
+        }
+    }
+
     /** Securely validates and commits PAT/API/MCP credentials, then health-checks. */
     suspend fun submitCredential(id: String, credential: String): CompletionResult = withContext(Dispatchers.IO) {
         if (!authManager.isSecureStorageAvailable || !secureStorage.isEncrypted) {
@@ -222,7 +233,7 @@ class ConnectorAuthorizationManager(
         }
         if (credential.isBlank()) return@withContext CompletionResult.Failed("credential_missing", "Credential cannot be empty")
         val validated = when (runtimeId) {
-            "github" -> githubService.validateAndConnect(credential).map { true }
+            "github" -> Result.failure(IllegalArgumentException("GitHub uses GitHub App authorization; personal access tokens are not accepted"))
             "telegram" -> telegramService.validateAndConnect(credential).map { true }
             "notion_mcp" -> {
                 if (!secureStorage.isEncrypted) Result.failure(IllegalStateException("Secure credential storage is unavailable"))
@@ -280,6 +291,18 @@ class ConnectorAuthorizationManager(
             )
         }
         when (pending.connectorId) {
+            GitHubAppOAuthConfiguration.CONNECTOR_ID -> {
+                val ticket = uri.getQueryParameter("broker_ticket")
+                    ?: return@withContext CompletionResult.Failed("broker_ticket_missing", "GitHub authorization callback did not contain a broker ticket")
+                return@withContext runCatching {
+                    val session = githubBrokerClient.completeInstall(ticket)
+                    check(authManager.storeCredential("github", "broker_session", session.token))
+                    authManager.setExplicitlyDisconnected("github", false)
+                    connectAndVerify("github").toCompletion("github")
+                }.getOrElse {
+                    CompletionResult.Failed("broker_completion_failed", "GitHub authorization could not be completed", retryable = true)
+                }
+            }
             MicrosoftOAuthConfiguration.CONNECTOR_ID -> {
                 val expectedScopes = ConnectorProviderScopes.microsoftAuthorizationScopes(requiredOAuthScopesFor(pending.connectorId))
                 if (pending.requestedScopes != expectedScopes) {

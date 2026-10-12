@@ -2,6 +2,7 @@ package com.airi.assistant.connector.app
 
 import android.util.Log
 import com.airi.assistant.connector.*
+import com.airi.assistant.connector.oauth.GitHubAppBrokerClient
 import com.airi.assistant.agent.durable.ApprovalContinuation
 import com.airi.assistant.agent.durable.DurableTaskManager
 import com.airi.assistant.agent.durable.ResumableConnectorInvocation
@@ -22,6 +23,7 @@ class GitHubConnector(
     private val authManager: ConnectorAuthManager? = null,
     private val durableTaskManager: DurableTaskManager? = null,
     private val secretVault: SecretVault? = null,
+    private val githubBrokerClient: GitHubAppBrokerClient? = null,
     /** Test seam; production obtains global credentials only from ConnectorAuthManager. */
     private val legacyCredentialProvider: (String, String) -> String? = { connectorId, credentialKey ->
         authManager?.getCredential(connectorId, credentialKey)
@@ -92,6 +94,19 @@ class GitHubConnector(
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
     override suspend fun connect(): ConnectorState = withContext(Dispatchers.IO) {
+        val brokerSession = authManager?.getCredential(id, "broker_session")
+        if (!brokerSession.isNullOrBlank() && githubBrokerClient != null) {
+            return@withContext runCatching {
+                val health = githubBrokerClient.health(brokerSession)
+                val login = health.optString("login", "authorized GitHub account")
+                _state.value = ConnectorState(true, true, "Connected via GitHub App as @$login", System.currentTimeMillis())
+                AgentActivityBus.emit("GitHub App connected as @$login", ActivityCategory.CONNECTOR)
+                _state.value
+            }.getOrElse { error ->
+                _state.value = ConnectorState(false, statusLine = "Broker failed: ${error.message}", errorMessage = error.message)
+                _state.value
+            }
+        }
         val token = legacyCredentialProvider(id, "pat")
         if (token.isNullOrBlank()) { _state.value = ConnectorState(false, statusLine = "No PAT", errorMessage = "Set a GitHub PAT in Connectors settings"); return@withContext _state.value }
         try {
@@ -104,6 +119,7 @@ class GitHubConnector(
     }
 
     override suspend fun disconnect() {
+        authManager?.clearCredential(id, "broker_session")
         authManager?.clearCredential(id, "pat")
         _state.value = ConnectorState(false, statusLine = "Disconnected")
     }
@@ -197,6 +213,19 @@ class GitHubConnector(
         val execution = input.execution
         if (!execution?.projectId.isNullOrBlank()) {
             return@withContext executeWithProjectSecret(input, execution!!)
+        }
+        val brokerSession = authManager?.getCredential(id, "broker_session")
+        if (!brokerSession.isNullOrBlank() && githubBrokerClient != null) {
+            val response = runCatching {
+                githubBrokerClient.execute(brokerSession, input.action, input.params, input.text)
+            }.getOrElse { error ->
+                return@withContext ConnectorOutput.Failure("broker_network_error", error.message ?: "GitHub Broker request failed", true)
+            }
+            return@withContext if (response.ok) {
+                ConnectorOutput.Success(response.body, durationMs = 0L)
+            } else {
+                ConnectorOutput.Failure("github_broker_${response.status}", response.body, response.status in 500..599)
+            }
         }
         val token = legacyCredentialProvider(id, "pat")
             ?: return@withContext ConnectorOutput.Failure("not_connected", "GitHub PAT not configured")

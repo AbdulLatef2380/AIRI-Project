@@ -387,6 +387,7 @@ private fun executionLogStageLabel(stage: ExecutionLogStage): String = stringRes
     ExecutionLogStage.COMPLETED -> R.string.agent_plan_stage_completed
 })
 
+@Composable
 private fun executionLogColor(status: ExecutionLogStatus): Color = when (status) {
     ExecutionLogStatus.FAILED -> SemanticError
     ExecutionLogStatus.CANCELLED -> AiriTheme.onSurface.copy(alpha = 0.5f)

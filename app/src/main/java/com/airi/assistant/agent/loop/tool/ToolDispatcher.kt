@@ -347,7 +347,7 @@ class ToolDispatcher(
                         command = command,
                         agentId = agentId,
                         onOutput = onOutput,
-                        executionId = executionId,
+                        executionId = executionId.orEmpty(),
                         actionId = "terminal_execute",
                     )) {
                     is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Disabled ->

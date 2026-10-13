@@ -47,6 +47,9 @@ import com.airi.assistant.ai.ModelType
 import com.airi.assistant.ai.ModelValidator
 import com.airi.assistant.ai.ValidationResult
 import com.airi.assistant.ai.agent.background.AgentWorker
+import com.airi.assistant.agent.trace.NodeExecutionState
+import com.airi.assistant.agent.trace.TraceNodeState
+import com.airi.assistant.agent.trace.TraceStep
 import com.airi.assistant.ai.remote.RemoteModel
 import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.core.ServiceLocator
@@ -591,6 +594,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // ── UI State ──────────────────────────────────────────────────────────────
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
+
+    // Parallel UI projection. The persisted ChatMessage history remains the source
+    // of truth for exports/history; ChatItem adds an interleaved live trace only.
+    private val _chatItems = MutableStateFlow<List<ChatItem>>(emptyList())
+    val chatItems: StateFlow<List<ChatItem>> = _chatItems.asStateFlow()
+    private var activeTraceId: String? = null
+    private val activeTraceNodes = mutableListOf<TraceNodeState>()
 
     /**
      * One-shot URI handed off from [sendMessageWithImage]'s text-fallback
@@ -1549,6 +1559,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _currentSessionId.value = session.id
             preferences.edit().putString(KEY_SESSION_ID, session.id).apply()
             _messages.value = emptyList()
+            _chatItems.value = emptyList()
+            activeTraceId = null
+            activeTraceNodes.clear()
             _streamingText.value = ""
             if (generationRunning) {
                 deferredLlamaHistory = DeferredLlamaHistory(session.id, emptyList())
@@ -1590,6 +1603,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _currentSessionId.value = replacement.id
             preferences.edit().putString(KEY_SESSION_ID, replacement.id).apply()
             _messages.value = emptyList()
+            _chatItems.value = emptyList()
+            activeTraceId = null
+            activeTraceNodes.clear()
             streamAccumulator.setLength(0)
             _streamingText.value = ""
             _agentState.value = AgentState()
@@ -1656,6 +1672,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     imageUri = attachmentPreviewUri(msg.attachmentJson)
                 )
             }
+            _chatItems.value = history.mapNotNull { msg ->
+                when (msg.role.lowercase()) {
+                    "user" -> ChatItem.UserMessage(msg.id.toString(), msg.content, msg.timestamp)
+                    "assistant" -> ChatItem.AgentFinalResponse(msg.id.toString(), msg.content, timestamp = msg.timestamp)
+                    else -> null
+                }
+            }
+            activeTraceId = null
+            activeTraceNodes.clear()
             _streamingText.value = if (activeGenerationSessionId == sessionId) streamAccumulator.toString() else ""
             if (SessionGenerationPolicy.mayReplaceNativeHistory(activeGenerationSessionId)) {
                 llamaManager.setHistory(history.takeLast(12))
@@ -2067,6 +2092,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         imageUri = attachedForBubble
                     )
                 }
+                _chatItems.update { items ->
+                    if (items.any { it is ChatItem.UserMessage && it.id == userMessage.id.toString() }) items
+                    else items + ChatItem.UserMessage(userMessage.id.toString(), trimmedInput, userMessage.timestamp)
+                }
             }
 
             // ──  & 5 — Soft limit: degrade quality + add delay for free users ──
@@ -2134,6 +2163,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             executionSource = "AIRI fast path (local)"
                         )
                     }
+                    _chatItems.update { it + ChatItem.AgentFinalResponse(fastMsg.id.toString(), fastHit) }
                 }
                 if (wasEmpty) autoTitleAfterSuccessfulResponse(sessionId, trimmedInput)
                 _smartReplies.value = ResponseOptimizer.generateSuggestions(fastHit)
@@ -2144,6 +2174,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             Log.d("AIRI_FAST", "hit=false")
             _debugState.update { it.copy(lastIsFastPath = false) }
+            // Agent path only: fast responses intentionally have no trace node.
+            activeTraceId = java.util.UUID.randomUUID().toString()
+            activeTraceNodes.clear()
+            _chatItems.update { it + ChatItem.AgentTrace(activeTraceId!!, emptyList()) }
             _smartReplies.value = emptyList()
             if (!isCurrentGeneration(generationId)) return@launch
 
@@ -2386,6 +2420,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         when (stepEvent) {
                             is com.airi.assistant.agent.loop.AgentLoop.StepEvent.ToolExecuted -> {
                                 Log.i("AIRI", "TOOL_EXEC step=${stepEvent.step} tool=${stepEvent.toolName}")
+                                val nodeId = "node-${stepEvent.step}"
+                                appendTraceNode(TraceNodeState(nodeId, mapToolNameToRunningTraceStep(stepEvent.toolName, stepEvent.step), NodeExecutionState.RUNNING))
+                                delay(80)
+                                appendTraceNode(TraceNodeState(nodeId, mapToolNameToTraceStep(stepEvent.toolName, stepEvent.result, stepEvent.step), NodeExecutionState.DONE))
+                                if (activeTraceNodes.count { it.executionState == NodeExecutionState.DONE } > 3) collapseActiveTrace()
                                 // P0-2: Handle ask_confirmation tool result.
                                 // When the agent calls ask_confirmation, ToolDispatcher returns
                                 // "CONFIRMATION_REQUIRED|action|details". Surface this as a real
@@ -2428,6 +2467,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             }
                             is com.airi.assistant.agent.loop.AgentLoop.StepEvent.FinalAnswer -> {
                                 Log.i("AIRI", "AGENT_LOOP_FINAL steps=${stepEvent.steps}")
+                                markActiveTraceDone()
                                 null
                             }
                         }
@@ -2582,6 +2622,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 executionSource = hybridOrchestrator.lastExecutionSource
                             )
                         }
+                        _chatItems.update { it + ChatItem.AgentFinalResponse(assistantMsg.id.toString(), normalizedAnswer) }
                     }
                     if (wasEmpty) autoTitleAfterSuccessfulResponse(sessionId, trimmedInput)
                     // Record inference outcome for adaptive intelligence
@@ -2621,6 +2662,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 Log.i("AIRI", "AGENT_LOOP_COMPLETE steps=${loopResult.stepsUsed} tools=${loopResult.toolsInvoked}")
 
             } catch (_: TimeoutCancellationException) {
+                markActiveTraceFailed("انتهت مهلة التنفيذ")
                 if (isCurrentGeneration(generationId) && !_isCancelled.get()) {
                     val partial = (streamAccumulator.toString() + reasoningParser.finish()).trim()
                     val partialSaved = if (GenerationResponsePolicy.shouldPersistIncompleteResponse(GenerationResponseStatus.TIMEOUT, partial)) {
@@ -2638,10 +2680,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     _generationPhase.value = GenerationPhase.CLEANUP
                 }
             } catch (_: CancellationException) {
+                markActiveTraceFailed("أُلغي التنفيذ")
                 if (isCurrentGeneration(generationId)) {
                     _generationPhase.value = GenerationPhase.CANCELLED
                 }
             } catch (e: Exception) {
+                markActiveTraceFailed(e.message ?: "تعذر إكمال الخطوة")
                 if (isCurrentGeneration(generationId) && !_isCancelled.get()) {
                     val partial = (streamAccumulator.toString() + reasoningParser.finish()).trim()
                     val partialSaved = if (GenerationResponsePolicy.shouldPersistIncompleteResponse(GenerationResponseStatus.FAILURE, partial)) {
@@ -5182,6 +5226,72 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 it.copy(isScanning = false, availableModels = ModelManager.getAllModels(), scannedModelIds = allScannedIds)
             }
         }
+    }
+
+    private fun appendTraceNode(node: TraceNodeState) {
+        val index = activeTraceNodes.indexOfFirst { it.id == node.id }
+        if (index >= 0) activeTraceNodes[index] = node else activeTraceNodes += node
+        val traceId = activeTraceId ?: return
+        _chatItems.update { items -> items.map { item ->
+            if (item is ChatItem.AgentTrace && item.id == traceId) item.copy(nodes = activeTraceNodes.toList()) else item
+        } }
+    }
+
+    private fun collapseActiveTrace() {
+        val traceId = activeTraceId ?: return
+        _chatItems.update { items -> items.map { item ->
+            if (item is ChatItem.AgentTrace && item.id == traceId) item.copy(isCollapsed = true) else item
+        } }
+    }
+
+    private fun markActiveTraceDone() {
+        val traceId = activeTraceId ?: return
+        activeTraceNodes.replaceAll { if (it.executionState == NodeExecutionState.RUNNING) it.copy(executionState = NodeExecutionState.DONE) else it }
+        _chatItems.update { items -> items.map { item ->
+            if (item is ChatItem.AgentTrace && item.id == traceId) item.copy(nodes = activeTraceNodes.toList(), isCollapsed = activeTraceNodes.size > 3) else item
+        } }
+        activeTraceId = null
+    }
+
+    private fun markActiveTraceFailed(message: String) {
+        val traceId = activeTraceId ?: return
+        val original = activeTraceNodes.lastOrNull()?.step ?: TraceStep.Thinking("تنفيذ AIRI")
+        appendTraceNode(TraceNodeState("error-${System.nanoTime()}", TraceStep.StepError(original, message.take(180)), NodeExecutionState.FAILED))
+        markActiveTraceDone()
+    }
+
+    fun toggleTraceCollapse(traceId: String) {
+        _chatItems.update { items -> items.map { item ->
+            if (item is ChatItem.AgentTrace && item.id == traceId) item.copy(isCollapsed = !item.isCollapsed) else item
+        } }
+    }
+
+    private fun mapToolNameToRunningTraceStep(toolName: String, step: Int): TraceStep = when (toolName.uppercase()) {
+        "WEB_SEARCH", "FETCH_URL" -> TraceStep.WebSearch("الخطوة $step", 0)
+        "READ_SCREEN" -> TraceStep.ScreenRead("يقرأ محتوى الشاشة…")
+        "MEMORY_RECALL" -> TraceStep.MemoryAccess("الخطوة $step")
+        "TAP" -> TraceStep.UiInteraction("ينفذ الضغط…")
+        "TYPE_TEXT" -> TraceStep.UiInteraction("يكتب النص…")
+        "SCROLL_DOWN" -> TraceStep.UiInteraction("يمرر الشاشة…")
+        "GO_BACK" -> TraceStep.UiInteraction("يعود للخلف…")
+        "OPEN_APP" -> TraceStep.UiInteraction("يفتح التطبيق…")
+        "CALENDAR_READ" -> TraceStep.DeviceAction(toolName, "يقرأ التقويم…")
+        "CALENDAR_CREATE" -> TraceStep.DeviceAction(toolName, "ينشئ موعداً…")
+        "SET_ALARM" -> TraceStep.DeviceAction(toolName, "يضبط منبهاً…")
+        "CREATE_NOTE" -> TraceStep.DeviceAction(toolName, "ينشئ ملاحظة…")
+        "ASK_CONFIRMATION" -> TraceStep.ConfirmationRequest("بانتظار التأكيد…")
+        else -> TraceStep.Thinking("ينفذ $toolName…")
+    }
+
+    private fun mapToolNameToTraceStep(toolName: String, result: String, step: Int): TraceStep = when (toolName.uppercase()) {
+        "WEB_SEARCH" -> TraceStep.WebSearch("الخطوة $step", result.lines().filter { it.startsWith("http") }.take(12).size.coerceAtLeast(1), result.lines().filter { it.startsWith("http") }.take(12))
+        "FETCH_URL" -> TraceStep.WebSearch(result.take(80), 1, listOf(result.lineSequence().firstOrNull().orEmpty()).filter { it.isNotBlank() })
+        "READ_SCREEN" -> TraceStep.ScreenRead("تمت قراءة الشاشة")
+        "MEMORY_RECALL" -> TraceStep.MemoryAccess("الخطوة $step", result.take(100))
+        "TAP", "TYPE_TEXT", "SCROLL_DOWN", "GO_BACK", "OPEN_APP" -> TraceStep.UiInteraction(result.take(80).ifBlank { toolName })
+        "CALENDAR_READ", "CALENDAR_CREATE", "SET_ALARM", "CREATE_NOTE" -> TraceStep.DeviceAction(toolName, "اكتمل: ${toolName.lowercase().replace('_', ' ')}")
+        "ASK_CONFIRMATION" -> TraceStep.ConfirmationRequest(result.take(120))
+        else -> TraceStep.Thinking("اكتمل تنفيذ $toolName")
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────

@@ -86,6 +86,8 @@ import com.airi.assistant.domain.ChatAttachment
 import androidx.compose.foundation.lazy.LazyRow
 import com.airi.assistant.util.ChatExporter
 import com.airi.assistant.ui.viewmodel.AgentState
+import com.airi.assistant.ui.viewmodel.ChatItem
+import com.airi.assistant.ui.trace.TraceGroup
 import com.airi.assistant.ui.viewmodel.AgentMode
 import com.airi.assistant.ui.viewmodel.AttachmentDispatchFailure
 import com.airi.assistant.ui.viewmodel.ChatInputSuggestion
@@ -201,6 +203,7 @@ fun ChatScreen(
     }
     val scope         = rememberCoroutineScope()
     val messages      by viewModel.messages.collectAsState()
+    val chatItems     by viewModel.chatItems.collectAsState()
     val streamingText by viewModel.streamingText.collectAsState()
     val agentState    by viewModel.agentState.collectAsState()
     val agentActivityEvents by AgentActivityBus.recentEvents.collectAsState()
@@ -1136,6 +1139,8 @@ fun ChatScreen(
                 }
             }
             ChatMessageList(
+                chatItems     = chatItems,
+                onToggleTrace = { traceId -> viewModel.toggleTraceCollapse(traceId) },
                 messages      = filteredChatMessages,
                 streamingText = if (chatSearchQuery.isBlank()) visibleStreamingText else "",
                 isGenerating  = generationBelongsToCurrentSession,
@@ -2125,6 +2130,8 @@ private fun AiriHistoryPanel(
 // Message list
 @Composable
 fun ChatMessageList(
+    chatItems: List<ChatItem> = emptyList(),
+    onToggleTrace: (String) -> Unit = {},
     messages: List<ChatMessage>,
     streamingText: String,
     isGenerating: Boolean,
@@ -2303,34 +2310,58 @@ fun ChatMessageList(
                         FinalAnswerVerificationBadge(finalAnswerVerification)
                     }
                 }
-                itemsIndexed(reversedMessages, key = { index, _ -> messageKeys[index] }, contentType = { _, msg -> if (msg.isUser) "user" else "assistant" }) { index, msg ->
-                    val prevMsg = reversedMessages.getOrNull(index + 1)
-                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                        val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
-                        if (msg.isUser) {
-                            UserBubble(
-                                text               = msg.text,
-                                imageUri           = msg.imageUri,
-                                voiceRecordingPath = msg.voiceRecordingPath,
-                                voiceDurationMs    = msg.voiceDurationMs,
-                                onEdit             = { onEditMessage(msg.text) },
-                                onDelete           = { onDeleteMessage(msg) }
-                            )
-                        } else {
-                            AiBubble(
-                                text            = msg.text,
-                                agentTag        = msg.agentTag,
-                                traceId         = msg.traceId,
-                                hideAvatar      = hideAvatar,
-                                onShare         = onShareAiResponse,
-                                onSpeak         = onSpeak,
-                                execOrigin      = msg.execOrigin,
-                                executionSource = msg.executionSource,
-                                onFeedback      = { liked -> onFeedback(msg.uid, liked) },
-                                onExportPdf     = onExportPdf,
-                                onExportMarkdown = onExportMarkdown,
-                                initialFeedback = msg.feedback
-                            )
+                if (chatItems.isNotEmpty()) {
+                    items(chatItems.asReversed(), key = { item ->
+                        when (item) {
+                            is ChatItem.UserMessage -> "chat-user-${item.id}"
+                            is ChatItem.AgentTrace -> "chat-trace-${item.id}"
+                            is ChatItem.AgentFinalResponse -> "chat-response-${item.id}"
+                        }
+                    }, contentType = { item ->
+                        when (item) {
+                            is ChatItem.UserMessage -> "user"
+                            is ChatItem.AgentTrace -> "trace"
+                            is ChatItem.AgentFinalResponse -> "assistant"
+                        }
+                    }) { item ->
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                            when (item) {
+                                is ChatItem.UserMessage -> UserBubble(text = item.text)
+                                is ChatItem.AgentTrace -> TraceGroup(item, onToggleTrace)
+                                is ChatItem.AgentFinalResponse -> AiBubble(text = item.text, hideAvatar = false)
+                            }
+                        }
+                    }
+                } else {
+                    itemsIndexed(reversedMessages, key = { index, _ -> messageKeys[index] }, contentType = { _, msg -> if (msg.isUser) "user" else "assistant" }) { index, msg ->
+                        val prevMsg = reversedMessages.getOrNull(index + 1)
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                            val hideAvatar = !msg.isUser && prevMsg != null && !prevMsg.isUser
+                            if (msg.isUser) {
+                                UserBubble(
+                                    text               = msg.text,
+                                    imageUri           = msg.imageUri,
+                                    voiceRecordingPath = msg.voiceRecordingPath,
+                                    voiceDurationMs    = msg.voiceDurationMs,
+                                    onEdit             = { onEditMessage(msg.text) },
+                                    onDelete           = { onDeleteMessage(msg) }
+                                )
+                            } else {
+                                AiBubble(
+                                    text            = msg.text,
+                                    agentTag        = msg.agentTag,
+                                    traceId         = msg.traceId,
+                                    hideAvatar      = hideAvatar,
+                                    onShare         = onShareAiResponse,
+                                    onSpeak         = onSpeak,
+                                    execOrigin      = msg.execOrigin,
+                                    executionSource = msg.executionSource,
+                                    onFeedback      = { liked -> onFeedback(msg.uid, liked) },
+                                    onExportPdf     = onExportPdf,
+                                    onExportMarkdown = onExportMarkdown,
+                                    initialFeedback = msg.feedback
+                                )
+                            }
                         }
                     }
                 }

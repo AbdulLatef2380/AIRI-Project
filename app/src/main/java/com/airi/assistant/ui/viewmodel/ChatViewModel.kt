@@ -601,6 +601,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val chatItems: StateFlow<List<ChatItem>> = _chatItems.asStateFlow()
     private var activeTraceId: String? = null
     private val activeTraceNodes = mutableListOf<TraceNodeState>()
+    /** Correlation contract for the trace projection; never infer it from UI order. */
+    private var activeTraceSessionId: String? = null
+    private var activeTraceGenerationId: Long = 0L
+    private var activeTraceExecutionId: String? = null
 
     /**
      * One-shot URI handed off from [sendMessageWithImage]'s text-fallback
@@ -1158,6 +1162,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun finishGeneration(generationId: Long) {
         if (!isCurrentGeneration(generationId)) return
+        if (activeTraceGenerationId == generationId && activeTraceSessionId == _currentSessionId.value) {
+            if (activeTraceNodes.any { it.executionState == NodeExecutionState.RUNNING }) {
+                markActiveTraceFailed("أُلغي التنفيذ قبل اكتمال الخطوة")
+            }
+        }
         val completedSessionId = activeGenerationSessionId
         streamAccumulator.setLength(0)
         _streamingText.value = ""
@@ -1283,6 +1292,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         observeVoiceTranscriptBus()
         observeExecutionStatusBus()
+        observeExecutionTraceBus()
         observeMemoryPressureBus()
         observeActivityBusForContextReset()
 
@@ -1430,7 +1440,60 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun observeExecutionStatusBus() {
         viewModelScope.launch {
             com.airi.assistant.core.ExecutionStatusBus.status.collect { busState ->
-                _agentState.value = busState
+                val belongsToVisibleSession = busState.sessionId.isNotBlank() &&
+                    busState.sessionId == _currentSessionId.value
+                val belongsToActiveTrace = busState.executionId.isNotBlank() &&
+                    busState.executionId == activeTraceExecutionId
+                if (belongsToVisibleSession || belongsToActiveTrace) {
+                    _agentState.value = busState
+                }
+            }
+        }
+    }
+
+    /**
+     * Projects the authoritative execution trace into the chat timeline.
+     * The projection is correlation-gated so late events cannot leak into a
+     * later generation or another conversation session.
+     */
+    private fun observeExecutionTraceBus() {
+        viewModelScope.launch {
+            com.airi.assistant.core.ExecutionStatusBus.trace.collect { events ->
+                val executionId = activeTraceExecutionId ?: return@collect
+                if (activeTraceSessionId != _currentSessionId.value ||
+                    !isCurrentGeneration(activeTraceGenerationId)
+                ) return@collect
+                events.asSequence()
+                    .filter { it.executionId == executionId }
+                    .forEach { event ->
+                        val actionId = event.actionId ?: return@forEach
+                        val toolName = event.summary.substringAfter(": ", "tool")
+                        val existingNode = activeTraceNodes.firstOrNull { it.id == actionId }
+                        val node = when (event.kind) {
+                            com.airi.assistant.core.ExecutionTraceKind.TOOL_STARTED ->
+                                if (existingNode == null) {
+                                    TraceNodeState(actionId, mapToolNameToRunningTraceStep(toolName, 0), NodeExecutionState.RUNNING)
+                                } else null
+                            com.airi.assistant.core.ExecutionTraceKind.TOOL_COMPLETED ->
+                                if (existingNode == null || existingNode.executionState == NodeExecutionState.RUNNING) {
+                                    TraceNodeState(actionId, mapToolNameToTraceStep(toolName, event.detail.orEmpty(), 0), NodeExecutionState.DONE)
+                                } else null
+                            com.airi.assistant.core.ExecutionTraceKind.TOOL_FAILED,
+                            com.airi.assistant.core.ExecutionTraceKind.TOOL_CANCELLED ->
+                                if (existingNode == null || existingNode.executionState == NodeExecutionState.RUNNING) {
+                                    TraceNodeState(
+                                        actionId,
+                                        TraceStep.StepError(
+                                            mapToolNameToRunningTraceStep(toolName, 0),
+                                            event.detail?.take(180) ?: "تعذر إكمال الأداة"
+                                        ),
+                                        NodeExecutionState.FAILED,
+                                    )
+                                } else null
+                            else -> null
+                        }
+                        node?.let(::appendTraceNode)
+                    }
             }
         }
     }
@@ -1562,6 +1625,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _chatItems.value = emptyList()
             activeTraceId = null
             activeTraceNodes.clear()
+            activeTraceSessionId = null
+            activeTraceGenerationId = 0L
+            activeTraceExecutionId = null
             _streamingText.value = ""
             if (generationRunning) {
                 deferredLlamaHistory = DeferredLlamaHistory(session.id, emptyList())
@@ -1606,6 +1672,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _chatItems.value = emptyList()
             activeTraceId = null
             activeTraceNodes.clear()
+            activeTraceSessionId = null
+            activeTraceGenerationId = 0L
+            activeTraceExecutionId = null
             streamAccumulator.setLength(0)
             _streamingText.value = ""
             _agentState.value = AgentState()
@@ -1681,6 +1750,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             activeTraceId = null
             activeTraceNodes.clear()
+            activeTraceSessionId = null
+            activeTraceGenerationId = 0L
+            activeTraceExecutionId = null
             _streamingText.value = if (activeGenerationSessionId == sessionId) streamAccumulator.toString() else ""
             if (SessionGenerationPolicy.mayReplaceNativeHistory(activeGenerationSessionId)) {
                 llamaManager.setHistory(history.takeLast(12))
@@ -2177,6 +2249,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // Agent path only: fast responses intentionally have no trace node.
             activeTraceId = java.util.UUID.randomUUID().toString()
             activeTraceNodes.clear()
+            activeTraceSessionId = sessionId
+            activeTraceGenerationId = generationId
+            activeTraceExecutionId = null
             _chatItems.update { it + ChatItem.AgentTrace(activeTraceId!!, emptyList()) }
             _smartReplies.value = emptyList()
             if (!isCurrentGeneration(generationId)) return@launch
@@ -2416,14 +2491,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             _streamingText.value = streamAccumulator.toString()
                         }
                     },
+                    onExecutionStarted = { executionId ->
+                        if (isCurrentGeneration(generationId) && _currentSessionId.value == sessionId) {
+                            activeTraceExecutionId = executionId
+                        }
+                    },
                     onStepComplete = { stepEvent ->
                         when (stepEvent) {
                             is com.airi.assistant.agent.loop.AgentLoop.StepEvent.ToolExecuted -> {
                                 Log.i("AIRI", "TOOL_EXEC step=${stepEvent.step} tool=${stepEvent.toolName}")
-                                val nodeId = "node-${stepEvent.step}"
-                                appendTraceNode(TraceNodeState(nodeId, mapToolNameToRunningTraceStep(stepEvent.toolName, stepEvent.step), NodeExecutionState.RUNNING))
-                                delay(80)
-                                appendTraceNode(TraceNodeState(nodeId, mapToolNameToTraceStep(stepEvent.toolName, stepEvent.result, stepEvent.step), NodeExecutionState.DONE))
+                                // The RUNNING transition is projected from
+                                // ExecutionStatusBus.onToolStarted. This callback
+                                // only enriches the already-existing node with the
+                                // completed result; it must not create a second
+                                // lifecycle or use an artificial delay.
+                                val nodeId = "tool_${stepEvent.step}_${stepEvent.toolName}"
+                                appendTraceNode(
+                                    TraceNodeState(
+                                        nodeId,
+                                        mapToolNameToTraceStep(stepEvent.toolName, stepEvent.result, stepEvent.step),
+                                        if (stepEvent.result.startsWith("Error")) NodeExecutionState.FAILED else NodeExecutionState.DONE,
+                                    )
+                                )
                                 if (activeTraceNodes.count { it.executionState == NodeExecutionState.DONE } > 3) collapseActiveTrace()
                                 // P0-2: Handle ask_confirmation tool result.
                                 // When the agent calls ask_confirmation, ToolDispatcher returns
@@ -5229,6 +5318,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun appendTraceNode(node: TraceNodeState) {
+        if (activeTraceId == null ||
+            activeTraceSessionId != _currentSessionId.value ||
+            !isCurrentGeneration(activeTraceGenerationId)
+        ) return
         val index = activeTraceNodes.indexOfFirst { it.id == node.id }
         if (index >= 0) activeTraceNodes[index] = node else activeTraceNodes += node
         val traceId = activeTraceId ?: return
@@ -5246,11 +5339,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun markActiveTraceDone() {
         val traceId = activeTraceId ?: return
+        if (activeTraceSessionId != _currentSessionId.value ||
+            !isCurrentGeneration(activeTraceGenerationId)
+        ) return
         activeTraceNodes.replaceAll { if (it.executionState == NodeExecutionState.RUNNING) it.copy(executionState = NodeExecutionState.DONE) else it }
         _chatItems.update { items -> items.map { item ->
             if (item is ChatItem.AgentTrace && item.id == traceId) item.copy(nodes = activeTraceNodes.toList(), isCollapsed = activeTraceNodes.size > 3) else item
         } }
         activeTraceId = null
+        activeTraceSessionId = null
+        activeTraceGenerationId = 0L
+        activeTraceExecutionId = null
     }
 
     private fun markActiveTraceFailed(message: String) {

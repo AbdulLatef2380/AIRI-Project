@@ -20,13 +20,17 @@ private val previewMessages = listOf(
 @Preview(name = "Chat empty dark", widthDp = 360, heightDp = 800, uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
 @Composable
 private fun ChatEmptyDarkPreview() {
-    AiriTheme { ChatMessageList(emptyList(), streamingText = "", isGenerating = false) }
+    AiriTheme {
+        ChatMessageList(chatItems = emptyList(), messages = emptyList(), streamingText = "", isGenerating = false)
+    }
 }
 
 @Preview(name = "Chat messages light", widthDp = 411, heightDp = 891, showBackground = true)
 @Composable
 private fun ChatMessagesLightPreview() {
-    AiriTheme { ChatMessageList(previewMessages, streamingText = "", isGenerating = false) }
+    AiriTheme {
+        ChatMessageList(chatItems = emptyList(), messages = previewMessages, streamingText = "", isGenerating = false)
+    }
 }
 
 @Preview(name = "Arabic user RTL", widthDp = 360, heightDp = 800, showBackground = true)

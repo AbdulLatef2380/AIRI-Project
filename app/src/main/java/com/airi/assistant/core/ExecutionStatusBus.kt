@@ -52,7 +52,12 @@ object ExecutionStatusBus {
     // ── Write API (called by UCL / orchestrators) ─────────────────────────────
 
     /** Signal that a DAG graph execution has started. */
-    fun onGraphStarted(goalDescription: String, totalNodes: Int, executionId: String) {
+    fun onGraphStarted(
+        goalDescription: String,
+        totalNodes: Int,
+        executionId: String,
+        sessionId: String = "",
+    ) {
         if (executionId.isBlank()) {
             Log.w(TAG, "EXEC_STATUS_REJECTED missing executionId")
             return
@@ -63,6 +68,7 @@ object ExecutionStatusBus {
             totalSteps            = totalNodes,
             activeGoalDescription = goalDescription,
             executionId           = executionId,
+            sessionId             = sessionId,
             nodesTotal            = totalNodes,
             executionStage        = ExecutionStage.PLANNING
         )

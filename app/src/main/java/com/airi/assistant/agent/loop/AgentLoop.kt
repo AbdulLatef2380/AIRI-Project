@@ -125,6 +125,7 @@ the tool returns an actual error.
      *                       [ExecutionRequest] so [OpenRouterAdapter.selectModel] can apply
      *                       task-based model routing (ANALYTICAL → DeepSeek R1, etc.).
      * @param onToken        Called with each streaming token (for live UI updates).
+     * @param onExecutionStarted Called after the execution is admitted by the status bus.
      * @param onStepComplete Called after each completed step (tool execution or partial answer).
      *                       Return a non-null String to REPLACE the tool result that the LLM sees.
      *                       This is used by ChatViewModel to inject a user confirmation decision
@@ -143,6 +144,7 @@ the tool returns an actual error.
         attachmentParts: List<com.airi.assistant.execution.ExecutionRequest.InlineDataPart> = emptyList(),
         attachmentTrace: com.airi.assistant.execution.AttachmentDeliveryTrace? = null,
         onToken:        suspend (String) -> Unit,
+        onExecutionStarted: suspend (String) -> Unit = {},
         onStepComplete: suspend (StepEvent) -> String? = { null },
         executionContextFactory: AgentLoopExecutionContextFactory? = null,
         /** Request-scoped capability state produced by the canonical runtime catalog. */
@@ -257,7 +259,9 @@ the tool returns an actual error.
             goalDescription = input.take(80),
             totalNodes = if (effectiveTools.isEmpty()) 1 else MAX_STEPS,
             executionId = executionId,
+            sessionId = sessionId,
         )
+        onExecutionStarted(executionId)
         isPlanPublished = true
 
         try {
@@ -516,7 +520,6 @@ the tool returns an actual error.
                     toolName = toolName,
                     startedAtMs = toolStartedAtMs,
                 )
-
                 // Direct chat retains a fail-closed boundary. The first allowed
                 // mutation is a typed calendar proposal, and it is admitted only
                 // after a foreground task owner has created an exact task/run/step.

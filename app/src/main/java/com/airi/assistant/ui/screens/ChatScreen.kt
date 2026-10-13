@@ -2637,6 +2637,7 @@ fun AiBubble(
     var showFullscreenViewer by remember { mutableStateOf(false) }
     val hasRichContent = remember(text) { ChatRichContentPolicy.needsFullscreen(text) }
     val textDirection = remember(text) { chatTextDirection(text) }
+    val avatarAtEnd = remember(text) { ChatPresentationPolicy.assistantAvatarAtEnd(text) }
     val responseGesture = if (isSelectingText) {
         Modifier
     } else {
@@ -2654,18 +2655,18 @@ fun AiBubble(
             horizontalArrangement = ChatPresentationPolicy.assistantBubbleArrangement(),
             verticalAlignment = Alignment.Top
         ) {
-            if (!hideAvatar) {
+            if (!hideAvatar && !avatarAtEnd) {
                 Image(
                     painter = painterResource(R.mipmap.ic_launcher_foreground),
                     contentDescription = "AIRI",
                     modifier = Modifier.size(28.dp)
                 )
                 Spacer(Modifier.width(8.dp))
-            } else {
+            } else if (hideAvatar) {
                 Spacer(Modifier.width(36.dp))
             }
 
-            Column(modifier = Modifier.fillMaxWidth().widthIn(max = 800.dp)) {
+            Column(modifier = Modifier.weight(1f).widthIn(max = 800.dp)) {
                 Box {
                     Box(
                         modifier = Modifier
@@ -2844,6 +2845,14 @@ fun AiBubble(
                     ExecOriginBadge(origin = execOrigin, source = executionSource)
                 }
             }
+            if (!hideAvatar && avatarAtEnd) {
+                Spacer(Modifier.width(8.dp))
+                Image(
+                    painter = painterResource(R.mipmap.ic_launcher_foreground),
+                    contentDescription = "AIRI",
+                    modifier = Modifier.size(28.dp)
+                )
+            }
         }
     if (showFullscreenViewer) {
         FullscreenResponseViewer(
@@ -3004,7 +3013,7 @@ fun AiStreamingBubble(text: String) {
 @Composable
 private fun AiriThinkingRow(label: String) {
     val animationsEnabled = ValueAnimator.areAnimatorsEnabled()
-    // Keep the indicator's icon → dots → label order independent of the
+    // Keep the indicator's sparkle → label order independent of the
     // surrounding message direction. The label itself remains bidi-aware.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Row(
@@ -3015,12 +3024,6 @@ private fun AiriThinkingRow(label: String) {
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = painterResource(R.mipmap.ic_launcher_foreground),
-                contentDescription = null,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(Modifier.width(8.dp))
             ThinkingAnimation(
                 modifier = Modifier,
                 stageText = label,

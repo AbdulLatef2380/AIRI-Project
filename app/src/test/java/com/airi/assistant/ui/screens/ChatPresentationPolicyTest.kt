@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.unit.LayoutDirection
 import com.airi.assistant.ui.text.LanguageRuntimeManager
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -11,11 +12,13 @@ class ChatPresentationPolicyTest {
     @Test fun arabicTextUsesRtl() {
         assertEquals(LanguageRuntimeManager.DominantDirection.RTL, LanguageRuntimeManager.analyseDirection("أهلًا بك"))
         assertEquals(LayoutDirection.Rtl, ChatPresentationPolicy.textDirection("أهلًا بك"))
+        assertTrue(ChatPresentationPolicy.assistantAvatarAtEnd("أهلًا بك"))
     }
 
     @Test fun englishTextUsesLtr() {
         assertEquals(LanguageRuntimeManager.DominantDirection.LTR, LanguageRuntimeManager.analyseDirection("Hello AIRI"))
         assertEquals(LayoutDirection.Ltr, ChatPresentationPolicy.textDirection("Hello AIRI"))
+        assertFalse(ChatPresentationPolicy.assistantAvatarAtEnd("Hello AIRI"))
     }
 
     @Test fun mixedTextUsesContentAwareBidiDirection() {

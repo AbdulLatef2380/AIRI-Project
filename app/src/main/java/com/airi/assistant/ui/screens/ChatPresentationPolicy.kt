@@ -11,6 +11,9 @@ internal object ChatPresentationPolicy {
     fun textDirection(text: String): LayoutDirection =
         LanguageRuntimeManager.toLayoutDirection(LanguageRuntimeManager.analyseDirection(text))
 
+    /** Place the assistant mark at the message's visual end for right-to-left replies. */
+    fun assistantAvatarAtEnd(text: String): Boolean = textDirection(text) == LayoutDirection.Rtl
+
     fun classifyLength(text: String): MessageLength = when {
         text.length > 4000 -> MessageLength.VERY_LONG
         text.length > 200 -> MessageLength.LONG

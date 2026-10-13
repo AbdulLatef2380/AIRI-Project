@@ -1695,14 +1695,6 @@ private fun AiriChatTopBar(
                     }
                 )
             }
-            IconButton(onClick = onSearchOpen) {
-                Icon(
-                    Icons.Outlined.Search,
-                    contentDescription = stringResource(R.string.chat_search),
-                    tint = AiriTheme.onBackground.copy(alpha = 0.65f),
-                    modifier = Modifier.size(20.dp)
-                )
-            }
             TaskInfoMenu(
                 metrics = taskMetrics,
                 onSearch = onSearchOpen,

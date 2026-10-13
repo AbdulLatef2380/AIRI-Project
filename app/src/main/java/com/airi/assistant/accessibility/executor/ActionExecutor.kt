@@ -21,7 +21,7 @@ object ActionExecutor {
 
             if (node.isClickable) {
                 node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                Log.i(TAG, "Clicked node by text: $text")
+                Log.i(TAG, "Clicked node by text; chars=${text.length}")
                 return true
             }
 
@@ -31,7 +31,7 @@ object ActionExecutor {
 
                 if (parent.isClickable) {
                     parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    Log.i(TAG, "Clicked parent node for: $text")
+                    Log.i(TAG, "Clicked parent node for text; chars=${text.length}")
                     return true
                 }
 
@@ -98,7 +98,9 @@ object ActionExecutor {
             args
         )
 
-        Log.i(TAG, "Text inserted: $text")
+        // Never log the inserted value: Accessibility may be used for passwords,
+        // tokens, personal messages, or other sensitive form fields.
+        Log.i(TAG, "Text inserted; chars=${text.length}")
 
         return result
     }

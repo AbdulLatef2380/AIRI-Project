@@ -70,3 +70,12 @@
 # Vosk includes JNA for its native bridge. java.awt.Component is a desktop-only
 # method signature that is unreachable on Android and must not block R8.
 -dontwarn java.awt.Component
+
+# Do not ship verbose diagnostic logs in production. Warning and error logs
+# remain available for actionable failures, but values must still be sanitized
+# at the call site (see Accessibility ActionExecutor).
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}

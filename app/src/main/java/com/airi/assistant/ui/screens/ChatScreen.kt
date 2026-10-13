@@ -73,6 +73,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.airi.assistant.R
+import com.airi.assistant.core.ExecutionStatusBus
+import com.airi.assistant.core.ExecutionTraceEvent
 import com.airi.assistant.attachments.ComposerTextFileStore
 import com.airi.assistant.WakeWordDispatcher
 import com.airi.assistant.analytics.AnalyticsService
@@ -116,6 +118,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.airi.assistant.ui.text.BidiAwareMarkdownRenderer
 import com.airi.assistant.ui.text.ContentAwareMessageRenderer
+import com.airi.assistant.ui.trace.InlineExecutionTrace
 import com.airi.assistant.ui.components.ThinkingAnimation
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.draw.drawWithContent
@@ -360,6 +363,7 @@ fun ChatScreen(
     }
     val isPanelVisible by agentPlanViewModel.isVisible.collectAsState()
     val showPanel      by agentPlanViewModel.showPanel.collectAsState()
+    val executionTrace by ExecutionStatusBus.trace.collectAsState()
 
     LaunchedEffect(voiceState) {
         viewModel.updateVoiceState(voiceState.name)
@@ -1140,6 +1144,9 @@ fun ChatScreen(
                 streamingText = if (chatSearchQuery.isBlank()) visibleStreamingText else "",
                 isGenerating  = generationBelongsToCurrentSession,
                 executionError = visibleExecutionError,
+                inlineTraceExecutionId = agentState.executionId,
+                inlineTraceEntries = executionTrace.filter { it.executionId == agentState.executionId },
+                inlineTraceWorking = agentState.isWorking,
                 finalAnswerVerification = agentState.finalAnswerVerification.takeIf { generationBelongsToCurrentSession || !agentState.isWorking },
                 isModelReady  = modelState.isModelReady,
                 isCloudReady  = modelState.isCloudReady,
@@ -2129,6 +2136,9 @@ fun ChatMessageList(
     streamingText: String,
     isGenerating: Boolean,
     executionError: ExecutionErrorProjection? = null,
+    inlineTraceExecutionId: String = "",
+    inlineTraceEntries: List<ExecutionTraceEvent> = emptyList(),
+    inlineTraceWorking: Boolean = false,
     sessionLoadState: com.airi.assistant.ui.viewmodel.SessionLoadState = com.airi.assistant.ui.viewmodel.SessionLoadState.NotStarted,
     onRetrySession: (String?) -> Unit = {},
     finalAnswerVerification: FinalAnswerUiState? = null,
@@ -2296,6 +2306,15 @@ fun ChatMessageList(
                 if (isGenerating && streamingText.isEmpty()) {
                     item(key = "thinking", contentType = "thinking") {
                         AiriThinkingRow(label = stringResource(R.string.chat_airi_thinking))
+                    }
+                }
+                if (inlineTraceEntries.isNotEmpty()) {
+                    item(key = "inline-execution-trace-${inlineTraceExecutionId}", contentType = "execution-trace") {
+                        InlineExecutionTrace(
+                            executionId = inlineTraceExecutionId,
+                            entries = inlineTraceEntries,
+                            isWorking = inlineTraceWorking,
+                        )
                     }
                 }
                 if (finalAnswerVerification != null && !isGenerating) {

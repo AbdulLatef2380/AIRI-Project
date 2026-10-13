@@ -260,6 +260,7 @@ fun ChatScreen(
 
     // Chat is "active" when there are messages or the AI is responding
     val chatIsActive = messages.isNotEmpty() || visibleStreamingText.isNotEmpty() || generationBelongsToCurrentSession
+    val hasUserMessages = messages.any { it.isUser }
     LaunchedEffect(chatIsActive) { onChatActiveChanged(chatIsActive) }
     // ChatScreen is the correct collection site because it has access to
     // FragmentActivity via LocalContext — ViewModels must never hold Activity refs.
@@ -337,6 +338,9 @@ fun ChatScreen(
     }
 
     var showMenu            by remember { mutableStateOf(false) }
+    LaunchedEffect(hasUserMessages) {
+        if (!hasUserMessages) showMenu = false
+    }
     var showGenSettings     by remember { mutableStateOf(false) }
     var showModelPicker     by remember { mutableStateOf(false) }
     var pendingCloudAttachmentDispatch by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -813,6 +817,7 @@ fun ChatScreen(
                 agentState             = agentState,
                 agentMode              = agentMode,
                 showMenu               = showMenu,
+                showOverflowActions    = hasUserMessages,
                 dailyCreditsRemaining  = dailyCreditsRemaining,
                 onHistoryOpen     = { showHistoryPanel = true },
                 onExit            = { onNavigate(AiriRoute.HISTORY) },
@@ -1556,6 +1561,7 @@ private fun AiriChatTopBar(
     agentState: AgentState,
     agentMode: AgentMode,
     showMenu: Boolean,
+    showOverflowActions: Boolean = true,
     dailyCreditsRemaining: Int = 200,
     planLabel: String = "Free",
     onHistoryOpen: () -> Unit,
@@ -1711,7 +1717,7 @@ private fun AiriChatTopBar(
             }
             // Overflow menu
             Box {
-                if (showMenu) {
+                if (showMenu && showOverflowActions) {
                     DropdownMenu(
                         expanded  = true,
                         onDismissRequest = onDismissDropdown,
@@ -1796,12 +1802,14 @@ private fun AiriChatTopBar(
                         }
                     }
                 }
-                IconButton(onClick = onToggleDropdown) {
-                    Icon(
-                        Icons.Outlined.MoreVert,
-                        contentDescription = stringResource(R.string.more_options),
-                        tint = AiriTheme.onBackground.copy(alpha = 0.65f)
-                    )
+                if (showOverflowActions) {
+                    IconButton(onClick = onToggleDropdown) {
+                        Icon(
+                            Icons.Outlined.MoreVert,
+                            contentDescription = stringResource(R.string.more_options),
+                            tint = AiriTheme.onBackground.copy(alpha = 0.65f)
+                        )
+                    }
                 }
             }
         }
@@ -3280,6 +3288,78 @@ private fun BlinkingCursor() {
     Text("▍", color = CosmicAccent.copy(0.85f), fontSize = 15.sp, lineHeight = 23.sp)
 }
 
+@Composable
+private fun SkillDirectiveChip(
+    skillId: String,
+    onRemove: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        shape = AIRIShapes.md,
+        color = CosmicAccent.copy(alpha = 0.10f),
+        border = BorderStroke(1.dp, CosmicAccent.copy(alpha = 0.42f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 10.dp, end = 4.dp, top = 7.dp, bottom = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(Brush.linearGradient(listOf(CosmicAccent, Color(0xFF7C3AED)))),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.AutoAwesome,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "SKILL ACTIVE",
+                    color = CosmicAccent,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.1.sp
+                )
+                Text(
+                    text = skillId.replace('_', ' '),
+                    color = AiriTheme.onSurface,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Surface(
+                shape = AIRIShapes.xs,
+                color = AiriTheme.onSurface.copy(alpha = 0.06f),
+                modifier = Modifier
+                    .semantics {
+                        contentDescription = "Remove selected skill"
+                        role = Role.Button
+                    }
+                    .clickable(onClick = onRemove)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Close,
+                    contentDescription = null,
+                    tint = AiriTheme.onSurfaceVariant,
+                    modifier = Modifier.padding(7.dp).size(16.dp)
+                )
+            }
+        }
+    }
+}
+
 // Input bar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -3687,15 +3767,29 @@ fun AiriChatInputBar(
                     }
                 }
             }
+            val selectedSkillId = text.trimStart()
+                .removePrefix("/skill:")
+                .takeWhile { !it.isWhitespace() }
+                .takeIf { text.trimStart().startsWith("/skill:") && it.isNotBlank() }
             if (activeSuggestions.isNotEmpty() && !isGenerating) {
-                Column(
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                        .clip(AIRIShapes.md)
-                        .background(AiriTheme.surfaceVariant)
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    shape = AIRIShapes.md,
+                    color = AiriTheme.surfaceVariant,
+                    border = BorderStroke(1.dp, CosmicAccent.copy(alpha = 0.18f))
                 ) {
-                    activeSuggestions.forEach { suggestion ->
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 280.dp),
+                        contentPadding = PaddingValues(vertical = 4.dp)
+                    ) {
+                        items(
+                            items = activeSuggestions,
+                            key = { suggestion -> "${suggestion.isKnowledge}:${suggestion.id}" }
+                        ) { suggestion ->
                         val suggestionCategory = stringResource(
                             if (suggestion.isKnowledge) R.string.input_saved_knowledge else R.string.skill_title
                         )
@@ -3706,13 +3800,13 @@ fun AiriChatInputBar(
                         ).filterNotNull().joinToString(", ")
                         Surface(
                             onClick = {
-                                onDraftTextChanged(
-                                    com.airi.assistant.ui.composer.ComposerDirectivePolicy.applySelection(
-                                        currentText = text,
-                                        directiveId = suggestion.id,
-                                        isKnowledge = suggestion.isKnowledge,
-                                    )
+                                val selectedText = com.airi.assistant.ui.composer.ComposerDirectivePolicy.applySelection(
+                                    currentText = text,
+                                    directiveId = suggestion.id,
+                                    isKnowledge = suggestion.isKnowledge,
                                 )
+                                text = selectedText
+                                onDraftTextChanged(selectedText)
                                 onSkillQueryChanged("")
                                 onKnowledgeQueryChanged("")
                             },
@@ -3758,8 +3852,18 @@ fun AiriChatInputBar(
                                 }
                             }
                         }
+                        }
                     }
                 }
+            }
+            if (selectedSkillId != null && activeSuggestions.isEmpty()) {
+                SkillDirectiveChip(
+                    skillId = selectedSkillId,
+                    onRemove = {
+                        text = ""
+                        onDraftTextChanged("")
+                    }
+                )
             }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 0.dp),

@@ -74,10 +74,12 @@ class ConnectorToolBridge(
 
     private fun bindings(onlyExecutable: Boolean, onlyGranted: Boolean): Map<String, Binding> = buildMap {
         registry.all().forEach { connector ->
-            val state = connector.state().value
-            if (onlyExecutable && (!state.connected || !state.healthy)) return@forEach
             connector.agentActions()
                 .filter { it.id.isNotBlank() }
+                .filter { action ->
+                    if (!onlyExecutable) true
+                    else connector.stateForAction(action).let { it.connected && it.healthy }
+                }
                 .filter { action -> !onlyGranted ||
                     ConnectorAccessPolicy.evaluate(
                         accessProfiles.get(action.surfaceId ?: connector.id), action

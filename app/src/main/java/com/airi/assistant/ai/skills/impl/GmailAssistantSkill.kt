@@ -6,7 +6,8 @@ import com.airi.assistant.ai.skills.AiriSkill
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillResult
 import com.airi.assistant.ai.tools.ToolExecutor
-import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.integrations.google.GoogleDataScopes
 
 class GmailAssistantSkill(private val context: Context) : AiriSkill {
 
@@ -17,8 +18,6 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
     )
 
     private val toolExecutor  = ToolExecutor(context)
-    private val secureStorage = SecureStorage(context)
-
     private val exactPhrases = listOf(
         "latest email", "check email", "read emails", "my inbox", "check inbox"
     )
@@ -27,7 +26,7 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
     )
 
     override fun score(input: String, context: SkillContext): Int {
-        if (!secureStorage.isGoogleConnected()) return 0
+        if (!hasGmailDataAccess()) return 0
         val lower = input.lowercase()
         var score = 0
 
@@ -43,8 +42,8 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
     }
 
     override suspend fun execute(params: Map<String, Any>): SkillResult {
-        if (!secureStorage.isGoogleConnected()) {
-            return SkillResult(false, "", "Google is not connected. Please connect it in Integrations.")
+        if (!hasGmailDataAccess()) {
+            return SkillResult(false, "", "Gmail data access is not authorized. Connect Gmail and grant its read permission in Integrations.")
         }
 
         val input   = params["input"] as? String ?: ""
@@ -79,6 +78,12 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
             error = null,
         )
     }
+
+    private fun hasGmailDataAccess(): Boolean = runCatching {
+        ServiceLocator.googleAuthService.hasAuthorizedDataScopes(
+            "google_gmail", GoogleDataScopes.scopesForSurface("google_gmail")
+        )
+    }.getOrDefault(false)
 
     private companion object { const val MAX_RESULT_CHARS = 12_000 }
 

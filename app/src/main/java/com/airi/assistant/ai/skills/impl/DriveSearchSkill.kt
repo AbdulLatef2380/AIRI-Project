@@ -6,7 +6,8 @@ import com.airi.assistant.ai.skills.AiriSkill
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillResult
 import com.airi.assistant.ai.tools.ToolExecutor
-import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.integrations.google.GoogleDataScopes
 
 class DriveSearchSkill(private val context: Context) : AiriSkill {
 
@@ -17,8 +18,6 @@ class DriveSearchSkill(private val context: Context) : AiriSkill {
     )
 
     private val toolExecutor  = ToolExecutor(context)
-    private val secureStorage = SecureStorage(context)
-
     private val exactPhrases = listOf(
         "google drive", "search in drive", "find file in drive",
         "my files on drive", "files in drive", "search drive"
@@ -26,7 +25,7 @@ class DriveSearchSkill(private val context: Context) : AiriSkill {
     private val singleWords = listOf("drive", "workspace", "document")
 
     override fun score(input: String, context: SkillContext): Int {
-        if (!secureStorage.isGoogleConnected()) return 0
+        if (!hasDriveDataAccess()) return 0
         val lower = input.lowercase()
         var score = 0
 
@@ -42,8 +41,8 @@ class DriveSearchSkill(private val context: Context) : AiriSkill {
     }
 
     override suspend fun execute(params: Map<String, Any>): SkillResult {
-        if (!secureStorage.isGoogleConnected()) {
-            return SkillResult(false, "", "Google is not connected. Please connect it in Integrations.")
+        if (!hasDriveDataAccess()) {
+            return SkillResult(false, "", "Google Drive data access is not authorized. Connect Drive and grant its read permission in Integrations.")
         }
 
         val input   = params["input"] as? String ?: ""
@@ -53,6 +52,12 @@ class DriveSearchSkill(private val context: Context) : AiriSkill {
         val r = toolExecutor.execute(ToolCall("drive_search_file", mapOf("query" to query)))
         return SkillResult(r.success, r.data, r.error)
     }
+
+    private fun hasDriveDataAccess(): Boolean = runCatching {
+        ServiceLocator.googleAuthService.hasAuthorizedDataScopes(
+            "google_drive", GoogleDataScopes.scopesForSurface("google_drive")
+        )
+    }.getOrDefault(false)
 
     private fun resolveQuery(input: String, context: SkillContext?): String {
         val cleaned = input.lowercase()

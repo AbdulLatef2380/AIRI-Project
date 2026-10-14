@@ -53,6 +53,9 @@ interface Connector {
      *  removes a round-trip cast at every call site. */
     fun state(): StateFlow<ConnectorState>
 
+    /** Readiness for one action/surface; shared providers may differ by surface. */
+    fun stateForAction(action: ConnectorAgentAction): ConnectorState = state().value
+
     /** Validate creds and prepare resources. Idempotent. */
     suspend fun connect(): ConnectorState
 

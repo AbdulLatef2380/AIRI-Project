@@ -2789,9 +2789,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val profile = profiles.get(meta.id)
             val permittedActions = actions.filter { profile.permits(it.permission) }
             val state = connector?.state()?.value
+            val actionStates = permittedActions.mapNotNull { action ->
+                connector?.stateForAction(action)
+            }
+            val readinessStates = actionStates.ifEmpty { listOfNotNull(state) }
             val providerAuthorizationRequired = listOf(
-                state?.statusLine.orEmpty(), state?.errorMessage.orEmpty()
-            ).any { it.contains("authoriz", ignoreCase = true) || it.contains("consent", ignoreCase = true) || it.contains("sign in", ignoreCase = true) }
+                readinessStates.flatMap { listOf(it.statusLine, it.errorMessage.orEmpty()) }
+            ).flatten().any { it.contains("authoriz", ignoreCase = true) || it.contains("consent", ignoreCase = true) || it.contains("sign in", ignoreCase = true) }
             val requiredProviderScopesGranted = meta.runtimeId != "google" ||
                 ServiceLocator.googleAuthService.hasAuthorizedDataScopes(
                     meta.id,
@@ -2803,8 +2807,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     registered = connector != null,
                     hasActions = actions.isNotEmpty(),
                     hasPermittedActions = permittedActions.isNotEmpty(),
-                    connected = state?.connected == true,
-                    healthy = state?.healthy == true,
+                    connected = readinessStates.isNotEmpty() && readinessStates.all { it.connected },
+                    healthy = readinessStates.isNotEmpty() && readinessStates.all { it.healthy },
                     providerAuthorizationRequired = providerAuthorizationRequired,
                     requiredProviderScopesGranted = requiredProviderScopesGranted,
                 )
@@ -2849,7 +2853,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (connectorId != "google") return@forEach
             val action = connectorToolBridge.actionForTool(schema.name) ?: return@forEach
             if (action.requiredOAuthScopes.isEmpty()) return@forEach
-            val state = runCatching { ServiceLocator.connectorRegistry.get(connectorId)?.state()?.value }
+            val state = runCatching { connectorToolBridge.actionForTool(schema.name)?.let { action ->
+                ServiceLocator.connectorRegistry.get(connectorId)?.stateForAction(action)
+            } }.getOrNull()
                 .getOrNull()
             // Preserve the more immediate disconnected/unhealthy classification.
             if (state?.connected != true || state.healthy != true) return@forEach

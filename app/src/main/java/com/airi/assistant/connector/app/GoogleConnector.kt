@@ -119,6 +119,11 @@ class GoogleConnector(private val googleAuthService: GoogleAuthService) : Connec
     )
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
+    override fun stateForAction(action: ConnectorAgentAction): ConnectorState {
+        val surfaceId = action.surfaceId ?: surfaceByAction[action.id] ?: return _state.value
+        return googleAuthService.stateForSurface(surfaceId).value
+    }
+
     private val http = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)

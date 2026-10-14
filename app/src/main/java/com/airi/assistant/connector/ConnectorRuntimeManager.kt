@@ -105,10 +105,13 @@ class ConnectorRuntimeManager(
         AgentActivityBus.emit("Executing '$connectorId' → ${input.action}", ActivityCategory.CONNECTOR)
         return try {
             withTimeout(timeoutMs) {
-                if (!ensureHealthy(connector)) {
+                if (!ensureHealthy(connector, governedAction)) {
+                    val actionState = connector.stateForAction(governedAction)
+                    val authRequired = listOf(actionState.statusLine, actionState.errorMessage.orEmpty())
+                        .any { it.contains("authoriz", ignoreCase = true) || it.contains("consent", ignoreCase = true) || it.contains("sign in", ignoreCase = true) }
                     return@withTimeout ConnectorOutput.Failure(
-                        "unhealthy",
-                        "Connector '$connectorId' is not healthy after connection check",
+                        if (authRequired) "authorization_required" else "unhealthy",
+                        if (authRequired) "Authorization is required for connector action '${governedAction.id}'" else "Connector '$connectorId' is not healthy after connection check",
                         retryable = true
                     )
                 }
@@ -157,10 +160,10 @@ class ConnectorRuntimeManager(
             .toMap()
     }
 
-    private suspend fun ensureHealthy(connector: Connector): Boolean {
+    private suspend fun ensureHealthy(connector: Connector, action: ConnectorAgentAction): Boolean {
         val current = connector.state().value
         val checked = if (current.connected && current.healthy) current else registry.connect(connector.id)
-        return checked.connected && checked.healthy
+        return checked.connected && checked.healthy && connector.stateForAction(action).let { it.connected && it.healthy }
     }
 
     /** Reject undeclared, malformed, or oversized input before connecting or invoking an adapter. */

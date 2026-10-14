@@ -103,6 +103,23 @@ class ConnectorToolBridgeTest {
         assertEquals("outlook_mail_read", bridge.actionForTool("connector_microsoft_graph_outlook_mail_read")?.id)
     }
 
+    @Test
+    fun shared_connector_does_not_expose_an_unhealthy_action_surface() {
+        val registry = ConnectorRegistry()
+        registry.register(SurfaceScopedConnector())
+        val profiles = InMemoryConnectorAccessProfileStore().apply {
+            set("mail_surface", ConnectorAccessProfile.READ_ONLY)
+            set("calendar_surface", ConnectorAccessProfile.READ_ONLY)
+        }
+
+        val names = ConnectorToolBridge(registry, ConnectorRuntimeManager(registry, profiles), profiles)
+            .asToolSchemas()
+            .map { it.name }
+
+        assertTrue(names.contains("connector_shared_mail_read"))
+        assertFalse(names.contains("connector_shared_calendar_read"))
+    }
+
     private fun bridge(registry: ConnectorRegistry, profiles: ConnectorAccessProfileStore) =
         ConnectorToolBridge(registry, ConnectorRuntimeManager(registry, profiles), profiles)
 
@@ -134,5 +151,24 @@ class ConnectorToolBridgeTest {
             lastAction = input.action
             return ConnectorOutput.Success("$id:${input.action}")
         }
+    }
+
+    private class SurfaceScopedConnector : Connector {
+        override val id = "shared"
+        override val name = "shared"
+        override val description = "shared provider"
+        override val type = ConnectorType.APP
+        private val stateFlow = MutableStateFlow(ConnectorState(true, true))
+        override fun meta() = ConnectorMeta(id, name, description, type)
+        override fun state() = stateFlow
+        override fun stateForAction(action: ConnectorAgentAction): ConnectorState =
+            if (action.surfaceId == "calendar_surface") ConnectorState(true, false, "Authorization required") else stateFlow.value
+        override suspend fun connect() = stateFlow.value
+        override suspend fun disconnect() { stateFlow.value = ConnectorState(false, false) }
+        override fun agentActions() = listOf(
+            ConnectorAgentAction("mail_read", "Read mail", surfaceId = "mail_surface"),
+            ConnectorAgentAction("calendar_read", "Read calendar", surfaceId = "calendar_surface"),
+        )
+        override suspend fun execute(input: ConnectorInput) = ConnectorOutput.Success(input.action)
     }
 }

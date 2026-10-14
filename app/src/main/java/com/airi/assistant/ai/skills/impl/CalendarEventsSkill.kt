@@ -6,7 +6,8 @@ import com.airi.assistant.ai.skills.AiriSkill
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillResult
 import com.airi.assistant.ai.tools.ToolExecutor
-import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.integrations.google.GoogleDataScopes
 
 class CalendarEventsSkill(private val context: Context) : AiriSkill {
 
@@ -17,8 +18,6 @@ class CalendarEventsSkill(private val context: Context) : AiriSkill {
     )
 
     private val toolExecutor  = ToolExecutor(context)
-    private val secureStorage = SecureStorage(context)
-
     private val exactPhrases = listOf(
         "my schedule", "upcoming events", "my calendar",
         "check calendar", "today's events", "what's planned"
@@ -28,7 +27,7 @@ class CalendarEventsSkill(private val context: Context) : AiriSkill {
     )
 
     override fun score(input: String, context: SkillContext): Int {
-        if (!secureStorage.isGoogleConnected()) return 0
+        if (!hasCalendarDataAccess()) return 0
         val lower = input.lowercase()
         var score = 0
 
@@ -44,8 +43,8 @@ class CalendarEventsSkill(private val context: Context) : AiriSkill {
     }
 
     override suspend fun execute(params: Map<String, Any>): SkillResult {
-        if (!secureStorage.isGoogleConnected()) {
-            return SkillResult(false, "", "Google is not connected. Please connect it in Integrations.")
+        if (!hasCalendarDataAccess()) {
+            return SkillResult(false, "", "Google Calendar data access is not authorized. Connect Calendar and grant its read permission in Integrations.")
         }
 
         val input   = params["input"] as? String ?: ""
@@ -55,6 +54,12 @@ class CalendarEventsSkill(private val context: Context) : AiriSkill {
         val r = toolExecutor.execute(ToolCall("calendar_next_events", mapOf("count" to count.toString())))
         return SkillResult(r.success, r.data, r.error)
     }
+
+    private fun hasCalendarDataAccess(): Boolean = runCatching {
+        ServiceLocator.googleAuthService.hasAuthorizedDataScopes(
+            "google_calendar", GoogleDataScopes.scopesForSurface("google_calendar")
+        )
+    }.getOrDefault(false)
 
     private fun resolveCount(input: String, context: SkillContext?): Int {
         val numRegex = Regex("\\d+")

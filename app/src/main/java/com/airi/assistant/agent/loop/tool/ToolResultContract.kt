@@ -23,7 +23,7 @@ object ToolErrorCodes {
         INVALID_ARGUMENT, PERMISSION_DENIED, APPROVAL_REQUIRED, UNSUPPORTED -> code.lowercase()
         "not_found" -> TOOL_NOT_FOUND
         "missing_param", "invalid_params", "bad_input" -> INVALID_ARGUMENT
-        "unauthorized", "forbidden", "invalid_grant" -> AUTH_REQUIRED
+        "unauthorized", "forbidden", "invalid_grant", "authorization_required" -> AUTH_REQUIRED
         "network_error", "api_error" -> CONNECTOR_FAILED
         else -> CONNECTOR_FAILED
     }

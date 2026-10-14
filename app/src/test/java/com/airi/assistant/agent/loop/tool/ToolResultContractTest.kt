@@ -8,6 +8,7 @@ class ToolResultContractTest {
     @Test
     fun connectorCodesNormalizeToStableAgentCodes() {
         assertEquals(ToolErrorCodes.AUTH_REQUIRED, ToolErrorCodes.fromConnector("unauthorized"))
+        assertEquals(ToolErrorCodes.AUTH_REQUIRED, ToolErrorCodes.fromConnector("authorization_required"))
         assertEquals(ToolErrorCodes.INVALID_ARGUMENT, ToolErrorCodes.fromConnector("missing_param"))
         assertEquals(ToolErrorCodes.CONNECTOR_FAILED, ToolErrorCodes.fromConnector("api_error"))
         assertEquals(ToolErrorCodes.TOOL_NOT_FOUND, ToolErrorCodes.fromConnector("not_found"))

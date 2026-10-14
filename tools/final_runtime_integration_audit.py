@@ -145,7 +145,7 @@ check("remaining connector rollout is explicit and cannot create phantom connect
 check("Google data consent requests only scopes for explicitly allowed actions", [
     ("Google data request accepts explicit scope set", "authorizeDataAccess(requestedScopes: Set<String>)" in google_auth),
     ("Google authorization maps action scopes to identity scopes", "GoogleDataScopes.fromActionScopes(scopes)" in google_auth and "fun fromActionScopes(scopes: Set<String>)" in google_scope_mapping),
-    ("Google consent checks current profile scopes", "requiredOAuthScopesFor(\"google\")" in auth_manager and "isDataAccessAuthorizedFor(scopes)" in auth_manager),
+    ("Google consent checks current profile scopes", "requiredOAuthScopesFor(surfaceId)" in auth_manager and "isCurrentGoogleProfileAuthorized(connectorId, scopes)" in auth_manager and "isDataAccessAuthorizedFor(surfaceId, scopes)" in auth_manager),
     ("Google cached token is not reused for a broader or changed scope set", "dataAccessScopes == scopes" in google_auth),
     ("Google OAuth allowlist contains only the declared read-only surfaces", all(scope in provider_scopes for scope in ("GOOGLE_GMAIL_READONLY", "GOOGLE_CALENDAR_EVENTS_OWNED_READONLY", "GOOGLE_DRIVE_METADATA_READONLY"))),
 ])
@@ -175,7 +175,7 @@ check("Microsoft Outlook/Calendar/OneDrive/Teams vertical slice has a typed OAut
     ("scope resolver requires a permitted action profile", ".permits(action.permission)" in scope_resolver and "requiredOAuthScopes" in scope_resolver),
     ("PKCE state binds requested scopes", "requestedScopes" in oauth_state and "issuePkce(id, requestedScopes)" in microsoft_adapter),
     ("provider scope catalog centralizes exact identifiers", "GOOGLE_GMAIL_READONLY" in provider_scopes and "ZAPIER_ZAP_READ" in provider_scopes),
-    ("Teams listing is metadata-only", "/me/joinedTeams" in microsoft_adapter and "displayName,description,visibility,webUrl" in microsoft_adapter),
+    ("Teams listing is metadata-only", "/me/joinedTeams" in microsoft_adapter and "teams_list_joined" in microsoft_adapter and "does not support" in microsoft_adapter),
     ("StateFlow exposes a valid read-only view", "import kotlinx.coroutines.flow.asStateFlow" in microsoft_adapter and "_state.asStateFlow()" in microsoft_adapter),
 ])
 check("seven primary catalog surfaces have one real runtime gate", [

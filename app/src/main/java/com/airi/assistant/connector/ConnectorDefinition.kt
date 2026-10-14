@@ -104,6 +104,7 @@ object OfficialConnectorCatalog {
         docs: String? = null,
         capabilities: List<ConnectorCapability> = emptyList(),
         requiredScopes: List<String> = emptyList(),
+        optionalScopes: List<String> = emptyList(),
         tags: List<String> = emptyList(),
         limitations: List<String> = emptyList(),
     ) = ConnectorDefinition(
@@ -119,6 +120,7 @@ object OfficialConnectorCatalog {
         authenticationType = auth,
         capabilities = capabilities,
         requiredScopes = requiredScopes,
+        optionalScopes = optionalScopes,
         permissions = capabilities.map { it.permission }.distinct(),
         status = ConnectorAvailability.PARTIAL,
         tags = tags.ifEmpty { listOf(name.lowercase()) },

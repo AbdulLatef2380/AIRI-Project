@@ -40,4 +40,16 @@ class ExecutionToolTraceLifecycleTest {
         assertFalse(lifecycle.admitTerminal("execution-old", "action-1"))
         assertTrue(lifecycle.admitStart("execution-new", "action-1"))
     }
+
+    @Test
+    fun reset_rejectsTerminalEventsFromClearedExecution() {
+        val lifecycle = ExecutionToolTraceLifecycle()
+        lifecycle.begin("execution-current")
+        assertTrue(lifecycle.admitStart("execution-current", "action-1"))
+
+        lifecycle.reset()
+
+        assertFalse(lifecycle.admitTerminal("execution-current", "action-1"))
+        assertFalse(lifecycle.admitStart("execution-current", "action-2"))
+    }
 }

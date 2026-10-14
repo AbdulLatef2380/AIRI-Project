@@ -214,6 +214,14 @@ the tool returns an actual error.
 
         val fullSystemPrompt = systemPrompt + "\n\n" + toolSelection.promptBlock + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
+        // Establish the owner before any deterministic or model-selected tool.
+        ExecutionStatusBus.onGraphStarted(
+            goalDescription = input.take(80),
+            totalNodes = if (effectiveTools.isEmpty()) 1 else MAX_STEPS,
+            executionId = executionId,
+            sessionId = sessionId,
+        )
+        isPlanPublished = true
         // Device time/date is a deterministic system fact. Execute it before
         // the first model turn so a short question cannot degrade into a
         // hallucinated refusal merely because the model did not emit a tool
@@ -222,20 +230,55 @@ the tool returns an actual error.
         val capabilityIntent = com.airi.assistant.ai.CapabilityIntentDetector.detect(input)
         if (capabilityIntent.requires(
                 com.airi.assistant.ai.CapabilityIntentDetector.Capability.CURRENT_TIME
-            ) && effectiveTools.any { it.name == "current_time" }
+        ) && effectiveTools.any { it.name == "current_time" }
         ) {
+            val actionId = "tool_deterministic_current_time"
+            val startedAtMs = System.currentTimeMillis()
+            activeToolTrace = ActiveToolTrace(executionId, actionId, "current_time", startedAtMs)
+            ExecutionStatusBus.onToolStarted(
+                executionId = executionId,
+                actionId = actionId,
+                toolName = "current_time",
+                detail = "Reading the device clock.",
+            )
             val timeSchema = effectiveTools.first { it.name == "current_time" }
             val timeValidation = StrictArgumentValidator.validate(
                 spec = ToolSpecAdapter.fromSchema(timeSchema),
                 raw = emptyMap(),
             )
+            val timeWasDispatched = timeValidation.isValid
             val timeResult = if (!timeValidation.isValid) {
                 ToolDispatcher.ToolResult.Error(
                     timeValidation.failure?.message ?: "Invalid current_time arguments",
                     code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.INVALID_ARGUMENT,
                 )
             } else try {
+                runtimeTrace?.pathResolved(
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    route = com.airi.assistant.core.UniversalExecutionPathResolver.resolve(
+                        tool = timeSchema,
+                        runtimePath = com.airi.assistant.core.RuntimeExecutionPath.TOOL_DISPATCHER,
+                    ),
+                )
+                runtimeTrace?.dispatched(
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    toolName = "current_time",
+                    path = "intent_gated_deterministic_builtin",
+                )
                 dispatcher.execute("current_time", timeValidation.arguments!!.canonical, appContext, executionId)
+            } catch (cancelled: CancellationException) {
+                ExecutionStatusBus.onToolCancelled(
+                    executionId = executionId,
+                    actionId = actionId,
+                    toolName = "current_time",
+                    durationMs = System.currentTimeMillis() - startedAtMs,
+                    detail = "Time lookup was cancelled.",
+                )
+                activeToolTrace = null
+                ExecutionStatusBus.onGraphCancelled(executionId)
+                throw cancelled
             } catch (error: Exception) {
                 ToolDispatcher.ToolResult.Error(
                     "Unable to read device time: ${error.message ?: "unknown error"}",
@@ -246,20 +289,49 @@ the tool returns an actual error.
                 is ToolDispatcher.ToolResult.Success -> timeResult.output
                 is ToolDispatcher.ToolResult.Error -> "Error: ${timeResult.message}"
             }
+            val durationMs = System.currentTimeMillis() - startedAtMs
+            val timeSucceeded = timeResult is ToolDispatcher.ToolResult.Success
+            if (timeWasDispatched) {
+                runtimeTrace?.executionCompleted(
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    toolName = "current_time",
+                    success = timeSucceeded,
+                    durationMs = durationMs,
+                    resultLength = timeText.length,
+                    errorCategory = (timeResult as? ToolDispatcher.ToolResult.Error)?.code,
+                )
+                runtimeTrace?.capabilityStage(
+                    executionId,
+                    sessionId,
+                    "current_time",
+                    com.airi.assistant.core.CapabilityRuntimeStage.EXECUTED,
+                    if (timeSucceeded) "deterministic_success" else "deterministic_failure",
+                )
+            }
+            when (timeResult) {
+                is ToolDispatcher.ToolResult.Success -> ExecutionStatusBus.onToolCompleted(
+                    executionId, actionId, "current_time", durationMs, "Device time read completed.",
+                )
+                is ToolDispatcher.ToolResult.Error -> ExecutionStatusBus.onToolFailed(
+                    executionId, actionId, "current_time", durationMs, "Device time read failed.",
+                )
+            }
+            activeToolTrace = null
             toolsInvoked += "current_time"
             history.add(ConversationTurn.ToolResult("current_time", timeText))
+            if (timeWasDispatched) {
+                runtimeTrace?.resultReturned(executionId, sessionId, "current_time")
+                runtimeTrace?.capabilityStage(
+                    executionId,
+                    sessionId,
+                    "current_time",
+                    com.airi.assistant.core.CapabilityRuntimeStage.RESULT_RETURNED,
+                    "returned_to_model_context",
+                )
+            }
             Log.i(TAG, "AIRI DETERMINISTIC_TOOL tool=current_time success=${timeResult is ToolDispatcher.ToolResult.Success}")
         }
-        // Register ownership before any completion/cancellation event. The bus
-        // rejects terminal events from unknown execution ids; without this start
-        // event a previous run can leave isWorking=true on the chat screen.
-        ExecutionStatusBus.onGraphStarted(
-            goalDescription = input.take(80),
-            totalNodes = if (effectiveTools.isEmpty()) 1 else MAX_STEPS,
-            executionId = executionId,
-        )
-        isPlanPublished = true
-
         try {
             return withTimeout(timeoutMs.coerceAtLeast(1L)) {
             // If no tools provided, single-pass inference.
@@ -389,7 +461,7 @@ the tool returns an actual error.
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        Log.w(TAG, "Tool call retry callLLM failed: ${e.message}")
+                        Log.w(TAG, "Tool call retry failed type=${e.javaClass.simpleName}")
                         ""
                     }
                     if (retryResponse.isNotBlank()) {
@@ -494,6 +566,7 @@ the tool returns an actual error.
                         // Actions are discovered incrementally; the ceiling is not a plan.
                         totalNodes = 0,
                         executionId = executionId,
+                        sessionId = sessionId,
                     )
                     isPlanPublished = true
                 }
@@ -532,7 +605,7 @@ the tool returns an actual error.
                     hasDurableExecutionContext = durableExecutionContext != null
                 )
                 val toolResult = if (toolValidationError != null) {
-                    Log.w(TAG, "AIRI TOOL_REJECTED_INVALID_SCHEMA tool=$toolName reason=$toolValidationError")
+                    Log.w(TAG, "AIRI TOOL_REJECTED_INVALID_SCHEMA tool=$toolName")
                     ToolDispatcher.ToolResult.Error(
                         toolValidationError,
                         code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.INVALID_ARGUMENT,
@@ -596,7 +669,7 @@ the tool returns an actual error.
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        Log.w(TAG, "Terminal tool failed: ${e.message}")
+                        Log.w(TAG, "Terminal tool failed type=${e.javaClass.simpleName}")
                         ToolDispatcher.ToolResult.Error(
                             "Terminal execution failed: ${e.message}",
                             code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.EXECUTION_FAILED,
@@ -622,14 +695,14 @@ the tool returns an actual error.
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: com.airi.assistant.security.AgentSandbox.SandboxViolationException) {
-                        Log.w(TAG, "AIRI SANDBOX_VIOLATION tool=$toolName: ${e.message}")
+                        Log.w(TAG, "AIRI SANDBOX_VIOLATION tool=$toolName type=${e.javaClass.simpleName}")
                         ToolDispatcher.ToolResult.Error(
                             "Permission denied for tool: $toolName",
                             code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
                             provenance = com.airi.assistant.agent.loop.tool.ToolProvenance.SYSTEM,
                         )
                     } catch (e: Exception) {
-                        Log.w(TAG, "Tool $toolName threw: ${e.message}")
+                        Log.w(TAG, "Tool $toolName failed type=${e.javaClass.simpleName}")
                         ToolDispatcher.ToolResult.Error(
                             "Tool failed: ${e.message}",
                             code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.EXECUTION_FAILED,
@@ -658,20 +731,30 @@ the tool returns an actual error.
                     com.airi.assistant.core.CapabilityRuntimeStage.EXECUTED,
                     if (toolResult is ToolDispatcher.ToolResult.Success) "success" else "failure",
                 )
+                val traceProvenance = when (toolResult) {
+                    is ToolDispatcher.ToolResult.Success -> toolResult.provenance
+                    is ToolDispatcher.ToolResult.Error -> toolResult.provenance
+                }
+                val safeTraceDetail = when (toolResult) {
+                    is ToolDispatcher.ToolResult.Success ->
+                        "Source: ${traceProvenance.name.lowercase()}; result length: ${resultText.length} chars."
+                    is ToolDispatcher.ToolResult.Error ->
+                        "Source: ${traceProvenance.name.lowercase()}; operation returned an error."
+                }
                 when (toolResult) {
                     is ToolDispatcher.ToolResult.Success -> ExecutionStatusBus.onToolCompleted(
                         executionId = executionId,
                         actionId = toolStepId,
                         toolName = toolName,
                         durationMs = toolDurationMs,
-                        detail = "Tool returned a result.",
+                        detail = safeTraceDetail,
                     )
                     is ToolDispatcher.ToolResult.Error -> ExecutionStatusBus.onToolFailed(
                         executionId = executionId,
                         actionId = toolStepId,
                         toolName = toolName,
                         durationMs = toolDurationMs,
-                        detail = "Tool reported an error.",
+                        detail = safeTraceDetail,
                     )
                 }
 
@@ -790,7 +873,7 @@ the tool returns an actual error.
             return LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.CANCELLED)
         } catch (e: Exception) {
             ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
-            Log.e(TAG, "AgentLoop failed type=${e.javaClass.simpleName}", e)
+            Log.e(TAG, "AgentLoop failed type=${e.javaClass.simpleName}")
             return LoopResult(
                 finalAnswer = "",
                 stepsUsed = stepsUsed,

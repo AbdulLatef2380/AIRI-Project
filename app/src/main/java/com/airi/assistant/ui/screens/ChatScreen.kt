@@ -48,6 +48,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -367,7 +368,7 @@ fun ChatScreen(
     }
     val isPanelVisible by agentPlanViewModel.isVisible.collectAsState()
     val showPanel      by agentPlanViewModel.showPanel.collectAsState()
-    val executionTrace by ExecutionStatusBus.trace.collectAsState()
+    val executionTrace by ExecutionStatusBus.trace.collectAsStateWithLifecycle()
 
     LaunchedEffect(voiceState) {
         viewModel.updateVoiceState(voiceState.name)
@@ -1150,8 +1151,12 @@ fun ChatScreen(
                 isGenerating  = generationBelongsToCurrentSession,
                 executionError = visibleExecutionError,
                 inlineTraceExecutionId = agentState.executionId,
-                inlineTraceEntries = executionTrace.filter { it.executionId == agentState.executionId },
-                inlineTraceWorking = agentState.isWorking,
+                inlineTraceEntries = executionTrace.filter {
+                    it.executionId == agentState.executionId &&
+                        it.sessionId == currentSessionId
+                },
+                inlineTraceWorking = agentState.isWorking &&
+                    agentState.sessionId == currentSessionId,
                 finalAnswerVerification = agentState.finalAnswerVerification.takeIf { generationBelongsToCurrentSession || !agentState.isWorking },
                 isModelReady  = modelState.isModelReady,
                 isCloudReady  = modelState.isCloudReady,

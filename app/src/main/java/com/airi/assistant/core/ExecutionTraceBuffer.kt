@@ -15,13 +15,25 @@ class ExecutionTraceBuffer(
 
     private val entries = ArrayDeque<ExecutionTraceEvent>(maxEntries)
     private var nextSequence = 1L
+    private var activeExecutionId = ""
+    private var activeSessionId = ""
 
     @Synchronized
-    fun begin(executionId: String): List<ExecutionTraceEvent> {
+    fun begin(executionId: String, sessionId: String = ""): List<ExecutionTraceEvent> {
         require(executionId.isNotBlank()) { "executionId is required" }
         entries.clear()
         nextSequence = 1L
+        activeExecutionId = executionId
+        activeSessionId = sessionId
         return snapshot()
+    }
+
+    @Synchronized
+    fun clear() {
+        entries.clear()
+        nextSequence = 1L
+        activeExecutionId = ""
+        activeSessionId = ""
     }
 
     @Synchronized
@@ -34,7 +46,7 @@ class ExecutionTraceBuffer(
         durationMs: Long? = null,
         timestampMs: Long = System.currentTimeMillis(),
     ): ExecutionTraceEvent? {
-        if (executionId.isBlank() || summary.isBlank()) return null
+        if (executionId.isBlank() || executionId != activeExecutionId || summary.isBlank()) return null
         val event = ExecutionTraceEvent(
             executionId = executionId,
             sequence = nextSequence++,
@@ -44,6 +56,7 @@ class ExecutionTraceBuffer(
             detail = detail,
             actionId = actionId?.takeIf { it.isNotBlank() },
             durationMs = durationMs?.coerceAtLeast(0L),
+            sessionId = activeSessionId,
         )
         entries.addLast(event)
         while (entries.size > maxEntries) entries.removeFirst()
@@ -69,6 +82,8 @@ data class ExecutionTraceEvent(
     val actionId: String? = null,
     /** Elapsed execution time when a terminal tool event provides it. */
     val durationMs: Long? = null,
+    /** Owning conversation session; blank for executions not attached to a chat. */
+    val sessionId: String = "",
 ) {
     /** Stable correlation key for this ordered event within one execution. */
     val eventId: String get() = "$executionId:event:$sequence"

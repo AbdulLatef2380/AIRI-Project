@@ -39,7 +39,7 @@ object ActionExecutor {
             }
         }
 
-        Log.w(TAG, "Node not found for text: $text")
+        Log.w(TAG, "Node not found for requested text; chars=${text.length}")
         return false
     }
 

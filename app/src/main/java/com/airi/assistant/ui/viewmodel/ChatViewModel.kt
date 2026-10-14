@@ -1412,15 +1412,32 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * [_agentState] so the UI observes real-time node progress, recovery
      * state, and execution stage without polling.
      *
-     * The bus is updated by [UnifiedCognitiveLoop] and orchestrators on
-     * every wave start, node completion, recovery attempt, and graph end.
-     * We merge bus state into [AgentState] rather than replacing it so
-     * fields not owned by the bus (e.g. voiceState) are preserved.
+     * The shared bus also receives events from non-chat orchestrators, so only
+     * explicitly session-owned events for the visible conversation are merged.
+     * ViewModel-owned confirmation and verification fields remain intact.
      */
     private fun observeExecutionStatusBus() {
         viewModelScope.launch {
-            com.airi.assistant.core.ExecutionStatusBus.status.collect { busState ->
-                _agentState.value = busState
+            combine(
+                com.airi.assistant.core.ExecutionStatusBus.status,
+                _currentSessionId,
+            ) { busState, visibleSessionId ->
+                busState.takeIf {
+                    com.airi.assistant.core.ExecutionStatusBus.belongsToSession(
+                        visibleSessionId,
+                        it.sessionId,
+                    )
+                }
+            }.collect { busState ->
+                if (busState == null) return@collect
+                _agentState.update { current ->
+                    val sameOwner = current.sessionId == busState.sessionId
+                    busState.copy(
+                        confirmationRequest = current.confirmationRequest.takeIf { sameOwner },
+                        finalAnswerVerification = busState.finalAnswerVerification
+                            ?: current.finalAnswerVerification.takeIf { sameOwner },
+                    )
+                }
             }
         }
     }

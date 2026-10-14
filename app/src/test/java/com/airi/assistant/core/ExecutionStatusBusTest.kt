@@ -17,4 +17,12 @@ class ExecutionStatusBusTest {
         assertFalse(ExecutionStatusBus.acceptsEvent("execution-a", "execution-b"))
         assertTrue(ExecutionStatusBus.acceptsEvent("execution-a", "execution-a"))
     }
+
+    @Test
+    fun statusFromAnotherOrUnscopedSessionIsRejected() {
+        assertFalse(ExecutionStatusBus.belongsToSession("session-a", "session-b"))
+        assertFalse(ExecutionStatusBus.belongsToSession("session-a", ""))
+        assertFalse(ExecutionStatusBus.belongsToSession("", "session-a"))
+        assertTrue(ExecutionStatusBus.belongsToSession("session-a", "session-a"))
+    }
 }

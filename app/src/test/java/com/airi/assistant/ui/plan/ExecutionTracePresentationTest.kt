@@ -55,6 +55,51 @@ class ExecutionTracePresentationTest {
         assertEquals(1, ExecutionTracePresentation.unreadCount(entries, "active", 2L))
     }
 
+    @Test
+    fun latestActiveEvent_isNullAfterToolHasReachedTerminalStep() {
+        val events = listOf(
+            event("active", 1, ExecutionTraceKind.TOOL_STARTED),
+            event("active", 2, ExecutionTraceKind.TOOL_COMPLETED),
+            event("active", 3, ExecutionTraceKind.STEP_COMPLETED),
+        )
+
+        assertEquals(null, ExecutionTracePresentation.latestActiveEvent(events))
+    }
+
+    @Test
+    fun summaryStatus_usesRunOutcomeInsteadOfAnyEarlierToolFailure() {
+        val recovered = listOf(
+            event("active", 1, ExecutionTraceKind.TOOL_FAILED),
+            event("active", 2, ExecutionTraceKind.RECOVERING),
+            event("active", 3, ExecutionTraceKind.COMPLETED),
+        )
+
+        assertEquals(
+            ExecutionTraceSummaryStatus.COMPLETED,
+            ExecutionTracePresentation.summaryStatus(recovered, isWorking = false),
+        )
+        assertEquals(
+            ExecutionTraceSummaryStatus.CANCELLED,
+            ExecutionTracePresentation.summaryStatus(
+                listOf(event("active", 4, ExecutionTraceKind.CANCELLED)),
+                isWorking = false,
+            ),
+        )
+        assertEquals(
+            ExecutionTraceSummaryStatus.RUNNING,
+            ExecutionTracePresentation.summaryStatus(recovered, isWorking = true),
+        )
+    }
+
+    @Test
+    fun latestActiveEvent_doesNotKeepCompletedToolMarkedAsRunning() {
+        val events = listOf(
+            event("active", 1, ExecutionTraceKind.TOOL_STARTED),
+            event("active", 2, ExecutionTraceKind.TOOL_COMPLETED),
+        )
+        assertEquals(null, ExecutionTracePresentation.latestActiveEvent(events))
+    }
+
     private fun event(
         executionId: String,
         sequence: Long,

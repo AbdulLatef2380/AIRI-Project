@@ -20,6 +20,13 @@ class ExecutionToolTraceLifecycle {
         terminalActionIds.clear()
     }
 
+    @Synchronized
+    fun reset() {
+        activeExecutionId = null
+        activeActionIds.clear()
+        terminalActionIds.clear()
+    }
+
     /** Admits exactly one start event for an action belonging to the active execution. */
     @Synchronized
     fun admitStart(executionId: String, actionId: String): Boolean {

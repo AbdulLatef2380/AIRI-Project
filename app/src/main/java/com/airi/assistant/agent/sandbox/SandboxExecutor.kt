@@ -213,7 +213,7 @@ class SandboxExecutor(private val session: SandboxSession) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "Shell error: ${e.message}")
+            Log.w(TAG, "Shell execution failed type=${e.javaClass.simpleName}")
             ExecutionResult.Failure("Error: ${e.message}")
         }
     }

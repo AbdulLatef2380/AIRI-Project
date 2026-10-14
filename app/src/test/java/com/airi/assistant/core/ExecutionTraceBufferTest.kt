@@ -58,4 +58,19 @@ class ExecutionTraceBufferTest {
         assertEquals(2L, retainedFirst.sequence)
         assertEquals(3L, retainedLast.sequence)
     }
+
+    @Test
+    fun buffer_bindsEventsToExplicitSessionAndRejectsStaleExecution() {
+        val buffer = ExecutionTraceBuffer(maxEntries = 2)
+        buffer.begin(executionId = "exec-current", sessionId = "session-current")
+
+        val current = buffer.append("exec-current", ExecutionTraceKind.PLANNING, "Planning")!!
+        assertEquals("session-current", current.sessionId)
+
+        buffer.begin(executionId = "exec-next", sessionId = "session-next")
+        assertNull(buffer.append("exec-current", ExecutionTraceKind.COMPLETED, "Stale completion"))
+        val next = buffer.append("exec-next", ExecutionTraceKind.PLANNING, "Planning")!!
+        assertEquals("session-next", next.sessionId)
+        assertEquals(listOf(next), buffer.snapshot())
+    }
 }

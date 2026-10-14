@@ -48,6 +48,8 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.core.ExecutionTraceEvent
 import com.airi.assistant.core.ExecutionTraceKind
+import com.airi.assistant.ui.plan.ExecutionTracePresentation
+import com.airi.assistant.ui.plan.ExecutionTraceSummaryStatus
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SemanticError
@@ -72,18 +74,22 @@ fun InlineExecutionTrace(
 
     var expanded by rememberSaveable(executionId) { mutableStateOf(true) }
     val visibleEntries = entries.takeLast(8)
-    val active = visibleEntries.lastOrNull { it.kind.isActive }
-    val hasFailure = visibleEntries.any { it.kind == ExecutionTraceKind.TOOL_FAILED || it.kind == ExecutionTraceKind.FAILED }
-    val accent = when {
-        hasFailure -> SemanticError
-        isWorking -> CosmicAccent
-        else -> SemanticSuccess
+    val active = ExecutionTracePresentation.latestActiveEvent(entries)
+    val summaryStatus = ExecutionTracePresentation.summaryStatus(entries, isWorking)
+    val activeLabel = if (active == null) "" else stringResource(active.kind.labelRes())
+    val activeSubject = active?.displaySubject()
+    val accent = when (summaryStatus) {
+        ExecutionTraceSummaryStatus.FAILED -> SemanticError
+        ExecutionTraceSummaryStatus.RUNNING -> CosmicAccent
+        ExecutionTraceSummaryStatus.CANCELLED -> SemanticWarn
+        ExecutionTraceSummaryStatus.COMPLETED -> SemanticSuccess
     }
     val title = stringResource(R.string.agent_plan_trace_title)
-    val status = when {
-        hasFailure -> stringResource(R.string.agent_plan_stage_failed)
-        isWorking -> stringResource(R.string.agent_plan_stage_executing)
-        else -> stringResource(R.string.agent_plan_stage_completed)
+    val status = when (summaryStatus) {
+        ExecutionTraceSummaryStatus.RUNNING -> stringResource(R.string.agent_plan_stage_executing)
+        ExecutionTraceSummaryStatus.FAILED -> stringResource(R.string.agent_plan_stage_failed)
+        ExecutionTraceSummaryStatus.CANCELLED -> stringResource(R.string.agent_plan_stage_cancelled)
+        ExecutionTraceSummaryStatus.COMPLETED -> stringResource(R.string.agent_plan_stage_completed)
     }
 
     Column(
@@ -144,9 +150,10 @@ fun InlineExecutionTrace(
         }
 
         // The current active item is visible even before a terminal event arrives.
-        if (isWorking && active != null && active.kind.isActive) {
+        if (isWorking && active != null) {
             Text(
-                text = active.summary,
+                text = listOfNotNull(activeLabel.takeIf { it.isNotBlank() }, activeSubject)
+                    .joinToString(" · "),
                 color = CosmicAccent,
                 fontSize = 10.sp,
                 maxLines = 1,
@@ -161,7 +168,7 @@ fun InlineExecutionTrace(
 private fun InlineTraceEventRow(event: ExecutionTraceEvent) {
     val color = event.kind.traceColor()
     val label = stringResource(event.kind.labelRes())
-    val detail = event.detail?.takeIf { it.isNotBlank() }?.take(120)
+    val subject = event.displaySubject()
     val description = stringResource(R.string.agent_plan_trace_entry_cd, event.sequence.toInt(), label)
 
     Row(
@@ -175,13 +182,13 @@ private fun InlineTraceEventRow(event: ExecutionTraceEvent) {
         Icon(event.kind.icon(), contentDescription = null, tint = color, modifier = Modifier.size(17.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = event.summary,
+                text = label,
                 color = AiriTheme.onSurface,
                 fontSize = 11.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            detail?.let {
+            subject?.let {
                 Text(
                     text = it,
                     color = AiriTheme.onSurfaceVariant,
@@ -202,6 +209,14 @@ private fun InlineTraceEventRow(event: ExecutionTraceEvent) {
     }
 }
 
+private fun ExecutionTraceEvent.displaySubject(): String? = when (kind) {
+    ExecutionTraceKind.TOOL_STARTED -> summary.substringAfter("Running tool: ", "").takeIf(String::isNotBlank)
+    ExecutionTraceKind.TOOL_COMPLETED -> summary.substringAfter("Tool completed: ", "").takeIf(String::isNotBlank)
+    ExecutionTraceKind.TOOL_FAILED -> summary.substringAfter("Tool failed: ", "").takeIf(String::isNotBlank)
+    ExecutionTraceKind.TOOL_CANCELLED -> summary.substringAfter("Tool cancelled: ", "").takeIf(String::isNotBlank)
+    else -> null
+}
+
 @Composable
 private fun StatusDot(accent: Color, active: Boolean) {
     androidx.compose.foundation.layout.Box(
@@ -211,9 +226,6 @@ private fun StatusDot(accent: Color, active: Boolean) {
             .background(accent.copy(alpha = if (active) 1f else 0.75f))
     )
 }
-
-private val ExecutionTraceKind.isActive: Boolean
-    get() = this == ExecutionTraceKind.PLANNING || this == ExecutionTraceKind.STEP_STARTED || this == ExecutionTraceKind.TOOL_STARTED || this == ExecutionTraceKind.RECOVERING || this == ExecutionTraceKind.REFLECTING
 
 private fun ExecutionTraceKind.labelRes(): Int = when (this) {
     ExecutionTraceKind.PLANNING -> R.string.agent_trace_kind_planning

@@ -52,7 +52,12 @@ object ExecutionStatusBus {
     // ── Write API (called by UCL / orchestrators) ─────────────────────────────
 
     /** Signal that a DAG graph execution has started. */
-    fun onGraphStarted(goalDescription: String, totalNodes: Int, executionId: String) {
+    fun onGraphStarted(
+        goalDescription: String,
+        totalNodes: Int,
+        executionId: String,
+        sessionId: String = "",
+    ) {
         if (executionId.isBlank()) {
             Log.w(TAG, "EXEC_STATUS_REJECTED missing executionId")
             return
@@ -63,10 +68,11 @@ object ExecutionStatusBus {
             totalSteps            = totalNodes,
             activeGoalDescription = goalDescription,
             executionId           = executionId,
+            sessionId             = sessionId,
             nodesTotal            = totalNodes,
             executionStage        = ExecutionStage.PLANNING
         )
-        traceBuffer.begin(executionId)
+        traceBuffer.begin(executionId, sessionId)
         toolTraceLifecycle.begin(executionId)
         appendTrace(executionId, ExecutionTraceKind.PLANNING, "Planning task", goalDescription)
         Log.i(TAG, "EXEC_STATUS_PLANNING goalChars=${goalDescription.length} nodes=$totalNodes")
@@ -285,6 +291,9 @@ object ExecutionStatusBus {
     /** Reset to idle (e.g. on session clear or ViewModel cleared). */
     fun reset() {
         _status.value = AgentState()
+        traceBuffer.clear()
+        toolTraceLifecycle.reset()
+        _trace.value = emptyList()
     }
 
     private fun onToolTerminal(
@@ -337,6 +346,10 @@ object ExecutionStatusBus {
     internal fun acceptsEvent(activeExecutionId: String, eventExecutionId: String): Boolean =
         activeExecutionId.isNotBlank() && eventExecutionId.isNotBlank() &&
             activeExecutionId == eventExecutionId
+
+    internal fun belongsToSession(activeSessionId: String, eventSessionId: String): Boolean =
+        activeSessionId.isNotBlank() && eventSessionId.isNotBlank() &&
+            activeSessionId == eventSessionId
 
     private fun belongsToActiveExecution(current: AgentState, executionId: String): Boolean =
         acceptsEvent(current.executionId, executionId)

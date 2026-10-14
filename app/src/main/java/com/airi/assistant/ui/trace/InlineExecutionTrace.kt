@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,6 +48,8 @@ import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
 import com.airi.assistant.core.ExecutionTraceEvent
 import com.airi.assistant.core.ExecutionTraceKind
+import com.airi.assistant.ui.activity.ActivityEvent
+import com.airi.assistant.ui.activity.ActivitySeverity
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SemanticError
@@ -58,18 +61,31 @@ import com.airi.assistant.ui.theme.SemanticWarn
  *
  * The card is part of the reply rather than a transient overlay. It opens
  * while execution is running, remains in the conversation after completion,
- * and can be collapsed without losing the execution history. Only the
- * sanitized ExecutionStatusBus summaries reach this UI; private model
- * reasoning and raw tool arguments are never rendered.
+ * and can be collapsed without losing the execution history. Only sanitized
+ * runtime summaries from the execution and activity buses reach this UI;
+ * private model reasoning and raw tool arguments are never rendered.
  */
 @Composable
 fun InlineExecutionTrace(
     executionId: String,
     entries: List<ExecutionTraceEvent>,
     isWorking: Boolean,
+    activityEvents: List<ActivityEvent> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
-    if (executionId.isBlank() || entries.isEmpty()) return
+    if (executionId.isBlank() || (entries.isEmpty() && activityEvents.isEmpty())) return
+
+    // Runtime services publish concrete actions (terminal, connector, skill,
+    // sandbox, and artifact work) through AgentActivityBus. Merge them with
+    // the lifecycle trace only for this assistant turn. The plan panel uses a
+    // different state model and never consumes these rows.
+    val liveRows = remember(entries, activityEvents, executionId) {
+        (entries.map { it.toLiveRow() } + activityEvents
+            .filter { it.executionId == executionId }
+            .map { it.toLiveRow() })
+            .sortedBy { it.timestampMs }
+    }
+    if (liveRows.isEmpty()) return
 
     var expanded by rememberSaveable(executionId) { mutableStateOf(true) }
     val lastKind = entries.lastOrNull()?.kind
@@ -100,7 +116,7 @@ fun InlineExecutionTrace(
             .animateContentSize()
             .semantics {
                 paneTitle = title
-                contentDescription = "$title · $statusLabel · ${entries.size}"
+                contentDescription = "$title · $statusLabel · ${liveRows.size}"
             },
         shape = RoundedCornerShape(14.dp),
         color = AiriTheme.surfaceVariant.copy(alpha = 0.58f),
@@ -132,7 +148,7 @@ fun InlineExecutionTrace(
                     )
                 }
                 Text(
-                    text = entries.size.toString(),
+                    text = liveRows.size.toString(),
                     color = AiriTheme.onSurfaceVariant,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
@@ -153,11 +169,11 @@ fun InlineExecutionTrace(
                         .padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    entries.forEachIndexed { index, event ->
+                    liveRows.forEachIndexed { index, row ->
                         InlineTraceEventRow(
-                            event = event,
+                            row = row,
                             accent = accent,
-                            drawConnector = index < entries.lastIndex,
+                            drawConnector = index < liveRows.lastIndex,
                         )
                     }
                 }
@@ -168,13 +184,12 @@ fun InlineExecutionTrace(
 
 @Composable
 private fun InlineTraceEventRow(
-    event: ExecutionTraceEvent,
+    row: LiveTraceRow,
     accent: Color,
     drawConnector: Boolean,
 ) {
-    val color = event.kind.traceColor(accent)
-    val label = stringResource(event.kind.labelRes())
-    val description = stringResource(R.string.agent_plan_trace_entry_cd, event.sequence.toInt(), label)
+    val color = row.color ?: accent
+    val description = row.accessibilityLabel
 
     Row(
         modifier = Modifier
@@ -184,7 +199,7 @@ private fun InlineTraceEventRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(event.kind.icon(), contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+            Icon(row.icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
             if (drawConnector) {
                 Box(
                     Modifier
@@ -197,14 +212,14 @@ private fun InlineTraceEventRow(
         }
         Column(Modifier.weight(1f).padding(top = 1.dp)) {
             Text(
-                text = event.summary,
+                text = row.summary,
                 color = AiriTheme.onSurface.copy(alpha = 0.9f),
                 fontSize = 11.sp,
                 lineHeight = 16.sp,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
-            event.detail?.takeIf { it.isNotBlank() }?.let { detail ->
+            row.detail?.takeIf { it.isNotBlank() }?.let { detail ->
                 Text(
                     text = detail,
                     color = AiriTheme.onSurfaceVariant.copy(alpha = 0.72f),
@@ -215,7 +230,7 @@ private fun InlineTraceEventRow(
                 )
             }
         }
-        event.durationMs?.takeIf { it >= 0L }?.let {
+        row.durationMs?.takeIf { it >= 0L }?.let {
             Text(
                 text = stringResource(R.string.agent_plan_trace_duration_ms, it),
                 color = AiriTheme.onSurfaceVariant.copy(alpha = 0.66f),
@@ -226,13 +241,51 @@ private fun InlineTraceEventRow(
     }
 }
 
+private data class LiveTraceRow(
+    val timestampMs: Long,
+    val summary: String,
+    val detail: String?,
+    val durationMs: Long?,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val color: Color?,
+    val accessibilityLabel: String,
+)
+
+private fun ExecutionTraceEvent.toLiveRow() = LiveTraceRow(
+    timestampMs = timestampMs,
+    summary = summary,
+    detail = detail,
+    durationMs = durationMs,
+    icon = kind.icon(),
+    color = kind.traceColor(null),
+    accessibilityLabel = "#${sequence} ${kind.name}: $summary",
+)
+
+private fun ActivityEvent.toLiveRow() = LiveTraceRow(
+    timestampMs = timestampMs,
+    summary = message,
+    detail = detail,
+    durationMs = null,
+    icon = when (severity) {
+        ActivitySeverity.ERROR -> Icons.Outlined.ErrorOutline
+        ActivitySeverity.WARN -> Icons.Outlined.HourglassEmpty
+        ActivitySeverity.INFO -> Icons.Outlined.PlayArrow
+    },
+    color = when (severity) {
+        ActivitySeverity.ERROR -> SemanticError
+        ActivitySeverity.WARN -> SemanticWarn
+        ActivitySeverity.INFO -> CosmicAccent
+    },
+    accessibilityLabel = "${category.label}: $message",
+)
+
 private enum class TraceStatus { RUNNING, COMPLETED, FAILED, CANCELLED }
 
-private fun ExecutionTraceKind.traceColor(accent: Color): Color = when (this) {
+private fun ExecutionTraceKind.traceColor(accent: Color?): Color = when (this) {
     ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED -> SemanticError
     ExecutionTraceKind.COMPLETED, ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.STEP_COMPLETED -> SemanticSuccess
     ExecutionTraceKind.RECOVERING -> SemanticWarn
-    else -> accent
+    else -> accent ?: CosmicAccent
 }
 
 private fun ExecutionTraceKind.icon() = when (this) {

@@ -24,6 +24,7 @@ class TaskExecutionTracker {
     private val stepRegistry = ConcurrentHashMap<String, PlanStepModel>()
     private val stepOrder = CopyOnWriteArrayList<String>()
     private var activeExecutionId: String? = null
+    private var lastNodesCompleted = 0
 
     private val _steps = MutableStateFlow<List<PlanStepModel>>(emptyList())
     val steps: StateFlow<List<PlanStepModel>> = _steps.asStateFlow()
@@ -53,6 +54,17 @@ class TaskExecutionTracker {
                 val nodeLabel = state.activeNodeAction.trim()
                 if (nodeId.isBlank() || nodeLabel.isBlank()) return
                 val existing = stepRegistry[nodeId]
+                // onNodeCompleted publishes an EXECUTING snapshot with an
+                // incremented nodesCompleted count. Consume that runtime fact
+                // before the next wave is published, rather than trusting a
+                // model-written status or waiting until the whole graph ends.
+                if (state.nodesCompleted > lastNodesCompleted && existing != null && existing.status.isActive) {
+                    upsert(existing.copy(status = PlanStepStatus.COMPLETED, finishedAtMs = System.currentTimeMillis()))
+                    lastNodesCompleted = state.nodesCompleted
+                    publish()
+                    return
+                }
+                lastNodesCompleted = maxOf(lastNodesCompleted, state.nodesCompleted)
                 upsert(
                     (existing ?: PlanStepModel(id = nodeId, label = nodeLabel.take(MAX_LABEL_CHARS))).copy(
                         label = nodeLabel.take(MAX_LABEL_CHARS),
@@ -60,6 +72,7 @@ class TaskExecutionTracker {
                         startedAtMs = existing?.startedAtMs ?: System.currentTimeMillis(),
                     )
                 )
+                _isVisible.value = true
             }
             ExecutionStage.RECOVERING -> {
                 if (!accepts(state) || state.activeNodeId.isBlank()) return
@@ -100,6 +113,7 @@ class TaskExecutionTracker {
         stepRegistry.clear()
         stepOrder.clear()
         activeExecutionId = null
+        lastNodesCompleted = 0
         _isVisible.value = false
         publish()
     }
@@ -111,6 +125,7 @@ class TaskExecutionTracker {
         stepOrder.clear()
         restoredSteps.forEach(::upsert)
         activeExecutionId = executionId?.takeIf { it.isNotBlank() }
+        lastNodesCompleted = restoredSteps.count { it.status == PlanStepStatus.COMPLETED }
         _isVisible.value = restoredSteps.isNotEmpty()
         publish()
     }
@@ -126,15 +141,10 @@ class TaskExecutionTracker {
         stepRegistry.clear()
         stepOrder.clear()
         activeExecutionId = state.executionId
-        upsert(
-            PlanStepModel(
-                id = "goal_${state.executionId}",
-                label = state.activeGoalDescription.trim().take(MAX_LABEL_CHARS),
-                status = PlanStepStatus.RUNNING,
-                startedAtMs = System.currentTimeMillis(),
-            )
-        )
-        _isVisible.value = true
+        lastNodesCompleted = 0
+        // Do not invent a visible "goal" step. The panel becomes visible only
+        // when the runtime publishes the first real node in EXECUTING state.
+        _isVisible.value = false
     }
 
     private fun upsert(step: PlanStepModel) {

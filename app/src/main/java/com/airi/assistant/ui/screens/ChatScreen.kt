@@ -1147,6 +1147,9 @@ fun ChatScreen(
                     it.executionId == agentState.executionId &&
                         it.sessionId == currentSessionId
                 },
+                inlineActivityEvents = agentActivityEvents.filter {
+                    it.executionId == agentState.executionId
+                },
                 inlineTraceWorking = agentState.isWorking &&
                     agentState.sessionId == currentSessionId,
                 finalAnswerVerification = agentState.finalAnswerVerification.takeIf { generationBelongsToCurrentSession || !agentState.isWorking },
@@ -2135,6 +2138,7 @@ fun ChatMessageList(
     executionError: ExecutionErrorProjection? = null,
     inlineTraceExecutionId: String = "",
     inlineTraceEntries: List<ExecutionTraceEvent> = emptyList(),
+    inlineActivityEvents: List<com.airi.assistant.ui.activity.ActivityEvent> = emptyList(),
     inlineTraceWorking: Boolean = false,
     sessionLoadState: com.airi.assistant.ui.viewmodel.SessionLoadState = com.airi.assistant.ui.viewmodel.SessionLoadState.NotStarted,
     onRetrySession: (String?) -> Unit = {},
@@ -2299,6 +2303,7 @@ fun ChatMessageList(
                             AiResponseTurn(
                                 traceExecutionId = inlineTraceExecutionId,
                                 traceEntries = inlineTraceEntries,
+                                activityEvents = inlineActivityEvents,
                                 traceWorking = inlineTraceWorking,
                                 content = { AiStreamingBubble(text = streamingText) },
                             )
@@ -2340,6 +2345,7 @@ fun ChatMessageList(
                                 executionSource = msg.executionSource,
                                 executionTraceId = msg.executionTraceId,
                                 executionTraceEntries = inlineTraceEntries,
+                                executionActivityEvents = inlineActivityEvents,
                                 executionTraceWorking = inlineTraceWorking,
                                 onFeedback      = { liked -> onFeedback(msg.uid, liked) },
                                 onExportPdf     = onExportPdf,
@@ -2607,15 +2613,17 @@ fun UserBubble(
 private fun AiResponseTurn(
     traceExecutionId: String,
     traceEntries: List<ExecutionTraceEvent>,
+    activityEvents: List<com.airi.assistant.ui.activity.ActivityEvent>,
     traceWorking: Boolean,
     content: @Composable () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        if (traceEntries.isNotEmpty()) {
+        if (traceEntries.isNotEmpty() || activityEvents.isNotEmpty()) {
             InlineExecutionTrace(
                 executionId = traceExecutionId,
                 entries = traceEntries,
                 isWorking = traceWorking,
+                activityEvents = activityEvents,
             )
         }
         content()
@@ -2635,6 +2643,7 @@ fun AiBubble(
     executionSource: String? = null,
     executionTraceId: String? = null,
     executionTraceEntries: List<ExecutionTraceEvent> = emptyList(),
+    executionActivityEvents: List<com.airi.assistant.ui.activity.ActivityEvent> = emptyList(),
     executionTraceWorking: Boolean = false,
     initialFeedback: Int = 0,
     
@@ -2684,11 +2693,15 @@ fun AiBubble(
             }
 
             Column(modifier = Modifier.weight(1f).widthIn(max = 800.dp)) {
-                if (executionTraceId != null && executionTraceId == executionTraceEntries.firstOrNull()?.executionId) {
+                if (executionTraceId != null && (
+                    executionTraceId == executionTraceEntries.firstOrNull()?.executionId ||
+                        executionActivityEvents.any { it.executionId == executionTraceId }
+                )) {
                     InlineExecutionTrace(
                         executionId = executionTraceId,
                         entries = executionTraceEntries,
                         isWorking = executionTraceWorking,
+                        activityEvents = executionActivityEvents,
                     )
                 }
                 Box {

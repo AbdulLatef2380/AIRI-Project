@@ -41,10 +41,18 @@ class TaskExecutionTrackerTest {
                 activeNodeAction = "Search local knowledge",
             )
         )
+        tracker.onExecutionState(
+            planState(
+                executionId,
+                ExecutionStage.EXECUTING,
+                activeNodeId = "tool_1_search",
+                activeNodeAction = "Search local knowledge",
+            ).copy(nodesCompleted = 1)
+        )
         tracker.onExecutionState(planState(executionId, ExecutionStage.COMPLETED))
 
         val steps = tracker.steps.value
-        assertEquals(listOf("Inspect the project", "Search local knowledge"), steps.map { it.label })
+        assertEquals(listOf("Search local knowledge"), steps.map { it.label })
         assertTrue(steps.none { it.label.matches(Regex("Step \\d+")) })
         assertTrue(steps.all { it.status == PlanStepStatus.COMPLETED })
         assertTrue(tracker.isVisible.value)
@@ -74,7 +82,7 @@ class TaskExecutionTrackerTest {
             planState("old", ExecutionStage.EXECUTING, "old_node", "Old action", goal = "Old task")
         )
 
-        assertEquals(listOf("New task"), tracker.steps.value.map { it.label })
+        assertTrue(tracker.steps.value.isEmpty())
     }
 
     private fun planState(

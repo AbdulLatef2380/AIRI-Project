@@ -28,7 +28,16 @@ class ProviderAdapterContractTest {
             assertTrue(contract.adapterId.isNotBlank())
             assertTrue(contract.officialDocsUrl.startsWith("https://"))
             assertFalse(contract.isExecutable)
-            if (definition.id in setOf("microsoft_onedrive", "microsoft_teams", "microsoft_sharepoint")) {
+            // These surfaces have a real adapter path but remain PARTIAL until
+            // provider configuration/evidence gates are complete. Dropbox is
+            // authorizable today; Box still waits for its confidential broker.
+            if (definition.id in setOf(
+                    "microsoft_onedrive",
+                    "microsoft_teams",
+                    "microsoft_sharepoint",
+                    "dropbox",
+                    "box",
+                )) {
                 assertEquals(ConnectorAvailability.PARTIAL, definition.status)
             } else {
                 assertEquals(ConnectorAvailability.COMING_SOON, definition.status)

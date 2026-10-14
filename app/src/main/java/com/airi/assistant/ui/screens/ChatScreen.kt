@@ -2304,22 +2304,18 @@ fun ChatMessageList(
                 if (streamingText.isNotEmpty() && isGenerating) {
                     item(key = "streaming", contentType = "streaming") {
                         Box(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                            AiStreamingBubble(text = streamingText)
+                            AiResponseTurn(
+                                traceExecutionId = inlineTraceExecutionId,
+                                traceEntries = inlineTraceEntries,
+                                traceWorking = inlineTraceWorking,
+                                content = { AiStreamingBubble(text = streamingText) },
+                            )
                         }
                     }
                 }
                 if (isGenerating && streamingText.isEmpty()) {
                     item(key = "thinking", contentType = "thinking") {
                         AiriThinkingRow(label = stringResource(R.string.chat_airi_thinking))
-                    }
-                }
-                if (inlineTraceEntries.isNotEmpty()) {
-                    item(key = "inline-execution-trace-${inlineTraceExecutionId}", contentType = "execution-trace") {
-                        InlineExecutionTrace(
-                            executionId = inlineTraceExecutionId,
-                            entries = inlineTraceEntries,
-                            isWorking = inlineTraceWorking,
-                        )
                     }
                 }
                 if (finalAnswerVerification != null && !isGenerating) {
@@ -2350,6 +2346,9 @@ fun ChatMessageList(
                                 onSpeak         = onSpeak,
                                 execOrigin      = msg.execOrigin,
                                 executionSource = msg.executionSource,
+                                executionTraceId = msg.executionTraceId,
+                                executionTraceEntries = inlineTraceEntries,
+                                executionTraceWorking = inlineTraceWorking,
                                 onFeedback      = { liked -> onFeedback(msg.uid, liked) },
                                 onExportPdf     = onExportPdf,
                                 onExportMarkdown = onExportMarkdown,
@@ -2612,6 +2611,25 @@ fun UserBubble(
         }
 }
 
+@Composable
+private fun AiResponseTurn(
+    traceExecutionId: String,
+    traceEntries: List<ExecutionTraceEvent>,
+    traceWorking: Boolean,
+    content: @Composable () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        if (traceEntries.isNotEmpty()) {
+            InlineExecutionTrace(
+                executionId = traceExecutionId,
+                entries = traceEntries,
+                isWorking = traceWorking,
+            )
+        }
+        content()
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AiBubble(
@@ -2623,7 +2641,9 @@ fun AiBubble(
     onSpeak: (String) -> Unit = {},
     execOrigin: com.airi.assistant.execution.ExecOrigin = com.airi.assistant.execution.ExecOrigin.NONE,
     executionSource: String? = null,
-    
+    executionTraceId: String? = null,
+    executionTraceEntries: List<ExecutionTraceEvent> = emptyList(),
+    executionTraceWorking: Boolean = false,
     initialFeedback: Int = 0,
     
     onFeedback: (liked: Boolean) -> Unit = {},
@@ -2672,6 +2692,13 @@ fun AiBubble(
             }
 
             Column(modifier = Modifier.weight(1f).widthIn(max = 800.dp)) {
+                if (executionTraceId != null && executionTraceId == executionTraceEntries.firstOrNull()?.executionId) {
+                    InlineExecutionTrace(
+                        executionId = executionTraceId,
+                        entries = executionTraceEntries,
+                        isWorking = executionTraceWorking,
+                    )
+                }
                 Box {
                     Box(
                         modifier = Modifier

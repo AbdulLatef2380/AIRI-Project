@@ -141,6 +141,8 @@ data class ChatMessage(
     val id: Long = System.currentTimeMillis(),
     val agentTag: String? = null,
     val traceId: String? = null,
+    /** Execution trace owned by this assistant turn; UI-only and not persisted. */
+    val executionTraceId: String? = null,
     
     // Previously the list used `msg.hashCode()` as the key. Two messages
     // with identical text+isUser produced an identical hashCode, which made
@@ -2346,7 +2348,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 isUser = false,
                                 id = saved.id,
                                 execOrigin = _lastExecOrigin.value,
-                                executionSource = hybridOrchestrator.lastExecutionSource
+                                executionSource = hybridOrchestrator.lastExecutionSource,
+                                executionTraceId = ExecutionStatusBus.status.value.executionId.takeIf { it.isNotBlank() }
                             )
                         }
                     }
@@ -2596,7 +2599,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 isUser     = false,
                                 id         = assistantMsg.id,
                                 execOrigin = _lastExecOrigin.value,
-                                executionSource = hybridOrchestrator.lastExecutionSource
+                                executionSource = hybridOrchestrator.lastExecutionSource,
+                                executionTraceId = ExecutionStatusBus.status.value.executionId.takeIf { it.isNotBlank() }
                             )
                         }
                     }

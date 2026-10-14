@@ -1,45 +1,30 @@
 package com.airi.assistant.ui.trace
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.ExpandLess
-import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material.icons.outlined.PauseCircleOutline
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,8 +33,6 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.core.ExecutionTraceEvent
 import com.airi.assistant.core.ExecutionTraceKind
-import com.airi.assistant.ui.plan.ExecutionTracePresentation
-import com.airi.assistant.ui.plan.ExecutionTraceSummaryStatus
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SemanticError
@@ -58,10 +41,12 @@ import com.airi.assistant.ui.theme.SemanticWarn
 import androidx.compose.ui.res.stringResource
 
 /**
- * Inline execution trace for the current conversation.
+ * Persistent, inline execution timeline for one assistant turn.
  *
- * This intentionally renders only sanitized execution summaries from
- * ExecutionStatusBus. It never renders model reasoning or raw tool arguments.
+ * This is deliberately not a card, dialog, overlay, or collapsible panel. It
+ * is rendered as part of the assistant response so progress remains readable
+ * after completion. The input is still the sanitized ExecutionStatusBus trace;
+ * model chain-of-thought and raw tool arguments are never rendered here.
  */
 @Composable
 fun InlineExecutionTrace(
@@ -72,159 +57,131 @@ fun InlineExecutionTrace(
 ) {
     if (executionId.isBlank() || entries.isEmpty()) return
 
-    var expanded by rememberSaveable(executionId) { mutableStateOf(true) }
-    val visibleEntries = entries.takeLast(8)
-    val active = ExecutionTracePresentation.latestActiveEvent(entries)
-    val summaryStatus = ExecutionTracePresentation.summaryStatus(entries, isWorking)
-    val activeLabel = if (active == null) "" else stringResource(active.kind.labelRes())
-    val activeSubject = active?.displaySubject()
+    val summaryStatus = when {
+        isWorking -> TraceStatus.RUNNING
+        entries.lastOrNull()?.kind == ExecutionTraceKind.FAILED ||
+            entries.lastOrNull()?.kind == ExecutionTraceKind.TOOL_FAILED -> TraceStatus.FAILED
+        entries.lastOrNull()?.kind == ExecutionTraceKind.CANCELLED ||
+            entries.lastOrNull()?.kind == ExecutionTraceKind.TOOL_CANCELLED -> TraceStatus.CANCELLED
+        else -> TraceStatus.COMPLETED
+    }
     val accent = when (summaryStatus) {
-        ExecutionTraceSummaryStatus.FAILED -> SemanticError
-        ExecutionTraceSummaryStatus.RUNNING -> CosmicAccent
-        ExecutionTraceSummaryStatus.CANCELLED -> SemanticWarn
-        ExecutionTraceSummaryStatus.COMPLETED -> SemanticSuccess
+        TraceStatus.RUNNING -> CosmicAccent
+        TraceStatus.FAILED -> SemanticError
+        TraceStatus.CANCELLED -> SemanticWarn
+        TraceStatus.COMPLETED -> SemanticSuccess
     }
     val title = stringResource(R.string.agent_plan_trace_title)
     val status = when (summaryStatus) {
-        ExecutionTraceSummaryStatus.RUNNING -> stringResource(R.string.agent_plan_stage_executing)
-        ExecutionTraceSummaryStatus.FAILED -> stringResource(R.string.agent_plan_stage_failed)
-        ExecutionTraceSummaryStatus.CANCELLED -> stringResource(R.string.agent_plan_stage_cancelled)
-        ExecutionTraceSummaryStatus.COMPLETED -> stringResource(R.string.agent_plan_stage_completed)
+        TraceStatus.RUNNING -> stringResource(R.string.agent_plan_stage_executing)
+        TraceStatus.FAILED -> stringResource(R.string.agent_plan_stage_failed)
+        TraceStatus.CANCELLED -> stringResource(R.string.agent_plan_stage_cancelled)
+        TraceStatus.COMPLETED -> stringResource(R.string.agent_plan_stage_completed)
     }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(AiriTheme.surfaceVariant.copy(alpha = 0.78f))
-            .border(1.dp, accent.copy(alpha = 0.28f), RoundedCornerShape(16.dp))
-            .animateContentSize()
-            .semantics {
-                paneTitle = title
-                contentDescription = "$title · $status · ${visibleEntries.size}"
-            }
+            .padding(start = 36.dp, end = 8.dp, top = 2.dp, bottom = 6.dp)
+            .semantics { contentDescription = "$title · $status · ${entries.size}" },
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = !expanded }
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             StatusDot(accent = accent, active = isWorking)
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, color = AiriTheme.onSurface, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Text(status, color = accent, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+            Spacer(Modifier.width(8.dp))
             Text(
-                text = visibleEntries.size.toString(),
-                color = AiriTheme.onSurfaceVariant,
+                text = title,
+                color = AiriTheme.onSurfaceVariant.copy(alpha = 0.78f),
                 fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
             )
-            Spacer(Modifier.width(4.dp))
-            Icon(
-                imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                contentDescription = null,
-                tint = AiriTheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp),
-            )
-        }
-
-        AnimatedVisibility(
-            visible = expanded,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut(),
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 6.dp),
-            ) {
-                visibleEntries.forEach { event ->
-                    InlineTraceEventRow(event)
-                }
-            }
-        }
-
-        // The current active item is visible even before a terminal event arrives.
-        if (isWorking && active != null) {
+            Spacer(Modifier.width(6.dp))
             Text(
-                text = listOfNotNull(activeLabel.takeIf { it.isNotBlank() }, activeSubject)
-                    .joinToString(" · "),
-                color = CosmicAccent,
+                text = status,
+                color = accent.copy(alpha = 0.9f),
                 fontSize = 10.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 42.dp, end = 14.dp, bottom = 8.dp),
+            )
+        }
+
+        entries.forEachIndexed { index, event ->
+            InlineTraceEventRow(
+                event = event,
+                accent = accent,
+                drawConnector = index < entries.lastIndex,
             )
         }
     }
 }
 
 @Composable
-private fun InlineTraceEventRow(event: ExecutionTraceEvent) {
-    val color = event.kind.traceColor()
+private fun InlineTraceEventRow(
+    event: ExecutionTraceEvent,
+    accent: Color,
+    drawConnector: Boolean,
+) {
+    val color = event.kind.traceColor(accent)
     val label = stringResource(event.kind.labelRes())
-    val subject = event.displaySubject()
     val description = stringResource(R.string.agent_plan_trace_entry_cd, event.sequence.toInt(), label)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .semantics { contentDescription = description }
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            .semantics { contentDescription = description },
         verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(event.kind.icon(), contentDescription = null, tint = color, modifier = Modifier.size(17.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = label,
-                color = AiriTheme.onSurface,
-                fontSize = 11.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            subject?.let {
-                Text(
-                    text = it,
-                    color = AiriTheme.onSurfaceVariant,
-                    fontSize = 10.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(event.kind.icon(), contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+            if (drawConnector) {
+                Box(
+                    Modifier
+                        .padding(top = 2.dp)
+                        .width(1.dp)
+                        .height(12.dp)
+                        .background(AiriTheme.outline.copy(alpha = 0.28f))
                 )
             }
         }
+        Text(
+            text = event.summary,
+            color = AiriTheme.onSurface.copy(alpha = 0.86f),
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(top = 1.dp),
+        )
         event.durationMs?.takeIf { it >= 0L }?.let {
             Text(
                 text = stringResource(R.string.agent_plan_trace_duration_ms, it),
-                color = AiriTheme.onSurfaceVariant,
+                color = AiriTheme.onSurfaceVariant.copy(alpha = 0.66f),
                 fontSize = 9.sp,
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
     }
 }
 
-private fun ExecutionTraceEvent.displaySubject(): String? = when (kind) {
-    ExecutionTraceKind.TOOL_STARTED -> summary.substringAfter("Running tool: ", "").takeIf(String::isNotBlank)
-    ExecutionTraceKind.TOOL_COMPLETED -> summary.substringAfter("Tool completed: ", "").takeIf(String::isNotBlank)
-    ExecutionTraceKind.TOOL_FAILED -> summary.substringAfter("Tool failed: ", "").takeIf(String::isNotBlank)
-    ExecutionTraceKind.TOOL_CANCELLED -> summary.substringAfter("Tool cancelled: ", "").takeIf(String::isNotBlank)
-    else -> null
+private enum class TraceStatus { RUNNING, COMPLETED, FAILED, CANCELLED }
+
+private fun ExecutionTraceKind.traceColor(accent: Color): Color = when (this) {
+    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED -> SemanticError
+    ExecutionTraceKind.COMPLETED, ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.STEP_COMPLETED -> SemanticSuccess
+    ExecutionTraceKind.RECOVERING -> SemanticWarn
+    else -> accent
 }
 
-@Composable
-private fun StatusDot(accent: Color, active: Boolean) {
-    androidx.compose.foundation.layout.Box(
-        modifier = Modifier
-            .size(9.dp)
-            .clip(CircleShape)
-            .background(accent.copy(alpha = if (active) 1f else 0.75f))
-    )
+private fun ExecutionTraceKind.icon() = when (this) {
+    ExecutionTraceKind.PLANNING, ExecutionTraceKind.STEP_STARTED, ExecutionTraceKind.TOOL_STARTED -> Icons.Outlined.PlayArrow
+    ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.COMPLETED -> Icons.Outlined.CheckCircle
+    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED -> Icons.Outlined.ErrorOutline
+    ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED -> Icons.Outlined.PauseCircleOutline
+    ExecutionTraceKind.RECOVERING, ExecutionTraceKind.REFLECTING -> Icons.Outlined.HourglassEmpty
 }
 
 private fun ExecutionTraceKind.labelRes(): Int = when (this) {
@@ -242,18 +199,11 @@ private fun ExecutionTraceKind.labelRes(): Int = when (this) {
     ExecutionTraceKind.CANCELLED -> R.string.agent_trace_kind_cancelled
 }
 
-private fun ExecutionTraceKind.traceColor(): Color = when (this) {
-    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED -> SemanticError
-    ExecutionTraceKind.COMPLETED, ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.STEP_COMPLETED -> SemanticSuccess
-    ExecutionTraceKind.RECOVERING -> SemanticWarn
-    else -> CosmicAccent
-}
-
-private fun ExecutionTraceKind.icon() = when (this) {
-    ExecutionTraceKind.PLANNING, ExecutionTraceKind.STEP_STARTED, ExecutionTraceKind.TOOL_STARTED -> Icons.Outlined.PlayArrow
-    ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.COMPLETED -> Icons.Outlined.CheckCircle
-    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED -> Icons.Outlined.ErrorOutline
-    ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED -> Icons.Outlined.PauseCircleOutline
-    ExecutionTraceKind.RECOVERING -> Icons.Outlined.HourglassEmpty
-    ExecutionTraceKind.REFLECTING -> Icons.Outlined.HourglassEmpty
+@Composable
+private fun StatusDot(accent: Color, active: Boolean) {
+    Box(
+        modifier = Modifier
+            .size(7.dp)
+            .background(accent.copy(alpha = if (active) 1f else 0.75f), CircleShape)
+    )
 }

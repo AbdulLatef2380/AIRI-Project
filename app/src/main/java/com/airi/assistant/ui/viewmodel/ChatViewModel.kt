@@ -50,6 +50,7 @@ import com.airi.assistant.ai.agent.background.AgentWorker
 import com.airi.assistant.ai.remote.RemoteModel
 import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.core.ExecutionStatusBus
 // AgentService import removed — no longer used in sendMessage after agent-first migration
 import com.airi.core.attachments.AttachmentPolicy
 import com.airi.assistant.domain.ChatAttachment

@@ -1,10 +1,11 @@
 package com.airi.assistant.connector
 
-import android.content.Intent
 import com.airi.assistant.auth.SecureStorage
 import com.airi.assistant.connector.app.GitHubConnector
 import com.airi.assistant.connector.app.GoogleConnector
 import com.airi.assistant.connector.app.MicrosoftGraphConnector
+import com.airi.assistant.connector.app.DropboxConnector
+import com.airi.assistant.connector.app.BoxConnector
 import com.airi.assistant.connector.app.ProviderTokenConnector
 import com.airi.assistant.connector.app.ZapierConnector
 import com.airi.assistant.connector.mcp.NotionMcpConnector
@@ -19,8 +20,8 @@ import com.airi.assistant.integrations.github.GithubService
 import com.airi.assistant.integrations.google.GoogleAuthService
 import com.airi.assistant.integrations.google.GoogleDataAuthorization
 import com.airi.assistant.integrations.google.GoogleDataScopes
+import com.airi.assistant.integrations.google.GoogleIdentityCredential
 import com.airi.assistant.integrations.telegram.TelegramService
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -43,7 +44,7 @@ class ConnectorAuthorizationManager(
 ) {
     sealed interface StartResult {
         data class OAuthBrowser(val connectorId: String, val url: String) : StartResult
-        data class GoogleIdentity(val connectorId: String, val intent: Intent) : StartResult
+        data class GoogleIdentity(val connectorId: String) : StartResult
         data class GoogleConsent(val connectorId: String, val scopes: Set<String>) : StartResult
         data class AccessProfileRequired(
             val connectorId: String,
@@ -119,6 +120,8 @@ class ConnectorAuthorizationManager(
         when (runtimeId) {
             "google" -> beginGoogle(surfaceIds.firstOrNull() ?: id)
             "microsoft_graph" -> beginMicrosoft(runtimeId)
+            "dropbox" -> beginDropbox(runtimeId)
+            "box" -> beginBox(runtimeId)
             "zapier" -> beginZapier(runtimeId)
             "github" -> StartResult.CredentialRequired(runtimeId, "GitHub personal access token", "GitHub")
             "telegram" -> StartResult.CredentialRequired(runtimeId, "Telegram bot token", "Telegram")
@@ -148,20 +151,19 @@ class ConnectorAuthorizationManager(
         targetSurfaceId = registry.catalogMeta().firstOrNull { it.id == id }?.id,
     )
 
-    private fun isDataAccessAuthorizedFor(scopes: Set<String>): Boolean =
-        scopes.isNotEmpty() && GoogleDataScopes.surfaceIds.any { surfaceId ->
+    private fun isDataAccessAuthorizedFor(surfaceId: String, scopes: Set<String>): Boolean =
+        surfaceId in GoogleDataScopes.surfaceIds &&
             googleAuthService.hasAuthorizedDataScopes(surfaceId, scopes)
-        }
 
-    private fun isCurrentGoogleProfileAuthorized(scopes: Set<String>): Boolean {
-        val currentProfileScopes = requiredOAuthScopesFor("google")
-        return currentProfileScopes == scopes && isDataAccessAuthorizedFor(scopes)
+    private fun isCurrentGoogleProfileAuthorized(surfaceId: String, scopes: Set<String>): Boolean {
+        val currentProfileScopes = requiredOAuthScopesFor(surfaceId)
+        return currentProfileScopes == scopes && isDataAccessAuthorizedFor(surfaceId, scopes)
     }
 
     private fun beginGoogle(surfaceId: String): StartResult {
         if (surfaceId == "google") {
             return if (googleAuthService.getLastSignedInEmail().isNullOrBlank()) {
-                StartResult.GoogleIdentity("google", googleAuthService.getSignInIntent())
+                StartResult.GoogleIdentity("google")
             } else {
                 StartResult.Ready("google", ConnectorState(true, true, "Google identity signed in"))
             }
@@ -171,7 +173,7 @@ class ConnectorAuthorizationManager(
             return StartResult.Failed("access_profile_required", "Choose an access profile that permits an action on this Google surface.")
         }
         val email = googleAuthService.getLastSignedInEmail()
-        return if (email.isNullOrBlank()) StartResult.GoogleIdentity(surfaceId, googleAuthService.getSignInIntent())
+        return if (email.isNullOrBlank()) StartResult.GoogleIdentity(surfaceId)
         else StartResult.GoogleConsent(surfaceId, scopes)
     }
 
@@ -190,6 +192,41 @@ class ConnectorAuthorizationManager(
             OAuthConfiguration.MissingClientId -> StartResult.Failed("oauth_missing_client_id", "Microsoft OAuth client id is not configured for this build")
             OAuthConfiguration.InvalidRedirectUri -> StartResult.Failed("oauth_invalid_redirect_uri", "Microsoft OAuth redirect URI is invalid or not registered")
             OAuthConfiguration.DisabledForBuild -> StartResult.Failed("oauth_disabled_for_build", "Microsoft OAuth is disabled for this build")
+        }
+    }
+
+    private fun beginDropbox(runtimeId: String): StartResult {
+        val connector = registry.get(runtimeId) as? DropboxConnector
+            ?: return StartResult.Failed("not_registered", "Dropbox runtime adapter is not registered")
+        val scopes = requiredOAuthScopesFor(runtimeId)
+        if (scopes.isEmpty()) {
+            return StartResult.Failed("access_profile_required", "Choose a Dropbox access profile before authorizing Dropbox access.")
+        }
+        return when (connector.oauthConfiguration()) {
+            is OAuthConfiguration.Configured -> connector.buildAuthUrl(scopes).fold(
+                onSuccess = { StartResult.OAuthBrowser(runtimeId, it) },
+                onFailure = { StartResult.Failed("oauth_configuration_invalid", "Dropbox OAuth configuration is invalid") },
+            )
+            OAuthConfiguration.MissingClientId -> StartResult.Failed("oauth_missing_client_id", "Dropbox app key is not configured for this build")
+            OAuthConfiguration.InvalidRedirectUri -> StartResult.Failed("oauth_invalid_redirect_uri", "Dropbox OAuth redirect URI is invalid or not registered")
+            OAuthConfiguration.DisabledForBuild -> StartResult.Failed("oauth_disabled_for_build", "Dropbox OAuth is disabled for this build")
+        }
+    }
+
+    private fun beginBox(runtimeId: String): StartResult {
+        val connector = registry.get(runtimeId) as? BoxConnector
+            ?: return StartResult.Failed("not_registered", "Box runtime adapter is not registered")
+        if (requiredOAuthScopesFor(runtimeId) != setOf(ConnectorProviderScopes.BOX_ROOT_READONLY)) {
+            return StartResult.Failed("access_profile_required", "Box read-only access profile is required before authorization.")
+        }
+        return when (connector.oauthConfiguration()) {
+            is OAuthConfiguration.Configured -> connector.buildAuthUrl().fold(
+                onSuccess = { StartResult.OAuthBrowser(runtimeId, it) },
+                onFailure = { StartResult.Failed("oauth_configuration_invalid", "Box OAuth broker configuration is invalid") },
+            )
+            OAuthConfiguration.MissingClientId -> StartResult.Failed("oauth_broker_required", "Box requires an HTTPS AIRI OAuth broker; no broker is configured for this build")
+            OAuthConfiguration.InvalidRedirectUri -> StartResult.Failed("oauth_invalid_redirect_uri", "Box OAuth redirect URI or broker URL is invalid")
+            OAuthConfiguration.DisabledForBuild -> StartResult.Failed("oauth_disabled_for_build", "Box OAuth is disabled for this build")
         }
     }
 
@@ -286,13 +323,19 @@ class ConnectorAuthorizationManager(
                     return@withContext CompletionResult.Failed("oauth_scope_set_changed", "Microsoft access profiles changed during authorization; start the consent flow again.")
                 }
             }
+            DropboxConnector.CONNECTOR_ID -> if (pending.requestedScopes != requiredOAuthScopesFor(DropboxConnector.CONNECTOR_ID)) {
+                return@withContext CompletionResult.Failed("oauth_scope_set_changed", "Dropbox access profile changed during authorization; start the consent flow again.")
+            }
+            BoxConnector.CONNECTOR_ID -> if (pending.requestedScopes != setOf(ConnectorProviderScopes.BOX_ROOT_READONLY)) {
+                return@withContext CompletionResult.Failed("oauth_scope_set_changed", "Box access profile changed during authorization; start the consent flow again.")
+            }
             "zapier" -> if (pending.requestedScopes != requiredOAuthScopesFor("zapier")) {
                 return@withContext CompletionResult.Failed("oauth_scope_set_changed", "Zapier access profiles changed during authorization; start the consent flow again.")
             }
         }
         val code = uri.getQueryParameter("code")
             ?: return@withContext CompletionResult.Failed("oauth_code_missing", "OAuth callback did not contain an authorization code")
-        if (pending.connectorId != "zapier" && pending.connectorId != MicrosoftOAuthConfiguration.CONNECTOR_ID) {
+        if (pending.connectorId != "zapier" && pending.connectorId != MicrosoftOAuthConfiguration.CONNECTOR_ID && pending.connectorId != DropboxConnector.CONNECTOR_ID && pending.connectorId != BoxConnector.CONNECTOR_ID) {
             return@withContext CompletionResult.Failed("oauth_provider_unsupported", "No OAuth adapter is registered for '${pending.connectorId}'")
         }
         if (pending.connectorId == MicrosoftOAuthConfiguration.CONNECTOR_ID) {
@@ -304,16 +347,33 @@ class ConnectorAuthorizationManager(
             return@withContext connectAndVerify(MicrosoftOAuthConfiguration.CONNECTOR_ID)
                 .toCompletion(MicrosoftOAuthConfiguration.CONNECTOR_ID)
         }
+        if (pending.connectorId == DropboxConnector.CONNECTOR_ID) {
+            val dropbox = registry.get(DropboxConnector.CONNECTOR_ID) as? DropboxConnector
+                ?: return@withContext CompletionResult.Failed("not_registered", "Dropbox runtime adapter is not registered")
+            if (!dropbox.handleCallback(code, pending)) {
+                return@withContext CompletionResult.Failed("token_exchange_failed", "Dropbox authorization was not saved", true)
+            }
+            return@withContext connectAndVerify(DropboxConnector.CONNECTOR_ID)
+                .toCompletion(DropboxConnector.CONNECTOR_ID)
+        }
+        if (pending.connectorId == BoxConnector.CONNECTOR_ID) {
+            val box = registry.get(BoxConnector.CONNECTOR_ID) as? BoxConnector
+                ?: return@withContext CompletionResult.Failed("not_registered", "Box runtime adapter is not registered")
+            if (!box.handleCallback(code, pending)) {
+                return@withContext CompletionResult.Failed("oauth_broker_exchange_failed", "Box authorization was not saved by the AIRI broker", true)
+            }
+            return@withContext connectAndVerify(BoxConnector.CONNECTOR_ID)
+                .toCompletion(BoxConnector.CONNECTOR_ID)
+        }
         return@withContext CompletionResult.Failed(
             "oauth_broker_required",
             "Zapier requires a server-side confidential OAuth broker; the authorization code was not exchanged in the Android app."
         )
     }
 
-    suspend fun onGoogleSignIn(account: GoogleSignInAccount, connectorId: String = "google"): CompletionResult {
-        val email = account.email
-        if (email.isNullOrBlank()) return CompletionResult.Failed("google_email_missing", "Google account did not provide an email")
-        googleAuthService.handleSignInSuccess(account)
+    suspend fun onGoogleSignIn(identity: GoogleIdentityCredential, connectorId: String = "google"): CompletionResult {
+        if (identity.email.isBlank()) return CompletionResult.Failed("google_email_missing", "Google account did not provide an email")
+        googleAuthService.handleSignInSuccess(identity)
         if (connectorId == "google") return CompletionResult.Ready("google", ConnectorState(true, true, "Google identity signed in"))
         val scopes = requiredOAuthScopesFor(connectorId)
         return if (scopes.isEmpty()) CompletionResult.Failed(
@@ -327,7 +387,7 @@ class ConnectorAuthorizationManager(
             val scopes = requiredOAuthScopesFor(connectorId)
             when {
                 scopes.isEmpty() -> CompletionResult.Failed("access_profile_required", "Choose an access profile before authorizing this Google surface.")
-                !isCurrentGoogleProfileAuthorized(scopes) -> CompletionResult.Failed("oauth_scope_set_changed", "Google authorization no longer matches the current access profile; consent is required again.")
+                !isCurrentGoogleProfileAuthorized(connectorId, scopes) -> CompletionResult.Failed("oauth_scope_set_changed", "Google authorization no longer matches the current access profile; consent is required again.")
                 else -> connectAndVerify("google").toCompletion("google")
             }
         }
@@ -347,6 +407,8 @@ class ConnectorAuthorizationManager(
         val credentialsCleared = when (runtimeId) {
             "google" -> googleAuthService.disconnect()
             "microsoft_graph" -> authManager.revokeToken(MicrosoftOAuthConfiguration.CONNECTOR_ID)
+            "dropbox" -> authManager.revokeToken(DropboxConnector.CONNECTOR_ID)
+            "box" -> authManager.revokeToken(BoxConnector.CONNECTOR_ID)
             "github", "telegram" -> secureStorage.disconnect(runtimeId)
             "notion_mcp" -> secureStorage.clearIntegrationToken("notion")
             "zapier" -> authManager.revokeToken("zapier")

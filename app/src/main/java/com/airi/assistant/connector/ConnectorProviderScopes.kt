@@ -19,6 +19,10 @@ object ConnectorProviderScopes {
     const val MICROSOFT_SITES_READ = "Sites.Read.All"
 
     const val ZAPIER_ZAP_READ = "zap"
+    const val DROPBOX_ACCOUNT_INFO_READ = "account_info.read"
+    const val DROPBOX_FILES_METADATA_READ = "files.metadata.read"
+    const val DROPBOX_FILES_CONTENT_READ = "files.content.read"
+    const val BOX_ROOT_READONLY = "root_readonly"
 
     /** OIDC/offline bootstrap and Graph /me health-check permissions, not data-action scopes. */
     val microsoftBootstrapScopes: Set<String> = setOf(

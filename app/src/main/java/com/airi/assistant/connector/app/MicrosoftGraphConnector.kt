@@ -165,7 +165,9 @@ class MicrosoftGraphConnector(
                 val top = input.params["top"].orEmpty().toIntOrNull()?.coerceIn(1, 50) ?: 20
                 "/sites/${encPath(siteId)}/drive/root/children?\$top=$top&\$select=id,name,size,folder,file,lastModifiedDateTime,webUrl"
             }
-            "teams_list_joined" -> "/me/joinedTeams?\$select=id,displayName,description,visibility,webUrl"
+            // Microsoft Graph's /me/joinedTeams collection does not support
+            // OData query parameters. Keep the request to the documented path.
+            "teams_list_joined" -> "/me/joinedTeams"
             "todo_lists_read" -> "/me/todo/lists?\$select=id,displayName"
             "todo_tasks_read" -> {
                 val listId = input.params["list_id"]?.trim().orEmpty()

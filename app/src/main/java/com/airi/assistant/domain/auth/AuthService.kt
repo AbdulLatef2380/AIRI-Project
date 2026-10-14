@@ -101,7 +101,7 @@ class AuthService(
      * the Google Sign-In intent and obtaining the token; this method owns the
      * Firebase credential exchange and session creation.
      *
-     * @param idToken  Google ID token from [GoogleSignIn.getSignedInAccountFromIntent].
+     * @param idToken  Google ID token returned by Android Credential Manager.
      * @param onResult Null on success; user-facing error message on failure.
      */
     fun signInWithGoogleCredential(idToken: String, onResult: (String?) -> Unit) {

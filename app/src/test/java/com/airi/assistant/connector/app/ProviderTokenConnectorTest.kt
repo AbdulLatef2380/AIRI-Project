@@ -50,4 +50,11 @@ class ProviderTokenConnectorTest {
             ProviderTokenConnector.appendLimit("https://api.example.test/profile", null, 50),
         )
     }
+
+    @Test
+    fun todoist_reads_use_the_current_api_v1_endpoint() {
+        val todoist = ProviderTokenConnector.configs().first { it.id == "todoist" }
+        assertEquals("https://api.todoist.com/api/v1/tasks", todoist.readPath)
+        assertFalse(todoist.readPath!!.contains("/rest/v2/"))
+    }
 }

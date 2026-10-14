@@ -3,7 +3,6 @@ package com.airi.assistant.ui.screens
 import com.airi.assistant.ui.theme.*
 
 import com.airi.assistant.ui.theme.AiriTheme
-import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -93,8 +92,6 @@ import com.airi.assistant.ui.components.ConnectorAccessProfileDialog
 import com.airi.assistant.ui.viewmodel.IntegrationsViewModel
 import com.airi.assistant.ui.viewmodel.IntegrationReadiness
 import com.airi.assistant.ui.viewmodel.IntegrationReadinessPolicy
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.common.api.ApiException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -130,21 +127,6 @@ fun IntegrationsScreen(
             vm.consumeGoogleFeedback()
         }
     }
-    val googleLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            try {
-                val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-                val account = task.getResult(ApiException::class.java)
-                vm.onGoogleSignInSuccess(account)
-            } catch (_: ApiException) {
-                vm.onGoogleSignInFailed()
-            }
-        } else {
-            vm.onGoogleSignInCancelled()
-        }
-    }
     val googleAuthorizationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -155,7 +137,7 @@ fun IntegrationsScreen(
         vm.googleAuthorizationEffects.collect { effect ->
             when (effect) {
                 is IntegrationsViewModel.GoogleAuthorizationEffect.LaunchIdentity -> {
-                    googleLauncher.launch(effect.intent)
+                    vm.authenticateGoogle()
                 }
                 is IntegrationsViewModel.GoogleAuthorizationEffect.LaunchConsent -> {
                     googleAuthorizationLauncher.launch(

@@ -70,6 +70,21 @@ android {
         buildConfigField("String", "MICROSOFT_TENANT", "\"" + microsoftTenant.replace("\"", "\\\"") + "\"")
         buildConfigField("boolean", "MICROSOFT_OAUTH_ENABLED", microsoftOAuthEnabled.toString())
 
+        // Dropbox is a public mobile OAuth client. PKCE replaces the client
+        // secret; only the public app key is supplied by the build environment.
+        val dropboxClientId = (project.findProperty("dropboxClientId") as? String).orEmpty()
+            .ifBlank { System.getenv("DROPBOX_CLIENT_ID").orEmpty() }
+        buildConfigField("String", "DROPBOX_CLIENT_ID", "\"" + dropboxClientId.replace("\"", "\\\"") + "\"")
+
+        // Box OAuth is confidential: the client secret stays in AIRI's
+        // server-side broker and is never shipped in the Android artifact.
+        val boxClientId = (project.findProperty("boxClientId") as? String).orEmpty()
+            .ifBlank { System.getenv("BOX_CLIENT_ID").orEmpty() }
+        val boxOAuthBrokerUrl = (project.findProperty("boxOAuthBrokerUrl") as? String).orEmpty()
+            .ifBlank { System.getenv("BOX_OAUTH_BROKER_URL").orEmpty() }
+        buildConfigField("String", "BOX_CLIENT_ID", "\"" + boxClientId.replace("\"", "\\\"") + "\"")
+        buildConfigField("String", "BOX_OAUTH_BROKER_URL", "\"" + boxOAuthBrokerUrl.replace("\"", "\\\"") + "\"")
+
 
         // Native (llama.cpp + JNI bridge) is built from source — see
         // app/src/main/cpp/CMakeLists.txt. No prebuilt .so is shipped; if
@@ -268,9 +283,12 @@ dependencies {
     // Biometric auth (BiometricPrompt)
     implementation("androidx.biometric:biometric:1.1.0")
 
-    // Google Identity: existing GoogleSignIn flow plus AuthorizationClient for scoped access.
-    // 20.7.0 retains the legacy GoogleSignIn APIs used by the current login UI.
+    // Google Identity: Credential Manager authenticates the app identity;
+    // AuthorizationClient remains separate for per-surface Workspace consent.
     implementation("com.google.android.gms:play-services-auth:20.7.0")
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
     // On-device Latin OCR for PDF/image attachments; no network call is required.
     implementation("com.google.mlkit:text-recognition:16.0.0")

@@ -60,6 +60,26 @@ class OAuthStateRegistryTest {
     }
 
     @Test
+    fun dropboxPkceStateBindsTheGrantedDropboxScopes() {
+        val scopes = setOf("account_info.read", "files.metadata.read", "files.content.read")
+        val authorization = OAuthStateRegistry.issuePkce("dropbox", scopes)
+        val consumed = OAuthStateRegistry.consumeRequest(authorization.state)
+        assertEquals("dropbox", consumed?.connectorId)
+        assertEquals(scopes, consumed?.requestedScopes)
+        assertTrue(requireNotNull(consumed?.codeVerifier).length in 43..128)
+        assertTrue(authorization.codeChallenge.length in 43..128)
+    }
+
+    @Test
+    fun boxConfidentialStateBindsReadOnlyScopeAndIsSingleUse() {
+        val state = OAuthStateRegistry.issueWithScopes("box", setOf("root_readonly"))
+        val consumed = OAuthStateRegistry.consumeRequest(state)
+        assertEquals("box", consumed?.connectorId)
+        assertEquals(setOf("root_readonly"), consumed?.requestedScopes)
+        assertNull(OAuthStateRegistry.consumeRequest(state))
+    }
+
+    @Test
     fun blankConnectorIsRejectedBeforeStateIssuance() {
         var thrown = false
         try {

@@ -4,8 +4,6 @@ import com.airi.assistant.ui.theme.*
 
 import com.airi.assistant.ui.theme.AiriTheme
 import android.app.Activity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -34,13 +32,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.ApiException
-import com.google.android.gms.common.api.CommonStatusCodes
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.domain.auth.AuthService
+import com.airi.assistant.integrations.google.GoogleCredentialManagerClient
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.compose.ui.res.stringResource
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * LoginScreen — ask 3: AuthService enforcement.
@@ -71,54 +69,8 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var isSignUp by remember { mutableStateOf(false) }
     var showEmailForm by remember { mutableStateOf(false) }
-    val googleWebClientId = remember {
-        context.getString(R.string.default_web_client_id)
-            .takeIf { it.isNotBlank() && !it.startsWith("REPLACE_WITH_") }
-    }
-    val googleSignInClient = remember(googleWebClientId) {
-        googleWebClientId?.let { clientId ->
-            runCatching {
-                val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                    .requestIdToken(clientId)
-                    .requestEmail()
-                    .build()
-                GoogleSignIn.getClient(context, gso)
-            }.getOrNull()
-        }
-    }
-
-    val googleLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val cancelled = result.resultCode != Activity.RESULT_OK
-        try {
-            val account = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-                .getResult(ApiException::class.java)
-            val validation = LoginFeedbackPolicy.googleProviderResult(
-                wasCancelled = cancelled,
-                hasIdToken = !account?.idToken.isNullOrBlank(),
-            )
-            if (validation != null) {
-                feedback = validation
-            } else {
-                isLoading = true
-                authService.signInWithGoogleCredential(requireNotNull(account?.idToken)) { error ->
-                    isLoading = false
-                    if (error == null) {
-                        AnalyticsService.login("google")
-                        onGoogleLoginSuccess()
-                    } else {
-                        feedback = LoginFeedbackPolicy.googleAuthFailure(error)
-                    }
-                }
-            }
-        } catch (exception: ApiException) {
-            feedback = LoginFeedbackPolicy.googleApiFailure(
-                wasCancelled = cancelled || exception.statusCode == CommonStatusCodes.CANCELED,
-                statusCode = exception.statusCode,
-            )
-        }
-    }
+    val googleCredentialClient = remember(context) { GoogleCredentialManagerClient(context) }
+    val coroutineScope = rememberCoroutineScope()
     fun signInWithGitHub() {
         if (activity == null) {
             feedback = LoginFeedback.GITHUB_CONTEXT_UNAVAILABLE
@@ -192,10 +144,27 @@ fun LoginScreen(
             LoginButton(
                 onClick = {
                     feedback = null
-                    if (googleSignInClient != null) {
-                        googleLauncher.launch(googleSignInClient.signInIntent)
-                    } else {
-                        feedback = LoginFeedback.GOOGLE_CLIENT_ID_MISSING
+                    isLoading = true
+                    coroutineScope.launch {
+                        googleCredentialClient.signIn().fold(
+                            onSuccess = { credential ->
+                                authService.signInWithGoogleCredential(credential.idToken) { error ->
+                                    isLoading = false
+                                    if (error == null) {
+                                        AnalyticsService.login("google")
+                                        onGoogleLoginSuccess()
+                                    } else {
+                                        feedback = LoginFeedbackPolicy.googleAuthFailure(error)
+                                    }
+                                }
+                            },
+                            onFailure = {
+                                isLoading = false
+                                feedback = LoginFeedbackPolicy.googleApiFailure(
+                                    wasCancelled = it is GetCredentialCancellationException,
+                                )
+                            },
+                        )
                     }
                 },
                 enabled   = !isLoading,

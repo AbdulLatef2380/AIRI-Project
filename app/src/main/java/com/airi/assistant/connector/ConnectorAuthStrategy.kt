@@ -122,6 +122,7 @@ object ConnectorAuthStrategies {
             runtimeId == "telegram" -> ConnectorAuthMode.API_KEY
             runtimeId == "google" -> ConnectorAuthMode.OAUTH2_PKCE
             runtimeId == "microsoft_graph" -> ConnectorAuthMode.OAUTH2_PKCE
+            runtimeId == "box" -> ConnectorAuthMode.OAUTH2_CONFIDENTIAL
             runtimeId == "zapier" -> ConnectorAuthMode.OAUTH2_CONFIDENTIAL
             runtimeId == "notion" || runtimeId == "notion_mcp" -> ConnectorAuthMode.MCP_CONFIGURATION
             auth == ConnectorAuthenticationType.OAUTH2 || auth == ConnectorAuthenticationType.OAUTH2_AND_API -> ConnectorAuthMode.OAUTH2_PKCE

@@ -6,9 +6,6 @@ import com.airi.assistant.auth.SecureStorage
 import com.airi.assistant.connector.ConnectorState
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.Identity
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
@@ -31,16 +28,13 @@ class GoogleAuthService(
     private val pendingScopes = ConcurrentHashMap<String, Set<String>>()
     private val surfaceStates = ConcurrentHashMap<String, kotlinx.coroutines.flow.MutableStateFlow<ConnectorState>>()
 
-    private val gso: GoogleSignInOptions by lazy {
-        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestEmail()
-            .build()
-    }
+    private val credentialManagerClient = GoogleCredentialManagerClient(context)
 
-    fun getSignInIntent(): Intent = GoogleSignIn.getClient(context, gso).signInIntent
+    suspend fun requestIdentity(): Result<GoogleIdentityCredential> =
+        credentialManagerClient.signIn()
 
-    fun handleSignInSuccess(account: GoogleSignInAccount) {
-        val email = account.email.orEmpty()
+    fun handleSignInSuccess(identity: GoogleIdentityCredential) {
+        val email = identity.email
         if (email.isBlank()) return
         val previousEmail = secureStorage.getGoogleEmail()
         if (!previousEmail.isNullOrBlank() && !previousEmail.equals(email, ignoreCase = true)) {
@@ -55,11 +49,14 @@ class GoogleAuthService(
     }
 
     /** Global identity disconnect. Surface-specific disconnects must use [disconnectSurface]. */
-    fun disconnect(): Boolean {
+    suspend fun disconnect(): Boolean {
         sessions.clear()
         pendingScopes.clear()
         GoogleDataScopes.surfaceIds.forEach { setSurfaceState(it, disconnectedState()) }
-        runCatching { GoogleSignIn.getClient(context, gso).signOut() }
+        runCatching {
+            androidx.credentials.CredentialManager.create(context)
+                .clearCredentialState(androidx.credentials.ClearCredentialStateRequest())
+        }
         return secureStorage.disconnect("google")
     }
 
@@ -73,8 +70,7 @@ class GoogleAuthService(
         return cleared
     }
 
-    fun getLastSignedInEmail(): String? =
-        GoogleSignIn.getLastSignedInAccount(context)?.email ?: secureStorage.getGoogleEmail()
+    fun getLastSignedInEmail(): String? = secureStorage.getGoogleEmail()
 
     fun stateForSurface(surfaceId: String): kotlinx.coroutines.flow.StateFlow<ConnectorState> =
         mutableStateForSurface(surfaceId)

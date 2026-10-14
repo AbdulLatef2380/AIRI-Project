@@ -8,6 +8,8 @@ import com.airi.assistant.connector.app.GitHubConnector
 import com.airi.assistant.connector.app.GoogleConnector
 import com.airi.assistant.connector.app.IftttConnector
 import com.airi.assistant.connector.app.MicrosoftGraphConnector
+import com.airi.assistant.connector.app.DropboxConnector
+import com.airi.assistant.connector.app.BoxConnector
 import com.airi.assistant.connector.app.ProviderTokenConnector
 import com.airi.assistant.connector.app.TelegramConnector
 import com.airi.assistant.connector.app.ZapierConnector
@@ -100,6 +102,10 @@ object ConnectorBootstrap {
         // Microsoft Outlook/Calendar vertical slice. It remains disconnected
         // until an Entra public client id and exact redirect are configured.
         registry.register(MicrosoftGraphConnector(authManager))
+        // Dropbox user-linked OAuth 2 + PKCE public-client adapter.
+        registry.register(DropboxConnector(authManager))
+        // Box OAuth is confidential; the adapter uses AIRI's HTTPS broker.
+        registry.register(BoxConnector(authManager))
         // Seven read-only provider adapters with isolated encrypted token slots.
         ProviderTokenConnector.configs().forEach { config ->
             registry.register(ProviderTokenConnector(config, authManager))

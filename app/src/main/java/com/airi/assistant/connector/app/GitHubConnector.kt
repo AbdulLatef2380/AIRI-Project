@@ -74,20 +74,9 @@ class GitHubConnector(
             ConnectorProviderGrantKind.PROVIDER_ENDPOINT_PERMISSION,
             "A valid user-authorized GitHub personal access token; actual token permissions are not introspected by AIRI.",
         ))),
-        ConnectorAgentAction(
-            id = "create_issue",
-            description = "Create an issue in a repository after a durable task approval.",
-            permission = ConnectorPermissionLevel.WRITE,
-            parameters = mapOf(
-                "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true),
-                "title" to ConnectorAgentParameter(description = "Issue title", required = true),
-                "body" to ConnectorAgentParameter(description = "Optional issue body"),
-            ),
-            providerGrants = listOf(
-                ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Issues: write")
-            ),
-            supportsApprovedContinuation = true,
-        ),
+        // Intentionally not exposed: the current AgentLoop -> ToolBridge path
+        // cannot yet carry a typed durable approval continuation end-to-end.
+        // The executor keeps a defensive policy gate for stale/manual calls.
     )
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 

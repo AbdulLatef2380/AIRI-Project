@@ -42,6 +42,9 @@ class ConnectorRolloutRegistryTest {
         assertEquals("microsoft_graph", OfficialConnectorCatalog.get("microsoft_todo")!!.runtimeConnectorId())
         assertEquals("notion_mcp", OfficialConnectorCatalog.get("notion")!!.runtimeConnectorId())
         assertEquals("LIVE_ADAPTERS", ConnectorRolloutRegistry.get("google_gmail")!!.batch.name)
+        assertEquals("GoogleConnector", ConnectorRolloutRegistry.get("google")!!.requiredAdapter)
+        assertEquals(ConnectorAdapterReadiness.CONFIGURATION_REQUIRED, ConnectorRolloutRegistry.get("google")!!.readiness)
+        assertFalse(ConnectorRolloutRegistry.get("google")!!.canStartAuthorization)
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("github")!!.readiness)
         assertEquals(ConnectorAdapterReadiness.CONFIGURATION_REQUIRED, ConnectorRolloutRegistry.get("zapier")!!.readiness)
         assertEquals("ServerSideZapierOAuthBroker", ConnectorRolloutRegistry.get("zapier")!!.requiredAdapter)
@@ -54,6 +57,12 @@ class ConnectorRolloutRegistryTest {
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("google_contacts")!!.readiness)
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("google_tasks")!!.readiness)
         assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("microsoft_todo")!!.readiness)
+        assertEquals(ConnectorAdapterReadiness.LIVE, ConnectorRolloutRegistry.get("dropbox")!!.readiness)
+        assertTrue(ConnectorRolloutRegistry.get("dropbox")!!.canStartAuthorization)
+        assertEquals("DropboxConnector", ConnectorRolloutRegistry.get("dropbox")!!.requiredAdapter)
+        assertEquals(ConnectorAdapterReadiness.CONFIGURATION_REQUIRED, ConnectorRolloutRegistry.get("box")!!.readiness)
+        assertFalse(ConnectorRolloutRegistry.get("box")!!.canStartAuthorization)
+        assertEquals("BoxConnector", ConnectorRolloutRegistry.get("box")!!.requiredAdapter)
     }
 
     @Test

@@ -51,7 +51,7 @@ object ConnectorRolloutRegistry {
     private val liveCatalogIds = setOf(
         "google_gmail", "google_calendar", "google_drive", "google_docs", "google_sheets", "google_contacts", "google_tasks",
         "microsoft_outlook", "microsoft_calendar", "microsoft_onedrive", "microsoft_teams", "microsoft_sharepoint", "microsoft_todo",
-        "github", "telegram", "notion", "gitlab", "linear", "slack", "discord", "asana", "todoist", "figma",
+        "github", "telegram", "notion", "gitlab", "linear", "slack", "discord", "asana", "todoist", "figma", "dropbox",
     )
 
     /** Non-catalog runtimes are evaluated independently from catalog readiness. */
@@ -99,6 +99,10 @@ object ConnectorRolloutRegistry {
                 "ServerSideZapierOAuthBroker"
             } else if (id in setOf("gitlab", "linear", "slack", "discord", "asana", "todoist", "figma")) {
                 "ProviderTokenConnector"
+            } else if (id == "dropbox") {
+                "DropboxConnector"
+            } else if (id == "box") {
+                "BoxConnector"
             } else {
                 "${definition.provider.replace(" ", "")}${definition.name.replace(" ", "")}Connector"
             },
@@ -109,8 +113,23 @@ object ConnectorRolloutRegistry {
 
     fun all(): List<ConnectorRolloutEntry> = OfficialConnectorCatalog.all.map(::forDefinition)
 
-    fun get(id: String): ConnectorRolloutEntry? =
-        OfficialConnectorCatalog.get(id)?.let(::forDefinition)
+    /**
+     * Google is a shared runtime identity rather than another provider surface.
+     * Keep an aggregate entry for readiness callers, but do not make it
+     * authorizable: consent is always requested through one catalog surface.
+     */
+    fun get(id: String): ConnectorRolloutEntry? = when (id) {
+        "google" -> ConnectorRolloutEntry(
+            connectorId = "google",
+            provider = "Google",
+            batch = ConnectorRolloutBatch.LIVE_ADAPTERS,
+            authMode = ConnectorAuthMode.OAUTH2_PKCE,
+            requiredAdapter = "GoogleConnector",
+            readiness = ConnectorAdapterReadiness.CONFIGURATION_REQUIRED,
+            officialDocsUrl = "https://developers.google.com/identity/sign-in/android/authorize-access",
+        )
+        else -> OfficialConnectorCatalog.get(id)?.let(::forDefinition)
+    }
 
     fun forBatch(batch: ConnectorRolloutBatch): List<ConnectorRolloutEntry> =
         all().filter { it.batch == batch }

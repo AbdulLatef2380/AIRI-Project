@@ -21,8 +21,10 @@ class ConnectorCatalogTest {
     fun searchCoversProviderCategoryTagsAndCapabilities() {
         assertTrue(OfficialConnectorCatalog.search("email").any { it.id == "google_gmail" })
         assertTrue(OfficialConnectorCatalog.search("Microsoft").any { it.id == "microsoft_teams" })
-        assertTrue(OfficialConnectorCatalog.search("issues.create").any { it.id == "github" })
+        assertTrue(OfficialConnectorCatalog.search("issues.read").any { it.id == "github" })
         assertTrue(OfficialConnectorCatalog.search("messaging").any { it.id == "telegram" })
+        assertTrue(OfficialConnectorCatalog.search("storage").any { it.id == "dropbox" })
+        assertTrue(OfficialConnectorCatalog.search("Box").any { it.id == "box" })
     }
 
     @Test
@@ -134,11 +136,29 @@ class ConnectorCatalogTest {
     }
 
     @Test
-    fun writeCapabilitiesRequireConfirmation() {
+    fun dropboxDeclaresGranularReadScopesAndRemainsReadOnly() {
+        val dropbox = requireNotNull(OfficialConnectorCatalog.get("dropbox"))
+        assertEquals(ConnectorAvailability.PARTIAL, dropbox.status)
+        assertEquals(listOf("account_info.read", "files.metadata.read"), dropbox.requiredScopes)
+        assertEquals(listOf("files.content.read"), dropbox.optionalScopes)
+        assertTrue(dropbox.capabilities.any { it.id == "account.read" && !it.requiresConfirmation })
+        assertTrue(dropbox.capabilities.any { it.id == "files.metadata.read" && !it.requiresConfirmation })
+        assertTrue(dropbox.capabilities.any { it.id == "files.content.read" && !it.requiresConfirmation })
+    }
+
+    @Test
+    fun boxUsesOfficialReadOnlyScopeAndExposesNoMutationCapability() {
+        val box = requireNotNull(OfficialConnectorCatalog.get("box"))
+        assertEquals(ConnectorAvailability.PARTIAL, box.status)
+        assertEquals(listOf(ConnectorProviderScopes.BOX_ROOT_READONLY), box.requiredScopes)
+        assertTrue(box.capabilities.all { it.permission == ConnectorPermissionLevel.READ })
+        assertTrue(box.capabilities.none { it.id.contains("write") || it.id.contains("delete") || it.id.contains("upload") })
+    }
+
+    @Test
+    fun github_write_capabilities_are_not_exposed_before_typed_continuation() {
         val github = OfficialConnectorCatalog.get("github")!!
-        val createIssue = github.capabilities.first { it.id == "issues.create" }
-        assertEquals(ConnectorPermissionLevel.WRITE, createIssue.permission)
-        assertTrue(createIssue.requiresConfirmation)
+        assertTrue(github.capabilities.none { it.id == "issues.create" })
         assertFalse(github.capabilities.first { it.id == "issues.read" }.requiresConfirmation)
     }
 

@@ -56,6 +56,10 @@ object OAuthStateRegistry {
      */
     fun issue(connectorId: String): String = issueEntry(connectorId).first
 
+    /** Issue a one-use state bound to scopes for confidential OAuth flows. */
+    fun issueWithScopes(connectorId: String, requestedScopes: Set<String>): String =
+        issueEntry(connectorId, requestedScopes = requestedScopes).first
+
     fun issuePkce(connectorId: String, requestedScopes: Set<String> = emptySet()): PkceAuthorization {
         val verifierBytes = ByteArray(48).also { rng.nextBytes(it) }
         val verifier = urlEncoder.encodeToString(verifierBytes)

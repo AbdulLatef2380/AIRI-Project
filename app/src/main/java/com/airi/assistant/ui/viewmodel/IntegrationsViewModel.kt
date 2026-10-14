@@ -14,7 +14,8 @@ import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.integrations.github.GithubService
 import com.airi.assistant.integrations.google.GoogleDataAuthorization
 import com.airi.assistant.integrations.telegram.TelegramService
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.airi.assistant.integrations.google.GoogleIdentityCredential
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -91,7 +92,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     sealed interface GoogleAuthorizationEffect {
-        data class LaunchIdentity(val connectorId: String, val intent: Intent) : GoogleAuthorizationEffect
+        data class LaunchIdentity(val connectorId: String) : GoogleAuthorizationEffect
         data class LaunchConsent(val pendingIntent: PendingIntent) : GoogleAuthorizationEffect
         data class LaunchBrowser(val intent: Intent) : GoogleAuthorizationEffect
     }
@@ -150,7 +151,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 is ConnectorAuthorizationManager.StartResult.GoogleIdentity -> {
                     pendingGoogleSurfaceId = result.connectorId
                     _googleAuthorizationEffects.tryEmit(
-                        GoogleAuthorizationEffect.LaunchIdentity(result.connectorId, result.intent)
+                        GoogleAuthorizationEffect.LaunchIdentity(result.connectorId)
                     )
                 }
                 is ConnectorAuthorizationManager.StartResult.GoogleConsent ->
@@ -335,9 +336,25 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    // ── Google Sign-In Intent ─────────────────────────────────────────────────
+    // ── Google identity via Credential Manager ───────────────────────────────
 
-    fun getGoogleSignInIntent(): Intent = googleAuthService.getSignInIntent()
+    fun authenticateGoogle() {
+        val surfaceId = pendingGoogleSurfaceId
+        viewModelScope.launch {
+            googleAuthService.requestIdentity().fold(
+                onSuccess = ::onGoogleSignInSuccess,
+                onFailure = {
+                    if (ConnectorScreenIsolationPolicy.acceptsResult(surfaceId, activeConnectorId)) {
+                        _googleFeedback.value = if (it is GetCredentialCancellationException) {
+                            GoogleIntegrationSignInPolicy.cancelledFeedback()
+                        } else {
+                            GoogleIntegrationSignInPolicy.providerFailureFeedback()
+                        }
+                    }
+                },
+            )
+        }
+    }
 
     // ── Connect / Disconnect ──────────────────────────────────────────────────
 
@@ -426,14 +443,14 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    fun onGoogleSignInSuccess(account: GoogleSignInAccount) {
+    fun onGoogleSignInSuccess(identity: GoogleIdentityCredential) {
         if (!ConnectorScreenIsolationPolicy.acceptsResult(pendingGoogleSurfaceId, activeConnectorId)) return
-        if (!GoogleIntegrationSignInPolicy.canConnect(account.email)) {
+        if (!GoogleIntegrationSignInPolicy.canConnect(identity.email)) {
             _googleFeedback.value = GoogleIntegrationSignInPolicy.missingEmailFeedback()
             return
         }
         viewModelScope.launch {
-            when (val result = authorizationManager.onGoogleSignIn(account, pendingGoogleSurfaceId)) {
+            when (val result = authorizationManager.onGoogleSignIn(identity, pendingGoogleSurfaceId)) {
                 is ConnectorAuthorizationManager.CompletionResult.ConsentRequired -> {
                     requestGoogleDataAuthorization(result.connectorId, result.scopes)
                 }

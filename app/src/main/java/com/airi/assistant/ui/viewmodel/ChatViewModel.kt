@@ -2853,10 +2853,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (connectorId != "google") return@forEach
             val action = connectorToolBridge.actionForTool(schema.name) ?: return@forEach
             if (action.requiredOAuthScopes.isEmpty()) return@forEach
-            val state = runCatching { connectorToolBridge.actionForTool(schema.name)?.let { action ->
-                ServiceLocator.connectorRegistry.get(connectorId)?.stateForAction(action)
-            } }.getOrNull()
-                .getOrNull()
+            val state = runCatching {
+                connectorToolBridge.actionForTool(schema.name)?.let { action ->
+                    ServiceLocator.connectorRegistry.get(connectorId)?.stateForAction(action)
+                }
+            }.getOrNull()
             // Preserve the more immediate disconnected/unhealthy classification.
             if (state?.connected != true || state.healthy != true) return@forEach
             val scopesAuthorized = runCatching {

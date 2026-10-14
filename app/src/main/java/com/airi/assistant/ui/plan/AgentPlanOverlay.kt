@@ -78,9 +78,7 @@ fun AgentPlanOverlay(
     val steps by planViewModel.steps.collectAsStateWithLifecycle()
     val stage by planViewModel.currentStage.collectAsStateWithLifecycle()
     val goal by planViewModel.goalDescription.collectAsStateWithLifecycle()
-    val traceEntries by planViewModel.traceEntries.collectAsStateWithLifecycle()
     val panelTitle = stringResource(R.string.execution_steps_label)
-    val latestSignalsLabel = stringResource(R.string.agent_plan_latest_signals)
     val stageText = stageLabel(stage)
     val completed = steps.count { it.status == PlanStepStatus.COMPLETED }
     val terminal = steps.count { it.status.isTerminal }
@@ -104,7 +102,9 @@ fun AgentPlanOverlay(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(shape)
-                .background(AiriTheme.surface.copy(alpha = 0.985f))
+                // A darker, compact layer attached directly above the input.
+                // It is intentionally not a second chat surface.
+                .background(AiriTheme.surfaceVariant.copy(alpha = 0.96f))
                 .border(1.dp, accent.copy(alpha = 0.28f), shape)
                 .semantics {
                     paneTitle = panelTitle
@@ -149,42 +149,19 @@ fun AgentPlanOverlay(
                 trackColor = AiriTheme.outline.copy(alpha = 0.35f),
             )
             if (goal.isNotBlank()) {
-                Text(goal.take(120), color = AiriTheme.onSurface.copy(alpha = 0.72f), fontSize = 12.sp, maxLines = 2, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-            }
-            ExecutionMetrics(completed, terminal, steps.size, accent)
-            if (traceEntries.isNotEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(AiriTheme.outline.copy(alpha = 0.22f))
-                        .padding(horizontal = 10.dp, vertical = 8.dp)
-                        .semantics { contentDescription = latestSignalsLabel },
-                ) {
-                    Text(
-                        stringResource(R.string.agent_plan_latest_signals),
-                        color = accent,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.8.sp,
-                    )
-                    traceEntries.takeLast(3).forEach { entry ->
-                        Text(
-                            text = "#${entry.sequence}  ${entry.summary}",
-                            color = AiriTheme.onSurface.copy(alpha = 0.72f),
-                            fontSize = 10.sp,
-                            maxLines = 1,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    }
-                }
+                Text(
+                    goal.take(120),
+                    color = AiriTheme.onSurface.copy(alpha = 0.72f),
+                    fontSize = 11.sp,
+                    maxLines = 2,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                )
             }
             AnimatedVisibility(visible = isExpanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
                 if (steps.isEmpty()) {
                     Text(stringResource(R.string.agent_plan_initialising), color = AiriTheme.onSurface.copy(alpha = 0.45f), fontSize = 12.sp, modifier = Modifier.padding(16.dp))
                 } else {
-                    LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp), contentPadding = PaddingValues(bottom = 8.dp)) {
+                    LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().heightIn(max = 184.dp), contentPadding = PaddingValues(bottom = 6.dp)) {
                         items(steps, key = { it.id }) { step -> AirisStepRow(step, accent) }
                     }
                 }

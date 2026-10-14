@@ -849,25 +849,17 @@ fun ChatScreen(
         },
             bottomBar = {
                 Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
-                    // Keep the live plan in the same bottom-bar column as the
-                    // composer. This prevents a modal sheet from covering the
-                    // task context and keeps steps/traces synchronized with the
-                    // actual ExecutionStatusBus-owned AgentPlanViewModel.
-                    if (isPanelVisible && (showPanel || isPlanModeActive)) {
+                    // The plan is a contextual layer attached to the composer.
+                    // It must never be forced by Plan Mode alone: only an
+                    // admitted multi-step execution may make it visible.
+                    if (isPanelVisible && showPanel) {
                         com.airi.assistant.ui.plan.AgentPlanOverlay(
                             modifier = Modifier.fillMaxWidth(),
                             planViewModel = agentPlanViewModel
                         )
                     }
-                    // Activity feed only visible while agent is executing
-                if (agentState.isWorking) {
-                    com.airi.assistant.ui.activity.ActivityFeedComposable(
-                        modifier        = Modifier.fillMaxWidth(),
-                        compactMaxItems = 3,
-                        executionId     = agentState.executionId.takeIf { it.isNotBlank() },
-                    )
-                }
-                // : AgentPlanOverlay replaced with ModalBottomSheet (see below Box scope).
+                    // The live execution feed is rendered inside the assistant
+                    // turn below; do not render a second bottom-bar feed.
                 // A compact AgentStatusChip is shown here for 1–2 step executions.
                 // Attachment chips are now rendered inside the input pill (AiriChatInputBar).
                 // : "Compressing history…" chip shown while ConversationSummarizer runs.

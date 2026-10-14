@@ -50,9 +50,9 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
         else ExecutionTracePresentation.visibleEntries(events, executionId, filter)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    /** Only expose the panel for a real multi-step execution; Plan Mode can still force it from ChatScreen. */
+    /** Only expose the panel for a real multi-step execution. */
     val showPanel: StateFlow<Boolean> = combine(steps, ExecutionStatusBus.status, _restoredPlan) { planSteps, state, restored ->
-        restored && planSteps.isNotEmpty() || PlanPanelVisibilityPolicy.shouldShow(
+        (restored && planSteps.size > 1 && state.executionStage != ExecutionStage.IDLE) || PlanPanelVisibilityPolicy.shouldShow(
             stage = state.executionStage, nodesTotal = state.nodesTotal, stepCount = planSteps.size
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)

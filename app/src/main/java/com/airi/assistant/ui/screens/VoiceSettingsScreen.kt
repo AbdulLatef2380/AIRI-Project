@@ -121,7 +121,7 @@ fun VoiceSettingsScreen(
                     verticalAlignment     = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(Icons.Outlined.Tune, null, tint = CosmicAccent, modifier = Modifier.size(22.dp))
+                    Icon(Icons.Outlined.Tune, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             stringResource(R.string.voice_personalization_title),
@@ -147,7 +147,7 @@ fun VoiceSettingsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(Icons.Outlined.RecordVoiceOver, contentDescription = null, tint = CosmicAccent)
+                    Icon(Icons.Outlined.RecordVoiceOver, contentDescription = null, tint = AiriTheme.onSurfaceVariant)
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Ok Airi", color = AiriTheme.onBackground, fontWeight = FontWeight.Bold)
                         Text(
@@ -212,7 +212,7 @@ fun VoiceSettingsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(Icons.Outlined.MicOff, null, tint = CosmicAccent,
+                            Icon(Icons.Outlined.MicOff, null, tint = AiriTheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp))
                             Text(stringResource(R.string.vosk_no_model_card_title), color = AiriTheme.onBackground,
                                 fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
@@ -412,7 +412,7 @@ private fun InstalledModelsCard(
                             }
                         }
                         IconButton(onClick = { onDelete(model.id) }) {
-                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.voice_delete_wake_word_cd), tint = SemanticError)
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.voice_delete_wake_word_cd), tint = AiriTheme.onSurfaceVariant)
                         }
                     }
                 }

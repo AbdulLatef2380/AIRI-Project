@@ -149,7 +149,7 @@ fun AgentTasksScreen(
                 ),
                 navigationIcon = {
                     IconButton(onClick = { editingJob = null; showAddDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_add_task), tint = CosmicAccent)
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_add_task), tint = AiriTheme.onSurfaceVariant)
                     }
                 },
                 title = {
@@ -174,8 +174,7 @@ fun AgentTasksScreen(
                         Icon(
                             Icons.Outlined.Cancel,
                             contentDescription = stringResource(R.string.active_work_stop_title),
-                            tint = SemanticError
-                        )
+                            tint = AiriTheme.onSurfaceVariant)
                     }
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back), tint = AiriTheme.onBackground)
@@ -198,10 +197,10 @@ fun AgentTasksScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Outlined.Warning, null, tint = SemanticError, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Outlined.Warning, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                     Text(msg, color = SemanticError, fontSize = 13.sp, modifier = Modifier.weight(1f))
                     IconButton(onClick = { errorMessage = null }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Outlined.Close, null, tint = SemanticError)
+                        Icon(Icons.Outlined.Close, null, tint = AiriTheme.onSurfaceVariant)
                     }
                 }
             }
@@ -536,7 +535,7 @@ private fun DurableExecutionCard(task: DurableTask, onCancel: () -> Unit) {
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Timeline, null, tint = statusColor, modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.Timeline, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(task.title, color = AiriTheme.onBackground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Text(task.status.name.lowercase(), color = statusColor, fontSize = 11.sp)
@@ -804,7 +803,7 @@ private fun RealTaskItem(
                 Icon(
                     Icons.Outlined.Close,
                     contentDescription = stringResource(R.string.cancel),
-                    tint = Color(0xFFFF6B6B),
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -859,7 +858,7 @@ private fun RealTaskItem(
         }
 
         IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Outlined.Edit, "Edit", tint = CosmicAccent, modifier = Modifier.size(17.dp))
+            Icon(Icons.Outlined.Edit, "Edit", tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(17.dp))
         }
         Spacer(Modifier.width(10.dp))
 
@@ -873,7 +872,7 @@ private fun RealTaskItem(
             Icon(
                 statusIcon,
                 contentDescription = null,
-                tint = statusTint,
+                tint = AiriTheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
         }

@@ -735,8 +735,7 @@ fun RefDownloadedModelCard(
                         Icons.Outlined.Delete,
                         contentDescription = stringResource(R.string.delete),
                         modifier = Modifier.size(20.dp),
-                        tint = Color(0xFFFF3B30).copy(alpha = 0.75f)
-                    )
+                        tint = AiriTheme.onSurfaceVariant)
                 }
 
                 // iconButton: Expand/Collapse
@@ -914,9 +913,7 @@ fun RefCatalogModelCard(
                             Icons.Outlined.Memory,
                             contentDescription = null,
                             modifier = Modifier.size(10.dp),
-                            tint = if (unsupportedByRam) Color(0xFFFF3B30).copy(alpha = 0.7f)
-                                   else AiriTheme.onSurface.copy(alpha = 0.45f)
-                        )
+                            tint = AiriTheme.onSurfaceVariant)
                         Text(
                             entry.sizeBytes.toReadableSize(),
                             fontSize = 11.sp,
@@ -951,8 +948,7 @@ fun RefCatalogModelCard(
                         Icons.Outlined.Warning,
                         contentDescription = null,
                         modifier = Modifier.size(12.dp),
-                        tint = Color(0xFFFF3B30).copy(alpha = 0.75f)
-                    )
+                        tint = AiriTheme.onSurfaceVariant)
                     Text(
                         "Requires ${entry.ramRequiredMb} MB RAM — may not run on this device",
                         fontSize = 11.sp,
@@ -2266,7 +2262,7 @@ fun AddModelBottomSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Icon(Icons.Outlined.FolderOpen, contentDescription = null, tint = CosmicAccent)
+                        Icon(Icons.Outlined.FolderOpen, contentDescription = null, tint = AiriTheme.onSurfaceVariant)
                         Column {
                             Text(stringResource(R.string.add_local_model), fontWeight = FontWeight.Bold)
                             Text(
@@ -2289,7 +2285,7 @@ fun AddModelBottomSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Icon(Icons.Outlined.Cloud, contentDescription = null, tint = CosmicAccentAlt)
+                        Icon(Icons.Outlined.Cloud, contentDescription = null, tint = AiriTheme.onSurfaceVariant)
                         Column {
                             Text(stringResource(R.string.add_remote_model), fontWeight = FontWeight.Bold)
                             Text(
@@ -2331,7 +2327,7 @@ private fun AddRemoteModelContent(
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(modifier = Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Outlined.Warning, contentDescription = null, tint = SemanticError, modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.Warning, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 Text(
                     stringResource(R.string.remote_model_warning),
                     style = MaterialTheme.typography.bodySmall,

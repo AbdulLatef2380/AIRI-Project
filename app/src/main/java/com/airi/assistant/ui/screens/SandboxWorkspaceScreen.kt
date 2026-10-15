@@ -89,12 +89,12 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0F1220)),
                         navigationIcon = {
                             IconButton(onClick = onBack) {
-                                Icon(Icons.Outlined.ArrowBack, null, tint = Color(0xFFCDD5E0).copy(0.7f))
+                                Icon(Icons.Outlined.ArrowBack, null, tint = AiriTheme.onSurfaceVariant)
                             }
                         },
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Icon(Icons.Outlined.Terminal, null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Outlined.Terminal, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                                 Text(
                                     stringResource(R.string.sandbox_title),
                                     fontSize = 15.sp,
@@ -125,12 +125,12 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                                         selectedSession = null
                                     }
                                 }) {
-                                    Icon(Icons.Outlined.Refresh, stringResource(R.string.sandbox_restart_cd), tint = SandboxInfoText, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Outlined.Refresh, stringResource(R.string.sandbox_restart_cd), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                                 }
                             }
                             // New session
                             IconButton(onClick = { scope.launch { sandboxManager.createSession("Session ${activeSessions.size + 1}") } }) {
-                                Icon(Icons.Outlined.Add, stringResource(R.string.sandbox_new_session_cd), tint = CosmicAccent, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Outlined.Add, stringResource(R.string.sandbox_new_session_cd), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                             }
                         }
                     )
@@ -169,7 +169,7 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                     if (logs.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Icon(Icons.Outlined.Terminal, null, tint = SandboxTimeColor, modifier = Modifier.size(28.dp))
+                                Icon(Icons.Outlined.Terminal, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(28.dp))
                                 Text(stringResource(R.string.sandbox_no_executions), fontSize = 12.sp, color = SandboxTimeColor, fontFamily = FontFamily.Monospace)
                             }
                         }
@@ -303,7 +303,7 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                                 Icon(
                                     Icons.Outlined.PlayArrow,
                                     stringResource(R.string.sandbox_run_cd),
-                                    tint = if (commandInput.isNotBlank()) CosmicAccent else SandboxTimeColor,
+                                    tint = AiriTheme.onSurfaceVariant,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -351,7 +351,7 @@ private fun SessionTabBar(
                 Spacer(Modifier.width(6.dp))
                 Icon(
                     Icons.Outlined.Close, null,
-                    tint = SandboxTimeColor,
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(11.dp).clickable { onClose(sess) }
                 )
             }
@@ -366,7 +366,7 @@ private fun SandboxInfoStrip(session: SandboxSession, isExecuting: Boolean) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(Icons.Outlined.FolderOpen, null, tint = SandboxTimeColor, modifier = Modifier.size(12.dp))
+        Icon(Icons.Outlined.FolderOpen, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
         Text(
             session.workspaceDir.absolutePath,
             fontSize = 9.sp,
@@ -416,7 +416,7 @@ private fun SandboxEmptyState(onCreate: () -> Unit) {
                     .border(0.5.dp, CosmicAccent.copy(0.25f), AIRIShapes.md),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Outlined.Terminal, null, tint = CosmicAccent.copy(0.6f), modifier = Modifier.size(30.dp))
+                Icon(Icons.Outlined.Terminal, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(30.dp))
             }
             Text(stringResource(R.string.sandbox_no_sessions), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color(0xFFCDD5E0).copy(0.8f))
             Text(stringResource(R.string.sandbox_no_sessions_desc), fontSize = 12.sp, color = SandboxTimeColor, fontFamily = FontFamily.Monospace)

@@ -401,7 +401,7 @@ private fun VoiceOption(name: String, locale: String, isSelected: Boolean, onCli
             Text(locale, fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
         }
         if (isSelected) {
-            Icon(Icons.Filled.CheckCircle, null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.CheckCircle, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         }
     }
 }

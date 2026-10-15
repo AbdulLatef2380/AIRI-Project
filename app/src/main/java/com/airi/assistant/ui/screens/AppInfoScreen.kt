@@ -78,7 +78,7 @@ fun AppInfoScreenContent(onBack: () -> Unit) {
                     Icon(
                         Icons.Outlined.Memory,
                         contentDescription = null,
-                        tint     = CosmicAccent,
+                        tint     = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(48.dp)
                     )
                     Spacer(Modifier.height(12.dp))
@@ -187,7 +187,7 @@ private fun AboutCard(
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
+                Icon(icon, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(title, fontWeight = FontWeight.Bold, color = CosmicAccent, fontSize = 13.sp)
             }

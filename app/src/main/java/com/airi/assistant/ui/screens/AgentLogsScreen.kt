@@ -82,7 +82,7 @@ fun AgentLogsScreen(
                     Icon(
                         Icons.Outlined.ManageHistory,
                         contentDescription = null,
-                        tint = CosmicAccent.copy(alpha = 0.3f),
+                        tint = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(56.dp)
                     )
                     Spacer(Modifier.height(12.dp))
@@ -154,7 +154,7 @@ private fun TraceListItem(
                 Icon(
                     if (trace.success) Icons.Outlined.CheckCircle else Icons.Outlined.Error,
                     contentDescription = null,
-                    tint = if (trace.success) CosmicAccent else Color(0xFFFF5252),
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
             }

@@ -199,7 +199,7 @@ fun ExecutionModePanel(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(Icons.Outlined.Info, null,
-                    tint = WarnAmber, modifier = Modifier.size(14.dp))
+                    tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
                     stringResource(R.string.exec_privacy_override, when (currentMode) {
@@ -245,7 +245,7 @@ private fun ExecModeOption(
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, null, tint = if (selected) accentColor else dimWhite(),
+            Icon(icon, null, tint = AiriTheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {

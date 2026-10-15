@@ -110,7 +110,7 @@ fun ExecOriginBadge(
         Icon(
             imageVector        = icon,
             contentDescription = null,
-            tint               = textColor,
+            tint               = AiriTheme.onSurfaceVariant,
             modifier           = Modifier.size(9.dp)
         )
         Spacer(Modifier.width(3.dp))

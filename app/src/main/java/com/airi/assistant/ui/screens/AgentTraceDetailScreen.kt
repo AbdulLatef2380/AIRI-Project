@@ -83,7 +83,7 @@ fun AgentTraceDetailScreen(
                 TraceDetailCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Forum, contentDescription = null,
-                            tint = CosmicAccent, modifier = Modifier.size(16.dp))
+                            tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.trace_user_input_label), color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
@@ -114,7 +114,7 @@ fun AgentTraceDetailScreen(
                         Icon(
                             if (t.success) Icons.Outlined.CheckCircle else Icons.Outlined.Error,
                             contentDescription = null,
-                            tint = if (t.success) Color(0xFF00C853) else Color(0xFFFF5252),
+                            tint = AiriTheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(Modifier.width(8.dp))
@@ -135,7 +135,7 @@ fun AgentTraceDetailScreen(
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
                         Icon(Icons.Outlined.Timeline, contentDescription = null,
-                            tint = CosmicAccent, modifier = Modifier.size(16.dp))
+                            tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.trace_execution_steps), color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
@@ -149,7 +149,7 @@ fun AgentTraceDetailScreen(
                     TraceDetailCard {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Outlined.OpenInNew, contentDescription = null,
-                                tint = CosmicAccent, modifier = Modifier.size(16.dp))
+                                tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.trace_final_result), color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
@@ -211,7 +211,7 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
                     Icon(
                         if (step.success) Icons.Outlined.CheckCircle else Icons.Outlined.Cancel,
                         contentDescription = null,
-                        tint = successColor,
+                        tint = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(16.dp)
                     )
                 }

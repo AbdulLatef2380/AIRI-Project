@@ -88,7 +88,7 @@ fun WorkspaceScreen(
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, null, tint = AiriTheme.onBackground) } },
                 actions = {
                     IconButton(onClick = onOpenChat) { Icon(Icons.Outlined.Chat, null, tint = AiriTheme.onBackground.copy(0.7f)) }
-                    IconButton(onClick = { showNewWorkspace = true }) { Icon(Icons.Outlined.Add, null, tint = CosmicAccent) }
+                    IconButton(onClick = { showNewWorkspace = true }) { Icon(Icons.Outlined.Add, null, tint = AiriTheme.onSurfaceVariant) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
@@ -336,7 +336,7 @@ private fun ArtifactCard(
                         fontSize = 11.sp, color = AiriTheme.onBackground.copy(0.4f))
                 }
                 IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Outlined.Delete, null, tint = SemanticError.copy(0.6f), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Outlined.Delete, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                 }
             }
             if (!artifact.description.isBlank()) {
@@ -360,7 +360,7 @@ private fun ArtifactCard(
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Icon(Icons.Outlined.OpenInNew, null,
-                            modifier = Modifier.size(13.dp), tint = CosmicAccent)
+                            modifier = Modifier.size(13.dp), tint = AiriTheme.onSurfaceVariant)
                         Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.workspace_preview), fontSize = 11.sp, color = CosmicAccent)
                     }
@@ -374,7 +374,7 @@ private fun ArtifactCard(
 private fun WorkspaceEmptyState(onCreate: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Icon(Icons.Outlined.WorkOutline, null, tint = CosmicAccent.copy(0.5f), modifier = Modifier.size(48.dp))
+            Icon(Icons.Outlined.WorkOutline, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(48.dp))
             Text(stringResource(R.string.workspace_no_workspaces), fontSize = 16.sp, color = AiriTheme.onBackground.copy(0.6f))
             Text(stringResource(R.string.workspace_no_workspaces_desc), fontSize = 13.sp, color = AiriTheme.onBackground.copy(0.35f))
             Button(onClick = onCreate, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent.copy(0.85f)), shape = AIRIShapes.md) {
@@ -390,7 +390,7 @@ private fun WorkspaceEmptyState(onCreate: () -> Unit) {
 private fun ArtifactEmptyState(onCreateFromChat: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(Icons.Outlined.FolderOpen, null, tint = CosmicAccent.copy(0.4f), modifier = Modifier.size(40.dp))
+            Icon(Icons.Outlined.FolderOpen, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(40.dp))
             Text(stringResource(R.string.workspace_no_artifacts), fontSize = 15.sp, color = AiriTheme.onBackground.copy(0.5f))
             Text(stringResource(R.string.workspace_no_artifacts_desc), fontSize = 13.sp, color = AiriTheme.onBackground.copy(0.3f))
             OutlinedButton(onClick = onCreateFromChat, shape = AIRIShapes.sm,

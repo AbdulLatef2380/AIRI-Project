@@ -63,7 +63,7 @@ fun DebugPanelScreen(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.BugReport, contentDescription = stringResource(R.string.cd_debug), tint = CosmicAccent)
+                Icon(Icons.Default.BugReport, contentDescription = stringResource(R.string.cd_debug), tint = AiriTheme.onSurfaceVariant)
             }
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.debug_panel_title), color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 20.sp)
@@ -79,7 +79,7 @@ fun DebugPanelScreen(
                     modifier = Modifier.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Error, contentDescription = null, tint = FailRed)
+                    Icon(Icons.Default.Error, contentDescription = null, tint = AiriTheme.onSurfaceVariant)
                     Spacer(Modifier.width(8.dp))
                     Text(
                         "System Integrity Failed",
@@ -137,7 +137,7 @@ fun DebugPanelScreen(
                             Icon(
                                 if (allPassed) Icons.Default.CheckCircle else Icons.Default.Error,
                                 contentDescription = null,
-                                tint = if (allPassed) PassGreen else FailRed,
+                                tint = AiriTheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(Modifier.width(6.dp))
@@ -240,7 +240,7 @@ private fun DiagTestRow(result: DiagnosticsRunner.TestResult) {
         Icon(
             if (result.passed) Icons.Default.CheckCircle else Icons.Default.Error,
             contentDescription = null,
-            tint = if (result.passed) PassGreen else FailRed,
+            tint = AiriTheme.onSurfaceVariant,
             modifier = Modifier.size(14.dp).padding(top = 1.dp)
         )
         Spacer(Modifier.width(6.dp))

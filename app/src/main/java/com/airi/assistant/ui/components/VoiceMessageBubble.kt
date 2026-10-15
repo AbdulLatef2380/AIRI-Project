@@ -77,7 +77,7 @@ fun VoiceMessageBubble(
             Icon(
                 imageVector = playIcon,
                 contentDescription = if (isPlaying) "Pause" else "Play",
-                tint = if (isUser) Color.White else CosmicAccent,
+                tint = AiriTheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
         }

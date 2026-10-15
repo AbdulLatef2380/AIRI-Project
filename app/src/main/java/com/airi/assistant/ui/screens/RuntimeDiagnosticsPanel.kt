@@ -164,7 +164,7 @@ fun RuntimeWarningsPanel(warnings: List<String>) {
             Icon(
                 Icons.Outlined.Warning,
                 contentDescription = null,
-                tint = if (hasCritical) ErrorColor else WarnColor,
+                tint = AiriTheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(Modifier.width(8.dp))
@@ -192,7 +192,7 @@ fun RuntimeWarningsPanel(warnings: List<String>) {
                 Icon(
                     Icons.Outlined.ErrorOutline,
                     contentDescription = null,
-                    tint = if (hasCritical) ErrorColor else WarnColor,
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(Modifier.width(6.dp))
@@ -224,7 +224,7 @@ fun RuntimeEventTimeline(events: List<com.airi.assistant.core.debug.RuntimeEvent
                 Icon(
                     Icons.Outlined.History,
                     contentDescription = null,
-                    tint = CosmicAccent,
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(8.dp))
@@ -238,7 +238,7 @@ fun RuntimeEventTimeline(events: List<com.airi.assistant.core.debug.RuntimeEvent
             Icon(
                 if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                 contentDescription = null,
-                tint = dimWhite(),
+                tint = AiriTheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -297,7 +297,7 @@ fun AdvancedDiagnosticsSection(diagnostics: RuntimeDiagnosticsState) {
                 Icon(
                     Icons.Outlined.BugReport,
                     contentDescription = null,
-                    tint = CosmicAccent,
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(8.dp))
@@ -311,7 +311,7 @@ fun AdvancedDiagnosticsSection(diagnostics: RuntimeDiagnosticsState) {
             Icon(
                 if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                 contentDescription = null,
-                tint = dimWhite(),
+                tint = AiriTheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
         }

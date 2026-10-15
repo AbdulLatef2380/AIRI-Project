@@ -163,8 +163,7 @@ fun LibraryScreen(onBack: () -> Unit) {
                         Icon(
                             Icons.Outlined.Add,
                             contentDescription = stringResource(R.string.library_import_file),
-                            tint = if (activeProject != null) CosmicAccent else AiriTheme.onSurfaceVariant
-                        )
+                            tint = AiriTheme.onSurfaceVariant)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -383,7 +382,7 @@ private fun ProjectFileRow(
                 Icon(
                     Icons.Outlined.Description,
                     contentDescription = null,
-                    tint = CosmicAccent,
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(Modifier.width(10.dp))
@@ -408,7 +407,7 @@ private fun ProjectFileRow(
                     Icon(
                         if (file.isFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder,
                         contentDescription = stringResource(R.string.library_toggle_favorite),
-                        tint = if (file.isFavorite) CosmicAccent else AiriTheme.onSurfaceVariant,
+                        tint = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -644,7 +643,7 @@ private fun DeletedProjectFileRow(
                 Icon(
                     Icons.Outlined.Delete,
                     contentDescription = stringResource(R.string.library_purge_file),
-                    tint = AiriTheme.error,
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(17.dp)
                 )
             }

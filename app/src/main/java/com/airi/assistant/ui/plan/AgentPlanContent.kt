@@ -304,7 +304,7 @@ private fun TraceEntryRow(entry: ExecutionTraceEvent) {
             Icon(
                 imageVector = traceKindIcon(entry.kind),
                 contentDescription = null,
-                tint = rowColor,
+                tint = AiriTheme.onSurfaceVariant,
                 modifier = Modifier.size(15.dp),
             )
             Column(modifier = Modifier.weight(1f)) {
@@ -405,9 +405,9 @@ private fun PlanStepRow(step: PlanStepModel) {
                 PlanStepStatus.RUNNING   -> CircularProgressIndicator(
                     modifier = Modifier.size(14.dp), color = CosmicAccent, strokeWidth = 1.5.dp)
                 PlanStepStatus.COMPLETED -> Icon(Icons.Outlined.Check, null,
-                    tint = SemanticSuccess, modifier = Modifier.size(14.dp))
+                    tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                 PlanStepStatus.FAILED    -> Icon(Icons.Outlined.ErrorOutline, null,
-                    tint = SemanticError, modifier = Modifier.size(14.dp))
+                    tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                 PlanStepStatus.RETRYING  -> CircularProgressIndicator(
                     modifier = Modifier.size(14.dp), color = SemanticWarn, strokeWidth = 1.5.dp)
                 PlanStepStatus.CANCELLED   -> Icon(Icons.Outlined.PlayArrow, null,

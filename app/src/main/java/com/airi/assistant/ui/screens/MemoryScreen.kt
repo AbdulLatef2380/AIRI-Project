@@ -78,7 +78,7 @@ fun MemoryScreen(
             onDismissRequest = { showConfirm = false },
             containerColor   = AiriTheme.surface,
             shape            = AIRIShapes.xl,
-            icon             = { Icon(Icons.Outlined.DeleteSweep, null, tint = SemanticError, modifier = Modifier.size(28.dp)) },
+            icon             = { Icon(Icons.Outlined.DeleteSweep, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(28.dp)) },
             title = { Text(stringResource(R.string.memory_clear_confirm_title), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold) },
             text  = { Text(stringResource(R.string.memory_clear_dialog_body), color = AiriTheme.onSurfaceVariant, lineHeight = 20.sp) },
             confirmButton = {
@@ -112,7 +112,7 @@ fun MemoryScreen(
             onDismissRequest = { deleteCandidate = null },
             containerColor = AiriTheme.surface,
             shape = AIRIShapes.xl,
-            icon = { Icon(Icons.Outlined.Delete, null, tint = SemanticError, modifier = Modifier.size(28.dp)) },
+            icon = { Icon(Icons.Outlined.Delete, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(28.dp)) },
             title = { Text(stringResource(R.string.memory_delete_title), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold) },
             text = { Text(stringResource(R.string.memory_delete_body), color = AiriTheme.onSurfaceVariant, lineHeight = 20.sp) },
             confirmButton = {
@@ -145,7 +145,7 @@ fun MemoryScreen(
             onDismissRequest = { editCandidate = null },
             containerColor = AiriTheme.surface,
             shape = AIRIShapes.xl,
-            icon = { Icon(Icons.Outlined.Edit, null, tint = CosmicAccent, modifier = Modifier.size(28.dp)) },
+            icon = { Icon(Icons.Outlined.Edit, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(28.dp)) },
             title = { Text(stringResource(R.string.memory_edit_title), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold) },
             text = {
                 OutlinedTextField(
@@ -274,19 +274,19 @@ fun MemoryScreen(
                     },
                     actions = {
                         IconButton(onClick = { showKnowledgeDialog = true }) {
-                            Icon(Icons.Outlined.MenuBook, "Knowledge", tint = CosmicAccent, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Outlined.MenuBook, "Knowledge", tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                         }
                         IconButton(onClick = { showSearch = !showSearch; if (!showSearch) searchQuery = "" }) {
                             Icon(
                                 if (showSearch) Icons.Outlined.SearchOff else Icons.Outlined.Search,
                                 null,
-                                tint = if (showSearch) CosmicAccent else AiriTheme.onSurfaceVariant,
+                                tint = AiriTheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                         if (memoryCount > 0) {
                             IconButton(onClick = { showConfirm = true }) {
-                                Icon(Icons.Outlined.DeleteSweep, null, tint = SemanticError.copy(0.65f), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Outlined.DeleteSweep, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                             }
                         }
                     }
@@ -322,7 +322,7 @@ fun MemoryScreen(
                             .background(Brush.radialGradient(listOf(CosmicAccent.copy(alpha), Color.Transparent))),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Outlined.Psychology, null, tint = CosmicAccent.copy(0.55f), modifier = Modifier.size(32.dp))
+                        Icon(Icons.Outlined.Psychology, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(32.dp))
                     }
                     Text(stringResource(R.string.memory_empty_title), fontSize = 16.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
                     Text(stringResource(R.string.memory_empty_subtitle), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
@@ -355,7 +355,7 @@ fun MemoryScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Outlined.Psychology, null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Outlined.Psychology, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                             Text(
                                 stringResource(R.string.memory_admission_summary),
                                 fontSize = 12.sp,
@@ -449,7 +449,7 @@ private fun MemoryEntryCard(
                         Icon(
                             Icons.Outlined.Edit,
                             contentDescription = stringResource(R.string.memory_edit_title),
-                            tint = CosmicAccent.copy(alpha = 0.82f),
+                            tint = AiriTheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -462,7 +462,7 @@ private fun MemoryEntryCard(
                         Icon(
                             Icons.Outlined.Delete,
                             contentDescription = stringResource(R.string.memory_delete_button),
-                            tint = SemanticError.copy(alpha = 0.78f),
+                            tint = AiriTheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -572,7 +572,7 @@ private fun KnowledgeProfilesDialog(
                 Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onDismiss) { Icon(Icons.Outlined.ArrowBack, "رجوع", tint = AiriTheme.onBackground) }
                     Text("المعرفة", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { creating = true }) { Icon(Icons.Outlined.Add, "إضافة معرفة", tint = CosmicAccent) }
+                    IconButton(onClick = { creating = true }) { Icon(Icons.Outlined.Add, "إضافة معرفة", tint = AiriTheme.onSurfaceVariant) }
                 }
                 Divider(color = AiriTheme.outline)
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -586,7 +586,7 @@ private fun KnowledgeProfilesDialog(
                         ) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Outlined.Lightbulb, null, tint = CosmicAccent)
+                                    Icon(Icons.Outlined.Lightbulb, null, tint = AiriTheme.onSurfaceVariant)
                                     Spacer(Modifier.width(8.dp))
                                     Text("معرفة مقترحة", color = CosmicAccent, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                                     Text("قيد الانتظار", color = CosmicAccent, fontSize = 12.sp)
@@ -642,14 +642,14 @@ private fun KnowledgeProposalDialog(
                 Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "إغلاق", tint = AiriTheme.onBackground) }
                     Text("المعرفة المقترحة", color = AiriTheme.onBackground, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { editing = !editing }) { Icon(Icons.Outlined.Edit, "تعديل", tint = CosmicAccent) }
+                    IconButton(onClick = { editing = !editing }) { Icon(Icons.Outlined.Edit, "تعديل", tint = AiriTheme.onSurfaceVariant) }
                 }
                 Divider(color = AiriTheme.outline)
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Surface(shape = AIRIShapes.xl, color = CosmicAccent.copy(alpha = .10f), border = BorderStroke(1.dp, CosmicAccent.copy(alpha = .55f)), modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Outlined.Schedule, null, tint = Color(0xFFFFC857))
+                                Icon(Icons.Outlined.Schedule, null, tint = AiriTheme.onSurfaceVariant)
                                 Spacer(Modifier.width(8.dp))
                                 Text("بانتظار قبولك", color = Color(0xFFFFC857), fontWeight = FontWeight.Bold)
                             }
@@ -706,7 +706,7 @@ private fun KnowledgeProfileDetailDialog(
                             )
                             DropdownMenuItem(
                                 text = { Text("حذف", color = SemanticError) },
-                                leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = SemanticError) },
+                                leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = AiriTheme.onSurfaceVariant) },
                                 onClick = { menuOpen = false; onDelete(profile) }
                             )
                         }

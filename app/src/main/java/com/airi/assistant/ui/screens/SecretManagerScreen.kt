@@ -124,7 +124,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
             onDismissRequest = { deletingProjectGitHubSecret = false },
             containerColor = AiriTheme.surface,
             shape = AIRIShapes.xl,
-            icon = { Icon(Icons.Outlined.Delete, null, tint = SemanticError, modifier = Modifier.size(28.dp)) },
+            icon = { Icon(Icons.Outlined.Delete, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(28.dp)) },
             title = { Text(stringResource(R.string.secret_project_delete_title), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
             text = { Text(stringResource(R.string.secret_project_delete_body), color = AiriTheme.onSurfaceVariant, fontSize = 14.sp, lineHeight = 20.sp) },
             confirmButton = {
@@ -154,7 +154,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
             onDismissRequest = { editingProjectGitHubSecret = false; projectSecretText = ""; showProjectSecret = false },
             containerColor = AiriTheme.surface,
             shape = AIRIShapes.xl,
-            icon = { Icon(Icons.Outlined.Key, null, tint = CosmicAccent, modifier = Modifier.size(28.dp)) },
+            icon = { Icon(Icons.Outlined.Key, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(28.dp)) },
             title = { Text(stringResource(R.string.secret_project_github_pat), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -225,7 +225,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
             containerColor   = AiriTheme.surface,
             shape            = AIRIShapes.xl,
             icon = {
-                Icon(Icons.Outlined.Delete, null, tint = SemanticError, modifier = Modifier.size(28.dp))
+                Icon(Icons.Outlined.Delete, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(28.dp))
             },
             title = {
                 Text(
@@ -273,7 +273,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
                     modifier = Modifier.size(40.dp).clip(AIRIShapes.md).background(CosmicAccent.copy(0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Outlined.Key, null, tint = CosmicAccent, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Outlined.Key, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
             },
             title = {
@@ -350,7 +350,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Outlined.Security, null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.Security, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                         Text(stringResource(R.string.secret_manager_title), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
                     }
                 },
@@ -380,7 +380,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
                         verticalAlignment = Alignment.Top,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Outlined.Lock, null, tint = CosmicAccent, modifier = Modifier.size(16.dp).padding(top = 1.dp))
+                        Icon(Icons.Outlined.Lock, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp).padding(top = 1.dp))
                         Text(
                             stringResource(R.string.secret_manager_description),
                             fontSize = 12.sp,
@@ -419,7 +419,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
                             Icon(
                                 Icons.Outlined.Key,
                                 null,
-                                tint = if (projectGitHubConfigured) CosmicAccent else AiriTheme.onSurfaceVariant,
+                                tint = AiriTheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
                             Column(modifier = Modifier.weight(1f)) {
@@ -442,7 +442,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
                                 }
                                 if (projectGitHubConfigured) {
                                     IconButton(onClick = { deletingProjectGitHubSecret = true }, modifier = Modifier.size(36.dp)) {
-                                        Icon(Icons.Outlined.Delete, stringResource(R.string.secret_manager_delete_cd), tint = SemanticError.copy(alpha = 0.72f), modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Outlined.Delete, stringResource(R.string.secret_manager_delete_cd), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                                     }
                                 }
                             }
@@ -517,7 +517,7 @@ private fun SecretKeyCard(
                 Icon(
                     Icons.Outlined.Key,
                     null,
-                    tint = if (isSet) CosmicAccent else AiriTheme.onSurfaceVariant,
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -553,11 +553,11 @@ private fun SecretKeyCard(
                     }
                 }
                 IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Outlined.Edit, stringResource(R.string.secret_manager_edit_cd), tint = CosmicAccent, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.Edit, stringResource(R.string.secret_manager_edit_cd), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 }
                 if (isSet) {
                     IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Outlined.Delete, stringResource(R.string.secret_manager_delete_cd), tint = SemanticError.copy(0.7f), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.Delete, stringResource(R.string.secret_manager_delete_cd), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                     }
                 }
             }

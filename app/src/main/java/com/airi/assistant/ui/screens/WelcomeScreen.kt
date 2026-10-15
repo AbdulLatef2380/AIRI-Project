@@ -88,7 +88,7 @@ fun WelcomeScreen(
             border = BorderStroke(1.5.dp, CosmicAccent)
         ) {
             Icon(Icons.Outlined.Key, contentDescription = null,
-                tint = CosmicAccent, modifier = Modifier.size(18.dp))
+                tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.welcome_enter_api_key), fontSize = 15.sp, color = CosmicAccent, fontWeight = FontWeight.SemiBold)
         }

@@ -200,7 +200,7 @@ private fun AirisStepRow(step: PlanStepModel, accent: Color) {
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(stepIcon(step.status), null, tint = color, modifier = Modifier.size(18.dp).padding(top = 1.dp))
+        Icon(stepIcon(step.status), null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp).padding(top = 1.dp))
         Column(Modifier.weight(1f)) {
             Text(step.label, color = if (step.status.isActive) AiriTheme.onSurface else color.copy(alpha = 0.82f), fontSize = 12.sp, fontWeight = if (step.status.isActive) FontWeight.SemiBold else FontWeight.Normal, maxLines = 2)
             val detail = when {

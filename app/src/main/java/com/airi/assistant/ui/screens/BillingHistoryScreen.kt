@@ -129,7 +129,7 @@ private fun SummaryCard(label: String, value: String, icon: ImageVector, color: 
         modifier = modifier
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(icon, null, Modifier.size(20.dp), tint = color)
+            Icon(icon, null, Modifier.size(20.dp), tint = AiriTheme.onSurfaceVariant)
             Text(value, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = AiriTheme.onBackground)
             Text(label, fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
         }
@@ -151,7 +151,7 @@ private fun BillingRecordRow(record: BillingRecord, dateFormat: SimpleDateFormat
                 Modifier.size(40.dp).background(recordColor(record.type).copy(0.15f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(recordIcon(record.type), null, Modifier.size(20.dp), tint = recordColor(record.type))
+                Icon(recordIcon(record.type), null, Modifier.size(20.dp), tint = AiriTheme.onSurfaceVariant)
             }
             Column(Modifier.weight(1f)) {
                 Text(record.description, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground, fontSize = 14.sp)

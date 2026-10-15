@@ -198,7 +198,7 @@ private fun AboutInfoCard(icon: ImageVector, title: String, body: String) {
                     .background(CosmicAccent.copy(0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
+                Icon(icon, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
             }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
                 Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
@@ -221,7 +221,7 @@ private fun AboutLinkRow(icon: ImageVector, label: String, onClick: () -> Unit) 
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(icon, null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
+            Icon(icon, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
             Text(label, fontSize = 14.sp, color = CosmicAccent, modifier = Modifier.weight(1f))
             Icon(Icons.Outlined.ChevronRight, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
         }

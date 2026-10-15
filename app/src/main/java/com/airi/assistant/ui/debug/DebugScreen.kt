@@ -57,7 +57,7 @@ fun DebugScreen(onBack: () -> Unit) {
             modifier = Modifier.fillMaxWidth()
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.BugReport, contentDescription = "debug", tint = GREEN)
+                Icon(Icons.Default.BugReport, contentDescription = "debug", tint = AiriTheme.onSurfaceVariant)
             }
             Text(
                 "Verification Layer",
@@ -75,7 +75,7 @@ fun DebugScreen(onBack: () -> Unit) {
                 if (isRunning) {
                     CircularProgressIndicator(color = GREEN, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {
-                    Icon(Icons.Default.Refresh, contentDescription = "re-run", tint = GREEN)
+                    Icon(Icons.Default.Refresh, contentDescription = "re-run", tint = AiriTheme.onSurfaceVariant)
                 }
             }
         }
@@ -100,7 +100,7 @@ fun DebugScreen(onBack: () -> Unit) {
                 Icon(
                     if (systemHealthy) Icons.Default.CheckCircle else Icons.Default.Error,
                     contentDescription = null,
-                    tint = if (systemHealthy) GREEN else RED,
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
                 Text(

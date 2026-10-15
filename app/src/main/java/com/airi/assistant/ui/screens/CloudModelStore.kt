@@ -87,7 +87,7 @@ fun CloudModelStoreSection(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Outlined.Cloud, contentDescription = null,
-                    tint = Color(0xFF4FC3F7), modifier = Modifier.size(18.dp))
+                    tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column {
@@ -290,7 +290,7 @@ private fun CloudInferenceModePicker(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(icon, contentDescription = label,
-                        tint = if (selected) CosmicAccent else AiriTheme.onSurface.copy(alpha = 0.4f),
+                        tint = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp))
                     Spacer(Modifier.height(4.dp))
                     Text(label,
@@ -368,7 +368,7 @@ private fun EmbeddedProviderCard(
                             else -> Icons.Outlined.Cloud
                         },
                         contentDescription = null,
-                        tint = accentColor,
+                        tint = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -513,7 +513,7 @@ private fun ApiKeyEntryDialog(
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Key, contentDescription = null,
-                    tint = CosmicAccent, modifier = Modifier.size(20.dp))
+                    tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.connect_label, config.displayLabel), fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
@@ -535,7 +535,7 @@ private fun ApiKeyEntryDialog(
                         IconButton(onClick = { obscure = !obscure }) {
                             Icon(
                                 if (obscure) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
-                                contentDescription = null, tint = CosmicAccent,
+                                contentDescription = null, tint = AiriTheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -558,7 +558,7 @@ private fun ApiKeyEntryDialog(
                         contentPadding = PaddingValues(0.dp)
                     ) {
                         Icon(Icons.Outlined.OpenInNew, contentDescription = null,
-                            modifier = Modifier.size(13.dp), tint = CosmicAccent.copy(alpha = 0.7f))
+                            modifier = Modifier.size(13.dp), tint = AiriTheme.onSurfaceVariant)
                         Spacer(Modifier.width(4.dp))
                         Text("${stringResource(R.string.cloud_get_free_key)}: ${config.signupUrl.removePrefix("https://").take(30)}",
                             color = CosmicAccent.copy(alpha = 0.7f), fontSize = 11.sp)

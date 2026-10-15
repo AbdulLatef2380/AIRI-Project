@@ -115,7 +115,7 @@ private fun InstalledBuildCard() {
                 Icon(
                     imageVector = Icons.Outlined.Update,
                     contentDescription = null,
-                    tint = CosmicAccent,
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(28.dp)
                 )
             }

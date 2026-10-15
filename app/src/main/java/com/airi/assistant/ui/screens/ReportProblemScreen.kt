@@ -59,7 +59,7 @@ fun ReportProblemScreen(onBack: () -> Unit) {
                 horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
             ) {
             if (sent) {
-                Icon(Icons.Outlined.BugReport, contentDescription = null, tint = CosmicAccent, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+                Icon(Icons.Outlined.BugReport, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
                 Text(stringResource(R.string.report_sent_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 Text(stringResource(R.string.report_sent_message), color = AiriTheme.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 Button(onClick = onBack, modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp), colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)) {

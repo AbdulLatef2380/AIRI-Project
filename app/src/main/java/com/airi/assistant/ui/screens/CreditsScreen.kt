@@ -349,7 +349,7 @@ private fun CreditsCard(title: String, icon: ImageVector, content: @Composable C
     Surface(shape = AIRIShapes.md, color = AiriTheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(icon, null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
+                Icon(icon, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
             }
             Spacer(Modifier.height(14.dp))

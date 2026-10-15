@@ -118,7 +118,7 @@ fun SecurityScannerScreen(onBack: () -> Unit) {
                 },
                 actions = {
                     IconButton(onClick = { runScan() }, enabled = !scanning) {
-                        Icon(Icons.Outlined.Refresh, "Re-scan", tint = CosmicAccent)
+                        Icon(Icons.Outlined.Refresh, "Re-scan", tint = AiriTheme.onSurfaceVariant)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background)
@@ -162,7 +162,7 @@ fun SecurityScannerScreen(onBack: () -> Unit) {
                                 Icon(
                                     imageVector = if (r.passed) Icons.Outlined.CheckCircle else Icons.Outlined.Error,
                                     contentDescription = null,
-                                    tint = if (r.passed) Color(0xFF00C853) else Color(0xFFD50000),
+                                    tint = AiriTheme.onSurfaceVariant,
                                     modifier = Modifier.size(22.dp)
                                 )
                                 Column(modifier = Modifier.weight(1f)) {

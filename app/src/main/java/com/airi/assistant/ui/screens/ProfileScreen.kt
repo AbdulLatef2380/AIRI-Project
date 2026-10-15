@@ -239,7 +239,7 @@ fun ProfileScreen(
                 Icon(
                     Icons.Outlined.DeleteForever,
                     contentDescription = null,
-                    tint     = SemanticError,
+                    tint     = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(32.dp)
                 )
             },

@@ -199,7 +199,7 @@ private fun InlineTraceEventRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(row.icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+            Icon(row.icon, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
             if (drawConnector) {
                 Box(
                     Modifier

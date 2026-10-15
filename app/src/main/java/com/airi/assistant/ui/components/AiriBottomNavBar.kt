@@ -116,12 +116,8 @@ private fun AiriNavTabItem(
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val neutralSettingsSelection = isSelected && item.tab == AiriNavTab.SETTINGS
-    val iconTint = when {
-        neutralSettingsSelection -> AiriTheme.onSurfaceVariant
-        isSelected -> NavIconActive
-        else -> AiriTheme.onSurface.copy(alpha = 0.45f)
-    }
+    val exemptSkillsSelection = isSelected && item.tab == AiriNavTab.SKILLS
+    val iconTint = if (exemptSkillsSelection) CosmicAccent else AiriTheme.onSurfaceVariant
     val labelColor = if (isSelected) NavIconActive else AiriTheme.onSurface.copy(alpha = 0.45f)
 
     Column(
@@ -140,8 +136,8 @@ private fun AiriNavTabItem(
                 .clip(RoundedCornerShape(12.dp))
                 .background(
                     when {
-                        neutralSettingsSelection -> AiriTheme.onSurface.copy(alpha = 0.08f)
-                        isSelected -> CosmicAccent.copy(alpha = 0.18f)
+                        exemptSkillsSelection -> CosmicAccent.copy(alpha = 0.18f)
+                        isSelected -> AiriTheme.onSurface.copy(alpha = 0.08f)
                         else -> Color.Transparent
                     }
                 ),
@@ -150,7 +146,7 @@ private fun AiriNavTabItem(
             Icon(
                 imageVector = item.icon,
                 contentDescription = null,
-                tint = if (isSelected && !neutralSettingsSelection) CosmicAccent else iconTint,
+                tint = iconTint,
                 modifier = Modifier.size(20.dp)
             )
         }

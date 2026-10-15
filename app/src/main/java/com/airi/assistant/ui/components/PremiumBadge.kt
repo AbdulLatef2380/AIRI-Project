@@ -61,7 +61,7 @@ fun PremiumBadge(
             Icon(
                 imageVector = if (onUnlockClick != null) Icons.Outlined.Lock else Icons.Outlined.Star,
                 contentDescription = stringResource(R.string.cd_premium_badge),
-                tint     = goldColor,
+                tint     = AiriTheme.onSurfaceVariant,
                 modifier = Modifier.size(if (compact) 10.dp else 14.dp)
             )
             Text(
@@ -125,7 +125,7 @@ fun LockedFeatureRow(
         Icon(
             Icons.Outlined.Lock,
             contentDescription = stringResource(R.string.cd_premium_locked),
-            tint     = goldColor.copy(alpha = 0.5f),
+            tint     = AiriTheme.onSurfaceVariant,
             modifier = Modifier.size(16.dp)
         )
     }

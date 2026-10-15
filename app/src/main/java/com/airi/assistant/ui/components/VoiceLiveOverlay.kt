@@ -108,7 +108,7 @@ fun VoiceLiveOverlay(
                     Icon(
                         imageVector        = Icons.Outlined.Close,
                         contentDescription = stringResource(R.string.cd_stop_voice),
-                        tint               = SemanticError,
+                        tint               = AiriTheme.onSurfaceVariant,
                         modifier           = Modifier.size(22.dp)
                     )
                 }

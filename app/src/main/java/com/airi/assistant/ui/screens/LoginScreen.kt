@@ -208,7 +208,7 @@ fun LoginScreen(
                     label         = { Text(stringResource(R.string.login_email_label)) },
                     leadingIcon   = {
                         Icon(Icons.Outlined.Email, contentDescription = null,
-                            tint = accentColor.copy(alpha = 0.8f))
+                            tint = AiriTheme.onSurfaceVariant)
                     },
                     modifier    = Modifier.fillMaxWidth(),
                     singleLine  = true,
@@ -224,7 +224,7 @@ fun LoginScreen(
                     label         = { Text(stringResource(R.string.login_password_label)) },
                     leadingIcon   = {
                         Icon(Icons.Outlined.Lock, contentDescription = null,
-                            tint = accentColor.copy(alpha = 0.8f))
+                            tint = AiriTheme.onSurfaceVariant)
                     },
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {

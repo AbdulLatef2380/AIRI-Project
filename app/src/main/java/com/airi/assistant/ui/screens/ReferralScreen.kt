@@ -73,7 +73,7 @@ fun ReferralScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            Icon(Icons.Outlined.CardGiftcard, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(54.dp))
+            Icon(Icons.Outlined.CardGiftcard, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(54.dp))
             Text(stringResource(R.string.referral_heading), color = AiriTheme.onBackground, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
             Text(
                 "Share AIRI with friends. You get +20 bonus messages for inviting, and new users get +20 welcome messages when they join with your code.",
@@ -137,7 +137,7 @@ fun ReferralScreen(onBack: () -> Unit) {
                     scope.launch { snackbarHost.showSnackbar(if (redeemed) "Welcome bonus added" else "Enter a valid AIRI code") }
                 }
             ) {
-                Icon(Icons.Outlined.Redeem, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.Redeem, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.referral_redeem), color = CosmicAccent)
             }
@@ -157,7 +157,7 @@ private fun ReferralButton(
         shape = RoundedCornerShape(15.dp),
         colors = ButtonDefaults.buttonColors(containerColor = AiriTheme.outline, contentColor = AiriTheme.onBackground)
     ) {
-        Icon(icon, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(19.dp))
+        Icon(icon, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(19.dp))
         Spacer(Modifier.width(10.dp))
         Text(label, fontWeight = FontWeight.SemiBold)
     }

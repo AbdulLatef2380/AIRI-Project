@@ -132,7 +132,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = TermSurface),
                         navigationIcon = {
                             IconButton(onClick = onBack) {
-                                Icon(Icons.Outlined.ArrowBack, null, tint = TermOutput.copy(0.7f))
+                                Icon(Icons.Outlined.ArrowBack, null, tint = AiriTheme.onSurfaceVariant)
                             }
                         },
                         title = {
@@ -170,7 +170,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                                     Icon(
                                         Icons.Outlined.StopCircle,
                                         stringResource(R.string.terminal_cancel_command_cd),
-                                        tint = TermWarn,
+                                        tint = AiriTheme.onSurfaceVariant,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -179,7 +179,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                                 Icon(
                                     if (showSearch) Icons.Outlined.SearchOff else Icons.Outlined.Search,
                                     stringResource(if (showSearch) R.string.terminal_close_search_cd else R.string.terminal_search_cd),
-                                    tint = if (showSearch) CosmicAccent else TermOutput.copy(0.55f),
+                                    tint = AiriTheme.onSurfaceVariant,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -187,7 +187,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                                 Icon(
                                     Icons.Outlined.History,
                                     stringResource(R.string.terminal_history_cd),
-                                    tint = if (showHistory) CosmicAccent else TermOutput.copy(0.55f),
+                                    tint = AiriTheme.onSurfaceVariant,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -197,10 +197,10 @@ fun TerminalScreen(onBack: () -> Unit) {
                                 cm.setPrimaryClip(ClipData.newPlainText("terminal", text))
                                 scope.launch { snackbar.showSnackbar(context.getString(R.string.terminal_copied)) }
                             }) {
-                                Icon(Icons.Outlined.ContentCopy, stringResource(R.string.terminal_copy_cd), tint = TermOutput.copy(0.55f), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Outlined.ContentCopy, stringResource(R.string.terminal_copy_cd), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = { runtime.clearOutput() }) {
-                                Icon(Icons.Outlined.Delete, stringResource(R.string.terminal_clear_cd), tint = TermOutput.copy(0.55f), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Outlined.Delete, stringResource(R.string.terminal_clear_cd), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                             }
                         }
                     )
@@ -210,7 +210,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                             modifier = Modifier.fillMaxWidth().background(TermSurface).padding(horizontal = 16.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Outlined.Search, null, tint = TermComment, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Outlined.Search, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(8.dp))
                             BasicTextField2Compat(
                                 value = searchQuery,
@@ -222,7 +222,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                                 Text("${displayLines.size} matches", fontSize = 10.sp, color = TermComment, fontFamily = FontFamily.Monospace)
                                 Spacer(Modifier.width(8.dp))
                                 IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(20.dp)) {
-                                    Icon(Icons.Outlined.Close, null, tint = TermComment, modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Outlined.Close, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                                 }
                             }
                         }
@@ -234,7 +234,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                                 modifier = Modifier.fillMaxWidth().background(TermSurface).padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Outlined.History, null, tint = TermComment, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Outlined.History, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(8.dp))
                                 Text(stringResource(R.string.terminal_history_empty), fontSize = 12.sp, color = TermComment, fontFamily = FontFamily.Monospace)
                             }
@@ -258,7 +258,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                                     ) {
                                         Text("$", fontSize = 11.sp, color = TermPrompt, fontFamily = FontFamily.Monospace)
                                         Text(cmd, fontSize = 12.sp, color = TermOutput.copy(0.75f), fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
-                                        Icon(Icons.Outlined.NorthWest, null, tint = TermComment, modifier = Modifier.size(12.dp))
+                                        Icon(Icons.Outlined.NorthWest, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
                                     }
                                 }
                             }
@@ -274,7 +274,7 @@ fun TerminalScreen(onBack: () -> Unit) {
             if (displayLines.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Outlined.Terminal, null, tint = TermComment, modifier = Modifier.size(32.dp))
+                        Icon(Icons.Outlined.Terminal, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(32.dp))
                         Text(
                             if (showSearch && searchQuery.isNotBlank()) "No matches for \"$searchQuery\""
                             else stringResource(R.string.terminal_no_output),
@@ -383,10 +383,10 @@ fun TerminalScreen(onBack: () -> Unit) {
                     if (history.isNotEmpty()) {
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             IconButton(onClick = { navigateHistory(up = true) }, modifier = Modifier.size(32.dp)) {
-                                Icon(Icons.Outlined.KeyboardArrowUp, null, tint = TermComment, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Outlined.KeyboardArrowUp, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                             }
                             IconButton(onClick = { navigateHistory(up = false) }, modifier = Modifier.size(32.dp)) {
-                                Icon(Icons.Outlined.KeyboardArrowDown, null, tint = TermComment, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Outlined.KeyboardArrowDown, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                             }
                         }
                     }
@@ -406,7 +406,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                         Icon(
                             Icons.Outlined.Send,
                             null,
-                            tint = if (input.isNotBlank() && !isRunning) CosmicAccent else TermComment,
+                            tint = AiriTheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                     }

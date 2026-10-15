@@ -64,7 +64,7 @@ fun SettingsCategoryHeader(icon: ImageVector, title: String) {
         Icon(
             imageVector     = icon,
             contentDescription = null,
-            tint            = CosmicAccent,
+            tint            = AiriTheme.onSurfaceVariant,
             modifier        = Modifier.size(18.dp)
         )
         Text(

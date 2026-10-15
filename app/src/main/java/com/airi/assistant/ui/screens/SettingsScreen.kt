@@ -195,7 +195,7 @@ fun SettingsScreen(
                         Icon(
                             Icons.Outlined.Warning,
                             contentDescription = null,
-                            tint = SemanticWarn,
+                            tint = AiriTheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
                         Column {
@@ -507,7 +507,7 @@ fun SettingsNavItem(
                 .background(AiriTheme.onSurface.copy(alpha = 0.06f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = monochromeIconTint, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         }
 
         // Keep the title and its supporting detail in a right-aligned vertical
@@ -599,10 +599,10 @@ fun SettingsToggleItem(
             modifier = Modifier
                 .size(34.dp)
                 .clip(RoundedCornerShape(9.dp))
-                .background(iconTint.copy(alpha = 0.12f)),
+                .background(AiriTheme.onSurface.copy(alpha = 0.06f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         }
 
         Text(

@@ -153,7 +153,7 @@ fun PaywallScreen(
                     Icon(
                         Icons.Outlined.Star,
                         contentDescription = null,
-                        tint   = goldColor,
+                        tint   = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(40.dp)
                     )
                 }
@@ -173,7 +173,7 @@ fun PaywallScreen(
                                 Icon(
                                     Icons.Outlined.Bolt,
                                     contentDescription = null,
-                                    tint     = goldColor,
+                                    tint     = AiriTheme.onSurfaceVariant,
                                     modifier = Modifier.size(12.dp)
                                 )
                                 Text(
@@ -389,7 +389,7 @@ fun PaywallScreen(
                             Icon(
                                 Icons.Outlined.Bolt,
                                 contentDescription = null,
-                                tint     = accentColor,
+                                tint     = AiriTheme.onSurfaceVariant,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(Modifier.width(6.dp))
@@ -470,7 +470,7 @@ private fun BenefitRow(
             Icon(
                 imageVector     = icon,
                 contentDescription = null,
-                tint            = CosmicAccent,
+                tint            = AiriTheme.onSurfaceVariant,
                 modifier        = Modifier.size(20.dp)
             )
         }

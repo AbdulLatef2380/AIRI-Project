@@ -59,7 +59,7 @@ fun HistoryScreen(viewModel: ChatViewModel, onBack: () -> Unit, onSessionSelecte
                 Modifier.fillMaxWidth().clip(AIRIShapes.md).background(CosmicAccent.copy(.12f)).clickable { viewModel.clearMessages(); onSessionSelected() }.padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Outlined.Add, null, tint = CosmicAccent, modifier = Modifier.size(22.dp))
+                Icon(Icons.Outlined.Add, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
                 Text("محادثة جديدة", color = CosmicAccent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.height(18.dp))
@@ -113,7 +113,7 @@ internal fun HistorySessionItem(session: ChatSessionSummary, onSelect: () -> Uni
     var actions by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().clip(AIRIShapes.md).background(if (actions) AiriTheme.surfaceVariant else AiriTheme.surface).combinedClickable(onClick = onSelect, onLongClick = { actions = !actions }).padding(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (session.isPinned) Icon(Icons.Filled.PushPin, "مثبتة", tint = CosmicAccent, modifier = Modifier.size(15.dp))
+            if (session.isPinned) Icon(Icons.Filled.PushPin, "مثبتة", tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(15.dp))
             Text(time.format(Date(session.updatedAt)), color = AiriTheme.onSurfaceVariant.copy(.55f), fontSize = 11.sp)
             Spacer(Modifier.weight(1f))
             Text(session.title.ifBlank { "محادثة جديدة" }, color = AiriTheme.onBackground, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -136,7 +136,7 @@ internal fun HistorySessionItem(session: ChatSessionSummary, onSelect: () -> Uni
 
 @Composable
 private fun ActionIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(34.dp)) { Icon(icon, label, tint = tint, modifier = Modifier.size(18.dp)) }
+    IconButton(onClick = onClick, modifier = Modifier.size(34.dp)) { Icon(icon, label, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
 }
 
 internal fun shareSession(context: Context, session: ChatSessionSummary) {

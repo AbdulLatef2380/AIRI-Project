@@ -145,7 +145,7 @@ fun OnboardingScreen(
                         .border(1.5.dp, CosmicAccent.copy(alpha = 0.45f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(p.icon, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(44.dp))
+                    Icon(p.icon, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(44.dp))
                 }
 
                 Text(
@@ -288,7 +288,7 @@ private fun PrivacyExplanationCard() {
 @Composable
 private fun PrivacyRow(label: String, detail: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-        Icon(Icons.Outlined.CheckCircle, null, tint = CosmicAccent, modifier = Modifier.size(16.dp).padding(top = 2.dp))
+        Icon(Icons.Outlined.CheckCircle, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp).padding(top = 2.dp))
         Column {
             Text(label,  color = AiriTheme.onBackground, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Text(detail, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 17.sp)
@@ -373,7 +373,7 @@ private fun SocialProofStrip() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Icon(Icons.Outlined.AutoAwesome, null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
+        Icon(Icons.Outlined.AutoAwesome, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
         Text(stringResource(R.string.onboarding_tagline), color = AiriTheme.onBackground.copy(alpha = 0.76f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }

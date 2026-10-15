@@ -82,7 +82,7 @@ private fun PlanScaffold(title: String, onBack: () -> Unit, content: @Composable
 
 @Composable private fun PlanHeader(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Icon(icon, null, tint = color, modifier = Modifier.size(28.dp))
+        Icon(icon, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(28.dp))
         Text(text, color = color, fontSize = 24.sp, fontWeight = FontWeight.Bold)
     }
 }
@@ -93,7 +93,7 @@ private fun PlanScaffold(title: String, onBack: () -> Unit, content: @Composable
 
 @Composable private fun PlanItem(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, desc: String, enabled: Boolean) {
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Icon(icon, null, tint = if (enabled) SemanticSuccess else AiriTheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
+        Icon(icon, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
         Column { Text(title, fontWeight = FontWeight.SemiBold); Text(desc, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp) }
     }
 }

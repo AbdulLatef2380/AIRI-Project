@@ -1109,7 +1109,7 @@ fun ChatScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Outlined.Search, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Outlined.Search, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(6.dp))
                         OutlinedTextField(
                             value = chatSearchQuery,
@@ -1409,7 +1409,7 @@ fun ChatScreen(
                 Icon(
                     Icons.Outlined.Warning,
                     contentDescription = null,
-                    tint     = Color(0xFFFFB300),
+                    tint     = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(28.dp)
                 )
             },
@@ -1513,7 +1513,7 @@ private fun MemoryAcceptanceBanner(
                 Icon(
                     Icons.Outlined.Psychology,
                     contentDescription = null,
-                    tint = CosmicAccent,
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
                 )
                 Text(
@@ -1605,7 +1605,7 @@ private fun AiriChatTopBar(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     Icon(Icons.Outlined.Bolt, contentDescription = null,
-                        tint = if (planLabel == "Pro") SemanticSuccess else AiriTheme.onSurfaceVariant,
+                        tint = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(11.dp))
                     Text(planLabel,
                         color = if (planLabel == "Pro") SemanticSuccess else AiriTheme.onSurface,
@@ -1725,22 +1725,22 @@ private fun AiriChatTopBar(
                     ) {
                         DropdownMenuItem(
                             text  = { Text(stringResource(R.string.switch_model), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.Memory, contentDescription = null, tint = CosmicAccent) },
+                            leadingIcon = { Icon(Icons.Outlined.Memory, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
                             onClick = onSwitchModel
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.project_home_add_file), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.CreateNewFolder, contentDescription = null, tint = CosmicAccent) },
+                            leadingIcon = { Icon(Icons.Outlined.CreateNewFolder, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
                             onClick = { onDismissDropdown(); onNavigate(AiriRoute.WORKSPACE) }
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.library_project_files), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.FolderOpen, contentDescription = null, tint = CosmicAccent) },
+                            leadingIcon = { Icon(Icons.Outlined.FolderOpen, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
                             onClick = { onDismissDropdown(); onNavigate(AiriRoute.WORKSPACE) }
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.attach_recent_tasks), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.Schedule, contentDescription = null, tint = CosmicAccent) },
+                            leadingIcon = { Icon(Icons.Outlined.Schedule, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
                             onClick = { onDismissDropdown(); onNavigate(AiriRoute.AGENT_TASKS) }
                         )
                         if (sessionActions.canShareOrExport || sessionActions.canPinOrRename) {
@@ -1784,7 +1784,7 @@ private fun AiriChatTopBar(
                             )
                             DropdownMenuItem(
                                 text = { Text(if (isCurrentSessionFavorite) stringResource(R.string.library_remove_favorite) else stringResource(R.string.library_toggle_favorite), color = AiriTheme.onBackground) },
-                                leadingIcon = { Icon(if (isCurrentSessionFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder, contentDescription = null, tint = CosmicAccent) },
+                                leadingIcon = { Icon(if (isCurrentSessionFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder, contentDescription = null, tint = AiriTheme.onSurfaceVariant) },
                                 onClick = { onSetSessionFavorite(!isCurrentSessionFavorite); onDismissDropdown() }
                             )
                             DropdownMenuItem(
@@ -1969,7 +1969,7 @@ private fun ModelPickerRow(
                 .background(CosmicAccent.copy(alpha = 0.18f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
+            Icon(icon, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -2389,7 +2389,7 @@ private fun FinalAnswerVerificationBadge(state: FinalAnswerUiState) {
             Icon(
                 imageVector = if (positive) Icons.Outlined.CheckCircle else Icons.Outlined.Info,
                 contentDescription = null,
-                tint = tint,
+                tint = AiriTheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp)
             )
             Spacer(Modifier.width(8.dp))
@@ -2601,7 +2601,7 @@ fun UserBubble(
                     Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
                     DropdownMenuItem(
                         text         = { Text(stringResource(R.string.delete), color = SemanticError, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.Delete, null, tint = SemanticError.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                        leadingIcon  = { Icon(Icons.Outlined.Delete, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp)) },
                         onClick      = { showContextMenu = false; onDelete() }
                     )
                 }
@@ -2807,7 +2807,7 @@ fun AiBubble(
                         onFeedback(false)
                     }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Outlined.ThumbDown, contentDescription = stringResource(R.string.feedback_not_helpful),
-                            tint = if (disliked) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.35f),
+                            tint = AiriTheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp))
                     }
                     IconButton(onClick = {
@@ -2817,7 +2817,7 @@ fun AiBubble(
                         onFeedback(true)
                     }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Outlined.ThumbUp, contentDescription = stringResource(R.string.feedback_helpful),
-                            tint = if (liked) CosmicAccent else Color.White.copy(alpha = 0.35f),
+                            tint = AiriTheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp))
                     }
                 }
@@ -2838,7 +2838,7 @@ fun AiBubble(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(12.dp))
+                                Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
                                 Spacer(Modifier.width(4.dp))
                                 Text(
                                     text = " ${agentTag ?: "Agent"} · ${trace.stepCount} ${if (traceExpanded) "▲" else "▼"}",
@@ -2848,7 +2848,7 @@ fun AiBubble(
                             Icon(
                                 if (trace.success) Icons.Outlined.CheckCircle else Icons.Outlined.Error,
                                 contentDescription = null,
-                                tint = if (trace.success) Color(0xFF00C853) else Color(0xFFFF5252),
+                                tint = AiriTheme.onSurfaceVariant,
                                 modifier = Modifier.size(12.dp)
                             )
                         }
@@ -2995,7 +2995,7 @@ private fun ExecutionErrorBubble(error: ExecutionErrorProjection) {
                     Icon(
                         Icons.Outlined.ErrorOutline,
                         contentDescription = null,
-                        tint = SemanticError,
+                        tint = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(17.dp)
                     )
                     Text(
@@ -3159,7 +3159,7 @@ private fun AttachmentChip(
                 AttachmentPolicy.ContentType.DOCUMENT -> Icons.Outlined.Article
                 AttachmentPolicy.ContentType.FILE -> Icons.Default.AttachFile
             }
-            Icon(fallback, contentDescription = typeLabel, tint = accent, modifier = Modifier.size(24.dp))
+            Icon(fallback, contentDescription = typeLabel, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
             val thumbModel: Any? = attachment.uri ?: attachment.bitmap
             if (attachment.isVisualImage && thumbModel != null) {
                 AsyncImage(
@@ -3273,7 +3273,7 @@ private fun AttachmentPreviewDialog(attachment: ChatAttachment, onDismiss: () ->
                         )
                     } else {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Outlined.InsertDriveFile, typeLabel, tint = CosmicAccent, modifier = Modifier.size(52.dp))
+                            Icon(Icons.Outlined.InsertDriveFile, typeLabel, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(52.dp))
                             Spacer(Modifier.height(8.dp))
                             Text(typeLabel, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                             formatAttachmentBytes(exactSizeBytes)?.let { Text(it, color = AiriTheme.onSurfaceVariant, fontSize = 11.sp) }
@@ -3359,7 +3359,7 @@ private fun SkillDirectiveChip(
                 Icon(
                     imageVector = Icons.Outlined.Extension,
                     contentDescription = null,
-                    tint = if (isRemovalArmed) CosmicAccent else AiriTheme.onSurfaceVariant,
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(12.dp)
                 )
             }
@@ -3595,7 +3595,7 @@ fun AiriChatInputBar(
             ) {
                 Icon(
                     Icons.Outlined.WarningAmber, null,
-                    tint = Color(0xFFFFB347),
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(48.dp)
                 )
                 Text(
@@ -3653,7 +3653,7 @@ fun AiriChatInputBar(
             ) {
                 Icon(
                     Icons.Outlined.Info, null,
-                    tint     = Color(0xFFFFB347),
+                    tint     = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp)
                 )
                 Text(
@@ -3691,7 +3691,7 @@ fun AiriChatInputBar(
                             Icon(
                                 imageVector = Icons.Outlined.AutoAwesome,
                                 contentDescription = null,
-                                tint = CosmicAccent.copy(alpha = 0.82f),
+                                tint = AiriTheme.onSurfaceVariant,
                                 modifier = Modifier.size(14.dp),
                             )
                             Text(
@@ -3746,7 +3746,7 @@ fun AiriChatInputBar(
         // No model warning
         if (!isInferenceReady && !modelState.isModelLoading) {
             TextButton(onClick = onOpenModels, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp)) {
-                Icon(Icons.Outlined.Warning, null, tint = Color(0xFFFFCC00), modifier = Modifier.size(14.dp))
+                Icon(Icons.Outlined.Warning, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(4.dp))
                 Text(stringResource(R.string.no_model_tap_select), color = Color(0xFFFFCC00), fontSize = 12.sp)
             }
@@ -3771,7 +3771,7 @@ fun AiriChatInputBar(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Outlined.FileDownload, contentDescription = null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.FileDownload, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                         Text(stringResource(R.string.attachment_drop_here), color = AiriTheme.onSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
                 }
@@ -3869,7 +3869,7 @@ fun AiriChatInputBar(
                                 Icon(
                                     imageVector = if (suggestion.isKnowledge) Icons.Outlined.Lightbulb else Icons.Outlined.Extension,
                                     contentDescription = null,
-                                    tint = if (suggestion.isKnowledge) Color(0xFFFFB347) else CosmicAccent,
+                                    tint = AiriTheme.onSurfaceVariant,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
@@ -4104,10 +4104,7 @@ fun AiriChatInputBar(
                                     Box(modifier = Modifier.size((28 * micPulse).dp).clip(CircleShape).background(CosmicAccent.copy(0.18f)))
                                 }
                                 Icon(Icons.Outlined.Mic, voiceInputDescription,
-                                    tint = when (voiceState) {
-                                        VoiceSessionState.IDLE -> if (isInferenceReady) Color.White.copy(0.70f) else Color.White.copy(0.30f)
-                                        else -> CosmicAccent
-                                    },
+                                    tint = AiriTheme.onSurfaceVariant,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -4134,7 +4131,7 @@ fun AiriChatInputBar(
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Icon(Icons.Outlined.Hub, null, tint = CosmicAccent, modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Outlined.Hub, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                                     Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = AiriTheme.onBackground.copy(0.45f), modifier = Modifier.size(12.dp))
                                 }
                             }
@@ -4394,7 +4391,7 @@ private fun AttachCard(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Icon(icon, contentDescription = label, tint = if (enabled) CosmicAccent else AiriTheme.onSurfaceVariant, modifier = Modifier.size(26.dp))
+        Icon(icon, contentDescription = label, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(26.dp))
         Text(
             text = label,
             color = if (enabled) AiriTheme.onSurface else AiriTheme.onSurfaceVariant,
@@ -4421,14 +4418,10 @@ private fun AttachListRow(
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(AIRIShapes.md)
-                .background(AiriTheme.surfaceVariant)
-                .border(1.dp, AiriTheme.outline.copy(alpha = 0.9f), AIRIShapes.md),
+            modifier = Modifier.size(40.dp),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = label, tint = CosmicAccent, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = label, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
         }
         Text(
             text = label,
@@ -4571,7 +4564,7 @@ private fun DrawerNavItem(icon: androidx.compose.ui.graphics.vector.ImageVector,
 @Composable
 private fun DrawerActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color = AiriTheme.onBackground.copy(0.7f), onClick: () -> Unit) {
     NavigationDrawerItem(
-        icon = { Icon(icon, null, tint = tint) },
+        icon = { Icon(icon, null, tint = AiriTheme.onSurfaceVariant) },
         label = { Text(label, color = tint) },
         selected = false, onClick = onClick,
         colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent),

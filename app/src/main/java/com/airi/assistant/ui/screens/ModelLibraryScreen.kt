@@ -331,7 +331,7 @@ private fun BraveSearchApiCard(
                     .background(Color(0xFFFF6D00).copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Outlined.Search, null, tint = Color(0xFFFF6D00), modifier = Modifier.size(20.dp))
+                Icon(Icons.Outlined.Search, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.brave_search_title), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
@@ -456,7 +456,7 @@ private fun SmartRoutingModeCard(
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Tune, contentDescription = null,
-                    tint = CosmicAccent, modifier = Modifier.size(16.dp))
+                    tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.model_library_smart_routing), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             }
@@ -514,7 +514,7 @@ private fun LocalModelCard(modelState: ModelUiState) {
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.Memory, contentDescription = null,
-                tint = CosmicAccent, modifier = Modifier.size(22.dp))
+                tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
@@ -694,7 +694,7 @@ private fun OpenRouterTaskModelCard(entry: TaskModelEntry) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 entry.taskIcon, contentDescription = null,
-                tint = CosmicAccent.copy(alpha = 0.8f),
+                tint = AiriTheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
             Spacer(Modifier.width(12.dp))

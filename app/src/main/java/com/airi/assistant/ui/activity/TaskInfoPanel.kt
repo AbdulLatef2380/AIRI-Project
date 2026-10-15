@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Close
@@ -42,7 +43,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -51,10 +51,8 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.AIRIShapes
-import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SemanticError
 import com.airi.assistant.ui.theme.SemanticSuccess
-import com.airi.assistant.ui.theme.SemanticWarn
 import java.util.concurrent.TimeUnit
 
 /** Four observable execution signals used by the task-information UX. */
@@ -128,13 +126,12 @@ fun TaskInfoMenu(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val iconTint = if (metrics.isEligible) SemanticError else AiriTheme.onBackground.copy(alpha = 0.65f)
     androidx.compose.foundation.layout.Box(modifier) {
         IconButton(onClick = { expanded = true }) {
             Icon(
                 imageVector = Icons.Outlined.AutoAwesome,
                 contentDescription = stringResource(R.string.task_info_title),
-                tint = iconTint,
+                tint = AiriTheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
             )
         }
@@ -145,7 +142,7 @@ fun TaskInfoMenu(
         ) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.chat_search), color = AiriTheme.onBackground) },
-                leadingIcon = { Icon(Icons.Outlined.Search, null, tint = CosmicAccent) },
+                leadingIcon = { Icon(Icons.Outlined.Search, null, tint = AiriTheme.onSurfaceVariant) },
                 onClick = { expanded = false; onSearch() },
             )
             DropdownMenuItem(
@@ -161,7 +158,7 @@ fun TaskInfoMenu(
                         }
                     }
                 },
-                leadingIcon = { Icon(Icons.Outlined.History, null, tint = if (metrics.isEligible) SemanticError else AiriTheme.onSurfaceVariant) },
+                leadingIcon = { Icon(Icons.Outlined.Analytics, null, tint = AiriTheme.onSurfaceVariant) },
                 enabled = metrics.isEligible,
                 onClick = { expanded = false; onTaskInfo() },
             )
@@ -182,15 +179,15 @@ fun TaskInfoBottomSheet(
     val started = metrics.scopedEvents.minOfOrNull { it.timestampMs }
     val elapsed = started?.let { (System.currentTimeMillis() - it).coerceAtLeast(0L) } ?: 0L
     val cards = listOf(
-        TaskMetric(Icons.Outlined.Description, stringResource(R.string.task_metric_pages), metrics.pagesViewed, CosmicAccent),
-        TaskMetric(Icons.Outlined.Terminal, stringResource(R.string.task_metric_tools), metrics.commandsExecuted, SemanticError),
-        TaskMetric(Icons.Outlined.Cloud, stringResource(R.string.task_metric_api), metrics.apiCalls, SemanticWarn),
-        TaskMetric(Icons.Outlined.FolderOpen, stringResource(R.string.task_metric_files), metrics.filesCreated, SemanticSuccess),
+        TaskMetric(Icons.Outlined.Description, stringResource(R.string.task_metric_pages), metrics.pagesViewed),
+        TaskMetric(Icons.Outlined.Terminal, stringResource(R.string.task_metric_tools), metrics.commandsExecuted),
+        TaskMetric(Icons.Outlined.Cloud, stringResource(R.string.task_metric_api), metrics.apiCalls),
+        TaskMetric(Icons.Outlined.FolderOpen, stringResource(R.string.task_metric_files), metrics.filesCreated),
     )
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = AiriTheme.surface) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Outlined.AutoAwesome, null, tint = SemanticError, modifier = Modifier.size(24.dp))
+                Icon(Icons.Outlined.AutoAwesome, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                     Text(stringResource(R.string.task_info_title), color = AiriTheme.onSurface, fontSize = 21.sp, fontWeight = FontWeight.Bold)
                     Text(if (isWorking) stringResource(R.string.task_info_status_running) else stringResource(R.string.task_info_status_finished), color = if (isWorking) SemanticError else SemanticSuccess, fontSize = 12.sp)
@@ -213,7 +210,7 @@ fun TaskInfoBottomSheet(
                 Modifier.fillMaxWidth().background(AiriTheme.surfaceVariant, RoundedCornerShape(18.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Outlined.History, null, tint = CosmicAccent, modifier = Modifier.size(20.dp))
+                Icon(Icons.Outlined.History, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                     Text(stringResource(R.string.task_info_when), color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
                     Text(stringResource(R.string.task_info_when_value, formatDuration(elapsed)), color = AiriTheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
@@ -231,12 +228,12 @@ fun TaskInfoBottomSheet(
     }
 }
 
-private data class TaskMetric(val icon: ImageVector, val label: String, val value: Int, val color: Color)
+private data class TaskMetric(val icon: ImageVector, val label: String, val value: Int)
 
 @Composable
 private fun MetricCard(metric: TaskMetric) {
     Row(Modifier.fillMaxWidth().background(AiriTheme.surfaceVariant, RoundedCornerShape(18.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(metric.icon, null, tint = metric.color, modifier = Modifier.size(22.dp))
+        Icon(metric.icon, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
         Column(Modifier.padding(horizontal = 8.dp)) {
             Text(metric.value.toString(), color = AiriTheme.onSurface, fontSize = 19.sp, fontWeight = FontWeight.Bold)
             Text(metric.label, color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)

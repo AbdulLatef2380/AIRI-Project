@@ -335,7 +335,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
                         1.dp, androidx.compose.ui.graphics.SolidColor(CosmicAccent.copy(0.5f))
                     )
                 ) {
-                    Icon(Icons.Filled.OpenInNew, null, tint = CosmicAccent, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Filled.OpenInNew, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.open_app_settings), color = CosmicAccent, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
@@ -460,7 +460,7 @@ private fun PermissionRow(
                     .background(perm.iconTint.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(perm.icon, null, tint = perm.iconTint, modifier = Modifier.size(18.dp))
+                Icon(perm.icon, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -542,12 +542,7 @@ private fun PermissionRow(
                         else if (status == PermissionDisplayPolicy.Status.DEVICE_UNAVAILABLE) R.string.permissions_status_unavailable
                         else R.string.permissions_status_not_granted
                     ),
-                    tint = when (status) {
-                        PermissionDisplayPolicy.Status.GRANTED -> SemanticSuccess
-                        PermissionDisplayPolicy.Status.NOT_GRANTED -> SemanticError.copy(alpha = 0.7f)
-                        PermissionDisplayPolicy.Status.NOT_REQUIRED,
-                        PermissionDisplayPolicy.Status.DEVICE_UNAVAILABLE -> AiriTheme.onSurfaceVariant
-                    },
+                    tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
                 )
             }

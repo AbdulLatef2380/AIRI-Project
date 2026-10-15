@@ -2,10 +2,7 @@ package com.airi.assistant.ui.components
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -13,7 +10,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -24,7 +20,7 @@ import com.airi.assistant.ui.theme.CosmicAccent
 
 /**
  * Enhanced "thinking" indicator with:
- *   1. Animated assistant icon with a breathing glow
+ *   1. Breathing glow behind the thinking status (without an assistant icon)
  *   2. Dynamic status text that cycles through stages
  *      ("Thinking..." → "Generating..." → "Almost there...")
  *   3. Radial glow pulse behind the icon for a premium feel
@@ -51,7 +47,7 @@ fun ThinkingAnimation(
     }
     val transition = rememberInfiniteTransition(label = "thinking")
 
-    // ── Glow pulse behind the assistant icon ──────────────────────────────────
+    // ── Subtle glow pulse behind the thinking status ──────────────────────────
     val glowScale by transition.animateFloat(
         initialValue  = 0.6f,
         targetValue   = 1.2f,
@@ -99,7 +95,7 @@ fun ThinkingAnimation(
         modifier = modifier
             .padding(contentPadding)
             .drawBehind {
-                // Radial glow behind the assistant icon
+                // Radial glow remains as a subtle status animation without a glyph.
                 val radius = 40f * glowScale
                 drawCircle(
                     brush = Brush.radialGradient(
@@ -115,17 +111,7 @@ fun ThinkingAnimation(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Icon(
-            imageVector = Icons.Outlined.AutoAwesome,
-            contentDescription = null,
-            tint = CosmicAccent.copy(alpha = fadeAlpha),
-            modifier = Modifier
-                .size(18.dp)
-                .scale(glowScale.coerceIn(0.85f, 1.15f))
-                .alpha(fadeAlpha)
-        )
-
-        // Status text remains a separate bidi-aware label after the icon.
+        // Bidi-aware status text stands alone; no assistant icon is rendered.
         Text(
             text = effectiveText,
             style = MaterialTheme.typography.bodySmall.copy(

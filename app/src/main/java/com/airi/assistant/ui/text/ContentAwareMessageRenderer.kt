@@ -89,7 +89,7 @@ private fun CodeCard(block: AssistantCodeBlock, onCopyCode: (String) -> Unit) {
                     onClick = { onCopyCode(block.code) },
                     modifier = Modifier.semantics { contentDescription = "Copy code" },
                 ) {
-                    Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy code", tint = Color(0xFFB8C7D9))
+                    Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy code", tint = AiriTheme.onSurfaceVariant)
                 }
             }
             Row(Modifier.horizontalScroll(rememberScrollState())) {

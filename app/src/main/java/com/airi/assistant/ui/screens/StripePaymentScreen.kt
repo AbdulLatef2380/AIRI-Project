@@ -224,7 +224,7 @@ private fun PremiumTab(
                         val features = listOf("Full Agent execution", "Unlimited chat", "Priority model access", "All connectors unlocked", "Advanced skills and API", "No advertisements")
                         features.forEach { f ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.CheckCircle, null, Modifier.size(16.dp), tint = SemanticSuccess)
+                                Icon(Icons.Default.CheckCircle, null, Modifier.size(16.dp), tint = AiriTheme.onSurfaceVariant)
                                 Spacer(Modifier.width(8.dp))
                                 Text(f, fontSize = 14.sp, color = AiriTheme.onBackground)
                             }
@@ -313,7 +313,7 @@ private fun PremiumActiveBanner() {
         border = androidx.compose.foundation.BorderStroke(1.dp, SemanticSuccess.copy(0.3f))
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Stars, null, Modifier.size(32.dp), tint = SemanticSuccess)
+            Icon(Icons.Default.Stars, null, Modifier.size(32.dp), tint = AiriTheme.onSurfaceVariant)
             Spacer(Modifier.width(12.dp))
             Column {
                 Text(stringResource(R.string.payment_premium_active), fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
@@ -338,7 +338,7 @@ private fun PaymentStateBanner(state: StripeManager.PaymentState, onDismiss: () 
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, Modifier.size(20.dp), tint = color)
+            Icon(icon, null, Modifier.size(20.dp), tint = AiriTheme.onSurfaceVariant)
             Spacer(Modifier.width(8.dp))
             Text(text, Modifier.weight(1f), fontSize = 13.sp, color = AiriTheme.onBackground)
             IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {

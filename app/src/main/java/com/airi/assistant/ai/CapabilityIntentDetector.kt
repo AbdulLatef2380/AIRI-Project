@@ -62,8 +62,13 @@ object CapabilityIntentDetector {
     private val connectorActions = listOf(
         "list", "show", "read", "check", "find", "search", "get", "access", "summarize",
         "اعرض", "عرض", "اقرأ", "اقرا", "تحقق", "ابحث", "أحضر", "احضر", "الوصول",
-        "افتح", "لخص", "لخّص", "استخرج", "راجع", "آخر", "اخر", "my", "mine",
+        "افتح", "لخص", "لخّص", "استخرج", "راجع", "حلل", "حلّل", "تحليل", "آخر", "اخر", "my", "mine",
         "لدي", "لديك", "حساب", "ملفاتي", "رسائلي", "مستودعاتي", "المستودعات",
+    )
+
+    private val githubRepositoryTerms = listOf(
+        "repository", "repositories", "repo", "github.com", "المستودع", "المستودعات",
+        "المشروع", "مشروع github", "رابط github"
     )
 
     /** Capability-discovery questions must request the complete connector surface. */
@@ -113,12 +118,18 @@ object CapabilityIntentDetector {
         if (webPatterns.any(text::contains)) capabilities += Capability.WEB_SEARCH
 
         val target = connectorTargets.entries.firstOrNull { text.contains(it.key) }
+        val githubUrlIntent = text.contains("github.com/") &&
+            Regex("github\\.com/[a-z0-9_.-]+/[a-z0-9_.-]+", RegexOption.IGNORE_CASE)
+                .containsMatchIn(text)
+        val githubRepositoryIntent = githubRepositoryTerms.any(text::contains) &&
+            (text.contains("github") || text.contains("جيت هب"))
         // Ownership wording is an explicit read intent too: "my GitHub repos"
         // and "مستودعاتي في GitHub" previously fell through to a hallucinated
         // answer because they did not contain one of the narrow action verbs.
         val ownershipRead = listOf("my", "mine", "لدي", "لديك", "حساب", "ملفاتي", "رسائلي", "مستودعاتي")
             .any(text::contains)
-        if (target != null && (connectorActions.any(text::contains) || ownershipRead)) {
+        if (target != null && (connectorActions.any(text::contains) || ownershipRead ||
+                (target.value == "github" && (githubUrlIntent || githubRepositoryIntent)))) {
             capabilities += Capability.CONNECTOR_READ
             // `*` explicitly requests every connector. An empty set means
             // "no connector requested" to RuntimeToolCatalog, so it must not

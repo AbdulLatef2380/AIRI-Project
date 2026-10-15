@@ -493,12 +493,12 @@
 
     <!-- Settings screen navigation labels -->
     <string name="settings_agent_tasks">Scheduled Tasks</string>
-    <string name="settings_knowledge">Knowledge</string>
+    <string name="settings_knowledge">Memory &amp; knowledge</string>
     <string name="settings_data_controls">Data Controls</string>
     <string name="settings_skills">Skills</string>
     <string name="settings_connectors">Connectors</string>
     <string name="settings_follow_system">Follow System</string>
-    <string name="settings_ai_library">AI Settings</string>
+    <string name="settings_ai_library">AI model library</string>
     <string name="settings_smart_routing">Smart Routing</string>
     <string name="settings_voice_wakeword">Voice &amp; Wake Word</string>
     <string name="settings_credits_usage">Credits &amp; Usage</string>
@@ -1939,8 +1939,8 @@
     <string name="settings_guest">Guest</string>
     <string name="settings_storage_unavailable_title">Secure storage unavailable</string>
     <string name="settings_storage_unavailable_body">Encrypted storage could not start. Connector tokens and API keys cannot be saved in this session. Restart your device before connecting a service.</string>
-    <string name="settings_ai_execution">AI execution</string>
-    <string name="settings_ai_execution_summary">Mode, privacy, and provider</string>
+    <string name="settings_ai_execution">AI execution mode</string>
+    <string name="settings_ai_execution_summary">Execution, privacy, and service provider</string>
     <string name="settings_secret_manager">Secret manager</string>
     <string name="settings_security_scanner">Security scanner</string>
     <string name="settings_about_airi">About AIRI</string>

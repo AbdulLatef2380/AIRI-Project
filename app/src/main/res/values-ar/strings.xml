@@ -371,12 +371,12 @@
     <string name="stat_last_load_time">آخر وقت تحميل</string>
     <!-- Settings screen navigation labels -->
     <string name="settings_agent_tasks">المهام المجدولة</string>
-    <string name="settings_knowledge">معرفة</string>
+    <string name="settings_knowledge">الذاكرة والمعرفة</string>
     <string name="settings_data_controls">ضوابط البيانات</string>
     <string name="settings_skills">المهارات</string>
-    <string name="settings_connectors">موصلات</string>
+    <string name="settings_connectors">الموصلات</string>
     <string name="settings_follow_system">اتباع النظام</string>
-    <string name="settings_ai_library">مكتبة الذكاء الاصطناعي</string>
+    <string name="settings_ai_library">مكتبة النماذج</string>
     <string name="settings_smart_routing">التوجيه الذكي</string>
     <string name="settings_voice_wakeword">الصوت وكلمة التنبيه</string>
     <string name="settings_credits_usage">الرصيد والاستخدام</string>
@@ -1832,8 +1832,8 @@
     <string name="settings_guest">ضيف</string>
     <string name="settings_storage_unavailable_title">التخزين الآمن غير متاح</string>
     <string name="settings_storage_unavailable_body">تعذّر بدء التخزين المشفر. لا يمكن حفظ رموز الموصلات ومفاتيح API في هذه الجلسة. أعد تشغيل الجهاز قبل ربط خدمة.</string>
-    <string name="settings_ai_execution">تنفيذ الذكاء الاصطناعي</string>
-    <string name="settings_ai_execution_summary">الوضع والخصوصية والمزود</string>
+    <string name="settings_ai_execution">طريقة تشغيل الذكاء الاصطناعي</string>
+    <string name="settings_ai_execution_summary">وضع التشغيل والخصوصية ومزوّد الخدمة</string>
     <string name="settings_secret_manager">مدير الأسرار</string>
     <string name="settings_security_scanner">فاحص الأمان</string>
     <string name="settings_about_airi">حول AIRI</string>

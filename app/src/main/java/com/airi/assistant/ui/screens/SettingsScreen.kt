@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
@@ -478,6 +479,7 @@ fun ColumnScope.SettingsDivider() {
 }
 
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun SettingsNavItem(
     icon: ImageVector,
     iconTint: Color = AiriTheme.onSurface.copy(alpha = 0.65f),
@@ -486,56 +488,93 @@ fun SettingsNavItem(
     trailing: String? = null,
     onClick: () -> Unit
 ) {
+    // Navigation icons are intentionally monochrome; iconTint is retained for
+    // existing call sites but no longer affects the visual treatment.
+    val monochromeIconTint = AiriTheme.onSurfaceVariant
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Leading icon
+        // In RTL, the first child sits at the right edge beside its content.
         Box(
             modifier = Modifier
                 .size(34.dp)
                 .clip(RoundedCornerShape(9.dp))
-                .background(iconTint.copy(alpha = 0.12f)),
+                .background(AiriTheme.onSurface.copy(alpha = 0.06f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = monochromeIconTint, modifier = Modifier.size(18.dp))
         }
 
-        // The start edge follows the active layout direction, including RTL.
-        Row(
+        // Keep the title and its supporting detail in a right-aligned vertical
+        // hierarchy. The detail is a separate muted capsule, not inline prose.
+        Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.Start,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(vertical = 1.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalAlignment = Alignment.Start,
         ) {
-            if (badge != null) {
-                Box(
-                    modifier = Modifier
-                        .clip(AIRIShapes.xs)
-                        .background(CosmicAccent)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(badge, color = AiriTheme.onBackground, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = label,
+                    modifier = Modifier.weight(1f),
+                    color = AiriTheme.onBackground,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Start,
+                )
+                if (badge != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(AIRIShapes.xs)
+                            .background(AiriTheme.onSurface.copy(alpha = 0.08f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = badge,
+                            color = AiriTheme.onSurfaceVariant,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                        )
+                    }
                 }
-                Spacer(Modifier.width(8.dp))
             }
             if (trailing != null) {
-                Text(trailing, color = AiriTheme.onSurfaceVariant.copy(alpha = 0.40f), fontSize = 13.sp)
-                Spacer(Modifier.width(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = AiriTheme.onSurface.copy(alpha = 0.055f),
+                ) {
+                    Text(
+                        text = trailing,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        color = AiriTheme.onSurfaceVariant.copy(alpha = 0.96f),
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Start,
+                    )
+                }
             }
-            Text(label, color = AiriTheme.onBackground, fontSize = 15.sp, fontWeight = FontWeight.Normal)
         }
 
-        // Trailing arrow
+        // Auto-mirrored forward arrow stays at the left edge in Arabic RTL.
         Icon(
             Icons.AutoMirrored.Filled.ArrowForward,
             contentDescription = null,
-            tint = AiriTheme.outline.copy(alpha = 0.28f),
+            tint = AiriTheme.onSurfaceVariant.copy(alpha = 0.72f),
             modifier = Modifier.size(18.dp)
         )
     }

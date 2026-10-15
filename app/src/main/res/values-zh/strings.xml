@@ -184,7 +184,7 @@
     <string name="later">稍后</string>
     <string name="speech_recognition_unavailable">此设备不支持语音识别</string>
     <string name="settings_agent_tasks">计划任务</string>
-    <string name="settings_knowledge">知识库</string>
+    <string name="settings_knowledge">记忆与知识</string>
     <string name="settings_data_controls">数据控制</string>
     <string name="settings_skills">技能</string>
     <string name="settings_connectors">连接器</string>
@@ -1590,8 +1590,8 @@
     <string name="settings_guest">访客</string>
     <string name="settings_storage_unavailable_title">安全存储不可用</string>
     <string name="settings_storage_unavailable_body">无法启动加密存储。本次会话无法保存连接器令牌和 API 密钥。连接服务前请重启设备。</string>
-    <string name="settings_ai_execution">AI 执行</string>
-    <string name="settings_ai_execution_summary">模式、隐私与提供方</string>
+    <string name="settings_ai_execution">AI 执行方式</string>
+    <string name="settings_ai_execution_summary">执行模式、隐私与服务提供方</string>
     <string name="settings_secret_manager">密钥管理器</string>
     <string name="settings_security_scanner">安全扫描器</string>
     <string name="settings_about_airi">关于 AIRI</string>

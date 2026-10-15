@@ -3936,7 +3936,7 @@ fun AiriChatInputBar(
                     if (selectedSkillName != null) {
                         Box(
                             modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                            contentAlignment = Alignment.CenterRight
+                            contentAlignment = Alignment.CenterEnd
                         ) {
                             SkillDirectiveChip(
                                 skillName = selectedSkillName,

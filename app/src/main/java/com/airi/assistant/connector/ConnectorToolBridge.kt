@@ -17,21 +17,24 @@ class ConnectorToolBridge(
         val action: ConnectorAgentAction,
     )
 
-    fun asToolSchemas(): List<ToolSchema> = asToolSchemas(includeUnavailable = false)
+    fun asToolSchemas(): List<ToolSchema> = bindings(onlyExecutable = true, onlyGranted = true)
+        .map { (toolName, binding) -> binding.toSchema(toolName) }
+        .sortedBy { it.name }
 
     /**
      * Expose granted actions even when disconnected/unhealthy when the
      * caller needs a truthful readiness result. Invocation remains guarded by
      * ConnectorRuntimeManager and returns not_connected/unhealthy/auth errors.
      */
-    fun asToolSchemas(includeUnavailable: Boolean): List<ToolSchema> = bindings(
+    fun asToolSchemas(includeUnavailable: Boolean): List<ToolSchema> {
+        if (!includeUnavailable) return asToolSchemas()
         // Inventory mode retains registered actions even when a user grant,
         // provider login, or health check is missing. RuntimeToolCatalog keeps
         // them non-executable; hiding them made capability reports misleading.
-        onlyExecutable = !includeUnavailable, onlyGranted = !includeUnavailable
-    )
-        .map { (toolName, binding) -> binding.toSchema(toolName) }
-        .sortedBy { it.name }
+        return bindings(onlyExecutable = false, onlyGranted = false)
+            .map { (toolName, binding) -> binding.toSchema(toolName) }
+            .sortedBy { it.name }
+    }
 
     /** Keep known bindings resolvable after a disconnect so runtime returns a
      * stable not_connected result instead of misclassifying the call as unknown. */
@@ -106,7 +109,16 @@ class ConnectorToolBridge(
             name = toolName,
             description = "[$connectorId] ${action.description}",
             parameters = action.parameters.mapValues { (_, parameter) ->
-                ToolSchema.Param(parameter.type, parameter.description, parameter.required)
+                ToolSchema.Param(
+                    type = parameter.type,
+                    description = parameter.description,
+                    required = parameter.required,
+                    maxLength = parameter.maxLength,
+                    minInt = parameter.minInt,
+                    maxInt = parameter.maxInt,
+                    minNumber = parameter.minNumber,
+                    maxNumber = parameter.maxNumber,
+                )
             },
             category = ToolSchema.Category.EXTERNAL,
         )

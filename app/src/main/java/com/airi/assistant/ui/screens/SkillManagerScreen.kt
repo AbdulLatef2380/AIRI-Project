@@ -84,7 +84,7 @@ fun SkillManagerScreen(
     var searchQuery    by rememberSaveable { mutableStateOf("") }
     var selectedFilter by rememberSaveable { mutableStateOf(0) }
     var selectedCategory by rememberSaveable { mutableStateOf("ALL") }
-    val connectorAvailability by skillRegistry.connectorAvailability.collectAsState()
+    val connectorAvailability by skillRegistry.connectorAvailability.collectAsState(initial = emptyList())
 
     fun reload() {
         officialSkills = skillRegistry.getAllSkillInfos().filter { it.author == "AIRI Official" }

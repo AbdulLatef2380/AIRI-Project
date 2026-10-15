@@ -52,7 +52,8 @@ object CapabilityIntentDetector {
 
     private val connectorTargets = mapOf(
         "gmail" to "google", "جيميل" to "google", "البريد" to "google",
-        "email" to "google", "google calendar" to "google", "calendar" to "google",
+        "email" to "google", "google drive" to "google", "drive" to "google",
+        "جوجل درايف" to "google", "درايف" to "google", "google calendar" to "google", "calendar" to "google",
         "التقويم" to "google", "github" to "github", "جيت هب" to "github",
         "telegram" to "telegram", "تلغرام" to "telegram", "slack" to "slack",
         "discord" to "discord", "notion" to "notion", "الموصلات" to "*",
@@ -68,8 +69,11 @@ object CapabilityIntentDetector {
     /** Capability-discovery questions must request the complete connector surface. */
     private val capabilityDiscoveryPatterns = listOf(
         "what tools", "available tools", "what skills", "available skills", "what connectors",
+        "how many connectors", "how many tools", "how many skills", "what is enabled", "what is currently enabled",
         "ما هي الادوات", "ما هي الأدوات", "الأدوات المتاحة", "الادوات المتاحة",
         "ما هي المهارات", "المهارات المتاحة", "ما هي الموصلات", "الموصلات المتاحة",
+        "كم موصل", "كم من الموصلات", "عدد الموصلات", "كم اداة", "كم أداة", "عدد الأدوات",
+        "كم مهارة", "عدد المهارات", "ما الذي تم تفعيله", "ما الذي يعمل حاليا", "ما الذي يعمل الآن",
         "ما هي الخدمات الخارجية", "الخدمات الخارجية المتاحة",
         "ما الذي تستطيع", "ماذا تستطيع", "بماذا يمكنك مساعدتي", "ما قدراتك",
         "ما الذي يمكنك فعله", "ما يمكنك فعله", "اعطني قائمة الادوات", "أعطني قائمة الأدوات",

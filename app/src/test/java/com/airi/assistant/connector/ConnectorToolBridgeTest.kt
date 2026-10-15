@@ -134,6 +134,28 @@ class ConnectorToolBridgeTest {
         assertFalse(names.contains("connector_shared_calendar_read"))
     }
 
+    @Test
+    fun connectorParameterConstraintsSurviveToolSchemaConversion() {
+        val registry = ConnectorRegistry().apply {
+            register(TestConnector("schema", connected = true, healthy = true))
+        }
+        val profiles = InMemoryConnectorAccessProfileStore().apply {
+            set("schema", ConnectorAccessProfile.READ_ONLY)
+        }
+
+        val schema = bridge(registry, profiles).asToolSchemas().single()
+
+        assertEquals("Repository owner/name", schema.parameters.getValue("repo").description)
+        assertEquals(1L, schema.parameters.getValue("limit").minInt)
+        assertEquals(100L, schema.parameters.getValue("limit").maxInt)
+        assertEquals(128, schema.parameters.getValue("repo").maxLength)
+        assertEquals(0.25, schema.parameters.getValue("ratio").minNumber!!, 0.0)
+        assertEquals(2.0, schema.parameters.getValue("ratio").maxNumber!!, 0.0)
+        val domainSpec = com.airi.assistant.agent.loop.tool.ToolSpecAdapter.fromSchema(schema)
+        assertEquals(com.airi.assistant.domain.tool.ArgumentSpec.Type.NUMBER, domainSpec.arguments.first { it.name == "ratio" }.type)
+        assertEquals(0.25, domainSpec.arguments.first { it.name == "ratio" }.constraints.minDecimal!!, 0.0)
+    }
+
     private fun bridge(registry: ConnectorRegistry, profiles: ConnectorAccessProfileStore) =
         ConnectorToolBridge(registry, ConnectorRuntimeManager(registry, profiles), profiles)
 
@@ -151,7 +173,13 @@ class ConnectorToolBridgeTest {
         override fun state() = stateFlow
         override suspend fun connect() = stateFlow.value
         override suspend fun disconnect() { stateFlow.value = ConnectorState(false, false) }
-        override fun agentActions(): List<ConnectorAgentAction> = if (id == "microsoft_graph") {
+        override fun agentActions(): List<ConnectorAgentAction> = if (id == "schema") {
+            listOf(ConnectorAgentAction("probe", "Read schema fixture", parameters = mapOf(
+                "repo" to ConnectorAgentParameter(description = "Repository owner/name", required = true, maxLength = 128),
+                "limit" to ConnectorAgentParameter(type = "int", minInt = 1, maxInt = 100),
+                "ratio" to ConnectorAgentParameter(type = "number", minNumber = 0.25, maxNumber = 2.0),
+            )))
+        } else if (id == "microsoft_graph") {
             listOf(
                 ConnectorAgentAction("outlook_mail_read", "Read Outlook", surfaceId = "microsoft_outlook"),
                 ConnectorAgentAction("teams_list_joined", "List Teams", surfaceId = "microsoft_teams"),

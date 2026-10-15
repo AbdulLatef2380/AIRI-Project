@@ -24,14 +24,21 @@ import com.airi.assistant.domain.customskill.SkillConfig
 import com.airi.assistant.domain.customskill.SkillType
 import java.net.URI
 import java.util.UUID
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 
 class SkillRegistry(private val context: Context) {
 
-    // AP-04: Use ServiceLocator singleton to prevent split-brain on Keystore failure.
-    private val secureStorage get() = ServiceLocator.secureStorage
-    val connectorAvailability: StateFlow<com.airi.assistant.auth.SecureStorage.IntegrationConnections>
-        get() = secureStorage.integrationConnections
+    /** Emits whenever a registered connector changes live readiness, including after connection. */
+    val connectorAvailability: Flow<List<com.airi.assistant.connector.ConnectorState>> by lazy {
+        ServiceLocator.connectorRegistry.meta.flatMapLatest {
+            val connectors = ServiceLocator.connectorRegistry.all()
+            if (connectors.isEmpty()) flowOf(emptyList())
+            else combine(connectors.map { it.state() }) { states -> states.toList() }
+        }
+    }
     private val customSkillRepository = CustomSkillRepository(context)
 
     /** Shared executor instance for custom-skill adapters returned from [getAvailableSkills]. */
@@ -99,7 +106,8 @@ class SkillRegistry(private val context: Context) {
         val skills = OfficialSkillLibrary.ALL
             .filter { entry ->
                 isSkillEnabled(entry.manifest.id) &&
-                    areRuntimeDependenciesAvailable(entry.manifest.dependencies)
+                    areRuntimeDependenciesAvailable(entry.manifest.dependencies) &&
+                    areRuntimeActionDependenciesAvailable(entry.manifest.connectorActionDependencies)
             }
             .mapNotNull { entry -> runCatching { entry.factory(context) }.getOrNull() }
             .toMutableList()
@@ -119,14 +127,25 @@ class SkillRegistry(private val context: Context) {
     }
 
     private fun areRuntimeDependenciesAvailable(dependencies: List<String>): Boolean =
-        dependencies.filter { it.startsWith("connector:") }.all { dependency ->
-            when (dependency.removePrefix("connector:")) {
-                "github" -> secureStorage.isGithubConnected()
-                "telegram" -> secureStorage.isTelegramConnected()
-                "google" -> secureStorage.isGoogleConnected()
-                else -> false
-            }
-        }
+        SkillDependencyReadiness.areAvailable(dependencies, ::isRuntimeConnectorReady)
+
+    private fun areRuntimeActionDependenciesAvailable(dependencies: List<String>): Boolean =
+        SkillDependencyReadiness.areActionsAvailable(dependencies, ::isRuntimeActionReady)
+
+    private fun isRuntimeConnectorReady(connectorId: String): Boolean = runCatching {
+        val state = ServiceLocator.connectorRegistry.get(connectorId)?.state()?.value ?: return false
+        state.connected && state.healthy
+    }.getOrDefault(false)
+
+    private fun isRuntimeActionReady(connectorId: String, actionId: String): Boolean = runCatching {
+        val connector = ServiceLocator.connectorRegistry.get(connectorId) ?: return false
+        val action = connector.agentActions().firstOrNull { it.id == actionId } ?: return false
+        val state = connector.stateForAction(action)
+        val profile = ServiceLocator.connectorAccessProfileStore.get(action.surfaceId ?: connectorId)
+        state.connected && state.healthy &&
+            com.airi.assistant.connector.ConnectorAccessPolicy.evaluate(profile, action) ==
+            com.airi.assistant.connector.ConnectorAccessDecision.ALLOWED
+    }.getOrDefault(false)
 
     data class SkillInfo(
         val name:         String,
@@ -353,6 +372,7 @@ class SkillRegistry(private val context: Context) {
             permissions = manifest.permissions,
             tools = manifest.tools.map { it.name },
             dependencies = manifest.dependencies,
+            connectorActionDependencies = manifest.connectorActionDependencies,
             riskLevel = manifest.riskLevel,
             requiresConfirmation = manifest.requiresConfirmation,
             supportsStreaming = manifest.supportsStreaming,
@@ -365,6 +385,7 @@ class SkillRegistry(private val context: Context) {
         val permissions: List<String>,
         val tools: List<String>,
         val dependencies: List<String>,
+        val connectorActionDependencies: List<String>,
         val riskLevel: SkillRiskLevel,
         val requiresConfirmation: Boolean,
         val supportsStreaming: Boolean,
@@ -414,12 +435,7 @@ class SkillRegistry(private val context: Context) {
         // ── Official catalog is the single discovery source ────────────────────
         addAll(OfficialSkillLibrary.ALL.map { entry ->
             val dependencies = entry.manifest.dependencies
-            val connected = when {
-                "connector:github" in dependencies -> secureStorage.isGithubConnected()
-                "connector:telegram" in dependencies -> secureStorage.isTelegramConnected()
-                "connector:google" in dependencies -> secureStorage.isGoogleConnected()
-                else -> true
-            }
+            val connected = SkillDependencyReadiness.areAvailable(dependencies, ::isRuntimeConnectorReady)
             SkillInfo(
                 id = entry.manifest.id,
                 name = entry.manifest.displayName,

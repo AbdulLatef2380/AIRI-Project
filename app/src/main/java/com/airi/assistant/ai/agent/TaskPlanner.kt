@@ -8,6 +8,7 @@ import com.airi.assistant.agent.planning.buildPlanGraph
 import com.airi.assistant.agent.planning.node
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.core.ServiceLocator
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TaskPlanner — upgraded to emit TypedPlanGraph (DAG with recovery branches)
@@ -25,7 +26,7 @@ import com.airi.assistant.auth.SecureStorage
 
 private const val TAG = "TaskPlanner"
 
-class TaskPlanner(private val secureStorage: SecureStorage) {
+class TaskPlanner(@Suppress("UNUSED_PARAMETER") secureStorage: SecureStorage) {
 
     companion object {
         private val STEP_CONNECTORS = listOf(
@@ -157,12 +158,25 @@ class TaskPlanner(private val secureStorage: SecureStorage) {
     }
 
     private fun isToolAvailable(tool: String): Boolean = when {
-        tool.startsWith("github")   -> secureStorage.isGithubConnected()
-        tool.startsWith("telegram") -> secureStorage.isTelegramConnected()
-        tool.startsWith("gmail") || tool.startsWith("drive") || tool.startsWith("calendar") ->
-            secureStorage.isGoogleConnected()
+        // These write tools have no conversational approval-continuation route; do not plan them.
+        tool == "github_push" || tool == "github_create_pr" || tool == "telegram_send_message" -> false
+        tool == "github_get_user" -> isActionReady("github", "get_user")
+        tool == "github_get_repos" -> isActionReady("github", "list_repos")
+        tool == "gmail_list_emails" -> isActionReady("google", "gmail_list")
+        tool == "drive_search_file" -> isActionReady("google", "drive_search")
+        tool == "calendar_next_events" -> isActionReady("google", "calendar_list")
         else -> true
     }
+
+    private fun isActionReady(connectorId: String, actionId: String): Boolean = runCatching {
+        val connector = ServiceLocator.connectorRegistry.get(connectorId) ?: return false
+        val action = connector.agentActions().firstOrNull { it.id == actionId } ?: return false
+        val state = connector.stateForAction(action)
+        val profile = ServiceLocator.connectorAccessProfileStore.get(action.surfaceId ?: connectorId)
+        state.connected && state.healthy &&
+            com.airi.assistant.connector.ConnectorAccessPolicy.evaluate(profile, action) ==
+            com.airi.assistant.connector.ConnectorAccessDecision.ALLOWED
+    }.getOrDefault(false)
 
     private fun extractParams(tool: String, text: String): Map<String, String> = when (tool) {
         "github_get_repos"       -> mapOf("limit" to "10")

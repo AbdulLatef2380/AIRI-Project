@@ -3,10 +3,11 @@ package com.airi.assistant.ai.tools
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import com.airi.assistant.auth.SecureStorage
 import com.airi.assistant.connector.ConnectorInput
 import com.airi.assistant.connector.ConnectorOutput
 import com.airi.assistant.connector.ConnectorRuntimeManager
+import com.airi.assistant.connector.ConnectorAccessDecision
+import com.airi.assistant.connector.ConnectorAccessPolicy
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.customskill.CustomSkill
 import com.airi.assistant.domain.customskill.CustomSkillExecutor
@@ -14,26 +15,26 @@ import com.airi.assistant.domain.customskill.CustomSkillRepository
 
 class ToolRegistry(private val context: Context) {
 
-    // Use the process-scoped store used by connector bootstrap and ViewModels.
-    // A second SecureStorage instance could observe stale legacy flags and make
-    // tools disappear while the live connector is ready.
-    private val secureStorage get() = ServiceLocator.secureStorage
     private val customSkillRepository = CustomSkillRepository(context)
 
     fun getAvailableTools(): List<Tool> {
         val tools = mutableListOf<Tool>()
-        if (secureStorage.isGithubConnected()) {
-            // Legacy task tools may read through the canonical runtime only;
-            // credential flags do not grant an action or bypass its profile.
+        if (isActionAvailable("github", "get_user")) {
             tools.add(GithubGetUserTool(ServiceLocator.connectorRuntimeManager))
+        }
+        if (isActionAvailable("github", "list_repos")) {
             tools.add(GithubGetReposTool(ServiceLocator.connectorRuntimeManager))
         }
-        if (secureStorage.isGoogleConnected()) {
-            // These tools are adapters over the registered GoogleConnector. They
-            // must never become independent API clients or success-shaped stubs.
+        if (isActionAvailable("google", "gmail_list")) {
             tools.add(GmailListEmailsTool(ServiceLocator.connectorRuntimeManager))
+        }
+        if (isActionAvailable("google", "gmail_read")) {
             tools.add(GmailReadEmailTool(ServiceLocator.connectorRuntimeManager))
+        }
+        if (isActionAvailable("google", "drive_search")) {
             tools.add(DriveSearchFileTool(ServiceLocator.connectorRuntimeManager))
+        }
+        if (isActionAvailable("google", "calendar_list")) {
             tools.add(CalendarNextEventsTool(ServiceLocator.connectorRuntimeManager))
         }
         customSkillRepository.getAllSkills().forEach { skill ->
@@ -44,6 +45,15 @@ class ToolRegistry(private val context: Context) {
 
     fun getToolByName(name: String): Tool? =
         getAvailableTools().firstOrNull { it.name == name }
+
+    private fun isActionAvailable(connectorId: String, actionId: String): Boolean = runCatching {
+        val connector = ServiceLocator.connectorRegistry.get(connectorId) ?: return false
+        val action = connector.agentActions().firstOrNull { it.id == actionId } ?: return false
+        val state = connector.stateForAction(action)
+        val profile = ServiceLocator.connectorAccessProfileStore.get(action.surfaceId ?: connectorId)
+        state.connected && state.healthy &&
+            ConnectorAccessPolicy.evaluate(profile, action) == ConnectorAccessDecision.ALLOWED
+    }.getOrDefault(false)
 
     fun buildToolDescriptionBlock(): String {
         val tools = getAvailableTools()
@@ -97,10 +107,6 @@ class ToolRegistry(private val context: Context) {
                 whenToUse = "When user asks to list, browse, or count their GitHub repositories",
                 expectedInput = "limit (optional): max number of repos to return"
             ),
-            "telegram_send_message" to ToolMeta(
-                whenToUse = "When user explicitly asks to send a Telegram message to a specific chat or contact",
-                expectedInput = "chat_id (Telegram chat ID or username), text (message content)"
-            ),
             "gmail_list_emails" to ToolMeta(
                 whenToUse = "When user asks to check, read, or list their Gmail emails",
                 expectedInput = "max (optional): number of emails; query (optional): validated Gmail search query"
@@ -146,13 +152,13 @@ internal class CustomSkillTool(
 
 private class GithubGetUserTool(private val runtime: ConnectorRuntimeManager) : Tool {
     override val name = "github_get_user"
-    override val description = "Get the authenticated GitHub user's profile info"
+    override val description = "Read the authenticated GitHub user's profile information"
     override val parameters: Map<String, String> = emptyMap()
 
     override suspend fun execute(params: Map<String, String>): ToolResult =
         runtime.execute(
             "github",
-            ConnectorInput(action = "status", authorizationActionId = "status")
+            ConnectorInput(action = "get_user", authorizationActionId = "get_user")
         ).toToolResult()
 }
 

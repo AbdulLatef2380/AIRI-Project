@@ -90,7 +90,9 @@ data class SkillManifest(
     val riskLevel:         SkillRiskLevel     = SkillRiskLevel.LOW,
     val requiresConfirmation: Boolean         = false,
     val supportsStreaming: Boolean            = false,
-    val supportsAttachments: Boolean          = false
+    val supportsAttachments: Boolean          = false,
+    /** Exact connector actions needed by this skill, encoded as connectorId:actionId. */
+    val connectorActionDependencies: List<String> = emptyList()
 ) {
     data class ToolDef(
         val name:        String,
@@ -175,6 +177,7 @@ data class SkillManifest(
         put("requires_confirmation", requiresConfirmation)
         put("supports_streaming", supportsStreaming)
         put("supports_attachments", supportsAttachments)
+        put("connector_action_dependencies", stringArray(connectorActionDependencies))
         }
     }
 
@@ -276,7 +279,8 @@ data class SkillManifest(
                 riskLevel         = runCatching { SkillRiskLevel.valueOf(json.optString("risk_level", "LOW").uppercase()) }.getOrDefault(SkillRiskLevel.LOW),
                 requiresConfirmation = json.optBoolean("requires_confirmation", false),
                 supportsStreaming = json.optBoolean("supports_streaming", false),
-                supportsAttachments = json.optBoolean("supports_attachments", false)
+                supportsAttachments = json.optBoolean("supports_attachments", false),
+                connectorActionDependencies = parseStringList(normalized.optJSONArray("connector_action_dependencies"))
             )
         }
 

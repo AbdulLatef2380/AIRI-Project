@@ -69,19 +69,28 @@ class AgentWorker(
             return Result.success()
         }
 
-        // AP-04: Use ServiceLocator singleton — prevents split-brain on Keystore failure.
         val prefs         = appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
-        val secureStorage = ServiceLocator.secureStorage
         val toolExecutor  = ToolExecutor(appContext)
         val findings      = mutableListOf<String>()
+        fun actionReady(connectorId: String, actionId: String): Boolean = runCatching {
+            val connector = ServiceLocator.connectorRegistry.get(connectorId) ?: return false
+            val action = connector.agentActions().firstOrNull { it.id == actionId } ?: return false
+            val state = connector.stateForAction(action)
+            val profile = ServiceLocator.connectorAccessProfileStore.get(action.surfaceId ?: connectorId)
+            state.connected && state.healthy &&
+                com.airi.assistant.connector.ConnectorAccessPolicy.evaluate(profile, action) ==
+                com.airi.assistant.connector.ConnectorAccessDecision.ALLOWED
+        }.getOrDefault(false)
+        val githubReady = actionReady("github", "get_user")
+        val googleReady = actionReady("google", "gmail_list")
 
-        if (!secureStorage.isGithubConnected() && !secureStorage.isGoogleConnected()) {
+        if (!githubReady && !googleReady) {
             saveSummary("No integrations connected.")
             return Result.success()
         }
 
         // ── Check GitHub for updates ─────────────────────────────────────────
-        if (secureStorage.isGithubConnected()) {
+        if (githubReady) {
             runCatching {
                 val result = toolExecutor.execute(ToolCall("github_get_user", emptyMap()))
                 if (result.success && result.data.isNotBlank()) {
@@ -94,7 +103,7 @@ class AgentWorker(
         }
 
         // ── Check Gmail for important messages ───────────────────────────────
-        if (secureStorage.isGoogleConnected()) {
+        if (googleReady) {
             runCatching {
                 val result = toolExecutor.execute(
                     ToolCall("gmail_list_emails", mapOf("max" to "3"))

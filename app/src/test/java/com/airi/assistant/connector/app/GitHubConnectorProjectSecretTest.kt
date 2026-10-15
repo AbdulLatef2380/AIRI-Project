@@ -104,6 +104,24 @@ class GitHubConnectorProjectSecretTest {
         assertFalse((output as ConnectorOutput.Success).text.contains(PROJECT_SECRET))
     }
 
+    @Test
+    fun profileToolIsDeclaredAndDispatchesToGetUserRatherThanStatus() = runBlocking {
+        var dispatchedAction: String? = null
+        val connector = GitHubConnector(
+            legacyCredentialProvider = { _, _ -> "fixture-token" },
+            tokenExecutor = { input, _ ->
+                dispatchedAction = input.action
+                ConnectorOutput.Success("fixture profile")
+            },
+        )
+
+        assertTrue(connector.agentActions().any { it.id == "get_user" })
+        val output = connector.execute(ConnectorInput(action = "get_user", authorizationActionId = "get_user"))
+
+        assertTrue(output is ConnectorOutput.Success)
+        assertEquals("get_user", dispatchedAction)
+    }
+
     private fun projectInput() = ConnectorInput(
         action = "list_repos",
         execution = ConnectorExecutionContext(

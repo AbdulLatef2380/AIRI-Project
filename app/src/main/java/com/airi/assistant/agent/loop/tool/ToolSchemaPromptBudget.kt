@@ -60,7 +60,22 @@ object ToolSchemaPromptBudget {
         append("• ${tool.name}: ${tool.description}\n")
         if (tool.parameters.isNotEmpty()) {
             append("  Parameters: ${tool.parameters.entries.joinToString(", ") {
-                "${it.key} (${it.value.type}${if (it.value.required) ", required" else ""})"
+                val parameter = it.value
+                buildString {
+                    append("${it.key} (${parameter.type}${if (parameter.required) ", required" else ""})")
+                    parameter.description.takeIf(String::isNotBlank)?.let { description -> append(": $description") }
+                    val constraints = buildList {
+                        parameter.minLength?.let { add("minLength=$it") }
+                        parameter.maxLength?.let { add("maxLength=$it") }
+                        parameter.minInt?.let { add("min=$it") }
+                        parameter.maxInt?.let { add("max=$it") }
+                        parameter.minNumber?.let { add("min=$it") }
+                        parameter.maxNumber?.let { add("max=$it") }
+                        if (parameter.allowedValues.isNotEmpty()) add("oneOf=${parameter.allowedValues.sorted().joinToString("|")}")
+                        if (parameter.allowedSchemes.isNotEmpty()) add("schemes=${parameter.allowedSchemes.sorted().joinToString("|")}")
+                    }
+                    if (constraints.isNotEmpty()) append(" [${constraints.joinToString(", ")}]")
+                }
             }}\n")
         }
     }

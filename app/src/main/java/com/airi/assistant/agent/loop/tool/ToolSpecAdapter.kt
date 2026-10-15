@@ -17,6 +17,8 @@ object ToolSpecAdapter {
                     maxLength = parameter.maxLength,
                     minNumber = parameter.minInt,
                     maxNumber = parameter.maxInt,
+                    minDecimal = parameter.minNumber,
+                    maxDecimal = parameter.maxNumber,
                     allowedValues = parameter.allowedValues,
                     allowedSchemes = parameter.allowedSchemes.map { it.lowercase() }.toSet(),
                 ),
@@ -35,7 +37,8 @@ object ToolSpecAdapter {
     )
 
     private fun String.toArgumentType(): ArgumentSpec.Type = when (lowercase()) {
-        "int", "integer", "number" -> ArgumentSpec.Type.INTEGER
+        "int", "integer" -> ArgumentSpec.Type.INTEGER
+        "number", "decimal", "float", "double" -> ArgumentSpec.Type.NUMBER
         "boolean", "bool" -> ArgumentSpec.Type.BOOLEAN
         "url", "uri" -> ArgumentSpec.Type.URL
         "date" -> ArgumentSpec.Type.DATE

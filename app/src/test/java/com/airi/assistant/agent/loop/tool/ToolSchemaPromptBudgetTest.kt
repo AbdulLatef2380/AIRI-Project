@@ -34,4 +34,25 @@ class ToolSchemaPromptBudgetTest {
         assertEquals(1, selection.omittedCount)
         assertEquals(listOf("oversized_tool"), selection.omittedToolNames)
     }
+
+    @Test
+    fun renderedConnectorSchemaIncludesParameterMeaningAndBounds() {
+        val schema = ToolSchema(
+            name = "connector_github_list_repos",
+            description = "List repositories",
+            parameters = mapOf("limit" to ToolSchema.Param(
+                type = "int",
+                description = "Maximum repositories to return",
+                required = false,
+                minInt = 1,
+                maxInt = 100,
+            )),
+        )
+
+        val block = ToolSchemaPromptBudget.select(listOf(schema), maxChars = 1_000).promptBlock
+
+        assertTrue(block.contains("Maximum repositories to return"))
+        assertTrue(block.contains("min=1"))
+        assertTrue(block.contains("max=100"))
+    }
 }

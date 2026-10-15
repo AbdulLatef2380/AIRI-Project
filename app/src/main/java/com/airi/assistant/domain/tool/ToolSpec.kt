@@ -28,12 +28,14 @@ data class ArgumentSpec(
     val constraints: Constraints = Constraints(),
 ) {
     init { require(name.isNotBlank() && name == name.trim()) }
-    enum class Type { STRING, INTEGER, BOOLEAN, URL, DATE, ENUM }
+    enum class Type { STRING, INTEGER, NUMBER, BOOLEAN, URL, DATE, ENUM }
     data class Constraints(
         val minLength: Int? = null,
         val maxLength: Int? = null,
         val minNumber: Long? = null,
         val maxNumber: Long? = null,
+        val minDecimal: Double? = null,
+        val maxDecimal: Double? = null,
         val allowedValues: Set<String> = emptySet(),
         val allowedSchemes: Set<String> = emptySet(),
     ) {
@@ -42,6 +44,9 @@ data class ArgumentSpec(
             require(maxLength == null || maxLength >= 0) { "maxLength must be non-negative" }
             require(minLength == null || maxLength == null || minLength <= maxLength) { "minLength must not exceed maxLength" }
             require(minNumber == null || maxNumber == null || minNumber <= maxNumber) { "minNumber must not exceed maxNumber" }
+            require(minDecimal == null || minDecimal.isFinite()) { "minDecimal must be finite" }
+            require(maxDecimal == null || maxDecimal.isFinite()) { "maxDecimal must be finite" }
+            require(minDecimal == null || maxDecimal == null || minDecimal <= maxDecimal) { "minDecimal must not exceed maxDecimal" }
             require(allowedSchemes.all { it.isNotBlank() && it == it.lowercase() }) { "URL schemes must be lowercase and non-blank" }
         }
     }

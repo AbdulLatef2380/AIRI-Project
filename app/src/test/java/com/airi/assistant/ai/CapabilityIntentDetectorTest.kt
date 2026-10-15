@@ -51,6 +51,23 @@ class CapabilityIntentDetectorTest {
     }
 
     @Test
+    fun ArabicCountAndEnabledQuestionRequestsFullCapabilityInventory() {
+        val intent = CapabilityIntentDetector.detect(
+            "اكتب لي عن نفسك كم موصل لديك وما الذي تم تفعيله الآن وكم أداة لديك وكم منها لديك وصول لها وكم مهارة لديك وكم منها تعمل"
+        )
+        assertTrue(intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+        assertTrue(intent.connectorIds.contains("*"))
+        assertTrue(CapabilityIntentDetector.isCapabilityDiscovery("How many connectors and skills are enabled?"))
+    }
+
+    @Test
+    fun googleDriveOwnershipQuestionTargetsGoogleConnector() {
+        val intent = CapabilityIntentDetector.detect("اعرض ملفاتي في Google Drive")
+        assertTrue(intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+        assertTrue(intent.connectorIds.contains("google"))
+    }
+
+    @Test
     fun creativeRequestWithoutLiveDependencyNeedsNoTools() {
         assertTrue(CapabilityIntentDetector.detect("اكتب لي قصة قصيرة").capabilities.isEmpty())
     }

@@ -20,6 +20,7 @@ class SkillManifestMetadataTest {
             examples = listOf("Review this repository"),
             limitations = listOf("No offensive actions"),
             riskLevel = SkillRiskLevel.MEDIUM,
+            connectorActionDependencies = listOf("google:gmail_list", "google:gmail_read"),
             requiresConfirmation = true,
             supportsStreaming = true,
             supportsAttachments = true
@@ -32,9 +33,13 @@ class SkillManifestMetadataTest {
         assertEquals(manifest.instructions, restored.instructions)
         assertEquals(manifest.examples, restored.examples)
         assertEquals(manifest.limitations, restored.limitations)
+        assertEquals(manifest.connectorActionDependencies, restored.connectorActionDependencies)
         assertEquals(manifest.riskLevel, restored.riskLevel)
         assertTrue(restored.requiresConfirmation)
         assertTrue(restored.supportsStreaming)
         assertTrue(restored.supportsAttachments)
+
+        val legacyJson = manifest.toJson().apply { remove("connector_action_dependencies") }
+        assertEquals(emptyList<String>(), SkillManifest.fromJson(legacyJson).connectorActionDependencies)
     }
 }

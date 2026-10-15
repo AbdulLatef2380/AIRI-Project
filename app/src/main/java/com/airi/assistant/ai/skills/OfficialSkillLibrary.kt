@@ -279,6 +279,7 @@ object OfficialSkillLibrary {
                 memoryAccess = SkillMemoryAccess.NONE,
                 modelAccess  = SkillModelAccess.NONE,
                 dependencies = listOf("connector:github"),
+                connectorActionDependencies = listOf("github:get_user", "github:list_repos"),
                 tags         = listOf("github", "code", "repos", "git")
             ),
             tier    = Tier.CONNECTOR,
@@ -298,6 +299,7 @@ object OfficialSkillLibrary {
                 memoryAccess = SkillMemoryAccess.NONE,
                 modelAccess  = SkillModelAccess.NONE,
                 dependencies = listOf("connector:google"),
+                connectorActionDependencies = listOf("google:gmail_list", "google:gmail_read"),
                 tags         = listOf("email", "gmail", "inbox", "mail")
             ),
             tier    = Tier.CONNECTOR,
@@ -316,6 +318,7 @@ object OfficialSkillLibrary {
                 memoryAccess = SkillMemoryAccess.NONE,
                 modelAccess  = SkillModelAccess.NONE,
                 dependencies = listOf("connector:google"),
+                connectorActionDependencies = listOf("google:drive_search"),
                 tags         = listOf("drive", "google", "files", "documents", "data"),
                 tools        = listOf(
                     SkillManifest.ToolDef("drive_search_file", "Search Google Drive files by name or keywords",
@@ -340,6 +343,7 @@ object OfficialSkillLibrary {
                 memoryAccess = SkillMemoryAccess.NONE,
                 modelAccess  = SkillModelAccess.NONE,
                 dependencies = listOf("connector:google"),
+                connectorActionDependencies = listOf("google:calendar_list"),
                 tags         = listOf("calendar", "events", "schedule", "meetings")
             ),
             tier    = Tier.CONNECTOR,
@@ -359,6 +363,7 @@ object OfficialSkillLibrary {
                 memoryAccess = SkillMemoryAccess.NONE,
                 modelAccess  = SkillModelAccess.NONE,
                 dependencies = listOf("connector:telegram"),
+                connectorActionDependencies = listOf("telegram:send_message"),
                 tags         = listOf("telegram", "message", "notify", "bot")
             ),
             tier    = Tier.CONNECTOR,

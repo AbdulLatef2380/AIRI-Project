@@ -16,13 +16,15 @@ data class ToolSchema(
     val category:    Category = Category.SYSTEM
 ) {
     data class Param(
-        val type:        String,          // "string" | "int" | "boolean"
+        val type:        String,          // "string" | "int" | "number" | "boolean"
         val description: String = "",
         val required:    Boolean = true,
         val minLength:   Int? = null,
         val maxLength:   Int? = null,
         val minInt:      Long? = null,
         val maxInt:      Long? = null,
+        val minNumber:   Double? = null,
+        val maxNumber:   Double? = null,
         val allowedValues: Set<String> = emptySet(),
         val allowedSchemes: Set<String> = emptySet(),
     )

@@ -1,6 +1,7 @@
 package com.airi.assistant.domain.tool
 
 import java.net.URI
+import java.math.BigDecimal
 import java.time.LocalDate
 
 /**
@@ -12,6 +13,7 @@ object StrictArgumentValidator {
     sealed interface Value {
         data class Text(val value: String) : Value
         data class Integer(val value: Long) : Value
+        data class Number(val value: BigDecimal) : Value
         data class BooleanValue(val value: Boolean) : Value
         data class Url(val value: URI) : Value
         data class Date(val value: LocalDate) : Value
@@ -94,6 +96,18 @@ object StrictArgumentValidator {
                     onFailure = { Parse.Failure("is outside the supported integer range") },
                 )
             }
+            ArgumentSpec.Type.NUMBER -> runCatching { BigDecimal(text) }.fold(
+                onSuccess = { number ->
+                    when {
+                        constraints.minDecimal != null && number < BigDecimal.valueOf(constraints.minDecimal) ->
+                            Parse.Failure("must be >= ${constraints.minDecimal}")
+                        constraints.maxDecimal != null && number > BigDecimal.valueOf(constraints.maxDecimal) ->
+                            Parse.Failure("must be <= ${constraints.maxDecimal}")
+                        else -> Parse.Success(Value.Number(number))
+                    }
+                },
+                onFailure = { Parse.Failure("must be a finite decimal number") },
+            )
             ArgumentSpec.Type.BOOLEAN -> when (text.lowercase()) {
                 "true" -> Parse.Success(Value.BooleanValue(true))
                 "false" -> Parse.Success(Value.BooleanValue(false))
@@ -120,6 +134,7 @@ object StrictArgumentValidator {
     private fun canonicalValue(value: Value): String = when (value) {
         is Value.Text -> value.value
         is Value.Integer -> value.value.toString()
+        is Value.Number -> value.value.stripTrailingZeros().toPlainString()
         is Value.BooleanValue -> value.value.toString()
         is Value.Url -> value.value.toASCIIString()
         is Value.Date -> value.value.toString()

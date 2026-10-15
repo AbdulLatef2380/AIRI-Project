@@ -6,7 +6,7 @@ import com.airi.assistant.ai.skills.AiriSkill
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillResult
 import com.airi.assistant.ai.tools.ToolExecutor
-import com.airi.assistant.auth.SecureStorage
+import com.airi.assistant.core.ServiceLocator
 
 class GithubGuardianSkill(private val context: Context) : AiriSkill {
 
@@ -18,7 +18,6 @@ class GithubGuardianSkill(private val context: Context) : AiriSkill {
     )
 
     private val toolExecutor  = ToolExecutor(context)
-    private val secureStorage = SecureStorage(context)
 
     private val exactPhrases = listOf(
         "check my github", "my github", "github status",
@@ -29,7 +28,7 @@ class GithubGuardianSkill(private val context: Context) : AiriSkill {
     )
 
     override fun score(input: String, context: SkillContext): Int {
-        if (!secureStorage.isGithubConnected()) return 0
+        if (!isGitHubReady()) return 0
         val lower = input.lowercase()
         var score = 0
 
@@ -43,8 +42,8 @@ class GithubGuardianSkill(private val context: Context) : AiriSkill {
     }
 
     override suspend fun execute(params: Map<String, Any>): SkillResult {
-        if (!secureStorage.isGithubConnected()) {
-            return SkillResult(false, "", "GitHub is not connected. Please connect it in Integrations.")
+        if (!isGitHubReady()) {
+            return SkillResult(false, "", "GitHub is not connected or ready in the connector runtime.")
         }
 
         val input   = params["input"] as? String ?: ""
@@ -63,6 +62,10 @@ class GithubGuardianSkill(private val context: Context) : AiriSkill {
             }
         }
     }
+
+    private fun isGitHubReady(): Boolean = runCatching {
+        ServiceLocator.connectorRegistry.get("github")?.state()?.value?.let { it.connected && it.healthy } ?: false
+    }.getOrDefault(false)
 
     private fun detectAction(input: String, context: SkillContext?): String {
         val lower = input.lowercase()

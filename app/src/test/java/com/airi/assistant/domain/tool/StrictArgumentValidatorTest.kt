@@ -82,4 +82,30 @@ class StrictArgumentValidatorTest {
         )
         assertTrue(wrongScheme.failure is StrictArgumentValidator.Failure.InvalidValue)
     }
+
+    @Test
+    fun validatesDecimalNumbersWithoutTruncatingThemToIntegers() {
+        val numberSpec = ToolSpec(
+            id = "decimal_tool",
+            capability = "decimal_tool",
+            risk = ToolSpec.Risk.READ,
+            privacy = ToolSpec.PrivacyBoundary.CLOUD_ALLOWED,
+            requiresConfirmation = false,
+            idempotent = true,
+            handlerKey = "decimal_tool",
+            arguments = listOf(ArgumentSpec(
+                name = "ratio",
+                type = ArgumentSpec.Type.NUMBER,
+                required = true,
+                constraints = ArgumentSpec.Constraints(minDecimal = 0.25, maxDecimal = 2.0),
+            )),
+        )
+
+        val valid = StrictArgumentValidator.validate(numberSpec, mapOf("ratio" to "1.50"))
+        assertTrue(valid.isValid)
+        assertEquals("1.5", valid.arguments!!.canonical["ratio"])
+        assertTrue(valid.arguments!!.values["ratio"] is StrictArgumentValidator.Value.Number)
+        assertTrue(StrictArgumentValidator.validate(numberSpec, mapOf("ratio" to "0.2")).failure is StrictArgumentValidator.Failure.InvalidValue)
+        assertTrue(StrictArgumentValidator.validate(numberSpec, mapOf("ratio" to "NaN")).failure is StrictArgumentValidator.Failure.InvalidValue)
+    }
 }

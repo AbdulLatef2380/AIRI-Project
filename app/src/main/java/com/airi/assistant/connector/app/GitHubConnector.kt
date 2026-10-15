@@ -48,22 +48,38 @@ class GitHubConnector(
     private val _state = MutableStateFlow(ConnectorState(connected = false, statusLine = "Not connected"))
     override fun meta() = ConnectorMeta(id, name, description, type, "https://github.com/favicon.ico", listOf("git","code","repo","issues"))
     override fun agentActions() = listOf(
-        ConnectorAgentAction("list_repos", "List repositories available to the authorized GitHub account."),
+        ConnectorAgentAction("get_user", "Read the authenticated GitHub user's profile.", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.PROVIDER_ENDPOINT_PERMISSION, "Authorized GitHub token with access to GET /user.")
+        )),
+        ConnectorAgentAction("list_repos", "List repositories available to the authorized GitHub account.", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Metadata: read")
+        ), parameters = mapOf(
+            "limit" to ConnectorAgentParameter(type = "int", description = "Maximum repositories to return", minInt = 1, maxInt = 100)
+        )),
         ConnectorAgentAction("list_issues", "List issues for a repository.", parameters = mapOf(
             "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true)
-        )),
+        ), providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Issues: read"))),
         ConnectorAgentAction("search_code", "Search code in authorized repositories.", parameters = mapOf(
             "query" to ConnectorAgentParameter(description = "Code search query", required = true),
             "repo" to ConnectorAgentParameter(description = "Optional owner/name repository")
-        )),
+        ), providerGrants = listOf(ConnectorProviderGrant(
+            ConnectorProviderGrantKind.PROVIDER_ENDPOINT_PERMISSION,
+            "Authenticated token with access to the queried repositories; GitHub code-search token compatibility/permissions must be verified from the endpoint response.",
+        ))),
         ConnectorAgentAction("get_file", "Read a file from a repository.", parameters = mapOf(
             "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true),
             "path" to ConnectorAgentParameter(description = "Repository file path", required = true)
-        )),
+        ), providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Contents: read"))),
         ConnectorAgentAction("list_prs", "List pull requests for a repository.", parameters = mapOf(
             "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true)
-        )),
-        ConnectorAgentAction("status", "Return the current GitHub connection status."),
+        ), providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Pull requests: read"))),
+        ConnectorAgentAction("status", "Return the current GitHub connection status.", providerGrants = listOf(ConnectorProviderGrant(
+            ConnectorProviderGrantKind.PROVIDER_ENDPOINT_PERMISSION,
+            "A valid user-authorized GitHub personal access token; actual token permissions are not introspected by AIRI.",
+        ))),
+        // Intentionally not exposed: the current AgentLoop -> ToolBridge path
+        // cannot yet carry a typed durable approval continuation end-to-end.
+        // The executor keeps a defensive policy gate for stale/manual calls.
     )
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
@@ -75,7 +91,19 @@ class GitHubConnector(
             val login = user.optString("login", "unknown")
             _state.value = ConnectorState(true, true, "Connected as @$login", System.currentTimeMillis())
             AgentActivityBus.emit("GitHub connected as @$login", ActivityCategory.CONNECTOR)
-        } catch (e: Exception) { _state.value = ConnectorState(false, statusLine = "Failed: ${e.message}", errorMessage = e.message) }
+        } catch (e: GitHubApiHttpException) {
+            val failure = GitHubApiFailurePolicy.map(e.statusCode, e.rateLimitRemaining)
+            val needsAuth = failure.code == "authorization_required"
+            _state.value = ConnectorState(
+                connected = false,
+                healthy = false,
+                statusLine = if (needsAuth) "Authorization required" else "Connection check failed",
+                lastUpdatedMs = System.currentTimeMillis(),
+                errorMessage = failure.message,
+            )
+        } catch (_: Exception) {
+            _state.value = ConnectorState(false, false, "Connection check failed", System.currentTimeMillis(), "GitHub connection could not be verified")
+        }
         _state.value
     }
 
@@ -142,7 +170,8 @@ class GitHubConnector(
                             action = input.action,
                             text = input.text,
                             params = input.params,
-                            idempotencyKey = execution.idempotencyKey
+                            idempotencyKey = execution.idempotencyKey,
+                            authorizationActionId = input.authorizationActionId ?: "create_issue",
                         ),
                         expiresAtMs = approval.expiresAtMs
                     )
@@ -239,10 +268,11 @@ class GitHubConnector(
         return try {
         val t0 = System.currentTimeMillis()
         val result = when (input.action) {
-            "list_repos" -> listRepos(token)
+            "get_user" -> getUser(token)
+            "list_repos" -> listRepos(token, input.params["limit"]?.toIntOrNull() ?: 10)
             "list_issues" -> listIssues(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"))
-            "create_issue" -> createIssue(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.text, input.params["body"] ?: "")
-            "search_code" -> searchCode(token, input.text, input.params["repo"])
+            "create_issue" -> createIssue(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["title"] ?: return ConnectorOutput.Failure("missing_param", "title required"), input.params["body"] ?: "")
+            "search_code" -> searchCode(token, input.params["query"] ?: return ConnectorOutput.Failure("missing_param", "query required"), input.params["repo"])
             "get_file" -> getFile(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["path"] ?: return ConnectorOutput.Failure("missing_param", "path required"))
             "list_prs" -> listPRs(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"))
             "status" -> return ConnectorOutput.Success(_state.value.statusLine)
@@ -250,13 +280,28 @@ class GitHubConnector(
         }
         AgentActivityBus.emit("GitHub: ${input.action}", ActivityCategory.CONNECTOR)
         ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
-    } catch (e: Exception) {
-        ConnectorOutput.Failure("api_error", e.message ?: "Error", retryable = true)
+    } catch (e: GitHubApiHttpException) {
+        GitHubApiFailurePolicy.map(e.statusCode, e.rateLimitRemaining)
+    } catch (_: Exception) {
+        ConnectorOutput.Failure("provider_error", "GitHub request could not be completed", retryable = true)
     }
     }
 
-    private fun listRepos(token: String): String {
-        val all = apiGetAllPages("/user/repos?sort=updated&per_page=100", token, maxPages = 5)
+    private fun getUser(token: String): String {
+        val user = apiGet("/user", token)
+        return buildString {
+            appendLine("GitHub profile: @${user.optString("login", "unknown")}")
+            user.optString("name").takeIf(String::isNotBlank)?.let { appendLine("Name: $it") }
+            user.optString("bio").takeIf(String::isNotBlank)?.let { appendLine("Bio: ${it.take(500)}") }
+            appendLine("Public repositories: ${user.optInt("public_repos")}")
+            appendLine("Followers: ${user.optInt("followers")}; following: ${user.optInt("following")}")
+            user.optString("html_url").takeIf(String::isNotBlank)?.let { append("Profile: $it") }
+        }
+    }
+
+    private fun listRepos(token: String, limit: Int): String {
+        val boundedLimit = limit.coerceIn(1, 100)
+        val all = apiGetAllPages("/user/repos?sort=updated&per_page=$boundedLimit", token, maxPages = 1)
         return buildString {
             appendLine("Repos (${all.length()}):")
             for (i in 0 until all.length()) {
@@ -268,7 +313,19 @@ class GitHubConnector(
     private fun listIssues(token: String, repo: String): String { val arr = apiGetArr("/repos/$repo/issues?state=open&per_page=20", token); return buildString { appendLine("Open issues in $repo (${arr.length()}):"); for (i in 0 until arr.length()) { val x = arr.getJSONObject(i); appendLine("#${x.getInt("number")}: ${x.getString("title")}") } } }
     private fun createIssue(token: String, repo: String, title: String, body: String): String { val r = apiPost("/repos/$repo/issues", token, JSONObject().apply { put("title",title);put("body",body) }.toString()); return "Issue #${r.optInt("number")} created: ${r.optString("html_url")}" }
     private fun searchCode(token: String, query: String, repo: String?): String { val q = if (repo != null) "$query repo:$repo" else query; val j = apiGet("/search/code?q=${java.net.URLEncoder.encode(q,"UTF-8")}&per_page=10", token); val items = j.optJSONArray("items") ?: JSONArray(); return buildString { appendLine("Code hits (${items.length()}):"); for (i in 0 until items.length()) { val x = items.getJSONObject(i); appendLine("• ${x.getString("path")} in ${x.getJSONObject("repository").getString("full_name")}") } } }
-    private fun getFile(token: String, repo: String, path: String): String { val j = apiGet("/repos/$repo/contents/$path", token); val enc = j.optString("content","").replace("\n",""); return String(android.util.Base64.decode(enc, android.util.Base64.DEFAULT), Charsets.UTF_8) }
+    private fun getFile(token: String, repo: String, path: String): String {
+        require(repo.matches(Regex("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"))) { "Invalid repository owner/name" }
+        require(path.isNotBlank() && !path.startsWith("/") && path.length <= 512) { "Invalid repository file path" }
+        // Encode each path segment, not the slash separators. Without this,
+        // spaces, '#', '?' and non-ASCII filenames are sent as malformed URLs.
+        val encodedPath = path.split('/').joinToString("/") {
+            java.net.URLEncoder.encode(it, Charsets.UTF_8.name()).replace("+", "%20")
+        }
+        val j = apiGet("/repos/$repo/contents/$encodedPath", token)
+        val enc = j.optString("content", "").replace("\n", "")
+        require(enc.isNotBlank()) { "GitHub returned a directory or an empty file response" }
+        return String(android.util.Base64.decode(enc, android.util.Base64.DEFAULT), Charsets.UTF_8)
+    }
     private fun listPRs(token: String, repo: String): String { val arr = apiGetArr("/repos/$repo/pulls?state=open&per_page=20", token); return buildString { appendLine("Open PRs in $repo (${arr.length()}):"); for (i in 0 until arr.length()) { val p = arr.getJSONObject(i); appendLine("#${p.getInt("number")}: ${p.getString("title")}") } } }
 
     /**
@@ -296,7 +353,7 @@ class GitHubConnector(
                 setRequestProperty("Accept", "application/vnd.github.v3+json")
             }
             try {
-                val body = conn.inputStream.bufferedReader().readText()
+                val body = readResponse(conn)
                 val page = JSONArray(body)
                 for (i in 0 until page.length()) result.put(page.getJSONObject(i))
 
@@ -323,9 +380,36 @@ class GitHubConnector(
         return null
     }
 
-    private fun apiGet(path: String, token: String): JSONObject { val c = open("$BASE$path", token); val b = c.inputStream.bufferedReader().readText(); c.disconnect(); return JSONObject(b) }
-    private fun apiGetArr(path: String, token: String): JSONArray { val c = open("$BASE$path", token); val b = c.inputStream.bufferedReader().readText(); c.disconnect(); return JSONArray(b) }
-    private fun apiPost(path: String, token: String, json: String): JSONObject { val c = open("$BASE$path", token, "POST"); c.doOutput = true; c.outputStream.bufferedWriter().use { it.write(json) }; val b = c.inputStream.bufferedReader().readText(); c.disconnect(); return JSONObject(b) }
+    private fun apiGet(path: String, token: String): JSONObject {
+        val connection = open("$BASE$path", token)
+        return try { JSONObject(readResponse(connection)) } finally { connection.disconnect() }
+    }
+    private fun apiGetArr(path: String, token: String): JSONArray {
+        val connection = open("$BASE$path", token)
+        return try { JSONArray(readResponse(connection)) } finally { connection.disconnect() }
+    }
+    private fun apiPost(path: String, token: String, json: String): JSONObject {
+        val connection = open("$BASE$path", token, "POST")
+        return try {
+            connection.doOutput = true
+            connection.outputStream.bufferedWriter().use { it.write(json) }
+            JSONObject(readResponse(connection))
+        } finally { connection.disconnect() }
+    }
+
+    /** Read success/error streams uniformly; never copy provider bodies into user-facing errors. */
+    private fun readResponse(connection: HttpURLConnection): String {
+        val status = connection.responseCode
+        val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+        val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        if (status !in 200..299) {
+            throw GitHubApiHttpException(
+                statusCode = status,
+                rateLimitRemaining = connection.getHeaderField("X-RateLimit-Remaining")?.toLongOrNull(),
+            )
+        }
+        return body
+    }
     private fun open(url: String, token: String, method: String = "GET") = (URL(url).openConnection() as HttpURLConnection).apply { requestMethod = method; connectTimeout = 10_000; readTimeout = 15_000; setRequestProperty("Authorization","Bearer $token"); setRequestProperty("Accept","application/vnd.github.v3+json"); setRequestProperty("Content-Type","application/json") }
 
     private companion object {

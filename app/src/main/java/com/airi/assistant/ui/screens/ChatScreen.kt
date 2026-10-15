@@ -2774,15 +2774,25 @@ fun AiBubble(
                     }
                 }
 
-                // Action row
-                Row(modifier = Modifier.padding(start = 2.dp, top = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+                // Reply actions: a distinct contrast-safe container keeps the
+                // controls legible on both dark and light themes.
+                Row(
+                    modifier = Modifier
+                        .padding(start = 2.dp, top = 4.dp)
+                        .clip(AIRIShapes.sm)
+                        .background(AiriTheme.surfaceVariant.copy(alpha = 0.72f))
+                        .border(1.dp, AiriTheme.outline.copy(alpha = 0.38f), AIRIShapes.sm)
+                        .padding(horizontal = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
                     // Speak
                     IconButton(onClick = { onSpeak(text) }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Outlined.VolumeUp, contentDescription = stringResource(R.string.speak_to_airi), tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Outlined.VolumeUp, contentDescription = stringResource(R.string.speak_to_airi), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
                     }
                     // More actions
                     IconButton(onClick = { showContextMenu = true }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Outlined.MoreHoriz, contentDescription = stringResource(R.string.more_options), tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Outlined.MoreHoriz, contentDescription = stringResource(R.string.more_options), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
                     }
                     // Copy
                     IconButton(onClick = {
@@ -2790,11 +2800,11 @@ fun AiBubble(
                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
                     }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.copy), tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.copy), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
                     }
                     if (hasRichContent) {
                         IconButton(onClick = { showFullscreenViewer = true }, modifier = Modifier.size(48.dp)) {
-                            Icon(Icons.Outlined.OpenInFull, contentDescription = stringResource(R.string.expand), tint = AiriTheme.outline, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Outlined.OpenInFull, contentDescription = stringResource(R.string.expand), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
                         }
                     }
                     // Persisted thumbs up/down — initialized from DB feedback column.
@@ -2806,9 +2816,12 @@ fun AiBubble(
                         disliked = newDisliked; if (newDisliked) liked = false
                         onFeedback(false)
                     }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Outlined.ThumbDown, contentDescription = stringResource(R.string.feedback_not_helpful),
-                            tint = AiriTheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp))
+                        Icon(
+                            imageVector = if (disliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown,
+                            contentDescription = stringResource(R.string.feedback_not_helpful),
+                            tint = if (disliked) SemanticError else AiriTheme.onSurfaceVariant,
+                            modifier = Modifier.size(21.dp),
+                        )
                     }
                     IconButton(onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -2816,9 +2829,12 @@ fun AiBubble(
                         liked = newLiked; if (newLiked) disliked = false
                         onFeedback(true)
                     }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Outlined.ThumbUp, contentDescription = stringResource(R.string.feedback_helpful),
-                            tint = AiriTheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp))
+                        Icon(
+                            imageVector = if (liked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
+                            contentDescription = stringResource(R.string.feedback_helpful),
+                            tint = if (liked) SemanticSuccess else AiriTheme.onSurfaceVariant,
+                            modifier = Modifier.size(21.dp),
+                        )
                     }
                 }
 

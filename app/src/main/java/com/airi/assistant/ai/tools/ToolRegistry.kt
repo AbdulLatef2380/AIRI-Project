@@ -25,6 +25,9 @@ class ToolRegistry(private val context: Context) {
         if (isActionAvailable("github", "list_repos")) {
             tools.add(GithubGetReposTool(ServiceLocator.connectorRuntimeManager))
         }
+        if (isActionAvailable("github", "get_file")) {
+            tools.add(GithubGetFileTool(ServiceLocator.connectorRuntimeManager))
+        }
         if (isActionAvailable("google", "gmail_list")) {
             tools.add(GmailListEmailsTool(ServiceLocator.connectorRuntimeManager))
         }
@@ -107,6 +110,10 @@ class ToolRegistry(private val context: Context) {
                 whenToUse = "When user asks to list, browse, or count their GitHub repositories",
                 expectedInput = "limit (optional): max number of repos to return"
             ),
+            "github_get_file" to ToolMeta(
+                whenToUse = "When the agent needs to read a file from an authorized GitHub repository",
+                expectedInput = "repo (owner/name) and path (repository-relative file path)"
+            ),
             "gmail_list_emails" to ToolMeta(
                 whenToUse = "When user asks to check, read, or list their Gmail emails",
                 expectedInput = "max (optional): number of emails; query (optional): validated Gmail search query"
@@ -179,6 +186,36 @@ private class GithubGetReposTool(private val runtime: ConnectorRuntimeManager) :
                 action = "list_repos",
                 params = mapOf("limit" to limit.toString()),
                 authorizationActionId = "list_repos",
+            )
+        ).toToolResult()
+    }
+}
+
+// ─── GitHub: Get File ─────────────────────────────────────────────────────────
+
+private class GithubGetFileTool(private val runtime: ConnectorRuntimeManager) : Tool {
+    override val name = "github_get_file"
+    override val description = "Read a file from an authorized GitHub repository"
+    override val parameters: Map<String, String> = mapOf(
+        "repo" to "repository in owner/name form",
+        "path" to "repository-relative file path"
+    )
+
+    override suspend fun execute(params: Map<String, String>): ToolResult {
+        val repo = params["repo"]?.trim().orEmpty()
+        val path = params["path"]?.trim().orEmpty()
+        if (!repo.matches(Regex("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"))) {
+            return ToolResult(false, "", "repo must use owner/name form")
+        }
+        if (path.isBlank() || path.length > 512 || path.startsWith("/")) {
+            return ToolResult(false, "", "path must be a non-empty repository-relative path")
+        }
+        return runtime.execute(
+            "github",
+            ConnectorInput(
+                action = "get_file",
+                params = mapOf("repo" to repo, "path" to path),
+                authorizationActionId = "get_file",
             )
         ).toToolResult()
     }

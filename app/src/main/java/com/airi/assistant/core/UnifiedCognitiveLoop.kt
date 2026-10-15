@@ -100,7 +100,24 @@ class UnifiedCognitiveLoop {
         runCatching { ServiceLocator.plannerAdaptationEngine }.getOrNull()
     }
     private val cognitiveSkillBridge by lazy {
-        ServiceLocator.context?.let { SkillToolBridge(it, SkillRegistry(it)) }
+        ServiceLocator.context?.let { context ->
+            SkillToolBridge(
+                context = context,
+                registry = SkillRegistry(context),
+                // UCL is a live runtime. Use the same connector-health source
+                // as ChatViewModel/AgentLoop instead of the bridge's closed
+                // default, which denied every connector-bound skill preflight.
+                isConnectorHealthy = { connectorId ->
+                    runCatching {
+                        ServiceLocator.connectorRegistry.get(connectorId)
+                            ?.state()
+                            ?.value
+                            ?.let { state -> state.connected && state.healthy }
+                            ?: false
+                    }.getOrDefault(false)
+                },
+            )
+        }
     }
     private val directCognitiveSkills = setOf("pdf_analysis", "ocr_analysis")
 

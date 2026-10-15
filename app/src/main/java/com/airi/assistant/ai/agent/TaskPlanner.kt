@@ -37,6 +37,7 @@ class TaskPlanner(@Suppress("UNUSED_PARAMETER") secureStorage: SecureStorage) {
         private val TOOL_KEYWORDS: Map<String, List<String>> = mapOf(
             "github_get_user"        to listOf("github profile", "github user", "my github account", "who am i on github"),
             "github_get_repos"       to listOf("github repos", "my repos", "repositories", "github projects", "my projects"),
+            "github_get_file"        to listOf("read github file", "github file", "read repository file", "read file from github"),
             "github_push"            to listOf("push to github", "upload to github", "commit and push", "push changes"),
             "github_create_pr"       to listOf("create pr", "pull request", "open pr"),
             "gmail_list_emails"      to listOf("email", "emails", "gmail", "inbox", "mail", "messages"),
@@ -162,6 +163,7 @@ class TaskPlanner(@Suppress("UNUSED_PARAMETER") secureStorage: SecureStorage) {
         tool == "github_push" || tool == "github_create_pr" || tool == "telegram_send_message" -> false
         tool == "github_get_user" -> isActionReady("github", "get_user")
         tool == "github_get_repos" -> isActionReady("github", "list_repos")
+        tool == "github_get_file" -> isActionReady("github", "get_file")
         tool == "gmail_list_emails" -> isActionReady("google", "gmail_list")
         tool == "drive_search_file" -> isActionReady("google", "drive_search")
         tool == "calendar_next_events" -> isActionReady("google", "calendar_list")
@@ -180,6 +182,7 @@ class TaskPlanner(@Suppress("UNUSED_PARAMETER") secureStorage: SecureStorage) {
 
     private fun extractParams(tool: String, text: String): Map<String, String> = when (tool) {
         "github_get_repos"       -> mapOf("limit" to "10")
+        "github_get_file"        -> mapOf("repo" to "", "path" to "")
         "github_push"            -> mapOf("message" to "auto: agent commit")
         "github_create_pr"       -> mapOf("title" to "Agent-generated fix", "draft" to "false")
         "gmail_list_emails"      -> mapOf("max" to "5")

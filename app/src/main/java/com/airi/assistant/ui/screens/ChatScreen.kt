@@ -2175,15 +2175,30 @@ fun ChatMessageList(
         lastScrolledStreamLen = 0
     }
 
-    LaunchedEffect(Unit) {
-        snapshotFlow { streamingText.length }.collect { len ->
-            if (!isPinnedToBottom) return@collect
-            if (len == 0) { lastScrolledStreamLen = 0; return@collect }
-            val grew = len - lastScrolledStreamLen
-            if (grew >= 24 || (grew in 1..23 && len < 60)) {
-                lastScrolledStreamLen = len
-                listState.scrollToItem(0)
-            }
+    // A newly submitted message owns the reading position: show the response
+    // immediately even if the user was browsing older messages above.
+    LaunchedEffect(isGenerating) {
+        if (isGenerating) {
+            lastScrolledStreamLen = 0
+            listState.scrollToItem(0)
+        }
+    }
+
+    // Follow a growing streamed answer only while the user remains at the
+    // conversation end. Once a manual gesture moves away, isPinnedToBottom
+    // becomes false and the user's reading position is preserved. Returning
+    // to the end re-enables follow mode naturally.
+    LaunchedEffect(streamingText.length, isPinnedToBottom, isGenerating) {
+        if (!isGenerating || !isPinnedToBottom) return@LaunchedEffect
+        val len = streamingText.length
+        if (len == 0) {
+            lastScrolledStreamLen = 0
+            return@LaunchedEffect
+        }
+        val grew = len - lastScrolledStreamLen
+        if (grew >= 24 || (grew in 1..23 && len < 60)) {
+            lastScrolledStreamLen = len
+            listState.scrollToItem(0)
         }
     }
 
@@ -4043,10 +4058,9 @@ fun AiriChatInputBar(
                     maxLines = 8,
                     decorationBox = { inner ->
                         Box {
-                            if (composerVisibleText.isEmpty() && selectedSkillId == null) {
+                            if (composerVisibleText.isEmpty() && selectedSkillId == null && !isGenerating) {
                                 Text(
                                     text = when {
-                                        isGenerating              -> stringResource(R.string.generating)
                                         isDispatchingAttachment   -> stringResource(R.string.attachment_preparing)
                                         modelState.isModelLoading -> stringResource(R.string.model_is_loading)
                                         else                      -> stringResource(R.string.chat_assign_task_hint)
@@ -4167,6 +4181,10 @@ fun AiriChatInputBar(
                                     when (mainAction) {
                                         ChatMainAction.CANCEL -> onCancel()
                                         ChatMainAction.SEND -> {
+                                            // Hide the IME before dispatching the
+                                            // request so chat gets the full viewport.
+                                            focusManager.clearFocus(force = true)
+                                            keyboardController?.hide()
                                             onSend(text, finishAcceptedSend)
                                         }
                                         ChatMainAction.VOICE -> onVoiceChatClick()

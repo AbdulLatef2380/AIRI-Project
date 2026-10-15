@@ -40,6 +40,7 @@ internal object ToolPermissionPolicy {
         "cloud_sync" to ScopedPermissionRegistry.AgentPermission.CLOUD_SYNC,
         "github_get_user" to ScopedPermissionRegistry.AgentPermission.CALL_GITHUB_API,
         "github_get_repos" to ScopedPermissionRegistry.AgentPermission.CALL_GITHUB_API,
+        "github_get_file" to ScopedPermissionRegistry.AgentPermission.CALL_GITHUB_API,
         "telegram_send_message" to ScopedPermissionRegistry.AgentPermission.CALL_TELEGRAM_API,
         "gmail_list_emails" to ScopedPermissionRegistry.AgentPermission.READ_FILES,
         "drive_search_file" to ScopedPermissionRegistry.AgentPermission.READ_FILES,

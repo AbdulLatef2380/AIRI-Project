@@ -35,6 +35,22 @@ class CapabilityIntentDetectorTest {
     }
 
     @Test
+    fun githubRepositoryUrlTargetsConnectorEvenWithoutOwnershipWording() {
+        val intent = CapabilityIntentDetector.detect(
+            "حلل هذا المشروع https://github.com/AbdulLatef2380/AIRI-Project.git"
+        )
+        assertTrue(intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+        assertTrue(intent.connectorIds.contains("github"))
+    }
+
+    @Test
+    fun arabicGithubRepositoryAnalysisTargetsConnector() {
+        val intent = CapabilityIntentDetector.detect("اقرأ المستودع في GitHub وحلل الكود")
+        assertTrue(intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+        assertTrue(intent.connectorIds.contains("github"))
+    }
+
+    @Test
     fun genericArabicCapabilityQuestionRequestsAllConnectors() {
         val intent = CapabilityIntentDetector.detect("ما هي الأدوات والمهارات والموصلات المتاحة؟")
         assertTrue(intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))

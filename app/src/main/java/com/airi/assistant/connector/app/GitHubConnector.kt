@@ -98,7 +98,7 @@ class GitHubConnector(
                 connected = false,
                 healthy = false,
                 statusLine = if (needsAuth) "Authorization required" else "Connection check failed",
-                lastConnectedAt = System.currentTimeMillis(),
+                lastUpdatedMs = System.currentTimeMillis(),
                 errorMessage = failure.message,
             )
         } catch (_: Exception) {

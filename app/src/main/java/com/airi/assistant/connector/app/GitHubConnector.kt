@@ -313,7 +313,19 @@ class GitHubConnector(
     private fun listIssues(token: String, repo: String): String { val arr = apiGetArr("/repos/$repo/issues?state=open&per_page=20", token); return buildString { appendLine("Open issues in $repo (${arr.length()}):"); for (i in 0 until arr.length()) { val x = arr.getJSONObject(i); appendLine("#${x.getInt("number")}: ${x.getString("title")}") } } }
     private fun createIssue(token: String, repo: String, title: String, body: String): String { val r = apiPost("/repos/$repo/issues", token, JSONObject().apply { put("title",title);put("body",body) }.toString()); return "Issue #${r.optInt("number")} created: ${r.optString("html_url")}" }
     private fun searchCode(token: String, query: String, repo: String?): String { val q = if (repo != null) "$query repo:$repo" else query; val j = apiGet("/search/code?q=${java.net.URLEncoder.encode(q,"UTF-8")}&per_page=10", token); val items = j.optJSONArray("items") ?: JSONArray(); return buildString { appendLine("Code hits (${items.length()}):"); for (i in 0 until items.length()) { val x = items.getJSONObject(i); appendLine("• ${x.getString("path")} in ${x.getJSONObject("repository").getString("full_name")}") } } }
-    private fun getFile(token: String, repo: String, path: String): String { val j = apiGet("/repos/$repo/contents/$path", token); val enc = j.optString("content","").replace("\n",""); return String(android.util.Base64.decode(enc, android.util.Base64.DEFAULT), Charsets.UTF_8) }
+    private fun getFile(token: String, repo: String, path: String): String {
+        require(repo.matches(Regex("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"))) { "Invalid repository owner/name" }
+        require(path.isNotBlank() && !path.startsWith("/") && path.length <= 512) { "Invalid repository file path" }
+        // Encode each path segment, not the slash separators. Without this,
+        // spaces, '#', '?' and non-ASCII filenames are sent as malformed URLs.
+        val encodedPath = path.split('/').joinToString("/") {
+            java.net.URLEncoder.encode(it, Charsets.UTF_8.name()).replace("+", "%20")
+        }
+        val j = apiGet("/repos/$repo/contents/$encodedPath", token)
+        val enc = j.optString("content", "").replace("\n", "")
+        require(enc.isNotBlank()) { "GitHub returned a directory or an empty file response" }
+        return String(android.util.Base64.decode(enc, android.util.Base64.DEFAULT), Charsets.UTF_8)
+    }
     private fun listPRs(token: String, repo: String): String { val arr = apiGetArr("/repos/$repo/pulls?state=open&per_page=20", token); return buildString { appendLine("Open PRs in $repo (${arr.length()}):"); for (i in 0 until arr.length()) { val p = arr.getJSONObject(i); appendLine("#${p.getInt("number")}: ${p.getString("title")}") } } }
 
     /**

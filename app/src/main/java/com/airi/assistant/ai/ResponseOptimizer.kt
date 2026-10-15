@@ -329,37 +329,80 @@ object ResponseOptimizer {
      * Generate contextual follow-up chips based on the AI response content.
      * Returns empty list for very short responses.
      */
-    fun generateSuggestions(response: String): List<String> {
+    fun generateSuggestions(response: String, languageCode: String = Locale.getDefault().language): List<String> {
         if (response.length < 50) return emptyList()
-        val lower = response.lowercase()
+        val lower = response.lowercase(Locale.ROOT)
+        fun localized(en: List<String>, ar: List<String>, es: List<String>, zh: List<String>): List<String> =
+            when (languageCode.substringBefore('-').lowercase(Locale.ROOT)) {
+                "ar" -> ar
+                "es" -> es
+                "zh" -> zh
+                else -> en
+            }
         return when {
             lower.contains("```") || lower.contains("fun ") ||
             lower.contains("class ") || lower.contains("function") ||
-            lower.contains("كود") ->
-                listOf("Explain this code", "Add error handling", "Optimize it")
+            lower.contains("كود") || lower.contains("código") || lower.contains("代码") ->
+                localized(
+                    en = listOf("Explain this code", "Add error handling", "Optimize it"),
+                    ar = listOf("اشرح هذا الكود", "أضف معالجة للأخطاء", "حسّنه"),
+                    es = listOf("Explica este código", "Añade manejo de errores", "Optimízalo"),
+                    zh = listOf("解释这段代码", "添加错误处理", "优化代码"),
+                )
 
-            lower.contains("step") || lower.contains("how to") ||
-            lower.contains("1.") || lower.contains("خطوات") ->
-                listOf("Explain step 1", "What's next?", "Simplify this")
+            lower.contains("step") || lower.contains("how to") || lower.contains("paso") ||
+            lower.contains("步骤") || lower.contains("1.") || lower.contains("خطوات") ->
+                localized(
+                    en = listOf("Explain step 1", "What's next?", "Simplify this"),
+                    ar = listOf("اشرح الخطوة الأولى", "ما الخطوة التالية؟", "بسّط الشرح"),
+                    es = listOf("Explica el paso 1", "¿Qué sigue?", "Simplifícalo"),
+                    zh = listOf("解释第 1 步", "接下来做什么？", "简化说明"),
+                )
 
-            lower.contains("because") || lower.contains("therefore") ||
+            lower.contains("because") || lower.contains("therefore") || lower.contains("porque") ||
+            lower.contains("por lo tanto") || lower.contains("因为") || lower.contains("因此") ||
             lower.contains("لأن") || lower.contains("لذلك") ->
-                listOf("Explain more", "Give an example", "Summarize")
+                localized(
+                    en = listOf("Explain more", "Give an example", "Summarize"),
+                    ar = listOf("وضّح أكثر", "أعطني مثالاً", "لخّص الإجابة"),
+                    es = listOf("Amplía la explicación", "Dame un ejemplo", "Resume la respuesta"),
+                    zh = listOf("详细说明", "举个例子", "总结回答"),
+                )
 
-            lower.contains("compare") || lower.contains("difference") ||
-            lower.contains("versus") || lower.contains("vs") ||
-            lower.contains("قارن") ->
-                listOf("Go deeper", "Which is better?", "Give pros & cons")
+            lower.contains("compare") || lower.contains("difference") || lower.contains("compara") ||
+            lower.contains("diferencia") || lower.contains("versus") || lower.contains("vs") ||
+            lower.contains("比较") || lower.contains("区别") || lower.contains("قارن") ->
+                localized(
+                    en = listOf("Go deeper", "Which is better?", "Give pros & cons"),
+                    ar = listOf("تعمّق في المقارنة", "أيهما أفضل؟", "اذكر المزايا والعيوب"),
+                    es = listOf("Profundiza en la comparación", "¿Cuál es mejor?", "Ventajas y desventajas"),
+                    zh = listOf("深入比较", "哪个更好？", "列出优缺点"),
+                )
 
-            lower.contains("analyze") || lower.contains("analyse") ||
-            lower.contains("حلل") ->
-                listOf("More detail", "Key takeaways?", "Summarize")
+            lower.contains("analyze") || lower.contains("analyse") || lower.contains("analiza") ||
+            lower.contains("análisis") || lower.contains("分析") || lower.contains("حلل") ->
+                localized(
+                    en = listOf("More detail", "Key takeaways?", "Summarize"),
+                    ar = listOf("أضف مزيداً من التفاصيل", "ما أهم النقاط؟", "لخّص الإجابة"),
+                    es = listOf("Más detalles", "¿Puntos clave?", "Resume la respuesta"),
+                    zh = listOf("补充细节", "关键要点？", "总结回答"),
+                )
 
             response.length > 500 ->
-                listOf("Summarize this", "Key points?", "Simplify")
+                localized(
+                    en = listOf("Summarize this", "Key points?", "Simplify"),
+                    ar = listOf("لخّص الإجابة", "ما أهم النقاط؟", "بسّط الشرح"),
+                    es = listOf("Resume esto", "¿Puntos clave?", "Simplifícalo"),
+                    zh = listOf("总结内容", "关键要点？", "简化说明"),
+                )
 
             response.length > 200 ->
-                listOf("Tell me more", "Give an example")
+                localized(
+                    en = listOf("Tell me more", "Give an example"),
+                    ar = listOf("أخبرني المزيد", "أعطني مثالاً"),
+                    es = listOf("Cuéntame más", "Dame un ejemplo"),
+                    zh = listOf("继续说明", "举个例子"),
+                )
 
             else -> emptyList()
         }

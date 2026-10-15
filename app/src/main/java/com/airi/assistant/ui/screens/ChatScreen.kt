@@ -3668,16 +3668,42 @@ fun AiriChatInputBar(
         // Smart reply chips
         if (smartReplies.isNotEmpty() && !isGenerating) {
             Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 smartReplies.forEach { reply ->
                     Surface(
-                        onClick = { onSmartReply(reply) }, shape = AIRIShapes.xl,
-                        color = CosmicAccent.copy(0.12f),
-                        modifier = Modifier.border(1.dp, CosmicAccent.copy(0.4f), AIRIShapes.xl)
+                        onClick = { onSmartReply(reply) },
+                        shape = RoundedCornerShape(16.dp),
+                        color = AiriTheme.surfaceVariant.copy(alpha = 0.72f),
+                        border = BorderStroke(1.dp, AiriTheme.outline.copy(alpha = 0.42f)),
+                        modifier = Modifier.widthIn(max = 300.dp),
                     ) {
-                        Text(reply, color = CosmicAccent, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.AutoAwesome,
+                                contentDescription = null,
+                                tint = CosmicAccent.copy(alpha = 0.82f),
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Text(
+                                text = reply,
+                                color = AiriTheme.onSurface,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }

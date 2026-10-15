@@ -95,6 +95,7 @@ import java.io.FileOutputStream
 import com.airi.assistant.ai.QueryClassifier
 import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.ResponseOptimizer
+import com.airi.assistant.system.LanguageManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -2156,7 +2157,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 if (wasEmpty) autoTitleAfterSuccessfulResponse(sessionId, trimmedInput)
-                _smartReplies.value = ResponseOptimizer.generateSuggestions(fastHit)
+                _smartReplies.value = ResponseOptimizer.generateSuggestions(
+                    fastHit,
+                    LanguageManager.getCurrentLanguage(appContext),
+                )
                 streamAccumulator.setLength(0); _streamingText.value = ""
                 finishGeneration(generationId)
                 refreshSessions()
@@ -2620,7 +2624,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     // interaction credit, which would exhaust the visible budget.
                     refreshTodayTokens()
                     if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
-                        _smartReplies.value = ResponseOptimizer.generateSuggestions(normalizedAnswer)
+                        _smartReplies.value = ResponseOptimizer.generateSuggestions(
+                            normalizedAnswer,
+                            LanguageManager.getCurrentLanguage(appContext),
+                        )
                     }
                     subscriptionManager.recordConsecutiveSuccess()
                     val successes = subscriptionManager.getConsecutiveSuccesses()

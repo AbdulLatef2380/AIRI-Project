@@ -6,6 +6,14 @@ package com.airi.assistant.ui.composer
  * remains part of the message.
  */
 object ComposerDirectivePolicy {
+    enum class SkillBackspaceAction { OPEN_PICKER, ARM_REMOVAL, REMOVE_SKILL }
+
+    fun nextSkillBackspaceAction(stage: Int): SkillBackspaceAction = when (stage) {
+        0 -> SkillBackspaceAction.OPEN_PICKER
+        1 -> SkillBackspaceAction.ARM_REMOVAL
+        else -> SkillBackspaceAction.REMOVE_SKILL
+    }
+
     fun applySelection(currentText: String, directiveId: String, isKnowledge: Boolean): String {
         val trimmed = currentText.trimStart()
         val suffix = trimmed.substringAfterFirstWhitespace().trimStart()

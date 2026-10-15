@@ -4701,7 +4701,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     presentation?.name?.lowercase()?.contains(normalized) == true ||
                     presentation?.description?.lowercase()?.contains(normalized) == true
             }
-            .take(MAX_SHORTCUT_SUGGESTIONS)
             .map { skill ->
                 val presentation = OfficialSkillLibrary.manifestFor(skill.id)
                     ?.let { SkillPresentation.localized(it, java.util.Locale.getDefault()) }

@@ -3330,75 +3330,44 @@ private fun BlinkingCursor() {
 
 @Composable
 private fun SkillDirectiveChip(
-    skillId: String,
-    onRemove: () -> Unit,
+    skillName: String,
+    isRemovalArmed: Boolean,
 ) {
+    val chipColor = if (isRemovalArmed) CosmicAccent.copy(alpha = 0.16f) else AiriTheme.onSurface.copy(alpha = 0.035f)
+    val outlineColor = if (isRemovalArmed) CosmicAccent.copy(alpha = 0.75f) else AiriTheme.outline.copy(alpha = 0.55f)
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        shape = AIRIShapes.md,
-        color = CosmicAccent.copy(alpha = 0.10f),
-        border = BorderStroke(1.dp, CosmicAccent.copy(alpha = 0.42f))
+        modifier = Modifier.semantics { contentDescription = "Selected skill $skillName" },
+        shape = RoundedCornerShape(7.dp),
+        color = chipColor,
+        border = BorderStroke(if (isRemovalArmed) 1.dp else 0.75.dp, outlineColor)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 10.dp, end = 4.dp, top = 7.dp, bottom = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(Brush.linearGradient(listOf(CosmicAccent, Color(0xFF7C3AED)))),
-                contentAlignment = Alignment.Center
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Row(
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.AutoAwesome,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "SKILL ACTIVE",
-                    color = CosmicAccent,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.1.sp
-                )
-                Text(
-                    text = skillId.replace('_', ' '),
-                    color = AiriTheme.onSurface,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    text = skillName,
+                    color = if (isRemovalArmed) CosmicAccent else AiriTheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 132.dp)
                 )
-            }
-            Surface(
-                shape = AIRIShapes.xs,
-                color = AiriTheme.onSurface.copy(alpha = 0.06f),
-                modifier = Modifier
-                    .semantics {
-                        contentDescription = "Remove selected skill"
-                        role = Role.Button
-                    }
-                    .clickable(onClick = onRemove)
-            ) {
                 Icon(
-                    imageVector = Icons.Outlined.Close,
+                    imageVector = Icons.Outlined.Extension,
                     contentDescription = null,
-                    tint = AiriTheme.onSurfaceVariant,
-                    modifier = Modifier.padding(7.dp).size(16.dp)
+                    tint = if (isRemovalArmed) CosmicAccent else AiriTheme.onSurfaceVariant,
+                    modifier = Modifier.size(12.dp)
                 )
             }
         }
     }
 }
+
+private const val SKILL_INPUT_SENTINEL = "\u2060"
 
 // Input bar
 @OptIn(ExperimentalMaterial3Api::class)
@@ -3476,8 +3445,14 @@ fun AiriChatInputBar(
     // scrollable so every attachment shortcut is reachable on small screens.
     val attachSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var text by rememberSaveable { mutableStateOf(draftText) }
+    var isSkillPickerOpen by rememberSaveable { mutableStateOf(false) }
+    var skillRemovalStage by rememberSaveable { mutableStateOf(0) }
     LaunchedEffect(draftText) {
-        if (text != draftText) text = draftText
+        if (text != draftText) {
+            text = draftText
+            isSkillPickerOpen = false
+            skillRemovalStage = 0
+        }
     }
     // The chat composer is intentionally compact; full-screen editing remains
     // available for long text without permanently consuming the chat viewport.
@@ -3489,10 +3464,10 @@ fun AiriChatInputBar(
     val canSend = (text.isNotBlank() || attachments.isNotEmpty()) && isInferenceReady && !modelState.isModelLoading && !isInteractionLocked
     val isTyping = text.isNotBlank()
     val shortcutInput = text.trimStart()
-    val showingSkillShortcuts = shortcutInput.startsWith("/")
+    val showingSkillShortcuts = shortcutInput.startsWith("/") && !shortcutInput.startsWith("/skill:")
     val showingKnowledgeShortcuts = shortcutInput.startsWith("@")
     val activeSuggestions = when {
-        showingSkillShortcuts -> skillSuggestions
+        isSkillPickerOpen || showingSkillShortcuts -> skillSuggestions
         showingKnowledgeShortcuts -> knowledgeSuggestions
         else -> emptyList()
     }
@@ -3847,6 +3822,8 @@ fun AiriChatInputBar(
                                 )
                                 text = selectedText
                                 onDraftTextChanged(selectedText)
+                                isSkillPickerOpen = false
+                                skillRemovalStage = 0
                                 onSkillQueryChanged("")
                                 onKnowledgeQueryChanged("")
                             },
@@ -3864,7 +3841,7 @@ fun AiriChatInputBar(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Icon(
-                                    imageVector = if (suggestion.isKnowledge) Icons.Outlined.Lightbulb else Icons.Outlined.AutoAwesome,
+                                    imageVector = if (suggestion.isKnowledge) Icons.Outlined.Lightbulb else Icons.Outlined.Extension,
                                     contentDescription = null,
                                     tint = if (suggestion.isKnowledge) Color(0xFFFFB347) else CosmicAccent,
                                     modifier = Modifier.size(18.dp)
@@ -3896,15 +3873,6 @@ fun AiriChatInputBar(
                     }
                 }
             }
-            if (selectedSkillId != null && activeSuggestions.isEmpty()) {
-                SkillDirectiveChip(
-                    skillId = selectedSkillId,
-                    onRemove = {
-                        text = ""
-                        onDraftTextChanged("")
-                    }
-                )
-            }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 0.dp),
                 horizontalArrangement = Arrangement.End
@@ -3930,27 +3898,89 @@ fun AiriChatInputBar(
             Box(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
+                val selectedSkillName = selectedSkillId?.let { id ->
+                    skillSuggestions.firstOrNull { it.id == id }?.title ?: id.replace('_', ' ')
+                }
+                val composerVisibleText = if (selectedSkillId != null) {
+                    text.trimStart().removePrefix("/skill:$selectedSkillId").trimStart()
+                } else {
+                    text
+                }
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    if (selectedSkillName != null) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                            contentAlignment = Alignment.CenterRight
+                        ) {
+                            SkillDirectiveChip(
+                                skillName = selectedSkillName,
+                                isRemovalArmed = skillRemovalStage == 2,
+                            )
+                        }
+                    }
                 BasicTextField(
-                    value = text,
+                    value = if (selectedSkillId != null) "$SKILL_INPUT_SENTINEL$composerVisibleText" else composerVisibleText,
                     onValueChange = { newValue ->
-                        if (text.isEmpty() && newValue.isNotEmpty()) onUserStartedTyping()
-                        text = newValue
-                        onDraftTextChanged(newValue)
-                        val query = newValue.trimStart()
-                        when {
-                            query.startsWith("/skill:") || query.startsWith("@knowledge:") -> {
+                        val nextVisibleText = newValue.replace(SKILL_INPUT_SENTINEL, "")
+                        val sentinelDeleted = selectedSkillId != null && !newValue.contains(SKILL_INPUT_SENTINEL)
+                        if (sentinelDeleted) {
+                            val retainedDirective = if (nextVisibleText.isBlank()) {
+                                "/skill:$selectedSkillId "
+                            } else {
+                                "/skill:$selectedSkillId $nextVisibleText"
+                            }
+                            when (com.airi.assistant.ui.composer.ComposerDirectivePolicy.nextSkillBackspaceAction(skillRemovalStage)) {
+                                com.airi.assistant.ui.composer.ComposerDirectivePolicy.SkillBackspaceAction.OPEN_PICKER -> {
+                                    text = retainedDirective
+                                    onDraftTextChanged(retainedDirective)
+                                    isSkillPickerOpen = true
+                                    skillRemovalStage = 1
+                                    onSkillQueryChanged("")
+                                    onKnowledgeQueryChanged("")
+                                }
+                                com.airi.assistant.ui.composer.ComposerDirectivePolicy.SkillBackspaceAction.ARM_REMOVAL -> {
+                                    text = retainedDirective
+                                    onDraftTextChanged(retainedDirective)
+                                    isSkillPickerOpen = false
+                                    skillRemovalStage = 2
+                                }
+                                com.airi.assistant.ui.composer.ComposerDirectivePolicy.SkillBackspaceAction.REMOVE_SKILL -> {
+                                    text = nextVisibleText
+                                    onDraftTextChanged(nextVisibleText)
+                                    isSkillPickerOpen = false
+                                    skillRemovalStage = 0
+                                    onSkillQueryChanged("")
+                                    onKnowledgeQueryChanged("")
+                                }
+                            }
+                        } else {
+                            if (composerVisibleText.isEmpty() && nextVisibleText.isNotEmpty()) onUserStartedTyping()
+                            val updatedText = selectedSkillId?.let { id -> "/skill:$id $nextVisibleText" } ?: nextVisibleText
+                            text = updatedText
+                            onDraftTextChanged(updatedText)
+                            isSkillPickerOpen = false
+                            skillRemovalStage = 0
+                            val query = nextVisibleText.trimStart()
+                            if (selectedSkillId != null) {
                                 onSkillQueryChanged("")
                                 onKnowledgeQueryChanged("")
-                            }
-                            query.startsWith("/") -> {
-                                onSkillQueryChanged(query.drop(1).takeWhile { !it.isWhitespace() })
-                            }
-                            query.startsWith("@") -> {
-                                onKnowledgeQueryChanged(query.drop(1).takeWhile { !it.isWhitespace() })
-                            }
-                            else -> {
-                                onSkillQueryChanged("")
-                                onKnowledgeQueryChanged("")
+                            } else {
+                                when {
+                                    query.startsWith("/skill:") || query.startsWith("@knowledge:") -> {
+                                        onSkillQueryChanged("")
+                                        onKnowledgeQueryChanged("")
+                                    }
+                                    query.startsWith("/") -> {
+                                        onSkillQueryChanged(query.drop(1).takeWhile { !it.isWhitespace() })
+                                    }
+                                    query.startsWith("@") -> {
+                                        onKnowledgeQueryChanged(query.drop(1).takeWhile { !it.isWhitespace() })
+                                    }
+                                    else -> {
+                                        onSkillQueryChanged("")
+                                        onKnowledgeQueryChanged("")
+                                    }
+                                }
                             }
                         }
                     },
@@ -3971,7 +4001,7 @@ fun AiriChatInputBar(
                     maxLines = 8,
                     decorationBox = { inner ->
                         Box {
-                            if (text.isEmpty()) {
+                            if (composerVisibleText.isEmpty() && selectedSkillId == null) {
                                 Text(
                                     text = when {
                                         isGenerating              -> stringResource(R.string.generating)
@@ -3989,6 +4019,7 @@ fun AiriChatInputBar(
                         }
                     }
                 )
+                }
             }
             val attachmentDescription = stringResource(R.string.attach)
             val voiceInputDescription = stringResource(R.string.voice_input)

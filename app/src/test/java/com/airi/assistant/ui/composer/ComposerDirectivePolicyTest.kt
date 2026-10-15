@@ -28,4 +28,11 @@ class ComposerDirectivePolicyTest {
             ComposerDirectivePolicy.applySelection("/code", "code_assistant", isKnowledge = false)
         )
     }
+
+    @Test
+    fun selectedSkillBackspaceOpensPickerArmsThenRemoves() {
+        assertEquals(ComposerDirectivePolicy.SkillBackspaceAction.OPEN_PICKER, ComposerDirectivePolicy.nextSkillBackspaceAction(0))
+        assertEquals(ComposerDirectivePolicy.SkillBackspaceAction.ARM_REMOVAL, ComposerDirectivePolicy.nextSkillBackspaceAction(1))
+        assertEquals(ComposerDirectivePolicy.SkillBackspaceAction.REMOVE_SKILL, ComposerDirectivePolicy.nextSkillBackspaceAction(2))
+    }
 }

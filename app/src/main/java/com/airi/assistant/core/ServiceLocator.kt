@@ -241,6 +241,7 @@ object ServiceLocator {
                     appContext    = requireContext(),
                     registry      = reg,
                     authManager   = connectorAuthManager,
+                    accessProfileStore = com.airi.assistant.connector.SharedPreferencesConnectorAccessProfileStore(requireContext()),
                     llmProviders  = llmProviders,
                     secureStorage = secureStorage,
                     durableTaskManager = durableTaskManager,

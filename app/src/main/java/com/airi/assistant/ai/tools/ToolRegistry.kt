@@ -14,7 +14,10 @@ import com.airi.assistant.domain.customskill.CustomSkillRepository
 
 class ToolRegistry(private val context: Context) {
 
-    private val secureStorage = SecureStorage(context)
+    // Use the process-scoped store used by connector bootstrap and ViewModels.
+    // A second SecureStorage instance could observe stale legacy flags and make
+    // tools disappear while the live connector is ready.
+    private val secureStorage get() = ServiceLocator.secureStorage
     private val customSkillRepository = CustomSkillRepository(context)
 
     fun getAvailableTools(): List<Tool> {

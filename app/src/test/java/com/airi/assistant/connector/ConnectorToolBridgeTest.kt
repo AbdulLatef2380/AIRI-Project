@@ -56,7 +56,9 @@ class ConnectorToolBridgeTest {
         val profiles = InMemoryConnectorAccessProfileStore().apply { set("google", ConnectorAccessProfile.READ_ONLY) }
         val names = bridge(registry, profiles).asToolSchemas(includeUnavailable = true).map { it.name }
         assertTrue(names.contains("connector_google_list_repos"))
-        assertFalse(names.contains("connector_google_create_issue"))
+        // Inventory mode reports registered write actions too; the runtime still
+        // rejects them unless the typed approval path is satisfied.
+        assertTrue(names.contains("connector_google_create_issue"))
     }
 
     @Test
@@ -72,6 +74,18 @@ class ConnectorToolBridgeTest {
         assertEquals("permission_denied", direct.code)
         val result = bridge.invoke("connector_github_list_repos", emptyMap()) as ConnectorOutput.Failure
         assertEquals("permission_denied", result.code)
+    }
+
+    @Test
+    fun inventory_includes_registered_actions_without_grant_but_execution_stays_closed() = runBlocking {
+        val registry = ConnectorRegistry()
+        registry.register(TestConnector("github", connected = true, healthy = true))
+        val profiles = InMemoryConnectorAccessProfileStore()
+        val bridge = bridge(registry, profiles)
+        assertTrue(bridge.asToolSchemas(includeUnavailable = true).any {
+            it.name == "connector_github_list_repos"
+        })
+        assertTrue(bridge.invoke("connector_github_list_repos", emptyMap()) is ConnectorOutput.Failure)
     }
 
     @Test

@@ -2850,9 +2850,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     ): Map<String, com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.StatusOverride> = buildMap {
         schemas.forEach { schema ->
             val connectorId = connectorToolBridge.connectorIdForTool(schema.name) ?: return@forEach
-            if (connectorId != "google") return@forEach
             val action = connectorToolBridge.actionForTool(schema.name) ?: return@forEach
-            if (action.requiredOAuthScopes.isEmpty()) return@forEach
+            val surfaceId = action.surfaceId ?: connectorId
+            val profile = ServiceLocator.connectorAccessProfileStore.get(surfaceId)
+            if (!profile.permits(action.permission)) {
+                put(
+                    schema.name,
+                    com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.StatusOverride(
+                        readiness = com.airi.assistant.agent.loop.tool.RuntimeToolContract.Readiness.PERMISSION_REQUIRED,
+                        reason = "No user access profile grants ${action.permission.name.lowercase()} access to surface '$surfaceId'.",
+                    ),
+                )
+                return@forEach
+            }
+            if (connectorId != "google" || action.requiredOAuthScopes.isEmpty()) return@forEach
             val state = runCatching {
                 connectorToolBridge.actionForTool(schema.name)?.let { action ->
                     ServiceLocator.connectorRegistry.get(connectorId)?.stateForAction(action)

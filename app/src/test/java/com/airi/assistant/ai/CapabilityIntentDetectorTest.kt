@@ -28,6 +28,13 @@ class CapabilityIntentDetectorTest {
     }
 
     @Test
+    fun ownershipQuestionTargetsGitHubConnector() {
+        val intent = CapabilityIntentDetector.detect("اعرض مستودعاتي في GitHub")
+        assertTrue(intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+        assertTrue(intent.connectorIds.contains("github"))
+    }
+
+    @Test
     fun genericArabicCapabilityQuestionRequestsAllConnectors() {
         val intent = CapabilityIntentDetector.detect("ما هي الأدوات والمهارات والموصلات المتاحة؟")
         assertTrue(intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))

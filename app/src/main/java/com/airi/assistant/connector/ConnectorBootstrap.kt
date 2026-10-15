@@ -53,6 +53,7 @@ object ConnectorBootstrap {
         // secureStorage param retained for callers that pass it explicitly;
         // falls back to ServiceLocator.secureStorage if null (AP-04 guarantee).
         secureStorage: com.airi.assistant.auth.SecureStorage? = null,
+        accessProfileStore: ConnectorAccessProfileStore? = null,
         durableTaskManager: com.airi.assistant.agent.durable.DurableTaskManager? = null,
         secretVault: SecretVault? = null,
     ) {
@@ -111,7 +112,38 @@ object ConnectorBootstrap {
             registry.register(ProviderTokenConnector(config, authManager))
         }
 
+        // Older releases persisted a successful provider connection but did not
+        // persist the new per-surface agent access profile. Without this
+        // read-only migration a connector appears healthy while its tool bridge
+        // exposes zero actions. Never grant write access during migration.
+        migrateLegacyReadProfiles(storage, accessProfileStore, registry)
+
         // Rehydrate only IDs whose encrypted connection flag was committed after a successful user-authorized connect.
         registry.restorePersistedConnections()
+    }
+
+    private fun migrateLegacyReadProfiles(
+        storage: com.airi.assistant.auth.SecureStorage?,
+        profiles: ConnectorAccessProfileStore?,
+        registry: ConnectorRegistry,
+    ) {
+        if (storage == null || profiles == null) return
+        val legacyConnected = buildSet {
+            if (storage.isGithubConnected()) add("github")
+            if (storage.isTelegramConnected()) add("telegram")
+            if (storage.isGoogleConnected()) add("google")
+        }
+        legacyConnected.forEach { runtimeId ->
+            registry.get(runtimeId)?.agentActions()
+                .orEmpty()
+                .map { it.surfaceId ?: runtimeId }
+                .distinct()
+                .forEach { surfaceId ->
+                    if (profiles.get(surfaceId) == ConnectorAccessProfile.NOT_CONFIGURED) {
+                        profiles.set(surfaceId, ConnectorAccessProfile.READ_ONLY)
+                        Log.i(TAG, "Migrated legacy connection to READ_ONLY access profile surface=$surfaceId")
+                    }
+                }
+        }
     }
 }

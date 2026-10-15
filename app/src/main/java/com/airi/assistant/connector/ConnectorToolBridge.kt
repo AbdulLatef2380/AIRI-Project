@@ -25,7 +25,10 @@ class ConnectorToolBridge(
      * ConnectorRuntimeManager and returns not_connected/unhealthy/auth errors.
      */
     fun asToolSchemas(includeUnavailable: Boolean): List<ToolSchema> = bindings(
-        onlyExecutable = !includeUnavailable, onlyGranted = true
+        // Inventory mode retains registered actions even when a user grant,
+        // provider login, or health check is missing. RuntimeToolCatalog keeps
+        // them non-executable; hiding them made capability reports misleading.
+        onlyExecutable = !includeUnavailable, onlyGranted = !includeUnavailable
     )
         .map { (toolName, binding) -> binding.toSchema(toolName) }
         .sortedBy { it.name }

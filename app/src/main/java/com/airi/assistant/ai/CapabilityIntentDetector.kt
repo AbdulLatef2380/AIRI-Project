@@ -1,0 +1,172 @@
+package com.airi.assistant.ai
+
+/**
+ * Detects runtime data dependencies independently from [QueryType].
+ *
+ * QueryType describes the shape of an answer; this object describes which
+ * live capability is required to produce a truthful answer. It is deliberately
+ * pure and conservative so it can be tested on the JVM and used before the
+ * agent/tool loop is selected.
+ */
+object CapabilityIntentDetector {
+    enum class Capability {
+        CURRENT_TIME,
+        MEMORY_READ,
+        WEB_SEARCH,
+        CONNECTOR_READ,
+        DEVICE_STATE,
+        DEVICE_ACTION,
+        TERMINAL_EXECUTE,
+    }
+
+    data class Intent(
+        val capabilities: Set<Capability> = emptySet(),
+        val connectorIds: Set<String> = emptySet(),
+    ) {
+        val requiresTools: Boolean get() = capabilities.isNotEmpty()
+        val requiresLiveData: Boolean
+            get() = capabilities.any { it != Capability.MEMORY_READ }
+        fun requires(capability: Capability): Boolean = capability in capabilities
+    }
+
+    private val timePatterns = listOf(
+        "what time", "current time", "time is it", "today's date", "todays date",
+        "current date", "date today", "what date", "today",
+        "كم الساعة", "الساعة الان", "الوقت الان", "التاريخ اليوم",
+        "تاريخ اليوم", "التاريخ الحالي", "التاريخ الميلادي", "اليوم كم",
+        "كم اليوم", "ما تاريخ اليوم", "ما هو تاريخ اليوم", "تاريخ اليوم كم",
+    )
+
+    private val memoryPatterns = listOf(
+        "remember", "recall", "memory", "what did i tell you", "what do you remember",
+        "do you remember", "my memories", "previously",
+        "تذكر", "تذكّر", "ذاكرتك", "ذاكرتي", "ماذا تتذكر", "ماذا تذكر عني",
+        "هل تتذكر", "ما الذي اخبرتك", "ما الذي أخبرتك", "المعلومات التي حفظتها",
+    )
+
+    private val webPatterns = listOf(
+        "search the web", "search online", "look up", "latest news", "current price",
+        "ابحث في الويب", "ابحث على الانترنت", "ابحث على الإنترنت", "آخر الأخبار",
+        "اخر الاخبار", "السعر الحالي", "معلومات حديثة", "معلومة حديثة",
+    )
+
+    private val connectorTargets = mapOf(
+        "gmail" to "google", "جيميل" to "google", "البريد" to "google",
+        "email" to "google", "google drive" to "google", "drive" to "google",
+        "جوجل درايف" to "google", "درايف" to "google", "google calendar" to "google", "calendar" to "google",
+        "التقويم" to "google", "github" to "github", "جيت هب" to "github",
+        "telegram" to "telegram", "تلغرام" to "telegram", "slack" to "slack",
+        "discord" to "discord", "notion" to "notion", "الموصلات" to "*",
+    )
+
+    private val connectorActions = listOf(
+        "list", "show", "read", "check", "find", "search", "get", "access", "summarize",
+        "اعرض", "عرض", "اقرأ", "اقرا", "تحقق", "ابحث", "أحضر", "احضر", "الوصول",
+        "افتح", "لخص", "لخّص", "استخرج", "راجع", "حلل", "حلّل", "تحليل", "آخر", "اخر", "my", "mine",
+        "لدي", "لديك", "حساب", "ملفاتي", "رسائلي", "مستودعاتي", "المستودعات",
+    )
+
+    private val githubRepositoryTerms = listOf(
+        "repository", "repositories", "repo", "github.com", "المستودع", "المستودعات",
+        "المشروع", "مشروع github", "رابط github"
+    )
+
+    /** Capability-discovery questions must request the complete connector surface. */
+    private val capabilityDiscoveryPatterns = listOf(
+        "what tools", "available tools", "what skills", "available skills", "what connectors",
+        "how many connectors", "how many tools", "how many skills", "what is enabled", "what is currently enabled",
+        "ما هي الادوات", "ما هي الأدوات", "الأدوات المتاحة", "الادوات المتاحة",
+        "ما هي المهارات", "المهارات المتاحة", "ما هي الموصلات", "الموصلات المتاحة",
+        "كم موصل", "كم من الموصلات", "عدد الموصلات", "كم اداة", "كم أداة", "عدد الأدوات",
+        "كم مهارة", "عدد المهارات", "ما الذي تم تفعيله", "ما الذي يعمل حاليا", "ما الذي يعمل الآن",
+        "ما هي الخدمات الخارجية", "الخدمات الخارجية المتاحة",
+        "ما الذي تستطيع", "ماذا تستطيع", "بماذا يمكنك مساعدتي", "ما قدراتك",
+        "ما الذي يمكنك فعله", "ما يمكنك فعله", "اعطني قائمة الادوات", "أعطني قائمة الأدوات",
+    )
+
+    private val deviceActionVerbs = listOf(
+        "turn on", "turn off", "switch on", "switch off", "enable", "disable", "toggle",
+        "activate", "deactivate", "قم بتشغيل", "قم بايقاف", "قم بإيقاف", "شغل", "شغّل",
+        "تشغيل", "فعل", "فعّل", "اطفئ", "أطفئ", "اطفاء", "إطفاء", "إيقاف", "ايقاف",
+    )
+
+    private val deviceActionTargets = listOf(
+        "flash", "flashlight", "torch", "wifi", "wi-fi", "bluetooth", "hotspot",
+        "airplane mode", "mobile data", "location", "الفلاش", "فلاش", "الكشاف",
+        "المصباح", "الواي فاي", "واي فاي", "البلوتوث", "نقطة الاتصال", "وضع الطيران",
+        "بيانات الهاتف", "الموقع",
+    )
+
+    private val terminalTargets = listOf(
+        "terminal", "shell", "sandbox", "command line",
+        "الطرفية", "طرفية", "سطر الاوامر", "سطر الأوامر", "بيئة الاختبار",
+    )
+
+    private val terminalActionPatterns = listOf(
+        "run", "execute", "list", "show", "read", "print", "pwd", "ls", "cat",
+        "نفذ", "شغل", "اعرض", "اقرا", "اقرأ", "اطبع", "اعرض الملفات",
+        "نفذ امرا", "نفذ أمرا", "شغل امرا", "شغل أمرا",
+    )
+
+    fun detect(input: String): Intent {
+        val text = normalize(input)
+        val capabilities = linkedSetOf<Capability>()
+        val connectors = linkedSetOf<String>()
+
+        if (timePatterns.any(text::contains)) capabilities += Capability.CURRENT_TIME
+        if (memoryPatterns.any(text::contains)) capabilities += Capability.MEMORY_READ
+        if (webPatterns.any(text::contains)) capabilities += Capability.WEB_SEARCH
+
+        val target = connectorTargets.entries.firstOrNull { text.contains(it.key) }
+        val githubUrlIntent = text.contains("github.com/") &&
+            Regex("github\\.com/[a-z0-9_.-]+/[a-z0-9_.-]+", RegexOption.IGNORE_CASE)
+                .containsMatchIn(text)
+        val githubRepositoryIntent = githubRepositoryTerms.any(text::contains) &&
+            (text.contains("github") || text.contains("جيت هب"))
+        // Ownership wording is an explicit read intent too: "my GitHub repos"
+        // and "مستودعاتي في GitHub" previously fell through to a hallucinated
+        // answer because they did not contain one of the narrow action verbs.
+        val ownershipRead = listOf("my", "mine", "لدي", "لديك", "حساب", "ملفاتي", "رسائلي", "مستودعاتي")
+            .any(text::contains)
+        if (target != null && (connectorActions.any(text::contains) || ownershipRead ||
+                (target.value == "github" && (githubUrlIntent || githubRepositoryIntent)))) {
+            capabilities += Capability.CONNECTOR_READ
+            // `*` explicitly requests every connector. An empty set means
+            // "no connector requested" to RuntimeToolCatalog, so it must not
+            // be discarded here.
+            connectors += target.value
+        }
+
+        if (capabilityDiscoveryPatterns.any(text::contains)) {
+            capabilities += Capability.CONNECTOR_READ
+            connectors += "*"
+        }
+
+        if (text.contains("battery") || text.contains("network") ||
+            text.contains("البطارية") || text.contains("الشبكة")) {
+            capabilities += Capability.DEVICE_STATE
+        }
+        if (deviceActionVerbs.any(text::contains) && deviceActionTargets.any(text::contains)) {
+            capabilities += Capability.DEVICE_ACTION
+        }
+        if (terminalTargets.any(text::contains) && terminalActionPatterns.any(text::contains)) {
+            capabilities += Capability.TERMINAL_EXECUTE
+        }
+        return Intent(capabilities, connectors)
+    }
+
+    /** True when the user asks for a capability inventory, not an action. */
+    fun isCapabilityDiscovery(input: String): Boolean =
+        capabilityDiscoveryPatterns.any(normalize(input)::contains)
+
+    /** Normalizes Arabic orthography and diacritics before matching phrases. */
+    fun normalize(input: String): String = input
+        .lowercase()
+        .replace(Regex("[\\u064B-\\u065F\\u0670]"), "")
+        .replace('أ', 'ا')
+        .replace('إ', 'ا')
+        .replace('آ', 'ا')
+        .replace('ى', 'ي')
+        .replace(Regex("\\s+"), " ")
+        .trim()
+}

@@ -279,7 +279,7 @@ object OfficialSkillLibrary {
                 memoryAccess = SkillMemoryAccess.NONE,
                 modelAccess  = SkillModelAccess.NONE,
                 dependencies = listOf("connector:github"),
-                connectorActionDependencies = listOf("github:get_user", "github:list_repos"),
+                connectorActionDependencies = listOf("github:get_user", "github:list_repos", "github:get_file"),
                 tags         = listOf("github", "code", "repos", "git")
             ),
             tier    = Tier.CONNECTOR,

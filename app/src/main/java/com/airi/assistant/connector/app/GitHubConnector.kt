@@ -280,11 +280,13 @@ class GitHubConnector(
         }
         AgentActivityBus.emit("GitHub: ${input.action}", ActivityCategory.CONNECTOR)
         ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
-    } catch (e: GitHubApiHttpException) {
-        GitHubApiFailurePolicy.map(e.statusCode, e.rateLimitRemaining)
-    } catch (_: Exception) {
-        ConnectorOutput.Failure("provider_error", "GitHub request could not be completed", retryable = true)
-    }
+        } catch (e: GitHubApiHttpException) {
+            GitHubApiFailurePolicy.map(e.statusCode, e.rateLimitRemaining)
+        } catch (e: IllegalArgumentException) {
+            ConnectorOutput.Failure("invalid_params", e.message ?: "Invalid GitHub parameters", retryable = false)
+        } catch (_: Exception) {
+            ConnectorOutput.Failure("provider_error", "GitHub request could not be completed", retryable = true)
+        }
     }
 
     private fun getUser(token: String): String {
@@ -314,8 +316,12 @@ class GitHubConnector(
     private fun createIssue(token: String, repo: String, title: String, body: String): String { val r = apiPost("/repos/$repo/issues", token, JSONObject().apply { put("title",title);put("body",body) }.toString()); return "Issue #${r.optInt("number")} created: ${r.optString("html_url")}" }
     private fun searchCode(token: String, query: String, repo: String?): String { val q = if (repo != null) "$query repo:$repo" else query; val j = apiGet("/search/code?q=${java.net.URLEncoder.encode(q,"UTF-8")}&per_page=10", token); val items = j.optJSONArray("items") ?: JSONArray(); return buildString { appendLine("Code hits (${items.length()}):"); for (i in 0 until items.length()) { val x = items.getJSONObject(i); appendLine("• ${x.getString("path")} in ${x.getJSONObject("repository").getString("full_name")}") } } }
     private fun getFile(token: String, repo: String, path: String): String {
-        require(repo.matches(Regex("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"))) { "Invalid repository owner/name" }
-        require(path.isNotBlank() && !path.startsWith("/") && path.length <= 512) { "Invalid repository file path" }
+        if (!repo.matches(Regex("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"))) {
+            throw IllegalArgumentException("Invalid repository owner/name")
+        }
+        if (path.isBlank() || path.startsWith("/") || path.length > 512) {
+            throw IllegalArgumentException("Invalid repository file path")
+        }
         // Encode each path segment, not the slash separators. Without this,
         // spaces, '#', '?' and non-ASCII filenames are sent as malformed URLs.
         val encodedPath = path.split('/').joinToString("/") {
@@ -374,7 +380,10 @@ class GitHubConnector(
             val trimmed = part.trim()
             if (trimmed.contains("rel=\"next\"")) {
                 val match = Regex("<([^>]+)>").find(trimmed)
-                return match?.groupValues?.getOrNull(1)
+                val candidate = match?.groupValues?.getOrNull(1) ?: return null
+                val parsed = runCatching { URL(candidate) }.getOrNull() ?: return null
+                if (parsed.protocol != "https" || parsed.host != "api.github.com") return null
+                return candidate
             }
         }
         return null

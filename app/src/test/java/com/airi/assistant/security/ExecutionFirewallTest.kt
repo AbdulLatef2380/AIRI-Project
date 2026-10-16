@@ -54,7 +54,13 @@ class ExecutionFirewallTest {
     @Test
     fun agentLoopCanGuardDynamicConnectorAndSkillCalls() {
         val registry = ScopedPermissionRegistry()
-        registry.installDefaults()
+        // Keep this JVM unit test independent from Application/LoggingService
+        // bootstrap; it verifies the firewall contract, not app startup.
+        registry.grant(
+            "agent_loop",
+            ScopedPermissionRegistry.AgentPermission.CALL_CONNECTOR_API,
+            ScopedPermissionRegistry.AgentPermission.MANAGE_SKILLS,
+        )
         val firewall = ExecutionFirewall(registry)
 
         firewall.guard("agent_loop", "connector_github_get_repos")

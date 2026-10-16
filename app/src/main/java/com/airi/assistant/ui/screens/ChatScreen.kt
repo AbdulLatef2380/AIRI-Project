@@ -2701,7 +2701,14 @@ fun AiBubble(
         if (!hideAvatar) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = if (avatarAtEnd) Arrangement.End else Arrangement.Start,
+                // Arrangement.End follows the ambient RTL direction and can
+                // put the header on the physical left. Keep the Arabic AIRI
+                // header on the same physical side as its reply.
+                horizontalArrangement = if (avatarAtEnd) {
+                    Arrangement.Absolute.Right
+                } else {
+                    Arrangement.Absolute.Left
+                },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (!avatarAtEnd) {
@@ -3113,12 +3120,15 @@ private fun AiriThinkingRow(label: String) {
     // In RTL Arabic, the AIRI mark is the visual first element on the right,
     // followed by the thinking label. LTR locales keep the same semantic order.
     CompositionLocalProvider(LocalLayoutDirection provides LocalLayoutDirection.current) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 2.dp)
-                .semantics { contentDescription = label },
-            horizontalArrangement = Arrangement.End,
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 2.dp)
+                    .semantics { contentDescription = label },
+            // Do not use Arrangement.End here: in an RTL composition it is
+            // the physical left. AIRI's thinking indicator belongs to the
+            // same physical side as its reply/header.
+            horizontalArrangement = Arrangement.Absolute.Right,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
@@ -3737,22 +3747,22 @@ fun AiriChatInputBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 smartReplies.forEach { reply ->
-                    Surface(
-                        onClick = { onSmartReply(reply) },
-                        shape = RoundedCornerShape(16.dp),
-                        color = AiriTheme.surfaceVariant.copy(alpha = 0.72f),
-                        border = BorderStroke(1.dp, AiriTheme.outline.copy(alpha = 0.42f)),
+                    Row(
                         modifier = Modifier.widthIn(max = 300.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { onSmartReply(reply) }
+                                .padding(horizontal = 5.dp, vertical = 3.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.AutoAwesome,

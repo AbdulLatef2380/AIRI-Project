@@ -3110,9 +3110,9 @@ fun AiStreamingBubble(text: String) {
 @Composable
 private fun AiriThinkingRow(label: String) {
     val animationsEnabled = ValueAnimator.areAnimatorsEnabled()
-    // Keep the indicator's sparkle → label order independent of the
-    // surrounding message direction. The label itself remains bidi-aware.
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+    // In RTL Arabic, the AIRI mark is the visual first element on the right,
+    // followed by the thinking label. LTR locales keep the same semantic order.
+    CompositionLocalProvider(LocalLayoutDirection provides LocalLayoutDirection.current) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -3121,6 +3121,12 @@ private fun AiriThinkingRow(label: String) {
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Image(
+                painter = painterResource(R.mipmap.ic_launcher_foreground),
+                contentDescription = "AIRI",
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(Modifier.width(5.dp))
             ThinkingAnimation(
                 modifier = Modifier,
                 stageText = label,

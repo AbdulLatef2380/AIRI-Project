@@ -335,10 +335,10 @@ class NotionMcpConnector(
                 )
             }
         }.getOrElse { e ->
-            Log.e(TAG, "AIRI NOTION_NETWORK_ERROR tool=$toolName ${e.message}")
+            Log.e(TAG, "AIRI NOTION_NETWORK_ERROR tool=$toolName", e)
             ConnectorOutput.Failure(
                 code      = "network_error",
-                message   = "Network error calling Notion: ${e.message}",
+                message   = "Notion request could not be completed due to a network error.",
                 retryable = true
             )
         }

@@ -178,8 +178,12 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
             AgentActivityBus.emit("Telegram: ${input.action}", ActivityCategory.CONNECTOR)
             ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
         } catch (e: Exception) {
-            Log.e(TAG, "Telegram execute failed: ${e.message}")
-            ConnectorOutput.Failure("api_error", (e.message ?: "Telegram API error").replace(token, "[REDACTED]"), retryable = false)
+            Log.e(TAG, "Telegram execute failed", e)
+            ConnectorOutput.Failure(
+                "api_error",
+                "Telegram request was rejected or could not be completed.",
+                retryable = false,
+            )
         }
     }
 

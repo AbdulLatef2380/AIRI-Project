@@ -438,7 +438,7 @@ fun ProfileScreen(
                         }
                     )
 
-                    HorizontalDivider(
+                    Divider(
                         color     = AiriTheme.colorScheme.outlineVariant,
                         thickness = 0.5.dp,
                         modifier  = Modifier.padding(horizontal = 16.dp)
@@ -453,7 +453,7 @@ fun ProfileScreen(
                         onClick   = { copyAccountValue("Email", email) }
                     )
 
-                    HorizontalDivider(
+                    Divider(
                         color     = AiriTheme.colorScheme.outlineVariant,
                         thickness = 0.5.dp,
                         modifier  = Modifier.padding(horizontal = 16.dp)

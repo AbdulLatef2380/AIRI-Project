@@ -28,7 +28,7 @@ import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
@@ -218,7 +218,7 @@ fun TaskInfoBottomSheet(
                 Text("${metrics.satisfiedConditions}/4", color = SemanticError, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = AiriTheme.outline.copy(alpha = 0.5f))
+            Divider(color = AiriTheme.outline.copy(alpha = 0.5f))
             Text(stringResource(R.string.task_info_conditions), color = AiriTheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
             Text(stringResource(R.string.task_info_conditions_value), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
             if (metrics.scopedEvents.any { it.severity == ActivitySeverity.ERROR }) {

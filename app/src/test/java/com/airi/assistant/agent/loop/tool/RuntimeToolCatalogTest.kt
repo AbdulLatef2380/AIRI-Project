@@ -186,6 +186,30 @@ class RuntimeToolCatalogTest {
     }
 
     @Test
+    fun requestedConnectorActionIsPrioritizedAheadOfSiblingActions() {
+        val intent = CapabilityIntentDetector.Intent(
+            capabilities = setOf(CapabilityIntentDetector.Capability.CONNECTOR_READ),
+            connectorIds = setOf("github"),
+        )
+        val result = RuntimeToolCatalog.assemble(
+            builtins = emptyList(),
+            skills = emptyList(),
+            connectors = listOf(
+                RuntimeToolContract.connector(
+                    ToolSchema("connector_github_list_repos", "List repositories"), available = true,
+                ),
+                RuntimeToolContract.connector(
+                    ToolSchema("connector_github_get_file", "Read a repository file"), available = true,
+                ),
+            ),
+            intent = intent,
+            requestText = "اقرأ ملف من GitHub",
+        )
+
+        assertEquals("connector_github_get_file", result.schemas.first().name)
+    }
+
+    @Test
     fun sideEffectsWithoutTypedTaskRouteAreNotAdvertisedAsExecutable() {
         val result = RuntimeToolCatalog.assemble(
             builtins = BuiltinTools.ALL,

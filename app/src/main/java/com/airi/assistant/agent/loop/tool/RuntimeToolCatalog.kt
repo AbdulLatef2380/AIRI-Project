@@ -99,6 +99,10 @@ object RuntimeToolCatalog {
                     contract.source == RuntimeToolContract.Source.BUILTIN -> 4
                     else -> 5
                 }
+            }.thenByDescending { contract ->
+                if (contract.source == RuntimeToolContract.Source.CONNECTOR) {
+                    requestRelevanceScore(contract.schema, normalizedRequest)
+                } else 0
             }.thenBy { it.schema.name }
         )
 
@@ -116,6 +120,36 @@ object RuntimeToolCatalog {
             .split(Regex("[^a-z0-9\\u0600-\\u06ff]+"))
             .filter { it.length >= 4 }
         return tokens.any { token -> normalizedRequest.contains(token) }
+    }
+
+    /**
+     * Rank the requested connector action before sibling actions. Without this
+     * score, alphabetical ordering can fill a small prompt with `list_*`
+     * actions and omit the requested `get_file`/`gmail_read` action entirely.
+     */
+    private fun requestRelevanceScore(schema: ToolSchema, normalizedRequest: String): Int {
+        if (normalizedRequest.isBlank()) return 0
+        val request = normalizedRequest
+            .replace("مستودعات", "repos")
+            .replace("مستودع", "repo")
+            .replace("ملفات", "files")
+            .replace("ملف", "file")
+            .replace("رسائل", "email")
+            .replace("بريد", "email")
+            .replace("مشكلة", "issue")
+            .replace("مشكلات", "issues")
+            .replace("طلب سحب", "pull request")
+        val tokens = (schema.name + " " + schema.description)
+            .lowercase()
+            .split(Regex("[^a-z0-9]+"))
+            .filter { it.length >= 4 }
+            .distinct()
+        return tokens.sumOf { token ->
+            when {
+                request.contains(token) -> token.length
+                else -> 0
+            }
+        }
     }
 
     private fun RuntimeToolContract.promptSchema(): ToolSchema {

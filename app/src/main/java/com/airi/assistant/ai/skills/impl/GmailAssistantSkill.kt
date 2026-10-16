@@ -53,7 +53,7 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
         val list = toolExecutor.execute(
             ToolCall(
                 "gmail_list_emails",
-                mapOf("max" to max.toString(), "query" to "in:sent")
+                mapOf("max" to max.toString(), "query" to resolveQuery(input))
             )
         )
         if (!list.success) return SkillResult(false, "", list.error)
@@ -86,6 +86,17 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
     }.getOrDefault(false)
 
     private companion object { const val MAX_RESULT_CHARS = 12_000 }
+
+    /** Preserve the user's mailbox intent instead of silently forcing `in:sent`. */
+    private fun resolveQuery(input: String): String {
+        val lower = input.lowercase()
+        return when {
+            "sent" in lower || "المرسلة" in lower || "ارسلت" in lower -> "in:sent"
+            "unread" in lower || "غير مقروء" in lower || "غير مقروءة" in lower -> "is:unread"
+            "inbox" in lower || "الوارد" in lower || "البريد الوارد" in lower -> "in:inbox"
+            else -> "in:anywhere"
+        }
+    }
 
     private fun resolveMax(input: String, context: SkillContext?): Int {
         val numRegex = Regex("\\d+")

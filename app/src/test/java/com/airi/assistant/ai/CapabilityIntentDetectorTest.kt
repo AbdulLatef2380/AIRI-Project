@@ -93,6 +93,17 @@ class CapabilityIntentDetectorTest {
     }
 
     @Test
+    fun connectorMutationRequestsStillExposeConnectorRuntime() {
+        val github = CapabilityIntentDetector.detect("أنشئ issue في GitHub")
+        assertTrue(github.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+        assertTrue(github.connectorIds.contains("github"))
+
+        val gmail = CapabilityIntentDetector.detect("أرسل رسالة عبر Gmail")
+        assertTrue(gmail.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+        assertTrue(gmail.connectorIds.contains("google"))
+    }
+
+    @Test
     fun creativeRequestWithoutLiveDependencyNeedsNoTools() {
         assertTrue(CapabilityIntentDetector.detect("اكتب لي قصة قصيرة").capabilities.isEmpty())
     }

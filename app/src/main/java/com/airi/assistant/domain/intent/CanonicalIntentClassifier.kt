@@ -47,20 +47,22 @@ object CanonicalIntentClassifier {
         val deviceAction = capabilityIntent.requires(CapabilityIntentDetector.Capability.DEVICE_ACTION)
         val terminalExecute = capabilityIntent.requires(CapabilityIntentDetector.Capability.TERMINAL_EXECUTE)
         val connectorRead = capabilityIntent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ)
+        val connectorWrite = capabilityIntent.requires(CapabilityIntentDetector.Capability.CONNECTOR_WRITE)
         val liveRead = capabilityIntent.requiresTools && !deviceAction && !terminalExecute
         val startsAction = actionVerbs.any(text::startsWith)
-        val possibleAction = deviceAction || terminalExecute || startsAction || connectorRead
+        val possibleAction = deviceAction || terminalExecute || startsAction || connectorRead || connectorWrite
         if (possibleAction) {
             val capability = when {
                 deviceAction -> "device_action"
                 terminalExecute -> "terminal_execute"
+                connectorWrite -> "connector_write"
                 connectorRead -> "connector_read"
                 startsAction && text.contains("settings") -> "open_settings"
                 startsAction -> "user_action"
                 else -> null
             }
             val slots = buildMap {
-                if (connectorRead) put("connector", ChatIntent.TypedSlot("detected", ChatIntent.TypedSlot.SlotType.TARGET))
+                if (connectorRead || connectorWrite) put("connector", ChatIntent.TypedSlot("detected", ChatIntent.TypedSlot.SlotType.TARGET))
                 if (text.contains("settings")) put("target", ChatIntent.TypedSlot("settings", ChatIntent.TypedSlot.SlotType.TARGET))
             }
             return ChatIntent(
@@ -69,7 +71,7 @@ object CanonicalIntentClassifier {
                 canonicalCapability = capability,
                 typedSlots = slots,
                 confidence = if (capability == "user_action") ChatIntent.Confidence.MEDIUM else ChatIntent.Confidence.HIGH,
-                risk = if (deviceAction || terminalExecute || startsAction) ChatIntent.Risk.SIDE_EFFECT else ChatIntent.Risk.READ,
+                risk = if (deviceAction || terminalExecute || startsAction || connectorWrite) ChatIntent.Risk.SIDE_EFFECT else ChatIntent.Risk.READ,
                 rationale = "capability_or_imperative_detected",
             )
         }

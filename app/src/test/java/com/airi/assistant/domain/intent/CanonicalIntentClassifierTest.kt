@@ -35,6 +35,23 @@ class CanonicalIntentClassifierTest {
     }
 
     @Test
+    fun connectorWriteIsClassifiedAsSideEffectNotRead() {
+        val intent = CanonicalIntentClassifier.classify("update my GitHub issue")
+        assertEquals(ChatIntent.Kind.POSSIBLE_ACTION, intent.kind)
+        assertEquals(QueryType.ACTION, intent.queryType)
+        assertEquals("connector_write", intent.canonicalCapability)
+        assertEquals(ChatIntent.Risk.SIDE_EFFECT, intent.risk)
+        assertTrue(intent.isExecutableCandidate)
+    }
+
+    @Test
+    fun arabicConnectorUpdateIsClassifiedAsSideEffect() {
+        val intent = CanonicalIntentClassifier.classify("حدّث الرسالة في Gmail")
+        assertEquals("connector_write", intent.canonicalCapability)
+        assertEquals(ChatIntent.Risk.SIDE_EFFECT, intent.risk)
+    }
+
+    @Test
     fun creativeRequestIsNotAnAction() {
         val intent = CanonicalIntentClassifier.classify("write a poem")
         assertEquals(ChatIntent.Kind.CREATIVE, intent.kind)

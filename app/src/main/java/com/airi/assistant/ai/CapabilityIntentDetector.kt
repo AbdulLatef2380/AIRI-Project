@@ -14,6 +14,7 @@ object CapabilityIntentDetector {
         MEMORY_READ,
         WEB_SEARCH,
         CONNECTOR_READ,
+        CONNECTOR_WRITE,
         DEVICE_STATE,
         DEVICE_ACTION,
         TERMINAL_EXECUTE,
@@ -59,14 +60,19 @@ object CapabilityIntentDetector {
         "discord" to "discord", "notion" to "notion", "الموصلات" to "*",
     )
 
-    private val connectorActions = listOf(
+    private val connectorReadActions = listOf(
         "list", "show", "read", "check", "find", "search", "get", "access", "summarize",
-        "send", "create", "update", "delete", "write", "post", "reply", "upload", "commit",
         "اعرض", "عرض", "اقرأ", "اقرا", "تحقق", "ابحث", "أحضر", "احضر", "الوصول",
         "افتح", "لخص", "لخّص", "استخرج", "راجع", "حلل", "حلّل", "تحليل", "آخر", "اخر",
-        "ارسل", "انشئ", "اكتب", "حدّث", "حدث", "احذف", "انشر", "ارفع", "رد",
         "my", "mine",
         "لدي", "لديك", "حساب", "ملفاتي", "رسائلي", "مستودعاتي", "المستودعات",
+    )
+
+    private val connectorWriteActions = listOf(
+        "send", "create", "update", "delete", "write", "post", "reply", "upload", "commit",
+        "edit", "modify", "rename", "move", "clear",
+        "ارسل", "انشئ", "اكتب", "حدث", "احذف", "انشر", "ارفع", "رد", "عدل", "غير",
+        "تحديث", "تعديل", "حذف",
     )
 
     private val githubRepositoryTerms = listOf(
@@ -126,7 +132,7 @@ object CapabilityIntentDetector {
         // reach an otherwise connected connector. Collect all matching targets
         // and deduplicate aliases that map to the same runtime connector.
         val matchedConnectorIds = connectorTargets.entries
-            .filter { text.contains(it.key) }
+            .filter { containsTerm(text, it.key) }
             .map { it.value }
             .toCollection(LinkedHashSet())
         val githubUrlIntent = text.contains("github.com/") &&
@@ -134,21 +140,26 @@ object CapabilityIntentDetector {
                 .containsMatchIn(text)
         val githubRepositoryIntent = githubRepositoryTerms.any(text::contains) &&
             (text.contains("github") || text.contains("جيت هب"))
+        val capabilityDiscovery = capabilityDiscoveryPatterns.any { containsTerm(text, it) }
         // Ownership wording is an explicit read intent too: "my GitHub repos"
         // and "مستودعاتي في GitHub" previously fell through to a hallucinated
         // answer because they did not contain one of the narrow action verbs.
         val ownershipRead = listOf("my", "mine", "لدي", "لديك", "حساب", "ملفاتي", "رسائلي", "مستودعاتي")
-            .any(text::contains)
-        if (matchedConnectorIds.isNotEmpty() && (connectorActions.any(text::contains) || ownershipRead ||
+            .any { containsTerm(text, it) }
+        val connectorRead = connectorReadActions.any { containsTerm(text, it) } || ownershipRead ||
+            (matchedConnectorIds.contains("github") && (githubUrlIntent || githubRepositoryIntent))
+        val connectorWrite = !capabilityDiscovery && connectorWriteActions.any { containsTerm(text, it) }
+        if (matchedConnectorIds.isNotEmpty() && (connectorRead || connectorWrite ||
                 (matchedConnectorIds.contains("github") && (githubUrlIntent || githubRepositoryIntent)))) {
-            capabilities += Capability.CONNECTOR_READ
+            if (connectorRead) capabilities += Capability.CONNECTOR_READ
+            if (connectorWrite) capabilities += Capability.CONNECTOR_WRITE
             // `*` explicitly requests every connector. An empty set means
             // "no connector requested" to RuntimeToolCatalog, so it must not be
             // discarded here.
             connectors += matchedConnectorIds
         }
 
-        if (capabilityDiscoveryPatterns.any(text::contains)) {
+        if (capabilityDiscovery) {
             capabilities += Capability.CONNECTOR_READ
             connectors += "*"
         }
@@ -180,4 +191,10 @@ object CapabilityIntentDetector {
         .replace('ى', 'ي')
         .replace(Regex("\\s+"), " ")
         .trim()
+
+    private fun containsTerm(text: String, term: String): Boolean {
+        val escaped = Regex.escape(normalize(term))
+        return Regex("(^|[^\\p{L}\\p{N}])$escaped($|[^\\p{L}\\p{N}])")
+            .containsMatchIn(text)
+    }
 }

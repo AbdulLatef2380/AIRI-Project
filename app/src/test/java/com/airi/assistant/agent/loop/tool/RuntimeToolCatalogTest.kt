@@ -66,6 +66,22 @@ class RuntimeToolCatalogTest {
     }
 
     @Test
+    fun requestedWriteConnectorIsStillExposedToDispatcherGates() {
+        val intent = CapabilityIntentDetector.Intent(
+            capabilities = setOf(CapabilityIntentDetector.Capability.CONNECTOR_WRITE),
+            connectorIds = setOf("google"),
+        )
+        val result = RuntimeToolCatalog.assemble(
+            builtins = emptyList(),
+            skills = emptyList(),
+            connectors = listOf(RuntimeToolContract.connector(connectorSchema, available = true)),
+            intent = intent,
+        )
+
+        assertEquals(listOf(connectorSchema.name), result.schemas.map { it.name })
+    }
+
+    @Test
     fun requestedUnavailableConnectorIsNotExposedAsExecutable() {
         val intent = CapabilityIntentDetector.Intent(
             capabilities = setOf(CapabilityIntentDetector.Capability.CONNECTOR_READ),

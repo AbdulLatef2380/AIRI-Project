@@ -1,7 +1,8 @@
 package com.airi.assistant.ai
 
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CapabilityIntentDetectorTest {
@@ -54,6 +55,7 @@ class CapabilityIntentDetectorTest {
     fun genericArabicCapabilityQuestionRequestsAllConnectors() {
         val intent = CapabilityIntentDetector.detect("ما هي الأدوات والمهارات والموصلات المتاحة؟")
         assertTrue(intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+        assertFalse(intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_WRITE))
         assertTrue(intent.connectorIds.contains("*"))
         assertTrue(intent.requiresTools)
         assertEquals(QueryType.ANALYTICAL, QueryClassifier.classifyQuery("ما هي الأدوات والمهارات والموصلات المتاحة؟"))
@@ -93,14 +95,44 @@ class CapabilityIntentDetectorTest {
     }
 
     @Test
-    fun connectorMutationRequestsStillExposeConnectorRuntime() {
+    fun connectorMutationRequestsExposeWriteCapabilityNotReadOnly() {
         val github = CapabilityIntentDetector.detect("أنشئ issue في GitHub")
-        assertTrue(github.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+        assertTrue(github.requires(CapabilityIntentDetector.Capability.CONNECTOR_WRITE))
+        assertFalse(github.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
         assertTrue(github.connectorIds.contains("github"))
 
         val gmail = CapabilityIntentDetector.detect("أرسل رسالة عبر Gmail")
-        assertTrue(gmail.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+        assertTrue(gmail.requires(CapabilityIntentDetector.Capability.CONNECTOR_WRITE))
+        assertFalse(gmail.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
         assertTrue(gmail.connectorIds.contains("google"))
+    }
+
+    @Test
+    fun englishUpdateAndDeleteRequestsAreWriteIntents() {
+        listOf(
+            "update my GitHub issue",
+            "delete the Telegram message",
+            "create a Gmail draft",
+            "upload this file to Google Drive",
+        ).forEach { input ->
+            val intent = CapabilityIntentDetector.detect(input)
+            assertTrue(input, intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_WRITE))
+            assertTrue(input, intent.connectorIds.isNotEmpty())
+        }
+    }
+
+    @Test
+    fun arabicUpdateVariantsAreWriteIntents() {
+        listOf(
+            "حدّث issue في GitHub",
+            "حدث الرسالة في Gmail",
+            "عدّل الملف في Google Drive",
+            "احذف الرسالة من Telegram",
+        ).forEach { input ->
+            val intent = CapabilityIntentDetector.detect(input)
+            assertTrue(input, intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_WRITE))
+            assertTrue(input, intent.connectorIds.isNotEmpty())
+        }
     }
 
     @Test

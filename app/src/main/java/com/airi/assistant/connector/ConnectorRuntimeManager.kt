@@ -127,7 +127,17 @@ class ConnectorRuntimeManager(
                         retryable = false
                     )
                 }
-                executeWithRetry(connector, input, maxRetries.coerceIn(0, MAX_RETRIES))
+                // A retry after a transport failure is safe for reads, but can
+                // duplicate a provider-side mutation when the provider already
+                // accepted a POST and only its response was lost. Approval is
+                // not an idempotency guarantee, so side-effecting actions are
+                // deliberately single-attempt at this boundary.
+                val retryBudget = if (governedAction.permission == ConnectorPermissionLevel.READ) {
+                    maxRetries.coerceIn(0, MAX_RETRIES)
+                } else {
+                    0
+                }
+                executeWithRetry(connector, input, retryBudget)
             }.also { output ->
                 setOperationState(operationId, when (output) {
                     is ConnectorOutput.Success, is ConnectorOutput.Streaming -> ConnectorOperationState.Success(operationId)
@@ -148,8 +158,13 @@ class ConnectorRuntimeManager(
             setOperationState(operationId, ConnectorOperationState.Cancelled(operationId))
             throw e
         } catch (e: Exception) {
-            setOperationState(operationId, ConnectorOperationState.Failed(operationId, "runtime_error", (e.message ?: "Unknown error").take(MAX_ERROR_CHARS), false))
-            ConnectorOutput.Failure("runtime_error", e.message ?: "Unknown error")
+            // Exception text can contain provider URLs, request data, or other
+            // implementation details. Keep it in logs only; the tool contract
+            // exposes a stable, non-sensitive message to the agent and user.
+            Log.e(TAG, "Connector execution failed connector=$connectorId action=${input.action}", e)
+            val safeMessage = "Connector execution failed before a confirmed result was received"
+            setOperationState(operationId, ConnectorOperationState.Failed(operationId, "runtime_error", safeMessage, false))
+            ConnectorOutput.Failure("runtime_error", safeMessage)
         } finally { trackEnd(key) }
     }
 
@@ -243,7 +258,12 @@ class ConnectorRuntimeManager(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                ConnectorOutput.Failure("exception", e.message ?: "Exception", retryable = true)
+                Log.e(TAG, "Connector adapter threw connector=${connector.id} action=${input.action}", e)
+                ConnectorOutput.Failure(
+                    "exception",
+                    "Connector execution failed before a confirmed result was received",
+                    retryable = true,
+                )
             }
             when {
                 last is ConnectorOutput.Success   -> { AgentActivityBus.emit(" '${connector.id}' ${input.action}", ActivityCategory.CONNECTOR); return last }

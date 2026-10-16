@@ -107,6 +107,44 @@ class ConnectorRuntimeManagerTest {
     }
 
     @Test
+    fun approvedWriteIsNeverRetriedAfterRetryableProviderFailure() = runBlocking {
+        val registry = ConnectorRegistry()
+        val connector = FakeConnector(
+            id = "write-retry",
+            initiallyHealthy = true,
+            declareRead = false,
+            declareWrite = true,
+            retryableFailures = 1,
+            supportsApprovedContinuation = true,
+        )
+        registry.register(connector)
+        val profiles = InMemoryConnectorAccessProfileStore().apply {
+            set("write-retry", ConnectorAccessProfile.FULL_ACCESS)
+        }
+
+        val result = ConnectorRuntimeManager(registry, profiles).executeApprovedContinuation(
+            connectorId = "write-retry",
+            input = ConnectorInput(
+                action = "write",
+                authorizationActionId = "write",
+                execution = ConnectorExecutionContext(
+                    projectId = null,
+                    taskId = "task",
+                    missionId = "mission",
+                    runId = "run",
+                    stepId = "step",
+                    idempotencyKey = "idem-key",
+                    continuationId = "continuation",
+                ),
+            ),
+            maxRetries = 3,
+        )
+
+        assertEquals("provider_error", (result as ConnectorOutput.Failure).code)
+        assertEquals(1, connector.executeCalls)
+    }
+
+    @Test
     fun undeclaredAndMissingParametersAreRejectedBeforeAdapterInvocation() = runBlocking {
         val registry = ConnectorRegistry()
         val connector = FakeConnector(
@@ -240,6 +278,8 @@ class ConnectorRuntimeManagerTest {
         private val declareRead: Boolean = true,
         private val declareWrite: Boolean = false,
         private val extraActions: List<ConnectorAgentAction> = emptyList(),
+        private var retryableFailures: Int = 0,
+        private val supportsApprovedContinuation: Boolean = false,
     ) : Connector {
         override val name: String = id
         override val description: String = "Test connector"
@@ -266,12 +306,17 @@ class ConnectorRuntimeManagerTest {
                 id = "write",
                 description = "Write test action",
                 permission = ConnectorPermissionLevel.WRITE,
+                supportsApprovedContinuation = supportsApprovedContinuation,
             ))
             addAll(extraActions)
         }
         override suspend fun execute(input: ConnectorInput): ConnectorOutput {
             executeCalls++
             if (executionDelayMs > 0) delay(executionDelayMs)
+            if (retryableFailures > 0) {
+                retryableFailures--
+                return ConnectorOutput.Failure("provider_error", "provider temporarily unavailable", retryable = true)
+            }
             return ConnectorOutput.Success("${id}:${input.action}")
         }
     }

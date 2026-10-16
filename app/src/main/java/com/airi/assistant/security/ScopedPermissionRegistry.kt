@@ -51,6 +51,8 @@ class ScopedPermissionRegistry {
         // Network / external
         SEARCH_WEB,
         CALL_REMOTE_LLM,
+        /** Outer firewall permission for user-authorized connector adapters. */
+        CALL_CONNECTOR_API,
         CALL_GITHUB_API,
         CALL_TELEGRAM_API,
 
@@ -91,6 +93,7 @@ class ScopedPermissionRegistry {
             AgentPermission.READ_FILES,      AgentPermission.WRITE_FILES,
             AgentPermission.EXECUTE_TERMINAL,
             AgentPermission.SEARCH_WEB,      AgentPermission.CALL_REMOTE_LLM,
+            AgentPermission.CALL_CONNECTOR_API,
             AgentPermission.CALL_GITHUB_API, AgentPermission.CALL_TELEGRAM_API,
             AgentPermission.READ_LOCATION,   AgentPermission.READ_MICROPHONE,
             AgentPermission.MANAGE_SKILLS,   AgentPermission.CLOUD_SYNC,

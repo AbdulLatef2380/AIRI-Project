@@ -24,6 +24,8 @@ FILES = {
     "anthropic_payload": ROOT / "app/src/main/java/com/airi/assistant/execution/cloud/AnthropicPayloadContract.kt",
     "chat": ROOT / "app/src/main/java/com/airi/assistant/ui/screens/ChatScreen.kt",
     "strings": ROOT / "app/src/main/res/values/strings.xml",
+    "permission_policy": ROOT / "app/src/main/java/com/airi/assistant/security/ToolPermissionPolicy.kt",
+    "permission_registry": ROOT / "app/src/main/java/com/airi/assistant/security/ScopedPermissionRegistry.kt",
 }
 text = {key: path.read_text(encoding="utf-8") for key, path in FILES.items()}
 checks = []
@@ -35,11 +37,11 @@ check("terminal tool is advertised", 'name        = "terminal_execute"' in text[
 check("terminal tool is in ALL", "CREATE_NOTE, TERMINAL_EXECUTE" in text["schema"])
 check("terminal tool is in CHAT_ONLY", "CREATE_NOTE, TERMINAL_EXECUTE" in text["schema"])
 check("terminal tool is dispatched", '"terminal_execute" ->' in text["dispatcher"])
-check("terminal dispatch uses governed runtime", "ServiceLocator.terminalRuntime" in text["dispatcher"])
-check("terminal dispatch returns output", "terminal.lines.value.drop(before)" in text["dispatcher"])
+check("terminal dispatch uses governed runtime", "ServiceLocator.terminalExecutionGateway" in text["dispatcher"])
+check("terminal dispatch returns output", "execution.output.ifBlank" in text["dispatcher"])
 check("AIRI runtime contract exists", "AIRI RUNTIME CONTRACT" in text["identity"])
 check("runtime contract is always assembled", "AiriIdentityProfile.runtimeContext(capabilityDescriptor)" in text["vm"])
-check("simple turns bypass tool protocol", "if (queryType == QueryType.SIMPLE || queryType == QueryType.CREATIVE)" in text["vm"])
+check("simple capability-free turns bypass tool protocol", "if (!capabilityIntent.requiresTools &&" in text["vm"] and "queryType == QueryType.SIMPLE" in text["vm"])
 check("agent loop registers execution ownership", "ExecutionStatusBus.onGraphStarted(" in text["loop"])
 check("single-pass success completes status", "ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)" in text["loop"])
 check("single-pass failure completes status", "ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)" in text["loop"])
@@ -53,16 +55,19 @@ check("provider-aware media admission exists", "nativeBinaryAttachments" in text
 check("thin attachment resolver exists", "object AttachmentTransportResolver" in text["foundation"] and "never reads files" in text["foundation"])
 check("resolution has NOT_READY", "NOT_READY" in text["foundation"] and "capabilitySupported" in text["foundation"])
 check("delivery evidence has staged proof", "PROVIDER_PAYLOAD_BUILT" in text["foundation"] and "HTTP_REQUEST_DISPATCHED" in text["foundation"] and "PROVIDER_RESPONSE_RECEIVED" in text["foundation"])
-check("native success requires provider response", "markProviderResponse(true" in text["gemini"] and "if (success && it.payloadIncluded)" in text["foundation"])
+check("native success requires provider response", "markProviderResponse(true" in text["gemini"] and "payloadIncluded" in text["foundation"] and "PROVIDER_RESPONSE_RECEIVED" in text["foundation"])
 check("Gemini adapter receives the trace", "request.attachmentTrace" in text["gemini"] and "attachmentTrace" in text["execution_request"])
 check("Gemini payload contract checks MIME and content", "containsNonEmptyInlineContent" in text["gemini_payload"] and "GeminiPayloadContract" in text["gemini"])
-check("attachment UI acceptance waits for transport proof", "transport success was not proven" in text["vm"] and "if (attachmentTrace != null) onAccepted()" in text["vm"])
+check("attachment UI acceptance waits for transport proof", "!attachmentTrace.isTransportSuccessful()" in text["vm"] and "onAccepted()" in text["vm"])
 check("OpenAI native route is first-party only", "provider == CloudProvider.OPENAI" in text["openai"] and "/responses" in text["openai"])
 check("OpenAI Responses payload has input_file", "input_file" in text["openai_payload"] and "file_data" in text["openai_payload"])
 check("OpenAI Responses payload has input_image", "input_image" in text["openai_payload"] and "image_url" in text["openai_payload"])
 check("Anthropic native route uses Messages content blocks", "AnthropicPayloadContract.buildRequestBody" in text["anthropic"] and "content_block_delta" in text["anthropic"])
 check("Anthropic payload has image and PDF blocks", '"type\\":\\"image\\"' in text["anthropic_payload"] and '"type\\":\\"document\\"' in text["anthropic_payload"])
 check("OpenAI-compatible providers remain on chat completions", "provider == CloudProvider.OPENAI && OpenAIResponsesPayloadContract.requiresResponses" in text["openai"] and '"$baseUrl/chat/completions"' in text["openai"])
+check("dynamic connector tools pass the firewall gate", 'startsWith("connector_")' in text["permission_policy"] and "CALL_CONNECTOR_API" in text["permission_policy"])
+check("dynamic skill tools pass the firewall gate", 'startsWith("skill_")' in text["permission_policy"] and "MANAGE_SKILLS" in text["permission_policy"])
+check("agent loop owns connector firewall permission", "AgentPermission.CALL_CONNECTOR_API" in text["permission_registry"] and 'grant("agent_loop"' in text["permission_registry"])
 
 failed = [name for name, ok in checks if not ok]
 for name, ok in checks:

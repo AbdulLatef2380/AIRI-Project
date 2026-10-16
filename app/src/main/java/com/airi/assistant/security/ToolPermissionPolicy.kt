@@ -49,7 +49,18 @@ internal object ToolPermissionPolicy {
 
     fun permissionFor(toolName: String): ScopedPermissionRegistry.AgentPermission? {
         val normalized = toolName.trim().lowercase()
+        // ConnectorRuntimeManager performs the provider/profile/scope check;
+        // this is the outer agent-loop firewall gate for dynamic connector tools.
+        if (normalized.startsWith("connector_")) {
+            return ScopedPermissionRegistry.AgentPermission.CALL_CONNECTOR_API
+        }
+        // SkillToolBridge performs manifest and capability checks after this
+        // common firewall gate. Without this mapping every registered skill is
+        // rejected as an unknown tool before reaching its bridge.
         if (normalized.startsWith("custom_skill_")) {
+            return ScopedPermissionRegistry.AgentPermission.MANAGE_SKILLS
+        }
+        if (normalized.startsWith("skill_")) {
             return ScopedPermissionRegistry.AgentPermission.MANAGE_SKILLS
         }
         return permissions[normalized]

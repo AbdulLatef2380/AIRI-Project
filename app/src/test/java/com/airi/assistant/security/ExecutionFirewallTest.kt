@@ -38,4 +38,26 @@ class ExecutionFirewallTest {
     fun unknownToolsRemainDenied() {
         assertFalse(ToolPermissionPolicy.permissionFor("unregistered_tool") != null)
     }
+
+    @Test
+    fun dynamicConnectorAndSkillToolsReachTheirGovernedBridges() {
+        assertEquals(
+            ScopedPermissionRegistry.AgentPermission.CALL_CONNECTOR_API,
+            ToolPermissionPolicy.permissionFor("connector_github_get_repos")
+        )
+        assertEquals(
+            ScopedPermissionRegistry.AgentPermission.MANAGE_SKILLS,
+            ToolPermissionPolicy.permissionFor("skill_drive_search")
+        )
+    }
+
+    @Test
+    fun agentLoopCanGuardDynamicConnectorAndSkillCalls() {
+        val registry = ScopedPermissionRegistry()
+        registry.installDefaults()
+        val firewall = ExecutionFirewall(registry)
+
+        firewall.guard("agent_loop", "connector_github_get_repos")
+        firewall.guard("agent_loop", "skill_drive_search")
+    }
 }

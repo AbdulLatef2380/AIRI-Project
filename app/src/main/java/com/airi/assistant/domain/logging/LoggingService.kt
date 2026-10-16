@@ -23,24 +23,34 @@ object LoggingService {
 
     private const val DEFAULT_TAG = "AIRI"
 
+    /**
+     * Logging is observability, not a precondition for executing a guarded
+     * security decision. JVM tests and non-Android callers do not provide a
+     * real android.util.Log implementation; a logging failure must therefore
+     * never escape into permission or connector code.
+     */
+    private inline fun emit(block: () -> Unit) {
+        runCatching(block)
+    }
+
     /** Debug — emitted only in debug builds. No-op in production. */
     fun debug(tag: String = DEFAULT_TAG, msg: String) {
-        if (BuildConfig.DEBUG) Log.d(tag, msg)
+        if (BuildConfig.DEBUG) emit { Log.d(tag, msg) }
     }
 
     /** Info — always emitted (operational signal, not sensitive). */
     fun info(tag: String = DEFAULT_TAG, msg: String) {
-        Log.i(tag, msg)
+        emit { Log.i(tag, msg) }
     }
 
     /** Warn — always emitted. */
     fun warn(tag: String = DEFAULT_TAG, msg: String) {
-        Log.w(tag, msg)
+        emit { Log.w(tag, msg) }
     }
 
     /** Error — always emitted. */
     fun error(tag: String = DEFAULT_TAG, msg: String, cause: Throwable? = null) {
-        if (cause != null) Log.e(tag, msg, cause) else Log.e(tag, msg)
+        emit { if (cause != null) Log.e(tag, msg, cause) else Log.e(tag, msg) }
     }
 
     /**
@@ -55,6 +65,6 @@ object LoggingService {
     ) {
         if (!BuildConfig.DEBUG) return
         val status = if (success) "SUCCESS" else "FAILURE"
-        Log.d(tag, "EXECUTION status=$status inputChars=${input.length} durationMs=$durationMs")
+        emit { Log.d(tag, "EXECUTION status=$status inputChars=${input.length} durationMs=$durationMs") }
     }
 }

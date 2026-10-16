@@ -52,6 +52,18 @@ class ExecutionFirewallTest {
     }
 
     @Test
+    fun permissionGrantAndFirewallGuardDoNotDependOnAndroidLogger() {
+        val registry = ScopedPermissionRegistry()
+        registry.grant(
+            "agent_loop",
+            ScopedPermissionRegistry.AgentPermission.CALL_CONNECTOR_API,
+        )
+
+        val firewall = ExecutionFirewall(registry)
+        firewall.guard("agent_loop", "connector_github_get_repos")
+    }
+
+    @Test
     fun agentLoopCanGuardDynamicConnectorAndSkillCalls() {
         val registry = ScopedPermissionRegistry()
         // Keep this JVM unit test independent from Application/LoggingService

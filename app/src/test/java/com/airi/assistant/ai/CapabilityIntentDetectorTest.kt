@@ -84,6 +84,15 @@ class CapabilityIntentDetectorTest {
     }
 
     @Test
+    fun compoundRequestKeepsEveryMentionedConnector() {
+        val intent = CapabilityIntentDetector.detect("اعرض رسائل Gmail ومستودعاتي في GitHub")
+        assertTrue(intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+        assertTrue(intent.connectorIds.contains("google"))
+        assertTrue(intent.connectorIds.contains("github"))
+        assertEquals(setOf("google", "github"), intent.connectorIds)
+    }
+
+    @Test
     fun creativeRequestWithoutLiveDependencyNeedsNoTools() {
         assertTrue(CapabilityIntentDetector.detect("اكتب لي قصة قصيرة").capabilities.isEmpty())
     }

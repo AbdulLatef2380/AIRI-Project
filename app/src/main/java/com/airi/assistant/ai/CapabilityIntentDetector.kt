@@ -117,7 +117,15 @@ object CapabilityIntentDetector {
         if (memoryPatterns.any(text::contains)) capabilities += Capability.MEMORY_READ
         if (webPatterns.any(text::contains)) capabilities += Capability.WEB_SEARCH
 
-        val target = connectorTargets.entries.firstOrNull { text.contains(it.key) }
+        // A request may mention more than one provider (for example Gmail and
+        // GitHub in the same sentence). Selecting only the first match silently
+        // drops the remaining capability and makes the agent appear unable to
+        // reach an otherwise connected connector. Collect all matching targets
+        // and deduplicate aliases that map to the same runtime connector.
+        val matchedConnectorIds = connectorTargets.entries
+            .filter { text.contains(it.key) }
+            .map { it.value }
+            .toCollection(LinkedHashSet())
         val githubUrlIntent = text.contains("github.com/") &&
             Regex("github\\.com/[a-z0-9_.-]+/[a-z0-9_.-]+", RegexOption.IGNORE_CASE)
                 .containsMatchIn(text)
@@ -128,13 +136,13 @@ object CapabilityIntentDetector {
         // answer because they did not contain one of the narrow action verbs.
         val ownershipRead = listOf("my", "mine", "لدي", "لديك", "حساب", "ملفاتي", "رسائلي", "مستودعاتي")
             .any(text::contains)
-        if (target != null && (connectorActions.any(text::contains) || ownershipRead ||
-                (target.value == "github" && (githubUrlIntent || githubRepositoryIntent)))) {
+        if (matchedConnectorIds.isNotEmpty() && (connectorActions.any(text::contains) || ownershipRead ||
+                (matchedConnectorIds.contains("github") && (githubUrlIntent || githubRepositoryIntent)))) {
             capabilities += Capability.CONNECTOR_READ
             // `*` explicitly requests every connector. An empty set means
-            // "no connector requested" to RuntimeToolCatalog, so it must not
-            // be discarded here.
-            connectors += target.value
+            // "no connector requested" to RuntimeToolCatalog, so it must not be
+            // discarded here.
+            connectors += matchedConnectorIds
         }
 
         if (capabilityDiscoveryPatterns.any(text::contains)) {

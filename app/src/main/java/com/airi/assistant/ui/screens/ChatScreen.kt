@@ -1141,6 +1141,7 @@ fun ChatScreen(
                 messages      = filteredChatMessages,
                 streamingText = if (chatSearchQuery.isBlank()) visibleStreamingText else "",
                 isGenerating  = generationBelongsToCurrentSession,
+                planLabel      = if (isProPlan) "Pro" else "Free",
                 executionError = visibleExecutionError,
                 inlineTraceExecutionId = agentState.executionId,
                 inlineTraceEntries = executionTrace.filter {
@@ -2135,6 +2136,7 @@ fun ChatMessageList(
     messages: List<ChatMessage>,
     streamingText: String,
     isGenerating: Boolean,
+    planLabel: String = "Free",
     executionError: ExecutionErrorProjection? = null,
     inlineTraceExecutionId: String = "",
     inlineTraceEntries: List<ExecutionTraceEvent> = emptyList(),
@@ -2352,6 +2354,7 @@ fun ChatMessageList(
                             AiBubble(
                                 text            = msg.text,
                                 agentTag        = msg.agentTag,
+                                planLabel       = planLabel,
                                 traceId         = msg.traceId,
                                 hideAvatar      = hideAvatar,
                                 onShare         = onShareAiResponse,
@@ -2650,6 +2653,7 @@ private fun AiResponseTurn(
 fun AiBubble(
     text: String,
     agentTag: String? = null,
+    planLabel: String = "Free",
     traceId: String? = null,
     hideAvatar: Boolean = false,
     onShare: (String) -> Unit = {},
@@ -2691,23 +2695,56 @@ fun AiBubble(
         )
     }
 
-    Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-            horizontalArrangement = ChatPresentationPolicy.assistantBubbleArrangement(),
-            verticalAlignment = Alignment.Top
-        ) {
-            if (!hideAvatar && !avatarAtEnd) {
-                Image(
-                    painter = painterResource(R.mipmap.ic_launcher_foreground),
-                    contentDescription = "AIRI",
-                    modifier = Modifier.size(28.dp)
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+    ) {
+        if (!hideAvatar) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = if (avatarAtEnd) Arrangement.End else Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (!avatarAtEnd) {
+                    Image(
+                        painter = painterResource(R.mipmap.ic_launcher_foreground),
+                        contentDescription = "AIRI",
+                        modifier = Modifier.size(28.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(
+                    text = "AIRI",
+                    color = AiriTheme.onSurface,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(Modifier.width(8.dp))
-            } else if (hideAvatar) {
-                Spacer(Modifier.width(36.dp))
+                Surface(
+                    shape = AIRIShapes.sm,
+                    color = AiriTheme.surfaceVariant,
+                    border = BorderStroke(1.dp, AiriTheme.outline.copy(alpha = 0.55f)),
+                ) {
+                    Text(
+                        text = if (planLabel.equals("Pro", ignoreCase = true)) "Pro" else "Free",
+                        color = if (planLabel.equals("Pro", ignoreCase = true)) SemanticSuccess else AiriTheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                }
+                if (avatarAtEnd) {
+                    Spacer(Modifier.width(8.dp))
+                    Image(
+                        painter = painterResource(R.mipmap.ic_launcher_foreground),
+                        contentDescription = "AIRI",
+                        modifier = Modifier.size(28.dp),
+                    )
+                }
             }
+            Spacer(Modifier.height(6.dp))
+        }
 
-            Column(modifier = Modifier.weight(1f).widthIn(max = 800.dp)) {
+        Column(modifier = Modifier.fillMaxWidth()) {
                 if (executionTraceId != null && (
                     executionTraceId == executionTraceEntries.firstOrNull()?.executionId ||
                         executionActivityEvents.any { it.executionId == executionTraceId }
@@ -2912,14 +2949,6 @@ fun AiBubble(
                     Spacer(Modifier.height(3.dp))
                     ExecOriginBadge(origin = execOrigin, source = executionSource)
                 }
-            }
-            if (!hideAvatar && avatarAtEnd) {
-                Spacer(Modifier.width(8.dp))
-                Image(
-                    painter = painterResource(R.mipmap.ic_launcher_foreground),
-                    contentDescription = "AIRI",
-                    modifier = Modifier.size(28.dp)
-                )
             }
         }
     if (showFullscreenViewer) {

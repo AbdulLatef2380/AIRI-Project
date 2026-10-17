@@ -391,6 +391,16 @@ class ToolDispatcher(
                         ToolResult.Success(output, provenance = ToolProvenance.SKILL)
                     } else {
                         val code = when {
+                            result.metadata["error_code"] != null ->
+                                result.metadata["error_code"]!!.let { declared ->
+                                    when (declared) {
+                                        ToolErrorCodes.AUTH_REQUIRED,
+                                        ToolErrorCodes.PERMISSION_DENIED,
+                                        ToolErrorCodes.NOT_CONNECTED,
+                                        ToolErrorCodes.APPROVAL_REQUIRED -> declared
+                                        else -> ToolErrorCodes.SKILL_FAILED
+                                    }
+                                }
                             result.metadata["failure_type"] == "authorization" -> ToolErrorCodes.PERMISSION_DENIED
                             result.error?.contains("not connected", ignoreCase = true) == true -> ToolErrorCodes.NOT_CONNECTED
                             else -> ToolErrorCodes.SKILL_FAILED

@@ -152,7 +152,15 @@ class SkillToolBridge(
                     data = "",
                     error = accessDecision.userMessage,
                     skillName = skill.skillId,
-                    metadata = mapOf("failure_type" to "authorization", "deny_reason" to accessDecision.reason.name)
+                    metadata = mapOf(
+                        "failure_type" to "authorization",
+                        "deny_reason" to accessDecision.reason.name,
+                        "error_code" to when (accessDecision.reason) {
+                            SkillInvocationAccessPolicy.DenyReason.CONNECTOR_UNHEALTHY -> "auth_required"
+                            SkillInvocationAccessPolicy.DenyReason.MISSING_PERMISSION -> "permission_denied"
+                            else -> "permission_denied"
+                        },
+                    )
                 )
             }
         }

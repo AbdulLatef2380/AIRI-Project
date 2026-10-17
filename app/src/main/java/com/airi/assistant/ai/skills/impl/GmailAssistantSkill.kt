@@ -1,11 +1,10 @@
 package com.airi.assistant.ai.skills.impl
 
 import android.content.Context
-import com.airi.assistant.ai.intent.ToolCall
 import com.airi.assistant.ai.skills.AiriSkill
+import com.airi.assistant.ai.skills.ConnectorSkillRuntime
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillResult
-import com.airi.assistant.ai.tools.ToolExecutor
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.integrations.google.GoogleDataScopes
 
@@ -17,7 +16,6 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
         "max" to "maximum number of emails to return (default 5)"
     )
 
-    private val toolExecutor  = ToolExecutor(context)
     private val exactPhrases = listOf(
         "latest email", "check email", "read emails", "my inbox", "check inbox"
     )
@@ -50,13 +48,12 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
         val context = params["context"] as? SkillContext
         val max     = resolveMax(input, context)
 
-        val list = toolExecutor.execute(
-            ToolCall(
-                "gmail_list_emails",
-                mapOf("max" to max.toString(), "query" to resolveQuery(input))
-            )
+        val list = ConnectorSkillRuntime.execute(
+            connectorId = "google",
+            action = "gmail_list",
+            params = mapOf("max_results" to max.toString(), "query" to resolveQuery(input)),
         )
-        if (!list.success) return SkillResult(false, "", list.error)
+        if (!list.success) return list
 
         // The connector intentionally returns IDs only from list; message content
         // is fetched through the separately authorized read action.
@@ -65,17 +62,23 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
             ?.groupValues
             ?.getOrNull(1)
         if (messageId.isNullOrBlank()) {
-            return SkillResult(true, "No sent Gmail messages found.", null)
+            return SkillResult(true, "No matching Gmail messages found.", null, metadata = mapOf("execution_path" to "connector_runtime"))
         }
 
-        val read = toolExecutor.execute(
-            ToolCall("gmail_read_email", mapOf("message_id" to messageId))
+        val read = ConnectorSkillRuntime.execute(
+            connectorId = "google",
+            action = "gmail_read",
+            params = mapOf("message_id" to messageId),
         )
-        if (!read.success) return SkillResult(false, "", read.error)
-        return SkillResult(
-            success = true,
-            data = "Latest sent Gmail message (for summarization):\n${read.data.take(MAX_RESULT_CHARS)}",
-            error = null,
+        if (!read.success) return read
+        val mailboxLabel = when {
+            "sent" in resolveQuery(input) -> "sent"
+            "inbox" in resolveQuery(input) -> "inbox"
+            else -> "matching"
+        }
+        return read.copy(
+            data = "Latest $mailboxLabel Gmail message (for summarization):\n${read.data.take(MAX_RESULT_CHARS)}",
+            metadata = read.metadata + mapOf("mailbox" to mailboxLabel),
         )
     }
 

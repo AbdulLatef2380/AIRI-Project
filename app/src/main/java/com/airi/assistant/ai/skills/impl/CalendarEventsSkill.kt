@@ -1,11 +1,10 @@
 package com.airi.assistant.ai.skills.impl
 
 import android.content.Context
-import com.airi.assistant.ai.intent.ToolCall
 import com.airi.assistant.ai.skills.AiriSkill
+import com.airi.assistant.ai.skills.ConnectorSkillRuntime
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillResult
-import com.airi.assistant.ai.tools.ToolExecutor
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.integrations.google.GoogleDataScopes
 
@@ -17,7 +16,6 @@ class CalendarEventsSkill(private val context: Context) : AiriSkill {
         "count" to "number of upcoming events to return (default 5)"
     )
 
-    private val toolExecutor  = ToolExecutor(context)
     private val exactPhrases = listOf(
         "my schedule", "upcoming events", "my calendar",
         "check calendar", "today's events", "what's planned"
@@ -51,8 +49,11 @@ class CalendarEventsSkill(private val context: Context) : AiriSkill {
         val context = params["context"] as? SkillContext
         val count   = resolveCount(input, context)
 
-        val r = toolExecutor.execute(ToolCall("calendar_next_events", mapOf("count" to count.toString())))
-        return SkillResult(r.success, r.data, r.error)
+        return ConnectorSkillRuntime.execute(
+            connectorId = "google",
+            action = "calendar_list",
+            params = mapOf("max_results" to count.toString()),
+        )
     }
 
     private fun hasCalendarDataAccess(): Boolean = runCatching {

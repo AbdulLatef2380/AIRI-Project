@@ -1,11 +1,10 @@
 package com.airi.assistant.ai.skills.impl
 
 import android.content.Context
-import com.airi.assistant.ai.intent.ToolCall
 import com.airi.assistant.ai.skills.AiriSkill
+import com.airi.assistant.ai.skills.ConnectorSkillRuntime
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillResult
-import com.airi.assistant.ai.tools.ToolExecutor
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.integrations.google.GoogleDataScopes
 
@@ -17,7 +16,6 @@ class DriveSearchSkill(private val context: Context) : AiriSkill {
         "query" to "file name or search keywords"
     )
 
-    private val toolExecutor  = ToolExecutor(context)
     private val exactPhrases = listOf(
         "google drive", "search in drive", "find file in drive",
         "my files on drive", "files in drive", "search drive"
@@ -49,8 +47,11 @@ class DriveSearchSkill(private val context: Context) : AiriSkill {
         val context = params["context"] as? SkillContext
         val query   = resolveQuery(input, context)
 
-        val r = toolExecutor.execute(ToolCall("drive_search_file", mapOf("query" to query)))
-        return SkillResult(r.success, r.data, r.error)
+        return ConnectorSkillRuntime.execute(
+            connectorId = "google",
+            action = "drive_search",
+            params = mapOf("query" to query),
+        )
     }
 
     private fun hasDriveDataAccess(): Boolean = runCatching {

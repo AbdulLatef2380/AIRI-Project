@@ -126,6 +126,25 @@ class SkillRegistry(private val context: Context) {
         return skills
     }
 
+    /**
+     * Canonical discovery for the agent catalog. Registration is independent of
+     * live authorization: unavailable services must remain discoverable so the
+     * agent can report the exact missing consent/permission instead of claiming
+     * that the skill does not exist. SkillToolBridge still denies invocation.
+     */
+    fun getRegisteredSkillsForRouting(): List<AiriSkill> {
+        val skills = OfficialSkillLibrary.ALL
+            .filter { isSkillEnabled(it.manifest.id) }
+            .mapNotNull { entry -> runCatching { entry.factory(context) }.getOrNull() }
+            .toMutableList()
+        customSkillRepository.getAllSkills()
+            .filter { isSkillEnabled(it.id) && hasRunnableEndpoint(it) }
+            .forEach { customSkill ->
+                skills.add(CustomSkillAiriSkillAdapter(customSkill, customSkillExecutor))
+            }
+        return skills
+    }
+
     private fun areRuntimeDependenciesAvailable(dependencies: List<String>): Boolean =
         SkillDependencyReadiness.areAvailable(dependencies, ::isRuntimeConnectorReady)
 

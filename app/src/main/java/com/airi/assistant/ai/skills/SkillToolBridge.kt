@@ -55,16 +55,22 @@ class SkillToolBridge(
      * the [AgentLoop] injects into the system prompt.
      */
     fun asToolSchemas(): List<ToolSchema> {
-        val skills = registry.getAvailableSkills().filter { skill ->
-            readiness(skill) is SkillInvocationAccessPolicy.Decision.Allow
-        }
+        // Registration/discovery is deliberately separate from authorization.
+        // Expose registered skills with a truthful readiness marker; invoke()
+        // applies the same policy again and remains fail-closed.
+        val skills = registry.getRegisteredSkillsForRouting()
         val schemas = mutableListOf<ToolSchema>()
         skills.forEach { skill ->
+            val status = when (val decision = readiness(skill)) {
+                is SkillInvocationAccessPolicy.Decision.Allow -> null
+                is SkillInvocationAccessPolicy.Decision.Deny ->
+                    " [READINESS=requires_${decision.reason.name.lowercase()}: ${decision.userMessage}]"
+            }
             if (skill.toolDefinitions.isEmpty()) {
-                schemas.add(skillToSchema(skill))
+                schemas.add(skillToSchema(skill, status))
             } else {
                 skill.toolDefinitions.forEach { toolDef ->
-                    schemas.add(toolDefToSchema(skill, toolDef))
+                    schemas.add(toolDefToSchema(skill, toolDef, status))
                 }
             }
         }
@@ -84,18 +90,18 @@ class SkillToolBridge(
         )
     }
 
-    private fun skillToSchema(skill: AiriSkill): ToolSchema = ToolSchema(
+    private fun skillToSchema(skill: AiriSkill, status: String? = null): ToolSchema = ToolSchema(
         name        = "$PREFIX${skill.skillId}",
-        description = "[Skill] ${skill.description}",
+        description = "[Skill] ${skill.description}${status.orEmpty()}",
         parameters  = skill.parameters.mapValues { (_, desc) ->
             ToolSchema.Param(type = "string", description = desc, required = false)
         },
         category    = ToolSchema.Category.EXTERNAL
     )
 
-    private fun toolDefToSchema(skill: AiriSkill, toolDef: SkillToolDefinition): ToolSchema = ToolSchema(
+    private fun toolDefToSchema(skill: AiriSkill, toolDef: SkillToolDefinition, status: String? = null): ToolSchema = ToolSchema(
         name        = "$PREFIX${toolDef.name}",
-        description = "[${skill.name}] ${toolDef.description}",
+        description = "[${skill.name}] ${toolDef.description}${status.orEmpty()}",
         parameters  = toolDef.parameters.mapValues { (_, p) ->
             ToolSchema.Param(type = p.type, description = p.description, required = p.required)
         },
@@ -242,7 +248,7 @@ class SkillToolBridge(
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun findSkillForTool(strippedName: String): AiriSkill? {
-        val skills = registry.getAvailableSkills()
+        val skills = registry.getRegisteredSkillsForRouting()
 
         // 1. Direct skillId or name match (e.g. "web_search" → WebSearchSkill.skillId)
         skills.firstOrNull { skill ->

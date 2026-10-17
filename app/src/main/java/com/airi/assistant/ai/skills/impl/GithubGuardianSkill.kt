@@ -1,13 +1,12 @@
 package com.airi.assistant.ai.skills.impl
 
 import android.content.Context
-import com.airi.assistant.ai.intent.ToolCall
 import com.airi.assistant.ai.skills.AiriSkill
+import com.airi.assistant.ai.skills.ConnectorSkillRuntime
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillResult
 import com.airi.assistant.ai.skills.SkillParamDef
 import com.airi.assistant.ai.skills.SkillToolDefinition
-import com.airi.assistant.ai.tools.ToolExecutor
 import com.airi.assistant.core.ServiceLocator
 
 class GithubGuardianSkill(private val context: Context) : AiriSkill {
@@ -34,7 +33,6 @@ class GithubGuardianSkill(private val context: Context) : AiriSkill {
         )
     )
 
-    private val toolExecutor  = ToolExecutor(context)
 
     private val exactPhrases = listOf(
         "check my github", "my github", "github status",
@@ -74,8 +72,11 @@ class GithubGuardianSkill(private val context: Context) : AiriSkill {
                     is String -> raw.toIntOrNull() ?: 10
                     else -> 10
                 }
-                val r = toolExecutor.execute(ToolCall("github_get_repos", mapOf("limit" to limit.toString())))
-                SkillResult(r.success, r.data, r.error)
+                ConnectorSkillRuntime.execute(
+                    connectorId = "github",
+                    action = "list_repos",
+                    params = mapOf("limit" to limit.toString()),
+                )
             }
             "get_file" -> {
                 val repo = (params["repo"] as? String)
@@ -85,14 +86,17 @@ class GithubGuardianSkill(private val context: Context) : AiriSkill {
                 if (repo.isBlank() || path.isBlank()) {
                     return SkillResult(false, "", "A GitHub repository (owner/name) and file path are required.")
                 }
-                val r = toolExecutor.execute(
-                    ToolCall("github_get_file", mapOf("repo" to repo, "path" to path))
+                ConnectorSkillRuntime.execute(
+                    connectorId = "github",
+                    action = "get_file",
+                    params = mapOf("repo" to repo, "path" to path),
                 )
-                SkillResult(r.success, r.data, r.error)
             }
             else -> {
-                val r = toolExecutor.execute(ToolCall("github_get_user", emptyMap()))
-                SkillResult(r.success, r.data, r.error)
+                ConnectorSkillRuntime.execute(
+                    connectorId = "github",
+                    action = "get_user",
+                )
             }
         }
     }

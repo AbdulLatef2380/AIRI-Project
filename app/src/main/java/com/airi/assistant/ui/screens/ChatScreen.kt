@@ -3720,7 +3720,8 @@ fun AiriChatInputBar(
             }
         }
 
-        // Smart reply chips
+        // Smart reply bubbles: each suggestion sizes itself to its content
+        // instead of stretching into a full-width action card.
         if (smartReplies.isNotEmpty() && !isGenerating) {
             Row(
                 modifier = Modifier
@@ -3732,33 +3733,31 @@ fun AiriChatInputBar(
             ) {
                 smartReplies.forEach { reply ->
                     Row(
-                        modifier = Modifier.widthIn(max = 300.dp),
+                        modifier = Modifier
+                            .widthIn(max = 300.dp)
+                            .clip(AIRIShapes.pill)
+                            .background(AiriTheme.surfaceVariant.copy(alpha = 0.78f))
+                            .border(1.dp, AiriTheme.outline.copy(alpha = 0.32f), AIRIShapes.pill)
+                            .clickable { onSmartReply(reply) }
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { onSmartReply(reply) }
-                                .padding(horizontal = 5.dp, vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.AutoAwesome,
-                                contentDescription = null,
-                                tint = AiriTheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp),
-                            )
-                            Text(
-                                text = reply,
-                                color = AiriTheme.onSurface,
-                                fontSize = 13.sp,
-                                lineHeight = 18.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Outlined.AutoAwesome,
+                            contentDescription = null,
+                            tint = AiriTheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Text(
+                            text = reply,
+                            color = AiriTheme.onSurface,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
             }

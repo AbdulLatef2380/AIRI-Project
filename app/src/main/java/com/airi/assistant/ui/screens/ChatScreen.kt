@@ -2833,15 +2833,11 @@ fun AiBubble(
                     }
                 }
 
-                // Reply actions: a distinct contrast-safe container keeps the
-                // controls legible on both dark and light themes.
+                // Reply actions stay directly on the chat surface without the
+                // previous enclosing bubble/container.
                 Row(
                     modifier = Modifier
-                        .padding(start = 2.dp, top = 4.dp)
-                        .clip(AIRIShapes.sm)
-                        .background(AiriTheme.surfaceVariant.copy(alpha = 0.72f))
-                        .border(1.dp, AiriTheme.outline.copy(alpha = 0.38f), AIRIShapes.sm)
-                        .padding(horizontal = 2.dp),
+                        .padding(start = 2.dp, top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
@@ -2865,35 +2861,6 @@ fun AiBubble(
                         IconButton(onClick = { showFullscreenViewer = true }, modifier = Modifier.size(48.dp)) {
                             Icon(Icons.Outlined.OpenInFull, contentDescription = stringResource(R.string.expand), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
                         }
-                    }
-                    // Persisted thumbs up/down — initialized from DB feedback column.
-                    var liked    by remember { mutableStateOf(initialFeedback == 1) }
-                    var disliked by remember { mutableStateOf(initialFeedback == -1) }
-                    IconButton(onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        val newDisliked = !disliked
-                        disliked = newDisliked; if (newDisliked) liked = false
-                        onFeedback(false)
-                    }, modifier = Modifier.size(48.dp)) {
-                        Icon(
-                            imageVector = if (disliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown,
-                            contentDescription = stringResource(R.string.feedback_not_helpful),
-                            tint = if (disliked) SemanticError else AiriTheme.onSurfaceVariant,
-                            modifier = Modifier.size(21.dp),
-                        )
-                    }
-                    IconButton(onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        val newLiked = !liked
-                        liked = newLiked; if (newLiked) disliked = false
-                        onFeedback(true)
-                    }, modifier = Modifier.size(48.dp)) {
-                        Icon(
-                            imageVector = if (liked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
-                            contentDescription = stringResource(R.string.feedback_helpful),
-                            tint = if (liked) SemanticSuccess else AiriTheme.onSurfaceVariant,
-                            modifier = Modifier.size(21.dp),
-                        )
                     }
                 }
 

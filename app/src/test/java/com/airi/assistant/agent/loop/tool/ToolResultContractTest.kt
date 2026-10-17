@@ -28,6 +28,28 @@ class ToolResultContractTest {
     }
 
     @Test
+    fun skillFailureMetadataPreservesAuthorizationCategories() {
+        assertEquals(
+            ToolErrorCodes.AUTH_REQUIRED,
+            ToolErrorCodes.fromSkillFailure(
+                mapOf("failure_type" to "authorization", "error_code" to "auth_required"),
+                "A connected service is required",
+            ),
+        )
+        assertEquals(
+            ToolErrorCodes.PERMISSION_DENIED,
+            ToolErrorCodes.fromSkillFailure(
+                mapOf("failure_type" to "authorization", "error_code" to "permission_denied"),
+                "A permission is required",
+            ),
+        )
+        assertEquals(
+            ToolErrorCodes.SKILL_FAILED,
+            ToolErrorCodes.fromSkillFailure(emptyMap(), "skill failed"),
+        )
+    }
+
+    @Test
     fun standardCodesCoverCoreRuntimeFailureClasses() {
         val codes = setOf(
             ToolErrorCodes.MEMORY_UNAVAILABLE,

@@ -27,6 +27,17 @@ object ToolErrorCodes {
         "network_error", "api_error" -> CONNECTOR_FAILED
         else -> CONNECTOR_FAILED
     }
+
+    fun fromSkillFailure(metadata: Map<String, String>, message: String?): String =
+        when (metadata["error_code"]?.lowercase()) {
+            AUTH_REQUIRED, PERMISSION_DENIED, NOT_CONNECTED, APPROVAL_REQUIRED ->
+                metadata.getValue("error_code").lowercase()
+            else -> when {
+                metadata["failure_type"] == "authorization" -> PERMISSION_DENIED
+                message?.contains("not connected", ignoreCase = true) == true -> NOT_CONNECTED
+                else -> SKILL_FAILED
+            }
+        }
 }
 
 enum class ToolProvenance {

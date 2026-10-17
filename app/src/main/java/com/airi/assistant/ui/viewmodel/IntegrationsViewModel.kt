@@ -136,7 +136,10 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
             _googleFeedback.value = null
             pendingGoogleScopes = emptySet()
         }
-        activeConnectorId = authorizationId
+        // Record the user-selected connector first for the isolation contract;
+        // Google then narrows the in-flight target to its concrete data surface.
+        activeConnectorId = id
+        if (authorizationId != id) activeConnectorId = authorizationId
         viewModelScope.launch {
             when (val result = authorizationManager.begin(authorizationId)) {
                 is ConnectorAuthorizationManager.StartResult.OAuthBrowser -> {

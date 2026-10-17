@@ -47,6 +47,22 @@ class ExecutionTraceBufferTest {
     }
 
     @Test
+    fun append_retainsTypedAuthorizationFailureCode() {
+        val buffer = ExecutionTraceBuffer(maxEntries = 2)
+        buffer.begin("exec-1")
+
+        val event = buffer.append(
+            executionId = "exec-1",
+            kind = ExecutionTraceKind.TOOL_FAILED,
+            summary = "Tool failed: skill_gmail",
+            actionId = "tool-1",
+            errorCode = "authorization_required",
+        )!!
+
+        assertEquals("authorization_required", event.errorCode)
+    }
+
+    @Test
     fun append_evictsOldestEntriesAtBoundedCapacity() {
         val buffer = ExecutionTraceBuffer(maxEntries = 2)
         buffer.begin("exec-1")

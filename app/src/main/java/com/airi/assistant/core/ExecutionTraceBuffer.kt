@@ -44,6 +44,7 @@ class ExecutionTraceBuffer(
         detail: String? = null,
         actionId: String? = null,
         durationMs: Long? = null,
+        errorCode: String? = null,
         timestampMs: Long = System.currentTimeMillis(),
     ): ExecutionTraceEvent? {
         if (executionId.isBlank() || executionId != activeExecutionId || summary.isBlank()) return null
@@ -56,6 +57,7 @@ class ExecutionTraceBuffer(
             detail = detail,
             actionId = actionId?.takeIf { it.isNotBlank() },
             durationMs = durationMs?.coerceAtLeast(0L),
+            errorCode = errorCode?.takeIf { it.isNotBlank() },
             sessionId = activeSessionId,
         )
         entries.addLast(event)
@@ -82,6 +84,8 @@ data class ExecutionTraceEvent(
     val actionId: String? = null,
     /** Elapsed execution time when a terminal tool event provides it. */
     val durationMs: Long? = null,
+    /** Stable machine-readable tool failure code, when the event is a failure. */
+    val errorCode: String? = null,
     /** Owning conversation session; blank for executions not attached to a chat. */
     val sessionId: String = "",
 ) {

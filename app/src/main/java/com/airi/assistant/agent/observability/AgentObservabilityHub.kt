@@ -1,6 +1,9 @@
 package com.airi.assistant.agent.observability
 
 import android.util.Log
+import com.airi.assistant.core.ExecutionStatusBus
+import com.airi.assistant.core.ExecutionTraceEvent
+import com.airi.assistant.core.ExecutionTraceKind
 import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
 import com.airi.assistant.agent.planning.GraphSnapshot
 import com.airi.assistant.agent.planning.GoalNode
@@ -44,10 +47,23 @@ class AgentObservabilityHub {
     private val agentExecCounts = mutableMapOf<String, Int>()
     private val agentErrCounts = mutableMapOf<String, Int>()
     private val agentLastLatency = mutableMapOf<String, Long>()
+    private val connectorFailureCounts = mutableMapOf<String, Int>()
+    private val recentConnectorFailures = mutableListOf<ConnectorFailureRecord>()
 
     @Volatile private var sessionTurns = 0
     @Volatile private var sessionTools = 0
     @Volatile private var sessionTokens = 0
+
+    init {
+        // Observe the execution-owned trace so connector failures are captured
+        // after dispatch, not merely counted at the pre-execution ToolCall stage.
+        hubScope.launch {
+            ExecutionStatusBus.trace.collect { trace ->
+                trace.lastOrNull { it.kind == ExecutionTraceKind.TOOL_FAILED }
+                    ?.let { recordConnectorFailure(it) }
+            }
+        }
+    }
 
     /**
      * Per-session voice collector scope. Each call to [attachVoiceSession]
@@ -116,6 +132,22 @@ class AgentObservabilityHub {
             toolCallCounts[toolName] = (toolCallCounts[toolName] ?: 0) + 1
             sessionTools++
             update { copy(toolCallCounts = this@AgentObservabilityHub.toolCallCounts.toMap(), sessionTotalToolCalls = sessionTools) }
+        }
+    }
+
+    private fun recordConnectorFailure(event: ExecutionTraceEvent) {
+        val code = event.errorCode ?: return
+        if (recentConnectorFailures.any { it.eventId == event.eventId }) return
+        connectorFailureCounts[code] = (connectorFailureCounts[code] ?: 0) + 1
+        recentConnectorFailures.add(
+            ConnectorFailureRecord(event.eventId, event.executionId, event.actionId, code, event.timestampMs)
+        )
+        if (recentConnectorFailures.size > 50) recentConnectorFailures.removeAt(0)
+        update {
+            copy(
+                connectorFailureCounts = this@AgentObservabilityHub.connectorFailureCounts.toMap(),
+                recentConnectorFailures = this@AgentObservabilityHub.recentConnectorFailures.toList(),
+            )
         }
     }
 
@@ -192,6 +224,8 @@ class AgentObservabilityHub {
             agentExecCounts.clear()
             agentErrCounts.clear()
             agentLastLatency.clear()
+            connectorFailureCounts.clear()
+            recentConnectorFailures.clear()
             errorRing.clear()
             activeSpanMap.clear()
             completedSpans.clear()
@@ -227,12 +261,21 @@ class AgentObservabilityHub {
         val durableTasksCompleted: Int = 0,
         val durableTasksFailed: Int = 0,
         val recentErrors: List<ErrorRecord> = emptyList(),
+        val connectorFailureCounts: Map<String, Int> = emptyMap(),
+        val recentConnectorFailures: List<ConnectorFailureRecord> = emptyList(),
         val activeSpanCount: Int = 0,
         val completedSpans: List<TraceSpan> = emptyList(),
         val graphSnapshot: GraphSnapshot? = null
     )
 
     data class ErrorRecord(val agentId: String, val reason: String, val timestampMs: Long)
+    data class ConnectorFailureRecord(
+        val eventId: String,
+        val executionId: String,
+        val actionId: String?,
+        val code: String,
+        val timestampMs: Long,
+    )
     enum class OrchestratorStatus { IDLE, RUNNING }
     data class TraceSpan(
         val spanId: String,

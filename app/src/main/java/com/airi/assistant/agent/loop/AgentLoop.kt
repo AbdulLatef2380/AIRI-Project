@@ -755,6 +755,7 @@ the tool returns an actual error.
                         toolName = toolName,
                         durationMs = toolDurationMs,
                         detail = safeTraceDetail,
+                        errorCode = toolResult.code,
                     )
                 }
 

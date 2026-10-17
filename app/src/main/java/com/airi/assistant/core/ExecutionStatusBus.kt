@@ -167,6 +167,7 @@ object ExecutionStatusBus {
         toolName: String,
         durationMs: Long,
         detail: String? = null,
+        errorCode: String? = null,
     ) = onToolTerminal(
         executionId = executionId,
         actionId = actionId,
@@ -175,6 +176,7 @@ object ExecutionStatusBus {
         summaryPrefix = "Tool failed",
         durationMs = durationMs,
         detail = detail,
+        errorCode = errorCode,
     )
 
     /** Adds the single cancelled terminal event for an owned tool action. */
@@ -304,6 +306,7 @@ object ExecutionStatusBus {
         summaryPrefix: String,
         durationMs: Long,
         detail: String?,
+        errorCode: String? = null,
     ) {
         if (!acceptsEvent(_status.value.executionId, executionId) ||
             !toolTraceLifecycle.admitTerminal(executionId, actionId)
@@ -318,6 +321,7 @@ object ExecutionStatusBus {
             detail = detail,
             actionId = actionId,
             durationMs = durationMs,
+            errorCode = errorCode,
         )
     }
 
@@ -328,6 +332,7 @@ object ExecutionStatusBus {
         detail: String? = null,
         actionId: String? = null,
         durationMs: Long? = null,
+        errorCode: String? = null,
     ) {
         val event = traceBuffer.append(
             executionId = executionId,
@@ -336,6 +341,7 @@ object ExecutionStatusBus {
             detail = detail?.let { PrivacyGuard.redactForTrace(it) },
             actionId = actionId,
             durationMs = durationMs,
+            errorCode = errorCode,
         ) ?: return
         _trace.value = traceBuffer.snapshot()
         Log.d(TAG, "TRACE kind=${event.kind} seq=${event.sequence} execution=${event.executionId.take(8)}")

@@ -345,6 +345,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     // ── Google identity via Credential Manager ───────────────────────────────
 
+    /** Backward-compatible entry point for non-Compose callers. */
+    fun authenticateGoogle() {
+        authenticateGoogle(getApplication<Application>())
+    }
+
     fun authenticateGoogle(presentationContext: Context = getApplication<Application>()) {
         val surfaceId = pendingGoogleSurfaceId
         viewModelScope.launch {

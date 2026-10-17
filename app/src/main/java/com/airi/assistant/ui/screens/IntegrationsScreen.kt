@@ -138,6 +138,8 @@ fun IntegrationsScreen(
         vm.googleAuthorizationEffects.collect { effect ->
             when (effect) {
                 is IntegrationsViewModel.GoogleAuthorizationEffect.LaunchIdentity -> {
+                    // vm.authenticateGoogle() remains available for legacy callers;
+                    // this screen supplies the Activity context for account UI.
                     vm.authenticateGoogle(context)
                 }
                 is IntegrationsViewModel.GoogleAuthorizationEffect.LaunchConsent -> {

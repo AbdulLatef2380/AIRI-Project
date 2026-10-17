@@ -258,7 +258,8 @@ private fun ExecutionTraceEvent.toLiveRow() = LiveTraceRow(
     durationMs = durationMs,
     icon = kind.icon(),
     color = kind.traceColor(null),
-    accessibilityLabel = "#${sequence} ${kind.name}: $summary",
+    accessibilityLabel = "#${sequence} ${kind.name}: $summary" +
+        (errorCode?.let { "; code=$it" } ?: ""),
 )
 
 private fun ActivityEvent.toLiveRow() = LiveTraceRow(

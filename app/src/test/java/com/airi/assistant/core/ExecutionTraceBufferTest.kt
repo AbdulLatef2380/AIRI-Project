@@ -63,6 +63,28 @@ class ExecutionTraceBufferTest {
     }
 
     @Test
+    fun append_normalizesAndRejectsUnsafeErrorCodes() {
+        val buffer = ExecutionTraceBuffer(maxEntries = 3)
+        buffer.begin("exec-1")
+
+        val normalized = buffer.append(
+            executionId = "exec-1",
+            kind = ExecutionTraceKind.TOOL_FAILED,
+            summary = "Tool failed",
+            errorCode = " AUTHORIZATION_REQUIRED ",
+        )!!
+        val unsafe = buffer.append(
+            executionId = "exec-1",
+            kind = ExecutionTraceKind.TOOL_FAILED,
+            summary = "Tool failed",
+            errorCode = "authorization_required\nprovider-secret",
+        )!!
+
+        assertEquals("authorization_required", normalized.errorCode)
+        assertNull(unsafe.errorCode)
+    }
+
+    @Test
     fun append_evictsOldestEntriesAtBoundedCapacity() {
         val buffer = ExecutionTraceBuffer(maxEntries = 2)
         buffer.begin("exec-1")

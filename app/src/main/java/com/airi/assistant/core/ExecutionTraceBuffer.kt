@@ -1,5 +1,7 @@
 package com.airi.assistant.core
 
+import java.util.Locale
+
 /**
  * Bounded, execution-owned trace buffer for user-safe progress events.
  *
@@ -57,7 +59,7 @@ class ExecutionTraceBuffer(
             detail = detail,
             actionId = actionId?.takeIf { it.isNotBlank() },
             durationMs = durationMs?.coerceAtLeast(0L),
-            errorCode = errorCode?.takeIf { it.isNotBlank() },
+            errorCode = normalizeErrorCode(errorCode),
             sessionId = activeSessionId,
         )
         entries.addLast(event)
@@ -70,6 +72,13 @@ class ExecutionTraceBuffer(
 
     companion object {
         const val DEFAULT_MAX_ENTRIES = 150
+
+        private val ERROR_CODE_PATTERN = Regex("[a-z0-9][a-z0-9_.:-]{0,63}")
+
+        internal fun normalizeErrorCode(value: String?): String? = value
+            ?.trim()
+            ?.lowercase(Locale.ROOT)
+            ?.takeIf { ERROR_CODE_PATTERN.matches(it) }
     }
 }
 

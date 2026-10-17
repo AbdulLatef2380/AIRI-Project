@@ -334,17 +334,18 @@ object ExecutionStatusBus {
         durationMs: Long? = null,
         errorCode: String? = null,
     ) {
+        val normalizedErrorCode = ExecutionTraceBuffer.normalizeErrorCode(errorCode)
         val event = traceBuffer.append(
             executionId = executionId,
             kind = kind,
             summary = PrivacyGuard.redactForTrace(summary),
-            detail = detail?.let { raw ->
-                val typed = errorCode?.takeIf { it.isNotBlank() }?.let { "code=$it; " }.orEmpty()
-                PrivacyGuard.redactForTrace(typed + raw)
-            },
+            detail = if (normalizedErrorCode != null || detail != null) {
+                val typed = normalizedErrorCode?.let { "code=$it; " }.orEmpty()
+                PrivacyGuard.redactForTrace(typed + detail.orEmpty())
+            } else null,
             actionId = actionId,
             durationMs = durationMs,
-            errorCode = errorCode,
+            errorCode = normalizedErrorCode,
         ) ?: return
         _trace.value = traceBuffer.snapshot()
         Log.d(TAG, "TRACE kind=${event.kind} seq=${event.sequence} execution=${event.executionId.take(8)}")

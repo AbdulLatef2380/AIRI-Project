@@ -764,6 +764,16 @@
     <string name="trace_input_badge">ENTRADA</string>
     <string name="activity_feed_title">Actividad</string>
     <string name="activity_feed_more">+%1$d más — toca para expandir</string>
+    <string name="agent_lifecycle_working">AIRI está trabajando…</string>
+    <string name="agent_lifecycle_completed">Tarea completada</string>
+    <string name="agent_lifecycle_failed">No se pudo completar la tarea</string>
+    <string name="agent_lifecycle_waiting">Esperando la primera actualización de actividad…</string>
+    <string name="agent_lifecycle_status_pending">Pendiente</string>
+    <string name="agent_lifecycle_status_running">En curso</string>
+    <string name="agent_lifecycle_status_completed">Completado</string>
+    <string name="agent_lifecycle_status_failed">Fallido</string>
+    <string name="agent_lifecycle_show_details">Mostrar detalles de ejecución</string>
+    <string name="agent_lifecycle_hide_details">Ocultar detalles de ejecución</string>
     <string name="agent_plan_initialising">Inicializando plan…</string>
     <string name="agent_plan_retry_count">Reintento %1$d</string>
     <string name="billing_history_title">Historial de facturación</string>

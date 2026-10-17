@@ -926,6 +926,16 @@
     <string name="trace_input_badge">إدخال</string>
     <string name="activity_feed_title">النشاط</string>
     <string name="activity_feed_more">+%1$d إضافية — اضغط للتوسيع</string>
+    <string name="agent_lifecycle_working">AIRI تعمل الآن…</string>
+    <string name="agent_lifecycle_completed">اكتملت المهمة</string>
+    <string name="agent_lifecycle_failed">تعذّر إكمال المهمة</string>
+    <string name="agent_lifecycle_waiting">بانتظار أول تحديث للنشاط…</string>
+    <string name="agent_lifecycle_status_pending">قيد الانتظار</string>
+    <string name="agent_lifecycle_status_running">قيد التنفيذ</string>
+    <string name="agent_lifecycle_status_completed">مكتمل</string>
+    <string name="agent_lifecycle_status_failed">فشل</string>
+    <string name="agent_lifecycle_show_details">عرض تفاصيل التنفيذ</string>
+    <string name="agent_lifecycle_hide_details">إخفاء تفاصيل التنفيذ</string>
     <string name="agent_plan_initialising">جارٍ تهيئة الخطة…</string>
     <string name="agent_plan_retry_count">إعادة المحاولة %1$d</string>
     <string name="billing_history_title">سجل الفواتير</string>

@@ -934,6 +934,16 @@
     <!-- Activity Feed -->
     <string name="activity_feed_title">Activity</string>
     <string name="activity_feed_more">+%1$d more — tap to expand</string>
+    <string name="agent_lifecycle_working">AIRI is working…</string>
+    <string name="agent_lifecycle_completed">Task completed</string>
+    <string name="agent_lifecycle_failed">Task could not be completed</string>
+    <string name="agent_lifecycle_waiting">Waiting for the first activity update…</string>
+    <string name="agent_lifecycle_status_pending">Pending</string>
+    <string name="agent_lifecycle_status_running">In progress</string>
+    <string name="agent_lifecycle_status_completed">Completed</string>
+    <string name="agent_lifecycle_status_failed">Failed</string>
+    <string name="agent_lifecycle_show_details">Show execution details</string>
+    <string name="agent_lifecycle_hide_details">Hide execution details</string>
 
     <!-- Agent Plan -->
     <string name="agent_plan_initialising">Initialising plan…</string>

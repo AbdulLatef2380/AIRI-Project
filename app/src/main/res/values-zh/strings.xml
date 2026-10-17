@@ -764,6 +764,16 @@
     <string name="trace_input_badge">输入</string>
     <string name="activity_feed_title">活动</string>
     <string name="activity_feed_more">+%1$d 条更多 — 点击展开</string>
+    <string name="agent_lifecycle_working">AIRI 正在执行任务…</string>
+    <string name="agent_lifecycle_completed">任务已完成</string>
+    <string name="agent_lifecycle_failed">任务未能完成</string>
+    <string name="agent_lifecycle_waiting">正在等待第一条活动更新…</string>
+    <string name="agent_lifecycle_status_pending">待处理</string>
+    <string name="agent_lifecycle_status_running">进行中</string>
+    <string name="agent_lifecycle_status_completed">已完成</string>
+    <string name="agent_lifecycle_status_failed">失败</string>
+    <string name="agent_lifecycle_show_details">显示执行详情</string>
+    <string name="agent_lifecycle_hide_details">隐藏执行详情</string>
     <string name="agent_plan_initialising">正在初始化计划…</string>
     <string name="agent_plan_retry_count">重试 %1$d</string>
     <string name="billing_history_title">账单历史</string>

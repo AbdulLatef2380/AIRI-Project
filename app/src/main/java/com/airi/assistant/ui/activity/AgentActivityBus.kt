@@ -1,7 +1,9 @@
 package com.airi.assistant.ui.activity
 
 import com.airi.assistant.core.ExecutionStatusBus
+import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.runtime.profiler.FlowPressureMonitor
+import com.airi.assistant.security.CommandRedactor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -54,13 +56,14 @@ object AgentActivityBus {
 
     fun emit(event: ActivityEvent) {
         scope.launch {
+            val sanitizedEvent = sanitizeActivityEventForDisplay(event)
             // Runtime services often emit through this shared bus without a UI
             // dependency. Attribute those events to the active execution here,
             // so the task panel can count terminal, sandbox, connector, and
             // artifact work without each producer inventing its own linkage.
-            val ownedEvent = if (event.executionId.isNullOrBlank()) {
-                event.copy(executionId = ExecutionStatusBus.status.value.executionId.takeIf { it.isNotBlank() })
-            } else event
+            val ownedEvent = if (sanitizedEvent.executionId.isNullOrBlank()) {
+                sanitizedEvent.copy(executionId = ExecutionStatusBus.status.value.executionId.takeIf { it.isNotBlank() })
+            } else sanitizedEvent
             // Feed emit counter before the actual emit. The monitor sees emit
             // pressure even when the buffer is full and the event is dropped.
             runCatching {
@@ -81,4 +84,21 @@ object AgentActivityBus {
     }
 
     fun clearHistory() { snapshotList.clear(); _recent.value = emptyList() }
+}
+
+/**
+ * Redacts sensitive values before an activity event is retained or sent to UI collectors.
+ * CommandRedactor handles credential-shaped shell arguments; PrivacyGuard adds trace-specific
+ * protection for credentials, private paths/URIs, device identifiers, and related context.
+ */
+internal fun sanitizeActivityEventForDisplay(event: ActivityEvent): ActivityEvent {
+    fun sanitize(value: String): String = PrivacyGuard.redactForTrace(
+        CommandRedactor.redact(value),
+        maximumChars = 1_000,
+    )
+
+    return event.copy(
+        message = sanitize(event.message),
+        detail = event.detail?.let(::sanitize),
+    )
 }

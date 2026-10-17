@@ -2329,7 +2329,17 @@ fun ChatMessageList(
                 }
                 if (isGenerating && streamingText.isEmpty()) {
                     item(key = "thinking", contentType = "thinking") {
-                        AiriThinkingRow(label = stringResource(R.string.chat_airi_thinking))
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            if (inlineTraceWorking && inlineTraceExecutionId.isNotBlank()) {
+                                InlineExecutionTrace(
+                                    executionId = inlineTraceExecutionId,
+                                    entries = inlineTraceEntries,
+                                    isWorking = true,
+                                    activityEvents = inlineActivityEvents,
+                                )
+                            }
+                            AiriThinkingRow(label = stringResource(R.string.chat_airi_thinking))
+                        }
                     }
                 }
                 if (finalAnswerVerification != null && !isGenerating) {
@@ -2636,7 +2646,7 @@ private fun AiResponseTurn(
     content: @Composable () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        if (traceEntries.isNotEmpty() || activityEvents.isNotEmpty()) {
+        if (traceWorking || traceEntries.isNotEmpty() || activityEvents.isNotEmpty()) {
             InlineExecutionTrace(
                 executionId = traceExecutionId,
                 entries = traceEntries,
@@ -2753,6 +2763,7 @@ fun AiBubble(
 
         Column(modifier = Modifier.fillMaxWidth()) {
                 if (executionTraceId != null && (
+                    executionTraceWorking ||
                     executionTraceId == executionTraceEntries.firstOrNull()?.executionId ||
                         executionActivityEvents.any { it.executionId == executionTraceId }
                 )) {

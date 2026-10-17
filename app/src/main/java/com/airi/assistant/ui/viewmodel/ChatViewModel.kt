@@ -3010,6 +3010,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun buildEffectiveSystemPrompt(
         perfMode:      PerformanceMode = _performanceMode.value,
         queryType:     QueryType       = QueryType.UNKNOWN,
+        input:         String          = "",
         ragContext:    String          = "",
         memorySummary: String          = "",
         identityContext: String       = "",
@@ -3024,6 +3025,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .joinToString("\n\n"),
         performanceMode = perfMode,
         queryType       = queryType,
+        input           = input,
         ragContextBlock = ragContext,
         memorySummary   = memorySummary,
         // SPRINT 1: pass live ContextBudget so RAG/summary char caps scale with nCtx.
@@ -3050,6 +3052,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return buildEffectiveSystemPrompt(
             perfMode = perfMode,
             queryType = queryType,
+            input = input,
             ragContext = ragContext,
             memorySummary = memorySummary,
             identityContext = identityContext,

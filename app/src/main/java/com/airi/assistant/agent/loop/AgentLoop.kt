@@ -948,7 +948,16 @@ the tool returns an actual error.
                 prompt                = requestProjection.prompt,
                 localPrompt           = localPrompt,
                 systemPrompt          = systemPrompt,
-                maxTokens             = 1024,   // : was 512 — too low for complex tool JSON + reasoning
+                // QueryType controls routing and tool policy, not a universal
+                // brevity limit. Leave analytical and creative answers room to
+                // finish instead of truncating them at the old fixed ceiling.
+                maxTokens             = when (queryType) {
+                    QueryType.SIMPLE     -> 768
+                    QueryType.ACTION     -> 1024
+                    QueryType.ANALYTICAL -> 1536
+                    QueryType.CREATIVE   -> 2048
+                    QueryType.UNKNOWN    -> 1024
+                },
                 temperature           = 0.3f,   // low temp for structured decisions
                 queryType             = queryType,
                 requiresStreaming      = true,

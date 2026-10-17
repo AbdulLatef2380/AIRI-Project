@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import com.airi.assistant.ai.PerformanceMode
 import com.airi.assistant.ai.QueryType
+import com.airi.assistant.ai.ResponseDepth
+import com.airi.assistant.ai.ResponseDepthPolicy
 import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.ai.prompt.budget.PromptBudgetLedger
 import com.airi.assistant.ai.skills.SkillRegistry
@@ -21,7 +23,7 @@ class PromptService(private val context: Context) {
 
 STRICT RESPONSE RULES — follow every rule exactly:
 1. Lead with the answer immediately. No preamble, no warm-up.
-2. Be concise. One sentence for greetings, 2-3 sentences for simple facts.
+2. Use the natural length required by the request: be brief for a brief request and complete for an explanatory request.
 3. Never use filler: no "Certainly!", "Of course!", "Sure!", "Great question!".
 4. Stop writing as soon as the answer is complete. Do not pad or summarize.
 5. If unsure, say so briefly. Never fabricate facts.
@@ -29,7 +31,8 @@ STRICT RESPONSE RULES — follow every rule exactly:
 7. Use bullet points only when listing 3 or more distinct items.
 8. Match the exact language the user writes in (Arabic → Arabic, English → English).
 9. Never apologize for being concise.
-10. If asked for a single thing, give exactly one thing."""
+10. If asked for a single thing, give exactly that thing, with enough explanation to make it useful.
+11. Never stop solely because a generic brevity rule was encountered; stop when the requested answer is complete."""
 
     /**
      * Build the system prompt WITHOUT RAG context (legacy path, no memory injection).
@@ -40,7 +43,8 @@ STRICT RESPONSE RULES — follow every rule exactly:
         responseStyle: String,
         customPrompt: String,
         performanceMode: PerformanceMode = PerformanceMode.BALANCED,
-        queryType: QueryType = QueryType.UNKNOWN
+        queryType: QueryType = QueryType.UNKNOWN,
+        input: String = ""
     ): String = buildSystemPromptWithContext(
         modePrompt      = modePrompt,
         responseStyle   = responseStyle,
@@ -97,6 +101,7 @@ STRICT RESPONSE RULES — follow every rule exactly:
         customPrompt:    String,
         performanceMode: PerformanceMode = PerformanceMode.BALANCED,
         queryType:       QueryType       = QueryType.UNKNOWN,
+        input:           String          = "",
         ragContextBlock: String          = "",
         memorySummary:   String          = "",
         contextBudget:   ContextBudget   = ContextBudget.UNLOADED,
@@ -155,14 +160,19 @@ STRICT RESPONSE RULES — follow every rule exactly:
 
             // ── 6. Performance-mode hint ──────────────────────────────────────────
             when (performanceMode) {
-                PerformanceMode.FAST    -> append("\nRespond very concisely. 2–3 sentences max unless strictly required.")
+                PerformanceMode.FAST    -> append("\nPrefer efficient wording, but complete the requested answer before stopping.")
                 PerformanceMode.QUALITY -> append("\nProvide thorough, well-structured answers with reasoning.")
                 else                    -> Unit
+            }
+            when (ResponseDepthPolicy.resolve(input, queryType)) {
+                ResponseDepth.BRIEF -> append("\nThis is a brief request: answer directly in a few sentences.")
+                ResponseDepth.STANDARD -> append("\nGive a complete answer at the natural length needed; do not compress away useful context.")
+                ResponseDepth.DETAILED -> append("\nThis request needs depth: explain the reasoning, relevant context, and examples when useful. Stop only when complete.")
             }
 
             // ── 7. Query-type specific guidance ───────────────────────────────────
             when (queryType) {
-                QueryType.SIMPLE     -> append("\nSIMPLE query: answer in 1-2 sentences ONLY. Do not expand.")
+                QueryType.SIMPLE     -> append("\nSIMPLE routing means no side-effect or special tool is required; it does not impose a fixed sentence limit.")
                 QueryType.ANALYTICAL -> append("\nANALYTICAL query: structure your answer with clear reasoning. Stop when the point is made.")
                 QueryType.ACTION     -> append("\nACTION query: deliver exactly what was requested. No commentary before or after.")
                 QueryType.CREATIVE   -> append("\nCREATIVE query: be imaginative. Dive straight into the creative content.")
@@ -228,7 +238,7 @@ STRICT RESPONSE RULES — follow every rule exactly:
      * Build a minimal prompt for simple/fast queries — skips all registry overhead.
      */
     fun buildSimpleSystemPrompt(agentModePrompt: String, maxTokens: Int): String =
-        "$agentModePrompt\n${QUALITY_RULES}\nAnswer immediately in 1-2 sentences. Hard cap: $maxTokens tokens. Stop as soon as answered."
+        "$agentModePrompt\n${QUALITY_RULES}\nAnswer immediately and completely. Use up to $maxTokens tokens when needed."
 
     fun isSimpleQuery(input: String): Boolean {
         val trimmed   = input.trim()

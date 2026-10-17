@@ -3,6 +3,8 @@ package com.airi.assistant.ai.prompt
 import android.util.Log
 import com.airi.assistant.ai.PerformanceMode
 import com.airi.assistant.ai.QueryType
+import com.airi.assistant.ai.ResponseDepth
+import com.airi.assistant.ai.ResponseDepthPolicy
 import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
 
@@ -104,6 +106,7 @@ object DynamicPromptEngine {
         customPrompt:    String          = "",
         performanceMode: PerformanceMode = PerformanceMode.BALANCED,
         queryType:       QueryType       = QueryType.UNKNOWN,
+        input:           String          = "",
         ragContextBlock: String          = "",
         memorySummary:   String          = "",
         skillBlock:      String          = "",
@@ -152,6 +155,7 @@ object DynamicPromptEngine {
         }
 
         // ── 5. Response style hint ───────────────────────────────────────────────
+        val responseDepth = ResponseDepthPolicy.resolve(input, queryType)
         sb.append("\n")
         when (responseStyle) {
             "concise"  -> sb.append("\nKeep responses brief and to the point.")
@@ -161,14 +165,20 @@ object DynamicPromptEngine {
 
         // ── 6. Performance-mode hint ─────────────────────────────────────────────
         when (performanceMode) {
-            PerformanceMode.FAST    -> sb.append("\nRespond very concisely. 2-3 sentences max unless strictly required.")
+            PerformanceMode.FAST    -> sb.append("\nPrefer efficient wording, but complete the requested answer before stopping.")
             PerformanceMode.QUALITY -> sb.append("\nProvide thorough, well-structured answers with clear reasoning.")
             else                    -> Unit
         }
 
+        when (responseDepth) {
+            ResponseDepth.BRIEF -> sb.append("\nThis is a brief request: answer directly in a few sentences.")
+            ResponseDepth.STANDARD -> sb.append("\nGive a complete answer at the natural length needed; do not compress away useful context.")
+            ResponseDepth.DETAILED -> sb.append("\nThis request needs depth: explain the reasoning, relevant context, and examples when useful. Stop only when complete.")
+        }
+
         // ── 7. Query-type hint ───────────────────────────────────────────────────
         when (queryType) {
-            QueryType.SIMPLE     -> sb.append("\nSIMPLE query: answer in 1-2 sentences ONLY. Do not expand.")
+            QueryType.SIMPLE     -> sb.append("\nSIMPLE routing means no side-effect or special tool is required; it does not impose a fixed sentence limit.")
             QueryType.ANALYTICAL -> sb.append("\nANALYTICAL: structure with clear reasoning. Stop when the point is made.")
             QueryType.ACTION     -> sb.append("\nACTION: deliver exactly what was requested. No commentary.")
             QueryType.CREATIVE   -> sb.append("\nCREATIVE: be imaginative. Dive straight into the creative content.")
@@ -282,8 +292,8 @@ object DynamicPromptEngine {
     private val QUALITY_RULES = """
 
 STRICT RESPONSE RULES — follow every rule exactly:
-1. Lead with the answer immediately. No preamble, no warm-up.
-2. Be concise. One sentence for greetings, 2-3 sentences for simple facts.
+1. Lead with the answer immediately. No empty preamble or warm-up.
+2. Use the natural length required by the request: be brief for a brief request and complete for an explanatory request.
 3. Never use filler: no "Certainly!", "Of course!", "Sure!", "Great question!".
 4. Stop writing as soon as the answer is complete. Do not pad or summarize.
 5. If unsure, say so briefly. Never fabricate facts.
@@ -291,5 +301,6 @@ STRICT RESPONSE RULES — follow every rule exactly:
 7. Use bullet points only when listing 3 or more distinct items.
 8. Match the exact language the user writes in (Arabic → Arabic, English → English).
 9. Never apologize for being concise.
-10. If asked for a single thing, give exactly one thing."""
+10. If asked for a single thing, give exactly that thing, with enough explanation to make it useful.
+11. Never stop solely because a generic brevity rule was encountered; stop when the requested answer is complete."""
 }

@@ -134,6 +134,13 @@ class AgentRouter(
     data class RouteResult(val connectorId: String?, val output: ConnectorOutput, val attempts: List<Attempt>)
 
     private companion object {
-        val NON_FALLBACK_CODES = setOf("permission_denied", "approval_required", "not_connected", "undeclared_action")
+        val NON_FALLBACK_CODES = setOf(
+            "permission_denied",
+            "authorization_required",
+            "auth_required",
+            "approval_required",
+            "not_connected",
+            "undeclared_action",
+        )
     }
 }

@@ -338,7 +338,10 @@ object ExecutionStatusBus {
             executionId = executionId,
             kind = kind,
             summary = PrivacyGuard.redactForTrace(summary),
-            detail = detail?.let { PrivacyGuard.redactForTrace(it) },
+            detail = detail?.let { raw ->
+                val typed = errorCode?.takeIf { it.isNotBlank() }?.let { "code=$it; " }.orEmpty()
+                PrivacyGuard.redactForTrace(typed + raw)
+            },
             actionId = actionId,
             durationMs = durationMs,
             errorCode = errorCode,

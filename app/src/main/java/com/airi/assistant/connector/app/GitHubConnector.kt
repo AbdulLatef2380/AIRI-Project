@@ -56,6 +56,18 @@ class GitHubConnector(
         ), parameters = mapOf(
             "limit" to ConnectorAgentParameter(type = "int", description = "Maximum repositories to return", minInt = 1, maxInt = 100)
         )),
+        ConnectorAgentAction("list_branches", "List branches for a repository.", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Contents: read")
+        ), parameters = mapOf(
+            "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true)
+        )),
+        ConnectorAgentAction("list_commits", "List recent commits for a repository branch.", providerGrants = listOf(
+            ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Contents: read")
+        ), parameters = mapOf(
+            "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true),
+            "branch" to ConnectorAgentParameter(description = "Branch name", maxLength = 256),
+            "limit" to ConnectorAgentParameter(type = "int", description = "Maximum commits to return", minInt = 1, maxInt = 100)
+        )),
         ConnectorAgentAction("list_issues", "List issues for a repository.", parameters = mapOf(
             "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true)
         ), providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Issues: read"))),
@@ -270,6 +282,8 @@ class GitHubConnector(
         val result = when (input.action) {
             "get_user" -> getUser(token)
             "list_repos" -> listRepos(token, input.params["limit"]?.toIntOrNull() ?: 10)
+            "list_branches" -> listBranches(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"))
+            "list_commits" -> listCommits(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["branch"] ?: "main", input.params["limit"]?.toIntOrNull() ?: 20)
             "list_issues" -> listIssues(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"))
             "create_issue" -> createIssue(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["title"] ?: return ConnectorOutput.Failure("missing_param", "title required"), input.params["body"] ?: "")
             "search_code" -> searchCode(token, input.params["query"] ?: return ConnectorOutput.Failure("missing_param", "query required"), input.params["repo"])
@@ -310,6 +324,23 @@ class GitHubConnector(
                 val r = all.getJSONObject(i)
                 appendLine("• ${r.getString("full_name")} [${r.optString("language","?")}]")
             }
+        }
+    }
+    private fun listBranches(token: String, repo: String): String {
+        require(repo.matches(Regex("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"))) { "Invalid repository owner/name" }
+        val branches = apiGetAllPages("/repos/$repo/branches?per_page=100", token, maxPages = 1)
+        return (0 until branches.length()).joinToString("\n") { i -> branches.getJSONObject(i).optString("name") }
+    }
+    private fun listCommits(token: String, repo: String, branch: String, limit: Int): String {
+        require(repo.matches(Regex("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"))) { "Invalid repository owner/name" }
+        require(branch.isNotBlank() && branch.length <= 256) { "Invalid branch" }
+        val boundedLimit = limit.coerceIn(1, 100)
+        val commits = apiGetArr("/repos/$repo/commits?sha=${java.net.URLEncoder.encode(branch, "UTF-8")}&per_page=$boundedLimit", token)
+        return (0 until commits.length()).joinToString("\n") { i ->
+            val item = commits.getJSONObject(i)
+            val message = item.optJSONObject("commit")?.optString("message").orEmpty()
+                .lineSequence().firstOrNull().orEmpty().take(72)
+            "${item.optString("sha").take(7)} $message"
         }
     }
     private fun listIssues(token: String, repo: String): String { val arr = apiGetArr("/repos/$repo/issues?state=open&per_page=20", token); return buildString { appendLine("Open issues in $repo (${arr.length()}):"); for (i in 0 until arr.length()) { val x = arr.getJSONObject(i); appendLine("#${x.getInt("number")}: ${x.getString("title")}") } } }

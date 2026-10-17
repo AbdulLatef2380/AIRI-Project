@@ -16,7 +16,6 @@ import com.airi.assistant.connector.oauth.MicrosoftOAuthConfiguration
 import com.airi.assistant.connector.oauth.OAuthConfiguration
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.release.ReleaseScopePolicy
-import com.airi.assistant.integrations.github.GithubService
 import com.airi.assistant.integrations.google.GoogleAuthService
 import com.airi.assistant.integrations.google.GoogleDataAuthorization
 import com.airi.assistant.integrations.google.GoogleDataScopes
@@ -39,7 +38,6 @@ class ConnectorAuthorizationManager(
     private val secureStorage: SecureStorage,
     private val googleAuthService: GoogleAuthService,
     private val accessProfileStore: ConnectorAccessProfileStore = InMemoryConnectorAccessProfileStore(),
-    private val githubService: GithubService = GithubService(secureStorage),
     private val telegramService: TelegramService = TelegramService(secureStorage),
 ) {
     sealed interface StartResult {
@@ -259,7 +257,17 @@ class ConnectorAuthorizationManager(
         }
         if (credential.isBlank()) return@withContext CompletionResult.Failed("credential_missing", "Credential cannot be empty")
         val validated = when (runtimeId) {
-            "github" -> githubService.validateAndConnect(credential).map { true }
+            // GitHub has one runtime authority. Store the PAT in the connector
+            // vault, then let GitHubConnector.connect() validate /user and set
+            // the canonical connection state. The former direct-service path is
+            // intentionally not used here, preventing two health checks and
+            // two independent connection states from diverging.
+            "github" -> if (authManager.storeCredential("github", "pat", credential.trim())) {
+                authManager.setExplicitlyDisconnected("github", false)
+                Result.success(true)
+            } else {
+                Result.failure(IllegalStateException("Secure credential storage is unavailable"))
+            }
             "telegram" -> telegramService.validateAndConnect(credential).map { true }
             "notion_mcp" -> {
                 if (!secureStorage.isEncrypted) Result.failure(IllegalStateException("Secure credential storage is unavailable"))
@@ -277,19 +285,17 @@ class ConnectorAuthorizationManager(
         }
         validated.fold(
             onSuccess = {
-                if (runtimeId == "github" && !authManager.storeCredential("github", "pat", credential.trim())) {
-                    secureStorage.disconnect("github")
-                    return@fold CompletionResult.Failed(
-                        "secure_storage_unavailable",
-                        "Secure credential storage is unavailable; GitHub was not connected."
-                    )
-                }
                 if (runtimeId in ProviderTokenConnector.configs().map { it.id }) {
                     authManager.setExplicitlyDisconnected(runtimeId, false)
                 }
                 val state = registry.connect(runtimeId, persistConnection = true)
                 if (state.connected && state.healthy) CompletionResult.Ready(runtimeId, state)
                 else {
+                    if (runtimeId == "github") {
+                        authManager.clearCredential("github", "pat")
+                        authManager.setExplicitlyDisconnected("github", true)
+                        secureStorage.disconnect("github")
+                    }
                     if (runtimeId == "notion_mcp") secureStorage.clearIntegrationToken("notion")
                     CompletionResult.Failed("health_check_failed", state.errorMessage ?: state.statusLine.ifBlank { "Connector health check failed" }, true)
                 }

@@ -11,7 +11,6 @@ import com.airi.assistant.connector.ConnectorAuthManager
 import com.airi.assistant.connector.ConnectorAuthorizationManager
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.error.AppErrorHandler
-import com.airi.assistant.integrations.github.GithubService
 import com.airi.assistant.integrations.google.GoogleDataAuthorization
 import com.airi.assistant.integrations.telegram.TelegramService
 import com.airi.assistant.integrations.google.GoogleIdentityCredential
@@ -73,7 +72,6 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     /** Returns the current OAuth state token for inclusion in authorization URLs. */
     fun getOAuthStateToken(): String = oauthStateToken
-    private val githubService = GithubService(secureStorage)
     private val telegramService = TelegramService(secureStorage)
 
     // ── Integration UI State ──────────────────────────────────────────────────

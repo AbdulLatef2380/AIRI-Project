@@ -2372,9 +2372,13 @@ fun ChatMessageList(
                                 execOrigin      = msg.execOrigin,
                                 executionSource = msg.executionSource,
                                 executionTraceId = msg.executionTraceId,
-                                executionTraceEntries = inlineTraceEntries,
-                                executionActivityEvents = inlineActivityEvents,
-                                executionTraceWorking = inlineTraceWorking,
+                                executionTraceEntries = msg.executionTraceSnapshot.ifEmpty {
+                                    if (msg.executionTraceId == inlineTraceExecutionId) inlineTraceEntries else emptyList()
+                                },
+                                executionActivityEvents = msg.executionActivitySnapshot.ifEmpty {
+                                    if (msg.executionTraceId == inlineTraceExecutionId) inlineActivityEvents else emptyList()
+                                },
+                                executionTraceWorking = inlineTraceWorking && msg.executionTraceId == inlineTraceExecutionId,
                                 onFeedback      = { liked -> onFeedback(msg.uid, liked) },
                                 onExportPdf     = onExportPdf,
                                 onExportMarkdown = onExportMarkdown,
@@ -2763,9 +2767,7 @@ fun AiBubble(
 
         Column(modifier = Modifier.fillMaxWidth()) {
                 if (executionTraceId != null && (
-                    executionTraceWorking ||
-                    executionTraceId == executionTraceEntries.firstOrNull()?.executionId ||
-                        executionActivityEvents.any { it.executionId == executionTraceId }
+                    executionTraceWorking || executionTraceEntries.isNotEmpty() || executionActivityEvents.isNotEmpty()
                 )) {
                     InlineExecutionTrace(
                         executionId = executionTraceId,

@@ -136,6 +136,8 @@ import com.airi.assistant.ai.LanguagePolicy
 import com.airi.assistant.voice.VoskModelManager
 import com.airi.assistant.product.AiriIdentityProfile
 import com.airi.assistant.ui.activity.AgentActivityBus
+import com.airi.assistant.ui.activity.ActivityEvent
+import com.airi.assistant.core.ExecutionTraceEvent
 
 data class ChatMessage(
     val text: String,
@@ -145,6 +147,10 @@ data class ChatMessage(
     val traceId: String? = null,
     /** Execution trace owned by this assistant turn; UI-only and not persisted. */
     val executionTraceId: String? = null,
+    /** Immutable UI snapshot captured when this assistant turn finishes. */
+    val executionTraceSnapshot: List<ExecutionTraceEvent> = emptyList(),
+    /** Activity snapshot paired with the trace snapshot; UI-only and not persisted. */
+    val executionActivitySnapshot: List<ActivityEvent> = emptyList(),
     
     // Previously the list used `msg.hashCode()` as the key. Two messages
     // with identical text+isUser produced an identical hashCode, which made
@@ -2362,7 +2368,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 id = saved.id,
                                 execOrigin = _lastExecOrigin.value,
                                 executionSource = hybridOrchestrator.lastExecutionSource,
-                                executionTraceId = ExecutionStatusBus.status.value.executionId.takeIf { it.isNotBlank() }
+                                executionTraceId = ExecutionStatusBus.status.value.executionId.takeIf { it.isNotBlank() },
+                                executionTraceSnapshot = ExecutionStatusBus.trace.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId },
+                                executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId }
                             )
                         }
                     }
@@ -2613,7 +2621,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 id         = assistantMsg.id,
                                 execOrigin = _lastExecOrigin.value,
                                 executionSource = hybridOrchestrator.lastExecutionSource,
-                                executionTraceId = ExecutionStatusBus.status.value.executionId.takeIf { it.isNotBlank() }
+                                executionTraceId = ExecutionStatusBus.status.value.executionId.takeIf { it.isNotBlank() },
+                                executionTraceSnapshot = ExecutionStatusBus.trace.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId },
+                                executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId }
                             )
                         }
                     }

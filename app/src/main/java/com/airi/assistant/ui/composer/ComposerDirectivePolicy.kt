@@ -11,6 +11,8 @@ object ComposerDirectivePolicy {
 
     private val skillDirective = Regex("^/skill:([A-Za-z0-9_.-]+)\\s*")
     private val knowledgeDirective = Regex("^@knowledge:([A-Za-z0-9-]+)\\s*")
+    private val skillQuery = Regex("^/[^\\s]*")
+    private val knowledgeQuery = Regex("^@[^\\s]*")
 
     fun nextSkillBackspaceAction(stage: Int): SkillBackspaceAction = when (stage) {
         0 -> SkillBackspaceAction.OPEN_PICKER
@@ -27,6 +29,18 @@ object ComposerDirectivePolicy {
         val trimmed = currentText.trimStart()
         val directive = if (isKnowledge) "@knowledge:$directiveId" else "/skill:$directiveId"
         val (prefix, suffix) = splitLeadingDirectives(trimmed)
+
+        // Replace the leading picker query (`/web` or `@docs`) instead of
+        // treating it as task text. Matching is limited to the first token so
+        // slashes and at-signs inside the actual task remain untouched.
+        if (prefix.isBlank()) {
+            val query = if (isKnowledge) knowledgeQuery else skillQuery
+            val queryMatch = query.find(suffix)
+            if (queryMatch != null) {
+                val task = suffix.removeRange(queryMatch.range).trimStart()
+                return if (task.isBlank()) "$directive " else "$directive $task"
+            }
+        }
 
         if (!isKnowledge && prefix.isNotBlank() && suffix.trimStart().startsWith("/")) {
             val remainingQuery = suffix.trimStart().removePrefix("/").trimStart()

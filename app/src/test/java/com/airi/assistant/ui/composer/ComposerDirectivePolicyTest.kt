@@ -61,4 +61,20 @@ class ComposerDirectivePolicyTest {
             ComposerDirectivePolicy.taskText(ComposerDirectivePolicy.removeSkill(text, "web_search"))
         )
     }
+
+    @Test
+    fun queryReplacementDoesNotConsumeSlashInsideTaskText() {
+        assertEquals(
+            "/skill:web_search إصلاح /tmp/file",
+            ComposerDirectivePolicy.applySelection("/web إصلاح /tmp/file", "web_search", isKnowledge = false)
+        )
+    }
+
+    @Test
+    fun queryReplacementHandlesLeadingWhitespaceAndKnowledgeQueries() {
+        assertEquals(
+            "@knowledge:project_docs لخص @docs/architecture",
+            ComposerDirectivePolicy.applySelection("  @pro لخص @docs/architecture", "project_docs", isKnowledge = true)
+        )
+    }
 }

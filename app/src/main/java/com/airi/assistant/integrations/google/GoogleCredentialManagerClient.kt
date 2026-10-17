@@ -23,30 +23,41 @@ class GoogleCredentialManagerClient(
         CredentialManager.create(context)
     }
 
-    suspend fun signIn(): Result<GoogleIdentityCredential> {
+    suspend fun signIn(presentationContext: Context = context): Result<GoogleIdentityCredential> {
         val serverClientId = context.getString(R.string.default_web_client_id)
             .trim()
             .takeUnless { it.isBlank() || it.startsWith("REPLACE_WITH_") }
             ?: return Result.failure(IllegalStateException("Google web client ID is not configured"))
 
         val authorizedOnly = buildOption(serverClientId, filterByAuthorizedAccounts = true)
-        return try {
-            retrieve(authorizedOnly)
-        } catch (_: NoCredentialException) {
-            // First-time users may have no authorized credential. The official
-            // flow retries with all Google accounts so the user can choose one.
-            retrieve(buildOption(serverClientId, filterByAuthorizedAccounts = false))
-        } catch (error: Exception) {
-            Result.failure(error)
-        }
-    }
+        // retrieve() deliberately returns Result, so a surrounding try/catch
+        // cannot observe NoCredentialException. The old implementation therefore
+        // never reached the account-picker fallback for first-time users.
+        return retrieve(presentationContext, authorizedOnly).fold(
+            onSuccess = { Result.success(it) },
+            onFailure = { error ->
+                if (error is NoCredentialException) {
+                    // First-time users may have no authorized credential. The
+                    // official flow retries with all Google accounts.
+                    retrieve(
+                        presentationContext,
+                        buildOption(serverClientId, filterByAuthorizedAccounts = false),
+                    )
+                } else {
+                    Result.failure(error)
+                }
+            }
+        )
 
-    private suspend fun retrieve(option: GetGoogleIdOption): Result<GoogleIdentityCredential> =
+    private suspend fun retrieve(presentationContext: Context, option: GetGoogleIdOption): Result<GoogleIdentityCredential> =
         runCatching {
             val request = GetCredentialRequest.Builder()
                 .addCredentialOption(option)
                 .build()
-            val result = credentialManager.getCredential(context, request)
+            // Credential Manager may need an Activity-backed context to launch
+            // account selection. The old Application context caused generic
+            // provider failures on devices where no credential was cached.
+            val result = credentialManager.getCredential(presentationContext, request)
             val credential = result.credential
             require(
                 credential is CustomCredential &&

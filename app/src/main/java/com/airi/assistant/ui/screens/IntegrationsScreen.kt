@@ -138,7 +138,7 @@ fun IntegrationsScreen(
         vm.googleAuthorizationEffects.collect { effect ->
             when (effect) {
                 is IntegrationsViewModel.GoogleAuthorizationEffect.LaunchIdentity -> {
-                    vm.authenticateGoogle()
+                    vm.authenticateGoogle(context)
                 }
                 is IntegrationsViewModel.GoogleAuthorizationEffect.LaunchConsent -> {
                     googleAuthorizationLauncher.launch(
@@ -215,8 +215,11 @@ fun IntegrationsScreen(
                     item = item,
                     onConnect = {
                         when (item.id) {
-                            "github" -> vm.openGithubDialog()
-                            "telegram" -> vm.openTelegramDialog()
+                            // Route token connectors through the shared
+                            // authorization boundary first so the user selects
+                            // READ/WRITE access before the token is committed.
+                            "github" -> vm.beginConnectorAuthorization("github")
+                            "telegram" -> vm.beginConnectorAuthorization("telegram")
                             "notion", "notion_mcp" -> vm.openNotionDialog()
                             "zapier" -> vm.beginConnectorAuthorization("zapier")
                             "microsoft_graph" -> vm.beginConnectorAuthorization("microsoft_graph")

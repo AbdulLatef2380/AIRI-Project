@@ -89,9 +89,42 @@ class GitHubConnector(
             ConnectorProviderGrantKind.PROVIDER_ENDPOINT_PERMISSION,
             "A valid user-authorized GitHub personal access token; actual token permissions are not introspected by AIRI.",
         ))),
-        // Intentionally not exposed: the current AgentLoop -> ToolBridge path
-        // cannot yet carry a typed durable approval continuation end-to-end.
-        // The executor keeps a defensive policy gate for stale/manual calls.
+        ConnectorAgentAction("create_issue", "Create a repository issue after explicit task approval.",
+            permission = ConnectorPermissionLevel.WRITE, supportsApprovedContinuation = true,
+            providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Issues: write")),
+            parameters = mapOf(
+                "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true),
+                "title" to ConnectorAgentParameter(description = "Issue title", required = true, maxLength = 256),
+                "body" to ConnectorAgentParameter(description = "Issue body", maxLength = 20_000),
+            )),
+        ConnectorAgentAction("comment_issue", "Comment on an issue after explicit task approval.",
+            permission = ConnectorPermissionLevel.WRITE, supportsApprovedContinuation = true,
+            providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Issues: write")),
+            parameters = mapOf(
+                "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true),
+                "issue_number" to ConnectorAgentParameter(type = "int", description = "Issue number", required = true, minInt = 1),
+                "body" to ConnectorAgentParameter(description = "Comment body", required = true, maxLength = 20_000),
+            )),
+        ConnectorAgentAction("update_issue", "Update an issue after explicit task approval.",
+            permission = ConnectorPermissionLevel.WRITE, supportsApprovedContinuation = true,
+            providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Issues: write")),
+            parameters = mapOf(
+                "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true),
+                "issue_number" to ConnectorAgentParameter(type = "int", description = "Issue number", required = true, minInt = 1),
+                "title" to ConnectorAgentParameter(description = "New issue title", maxLength = 256),
+                "body" to ConnectorAgentParameter(description = "New issue body", maxLength = 20_000),
+                "state" to ConnectorAgentParameter(description = "open or closed", maxLength = 16),
+            )),
+        ConnectorAgentAction("create_pull_request", "Create a pull request after explicit task approval.",
+            permission = ConnectorPermissionLevel.WRITE, supportsApprovedContinuation = true,
+            providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Pull requests: write")),
+            parameters = mapOf(
+                "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true),
+                "title" to ConnectorAgentParameter(description = "Pull request title", required = true, maxLength = 256),
+                "head" to ConnectorAgentParameter(description = "Source branch", required = true, maxLength = 256),
+                "base" to ConnectorAgentParameter(description = "Target branch", required = true, maxLength = 256),
+                "body" to ConnectorAgentParameter(description = "Pull request body", maxLength = 20_000),
+            )),
     )
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
@@ -183,7 +216,7 @@ class GitHubConnector(
                             text = input.text,
                             params = input.params,
                             idempotencyKey = execution.idempotencyKey,
-                            authorizationActionId = input.authorizationActionId ?: "create_issue",
+                            authorizationActionId = input.authorizationActionId ?: input.action,
                         ),
                         expiresAtMs = approval.expiresAtMs
                     )
@@ -286,6 +319,9 @@ class GitHubConnector(
             "list_commits" -> listCommits(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["branch"] ?: "main", input.params["limit"]?.toIntOrNull() ?: 20)
             "list_issues" -> listIssues(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"))
             "create_issue" -> createIssue(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["title"] ?: return ConnectorOutput.Failure("missing_param", "title required"), input.params["body"] ?: "")
+            "comment_issue" -> commentIssue(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["issue_number"]?.toIntOrNull() ?: return ConnectorOutput.Failure("missing_param", "issue_number required"), input.params["body"] ?: return ConnectorOutput.Failure("missing_param", "body required"))
+            "update_issue" -> updateIssue(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["issue_number"]?.toIntOrNull() ?: return ConnectorOutput.Failure("missing_param", "issue_number required"), input.params)
+            "create_pull_request" -> createPullRequest(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["title"] ?: return ConnectorOutput.Failure("missing_param", "title required"), input.params["head"] ?: return ConnectorOutput.Failure("missing_param", "head required"), input.params["base"] ?: return ConnectorOutput.Failure("missing_param", "base required"), input.params["body"] ?: "")
             "search_code" -> searchCode(token, input.params["query"] ?: return ConnectorOutput.Failure("missing_param", "query required"), input.params["repo"])
             "get_file" -> getFile(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["path"] ?: return ConnectorOutput.Failure("missing_param", "path required"))
             "list_prs" -> listPRs(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"))
@@ -345,6 +381,25 @@ class GitHubConnector(
     }
     private fun listIssues(token: String, repo: String): String { val arr = apiGetArr("/repos/$repo/issues?state=open&per_page=20", token); return buildString { appendLine("Open issues in $repo (${arr.length()}):"); for (i in 0 until arr.length()) { val x = arr.getJSONObject(i); appendLine("#${x.getInt("number")}: ${x.getString("title")}") } } }
     private fun createIssue(token: String, repo: String, title: String, body: String): String { val r = apiPost("/repos/$repo/issues", token, JSONObject().apply { put("title",title);put("body",body) }.toString()); return "Issue #${r.optInt("number")} created: ${r.optString("html_url")}" }
+    private fun commentIssue(token: String, repo: String, number: Int, body: String): String {
+        require(number > 0 && body.isNotBlank()) { "issue_number and body are required" }
+        val r = apiPost("/repos/$repo/issues/$number/comments", token, JSONObject().put("body", body).toString())
+        return "Comment added to issue #$number: ${r.optString("html_url")}".trim()
+    }
+    private fun updateIssue(token: String, repo: String, number: Int, params: Map<String, String>): String {
+        require(number > 0) { "issue_number must be positive" }
+        val payload = JSONObject()
+        params["title"]?.takeIf(String::isNotBlank)?.let { payload.put("title", it) }
+        params["body"]?.let { payload.put("body", it) }
+        params["state"]?.takeIf(String::isNotBlank)?.also { require(it == "open" || it == "closed") { "state must be open or closed" } }?.let { payload.put("state", it) }
+        require(payload.length() > 0) { "at least one issue field is required" }
+        val r = apiPatch("/repos/$repo/issues/$number", token, payload.toString())
+        return "Issue #$number updated: ${r.optString("html_url")}".trim()
+    }
+    private fun createPullRequest(token: String, repo: String, title: String, head: String, base: String, body: String): String {
+        val r = apiPost("/repos/$repo/pulls", token, JSONObject().apply { put("title", title); put("head", head); put("base", base); put("body", body) }.toString())
+        return "Pull request #${r.optInt("number")} created: ${r.optString("html_url")}".trim()
+    }
     private fun searchCode(token: String, query: String, repo: String?): String { val q = if (repo != null) "$query repo:$repo" else query; val j = apiGet("/search/code?q=${java.net.URLEncoder.encode(q,"UTF-8")}&per_page=10", token); val items = j.optJSONArray("items") ?: JSONArray(); return buildString { appendLine("Code hits (${items.length()}):"); for (i in 0 until items.length()) { val x = items.getJSONObject(i); appendLine("• ${x.getString("path")} in ${x.getJSONObject("repository").getString("full_name")}") } } }
     private fun getFile(token: String, repo: String, path: String): String {
         if (!repo.matches(Regex("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"))) {
@@ -430,6 +485,14 @@ class GitHubConnector(
     }
     private fun apiPost(path: String, token: String, json: String): JSONObject {
         val connection = open("$BASE$path", token, "POST")
+        return try {
+            connection.doOutput = true
+            connection.outputStream.bufferedWriter().use { it.write(json) }
+            JSONObject(readResponse(connection))
+        } finally { connection.disconnect() }
+    }
+    private fun apiPatch(path: String, token: String, json: String): JSONObject {
+        val connection = open("$BASE$path", token, "PATCH")
         return try {
             connection.doOutput = true
             connection.outputStream.bufferedWriter().use { it.write(json) }

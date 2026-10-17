@@ -18,4 +18,14 @@ class GitHubMutationPolicyTest {
 
         assertTrue(decision is GitHubMutationPolicy.Decision.RequiresTaskApproval)
     }
+
+    @Test
+    fun requiresTaskApprovalForEveryDeclaredWriteAction() {
+        listOf("comment_issue", "update_issue", "create_pull_request").forEach { action ->
+            assertTrue(
+                "$action must remain behind durable task approval",
+                GitHubMutationPolicy.evaluate(action) is GitHubMutationPolicy.Decision.RequiresTaskApproval,
+            )
+        }
+    }
 }

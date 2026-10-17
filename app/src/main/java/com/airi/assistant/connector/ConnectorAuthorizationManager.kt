@@ -440,6 +440,11 @@ class ConnectorAuthorizationManager(
     }
 
     private fun authorizationSurfaceIds(id: String, runtimeId: String): List<String> {
+        // Google is one runtime connector with independent user-data surfaces.
+        // A surface id must never expand to every Google product: doing so made
+        // the global Google card ask for an impossible cross-product grant and
+        // left Gmail without a usable authorization path.
+        if (id in GoogleDataScopes.surfaceIds) return listOf(id)
         val catalogSurface = registry.catalogMeta().firstOrNull { it.id == id }
         if (catalogSurface != null) return listOf(catalogSurface.id)
         val declared = registry.get(runtimeId)?.agentActions()

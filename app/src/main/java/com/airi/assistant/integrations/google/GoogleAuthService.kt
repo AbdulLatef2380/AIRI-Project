@@ -2,6 +2,7 @@ package com.airi.assistant.integrations.google
 
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.airi.assistant.auth.SecureStorage
 import com.airi.assistant.connector.ConnectorState
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
@@ -30,8 +31,14 @@ class GoogleAuthService(
 
     private val credentialManagerClient = GoogleCredentialManagerClient(context)
 
-    suspend fun requestIdentity(): Result<GoogleIdentityCredential> =
-        credentialManagerClient.signIn()
+    suspend fun requestIdentity(presentationContext: Context = context): Result<GoogleIdentityCredential> =
+        credentialManagerClient.signIn(presentationContext).onFailure { error ->
+            Log.w(
+                "GoogleAuthService",
+                "Credential Manager identity request failed type=${error.javaClass.simpleName} " +
+                    "message=${error.message?.take(160)}"
+            )
+        }
 
     fun handleSignInSuccess(identity: GoogleIdentityCredential) {
         val email = identity.email

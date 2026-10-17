@@ -13,8 +13,8 @@ object GitHubMutationPolicy {
     }
 
     fun evaluate(action: String): Decision = when (action) {
-        "create_issue" -> Decision.RequiresTaskApproval(
-            "Creating a GitHub issue changes an external repository and must run through a task-owned approval flow"
+        "create_issue", "comment_issue", "update_issue", "create_pull_request" -> Decision.RequiresTaskApproval(
+            "GitHub action '$action' changes an external repository and must run through a task-owned approval flow"
         )
         else -> Decision.Allowed
     }

@@ -2,6 +2,7 @@ package com.airi.assistant.ui.viewmodel
 
 import android.app.Application
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -124,15 +125,20 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     /** Starts a non-Google provider flow through the shared authorization manager. */
     fun beginConnectorAuthorization(id: String) {
         if (id.isBlank()) return
-        if (activeConnectorId != id) {
+        // The visible Google card represents the shared identity, but Gmail is
+        // the first concrete data surface and needs its own read-only OAuth
+        // scope. Starting the global identity-only flow left users "connected"
+        // while every Gmail action still lacked an access token.
+        val authorizationId = if (id == "google") "google_gmail" else id
+        if (activeConnectorId != authorizationId) {
             _dialog.value = DialogState.None
             _accessProfileRequest.value = null
             _googleFeedback.value = null
             pendingGoogleScopes = emptySet()
         }
-        activeConnectorId = id
+        activeConnectorId = authorizationId
         viewModelScope.launch {
-            when (val result = authorizationManager.begin(id)) {
+            when (val result = authorizationManager.begin(authorizationId)) {
                 is ConnectorAuthorizationManager.StartResult.OAuthBrowser -> {
                     _googleAuthorizationEffects.tryEmit(
                         GoogleAuthorizationEffect.LaunchBrowser(
@@ -336,10 +342,10 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     // ── Google identity via Credential Manager ───────────────────────────────
 
-    fun authenticateGoogle() {
+    fun authenticateGoogle(presentationContext: Context = getApplication<Application>()) {
         val surfaceId = pendingGoogleSurfaceId
         viewModelScope.launch {
-            googleAuthService.requestIdentity().fold(
+            googleAuthService.requestIdentity(presentationContext).fold(
                 onSuccess = ::onGoogleSignInSuccess,
                 onFailure = {
                     if (ConnectorScreenIsolationPolicy.acceptsResult(surfaceId, activeConnectorId)) {

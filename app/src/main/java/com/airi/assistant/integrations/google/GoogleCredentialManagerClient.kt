@@ -48,6 +48,7 @@ class GoogleCredentialManagerClient(
                 }
             }
         )
+    }
 
     private suspend fun retrieve(presentationContext: Context, option: GetGoogleIdOption): Result<GoogleIdentityCredential> =
         runCatching {

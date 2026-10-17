@@ -11,9 +11,6 @@ object ComposerDirectivePolicy {
 
     private val skillDirective = Regex("^/skill:([A-Za-z0-9_.-]+)\\s*")
     private val knowledgeDirective = Regex("^@knowledge:([A-Za-z0-9-]+)\\s*")
-    private val skillQuery = Regex("^/[^\\s]*")
-    private val knowledgeQuery = Regex("^@[^\\s]*")
-
     fun nextSkillBackspaceAction(stage: Int): SkillBackspaceAction = when (stage) {
         0 -> SkillBackspaceAction.OPEN_PICKER
         1 -> SkillBackspaceAction.ARM_REMOVAL
@@ -34,10 +31,13 @@ object ComposerDirectivePolicy {
         // treating it as task text. Matching is limited to the first token so
         // slashes and at-signs inside the actual task remain untouched.
         if (prefix.isBlank()) {
-            val query = if (isKnowledge) knowledgeQuery else skillQuery
-            val queryMatch = query.find(suffix)
-            if (queryMatch != null) {
-                val task = suffix.removeRange(queryMatch.range).trimStart()
+            val queryPrefix = if (isKnowledge) "@" else "/"
+            if (suffix.startsWith(queryPrefix) && !suffix.startsWith(directive)) {
+                // Only the first whitespace-delimited token is the picker query.
+                // This preserves URLs, shell paths, and @mentions in the task.
+                val queryEnd = suffix.indexOfFirst(Char::isWhitespace)
+                    .let { if (it < 0) suffix.length else it }
+                val task = suffix.substring(queryEnd).trimStart()
                 return if (task.isBlank()) "$directive " else "$directive $task"
             }
         }

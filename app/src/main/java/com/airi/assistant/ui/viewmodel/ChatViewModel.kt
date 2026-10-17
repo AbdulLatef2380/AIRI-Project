@@ -2255,7 +2255,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // being advertised to the LLM in the system prompt (the gap that caused
             // skill_code_assistant, skill_research_agent, etc. to never be invoked).
             val capabilityIntent = com.airi.assistant.ai.CapabilityIntentDetector.detect(trimmedInput)
-            val liveSkillSchemas = runCatching { skillToolBridge.asToolSchemas() }.getOrElse { emptyList() }
+            val liveSkillSchemas = runCatching { skillToolBridge.asToolSchemas() }.getOrElse { error ->
+                Log.e("AIRI", "SKILL_SCHEMA_BUILD_FAILED; skill tools were not advertised for this turn", error)
+                emptyList()
+            }
             val catalog = runCatching {
                 val connectorSchemas = connectorToolBridge.asToolSchemas(includeUnavailable = true)
                 val executableConnectorNames = connectorToolBridge.asToolSchemas()
@@ -2276,7 +2279,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     statusOverrides = agentLoopBuiltinStatusOverrides() + connectorStatusOverrides,
                     requestText = trimmedInput,
                 )
-            }.getOrElse {
+            }.getOrElse { error ->
+                Log.e(
+                    "AIRI",
+                    "RUNTIME_TOOL_CATALOG_BUILD_FAILED; connector and skill tools were not advertised for this turn",
+                    error,
+                )
                 com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.assemble(
                     builtins = com.airi.assistant.agent.loop.tool.BuiltinTools.ALL,
                     skills = emptyList(),

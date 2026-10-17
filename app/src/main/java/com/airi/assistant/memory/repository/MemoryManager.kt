@@ -496,13 +496,17 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
     }
 
     suspend fun getMessageCount(): Int {
-        return dao.getMemoryCount()
+        return dao.getMessageCount()
     }
 
+    suspend fun getMemoryCount(): Int = dao.getMemoryCount()
+
     suspend fun clearAll() {
-        val durable = dao.getRecentMemories(10_000).filter { it.isMemory }
-        db.withTransaction { dao.clearSemanticMemories() }
-        durable.forEach { enqueueSyncMutation(it.id, "DELETE_TOMBSTONE") }
+        db.withTransaction {
+            val ids = dao.getAllLongTermMemoryIds()
+            dao.clearSemanticMemories()
+            ids.forEach { enqueueSyncMutation(it, "DELETE_TOMBSTONE") }
+        }
     }
 
     private companion object {

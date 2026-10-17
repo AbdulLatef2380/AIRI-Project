@@ -33,7 +33,7 @@ interface EmbeddingDao {
     @Query("DELETE FROM message_embedding WHERE messageId = :messageId")
     suspend fun deleteByMessage(messageId: Long)
 
-    /** Used by the Memory screen's wipe-all action. */
+    /** Used by the full user-data wipe; clearing saved memories preserves chat-history embeddings. */
     @Query("DELETE FROM message_embedding")
     suspend fun deleteAll()
 

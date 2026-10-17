@@ -17,15 +17,16 @@ interface MemoryDao {
     suspend fun insertMessage(message: ChatMessage): Long
 
     /**
-     * Returns the most recent N chat turns across ALL sessions, regardless of
-     * whether they were tagged as long-term ("isMemory = 1") or normal chat
-     * ("isMemory = 0"). The Memory screen surfaces every interaction so the
-     * user can see a real, persistent history. Was previously filtering on
-     * isMemory = 1 only, which made the screen look empty even after long
-     * conversations (Bug #5 in the user's report).
+     * Returns only explicitly stored long-term memories. Ordinary conversation
+     * rows stay in the chat-history projection and must never appear in the
+     * user-facing Memory screen or be removed by a memory-clear action.
      */
-    @Query("SELECT * FROM episodic_memory ORDER BY timestamp DESC LIMIT :limit")
+    @Query("SELECT * FROM episodic_memory WHERE isMemory = 1 ORDER BY timestamp DESC, id DESC LIMIT :limit")
     suspend fun getRecentMemories(limit: Int): List<ChatMessage>
+
+    /** Recent conversation rows across sessions, explicitly excluding saved memories. */
+    @Query("SELECT * FROM episodic_memory WHERE isMemory = 0 ORDER BY timestamp DESC, id DESC LIMIT :limit")
+    suspend fun getRecentChatMessages(limit: Int): List<ChatMessage>
 
     @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0 ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getRecentMessages(sessionId: String, limit: Int): List<ChatMessage>
@@ -115,6 +116,9 @@ interface MemoryDao {
     @Query("DELETE FROM episodic_memory WHERE id = :memoryId AND isMemory = 1")
     suspend fun deleteLongTermMemory(memoryId: Long): Int
 
+    @Query("SELECT id FROM episodic_memory WHERE isMemory = 1 ORDER BY id")
+    suspend fun getAllLongTermMemoryIds(): List<Long>
+
     /** Delete session-owned long-term records without erasing project/user memories. */
     @Query("DELETE FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 1 AND memoryScope = 'SESSION'")
     suspend fun deleteLongTermMemoriesForSession(sessionId: String): Int
@@ -198,8 +202,8 @@ interface MemoryDao {
     @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0 ORDER BY timestamp ASC")
     suspend fun getSessionMessages(sessionId: String): List<ChatMessage>
 
-    /** Total stored interactions (user + assistant, all sessions). */
-    @Query("SELECT COUNT(*) FROM episodic_memory")
+    /** Number of saved long-term memories represented in the Memory screen. */
+    @Query("SELECT COUNT(*) FROM episodic_memory WHERE isMemory = 1")
     suspend fun getMemoryCount(): Int
 
     /** How many non-memory chat rows belong to this session. */
@@ -254,10 +258,9 @@ interface MemoryDao {
     /**
      * Total non-memory message count across all sessions.
      * Alias matching the name StorageRepository exposes (getMessageCount).
-     * The underlying count query is identical to getMemoryCount — both are kept
-     * so existing callers of either name continue to compile.
+     * Long-term memory rows are intentionally excluded from this chat-history count.
      */
-    @Query("SELECT COUNT(*) FROM episodic_memory")
+    @Query("SELECT COUNT(*) FROM episodic_memory WHERE isMemory = 0")
     suspend fun getMessageCount(): Int
 
     /** Persist thumbs up/down feedback for a message (1=like, -1=dislike, 0=none). */
@@ -268,8 +271,8 @@ interface MemoryDao {
     @Query("SELECT feedback FROM episodic_memory WHERE id = :id LIMIT 1")
     suspend fun getMessageFeedback(id: Long): Int?
 
-    /** Wipe everything the Memory screen displays. */
-    @Query("DELETE FROM episodic_memory")
+    /** Wipe only durable memory rows; persisted conversations remain untouched. */
+    @Query("DELETE FROM episodic_memory WHERE isMemory = 1")
     suspend fun clearSemanticMemories()
 
     /** Full table wipe used by the GDPR deletion flow via StorageRepository.deleteAllData(). */

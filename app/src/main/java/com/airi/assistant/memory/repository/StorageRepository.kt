@@ -185,7 +185,7 @@ class StorageRepository(val db: AiriDatabase) {
     /** Get N most recent messages across all sessions (for feedback matching). */
     suspend fun getRecentMessages(limit: Int): List<com.airi.assistant.memory.entity.ChatMessage> =
         withContext(Dispatchers.IO) {
-            db.memoryDao().getRecentMemories(limit)
+            db.memoryDao().getRecentChatMessages(limit)
         }
 
     suspend fun deleteAllData() = withContext(Dispatchers.IO) {

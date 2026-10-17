@@ -1812,7 +1812,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun loadMemoryEntries() {
         viewModelScope.launch {
             _memoryEntries.value = runCatching { memoryManager.getSemanticMemories(200) }.getOrElse { emptyList() }
-            _memoryCount.value = runCatching { memoryManager.getMessageCount() }.getOrElse { 0 }
+            _memoryCount.value = runCatching { memoryManager.getMemoryCount() }.getOrElse { 0 }
         }
     }
 
@@ -1821,7 +1821,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val removed = memoryManager.forgetMemory(memoryId)
         if (removed) {
             _memoryEntries.value = memoryManager.getSemanticMemories(200)
-            _memoryCount.value = memoryManager.getMessageCount()
+            _memoryCount.value = memoryManager.getMemoryCount()
         }
         return removed
     }
@@ -1831,7 +1831,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val updated = memoryManager.editMemoryContent(memoryId, content)
         if (updated) {
             _memoryEntries.value = memoryManager.getSemanticMemories(200)
-            _memoryCount.value = memoryManager.getMessageCount()
+            _memoryCount.value = memoryManager.getMemoryCount()
         }
         return updated
     }

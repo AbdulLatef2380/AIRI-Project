@@ -966,14 +966,14 @@
     <string name="exec_reset_today">إعادة ضبط إحصائيات اليوم</string>
     <string name="exec_cloud_tokens_today">رموز السحابة اليوم</string>
     <string name="memory_title">الذاكرة</string>
-    <string name="memory_clear_dialog_body">سيؤدي هذا إلى حذف جميع التفاعلات المحفوظة نهائيًا. سيتم إعادة تعيين سياق الذكاء الاصطناعي. لا يمكن التراجع عن هذا الإجراء.</string>
-    <string name="memory_clear_button">مسح الذاكرة</string>
+    <string name="memory_clear_dialog_body">سيحذف هذا الذكريات المحفوظة الظاهرة هنا فقط. سيبقى سجل محادثاتك كما هو. لا يمكن التراجع عن هذا الإجراء.</string>
+    <string name="memory_clear_button">مسح الذكريات المحفوظة</string>
     <string name="memory_delete_title">حذف هذه الذاكرة؟</string>
     <string name="memory_delete_body">سيحذف هذا هذه الذاكرة طويلة الأجل فقط. لا يمكن التراجع عن الإجراء.</string>
     <string name="memory_delete_button">حذف الذاكرة</string>
     <string name="memory_deleted_snack">تم حذف الذاكرة</string>
     <string name="memory_delete_failed">تعذر حذف الذاكرة. يرجى المحاولة مجدداً.</string>
-    <string name="memory_admission_summary">تُحتفظ فقط بالتفاعلات المنتقاة والمفيدة كذاكرة طويلة الأجل.</string>
+    <string name="memory_admission_summary">تظهر هنا الذكريات المحفوظة طويلة الأجل فقط، ويبقى سجل المحادثات منفصلاً.</string>
     <string name="memory_role_user">أنت</string>
     <string name="memory_role_assistant">AIRI</string>
     <string name="memory_badge_long_term">طويلة الأجل</string>
@@ -1478,11 +1478,11 @@
     <string name="marketplace_version_prefix">v%1$s</string>
 
     <!-- memory -->
-    <string name="memory_clear_confirm_title">مسح جميع الذكريات؟</string>
-    <string name="memory_cleared_snack">تم مسح الذاكرة</string>
-    <string name="memory_clear_failed_snack">تعذر مسح الذاكرة. يرجى المحاولة مجددًا.</string>
+    <string name="memory_clear_confirm_title">مسح الذكريات المحفوظة؟</string>
+    <string name="memory_cleared_snack">تم مسح الذكريات المحفوظة</string>
+    <string name="memory_clear_failed_snack">تعذر مسح الذكريات المحفوظة. يرجى المحاولة مجددًا.</string>
     <string name="message_delete_failed">تعذر حذف الرسالة. يرجى المحاولة مجددًا.</string>
-    <string name="memory_empty_subtitle">ابدأ محادثة وسيتذكر AIRI ما يهمك</string>
+    <string name="memory_empty_subtitle">احفظ معلومة كذاكرة لتظهر هنا؛ ويظل سجل الدردشة منفصلاً عنها.</string>
     <string name="memory_empty_title">لا توجد ذكريات بعد</string>
     <string name="memory_search_hint">البحث في الذكريات…</string>
     <string name="memory_search_no_results">لا توجد ذكريات تطابق "%1$s"</string>

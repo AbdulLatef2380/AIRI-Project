@@ -107,4 +107,35 @@ class MemoryDaoInsertIdTest {
         assertTrue(secondId > firstId)
         assertEquals(setOf(firstId, secondId), storedIds)
     }
+
+    @Test
+    fun memoryListAndClearNeverExposeOrDeleteChatHistory() = runBlocking {
+        val dao = database.memoryDao()
+        val userMessageId = dao.insertMessage(
+            ChatMessage(sessionId = "safe-clear-session", role = "user", content = "private chat", isMemory = false)
+        )
+        val assistantMessageId = dao.insertMessage(
+            ChatMessage(sessionId = "safe-clear-session", role = "assistant", content = "chat reply", isMemory = false)
+        )
+        val savedMemoryId = dao.insertMessage(
+            ChatMessage(sessionId = "safe-clear-session", role = "user", content = "saved preference", isMemory = true)
+        )
+
+        assertEquals(listOf(savedMemoryId), dao.getRecentMemories(100).map { it.id })
+        assertEquals(setOf(userMessageId, assistantMessageId), dao.getRecentChatMessages(100).map { it.id }.toSet())
+        assertEquals(1, dao.getMemoryCount())
+        assertEquals(2, dao.getMessageCount())
+        assertEquals(listOf(savedMemoryId), dao.getAllLongTermMemoryIds())
+        assertEquals(0, dao.deleteLongTermMemory(userMessageId))
+
+        dao.clearSemanticMemories()
+
+        assertEquals(
+            setOf("private chat", "chat reply"),
+            dao.getMessagesForSession("safe-clear-session").map { it.content }.toSet()
+        )
+        assertEquals(0, dao.getMemoryCount())
+        assertEquals(2, dao.getMessageCount())
+        assertEquals(null, dao.getMessageById(savedMemoryId))
+    }
 }

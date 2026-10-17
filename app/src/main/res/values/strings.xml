@@ -994,14 +994,14 @@
 
     <!-- Memory screen -->
     <string name="memory_title">Memory</string>
-    <string name="memory_clear_dialog_body">This will permanently delete all stored interactions. The AI context will be reset. This action cannot be undone.</string>
-    <string name="memory_clear_button">Clear Memory</string>
+    <string name="memory_clear_dialog_body">This permanently deletes only the saved memories shown here. Your chat history is left untouched. This action cannot be undone.</string>
+    <string name="memory_clear_button">Clear saved memories</string>
     <string name="memory_delete_title">Delete this memory?</string>
     <string name="memory_delete_body">This removes only this long-term memory. This action cannot be undone.</string>
     <string name="memory_delete_button">Delete memory</string>
     <string name="memory_deleted_snack">Memory deleted</string>
     <string name="memory_delete_failed">Memory could not be deleted. Please try again.</string>
-    <string name="memory_admission_summary">Only selected, useful interactions are kept as long-term memory.</string>
+    <string name="memory_admission_summary">Only saved long-term memories appear here; full conversations remain in chat history.</string>
     <string name="memory_role_user">You</string>
     <string name="memory_role_assistant">AIRI</string>
     <string name="memory_badge_long_term">Long-term</string>
@@ -1563,11 +1563,11 @@
     <string name="marketplace_version_prefix">v%1$s</string>
 
     <!-- memory -->
-    <string name="memory_clear_confirm_title">Clear all memories?</string>
-    <string name="memory_cleared_snack">Memory cleared</string>
-    <string name="memory_clear_failed_snack">Memory could not be cleared. Please try again.</string>
+    <string name="memory_clear_confirm_title">Clear saved memories?</string>
+    <string name="memory_cleared_snack">Saved memories cleared</string>
+    <string name="memory_clear_failed_snack">Saved memories could not be cleared. Please try again.</string>
     <string name="message_delete_failed">Message could not be deleted. Please try again.</string>
-    <string name="memory_empty_subtitle">Start a conversation and AIRI will remember what matters</string>
+    <string name="memory_empty_subtitle">Save an item as a memory to see it here. Your chat history remains separate.</string>
     <string name="memory_empty_title">No memories yet</string>
     <string name="memory_search_hint">Search memories…</string>
     <string name="memory_search_no_results">No memories match "%1$s"</string>

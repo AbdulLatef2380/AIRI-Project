@@ -97,6 +97,8 @@ data class ExecutionTraceEvent(
     val errorCode: String? = null,
     /** Owning conversation session; blank for executions not attached to a chat. */
     val sessionId: String = "",
+    /** Stable semantic label used by the UI localization layer. */
+    val machineTag: String? = null,
 ) {
     /** Stable correlation key for this ordered event within one execution. */
     val eventId: String get() = "$executionId:event:$sequence"

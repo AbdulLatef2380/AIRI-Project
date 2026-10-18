@@ -304,6 +304,46 @@ class UnifiedExecutionTraceProjectorTest {
         assertEquals("run-1:event:1", result.single().eventId)
     }
 
+    @Test
+    fun `projection builds a parent child task tree`() {
+        val result = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-1",
+            traceEntries = listOf(
+                trace("run-1", 1, 1_000, ExecutionTraceKind.PLANNING, "Planning task"),
+                trace("run-1", 2, 1_100, ExecutionTraceKind.STEP_STARTED, "Review repository"),
+                trace("run-1", 3, 1_200, ExecutionTraceKind.TOOL_COMPLETED, "Read file README.md", "file-1"),
+            ),
+            activityEvents = emptyList(),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        val plan = result.taskTree.single()
+        assertEquals(UnifiedTraceCategory.PLAN, plan.event.category)
+        assertEquals(1, plan.children.size)
+        assertEquals("Review repository", plan.children.single().event.title)
+        assertEquals("Read file README.md", plan.children.single().children.single().event.title)
+    }
+
+    @Test
+    fun `machine tags provide a stable localized title instead of raw activity text`() {
+        val result = project(
+            "run-1",
+            emptyList(),
+            listOf(ActivityEvent(
+                id = "file-activity",
+                message = "file_created: /private/path/report.txt",
+                executionId = "run-1",
+                category = ActivityCategory.SANDBOX,
+                machineTag = "file_created",
+            )),
+        )
+
+        val expectedTitle = if (java.util.Locale.getDefault().language == "ar") "إنشاء ملف" else "Create file"
+        assertEquals(expectedTitle, result.single().title)
+        assertEquals("file_created", result.single().machineTag)
+    }
+
     private fun project(
         executionId: String,
         traces: List<ExecutionTraceEvent>,

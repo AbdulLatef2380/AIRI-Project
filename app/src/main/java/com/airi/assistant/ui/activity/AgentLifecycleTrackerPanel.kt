@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceGroup
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceProjection
+import com.airi.assistant.ui.trace.UnifiedExecutionTraceTaskNode
 import com.airi.assistant.ui.trace.UnifiedTraceCategory
 
 /** Compact, borderless activity surface embedded in the assistant turn. */
@@ -60,15 +61,18 @@ fun AgentLifecycleTrackerPanel(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    val groups = projection.groups
     var expanded by rememberSaveable { mutableStateOf(true) }
-    val groupIds = groups.map { it.id }
-    var expandedGroups by androidx.compose.runtime.remember(groupIds) { mutableStateOf(groupIds.toSet()) }
-    var expandedEvents by rememberSaveable { mutableStateOf(emptySet<String>()) }
+    val taskIds = projection.taskTree.flatMap {
+        flattenTaskTree(it)
+            .filter { item -> item.first.children.isNotEmpty() }
+            .map { item -> item.first.event.eventId }
+    }
+    var expandedTasks by androidx.compose.runtime.remember(taskIds) { mutableStateOf(taskIds.toSet()) }
+    val visibleTasks = projection.taskTree.flatMap { flattenTaskTree(it, expandedTasks) }
     val lastEventKey = projection.events.lastOrNull()?.let { it.eventId to it.status }
 
     LaunchedEffect(lastEventKey, expanded) {
-        if (expanded && groups.isNotEmpty() && listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 >= listState.layoutInfo.totalItemsCount - 2) {
+        if (expanded && visibleTasks.isNotEmpty() && listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 >= listState.layoutInfo.totalItemsCount - 2) {
             listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
         }
     }
@@ -85,7 +89,7 @@ fun AgentLifecycleTrackerPanel(
             isWorking = isWorking,
         )
         AnimatedVisibility(visible = expanded) {
-            if (groups.isNotEmpty()) {
+            if (visibleTasks.isNotEmpty()) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -93,27 +97,23 @@ fun AgentLifecycleTrackerPanel(
                         .heightIn(max = 238.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
-                    groups.forEach { group ->
-                        item(key = "group-${group.id}") {
-                            ActivityGroupHeader(
-                                group = group,
-                                expanded = group.id in expandedGroups,
-                                onToggle = {
-                                    expandedGroups = if (group.id in expandedGroups) expandedGroups - group.id else expandedGroups + group.id
-                                },
-                            )
-                        }
-                        if (group.id in expandedGroups) {
-                            items(group.events, key = { "event-${it.eventId}" }) { event ->
-                                ActivityEventRow(
-                                    event = event,
-                                    expanded = event.eventId in expandedEvents,
-                                    onToggle = {
-                                        expandedEvents = if (event.eventId in expandedEvents) expandedEvents - event.eventId else expandedEvents + event.eventId
-                                    },
-                                )
-                            }
-                        }
+                    items(visibleTasks, key = { "task-${it.first.event.eventId}" }) { item ->
+                        val node = item.first
+                        ActivityEventRow(
+                            event = node.event,
+                            depth = item.second,
+                            hasChildren = node.children.isNotEmpty(),
+                            expanded = node.event.eventId in expandedTasks,
+                            onToggle = {
+                                if (node.children.isNotEmpty()) {
+                                    expandedTasks = if (node.event.eventId in expandedTasks) {
+                                        expandedTasks - node.event.eventId
+                                    } else {
+                                        expandedTasks + node.event.eventId
+                                    }
+                                }
+                            },
+                        )
                     }
                 }
             } else if (isWorking) {
@@ -212,10 +212,12 @@ private fun ActivityGroupHeader(group: UnifiedExecutionTraceGroup, expanded: Boo
 @Composable
 private fun ActivityEventRow(
     event: com.airi.assistant.ui.trace.UnifiedExecutionTraceEvent,
+    depth: Int = 0,
+    hasChildren: Boolean = false,
     expanded: Boolean,
     onToggle: () -> Unit,
 ) {
-    val canExpand = !event.detailLog.isNullOrBlank()
+    val canExpand = hasChildren || !event.detailLog.isNullOrBlank()
     val color = when (event.status) {
         TaskStatus.RUNNING -> MaterialTheme.colorScheme.onSurface
         TaskStatus.FAILED -> MaterialTheme.colorScheme.error
@@ -226,7 +228,7 @@ private fun ActivityEventRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (canExpand) Modifier.clickable(role = Role.Button, onClick = onToggle) else Modifier)
-                .padding(start = 48.dp, end = 6.dp, top = 3.dp, bottom = 3.dp),
+                .padding(start = (48 + depth * 18).dp, end = 6.dp, top = 3.dp, bottom = 3.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ActivityCategoryIcon(event.category, Modifier.size(15.dp))
@@ -257,11 +259,22 @@ private fun ActivityEventRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                 fontSize = 10.sp,
                 lineHeight = 14.sp,
-                modifier = Modifier.padding(start = 70.dp, end = 10.dp, bottom = 5.dp),
+                modifier = Modifier.padding(start = (70 + depth * 18).dp, end = 10.dp, bottom = 5.dp),
                 maxLines = 4,
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+private fun flattenTaskTree(
+    node: UnifiedExecutionTraceTaskNode,
+    expanded: Set<String> = emptySet(),
+    depth: Int = 0,
+): List<Pair<UnifiedExecutionTraceTaskNode, Int>> = buildList {
+    add(node to depth)
+    if (node.event.eventId in expanded) {
+        node.children.forEach { addAll(flattenTaskTree(it, expanded, depth + 1)) }
     }
 }
 

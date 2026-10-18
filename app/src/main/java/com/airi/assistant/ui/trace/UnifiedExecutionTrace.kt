@@ -25,6 +25,13 @@ data class UnifiedExecutionTraceEvent(
     val status: TaskStatus,
     val detailLog: String?,
     val category: UnifiedTraceCategory = UnifiedTraceCategory.SYSTEM,
+    val machineTag: String? = null,
+)
+
+/** Immutable execution tree node with a parent event and ordered child steps. */
+data class UnifiedExecutionTraceTaskNode(
+    val event: UnifiedExecutionTraceEvent,
+    val children: List<UnifiedExecutionTraceTaskNode> = emptyList(),
 )
 
 data class UnifiedExecutionTraceSummary(
@@ -53,6 +60,7 @@ data class UnifiedExecutionTraceProjection(
     val events: List<UnifiedExecutionTraceEvent>,
     val groups: List<UnifiedExecutionTraceGroup>,
     val summary: UnifiedExecutionTraceSummary,
+    val taskTree: List<UnifiedExecutionTraceTaskNode> = emptyList(),
 )
 
 /**
@@ -121,7 +129,39 @@ internal object UnifiedExecutionTraceProjector {
                 events = groupEvents,
             )
         }.sortedBy { groupOrder(it.category) }
-        return UnifiedExecutionTraceProjection(events, groups, summarize(events))
+        return UnifiedExecutionTraceProjection(events, groups, summarize(events), buildTaskTree(events))
+    }
+
+    /** Attach operational events to the nearest active plan or step. */
+    private fun buildTaskTree(events: List<UnifiedExecutionTraceEvent>): List<UnifiedExecutionTraceTaskNode> {
+        if (events.isEmpty()) return emptyList()
+        data class MutableNode(
+            val event: UnifiedExecutionTraceEvent,
+            val children: MutableList<MutableNode> = mutableListOf(),
+        )
+        val roots = mutableListOf<MutableNode>()
+        var activePlan: MutableNode? = null
+        var activeStep: MutableNode? = null
+        events.forEach { event ->
+            val node = MutableNode(event)
+            val parent = when {
+                event.category == UnifiedTraceCategory.PLAN -> null
+                event.category == UnifiedTraceCategory.TASK -> activePlan
+                else -> activeStep ?: activePlan
+            }
+            if (parent == null) roots += node else parent.children += node
+            when (event.category) {
+                UnifiedTraceCategory.PLAN -> {
+                    activePlan = node
+                    activeStep = null
+                }
+                UnifiedTraceCategory.TASK -> activeStep = node
+                else -> Unit
+            }
+        }
+        fun freeze(node: MutableNode): UnifiedExecutionTraceTaskNode =
+            UnifiedExecutionTraceTaskNode(node.event, node.children.map(::freeze))
+        return roots.map(::freeze)
     }
 
     private fun collapseStructuredActions(
@@ -148,10 +188,11 @@ internal object UnifiedExecutionTraceProjector {
                     actionId = actionId,
                     sequence = first.sequence,
                     timestampMs = source.timestampMs,
-                    title = safeTraceText(title),
+                    title = safeTraceText(localizeDynamicTitle(source.machineTag, title)),
                     status = source.kind.toTaskStatus(),
                     detailLog = details?.let(::safeTraceText),
                     category = categoryFor(title, first.kind),
+                    machineTag = source.machineTag,
                 ),
                 dedupeKey = "action:$actionId",
                 sourcePriority = 0,
@@ -178,7 +219,7 @@ internal object UnifiedExecutionTraceProjector {
             actionId = actionId,
             sequence = sequence,
             timestampMs = timestampMs,
-            title = localizeLifecycleSummary(summary, planningTaskLabel, executionCompletedLabel),
+            title = localizeDynamicTitle(machineTag, localizeLifecycleSummary(summary, planningTaskLabel, executionCompletedLabel)),
             status = kind.toTaskStatus(),
             detailLog = buildList {
                 detail?.takeIf(String::isNotBlank)?.let { add(safeTraceText(it)) }
@@ -186,6 +227,7 @@ internal object UnifiedExecutionTraceProjector {
                 durationMs?.let { add("Duration: ${it.coerceAtLeast(0L)} ms") }
             }.joinToString("\n").takeIf(String::isNotBlank),
             category = categoryFor(summary, kind),
+            machineTag = machineTag,
         ),
         dedupeKey = lifecycleDedupeKey(kind, summary),
         sourcePriority = 0,
@@ -196,7 +238,7 @@ internal object UnifiedExecutionTraceProjector {
         planningTaskLabel: String,
         executionCompletedLabel: String,
     ): ProjectionCandidate {
-        val title = localizeLifecycleSummary(message, planningTaskLabel, executionCompletedLabel)
+        val title = localizeDynamicTitle(machineTag, localizeLifecycleSummary(message, planningTaskLabel, executionCompletedLabel))
         val category = categoryForActivity(category, title)
         return ProjectionCandidate(
             event = UnifiedExecutionTraceEvent(
@@ -213,6 +255,7 @@ internal object UnifiedExecutionTraceProjector {
                 },
                 detailLog = detail?.takeIf(String::isNotBlank),
                 category = category,
+                machineTag = machineTag,
             ),
             dedupeKey = lifecycleDedupeKey(null, message),
             sourcePriority = 1,
@@ -314,6 +357,39 @@ internal object UnifiedExecutionTraceProjector {
         "Execution failed" -> "Execution failed"
         "Execution cancelled" -> "Execution cancelled"
         else -> safeTraceText(value)
+    }
+
+    private fun localizeDynamicTitle(machineTag: String?, fallback: String): String {
+        val tag = machineTag?.substringBefore(':')?.trim()?.lowercase().orEmpty()
+        val arabic = java.util.Locale.getDefault().language == "ar"
+        val localized = if (arabic) {
+            mapOf(
+                "file_created" to "إنشاء ملف",
+                "file_read" to "قراءة ملف",
+                "command_executed" to "تنفيذ أمر",
+                "tool_call" to "استدعاء أداة",
+                "search_started" to "بدء البحث",
+                "search_completed" to "اكتمال البحث",
+                "memory_read" to "قراءة الذاكرة",
+                "memory_write" to "تحديث الذاكرة",
+                "planning" to "التخطيط للمهمة",
+                "execution_completed" to "اكتمل التنفيذ",
+            )[tag]
+        } else {
+            mapOf(
+                "file_created" to "Create file",
+                "file_read" to "Read file",
+                "command_executed" to "Run command",
+                "tool_call" to "Invoke tool",
+                "search_started" to "Start search",
+                "search_completed" to "Search completed",
+                "memory_read" to "Read memory",
+                "memory_write" to "Update memory",
+                "planning" to "Plan task",
+                "execution_completed" to "Execution completed",
+            )[tag]
+        }
+        return localized ?: fallback
     }
 
     private fun safeTraceText(value: String): String = PrivacyGuard.redactForTrace(CommandRedactor.redact(value), maximumChars = 1_000)

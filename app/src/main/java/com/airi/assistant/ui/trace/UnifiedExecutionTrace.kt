@@ -138,7 +138,7 @@ internal object UnifiedExecutionTraceProjector {
             val title = toolTitle(first.summary, source.summary)
             val details = buildList {
                 source.detail?.takeIf(String::isNotBlank)?.let(::add)
-                source.errorCode?.let { add("Error code: $it") }
+                source.errorCode?.let { add("Error code: ${normalizeErrorCode(it)}") }
                 source.durationMs?.let { add("${it.coerceAtLeast(0L)} ms") }
             }.joinToString("\n").takeIf(String::isNotBlank)
             result += ProjectionCandidate(
@@ -182,7 +182,7 @@ internal object UnifiedExecutionTraceProjector {
             status = kind.toTaskStatus(),
             detailLog = buildList {
                 detail?.takeIf(String::isNotBlank)?.let { add(safeTraceText(it)) }
-                errorCode?.let { add("Error code: ${safeTraceText(it)}") }
+                errorCode?.let { add("Error code: ${normalizeErrorCode(it)}") }
                 durationMs?.let { add("Duration: ${it.coerceAtLeast(0L)} ms") }
             }.joinToString("\n").takeIf(String::isNotBlank),
             category = categoryFor(summary, kind),
@@ -317,6 +317,8 @@ internal object UnifiedExecutionTraceProjector {
     }
 
     private fun safeTraceText(value: String): String = PrivacyGuard.redactForTrace(CommandRedactor.redact(value), maximumChars = 1_000)
+
+    private fun normalizeErrorCode(value: String): String = value.trim().lowercase().take(64)
 
     private val TERMINAL_TOOL_KINDS = setOf(
         ExecutionTraceKind.TOOL_COMPLETED,

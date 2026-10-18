@@ -1950,6 +1950,7 @@
     <string name="agent_trace_summary_commands">Ran %1$d commands</string>
     <string name="agent_trace_summary_tools">Used %1$d tools</string>
     <string name="agent_trace_summary_searches">Searched %1$d times</string>
+    <string name="agent_trace_summary_memory">Memory operations %1$d</string>
     <string name="agent_trace_summary_tasks">%1$d tasks</string>
     <string name="agent_trace_group_files">Files</string>
     <string name="agent_trace_group_commands">Commands</string>
@@ -2266,4 +2267,13 @@
     <string name="connector_auth_context_description">Review and authorize this connector without changing other integrations.</string>
     <string name="connector_auth_context_targeted">This authorization flow is scoped to the selected connector.</string>
     <string name="connector_auth_retry">Continue authorization</string>
+    <string name="agent_trace_panel_description">Live execution activity</string>
+    <string name="agent_trace_expand_panel">Expand execution activity</string>
+    <string name="agent_trace_collapse_panel">Collapse execution activity</string>
+    <string name="agent_trace_expand_group">Expand group</string>
+    <string name="agent_trace_collapse_group">Collapse group</string>
+    <string name="agent_trace_expand_event">Show event details</string>
+    <string name="agent_trace_collapse_event">Hide event details</string>
+    <string name="agent_lifecycle_status_waiting">Waiting</string>
+    <string name="agent_lifecycle_status_cancelled">Cancelled</string>
 </resources>

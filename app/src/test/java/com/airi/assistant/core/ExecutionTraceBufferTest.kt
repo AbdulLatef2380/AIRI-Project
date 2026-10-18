@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class ExecutionTraceBufferTest {
 
@@ -98,6 +100,22 @@ class ExecutionTraceBufferTest {
     }
 
     @Test
+    fun append_preservesTerminalFailureBeforeEvictingActiveNoise() {
+        val buffer = ExecutionTraceBuffer(maxEntries = 2)
+        buffer.begin("exec-terminal")
+        buffer.append("exec-terminal", ExecutionTraceKind.PLANNING, "Planning")
+        val failure = buffer.append(
+            "exec-terminal",
+            ExecutionTraceKind.FAILED,
+            "Execution failed",
+            errorCode = "provider_unavailable",
+        )!!
+        val active = buffer.append("exec-terminal", ExecutionTraceKind.REFLECTING, "Recovering")!!
+
+        assertEquals(listOf(failure, active), buffer.snapshot())
+    }
+
+    @Test
     fun buffer_bindsEventsToExplicitSessionAndRejectsStaleExecution() {
         val buffer = ExecutionTraceBuffer(maxEntries = 2)
         buffer.begin(executionId = "exec-current", sessionId = "session-current")
@@ -110,5 +128,30 @@ class ExecutionTraceBufferTest {
         val next = buffer.append("exec-next", ExecutionTraceKind.PLANNING, "Planning")!!
         assertEquals("session-next", next.sessionId)
         assertEquals(listOf(next), buffer.snapshot())
+    }
+
+    @Test
+    fun append_isThreadSafeAndRetainsOnlyTheNewestBoundedWindow() {
+        val buffer = ExecutionTraceBuffer(maxEntries = 1_000)
+        buffer.begin("exec-concurrent")
+        val executor = Executors.newFixedThreadPool(8)
+
+        repeat(5_000) { index ->
+            executor.submit {
+                buffer.append(
+                    executionId = "exec-concurrent",
+                    kind = ExecutionTraceKind.TOOL_STARTED,
+                    summary = "Read file $index",
+                    actionId = "action-$index",
+                )
+            }
+        }
+        executor.shutdown()
+
+        assertEquals(true, executor.awaitTermination(10, TimeUnit.SECONDS))
+        val retained = buffer.snapshot()
+        assertEquals(1_000, retained.size)
+        assertEquals(1_000, retained.map { it.sequence }.distinct().size)
+        assertEquals(5_000L, retained.maxOf { it.sequence })
     }
 }

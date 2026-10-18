@@ -18,7 +18,9 @@ data class AgentTask(
 /** Lifecycle states displayed by [AgentLifecycleTrackerPanel]. */
 enum class TaskStatus {
     PENDING,
+    WAITING,
     RUNNING,
     COMPLETED,
     FAILED,
+    CANCELLED,
 }

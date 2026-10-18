@@ -39,10 +39,11 @@ data class UnifiedExecutionTraceSummary(
     val commandsExecuted: Int = 0,
     val toolsUsed: Int = 0,
     val searches: Int = 0,
+    val memoryOperations: Int = 0,
     val tasks: Int = 0,
 ) {
     val hasContent: Boolean
-        get() = filesRead + commandsExecuted + toolsUsed + searches + tasks > 0
+        get() = filesRead + commandsExecuted + toolsUsed + searches + memoryOperations + tasks > 0
 }
 
 data class UnifiedExecutionTraceGroup(
@@ -249,7 +250,7 @@ internal object UnifiedExecutionTraceProjector {
             event = UnifiedExecutionTraceEvent(
                 executionId = executionId.orEmpty(),
                 eventId = id,
-                actionId = null,
+                actionId = if (category == UnifiedTraceCategory.TOOL || category == UnifiedTraceCategory.CONNECTOR) "activity:$id" else null,
                 sequence = sequence,
                 timestampMs = timestampMs,
                 title = title,
@@ -274,6 +275,7 @@ internal object UnifiedExecutionTraceProjector {
             commandsExecuted = count(UnifiedTraceCategory.COMMAND),
             toolsUsed = count(UnifiedTraceCategory.TOOL) + count(UnifiedTraceCategory.CONNECTOR),
             searches = count(UnifiedTraceCategory.SEARCH),
+            memoryOperations = count(UnifiedTraceCategory.MEMORY),
             tasks = count(UnifiedTraceCategory.TASK) + count(UnifiedTraceCategory.PLAN),
         )
     }
@@ -353,7 +355,7 @@ internal object UnifiedExecutionTraceProjector {
         ExecutionTraceKind.RECOVERING, ExecutionTraceKind.REFLECTING -> TaskStatus.RUNNING
         ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.COMPLETED -> TaskStatus.COMPLETED
         ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED -> TaskStatus.FAILED
-        ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED -> TaskStatus.PENDING
+        ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED -> TaskStatus.CANCELLED
     }
 
     private fun localizeLifecycleSummary(value: String, planningTaskLabel: String, executionCompletedLabel: String): String = when (value.trim()) {

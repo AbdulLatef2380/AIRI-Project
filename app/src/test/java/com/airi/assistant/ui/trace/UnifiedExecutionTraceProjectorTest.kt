@@ -10,6 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.random.Random
 import kotlin.system.measureNanoTime
 
 class UnifiedExecutionTraceProjectorTest {
@@ -375,6 +376,31 @@ class UnifiedExecutionTraceProjectorTest {
         assertEquals(1_202, result.events.size)
         assertEquals(1_200, result.summary.filesRead)
         assertTrue("projection took ${elapsedNanos / 1_000_000} ms", elapsedNanos < 2_000_000_000L)
+    }
+
+    @Test
+    fun `five thousand out of order lifecycle entries remain deduplicated`() {
+        val entries = buildList {
+            repeat(2_500) { index ->
+                val actionId = "stress-action-$index"
+                val sequence = index * 2L + 1L
+                add(trace("run-stress", sequence, 10_000L + sequence, ExecutionTraceKind.TOOL_STARTED, "Read file stress-$index", actionId))
+                add(trace("run-stress", sequence + 1L, 10_000L + sequence + 1L, ExecutionTraceKind.TOOL_COMPLETED, "Read file stress-$index", actionId))
+            }
+        }.shuffled(Random(42))
+
+        val result = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-stress",
+            traceEntries = entries,
+            activityEvents = emptyList(),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertEquals(2_500, result.events.size)
+        assertEquals(2_500, result.events.mapNotNull { it.actionId }.distinct().size)
+        assertEquals(2_500, result.groups.single { it.category == UnifiedTraceCategory.FILE }.events.size)
+        assertEquals(2_500, result.summary.filesRead)
     }
 
     private fun project(

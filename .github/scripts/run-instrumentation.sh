@@ -9,6 +9,7 @@ readonly GRADLE_ARGS=(
   --stacktrace
 )
 readonly TEST_TIMEOUT_SECONDS=900
+readonly EXPECTED_API_LEVEL="${EXPECTED_API_LEVEL:-29}"
 
 dump_diagnostics() {
   echo "===== instrumentation diagnostics =====" >&2
@@ -38,7 +39,7 @@ run_tests() {
 ./gradlew --stop || true
 adb wait-for-device
 test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
-test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = "29"
+test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = "$EXPECTED_API_LEVEL"
 wait_for_package_manager
 
 if run_tests; then

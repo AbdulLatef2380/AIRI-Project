@@ -2165,4 +2165,14 @@
     <string name="connector_auth_context_description">راجع هذا الموصل وصادقه دون تغيير إعدادات التكاملات الأخرى.</string>
     <string name="connector_auth_context_targeted">تدفق التفويض هذا خاص بالموصل المحدد فقط.</string>
     <string name="connector_auth_retry">متابعة التفويض</string>
+    <string name="agent_trace_summary_memory">%1$d عمليات ذاكرة</string>
+    <string name="agent_trace_panel_description">نشاط التنفيذ الحي</string>
+    <string name="agent_trace_expand_panel">توسيع نشاط التنفيذ</string>
+    <string name="agent_trace_collapse_panel">طي نشاط التنفيذ</string>
+    <string name="agent_trace_expand_group">توسيع المجموعة</string>
+    <string name="agent_trace_collapse_group">طي المجموعة</string>
+    <string name="agent_trace_expand_event">عرض تفاصيل الحدث</string>
+    <string name="agent_trace_collapse_event">إخفاء تفاصيل الحدث</string>
+    <string name="agent_lifecycle_status_waiting">قيد الانتظار</string>
+    <string name="agent_lifecycle_status_cancelled">أُلغي</string>
 </resources>

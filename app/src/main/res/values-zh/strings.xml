@@ -91,7 +91,7 @@
     <string name="pick_file">选择文件</string>
     <string name="menu">菜单</string>
     <string name="app_agent_title">AIRI 助手</string>
-    <string name="app_agent_mode_title">AIRI 助手 • %1$s</string>
+    <string name="app_agent_mode_title">AIRI</string>
     <string name="generating">正在生成…</string>
     <string name="loading_model">正在加载模型…</string>
     <string name="no_model_active">没有活动模型</string>
@@ -1364,7 +1364,7 @@
     <string name="task_continuity_sync_title">在设备之间同步任务进度</string>
     <string name="task_continuity_sync_summary">仅同步任务状态和计划进度。任务内容、结果、审批、文件和密钥仍保留在此设备上。</string>
     <string name="task_continuity_sync_requires_cloud">请先启用云同步，再共享任务进度。</string>
-    <string name="artifact_restore_version">恢复此版本</string>
+    <string name="artifact_restore_version">恢复版本 %1$d</string>
     <string name="execution_center_approval_risk">风险：%1$s</string>
     <string name="execution_center_approve_once">允许一次</string>
     <string name="execution_center_approve_task">允许此任务执行</string>
@@ -1372,9 +1372,9 @@
     <string name="execution_center_no_approvals">没有待处理的审批</string>
     <string name="execution_center_no_runs">尚未记录执行</string>
     <string name="execution_center_replay">重放活动</string>
-    <string name="execution_center_tab_approvals">审批</string>
-    <string name="execution_center_tab_runs">执行</string>
-    <string name="library_file_state">状态：%1$s</string>
+    <string name="execution_center_tab_approvals">审批 (%1$d)</string>
+    <string name="execution_center_tab_runs">运行 (%1$d)</string>
+    <string name="library_file_state">提取：%1$s · 知识索引：%2$s</string>
     <string name="library_deleted_files">最近删除的文件</string>
     <string name="library_restore_file">恢复文件</string>
     <string name="library_purge_file">永久删除</string>
@@ -1409,7 +1409,7 @@
     <string name="memory_scope_confidence">范围：%1$s · 置信度：%2$d%%</string>
     <string name="memory_why_saved">保存原因</string>
     <string name="terminal_cancel_command_cd">取消命令</string>
-    <string name="workspace_context_summary">%1$d 个任务 · %2$d 个文件 · %3$d 个工件</string>
+    <string name="workspace_context_summary">文件：%1$d · 工件：%2$d · 任务：%3$d · 运行中：%4$d · 需要关注：%5$d</string>
     <!-- 智能体计划状态与无障碍 -->
     <string name="agent_plan_dismiss_cd">关闭计划</string>
     <string name="agent_plan_elapsed_seconds">%1$d 秒</string>
@@ -1919,4 +1919,27 @@
     <string name="connector_auth_context_description">仅查看并授权此连接器，不会更改其他集成。</string>
     <string name="connector_auth_context_targeted">此授权流程仅针对所选连接器。</string>
     <string name="connector_auth_retry">继续授权</string>
+    <string name="agent_trace_summary_memory">记忆操作 %1$d 次</string>
+    <string name="agent_trace_live_planning_task">正在规划任务</string>
+    <string name="agent_trace_summary_files">已读取 %1$d 个文件</string>
+    <string name="agent_trace_summary_commands">已运行 %1$d 条命令</string>
+    <string name="agent_trace_summary_tools">已使用 %1$d 个工具</string>
+    <string name="agent_trace_summary_searches">已搜索 %1$d 次</string>
+    <string name="agent_trace_group_files">文件</string>
+    <string name="agent_trace_group_commands">命令</string>
+    <string name="agent_trace_group_tools">工具</string>
+    <string name="agent_trace_group_search">搜索</string>
+    <string name="agent_trace_group_memory">记忆</string>
+    <string name="agent_trace_group_tasks">任务</string>
+    <string name="agent_trace_group_activity">活动</string>
+    <string name="agent_trace_summary_tasks">%1$d 个任务</string>
+    <string name="agent_trace_panel_description">实时执行活动</string>
+    <string name="agent_trace_expand_panel">展开执行活动</string>
+    <string name="agent_trace_collapse_panel">收起执行活动</string>
+    <string name="agent_trace_expand_group">展开分组</string>
+    <string name="agent_trace_collapse_group">收起分组</string>
+    <string name="agent_trace_expand_event">显示事件详情</string>
+    <string name="agent_trace_collapse_event">隐藏事件详情</string>
+    <string name="agent_lifecycle_status_waiting">等待中</string>
+    <string name="agent_lifecycle_status_cancelled">已取消</string>
 </resources>

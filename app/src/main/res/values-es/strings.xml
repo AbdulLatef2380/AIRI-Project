@@ -91,7 +91,7 @@
     <string name="pick_file">Elegir archivo</string>
     <string name="menu">Menú</string>
     <string name="app_agent_title">Agente AIRI</string>
-    <string name="app_agent_mode_title">Agente AIRI • %1$s</string>
+    <string name="app_agent_mode_title">AIRI</string>
     <string name="generating">Generando…</string>
     <string name="loading_model">Cargando modelo…</string>
     <string name="no_model_active">No hay modelo activo</string>
@@ -1364,7 +1364,7 @@
     <string name="task_continuity_sync_title">Sincronizar el progreso de tareas entre dispositivos</string>
     <string name="task_continuity_sync_summary">Sincroniza solo el estado de la tarea y el progreso del plan. El contenido, los resultados, las aprobaciones, los archivos y los secretos permanecen en este dispositivo.</string>
     <string name="task_continuity_sync_requires_cloud">Activa la sincronización en la nube antes de compartir el progreso de tareas.</string>
-    <string name="artifact_restore_version">Restaurar esta versión</string>
+    <string name="artifact_restore_version">Restaurar versión %1$d</string>
     <string name="execution_center_approval_risk">Riesgo: %1$s</string>
     <string name="execution_center_approve_once">Permitir una vez</string>
     <string name="execution_center_approve_task">Permitir para esta tarea</string>
@@ -1372,9 +1372,9 @@
     <string name="execution_center_no_approvals">No hay aprobaciones pendientes</string>
     <string name="execution_center_no_runs">Aún no hay ejecuciones registradas</string>
     <string name="execution_center_replay">Reproducir actividad</string>
-    <string name="execution_center_tab_approvals">Aprobaciones</string>
-    <string name="execution_center_tab_runs">Ejecuciones</string>
-    <string name="library_file_state">Estado: %1$s</string>
+    <string name="execution_center_tab_approvals">Aprobaciones (%1$d)</string>
+    <string name="execution_center_tab_runs">Ejecuciones (%1$d)</string>
+    <string name="library_file_state">Extracción: %1$s · Índice de conocimiento: %2$s</string>
     <string name="library_deleted_files">Archivos eliminados recientemente</string>
     <string name="library_restore_file">Restaurar archivo</string>
     <string name="library_purge_file">Eliminar permanentemente</string>
@@ -1409,7 +1409,7 @@
     <string name="memory_scope_confidence">Ámbito: %1$s · Confianza: %2$d%%</string>
     <string name="memory_why_saved">Por qué se guardó</string>
     <string name="terminal_cancel_command_cd">Cancelar comando</string>
-    <string name="workspace_context_summary">%1$d tareas · %2$d archivos · %3$d artefactos</string>
+    <string name="workspace_context_summary">Archivos: %1$d · Artefactos: %2$d · Tareas: %3$d · En ejecución: %4$d · Requieren atención: %5$d</string>
     <!-- Estados del plan del agente y accesibilidad -->
     <string name="agent_plan_dismiss_cd">Cerrar plan</string>
     <string name="agent_plan_elapsed_seconds">%1$d s</string>
@@ -1919,4 +1919,27 @@
     <string name="connector_auth_context_description">Revisa y autoriza este conector sin cambiar las demás integraciones.</string>
     <string name="connector_auth_context_targeted">Este flujo de autorización corresponde solo al conector seleccionado.</string>
     <string name="connector_auth_retry">Continuar autorización</string>
+    <string name="agent_trace_summary_memory">Operaciones de memoria: %1$d</string>
+    <string name="agent_trace_live_planning_task">Planificando la tarea</string>
+    <string name="agent_trace_summary_files">Archivos leídos: %1$d</string>
+    <string name="agent_trace_summary_commands">Comandos ejecutados: %1$d</string>
+    <string name="agent_trace_summary_tools">Herramientas usadas: %1$d</string>
+    <string name="agent_trace_summary_searches">Búsquedas realizadas: %1$d</string>
+    <string name="agent_trace_group_files">Archivos</string>
+    <string name="agent_trace_group_commands">Comandos</string>
+    <string name="agent_trace_group_tools">Herramientas</string>
+    <string name="agent_trace_group_search">Búsqueda</string>
+    <string name="agent_trace_group_memory">Memoria</string>
+    <string name="agent_trace_group_tasks">Tareas</string>
+    <string name="agent_trace_group_activity">Actividad</string>
+    <string name="agent_trace_summary_tasks">%1$d tareas</string>
+    <string name="agent_trace_panel_description">Actividad de ejecución en directo</string>
+    <string name="agent_trace_expand_panel">Expandir actividad de ejecución</string>
+    <string name="agent_trace_collapse_panel">Contraer actividad de ejecución</string>
+    <string name="agent_trace_expand_group">Expandir grupo</string>
+    <string name="agent_trace_collapse_group">Contraer grupo</string>
+    <string name="agent_trace_expand_event">Mostrar detalles del evento</string>
+    <string name="agent_trace_collapse_event">Ocultar detalles del evento</string>
+    <string name="agent_lifecycle_status_waiting">En espera</string>
+    <string name="agent_lifecycle_status_cancelled">Cancelado</string>
 </resources>

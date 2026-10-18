@@ -131,6 +131,24 @@ jobs:
         emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 2048
         script: bash .github/scripts/run-instrumentation.sh
 
+    - name: Collect instrumentation and accessibility evidence
+      if: always()
+      run: |
+        mkdir -p ci-instrumentation
+        cp -R app/build/outputs/androidTest-results ci-instrumentation/androidTest-results 2>/dev/null || true
+        cp -R app/build/reports/androidTests ci-instrumentation/androidTests 2>/dev/null || true
+        adb logcat -d -t 500 > ci-instrumentation/logcat.txt 2>/dev/null || true
+        adb shell uiautomator dump /sdcard/airi-ui.xml >/dev/null 2>&1 || true
+        adb pull /sdcard/airi-ui.xml ci-instrumentation/ui.xml >/dev/null 2>&1 || true
+
+    - name: Upload instrumentation evidence
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: AIRI-Android-Instrumentation-Evidence
+        path: ci-instrumentation/
+        if-no-files-found: warn
+
     - name: Verify native library output
       run: |
         if ! find app/build -name "libairi_native.so" | grep -q .; then
@@ -168,3 +186,75 @@ jobs:
         name: AIRI-Android-Release-Evidence
         path: ci-artifacts/
         if-no-files-found: error
+
+  instrumentation_matrix:
+    name: Instrumentation API ${{ matrix.api-level }} / ${{ matrix.locale }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [29, 35]
+        locale: [en-US, ar-SA]
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    - name: Setup Gradle cache
+      uses: gradle/actions/setup-gradle@v4
+    - name: Setup Android SDK + NDK + CMake
+      uses: android-actions/setup-android@v3
+      with:
+        packages: "platform-tools"
+        accept-android-sdk-licenses: true
+    - name: Install matrix Android platform and native toolchain
+      run: |
+        sdkmanager --install "platforms;android-${{ matrix.api-level }}"
+        sdkmanager --install "platforms;android-36"
+        sdkmanager --install "build-tools;36.0.0"
+        sdkmanager --install "ndk;25.2.9519653"
+        sdkmanager --install "cmake;3.22.1"
+    - name: Grant execute permission
+      run: chmod +x gradlew .github/scripts/run-instrumentation.sh
+    - name: Prepare instrumentation APKs
+      run: |
+        ./gradlew --no-daemon --max-workers=1 \
+          '-Dorg.gradle.jvmargs=-Xmx1024m -XX:MaxMetaspaceSize=384m -XX:+UseSerialGC' \
+          :app:assembleDebugAndroidTest --stacktrace
+    - name: Run locale instrumentation
+      uses: reactivecircus/android-emulator-runner@v2
+      timeout-minutes: 35
+      env:
+        EXPECTED_API_LEVEL: ${{ matrix.api-level }}
+        EXPECTED_LOCALE: ${{ matrix.locale }}
+      with:
+        api-level: ${{ matrix.api-level }}
+        target: default
+        arch: x86_64
+        disable-animations: true
+        emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 2048
+        script: |
+          adb shell "cmd locale set ${EXPECTED_LOCALE}" || adb shell "setprop persist.sys.locale ${EXPECTED_LOCALE}"
+          adb shell am broadcast -a android.intent.action.LOCALE_CHANGED >/dev/null 2>&1 || true
+          bash .github/scripts/run-instrumentation.sh
+
+    - name: Collect matrix evidence
+      if: always()
+      run: |
+        mkdir -p ci-instrumentation-${{ matrix.api-level }}-${{ matrix.locale }}
+        cp -R app/build/outputs/androidTest-results ci-instrumentation-${{ matrix.api-level }}-${{ matrix.locale }}/androidTest-results 2>/dev/null || true
+        cp -R app/build/reports/androidTests ci-instrumentation-${{ matrix.api-level }}-${{ matrix.locale }}/androidTests 2>/dev/null || true
+        adb logcat -d -t 500 > ci-instrumentation-${{ matrix.api-level }}-${{ matrix.locale }}/logcat.txt 2>/dev/null || true
+        adb shell uiautomator dump /sdcard/airi-ui.xml >/dev/null 2>&1 || true
+        adb pull /sdcard/airi-ui.xml ci-instrumentation-${{ matrix.api-level }}-${{ matrix.locale }}/ui.xml >/dev/null 2>&1 || true
+    - name: Upload matrix evidence
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: AIRI-Instrumentation-API${{ matrix.api-level }}-${{ matrix.locale }}
+        path: ci-instrumentation-${{ matrix.api-level }}-${{ matrix.locale }}/
+        if-no-files-found: warn

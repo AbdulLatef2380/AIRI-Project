@@ -1,6 +1,7 @@
 package com.airi.assistant.ui.activity
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -43,14 +44,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.airi.assistant.R
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceGroup
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceProjection
-import com.airi.assistant.ui.trace.UnifiedExecutionTraceTaskNode
 import com.airi.assistant.ui.trace.UnifiedTraceCategory
 
 /** Compact, borderless activity surface embedded in the assistant turn. */
@@ -62,24 +65,34 @@ fun AgentLifecycleTrackerPanel(
 ) {
     val listState = rememberLazyListState()
     var expanded by rememberSaveable { mutableStateOf(true) }
-    val taskIds = projection.taskTree.flatMap {
-        flattenTaskTree(it)
-            .filter { item -> item.first.children.isNotEmpty() }
-            .map { item -> item.first.event.eventId }
+    val executionId = projection.events.firstOrNull()?.executionId.orEmpty()
+    var expandedGroups by rememberSaveable(executionId) {
+        mutableStateOf(if (isWorking) projection.groups.map { it.id } else emptyList())
     }
-    var expandedTasks by androidx.compose.runtime.remember(taskIds) { mutableStateOf(taskIds.toSet()) }
-    val visibleTasks = projection.taskTree.flatMap { flattenTaskTree(it, expandedTasks) }
+    var expandedEvents by rememberSaveable(executionId) { mutableStateOf(emptyList<String>()) }
+    val panelDescription = stringResource(R.string.agent_trace_panel_description)
+    LaunchedEffect(isWorking, projection.groups.map { it.id }) {
+        if (isWorking) expandedGroups = expandedGroups + projection.groups.map { it.id }
+    }
     val lastEventKey = projection.events.lastOrNull()?.let { it.eventId to it.status }
 
     LaunchedEffect(lastEventKey, expanded) {
-        if (expanded && visibleTasks.isNotEmpty() && listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 >= listState.layoutInfo.totalItemsCount - 2) {
+        if (expanded && projection.groups.isNotEmpty() && listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 >= listState.layoutInfo.totalItemsCount - 2) {
             listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
         }
     }
 
     if (projection.events.isEmpty() && !isWorking) return
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
+                RoundedCornerShape(12.dp),
+            )
+            .semantics {
+                contentDescription = panelDescription
+            },
         verticalArrangement = Arrangement.spacedBy(1.dp),
     ) {
         ActivitySummaryRow(
@@ -89,7 +102,7 @@ fun AgentLifecycleTrackerPanel(
             isWorking = isWorking,
         )
         AnimatedVisibility(visible = expanded) {
-            if (visibleTasks.isNotEmpty()) {
+            if (projection.groups.isNotEmpty()) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -97,23 +110,39 @@ fun AgentLifecycleTrackerPanel(
                         .heightIn(max = 238.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
-                    items(visibleTasks, key = { "task-${it.first.event.eventId}" }) { item ->
-                        val node = item.first
-                        ActivityEventRow(
-                            event = node.event,
-                            depth = item.second,
-                            hasChildren = node.children.isNotEmpty(),
-                            expanded = node.event.eventId in expandedTasks,
-                            onToggle = {
-                                if (node.children.isNotEmpty()) {
-                                    expandedTasks = if (node.event.eventId in expandedTasks) {
-                                        expandedTasks - node.event.eventId
+                    projection.groups.forEach { group ->
+                        item(key = "group-${group.id}") {
+                            ActivityGroupHeader(
+                                group = group,
+                                expanded = group.id in expandedGroups,
+                                onToggle = {
+                                    expandedGroups = if (group.id in expandedGroups) {
+                                        expandedGroups - group.id
                                     } else {
-                                        expandedTasks + node.event.eventId
+                                        expandedGroups + group.id
                                     }
-                                }
-                            },
-                        )
+                                },
+                            )
+                        }
+                        if (group.id in expandedGroups) {
+                            items(group.events, key = { "event-${it.eventId}" }) { event ->
+                                ActivityEventRow(
+                                    event = event,
+                                    depth = 0,
+                                    hasChildren = !event.detailLog.isNullOrBlank(),
+                                    expanded = event.eventId in expandedEvents,
+                                    onToggle = {
+                                        if (!event.detailLog.isNullOrBlank()) {
+                                            expandedEvents = if (event.eventId in expandedEvents) {
+                                                expandedEvents - event.eventId
+                                            } else {
+                                                expandedEvents + event.eventId
+                                            }
+                                        }
+                                    },
+                                )
+                            }
+                        }
                     }
                 }
             } else if (isWorking) {
@@ -140,12 +169,19 @@ private fun ActivitySummaryRow(
         summary.summary.commandsExecuted.takeIf { it > 0 }?.let { add(stringResource(R.string.agent_trace_summary_commands, it)) }
         summary.summary.toolsUsed.takeIf { it > 0 }?.let { add(stringResource(R.string.agent_trace_summary_tools, it)) }
         summary.summary.searches.takeIf { it > 0 }?.let { add(stringResource(R.string.agent_trace_summary_searches, it)) }
+        summary.summary.memoryOperations.takeIf { it > 0 }?.let { add(stringResource(R.string.agent_trace_summary_memory, it)) }
         summary.summary.tasks.takeIf { it > 0 }?.let { add(stringResource(R.string.agent_trace_summary_tasks, it)) }
     }
+    val toggleDescription = stringResource(
+        if (expanded) R.string.agent_trace_collapse_panel else R.string.agent_trace_expand_panel,
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(role = Role.Button, onClick = onToggle)
+            .semantics {
+                contentDescription = toggleDescription
+            }
             .padding(horizontal = 6.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -184,10 +220,16 @@ private fun ActivityGroupHeader(group: UnifiedExecutionTraceGroup, expanded: Boo
         UnifiedTraceCategory.PLAN, UnifiedTraceCategory.TASK -> stringResource(R.string.agent_trace_group_tasks)
         UnifiedTraceCategory.SYSTEM -> stringResource(R.string.agent_trace_group_activity)
     }
+    val toggleDescription = stringResource(
+        if (expanded) R.string.agent_trace_collapse_group else R.string.agent_trace_expand_group,
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(role = Role.Button, onClick = onToggle)
+            .semantics {
+                contentDescription = "$title · ${group.events.size}. $toggleDescription"
+            }
             .padding(start = 26.dp, end = 6.dp, top = 5.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -218,16 +260,25 @@ private fun ActivityEventRow(
     onToggle: () -> Unit,
 ) {
     val canExpand = hasChildren || !event.detailLog.isNullOrBlank()
+    val accessibleStatus = statusLabel(event.status)
+    val detailToggleDescription = stringResource(
+        if (expanded) R.string.agent_trace_collapse_event else R.string.agent_trace_expand_event,
+    )
     val color = when (event.status) {
         TaskStatus.RUNNING -> MaterialTheme.colorScheme.onSurface
         TaskStatus.FAILED -> MaterialTheme.colorScheme.error
-        TaskStatus.PENDING, TaskStatus.COMPLETED -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f)
+        TaskStatus.WAITING, TaskStatus.PENDING, TaskStatus.COMPLETED, TaskStatus.CANCELLED -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f)
     }
     Column(Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (canExpand) Modifier.clickable(role = Role.Button, onClick = onToggle) else Modifier)
+                .then(if (canExpand) Modifier.semantics {
+                    contentDescription = "${event.title}. $accessibleStatus. $detailToggleDescription"
+                } else Modifier.semantics {
+                    contentDescription = "${event.title}. $accessibleStatus"
+                })
                 .padding(start = (48 + depth * 18).dp, end = 6.dp, top = 3.dp, bottom = 3.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -267,17 +318,6 @@ private fun ActivityEventRow(
     }
 }
 
-private fun flattenTaskTree(
-    node: UnifiedExecutionTraceTaskNode,
-    expanded: Set<String> = emptySet(),
-    depth: Int = 0,
-): List<Pair<UnifiedExecutionTraceTaskNode, Int>> = buildList {
-    add(node to depth)
-    if (node.event.eventId in expanded) {
-        node.children.forEach { addAll(flattenTaskTree(it, expanded, depth + 1)) }
-    }
-}
-
 @Composable
 private fun ActivityCategoryIcon(category: UnifiedTraceCategory, modifier: Modifier) {
     val icon = when (category) {
@@ -296,9 +336,23 @@ private fun ActivityCategoryIcon(category: UnifiedTraceCategory, modifier: Modif
 @Composable
 private fun StatusIcon(status: TaskStatus) {
     when (status) {
-        TaskStatus.PENDING -> Icon(Icons.Outlined.RadioButtonUnchecked, null, tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f), modifier = Modifier.size(14.dp))
+        TaskStatus.PENDING -> Icon(Icons.Outlined.RadioButtonUnchecked, stringResource(R.string.agent_lifecycle_status_pending), tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f), modifier = Modifier.size(14.dp))
+        TaskStatus.WAITING -> Icon(Icons.Outlined.RadioButtonUnchecked, stringResource(R.string.agent_lifecycle_status_waiting), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
         TaskStatus.RUNNING -> CircularProgressIndicator(Modifier.size(14.dp), color = MaterialTheme.colorScheme.primary, strokeWidth = 2.dp)
-        TaskStatus.COMPLETED -> Icon(Icons.Outlined.Check, null, tint = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.78f), modifier = Modifier.size(14.dp))
-        TaskStatus.FAILED -> Icon(Icons.Outlined.ErrorOutline, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp))
+        TaskStatus.COMPLETED -> Icon(Icons.Outlined.Check, stringResource(R.string.agent_lifecycle_status_completed), tint = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.78f), modifier = Modifier.size(14.dp))
+        TaskStatus.FAILED -> Icon(Icons.Outlined.ErrorOutline, stringResource(R.string.agent_lifecycle_status_failed), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp))
+        TaskStatus.CANCELLED -> Icon(Icons.Outlined.ErrorOutline, stringResource(R.string.agent_lifecycle_status_cancelled), tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(14.dp))
     }
 }
+
+@Composable
+private fun statusLabel(status: TaskStatus): String = stringResource(
+    when (status) {
+        TaskStatus.PENDING -> R.string.agent_lifecycle_status_pending
+        TaskStatus.WAITING -> R.string.agent_lifecycle_status_waiting
+        TaskStatus.RUNNING -> R.string.agent_lifecycle_status_running
+        TaskStatus.COMPLETED -> R.string.agent_lifecycle_status_completed
+        TaskStatus.FAILED -> R.string.agent_lifecycle_status_failed
+        TaskStatus.CANCELLED -> R.string.agent_lifecycle_status_cancelled
+    },
+)

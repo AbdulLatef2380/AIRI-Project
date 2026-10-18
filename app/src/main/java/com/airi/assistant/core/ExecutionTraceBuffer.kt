@@ -51,6 +51,13 @@ class ExecutionTraceBuffer(
         timestampMs: Long = System.currentTimeMillis(),
     ): ExecutionTraceEvent? {
         if (executionId.isBlank() || executionId != activeExecutionId || summary.isBlank()) return null
+        val requiresActionIdentity = kind in setOf(
+            ExecutionTraceKind.TOOL_STARTED,
+            ExecutionTraceKind.TOOL_COMPLETED,
+            ExecutionTraceKind.TOOL_FAILED,
+            ExecutionTraceKind.TOOL_CANCELLED,
+        )
+        if (requiresActionIdentity && actionId.isNullOrBlank()) return null
         val event = ExecutionTraceEvent(
             executionId = executionId,
             sequence = nextSequence++,
@@ -65,7 +72,14 @@ class ExecutionTraceBuffer(
             machineTag = machineTag?.takeIf { it.isNotBlank() },
         )
         entries.addLast(event)
-        while (entries.size > maxEntries) entries.removeFirst()
+        while (entries.size > maxEntries) {
+            val evictable = entries.indexOfFirst { !it.kind.isTerminal() }
+            if (evictable >= 0) {
+                entries.removeAt(evictable)
+            } else {
+                entries.removeFirst()
+            }
+        }
         return event
     }
 
@@ -83,6 +97,15 @@ class ExecutionTraceBuffer(
             ?.takeIf { ERROR_CODE_PATTERN.matches(it) }
     }
 }
+
+private fun ExecutionTraceKind.isTerminal(): Boolean = this in setOf(
+    ExecutionTraceKind.TOOL_COMPLETED,
+    ExecutionTraceKind.TOOL_FAILED,
+    ExecutionTraceKind.TOOL_CANCELLED,
+    ExecutionTraceKind.COMPLETED,
+    ExecutionTraceKind.FAILED,
+    ExecutionTraceKind.CANCELLED,
+)
 
 data class ExecutionTraceEvent(
     val executionId: String,

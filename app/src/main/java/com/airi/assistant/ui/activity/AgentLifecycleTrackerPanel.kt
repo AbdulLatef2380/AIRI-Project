@@ -126,8 +126,8 @@ private fun AgentLifecycleTrackerPanelContent(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -157,9 +157,9 @@ private fun AgentLifecycleTrackerPanelContent(
             } else {
                 // LazyColumn virtualizes longer traces and keeps them scrollable within the chat.
                 // Its viewport grows with the number of steps/details and is capped on small screens.
-                val desiredHeightDp = (tasks.size * 60 + expandedCount * 112)
+                val desiredHeightDp = (tasks.size * 48 + expandedCount * 72)
                     .coerceAtLeast(64)
-                    .coerceAtMost(360)
+                    .coerceAtMost(220)
                 LazyColumn(
                     state = listState,
                     modifier = Modifier

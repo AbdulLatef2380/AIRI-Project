@@ -1943,6 +1943,7 @@
     <string name="agent_trace_kind_recovering">Recovering</string>
     <string name="agent_trace_kind_reflecting">Reviewing</string>
     <string name="agent_trace_kind_completed">Execution completed</string>
+    <string name="agent_trace_live_planning_task">Planning task</string>
     <string name="agent_trace_kind_failed">Execution failed</string>
     <string name="agent_trace_kind_cancelled">Execution cancelled</string>
     <!-- Settings and voice personalization release closure -->

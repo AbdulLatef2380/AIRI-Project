@@ -1836,6 +1836,7 @@
     <string name="agent_trace_kind_recovering">جارٍ الاسترداد</string>
     <string name="agent_trace_kind_reflecting">جارٍ المراجعة</string>
     <string name="agent_trace_kind_completed">اكتمل التنفيذ</string>
+    <string name="agent_trace_live_planning_task">جارٍ التخطيط للمهمة</string>
     <string name="agent_trace_kind_failed">فشل التنفيذ</string>
     <string name="agent_trace_kind_cancelled">أُلغي التنفيذ</string>
     <!-- إغلاق الإعدادات وتخصيص الصوت للنشر -->

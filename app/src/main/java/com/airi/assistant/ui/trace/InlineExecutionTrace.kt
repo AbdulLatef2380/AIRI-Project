@@ -3,6 +3,8 @@ package com.airi.assistant.ui.trace
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 import com.airi.assistant.core.ExecutionTraceEvent
 import com.airi.assistant.core.ExecutionTraceKind
 import com.airi.assistant.execution.privacy.PrivacyGuard
@@ -36,15 +38,35 @@ fun InlineExecutionTrace(
         activityEvents.filter { it.executionId == executionId }
     }
     if (!isWorking && entries.isEmpty() && scopedActivityEvents.isEmpty()) return
+    val planningTaskLabel = stringResource(R.string.agent_trace_live_planning_task)
+    val executionCompletedLabel = stringResource(R.string.agent_trace_kind_completed)
 
     // Stable event IDs become LazyColumn keys. Sorting both sources by their actual event time
     // preserves the order in which Airi performs operations while keeping recompositions cheap.
-    val tasks = remember(entries, scopedActivityEvents, executionId) {
-        buildList {
-            entries.forEach { add(it.toTimestampedTask()) }
-            scopedActivityEvents.forEach { add(it.toTimestampedTask()) }
+    val tasks = remember(
+        entries,
+        scopedActivityEvents,
+        executionId,
+        planningTaskLabel,
+        executionCompletedLabel,
+    ) {
+        val timestampedTasks = buildList {
+            entries.forEach { add(it.toTimestampedTask(planningTaskLabel, executionCompletedLabel)) }
+            scopedActivityEvents.forEach { add(it.toTimestampedTask(planningTaskLabel, executionCompletedLabel)) }
         }
+        // ExecutionStatusBus and GlobalAgentEventDispatcher can describe the same
+        // lifecycle transition. Keep one adjacent copy so the live feed remains a
+        // user-facing timeline rather than a duplicated debug stream.
+        timestampedTasks
             .sortedBy { it.timestampMs }
+            .fold(mutableListOf<TimestampedTask>()) { result, item ->
+                val previous = result.lastOrNull()
+                val isDuplicate = previous != null &&
+                    previous.task.title.trim().equals(item.task.title.trim(), ignoreCase = true) &&
+                    item.timestampMs - previous.timestampMs <= 1_500L
+                if (!isDuplicate) result += item
+                result
+            }
             .map { it.task }
     }
 
@@ -60,7 +82,10 @@ private data class TimestampedTask(
     val task: AgentTask,
 )
 
-private fun ExecutionTraceEvent.toTimestampedTask(): TimestampedTask {
+private fun ExecutionTraceEvent.toTimestampedTask(
+    planningTaskLabel: String,
+    executionCompletedLabel: String,
+): TimestampedTask {
     val details = buildList {
         detail?.takeIf { it.isNotBlank() }?.let { add(safeTraceText(it)) }
         errorCode?.let { add("Error code: ${safeTraceText(it)}") }
@@ -71,28 +96,27 @@ private fun ExecutionTraceEvent.toTimestampedTask(): TimestampedTask {
         timestampMs = timestampMs,
         task = AgentTask(
             id = eventId,
-            title = safeTraceText(summary),
+            title = localizeLifecycleSummary(summary, planningTaskLabel, executionCompletedLabel),
             status = kind.toTaskStatus(),
             detailLog = details,
         ),
     )
 }
 
-private fun ActivityEvent.toTimestampedTask(): TimestampedTask {
+private fun ActivityEvent.toTimestampedTask(
+    planningTaskLabel: String,
+    executionCompletedLabel: String,
+): TimestampedTask {
     // Sanitize again at the rendering boundary as defense in depth; events may also be created
     // directly by tests or future producers rather than flowing through AgentActivityBus.emit().
     val safeEvent = sanitizeActivityEventForDisplay(this)
-    val details = buildList {
-        add("Category: ${safeEvent.category.label}")
-        add("Severity: ${safeEvent.severity.name}")
-        safeEvent.detail?.takeIf { it.isNotBlank() }?.let { add(it) }
-    }.joinToString("\n")
+    val details = safeEvent.detail?.takeIf { it.isNotBlank() }
 
     return TimestampedTask(
         timestampMs = safeEvent.timestampMs,
         task = AgentTask(
             id = safeEvent.id,
-            title = safeEvent.message,
+            title = localizeLifecycleSummary(safeEvent.message, planningTaskLabel, executionCompletedLabel),
             status = when (safeEvent.severity) {
                 ActivitySeverity.INFO -> TaskStatus.COMPLETED
                 ActivitySeverity.WARN -> TaskStatus.PENDING
@@ -122,3 +146,13 @@ private fun ExecutionTraceKind.toTaskStatus(): TaskStatus = when (this) {
 
 private fun safeTraceText(value: String): String =
     PrivacyGuard.redactForTrace(CommandRedactor.redact(value), maximumChars = 1_000)
+
+private fun localizeLifecycleSummary(
+    value: String,
+    planningTaskLabel: String,
+    executionCompletedLabel: String,
+): String = when (value.trim()) {
+    "Planning task" -> planningTaskLabel
+    "Execution completed" -> executionCompletedLabel
+    else -> safeTraceText(value)
+}

@@ -47,6 +47,7 @@ class ExecutionTraceBuffer(
         actionId: String? = null,
         durationMs: Long? = null,
         errorCode: String? = null,
+        machineTag: String? = null,
         timestampMs: Long = System.currentTimeMillis(),
     ): ExecutionTraceEvent? {
         if (executionId.isBlank() || executionId != activeExecutionId || summary.isBlank()) return null
@@ -61,6 +62,7 @@ class ExecutionTraceBuffer(
             durationMs = durationMs?.coerceAtLeast(0L),
             errorCode = normalizeErrorCode(errorCode),
             sessionId = activeSessionId,
+            machineTag = machineTag?.takeIf { it.isNotBlank() },
         )
         entries.addLast(event)
         while (entries.size > maxEntries) entries.removeFirst()

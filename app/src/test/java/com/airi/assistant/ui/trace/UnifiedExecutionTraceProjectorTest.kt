@@ -10,6 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.system.measureNanoTime
 
 class UnifiedExecutionTraceProjectorTest {
     @Test
@@ -310,8 +311,9 @@ class UnifiedExecutionTraceProjectorTest {
             executionId = "run-1",
             traceEntries = listOf(
                 trace("run-1", 1, 1_000, ExecutionTraceKind.PLANNING, "Planning task"),
-                trace("run-1", 2, 1_100, ExecutionTraceKind.STEP_STARTED, "Review repository"),
+                trace("run-1", 2, 1_100, ExecutionTraceKind.STEP_STARTED, "Review repository", "step-1"),
                 trace("run-1", 3, 1_200, ExecutionTraceKind.TOOL_COMPLETED, "Read file README.md", "file-1"),
+                trace("run-1", 4, 1_300, ExecutionTraceKind.STEP_COMPLETED, "Step completed", "step-1"),
             ),
             activityEvents = emptyList(),
             planningTaskLabel = "Planning task",
@@ -321,6 +323,7 @@ class UnifiedExecutionTraceProjectorTest {
         val plan = result.taskTree.single()
         assertEquals(UnifiedTraceCategory.PLAN, plan.event.category)
         assertEquals(1, plan.children.size)
+        assertEquals(TaskStatus.COMPLETED, plan.children.single().event.status)
         assertEquals("Review repository", plan.children.single().event.title)
         assertEquals("Read file README.md", plan.children.single().children.single().event.title)
     }
@@ -342,6 +345,36 @@ class UnifiedExecutionTraceProjectorTest {
         val expectedTitle = if (java.util.Locale.getDefault().language == "ar") "إنشاء ملف" else "Create file"
         assertEquals(expectedTitle, result.single().title)
         assertEquals("file_created", result.single().machineTag)
+    }
+
+    @Test
+    fun `dense agent trace projects within bounded time`() {
+        val traces = buildList {
+            add(trace("run-dense", 1, 1_000, ExecutionTraceKind.PLANNING, "Planning task"))
+            add(trace("run-dense", 2, 1_001, ExecutionTraceKind.STEP_STARTED, "Executing step", "step-1"))
+            repeat(1_200) { index ->
+                val actionId = "tool-$index"
+                val sequence = 3L + index * 2
+                add(trace("run-dense", sequence, 1_000L + sequence, ExecutionTraceKind.TOOL_STARTED, "Read file file-$index", actionId))
+                add(trace("run-dense", sequence + 1, 1_000L + sequence + 1, ExecutionTraceKind.TOOL_COMPLETED, "Read file file-$index", actionId))
+            }
+            add(trace("run-dense", 2_404, 4_000, ExecutionTraceKind.STEP_COMPLETED, "Step completed", "step-1"))
+        }
+
+        var result: UnifiedExecutionTraceProjection
+        val elapsedNanos = measureNanoTime {
+            result = UnifiedExecutionTraceProjector.projectProjection(
+                executionId = "run-dense",
+                traceEntries = traces,
+                activityEvents = emptyList(),
+                planningTaskLabel = "Planning task",
+                executionCompletedLabel = "Execution completed",
+            )
+        }
+
+        assertEquals(1_202, result.events.size)
+        assertEquals(1_200, result.summary.filesRead)
+        assertTrue("projection took ${elapsedNanos / 1_000_000} ms", elapsedNanos < 2_000_000_000L)
     }
 
     private fun project(

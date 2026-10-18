@@ -74,7 +74,7 @@ object ExecutionStatusBus {
         )
         traceBuffer.begin(executionId, sessionId)
         toolTraceLifecycle.begin(executionId)
-        appendTrace(executionId, ExecutionTraceKind.PLANNING, "Planning task", goalDescription)
+        appendTrace(executionId, ExecutionTraceKind.PLANNING, "Planning task", goalDescription, machineTag = "planning")
         Log.i(TAG, "EXEC_STATUS_PLANNING goalChars=${goalDescription.length} nodes=$totalNodes")
     }
 
@@ -94,7 +94,16 @@ object ExecutionStatusBus {
             )
         }
         if (acceptsEvent(_status.value.executionId, executionId)) {
-            appendTrace(executionId, ExecutionTraceKind.STEP_STARTED, "Executing step", nodeActions.firstOrNull())
+            nodeIds.forEachIndexed { index, nodeId ->
+                appendTrace(
+                    executionId,
+                    ExecutionTraceKind.STEP_STARTED,
+                    "Executing step",
+                    nodeActions.getOrNull(index),
+                    actionId = nodeId,
+                    machineTag = "step_started",
+                )
+            }
         }
     }
 
@@ -113,7 +122,14 @@ object ExecutionStatusBus {
             )
         }
         if (acceptsEvent(_status.value.executionId, executionId)) {
-            appendTrace(executionId, ExecutionTraceKind.STEP_COMPLETED, "Step completed", nodeId)
+            appendTrace(
+                executionId,
+                ExecutionTraceKind.STEP_COMPLETED,
+                "Step completed",
+                nodeId,
+                actionId = nodeId,
+                machineTag = "step_completed",
+            )
         }
     }
 
@@ -140,6 +156,7 @@ object ExecutionStatusBus {
             summary = "Running tool: $toolName",
             detail = detail,
             actionId = actionId,
+            machineTag = "tool_call",
         )
     }
 
@@ -247,8 +264,12 @@ object ExecutionStatusBus {
             )
         }
         if (acceptsEvent(_status.value.executionId, executionId)) {
-            appendTrace(executionId, if (success) ExecutionTraceKind.COMPLETED else ExecutionTraceKind.FAILED,
-                if (success) "Execution completed" else "Execution failed")
+            appendTrace(
+                executionId,
+                if (success) ExecutionTraceKind.COMPLETED else ExecutionTraceKind.FAILED,
+                if (success) "Execution completed" else "Execution failed",
+                machineTag = if (success) "execution_completed" else "execution_failed",
+            )
         }
         Log.i(TAG, "EXEC_STATUS ${stage.name}")
     }
@@ -285,7 +306,7 @@ object ExecutionStatusBus {
             )
         }
         if (acceptsEvent(_status.value.executionId, executionId)) {
-            appendTrace(executionId, ExecutionTraceKind.CANCELLED, "Execution cancelled")
+            appendTrace(executionId, ExecutionTraceKind.CANCELLED, "Execution cancelled", machineTag = "execution_cancelled")
         }
         Log.i(TAG, "EXEC_STATUS_CANCELLED")
     }
@@ -322,6 +343,7 @@ object ExecutionStatusBus {
             actionId = actionId,
             durationMs = durationMs,
             errorCode = errorCode,
+            machineTag = "tool_call",
         )
     }
 
@@ -333,6 +355,7 @@ object ExecutionStatusBus {
         actionId: String? = null,
         durationMs: Long? = null,
         errorCode: String? = null,
+        machineTag: String? = null,
     ) {
         val normalizedErrorCode = ExecutionTraceBuffer.normalizeErrorCode(errorCode)
         val event = traceBuffer.append(
@@ -346,6 +369,7 @@ object ExecutionStatusBus {
             actionId = actionId,
             durationMs = durationMs,
             errorCode = normalizedErrorCode,
+            machineTag = machineTag,
         ) ?: return
         _trace.value = traceBuffer.snapshot()
         Log.d(TAG, "TRACE kind=${event.kind} seq=${event.sequence} execution=${event.executionId.take(8)}")

@@ -173,8 +173,13 @@ internal object UnifiedExecutionTraceProjector {
         val consumed = mutableSetOf<ExecutionTraceEvent>()
         entries.filter { it.actionId != null }.groupBy { it.actionId!! }.forEach { (actionId, actionEntries) ->
             val first = actionEntries.first()
-            val terminal = actionEntries.lastOrNull { it.kind in TERMINAL_TOOL_KINDS }
+            val terminal = actionEntries.lastOrNull { it.kind in TERMINAL_ACTION_KINDS }
             val source = terminal ?: first
+            val displayTimestamp = if (first.kind == ExecutionTraceKind.STEP_STARTED) {
+                first.timestampMs
+            } else {
+                source.timestampMs
+            }
             val title = toolTitle(first.summary, source.summary)
             val details = buildList {
                 source.detail?.takeIf(String::isNotBlank)?.let(::add)
@@ -187,7 +192,7 @@ internal object UnifiedExecutionTraceProjector {
                     eventId = first.eventId,
                     actionId = actionId,
                     sequence = first.sequence,
-                    timestampMs = source.timestampMs,
+                    timestampMs = displayTimestamp,
                     title = safeTraceText(localizeDynamicTitle(source.machineTag, title)),
                     status = source.kind.toTaskStatus(),
                     detailLog = details?.let(::safeTraceText),
@@ -401,4 +406,6 @@ internal object UnifiedExecutionTraceProjector {
         ExecutionTraceKind.TOOL_FAILED,
         ExecutionTraceKind.TOOL_CANCELLED,
     )
+
+    private val TERMINAL_ACTION_KINDS = TERMINAL_TOOL_KINDS + ExecutionTraceKind.STEP_COMPLETED
 }

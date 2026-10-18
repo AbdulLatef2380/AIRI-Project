@@ -123,7 +123,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     /** Starts a non-Google provider flow through the shared authorization manager. */
-    fun beginConnectorAuthorization(id: String) {
+    fun beginConnectorAuthorization(id: String, presentationContext: Context = getApplication<Application>()) {
         if (id.isBlank()) return
         // The visible Google card represents the shared identity, but Gmail is
         // the first concrete data surface and needs its own read-only OAuth
@@ -162,7 +162,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                     )
                 }
                 is ConnectorAuthorizationManager.StartResult.GoogleConsent ->
-                    requestGoogleDataAuthorization(result.connectorId, result.scopes)
+                    requestGoogleDataAuthorization(result.connectorId, result.scopes, presentationContext)
                 is ConnectorAuthorizationManager.StartResult.AccessProfileRequired -> {
                     val permissions = ServiceLocator.connectorRegistry.get(result.runtimeId)?.agentActions()
                         .orEmpty()
@@ -184,7 +184,10 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    fun chooseAccessProfile(profile: ConnectorAccessProfile) {
+    fun chooseAccessProfile(
+        profile: ConnectorAccessProfile,
+        presentationContext: Context = getApplication<Application>(),
+    ) {
         val request = _accessProfileRequest.value ?: return
         if (!ConnectorScreenIsolationPolicy.acceptsResult(request.connectorId, activeConnectorId)) return
         if (profile !in request.allowedProfiles) return
@@ -192,7 +195,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
             ServiceLocator.connectorAccessProfileStore.set(surfaceId, profile)
         }
         _accessProfileRequest.value = null
-        if (profile != ConnectorAccessProfile.NOT_CONFIGURED) beginConnectorAuthorization(request.connectorId)
+        if (profile != ConnectorAccessProfile.NOT_CONFIGURED) beginConnectorAuthorization(request.connectorId, presentationContext)
     }
 
     fun cancelAccessProfileRequest() {
@@ -354,7 +357,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         val surfaceId = pendingGoogleSurfaceId
         viewModelScope.launch {
             googleAuthService.requestIdentity(presentationContext).fold(
-                onSuccess = ::onGoogleSignInSuccess,
+                onSuccess = { identity -> onGoogleSignInSuccess(identity, presentationContext) },
                 onFailure = {
                     if (ConnectorScreenIsolationPolicy.acceptsResult(surfaceId, activeConnectorId)) {
                         _googleFeedback.value = if (it is GetCredentialCancellationException) {
@@ -455,7 +458,10 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    fun onGoogleSignInSuccess(identity: GoogleIdentityCredential) {
+    fun onGoogleSignInSuccess(
+        identity: GoogleIdentityCredential,
+        presentationContext: Context = getApplication<Application>(),
+    ) {
         if (!ConnectorScreenIsolationPolicy.acceptsResult(pendingGoogleSurfaceId, activeConnectorId)) return
         if (!GoogleIntegrationSignInPolicy.canConnect(identity.email)) {
             _googleFeedback.value = GoogleIntegrationSignInPolicy.missingEmailFeedback()
@@ -464,7 +470,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             when (val result = authorizationManager.onGoogleSignIn(identity, pendingGoogleSurfaceId)) {
                 is ConnectorAuthorizationManager.CompletionResult.ConsentRequired -> {
-                    requestGoogleDataAuthorization(result.connectorId, result.scopes)
+                    requestGoogleDataAuthorization(result.connectorId, result.scopes, presentationContext)
                 }
                 is ConnectorAuthorizationManager.CompletionResult.Failed -> {
                     _googleFeedback.value = GoogleIntegrationSignInPolicy.providerFailureFeedback()
@@ -474,7 +480,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    fun requestGoogleDataAuthorization(surfaceId: String, scopes: Set<String>) {
+    fun requestGoogleDataAuthorization(
+        surfaceId: String,
+        scopes: Set<String>,
+        presentationContext: Context = getApplication<Application>(),
+    ) {
         if (surfaceId.isBlank()) return
         activeConnectorId = surfaceId
         if (scopes.isEmpty()) {
@@ -483,7 +493,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         }
         pendingGoogleSurfaceId = surfaceId
         pendingGoogleScopes = scopes
-        googleAuthService.authorizeDataAccess(surfaceId, scopes)
+        googleAuthService.authorizeDataAccess(surfaceId, scopes, presentationContext)
             .addOnSuccessListener { result -> handleGoogleDataAuthorization(result, surfaceId) }
             .addOnFailureListener {
                 pendingGoogleScopes = emptySet()

@@ -1390,7 +1390,6 @@
     <string name="chat_start_hint">اكتب رسالة للبدء</string>
     <string name="voice_gemini_key_required">أضف مفتاح Gemini API في الإعدادات أولاً</string>
     <string name="voice_openai_key_required">أضف مفتاح OpenAI API في الإعدادات أولاً</string>
-    <string name="default_web_client_id">93237507759-19cg5lphcvisuekv3j52f7ibigt71rm5.apps.googleusercontent.com</string>
 
     <!-- Billing -->
     <string name="billing_transaction_id_prefix">المعرف: </string>

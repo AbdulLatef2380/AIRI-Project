@@ -100,11 +100,15 @@ class GoogleAuthService(
         val surfaceId = GoogleDataScopes.surfaceIds.singleOrNull {
             GoogleDataScopes.scopesForSurface(it) == requestedScopes
         } ?: return Tasks.forException(IllegalArgumentException("Google authorization scope set is not tied to one surface"))
-        return authorizeDataAccess(surfaceId, requestedScopes)
+        return authorizeDataAccess(surfaceId, requestedScopes, context)
     }
 
     /** Requests scopes for exactly one catalog surface; cross-surface scopes are rejected. */
-    fun authorizeDataAccess(surfaceId: String, requestedScopes: Set<String>): Task<GoogleDataAuthorization> {
+    fun authorizeDataAccess(
+        surfaceId: String,
+        requestedScopes: Set<String>,
+        presentationContext: Context = context,
+    ): Task<GoogleDataAuthorization> {
         if (!secureStorage.isEncrypted) return Tasks.forResult(GoogleDataAuthorization.Unavailable)
         val scopes = requestedScopes.filter(String::isNotBlank).toSet()
         if (!GoogleDataScopes.isValidSurfaceRequest(surfaceId, scopes)) {
@@ -114,7 +118,9 @@ class GoogleAuthService(
         val request = AuthorizationRequest.builder()
             .setRequestedScopes(GoogleDataScopes.fromActionScopes(scopes))
             .build()
-        return Identity.getAuthorizationClient(context).authorize(request).continueWith { task ->
+        // Google may need to launch a consent resolution; use the Activity-backed context
+        // supplied by the UI rather than the application context.
+        return Identity.getAuthorizationClient(presentationContext).authorize(request).continueWith { task ->
             if (!task.isSuccessful) {
                 pendingScopes.remove(surfaceId)
                 markNeedsAuthorization(surfaceId, "Google authorization could not be refreshed")

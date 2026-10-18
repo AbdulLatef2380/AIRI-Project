@@ -1142,7 +1142,6 @@
     <string name="chat_start_hint">Escribe un mensaje para comenzar</string>
     <string name="voice_gemini_key_required">Configura una clave API de Gemini en Ajustes primero</string>
     <string name="voice_openai_key_required">Configura una clave API de OpenAI en Ajustes primero</string>
-    <string name="default_web_client_id">93237507759-19cg5lphcvisuekv3j52f7ibigt71rm5.apps.googleusercontent.com</string>
     <string name="memory_new_knowledge">Nuevo conocimiento extraído</string>
     <string name="memory_accept">Accept</string>
     <string name="memory_reject">Reject</string>

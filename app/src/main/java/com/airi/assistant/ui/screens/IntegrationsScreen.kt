@@ -220,13 +220,13 @@ fun IntegrationsScreen(
                             // Route token connectors through the shared
                             // authorization boundary first so the user selects
                             // READ/WRITE access before the token is committed.
-                            "github" -> vm.beginConnectorAuthorization("github")
-                            "telegram" -> vm.beginConnectorAuthorization("telegram")
+                            "github" -> vm.beginConnectorAuthorization("github", context)
+                            "telegram" -> vm.beginConnectorAuthorization("telegram", context)
                             "notion", "notion_mcp" -> vm.openNotionDialog()
-                            "zapier" -> vm.beginConnectorAuthorization("zapier")
-                            "microsoft_graph" -> vm.beginConnectorAuthorization("microsoft_graph")
-                            in providerTokenConnectorIds -> vm.beginConnectorAuthorization(item.id)
-                            "google" -> vm.beginConnectorAuthorization("google")
+                            "zapier" -> vm.beginConnectorAuthorization("zapier", context)
+                            "microsoft_graph" -> vm.beginConnectorAuthorization("microsoft_graph", context)
+                            in providerTokenConnectorIds -> vm.beginConnectorAuthorization(item.id, context)
+                            "google" -> vm.beginConnectorAuthorization("google", context)
                         }
                     },
                     onDisconnect = { vm.disconnect(item.id) }
@@ -256,7 +256,7 @@ fun IntegrationsScreen(
                                 color = MaterialTheme.colorScheme.primary,
                             )
                             androidx.compose.material3.OutlinedButton(
-                                onClick = { vm.beginConnectorAuthorization(initialConnectorId) },
+                                onClick = { vm.beginConnectorAuthorization(initialConnectorId, context) },
                                 modifier = Modifier.fillMaxWidth(),
                             ) { Text(stringResource(R.string.connector_auth_retry)) }
                         }
@@ -266,7 +266,7 @@ fun IntegrationsScreen(
                     item(key = "focused_integration_${focusedItem.id}") {
                         IntegrationCard(
                             item = focusedItem,
-                            onConnect = { vm.beginConnectorAuthorization(focusedItem.id) },
+                            onConnect = { vm.beginConnectorAuthorization(focusedItem.id, context) },
                             onDisconnect = { vm.disconnect(focusedItem.id) },
                         )
                     }
@@ -359,7 +359,7 @@ fun IntegrationsScreen(
             description = stringResource(R.string.connector_access_dialog_description),
             currentProfile = ConnectorAccessProfile.NOT_CONFIGURED,
             availableProfiles = request.allowedProfiles,
-            onConfirm = vm::chooseAccessProfile,
+            onConfirm = { profile -> vm.chooseAccessProfile(profile, context) },
             onDismiss = vm::cancelAccessProfileRequest,
         )
     }

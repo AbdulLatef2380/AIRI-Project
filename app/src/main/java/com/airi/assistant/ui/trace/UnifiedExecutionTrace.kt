@@ -89,6 +89,7 @@ internal object UnifiedExecutionTraceProjector {
         val owned = traceEntries
             .asSequence()
             .filter { it.executionId == executionId }
+            .filter { it.summary.isNotBlank() }
             .sortedBy { it.sequence }
             .toList()
         val structured = collapseStructuredActions(owned, planningTaskLabel, executionCompletedLabel)

@@ -7,6 +7,7 @@ import com.airi.assistant.ui.activity.ActivityEvent
 import com.airi.assistant.ui.activity.ActivitySeverity
 import com.airi.assistant.ui.activity.TaskStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -142,6 +143,165 @@ class UnifiedExecutionTraceProjectorTest {
 
         assertEquals(1, result.size)
         assertEquals(TaskStatus.COMPLETED, result.single().status)
+    }
+
+    @Test
+    fun `blank execution id returns an empty projection without leaking events`() {
+        val result = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "",
+            traceEntries = listOf(trace("run-1", 1, 1_000, ExecutionTraceKind.COMPLETED, "done")),
+            activityEvents = listOf(ActivityEvent(message = "leak", executionId = "run-1", category = ActivityCategory.TOOL)),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertTrue(result.events.isEmpty())
+        assertTrue(result.groups.isEmpty())
+        assertFalse(result.summary.hasContent)
+    }
+
+    @Test
+    fun `events without execution ownership are excluded`() {
+        val activity = ActivityEvent(message = "unowned", category = ActivityCategory.TOOL)
+        val result = project("run-1", emptyList(), listOf(activity))
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `blank structured summaries are excluded`() {
+        val result = project(
+            "run-1",
+            listOf(trace("run-1", 1, 1_000, ExecutionTraceKind.TOOL_STARTED, "   ")),
+            emptyList(),
+        )
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `duplicate unstructured activity rows within the window collapse`() {
+        val first = ActivityEvent(
+            id = "activity-1",
+            timestampMs = 1_000,
+            message = "Reading README.md",
+            executionId = "run-1",
+            category = ActivityCategory.SANDBOX,
+        )
+        val second = first.copy(id = "activity-2", timestampMs = 1_900)
+        val result = project("run-1", emptyList(), listOf(first, second))
+
+        assertEquals(listOf("activity-1"), result.map { it.eventId })
+    }
+
+    @Test
+    fun `similar activity after the dedupe window remains visible`() {
+        val first = ActivityEvent(
+            id = "activity-1",
+            timestampMs = 1_000,
+            message = "Reading README.md",
+            executionId = "run-1",
+            category = ActivityCategory.SANDBOX,
+        )
+        val second = first.copy(id = "activity-2", timestampMs = 2_501)
+        val result = project("run-1", emptyList(), listOf(first, second))
+
+        assertEquals(listOf("activity-1", "activity-2"), result.map { it.eventId })
+    }
+
+    @Test
+    fun `action with only a start stays running`() {
+        val result = project(
+            "run-1",
+            listOf(trace("run-1", 1, 1_000, ExecutionTraceKind.TOOL_STARTED, "Search web", "search-1")),
+            emptyList(),
+        )
+
+        assertEquals(TaskStatus.RUNNING, result.single().status)
+        assertEquals(UnifiedTraceCategory.SEARCH, result.single().category)
+    }
+
+    @Test
+    fun `failed terminal action keeps error and normalized duration`() {
+        val result = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-1",
+            traceEntries = listOf(
+                trace("run-1", 1, 1_000, ExecutionTraceKind.TOOL_STARTED, "Run terminal", "cmd-1"),
+                trace("run-1", 2, 1_100, ExecutionTraceKind.TOOL_FAILED, "Run terminal", "cmd-1", "AUTH_REQUIRED")
+                    .copy(durationMs = -20L),
+            ),
+            activityEvents = emptyList(),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        val event = result.events.single()
+        assertEquals(TaskStatus.FAILED, event.status)
+        assertEquals(UnifiedTraceCategory.COMMAND, event.category)
+        assertTrue(event.detailLog.orEmpty().contains("auth_required"))
+        assertTrue(event.detailLog.orEmpty().contains("0 ms"))
+    }
+
+    @Test
+    fun `activity categories infer file command and search groups`() {
+        val result = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-1",
+            traceEntries = emptyList(),
+            activityEvents = listOf(
+                ActivityEvent(message = "Read file notes.md", executionId = "run-1", category = ActivityCategory.SANDBOX),
+                ActivityEvent(message = "terminal command completed", executionId = "run-1", category = ActivityCategory.SYSTEM),
+                ActivityEvent(message = "web search completed", executionId = "run-1", category = ActivityCategory.TOOL),
+            ),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertEquals(1, result.summary.filesRead)
+        assertEquals(1, result.summary.commandsExecuted)
+        assertEquals(1, result.summary.searches)
+        assertTrue(result.groups.map { it.category }.containsAll(listOf(
+            UnifiedTraceCategory.FILE,
+            UnifiedTraceCategory.COMMAND,
+            UnifiedTraceCategory.SEARCH,
+        )))
+    }
+
+    @Test
+    fun `groups follow stable visual order regardless of event arrival order`() {
+        val result = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-1",
+            traceEntries = listOf(
+                trace("run-1", 1, 1_000, ExecutionTraceKind.TOOL_COMPLETED, "Run gradle command", "cmd"),
+                trace("run-1", 2, 1_100, ExecutionTraceKind.TOOL_COMPLETED, "Read file a.md", "file"),
+                trace("run-1", 3, 1_200, ExecutionTraceKind.PLANNING, "Planning task"),
+            ),
+            activityEvents = emptyList(),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertEquals(
+            listOf(UnifiedTraceCategory.PLAN, UnifiedTraceCategory.FILE, UnifiedTraceCategory.COMMAND),
+            result.groups.map { it.category },
+        )
+    }
+
+    @Test
+    fun `tool compatibility events are ignored when structured actions exist`() {
+        val activity = ActivityEvent(
+            message = "Tool dispatched: web_search",
+            executionId = "run-1",
+            category = ActivityCategory.TOOL,
+            machineTag = "tool_dispatch_compat:page_viewed",
+        )
+        val result = project(
+            "run-1",
+            listOf(trace("run-1", 1, 1_000, ExecutionTraceKind.TOOL_STARTED, "Running tool: web_search", "tool-1")),
+            listOf(activity),
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("run-1:event:1", result.single().eventId)
     }
 
     private fun project(

@@ -4,19 +4,17 @@ import com.airi.assistant.core.ExecutionTraceEvent
 import com.airi.assistant.core.ExecutionTraceKind
 import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.security.CommandRedactor
+import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.ActivityEvent
 import com.airi.assistant.ui.activity.ActivitySeverity
 import com.airi.assistant.ui.activity.TaskStatus
 import com.airi.assistant.ui.activity.sanitizeActivityEventForDisplay
 
-/**
- * One user-facing event after execution-trace and activity sources have been merged.
- *
- * The projection deliberately keeps the execution/action correlation fields so the UI does not
- * have to infer identity from visible text. Activity events without a structured action id are
- * retained as secondary events, except when they duplicate a lifecycle event already emitted by
- * the structured execution trace.
- */
+/** The visual family used for grouping and choosing an icon in the timeline. */
+enum class UnifiedTraceCategory {
+    PLAN, FILE, COMMAND, TOOL, SEARCH, MEMORY, CONNECTOR, TASK, SYSTEM
+}
+
 data class UnifiedExecutionTraceEvent(
     val executionId: String,
     val eventId: String,
@@ -26,8 +24,42 @@ data class UnifiedExecutionTraceEvent(
     val title: String,
     val status: TaskStatus,
     val detailLog: String?,
+    val category: UnifiedTraceCategory = UnifiedTraceCategory.SYSTEM,
 )
 
+data class UnifiedExecutionTraceSummary(
+    val filesRead: Int = 0,
+    val commandsExecuted: Int = 0,
+    val toolsUsed: Int = 0,
+    val searches: Int = 0,
+    val tasks: Int = 0,
+) {
+    val hasContent: Boolean
+        get() = filesRead + commandsExecuted + toolsUsed + searches + tasks > 0
+}
+
+data class UnifiedExecutionTraceGroup(
+    val id: String,
+    val title: String,
+    val category: UnifiedTraceCategory,
+    val events: List<UnifiedExecutionTraceEvent>,
+) {
+    val completedCount: Int get() = events.count { it.status == TaskStatus.COMPLETED }
+    val failedCount: Int get() = events.count { it.status == TaskStatus.FAILED }
+    val runningCount: Int get() = events.count { it.status == TaskStatus.RUNNING }
+}
+
+data class UnifiedExecutionTraceProjection(
+    val events: List<UnifiedExecutionTraceEvent>,
+    val groups: List<UnifiedExecutionTraceGroup>,
+    val summary: UnifiedExecutionTraceSummary,
+)
+
+/**
+ * Converts the two compatibility feeds into one execution-owned projection.
+ * Tool start/completed/failed events with the same actionId are one row whose
+ * state is updated by the terminal event; they are never rendered as separate rows.
+ */
 internal object UnifiedExecutionTraceProjector {
     private const val DUPLICATE_WINDOW_MS = 1_500L
 
@@ -37,41 +69,96 @@ internal object UnifiedExecutionTraceProjector {
         activityEvents: List<ActivityEvent>,
         planningTaskLabel: String,
         executionCompletedLabel: String,
-    ): List<UnifiedExecutionTraceEvent> {
-        if (executionId.isBlank()) return emptyList()
+    ): List<UnifiedExecutionTraceEvent> = projectProjection(
+        executionId,
+        traceEntries,
+        activityEvents,
+        planningTaskLabel,
+        executionCompletedLabel,
+    ).events
 
-        val candidates = buildList {
-            traceEntries
-                .asSequence()
-                .filter { it.executionId == executionId }
-                .forEach { add(it.toUnifiedEvent(planningTaskLabel, executionCompletedLabel)) }
-            activityEvents
-                .asSequence()
-                .filter { it.executionId == executionId }
-                .map { sanitizeActivityEventForDisplay(it) }
-                .forEachIndexed { index, event ->
-                    add(event.toUnifiedEvent(index.toLong(), planningTaskLabel, executionCompletedLabel))
-                }
-        }.sortedWith(compareBy<ProjectionCandidate> { it.event.timestampMs }.thenBy { it.event.sequence })
+    fun projectProjection(
+        executionId: String,
+        traceEntries: List<ExecutionTraceEvent>,
+        activityEvents: List<ActivityEvent>,
+        planningTaskLabel: String,
+        executionCompletedLabel: String,
+    ): UnifiedExecutionTraceProjection {
+        if (executionId.isBlank()) return UnifiedExecutionTraceProjection(emptyList(), emptyList(), UnifiedExecutionTraceSummary())
 
-        val projected = mutableListOf<ProjectionCandidate>()
-        candidates.forEach { candidate ->
-            val previousIndex = projected.indexOfLast { previous ->
-                previous.dedupeKey != null &&
-                    previous.dedupeKey == candidate.dedupeKey &&
-                    kotlin.math.abs(previous.event.timestampMs - candidate.event.timestampMs) <= DUPLICATE_WINDOW_MS
-            }
-            if (previousIndex == -1) {
-                projected += candidate
-            } else if (candidate.sourcePriority < projected[previousIndex].sourcePriority) {
-                // Structured lifecycle data is authoritative over the compatibility activity feed.
-                projected[previousIndex] = candidate
-            }
-        }
+        val owned = traceEntries
+            .asSequence()
+            .filter { it.executionId == executionId }
+            .sortedBy { it.sequence }
+            .toList()
+        val structured = collapseStructuredActions(owned, planningTaskLabel, executionCompletedLabel)
+        val structuredKeys = structured.mapNotNull { it.dedupeKey }.toMutableSet()
+        val projected = structured.map { it.event }.toMutableList()
 
-        return projected
+        activityEvents
+            .asSequence()
+            .filter { it.executionId == executionId }
+            .filterNot { it.machineTag?.startsWith("execution_lifecycle_compat") == true }
+            .filterNot { it.machineTag?.startsWith("tool_dispatch_compat") == true && owned.any { trace -> trace.actionId != null } }
+            .map(::sanitizeActivityEventForDisplay)
+            .mapIndexed { index, event -> event.toProjectionCandidate(index.toLong(), planningTaskLabel, executionCompletedLabel) }
             .sortedWith(compareBy<ProjectionCandidate> { it.event.timestampMs }.thenBy { it.event.sequence })
-            .map { it.event }
+            .forEach { candidate ->
+                val duplicate = candidate.dedupeKey != null && candidate.dedupeKey in structuredKeys
+                if (!duplicate && projected.none { sameVisibleEvent(it, candidate.event) }) {
+                    projected += candidate.event
+                    candidate.dedupeKey?.let(structuredKeys::add)
+                }
+            }
+
+        val events = projected.sortedWith(compareBy<UnifiedExecutionTraceEvent> { it.timestampMs }.thenBy { it.sequence })
+        val groups = events.groupBy { it.category }.map { (category, groupEvents) ->
+            UnifiedExecutionTraceGroup(
+                id = category.name,
+                title = categoryTitle(category),
+                category = category,
+                events = groupEvents,
+            )
+        }.sortedBy { groupOrder(it.category) }
+        return UnifiedExecutionTraceProjection(events, groups, summarize(events))
+    }
+
+    private fun collapseStructuredActions(
+        entries: List<ExecutionTraceEvent>,
+        planningTaskLabel: String,
+        executionCompletedLabel: String,
+    ): List<ProjectionCandidate> {
+        val result = mutableListOf<ProjectionCandidate>()
+        val consumed = mutableSetOf<ExecutionTraceEvent>()
+        entries.filter { it.actionId != null }.groupBy { it.actionId!! }.forEach { (actionId, actionEntries) ->
+            val first = actionEntries.first()
+            val terminal = actionEntries.lastOrNull { it.kind in TERMINAL_TOOL_KINDS }
+            val source = terminal ?: first
+            val title = toolTitle(first.summary, source.summary)
+            val details = buildList {
+                source.detail?.takeIf(String::isNotBlank)?.let(::add)
+                source.errorCode?.let { add("Error code: $it") }
+                source.durationMs?.let { add("${it.coerceAtLeast(0L)} ms") }
+            }.joinToString("\n").takeIf(String::isNotBlank)
+            result += ProjectionCandidate(
+                event = UnifiedExecutionTraceEvent(
+                    executionId = first.executionId,
+                    eventId = first.eventId,
+                    actionId = actionId,
+                    sequence = first.sequence,
+                    timestampMs = source.timestampMs,
+                    title = safeTraceText(title),
+                    status = source.kind.toTaskStatus(),
+                    detailLog = details?.let(::safeTraceText),
+                    category = categoryFor(title, first.kind),
+                ),
+                dedupeKey = "action:$actionId",
+                sourcePriority = 0,
+            )
+            consumed += actionEntries
+        }
+        entries.filterNot { it in consumed }.forEach { entry -> result += entry.toProjectionCandidate(planningTaskLabel, executionCompletedLabel) }
+        return result
     }
 
     private data class ProjectionCandidate(
@@ -80,39 +167,36 @@ internal object UnifiedExecutionTraceProjector {
         val sourcePriority: Int,
     )
 
-    private fun ExecutionTraceEvent.toUnifiedEvent(
+    private fun ExecutionTraceEvent.toProjectionCandidate(
         planningTaskLabel: String,
         executionCompletedLabel: String,
-    ): ProjectionCandidate {
-        val safeSummary = localizeLifecycleSummary(summary, planningTaskLabel, executionCompletedLabel)
-        val details = buildList {
-            detail?.takeIf { it.isNotBlank() }?.let { add(safeTraceText(it)) }
-            errorCode?.let { add("Error code: ${safeTraceText(it)}") }
-            durationMs?.let { add("Duration: ${it.coerceAtLeast(0L)} ms") }
-        }.joinToString("\n").takeIf { it.isNotBlank() }
+    ): ProjectionCandidate = ProjectionCandidate(
+        event = UnifiedExecutionTraceEvent(
+            executionId = executionId,
+            eventId = eventId,
+            actionId = actionId,
+            sequence = sequence,
+            timestampMs = timestampMs,
+            title = localizeLifecycleSummary(summary, planningTaskLabel, executionCompletedLabel),
+            status = kind.toTaskStatus(),
+            detailLog = buildList {
+                detail?.takeIf(String::isNotBlank)?.let { add(safeTraceText(it)) }
+                errorCode?.let { add("Error code: ${safeTraceText(it)}") }
+                durationMs?.let { add("Duration: ${it.coerceAtLeast(0L)} ms") }
+            }.joinToString("\n").takeIf(String::isNotBlank),
+            category = categoryFor(summary, kind),
+        ),
+        dedupeKey = lifecycleDedupeKey(kind, summary),
+        sourcePriority = 0,
+    )
 
-        return ProjectionCandidate(
-            event = UnifiedExecutionTraceEvent(
-                executionId = executionId,
-                eventId = eventId,
-                actionId = actionId,
-                sequence = sequence,
-                timestampMs = timestampMs,
-                title = safeSummary,
-                status = kind.toTaskStatus(),
-                detailLog = details,
-            ),
-            dedupeKey = lifecycleDedupeKey(kind, summary),
-            sourcePriority = 0,
-        )
-    }
-
-    private fun ActivityEvent.toUnifiedEvent(
+    private fun ActivityEvent.toProjectionCandidate(
         sequence: Long,
         planningTaskLabel: String,
         executionCompletedLabel: String,
     ): ProjectionCandidate {
         val title = localizeLifecycleSummary(message, planningTaskLabel, executionCompletedLabel)
+        val category = categoryForActivity(category, title)
         return ProjectionCandidate(
             event = UnifiedExecutionTraceEvent(
                 executionId = executionId.orEmpty(),
@@ -122,15 +206,86 @@ internal object UnifiedExecutionTraceProjector {
                 timestampMs = timestampMs,
                 title = title,
                 status = when (severity) {
-                    ActivitySeverity.INFO -> TaskStatus.COMPLETED
-                    ActivitySeverity.WARN -> TaskStatus.PENDING
+                    ActivitySeverity.INFO -> if (machineTag?.contains("start", true) == true) TaskStatus.RUNNING else TaskStatus.COMPLETED
+                    ActivitySeverity.WARN -> TaskStatus.RUNNING
                     ActivitySeverity.ERROR -> TaskStatus.FAILED
                 },
-                detailLog = detail?.takeIf { it.isNotBlank() },
+                detailLog = detail?.takeIf(String::isNotBlank),
+                category = category,
             ),
             dedupeKey = lifecycleDedupeKey(null, message),
             sourcePriority = 1,
         )
+    }
+
+    private fun summarize(events: List<UnifiedExecutionTraceEvent>): UnifiedExecutionTraceSummary {
+        fun count(category: UnifiedTraceCategory) = events.count { it.category == category }
+        return UnifiedExecutionTraceSummary(
+            filesRead = count(UnifiedTraceCategory.FILE),
+            commandsExecuted = count(UnifiedTraceCategory.COMMAND),
+            toolsUsed = count(UnifiedTraceCategory.TOOL) + count(UnifiedTraceCategory.CONNECTOR),
+            searches = count(UnifiedTraceCategory.SEARCH),
+            tasks = count(UnifiedTraceCategory.TASK) + count(UnifiedTraceCategory.PLAN),
+        )
+    }
+
+    private fun categoryForActivity(activityCategory: ActivityCategory, value: String): UnifiedTraceCategory {
+        val text = value.lowercase()
+        return when {
+            listOf("file", "read ", "written", "document", ".kt", ".md", ".txt", "ملف", "قراءة").any(text::contains) -> UnifiedTraceCategory.FILE
+            listOf("command", "terminal", "shell", "compile", "gradle", "git ", "أمر", "طرفية").any(text::contains) -> UnifiedTraceCategory.COMMAND
+            listOf("search", "بحث", "web", "url", "research").any(text::contains) -> UnifiedTraceCategory.SEARCH
+            activityCategory == ActivityCategory.TOOL -> UnifiedTraceCategory.TOOL
+            activityCategory == ActivityCategory.CONNECTOR -> UnifiedTraceCategory.CONNECTOR
+            activityCategory == ActivityCategory.MEMORY -> UnifiedTraceCategory.MEMORY
+            activityCategory == ActivityCategory.ROUTING -> UnifiedTraceCategory.PLAN
+            activityCategory == ActivityCategory.REASONING || activityCategory == ActivityCategory.ORCHESTRATION -> UnifiedTraceCategory.TASK
+            else -> UnifiedTraceCategory.SYSTEM
+        }
+    }
+
+    private fun sameVisibleEvent(a: UnifiedExecutionTraceEvent, b: UnifiedExecutionTraceEvent): Boolean =
+        a.category == b.category && a.title.trim().equals(b.title.trim(), ignoreCase = true) &&
+            kotlin.math.abs(a.timestampMs - b.timestampMs) <= DUPLICATE_WINDOW_MS
+
+    private fun categoryFor(value: String, kind: ExecutionTraceKind): UnifiedTraceCategory {
+        val text = value.lowercase()
+        return when {
+            listOf("file", "read ", "written", "document", ".kt", ".md", ".txt").any(text::contains) -> UnifiedTraceCategory.FILE
+            listOf("command", "terminal", "shell", "compile", "gradle", "git ").any(text::contains) -> UnifiedTraceCategory.COMMAND
+            listOf("search", "بحث", "web", "url", "research").any(text::contains) -> UnifiedTraceCategory.SEARCH
+            kind in setOf(ExecutionTraceKind.TOOL_STARTED, ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.TOOL_CANCELLED) -> UnifiedTraceCategory.TOOL
+            kind == ExecutionTraceKind.PLANNING || kind == ExecutionTraceKind.RECOVERING || kind == ExecutionTraceKind.REFLECTING -> UnifiedTraceCategory.PLAN
+            kind == ExecutionTraceKind.STEP_STARTED || kind == ExecutionTraceKind.STEP_COMPLETED -> UnifiedTraceCategory.TASK
+            else -> UnifiedTraceCategory.SYSTEM
+        }
+    }
+
+    private fun categoryTitle(category: UnifiedTraceCategory): String = when (category) {
+        UnifiedTraceCategory.FILE -> "Files"
+        UnifiedTraceCategory.COMMAND -> "Commands"
+        UnifiedTraceCategory.TOOL -> "Tools"
+        UnifiedTraceCategory.SEARCH -> "Search"
+        UnifiedTraceCategory.MEMORY -> "Memory"
+        UnifiedTraceCategory.CONNECTOR -> "Connections"
+        UnifiedTraceCategory.PLAN -> "Plan"
+        UnifiedTraceCategory.TASK -> "Tasks"
+        UnifiedTraceCategory.SYSTEM -> "Activity"
+    }
+
+    private fun groupOrder(category: UnifiedTraceCategory): Int = when (category) {
+        UnifiedTraceCategory.PLAN -> 0
+        UnifiedTraceCategory.TASK -> 1
+        UnifiedTraceCategory.FILE -> 2
+        UnifiedTraceCategory.COMMAND -> 3
+        UnifiedTraceCategory.TOOL, UnifiedTraceCategory.CONNECTOR -> 4
+        UnifiedTraceCategory.SEARCH, UnifiedTraceCategory.MEMORY -> 5
+        UnifiedTraceCategory.SYSTEM -> 6
+    }
+
+    private fun toolTitle(first: String, terminal: String): String {
+        val source = if (first.contains(": ")) first.substringAfter(": ") else first
+        return source.ifBlank { terminal }
     }
 
     private fun lifecycleDedupeKey(kind: ExecutionTraceKind?, summary: String): String? {
@@ -145,30 +300,26 @@ internal object UnifiedExecutionTraceProjector {
     }
 
     private fun ExecutionTraceKind.toTaskStatus(): TaskStatus = when (this) {
-        ExecutionTraceKind.PLANNING -> TaskStatus.PENDING
-        ExecutionTraceKind.STEP_STARTED,
-        ExecutionTraceKind.TOOL_STARTED,
-        ExecutionTraceKind.RECOVERING,
-        ExecutionTraceKind.REFLECTING -> TaskStatus.RUNNING
-        ExecutionTraceKind.STEP_COMPLETED,
-        ExecutionTraceKind.TOOL_COMPLETED,
-        ExecutionTraceKind.COMPLETED -> TaskStatus.COMPLETED
-        ExecutionTraceKind.TOOL_FAILED,
-        ExecutionTraceKind.FAILED -> TaskStatus.FAILED
-        ExecutionTraceKind.TOOL_CANCELLED,
-        ExecutionTraceKind.CANCELLED -> TaskStatus.PENDING
+        ExecutionTraceKind.PLANNING, ExecutionTraceKind.STEP_STARTED, ExecutionTraceKind.TOOL_STARTED,
+        ExecutionTraceKind.RECOVERING, ExecutionTraceKind.REFLECTING -> TaskStatus.RUNNING
+        ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.COMPLETED -> TaskStatus.COMPLETED
+        ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED -> TaskStatus.FAILED
+        ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED -> TaskStatus.PENDING
     }
 
-    private fun localizeLifecycleSummary(
-        value: String,
-        planningTaskLabel: String,
-        executionCompletedLabel: String,
-    ): String = when (value.trim()) {
+    private fun localizeLifecycleSummary(value: String, planningTaskLabel: String, executionCompletedLabel: String): String = when (value.trim()) {
         "Planning task" -> planningTaskLabel
         "Execution completed" -> executionCompletedLabel
+        "Execution failed" -> "Execution failed"
+        "Execution cancelled" -> "Execution cancelled"
         else -> safeTraceText(value)
     }
 
-    private fun safeTraceText(value: String): String =
-        PrivacyGuard.redactForTrace(CommandRedactor.redact(value), maximumChars = 1_000)
+    private fun safeTraceText(value: String): String = PrivacyGuard.redactForTrace(CommandRedactor.redact(value), maximumChars = 1_000)
+
+    private val TERMINAL_TOOL_KINDS = setOf(
+        ExecutionTraceKind.TOOL_COMPLETED,
+        ExecutionTraceKind.TOOL_FAILED,
+        ExecutionTraceKind.TOOL_CANCELLED,
+    )
 }

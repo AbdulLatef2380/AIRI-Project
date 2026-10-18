@@ -1946,6 +1946,18 @@
     <string name="agent_trace_live_planning_task">Planning task</string>
     <string name="agent_trace_kind_failed">Execution failed</string>
     <string name="agent_trace_kind_cancelled">Execution cancelled</string>
+    <string name="agent_trace_summary_files">Read %1$d files</string>
+    <string name="agent_trace_summary_commands">Ran %1$d commands</string>
+    <string name="agent_trace_summary_tools">Used %1$d tools</string>
+    <string name="agent_trace_summary_searches">Searched %1$d times</string>
+    <string name="agent_trace_summary_tasks">%1$d tasks</string>
+    <string name="agent_trace_group_files">Files</string>
+    <string name="agent_trace_group_commands">Commands</string>
+    <string name="agent_trace_group_tools">Tools</string>
+    <string name="agent_trace_group_search">Search</string>
+    <string name="agent_trace_group_memory">Memory</string>
+    <string name="agent_trace_group_tasks">Tasks</string>
+    <string name="agent_trace_group_activity">Activity</string>
     <!-- Settings and voice personalization release closure -->
     <string name="settings_guest">Guest</string>
     <string name="settings_storage_unavailable_title">Secure storage unavailable</string>

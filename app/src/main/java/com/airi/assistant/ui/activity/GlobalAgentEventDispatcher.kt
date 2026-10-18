@@ -41,6 +41,7 @@ object GlobalAgentEventDispatcher {
                     executionId = state.executionId.takeIf { it.isNotBlank() },
                     category = ActivityCategory.ORCHESTRATION,
                     severity = sev,
+                    machineTag = "execution_lifecycle_compat",
                 )
             )
         }.launchIn(scope)

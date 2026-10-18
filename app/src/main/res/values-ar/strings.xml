@@ -1839,6 +1839,18 @@
     <string name="agent_trace_live_planning_task">جارٍ التخطيط للمهمة</string>
     <string name="agent_trace_kind_failed">فشل التنفيذ</string>
     <string name="agent_trace_kind_cancelled">أُلغي التنفيذ</string>
+    <string name="agent_trace_summary_files">قُرئت %1$d ملفات</string>
+    <string name="agent_trace_summary_commands">نُفذت %1$d أوامر</string>
+    <string name="agent_trace_summary_tools">استُخدمت %1$d أدوات</string>
+    <string name="agent_trace_summary_searches">أُجري %1$d عمليات بحث</string>
+    <string name="agent_trace_summary_tasks">%1$d مهام</string>
+    <string name="agent_trace_group_files">الملفات</string>
+    <string name="agent_trace_group_commands">الأوامر</string>
+    <string name="agent_trace_group_tools">الأدوات</string>
+    <string name="agent_trace_group_search">البحث</string>
+    <string name="agent_trace_group_memory">الذاكرة</string>
+    <string name="agent_trace_group_tasks">المهام</string>
+    <string name="agent_trace_group_activity">النشاط</string>
     <!-- إغلاق الإعدادات وتخصيص الصوت للنشر -->
     <string name="settings_guest">ضيف</string>
     <string name="settings_storage_unavailable_title">التخزين الآمن غير متاح</string>

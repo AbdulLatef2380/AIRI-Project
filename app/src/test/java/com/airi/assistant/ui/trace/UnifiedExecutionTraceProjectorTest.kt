@@ -52,7 +52,20 @@ class UnifiedExecutionTraceProjectorTest {
 
         val result = project("run-1", listOf(started, completed), emptyList())
 
-        assertEquals(listOf(started.eventId, completed.eventId), result.map { it.eventId })
+        assertEquals(listOf(started.eventId), result.map { it.eventId })
+        assertEquals(TaskStatus.COMPLETED, result.single().status)
+    }
+
+    @Test
+    fun `different action ids remain separate while each action is collapsed`() {
+        val first = trace("run-1", 1, 1_000, ExecutionTraceKind.TOOL_STARTED, "Read mail", "action-1")
+        val firstDone = trace("run-1", 2, 1_100, ExecutionTraceKind.TOOL_COMPLETED, "Read mail", "action-1")
+        val second = trace("run-1", 3, 1_200, ExecutionTraceKind.TOOL_STARTED, "Read calendar", "action-2")
+        val result = project("run-1", listOf(first, firstDone, second), emptyList())
+
+        assertEquals(listOf(first.eventId, second.eventId), result.map { it.eventId })
+        assertEquals(TaskStatus.COMPLETED, result[0].status)
+        assertEquals(TaskStatus.RUNNING, result[1].status)
     }
 
     @Test
@@ -88,6 +101,47 @@ class UnifiedExecutionTraceProjectorTest {
         assertTrue(result.single().title.contains("Gmail"))
         assertEquals(TaskStatus.FAILED, result.single().status)
         assertTrue(result.single().detailLog.orEmpty().contains("auth_required"))
+    }
+
+    @Test
+    fun `projection builds grouped summary from file command and tool actions`() {
+        val result = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-1",
+            traceEntries = listOf(
+                trace("run-1", 1, 1_000, ExecutionTraceKind.TOOL_STARTED, "Read file README.md", "file-1"),
+                trace("run-1", 2, 1_100, ExecutionTraceKind.TOOL_COMPLETED, "Read file README.md", "file-1"),
+                trace("run-1", 3, 1_200, ExecutionTraceKind.TOOL_COMPLETED, "Run gradle command", "command-1"),
+            ),
+            activityEvents = emptyList(),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertEquals(2, result.events.size)
+        assertEquals(1, result.summary.filesRead)
+        assertEquals(1, result.summary.commandsExecuted)
+        assertEquals(1, result.groups.count { it.category == UnifiedTraceCategory.FILE })
+        assertEquals(1, result.groups.count { it.category == UnifiedTraceCategory.COMMAND })
+    }
+
+    @Test
+    fun `compatibility lifecycle events are not rendered beside structured trace`() {
+        val activity = ActivityEvent(
+            message = "Execution completed",
+            executionId = "run-1",
+            category = ActivityCategory.ORCHESTRATION,
+            machineTag = "execution_lifecycle_compat",
+        )
+        val result = UnifiedExecutionTraceProjector.project(
+            executionId = "run-1",
+            traceEntries = listOf(trace("run-1", 1, 1_000, ExecutionTraceKind.COMPLETED, "Execution completed")),
+            activityEvents = listOf(activity),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(TaskStatus.COMPLETED, result.single().status)
     }
 
     private fun project(

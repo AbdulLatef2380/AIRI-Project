@@ -23,6 +23,7 @@ import com.airi.assistant.integrations.google.GoogleIdentityCredential
 import com.airi.assistant.integrations.telegram.TelegramService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Single orchestration boundary for connector authorization.
@@ -40,6 +41,13 @@ class ConnectorAuthorizationManager(
     private val accessProfileStore: ConnectorAccessProfileStore = InMemoryConnectorAccessProfileStore(),
     private val telegramService: TelegramService = TelegramService(secureStorage),
 ) {
+    private companion object {
+        // A credential submission must always resolve to a UI-visible outcome.
+        // Provider adapters have their own HTTP timeouts, but this also covers
+        // registry contention, storage stalls, and provider SDKs that fail to
+        // return a callback.
+        const val CREDENTIAL_CONNECT_TIMEOUT_MS = 30_000L
+    }
     sealed interface StartResult {
         data class OAuthBrowser(val connectorId: String, val url: String) : StartResult
         data class GoogleIdentity(val connectorId: String) : StartResult
@@ -288,7 +296,13 @@ class ConnectorAuthorizationManager(
                 if (runtimeId in ProviderTokenConnector.configs().map { it.id }) {
                     authManager.setExplicitlyDisconnected(runtimeId, false)
                 }
-                val state = registry.connect(runtimeId, persistConnection = true)
+                val state = withTimeoutOrNull(CREDENTIAL_CONNECT_TIMEOUT_MS) {
+                    registry.connect(runtimeId, persistConnection = true)
+                } ?: return@fold CompletionResult.Failed(
+                    "health_check_timeout",
+                    "${runtimeId.replace('_', ' ')} connection check timed out. Try again.",
+                    true,
+                )
                 if (state.connected && state.healthy) CompletionResult.Ready(runtimeId, state)
                 else {
                     if (runtimeId == "github") {

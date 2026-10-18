@@ -34,7 +34,11 @@ class ConnectorRegistry(
     private val sequence = AtomicLong(0L)
     private val explicitlyDisconnected = ConcurrentHashMap.newKeySet<String>()
     private val lifecycleGeneration = ConcurrentHashMap<String, Long>()
-    private val lifecycleMutex = Mutex()
+    // A global lifecycle lock made a slow/unresponsive connector block every
+    // other connector. In particular, submitting a GitHub PAT could remain in
+    // the UI's loading state while an unrelated persisted connector was still
+    // connecting. Lifecycle operations only contend for the same connector.
+    private val lifecycleMutexes = ConcurrentHashMap<String, Mutex>()
 
     private val _meta = MutableStateFlow<List<ConnectorMeta>>(emptyList())
     private val _readiness = MutableStateFlow<ConnectorReadinessState>(ConnectorReadinessState.NotInitialized)
@@ -116,7 +120,8 @@ class ConnectorRegistry(
     fun isExecutionAllowed(id: String, token: Long): Boolean =
         store.containsKey(id) && lifecycleGeneration[id] == token && !isExplicitlyDisconnected(id)
 
-    suspend fun connect(id: String, persistConnection: Boolean = false): ConnectorState = lifecycleMutex.withLock {
+    suspend fun connect(id: String, persistConnection: Boolean = false): ConnectorState =
+        lifecycleMutexes.getOrPut(id) { Mutex() }.withLock {
         val connector = get(id) ?: return ConnectorState(false, false, errorMessage = "Connector not registered")
         val token = (lifecycleGeneration[id] ?: 0L) + 1L
         lifecycleGeneration[id] = token
@@ -131,7 +136,8 @@ class ConnectorRegistry(
         }
     }
 
-    suspend fun disconnect(id: String): Boolean = lifecycleMutex.withLock {
+    suspend fun disconnect(id: String): Boolean =
+        lifecycleMutexes.getOrPut(id) { Mutex() }.withLock {
         val connector = get(id) ?: return false
         val token = (lifecycleGeneration[id] ?: 0L) + 1L
         lifecycleGeneration[id] = token

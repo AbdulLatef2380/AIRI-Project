@@ -23,8 +23,11 @@ def check(name, ok, detail):
 
 
 r, x, h = text["registry"], text["runtime"], text["health"]
-check("registry lifecycle mutex", "private val lifecycleMutex = Mutex()" in r and "lifecycleMutex.withLock" in r,
-      "connect/disconnect are serialized")
+check(
+    "registry lifecycle mutex",
+    "lifecycleMutexes" in r and "lifecycleMutexes.getOrPut(id)" in r and ".withLock" in r,
+    "connect/disconnect are serialized per connector",
+)
 check("explicit disconnect gate", "explicitlyDisconnected" in r and "isExplicitlyDisconnected" in r and '"not_connected"' in x,
       "runtime fails closed after explicit disconnect")
 check("bounded operation history", "MAX_OPERATION_HISTORY" in x and "takeLast(MAX_OPERATION_HISTORY)" in x,

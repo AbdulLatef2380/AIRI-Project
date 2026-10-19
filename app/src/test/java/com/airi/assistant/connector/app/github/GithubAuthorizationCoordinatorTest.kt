@@ -177,13 +177,12 @@ class GithubAuthorizationCoordinatorTest {
     }
 
     private fun session(projectId: String, scopes: Set<String>, expiresAt: Long) = GithubAuthorizationSession(
+        airiConnectionId = "connection-$projectId",
         projectId = projectId,
+        githubAccountId = 42L,
         accountLogin = "octocat",
-        accessToken = "oauth-access-fixture",
-        refreshToken = "oauth-refresh-fixture",
         expiresAtMs = expiresAt,
         grantedScopes = scopes,
-        installationId = 123L,
         repositories = listOf(
             GithubRepositoryGrant(1L, "owner", "repo", mapOf("contents" to GithubRepositoryPermission.READ))
         ),
@@ -226,6 +225,6 @@ class GithubAuthorizationCoordinatorTest {
             GithubBrokerResult.Success(Unit)
 
         override suspend fun listRepositories(request: GithubBrokerSessionRequest): GithubBrokerResult<List<GithubRepositoryGrant>> =
-            listResult ?: GithubBrokerResult.Success(request.session.repositories)
+            listResult ?: GithubBrokerResult.Success(emptyList())
     }
 }

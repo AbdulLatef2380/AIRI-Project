@@ -150,12 +150,12 @@ class GithubAuthorizationCoordinator(
             is GithubSessionReadResult.Found -> loaded.session
         }
         if (!session.isExpired(nowMs())) return GithubAuthorizationResult.Success(session)
-        if (session.refreshToken.isNullOrBlank()) return fail(project, GithubAuthorizationFailureCode.SESSION_EXPIRED)
+        if (session.airiConnectionId.isBlank()) return fail(project, GithubAuthorizationFailureCode.SESSION_EXPIRED)
         if (broker.availability != GithubBrokerAvailability.CONFIGURED) {
             return fail(project, GithubAuthorizationFailureCode.BROKER_NOT_CONFIGURED)
         }
         val brokerResult = try {
-            broker.refreshSession(GithubBrokerSessionRequest(session))
+            broker.refreshSession(GithubBrokerSessionRequest(project, session.airiConnectionId))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -199,7 +199,7 @@ class GithubAuthorizationCoordinator(
                 GithubAuthorizationFailure(GithubAuthorizationFailureCode.BROKER_NOT_CONFIGURED)
             )
         } else try {
-            broker.revokeSession(GithubBrokerSessionRequest(session))
+            broker.revokeSession(GithubBrokerSessionRequest(project, session.airiConnectionId))
         } catch (cancelled: CancellationException) {
             transientStates[project] = GithubAuthorizationState.Revoked(remoteRevocationConfirmed = false)
             throw cancelled
@@ -233,7 +233,7 @@ class GithubAuthorizationCoordinator(
             return fail(project, GithubAuthorizationFailureCode.BROKER_NOT_CONFIGURED)
         }
         val result = try {
-            broker.listRepositories(GithubBrokerSessionRequest(session))
+            broker.listRepositories(GithubBrokerSessionRequest(project, session.airiConnectionId))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -272,7 +272,8 @@ class GithubAuthorizationCoordinator(
 
     private fun isValidSession(session: GithubAuthorizationSession): Boolean =
         GithubProjectIdPolicy.normalize(session.projectId) == session.projectId &&
-            session.accountLogin.isNotBlank() && session.accessToken.isNotBlank() &&
+            session.airiConnectionId.isNotBlank() && session.githubAccountId > 0L &&
+            session.accountLogin.isNotBlank() &&
             session.expiresAtMs?.let { it > nowMs() } != false
 
     private fun isValidRepositoryGrant(grant: GithubRepositoryGrant): Boolean =

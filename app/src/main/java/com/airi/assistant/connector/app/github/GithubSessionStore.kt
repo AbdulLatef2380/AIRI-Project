@@ -71,9 +71,9 @@ class GithubSessionStore internal constructor(
     fun save(session: GithubAuthorizationSession): GithubSessionWriteResult {
         val normalizedProject = GithubProjectIdPolicy.normalize(session.projectId)
         if (normalizedProject == null || normalizedProject != session.projectId ||
-            session.accountLogin.isBlank() || session.accessToken.isBlank() ||
+            session.airiConnectionId.isBlank() || session.githubAccountId <= 0L ||
+            session.accountLogin.isBlank() ||
             session.expiresAtMs?.let { it <= 0L } == true ||
-            session.installationId?.let { it <= 0L } == true ||
             session.repositories.any { it.repositoryId <= 0L || it.owner.isBlank() || it.name.isBlank() }
         ) {
             return GithubSessionWriteResult.Failure(
@@ -124,13 +124,12 @@ class GithubSessionStore internal constructor(
         }
         return JSONObject()
             .put("version", STORAGE_VERSION)
+            .put("airiConnectionId", session.airiConnectionId)
             .put("projectId", session.projectId)
+            .put("githubAccountId", session.githubAccountId)
             .put("accountLogin", session.accountLogin)
-            .put("accessToken", session.accessToken)
-            .put("refreshToken", session.refreshToken ?: JSONObject.NULL)
             .put("expiresAtMs", session.expiresAtMs ?: JSONObject.NULL)
             .put("grantedScopes", scopes)
-            .put("installationId", session.installationId ?: JSONObject.NULL)
             .put("repositories", repos)
             .put("createdAtMs", session.createdAtMs)
             .toString()
@@ -163,21 +162,18 @@ class GithubSessionStore internal constructor(
                 )
             }
         }
-        val refresh = json.optString("refreshToken").takeUnless { it.isBlank() || it == "null" }
         val expiresAt = if (json.isNull("expiresAtMs")) null else json.getLong("expiresAtMs")
-        val installationId = if (json.isNull("installationId")) null else json.getLong("installationId")
         return GithubAuthorizationSession(
+            airiConnectionId = json.getString("airiConnectionId"),
             projectId = json.getString("projectId"),
+            githubAccountId = json.getLong("githubAccountId"),
             accountLogin = json.getString("accountLogin"),
-            accessToken = json.getString("accessToken"),
-            refreshToken = refresh,
             expiresAtMs = expiresAt,
             grantedScopes = scopes,
-            installationId = installationId,
             repositories = repositories,
             createdAtMs = json.getLong("createdAtMs"),
         )
     }
 
-    private companion object { const val STORAGE_VERSION = 1 }
+    private companion object { const val STORAGE_VERSION = 2 }
 }

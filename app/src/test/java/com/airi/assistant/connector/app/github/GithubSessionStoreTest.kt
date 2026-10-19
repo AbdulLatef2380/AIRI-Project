@@ -47,9 +47,13 @@ class GithubSessionStoreTest {
     fun sessionAndBrokerRequestDiagnosticsRedactCredentialsAndVerifier() {
         val value = session("project-one", "alpha")
         val sessionText = value.toString()
-        assertFalse(sessionText.contains("access-secret-fixture"))
-        assertFalse(sessionText.contains("refresh-secret-fixture"))
         assertTrue(sessionText.contains("<redacted>"))
+
+        val backing = FakeCredentialStore()
+        assertEquals(GithubSessionWriteResult.Saved, GithubSessionStore(backing).save(value))
+        assertTrue(backing.values.values.single().contains("airiConnectionId"))
+        assertFalse(backing.values.values.single().contains("accessToken"))
+        assertFalse(backing.values.values.single().contains("refreshToken"))
 
         val requestText = GithubBrokerCodeExchange(
             projectId = "project-one",
@@ -62,13 +66,12 @@ class GithubSessionStoreTest {
     }
 
     private fun session(projectId: String, login: String) = GithubAuthorizationSession(
+        airiConnectionId = "connection-$projectId",
         projectId = projectId,
+        githubAccountId = 42L,
         accountLogin = login,
-        accessToken = "access-secret-fixture",
-        refreshToken = "refresh-secret-fixture",
         expiresAtMs = 50_000L,
         grantedScopes = setOf("repo:read"),
-        installationId = 456L,
         repositories = listOf(
             GithubRepositoryGrant(
                 repositoryId = if (login == "alpha") 1L else 2L,
@@ -81,7 +84,7 @@ class GithubSessionStoreTest {
     )
 
     private class FakeCredentialStore(override val isAvailable: Boolean = true) : GithubSessionCredentialStore {
-        private val values = mutableMapOf<String, String>()
+        val values = mutableMapOf<String, String>()
         override fun read(namespace: String): String? = if (isAvailable) values[namespace] else null
         override fun write(namespace: String, value: String): Boolean {
             if (!isAvailable) return false

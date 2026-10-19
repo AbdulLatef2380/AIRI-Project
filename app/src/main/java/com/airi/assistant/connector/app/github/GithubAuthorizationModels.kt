@@ -67,42 +67,46 @@ data class GithubRepositoryGrant(
     val fullName: String get() = "$owner/$name"
 }
 
-/** OAuth credentials are held only by the encrypted session store and trusted broker adapter. */
+/**
+ * Client-safe projection of a server-side GitHub connection.
+ * GitHub access and refresh tokens never belong in this Android model.
+ */
 data class GithubAuthorizationSession(
+    val airiConnectionId: String,
     val projectId: String,
+    val githubAccountId: Long,
     val accountLogin: String,
-    val accessToken: String,
-    val refreshToken: String? = null,
     val expiresAtMs: Long? = null,
     val grantedScopes: Set<String> = emptySet(),
-    val installationId: Long? = null,
     val repositories: List<GithubRepositoryGrant> = emptyList(),
     val createdAtMs: Long,
 ) {
     fun isExpired(nowMs: Long): Boolean = expiresAtMs?.let { it <= nowMs } ?: false
 
     fun summary(): GithubSessionSummary = GithubSessionSummary(
+        airiConnectionId = airiConnectionId,
         projectId = projectId,
+        githubAccountId = githubAccountId,
         accountLogin = accountLogin,
         expiresAtMs = expiresAtMs,
         grantedScopes = grantedScopes,
-        installationId = installationId,
         repositories = repositories,
     )
 
     override fun toString(): String =
-        "GithubAuthorizationSession(projectId=$projectId, accountLogin=$accountLogin, " +
-            "accessToken=<redacted>, refreshToken=${if (refreshToken == null) "<none>" else "<redacted>"}, " +
-            "expiresAtMs=$expiresAtMs, grantedScopes=$grantedScopes, installationId=$installationId, " +
+        "GithubAuthorizationSession(airiConnectionId=<redacted>, projectId=$projectId, " +
+            "githubAccountId=$githubAccountId, accountLogin=$accountLogin, " +
+            "expiresAtMs=$expiresAtMs, grantedScopes=$grantedScopes, " +
             "repositories=${repositories.size}, createdAtMs=$createdAtMs)"
 }
 
 data class GithubSessionSummary(
+    val airiConnectionId: String,
     val projectId: String,
+    val githubAccountId: Long,
     val accountLogin: String,
     val expiresAtMs: Long?,
     val grantedScopes: Set<String>,
-    val installationId: Long?,
     val repositories: List<GithubRepositoryGrant>,
 )
 

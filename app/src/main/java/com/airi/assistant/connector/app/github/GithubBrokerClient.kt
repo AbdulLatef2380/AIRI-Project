@@ -58,9 +58,12 @@ data class GithubBrokerCodeExchange(
             "codeVerifier=<redacted>, requestedScopes=$requestedScopes)"
 }
 
-data class GithubBrokerSessionRequest(val session: GithubAuthorizationSession) {
+data class GithubBrokerSessionRequest(
+    val projectId: String,
+    val airiConnectionId: String,
+) {
     override fun toString(): String =
-        "GithubBrokerSessionRequest(projectId=${session.projectId}, session=<redacted>)"
+        "GithubBrokerSessionRequest(projectId=$projectId, airiConnectionId=<redacted>)"
 }
 
 /** Default DI binding. It never opens a browser or fabricates successful readiness. */

@@ -102,6 +102,41 @@ class ConnectorToolBridgeTest {
     }
 
     @Test
+    fun github_push_alias_resolves_only_when_canonical_action_is_declared() = runBlocking {
+        val registry = ConnectorRegistry()
+        val connector = TestConnector("github", connected = true, healthy = true)
+        registry.register(connector)
+        val profiles = InMemoryConnectorAccessProfileStore().apply {
+            set("github", ConnectorAccessProfile.FULL_ACCESS)
+        }
+        val bridge = bridge(registry, profiles)
+
+        assertTrue(bridge.handles("connector_github_push"))
+        assertTrue(bridge.handles("github_push"))
+        assertEquals("push", bridge.actionForTool("github_push")?.id)
+        val result = bridge.invoke("github_push", mapOf(
+            "repo" to "owner/repo",
+            "path" to "README.md",
+            "content" to "updated",
+            "message" to "Update README",
+        )) as ConnectorOutput.Failure
+        assertEquals("approval_required", result.code)
+        assertNull(connector.lastAction)
+    }
+
+    @Test
+    fun github_push_alias_does_not_invent_missing_canonical_action() {
+        val registry = ConnectorRegistry()
+        registry.register(TestConnector("github", connected = true, healthy = true, includePush = false))
+        val profiles = InMemoryConnectorAccessProfileStore().apply {
+            set("github", ConnectorAccessProfile.READ_ONLY)
+        }
+        val bridge = bridge(registry, profiles)
+
+        assertFalse(bridge.handles("github_push"))
+    }
+
+    @Test
     fun grants_are_scoped_to_the_declared_catalog_surface() {
         val registry = ConnectorRegistry()
         registry.register(TestConnector("microsoft_graph", connected = true, healthy = true))
@@ -163,6 +198,7 @@ class ConnectorToolBridgeTest {
         override val id: String,
         private val connected: Boolean,
         private val healthy: Boolean,
+        private val includePush: Boolean = true,
     ) : Connector {
         override val name = id
         override val description = "test"
@@ -185,10 +221,11 @@ class ConnectorToolBridgeTest {
                 ConnectorAgentAction("teams_list_joined", "List Teams", surfaceId = "microsoft_teams"),
                 ConnectorAgentAction("sharepoint_site_read", "Read SharePoint", surfaceId = "microsoft_sharepoint"),
             )
-        } else listOf(
-            ConnectorAgentAction("list_repos", "List repositories"),
-            ConnectorAgentAction("create_issue", "Create issue", ConnectorPermissionLevel.WRITE),
-        )
+        } else buildList {
+            add(ConnectorAgentAction("list_repos", "List repositories"))
+            add(ConnectorAgentAction("create_issue", "Create issue", ConnectorPermissionLevel.WRITE))
+            if (includePush) add(ConnectorAgentAction("push", "Push file", ConnectorPermissionLevel.WRITE))
+        }
         override suspend fun execute(input: ConnectorInput): ConnectorOutput {
             lastAction = input.action
             return ConnectorOutput.Success("$id:${input.action}")

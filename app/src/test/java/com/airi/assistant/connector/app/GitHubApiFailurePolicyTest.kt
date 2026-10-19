@@ -35,4 +35,18 @@ class GitHubApiFailurePolicyTest {
         assertFalse(result.retryable)
         assertTrue(result.message.contains("not visible"))
     }
+
+    @Test
+    fun pushPermissionFailureExplainsContentsWriteRequirement() {
+        val result = GitHubApiFailurePolicy.map(403, action = "push")
+        assertEquals("provider_permission_denied", result.code)
+        assertTrue(result.message.contains("Contents: write"))
+        assertFalse(result.retryable)
+    }
+
+    @Test
+    fun pushConflictAndInvalidRequestAreStable() {
+        assertEquals("conflict", GitHubApiFailurePolicy.map(409, action = "push").code)
+        assertEquals("invalid_argument", GitHubApiFailurePolicy.map(422, action = "push").code)
+    }
 }

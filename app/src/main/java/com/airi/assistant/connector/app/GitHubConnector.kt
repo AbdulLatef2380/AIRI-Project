@@ -125,6 +125,22 @@ class GitHubConnector(
                 "base" to ConnectorAgentParameter(description = "Target branch", required = true, maxLength = 256),
                 "body" to ConnectorAgentParameter(description = "Pull request body", maxLength = 20_000),
             )),
+        ConnectorAgentAction("push", "Create or update a repository file after explicit approval.",
+            permission = ConnectorPermissionLevel.WRITE, supportsApprovedContinuation = true,
+            providerGrants = listOf(ConnectorProviderGrant(
+                ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION,
+                "Contents: write",
+            )),
+            parameters = mapOf(
+                "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true, maxLength = 128),
+                "path" to ConnectorAgentParameter(description = "Repository file path", required = true, maxLength = 512),
+                // Durable approval continuations persist bounded parameter values;
+                // larger files must use the dedicated project-file flow instead.
+                "content" to ConnectorAgentParameter(description = "New file content (up to 4 KiB in an approved connector task)", required = true, maxLength = 4_096),
+                "message" to ConnectorAgentParameter(description = "Commit message", required = true, maxLength = 256),
+                "branch" to ConnectorAgentParameter(description = "Target branch", maxLength = 256),
+                "sha" to ConnectorAgentParameter(description = "Current blob SHA when updating an existing file", maxLength = 128),
+            )),
     )
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
@@ -172,13 +188,14 @@ class GitHubConnector(
                         continuationId = execution.continuationId,
                         taskId = execution.taskId,
                         missionId = execution.missionId,
-                        projectId = execution.projectId,
-                        runId = execution.runId,
-                        stepId = execution.stepId,
-                        connectorId = id,
-                        action = input.action,
-                        idempotencyKey = execution.idempotencyKey
-                    )
+                            projectId = execution.projectId,
+                            runId = execution.runId,
+                            stepId = execution.stepId,
+                            connectorId = id,
+                            action = input.action,
+                            idempotencyKey = execution.idempotencyKey,
+                            params = input.params,
+                        )
                     if (!authorized) {
                         return@withContext ConnectorOutput.Failure(
                             code = "invalid_approved_continuation",
@@ -309,6 +326,7 @@ class GitHubConnector(
 
     /** Raw PAT remains within this adapter and is never returned to an agent or continuation. */
     private fun executeWithToken(input: ConnectorInput, token: String): ConnectorOutput {
+        if (input.action == "push") validatePushParams(input.params)
         tokenExecutor?.let { return it(input, token) }
         return try {
         val t0 = System.currentTimeMillis()
@@ -322,6 +340,7 @@ class GitHubConnector(
             "comment_issue" -> commentIssue(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["issue_number"]?.toIntOrNull() ?: return ConnectorOutput.Failure("missing_param", "issue_number required"), input.params["body"] ?: return ConnectorOutput.Failure("missing_param", "body required"))
             "update_issue" -> updateIssue(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["issue_number"]?.toIntOrNull() ?: return ConnectorOutput.Failure("missing_param", "issue_number required"), input.params)
             "create_pull_request" -> createPullRequest(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["title"] ?: return ConnectorOutput.Failure("missing_param", "title required"), input.params["head"] ?: return ConnectorOutput.Failure("missing_param", "head required"), input.params["base"] ?: return ConnectorOutput.Failure("missing_param", "base required"), input.params["body"] ?: "")
+            "push" -> pushFile(token, input.params)
             "search_code" -> searchCode(token, input.params["query"] ?: return ConnectorOutput.Failure("missing_param", "query required"), input.params["repo"])
             "get_file" -> getFile(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"), input.params["path"] ?: return ConnectorOutput.Failure("missing_param", "path required"))
             "list_prs" -> listPRs(token, input.params["repo"] ?: return ConnectorOutput.Failure("missing_param", "repo required"))
@@ -331,7 +350,7 @@ class GitHubConnector(
         AgentActivityBus.emit("GitHub: ${input.action}", ActivityCategory.CONNECTOR)
         ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
         } catch (e: GitHubApiHttpException) {
-            GitHubApiFailurePolicy.map(e.statusCode, e.rateLimitRemaining)
+            GitHubApiFailurePolicy.map(e.statusCode, e.rateLimitRemaining, input.action)
         } catch (e: IllegalArgumentException) {
             ConnectorOutput.Failure("invalid_params", e.message ?: "Invalid GitHub parameters", retryable = false)
         } catch (_: Exception) {
@@ -399,6 +418,50 @@ class GitHubConnector(
     private fun createPullRequest(token: String, repo: String, title: String, head: String, base: String, body: String): String {
         val r = apiPost("/repos/$repo/pulls", token, JSONObject().apply { put("title", title); put("head", head); put("base", base); put("body", body) }.toString())
         return "Pull request #${r.optInt("number")} created: ${r.optString("html_url")}".trim()
+    }
+    private fun pushFile(token: String, params: Map<String, String>): String {
+        validatePushParams(params)
+        val repo = params["repo"].orEmpty()
+        val path = params["path"].orEmpty()
+        val content = params["content"] ?: error("File content is missing")
+        val message = params["message"].orEmpty()
+        val branch = params["branch"].orEmpty().ifBlank { "main" }
+        val sha = params["sha"].orEmpty()
+        val encodedPath = path.split('/').joinToString("/") {
+            java.net.URLEncoder.encode(it, Charsets.UTF_8.name()).replace("+", "%20")
+        }
+        val payload = JSONObject().apply {
+            put("message", message)
+            put("content", android.util.Base64.encodeToString(content.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP))
+            put("branch", branch)
+            if (sha.isNotBlank()) put("sha", sha)
+        }
+        val response = apiPut("/repos/$repo/contents/$encodedPath", token, payload.toString())
+        val commit = response.optJSONObject("commit")
+        val commitUrl = commit?.optString("html_url").orEmpty()
+        val commitSha = commit?.optString("sha").orEmpty()
+        require(commitSha.isNotBlank()) { "GitHub did not return a commit SHA" }
+        return buildString {
+            append("GitHub commit created: ")
+            append(commitUrl.ifBlank { "unavailable" })
+            append("\nSHA: ")
+            append(commitSha)
+        }
+    }
+    private fun validatePushParams(params: Map<String, String>) {
+        val repo = params["repo"].orEmpty()
+        val path = params["path"].orEmpty()
+        val content = params["content"]
+        val message = params["message"].orEmpty()
+        val branch = params["branch"].orEmpty().ifBlank { "main" }
+        val sha = params["sha"].orEmpty()
+        require(repo.matches(Regex("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"))) { "Invalid repository owner/name" }
+        require(path.isNotBlank() && path.length <= 512 && !path.startsWith("/") && !path.endsWith("/")) { "Invalid repository file path" }
+        require(path.split('/').none { it.isBlank() || it == "." || it == ".." } && path.none { it.code < 32 }) { "Invalid repository file path" }
+        require(content != null && content.length <= 4_096) { "File content is missing or exceeds the approved connector limit" }
+        require(message.isNotBlank() && message.length <= 256) { "Commit message is required and must be at most 256 characters" }
+        require(branch.length <= 256 && branch.none { it.code < 32 }) { "Invalid branch" }
+        if (sha.isNotBlank()) require(sha.length <= 128 && sha.all { it.isLetterOrDigit() || it in "._-" }) { "Invalid blob SHA" }
     }
     private fun searchCode(token: String, query: String, repo: String?): String { val q = if (repo != null) "$query repo:$repo" else query; val j = apiGet("/search/code?q=${java.net.URLEncoder.encode(q,"UTF-8")}&per_page=10", token); val items = j.optJSONArray("items") ?: JSONArray(); return buildString { appendLine("Code hits (${items.length()}):"); for (i in 0 until items.length()) { val x = items.getJSONObject(i); appendLine("• ${x.getString("path")} in ${x.getJSONObject("repository").getString("full_name")}") } } }
     private fun getFile(token: String, repo: String, path: String): String {
@@ -514,6 +577,15 @@ class GitHubConnector(
         return body
     }
     private fun open(url: String, token: String, method: String = "GET") = (URL(url).openConnection() as HttpURLConnection).apply { requestMethod = method; connectTimeout = 10_000; readTimeout = 15_000; setRequestProperty("Authorization","Bearer $token"); setRequestProperty("Accept","application/vnd.github.v3+json"); setRequestProperty("Content-Type","application/json") }
+
+    private fun apiPut(path: String, token: String, json: String): JSONObject {
+        val connection = open("$BASE$path", token, "PUT")
+        return try {
+            connection.doOutput = true
+            connection.outputStream.bufferedWriter().use { it.write(json) }
+            JSONObject(readResponse(connection))
+        } finally { connection.disconnect() }
+    }
 
     private companion object {
         const val GITHUB_PAT_SECRET_ID = "GITHUB_PAT"

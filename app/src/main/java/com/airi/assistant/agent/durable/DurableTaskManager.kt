@@ -493,7 +493,8 @@ class DurableTaskManager(private val context: Context) {
         stepId: String,
         connectorId: String,
         action: String,
-        idempotencyKey: String
+        idempotencyKey: String,
+        params: Map<String, String> = emptyMap(),
     ): Boolean {
         val task = taskCache[taskId] ?: return false
         val continuation = task.approvalContinuations.firstOrNull { it.id == continuationId }
@@ -509,7 +510,8 @@ class DurableTaskManager(private val context: Context) {
             continuation.stepId == stepId &&
             invocation.connectorId == connectorId &&
             invocation.action == action &&
-            invocation.idempotencyKey == idempotencyKey
+            invocation.idempotencyKey == idempotencyKey &&
+            invocation.params == params
     }
 
     /**

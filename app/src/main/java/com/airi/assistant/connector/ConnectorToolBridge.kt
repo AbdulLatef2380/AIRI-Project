@@ -38,18 +38,22 @@ class ConnectorToolBridge(
 
     /** Keep known bindings resolvable after a disconnect so runtime returns a
      * stable not_connected result instead of misclassifying the call as unknown. */
-    fun handles(toolName: String): Boolean = bindings(onlyExecutable = false, onlyGranted = false).containsKey(toolName)
+    fun handles(toolName: String): Boolean {
+        val available = bindings(onlyExecutable = false, onlyGranted = false)
+        return available.containsKey(toolName) || (toolName == "github_push" && available.containsKey("connector_github_push"))
+    }
 
     /** Runtime connector identity for request-intent filtering; never inferred from action-name tokens. */
     fun connectorIdForTool(toolName: String): String? =
-        bindings(onlyExecutable = false, onlyGranted = false)[toolName]?.connectorId
+        bindings(onlyExecutable = false, onlyGranted = false)[resolveToolName(toolName)]?.connectorId
 
     /** Declared authorization contract for readiness checks; does not execute or grant access. */
     fun actionForTool(toolName: String): ConnectorAgentAction? =
-        bindings(onlyExecutable = false, onlyGranted = false)[toolName]?.action
+        bindings(onlyExecutable = false, onlyGranted = false)[resolveToolName(toolName)]?.action
 
     suspend fun invoke(toolName: String, args: Map<String, String>): ConnectorOutput {
-        val binding = bindings(onlyExecutable = false, onlyGranted = false)[toolName]
+        val canonicalToolName = resolveToolName(toolName)
+        val binding = bindings(onlyExecutable = false, onlyGranted = false)[canonicalToolName]
             ?: return ConnectorOutput.Failure("unknown_tool", "Unknown connector tool: $toolName")
         when (ConnectorAccessPolicy.evaluate(
             accessProfiles.get(binding.action.surfaceId ?: binding.connectorId), binding.action
@@ -103,6 +107,9 @@ class ConnectorToolBridge(
             .lowercase()
             .replace(Regex("[^a-z0-9_]+"), "_")
             .trim('_')
+
+    private fun resolveToolName(toolName: String): String =
+        if (toolName == "github_push") "connector_github_push" else toolName
 
     private fun Binding.toSchema(toolName: String): ToolSchema {
         return ToolSchema(

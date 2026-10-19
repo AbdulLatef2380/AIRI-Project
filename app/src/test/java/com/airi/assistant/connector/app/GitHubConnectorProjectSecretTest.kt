@@ -105,7 +105,7 @@ class GitHubConnectorProjectSecretTest {
     }
 
     @Test
-    fun profileToolIsDeclaredAndDispatchesToGetUserRatherThanStatus() = runBlocking {
+    fun unscopedProfileToolFailsClosedWithoutLegacyPatFallback() = runBlocking {
         var dispatchedAction: String? = null
         val connector = GitHubConnector(
             legacyCredentialProvider = { _, _ -> "fixture-token" },
@@ -118,8 +118,8 @@ class GitHubConnectorProjectSecretTest {
         assertTrue(connector.agentActions().any { it.id == "get_user" })
         val output = connector.execute(ConnectorInput(action = "get_user", authorizationActionId = "get_user"))
 
-        assertTrue(output is ConnectorOutput.Success)
-        assertEquals("get_user", dispatchedAction)
+        assertEquals("project_context_required", (output as ConnectorOutput.Failure).code)
+        assertEquals(null, dispatchedAction)
     }
 
     private fun projectInput() = ConnectorInput(

@@ -118,7 +118,9 @@ object ConnectorAuthStrategies {
         val mode = when {
             // These are the currently implemented AIRI adapters. Their existing
             // screens remain the provider-specific executors of this plan.
-            runtimeId == "github" -> ConnectorAuthMode.PERSONAL_ACCESS_TOKEN
+            // GitHub App installation is completed by the server-side Broker;
+            // Android must not advertise a PAT credential flow here.
+            runtimeId == "github" -> ConnectorAuthMode.OAUTH2_CONFIDENTIAL
             runtimeId == "telegram" -> ConnectorAuthMode.API_KEY
             runtimeId == "google" -> ConnectorAuthMode.OAUTH2_PKCE
             runtimeId == "microsoft_graph" -> ConnectorAuthMode.OAUTH2_PKCE

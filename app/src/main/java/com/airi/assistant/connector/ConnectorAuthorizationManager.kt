@@ -129,7 +129,13 @@ class ConnectorAuthorizationManager(
             "dropbox" -> beginDropbox(runtimeId)
             "box" -> beginBox(runtimeId)
             "zapier" -> beginZapier(runtimeId)
-            "github" -> StartResult.CredentialRequired(runtimeId, "GitHub personal access token", "GitHub")
+            // GitHub is tenant/project-scoped and must be started through
+            // GithubAuthorizationCoordinator. Never expose the generic PAT
+            // credential form as a fallback when the Broker is unavailable.
+            "github" -> StartResult.Failed(
+                "github_broker_required",
+                "GitHub must be connected from the active project through the authorization broker"
+            )
             "telegram" -> StartResult.CredentialRequired(runtimeId, "Telegram bot token", "Telegram")
             "notion_mcp" -> StartResult.CredentialRequired(runtimeId, "Notion integration token", "Notion")
             in ProviderTokenConnector.configs().map { it.id } -> {

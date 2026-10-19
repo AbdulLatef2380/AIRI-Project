@@ -234,8 +234,7 @@ fun IntegrationsScreen(
                         item = item,
                         onConnect = {
                             when (item.id) {
-                                // PAT remains an explicit user-selected, global credential flow.
-                                "github" -> vm.beginConnectorAuthorization("github", context)
+                                "github" -> vm.connectGithubProject()
                                 "telegram" -> vm.beginConnectorAuthorization("telegram", context)
                                 "notion", "notion_mcp" -> vm.openNotionDialog()
                                 "zapier" -> vm.beginConnectorAuthorization("zapier", context)
@@ -245,8 +244,6 @@ fun IntegrationsScreen(
                             }
                         },
                         onDisconnect = { vm.disconnect(item.id) },
-                        connectLabelRes = if (item.id == "github") R.string.integration_github_connect_pat else null,
-                        connectedAsLabelRes = if (item.id == "github") R.string.integration_github_connected_via_pat else null,
                     )
                     if (item.id == "github") {
                         GithubProjectAuthorizationPanel(
@@ -291,10 +288,11 @@ fun IntegrationsScreen(
                     item(key = "focused_integration_${focusedItem.id}") {
                         IntegrationCard(
                             item = focusedItem,
-                            onConnect = { vm.beginConnectorAuthorization(focusedItem.id, context) },
+                            onConnect = {
+                                if (focusedItem.id == "github") vm.connectGithubProject()
+                                else vm.beginConnectorAuthorization(focusedItem.id, context)
+                            },
                             onDisconnect = { vm.disconnect(focusedItem.id) },
-                            connectLabelRes = if (focusedItem.id == "github") R.string.integration_github_connect_pat else null,
-                            connectedAsLabelRes = if (focusedItem.id == "github") R.string.integration_github_connected_via_pat else null,
                         )
                     }
                     if (focusedItem.id == "github") item(key = "github_project_authorization") {

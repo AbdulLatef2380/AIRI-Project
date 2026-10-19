@@ -264,9 +264,14 @@ class GitHubConnector(
         if (!execution?.projectId.isNullOrBlank()) {
             return@withContext executeWithProjectSecret(input, execution!!)
         }
-        val token = legacyCredentialProvider(id, "pat")
-            ?: return@withContext ConnectorOutput.Failure("not_connected", "GitHub PAT not configured")
-        executeWithToken(input, token)
+        // GitHub access is never inferred from the process-wide credential
+        // namespace.  A request without an AIRI project cannot be bound to a
+        // tenant/repository grant, so failing here is safer than falling back
+        // to a developer or legacy PAT.
+        ConnectorOutput.Failure(
+            code = "project_context_required",
+            message = "GitHub access requires a project-scoped authorization"
+        )
     }
 
     /**

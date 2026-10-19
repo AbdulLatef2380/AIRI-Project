@@ -15,6 +15,7 @@ class GithubAuthorizationCoordinator(
     private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
     private val transientStates = ConcurrentHashMap<String, GithubAuthorizationState>()
+    private val brokerTransactions = ConcurrentHashMap<String, String>()
 
     suspend fun beginAuthorization(
         projectId: String,
@@ -36,7 +37,7 @@ class GithubAuthorizationCoordinator(
             broker.beginAuthorization(
                 GithubBrokerAuthorizationRequest(
                     projectId = project,
-                    state = pkce.state,
+                    clientNonce = pkce.state,
                     codeChallenge = pkce.codeChallenge,
                     requestedScopes = scopes,
                 )
@@ -56,7 +57,14 @@ class GithubAuthorizationCoordinator(
                 fail(project, brokerResult.failure)
             }
             is GithubBrokerResult.Success -> GithubAuthorizationResult.Success(
-                GithubAuthorizationStart(project, pkce.state, scopes)
+                GithubAuthorizationStart(
+                    projectId = project,
+                    state = pkce.state,
+                    requestedScopes = scopes,
+                    transactionId = brokerResult.value.transactionId,
+                    authorizationUrl = brokerResult.value.authorizationUrl,
+                    expiresAtMs = brokerResult.value.expiresAtMs,
+                ).also { brokerTransactions[pkce.state] = it.transactionId }
             )
         }
     }
@@ -67,6 +75,8 @@ class GithubAuthorizationCoordinator(
         authorizationCode: String,
     ): GithubAuthorizationResult<GithubAuthorizationSession> {
         val request = state.takeIf(String::isNotBlank)?.let(OAuthStateRegistry::consumeRequest)
+            ?: return fail(projectId, GithubAuthorizationFailureCode.INVALID_STATE)
+        val transactionId = brokerTransactions.remove(state)
             ?: return fail(projectId, GithubAuthorizationFailureCode.INVALID_STATE)
         val project = GithubProjectIdPolicy.normalize(projectId)
             ?: return fail(projectId, GithubAuthorizationFailureCode.INVALID_PROJECT)
@@ -87,9 +97,8 @@ class GithubAuthorizationCoordinator(
             broker.exchangeAuthorizationCode(
                 GithubBrokerCodeExchange(
                     projectId = project,
-                    authorizationCode = authorizationCode,
-                    codeVerifier = request.codeVerifier,
-                    requestedScopes = request.requestedScopes,
+                    transactionId = transactionId,
+                    handoffCode = authorizationCode,
                 )
             )
         } catch (cancelled: CancellationException) {
@@ -123,6 +132,7 @@ class GithubAuthorizationCoordinator(
     fun rejectCallback(projectId: String, state: String): GithubAuthorizationResult<Unit> {
         val request = state.takeIf(String::isNotBlank)?.let(OAuthStateRegistry::consumeRequest)
             ?: return fail(projectId, GithubAuthorizationFailureCode.INVALID_STATE)
+        brokerTransactions.remove(state)
         val project = GithubProjectIdPolicy.normalize(projectId)
             ?: return fail(projectId, GithubAuthorizationFailureCode.INVALID_PROJECT)
         if (request.connectorId != GITHUB_CONNECTOR_ID) return fail(project, GithubAuthorizationFailureCode.INVALID_STATE)
@@ -133,6 +143,7 @@ class GithubAuthorizationCoordinator(
     fun cancelAuthorization(projectId: String, state: String): GithubAuthorizationResult<Unit> {
         val request = state.takeIf(String::isNotBlank)?.let(OAuthStateRegistry::consumeRequest)
             ?: return fail(projectId, GithubAuthorizationFailureCode.INVALID_STATE)
+        brokerTransactions.remove(state)
         val project = GithubProjectIdPolicy.normalize(projectId)
             ?: return fail(projectId, GithubAuthorizationFailureCode.INVALID_PROJECT)
         if (request.connectorId != GITHUB_CONNECTOR_ID) return fail(project, GithubAuthorizationFailureCode.INVALID_STATE)
@@ -253,6 +264,68 @@ class GithubAuthorizationCoordinator(
         }
     }
 
+    suspend fun selectRepositories(
+        projectId: String,
+        repositoryIds: Set<Long>,
+    ): GithubAuthorizationResult<List<GithubRepositoryGrant>> {
+        val project = GithubProjectIdPolicy.normalize(projectId)
+            ?: return fail(projectId, GithubAuthorizationFailureCode.INVALID_PROJECT)
+        if (repositoryIds.any { it <= 0L }) return fail(project, GithubAuthorizationFailureCode.INVALID_CALLBACK)
+        val session = when (val loaded = sessionStore.load(project)) {
+            GithubSessionReadResult.Missing -> return fail(project, GithubAuthorizationFailureCode.SESSION_EXPIRED)
+            is GithubSessionReadResult.Failure -> return fail(project, loaded.failure)
+            is GithubSessionReadResult.Found -> loaded.session
+        }
+        if (session.isExpired(nowMs())) return fail(project, GithubAuthorizationFailureCode.SESSION_EXPIRED)
+        if (broker.availability != GithubBrokerAvailability.CONFIGURED) {
+            return fail(project, GithubAuthorizationFailureCode.BROKER_NOT_CONFIGURED)
+        }
+        val result = try {
+            broker.selectRepositories(
+                GithubBrokerRepositorySelectionRequest(project, session.airiConnectionId, repositoryIds)
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return fail(project, GithubAuthorizationFailureCode.NETWORK_ERROR, retryable = true)
+        }
+        return when (result) {
+            is GithubBrokerResult.Failure -> fail(project, result.failure)
+            is GithubBrokerResult.Success -> if (result.value.any { !isValidRepositoryGrant(it) }) {
+                fail(project, GithubAuthorizationFailureCode.INVALID_CALLBACK)
+            } else GithubAuthorizationResult.Success(result.value)
+        }
+    }
+
+    suspend fun listConnections(
+        projectId: String? = null,
+    ): GithubAuthorizationResult<List<GithubAuthorizationSession>> {
+        val normalizedProject = projectId?.let {
+            GithubProjectIdPolicy.normalize(it)
+                ?: return fail(it, GithubAuthorizationFailureCode.INVALID_PROJECT)
+        }
+        if (broker.availability != GithubBrokerAvailability.CONFIGURED) {
+            return fail(normalizedProject.orEmpty(), GithubAuthorizationFailureCode.BROKER_NOT_CONFIGURED)
+        }
+        val result = try {
+            broker.listConnections(GithubBrokerConnectionsRequest(normalizedProject))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return fail(normalizedProject.orEmpty(), GithubAuthorizationFailureCode.NETWORK_ERROR, retryable = true)
+        }
+        return when (result) {
+            is GithubBrokerResult.Failure -> GithubAuthorizationResult.Failure(result.failure)
+            is GithubBrokerResult.Success -> if (result.value.any { session ->
+                GithubProjectIdPolicy.normalize(session.projectId) != session.projectId || !isValidSession(session)
+            }) {
+                GithubAuthorizationResult.Failure(
+                    GithubAuthorizationFailure(GithubAuthorizationFailureCode.INVALID_CALLBACK)
+                )
+            } else GithubAuthorizationResult.Success(result.value)
+        }
+    }
+
     fun stateFor(projectId: String): GithubAuthorizationState {
         val project = GithubProjectIdPolicy.normalize(projectId)
             ?: return GithubAuthorizationState.Failed(
@@ -282,7 +355,8 @@ class GithubAuthorizationCoordinator(
     private fun <T> fail(
         projectId: String,
         code: GithubAuthorizationFailureCode,
-    ): GithubAuthorizationResult<T> = fail(projectId, GithubAuthorizationFailure(code))
+        retryable: Boolean = false,
+    ): GithubAuthorizationResult<T> = fail(projectId, GithubAuthorizationFailure(code, retryable = retryable))
 
     private fun <T> fail(
         projectId: String,

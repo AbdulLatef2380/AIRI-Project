@@ -44,7 +44,7 @@ class GithubSessionStoreTest {
     }
 
     @Test
-    fun sessionAndBrokerRequestDiagnosticsRedactCredentialsAndVerifier() {
+    fun sessionAndBrokerRequestDiagnosticsRedactCredentialsAndHandoff() {
         val value = session("project-one", "alpha")
         val sessionText = value.toString()
         assertTrue(sessionText.contains("<redacted>"))
@@ -57,12 +57,11 @@ class GithubSessionStoreTest {
 
         val requestText = GithubBrokerCodeExchange(
             projectId = "project-one",
-            authorizationCode = "authorization-code-fixture",
-            codeVerifier = "verifier-fixture",
-            requestedScopes = setOf("repo:read"),
+            transactionId = "transaction-fixture",
+            handoffCode = "handoff-code-fixture",
         ).toString()
-        assertFalse(requestText.contains("authorization-code-fixture"))
-        assertFalse(requestText.contains("verifier-fixture"))
+        assertFalse(requestText.contains("transaction-fixture"))
+        assertFalse(requestText.contains("handoff-code-fixture"))
     }
 
     private fun session(projectId: String, login: String) = GithubAuthorizationSession(

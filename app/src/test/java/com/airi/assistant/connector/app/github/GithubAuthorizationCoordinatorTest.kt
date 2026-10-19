@@ -207,14 +207,23 @@ class GithubAuthorizationCoordinatorTest {
         var refreshSessionResult: GithubBrokerResult<GithubAuthorizationSession>? = null
         var listResult: GithubBrokerResult<List<GithubRepositoryGrant>>? = null
 
-        override suspend fun beginAuthorization(request: GithubBrokerAuthorizationRequest): GithubBrokerResult<Unit> =
-            GithubBrokerResult.Success(Unit)
+        override suspend fun beginAuthorization(request: GithubBrokerAuthorizationRequest): GithubBrokerResult<GithubBrokerAuthorizationStart> =
+            GithubBrokerResult.Success(
+                GithubBrokerAuthorizationStart(
+                    transactionId = "transaction-${request.projectId}",
+                    authorizationUrl = "https://github.com/apps/airi/installations/new",
+                    expiresAtMs = 90_000L,
+                )
+            )
 
         override suspend fun exchangeAuthorizationCode(request: GithubBrokerCodeExchange): GithubBrokerResult<GithubAuthorizationSession> {
             exchangeCalls++
             return exchangeSession?.let { GithubBrokerResult.Success(it) }
                 ?: GithubBrokerResult.Failure(GithubAuthorizationFailure(GithubAuthorizationFailureCode.NETWORK_ERROR))
         }
+
+        override suspend fun listConnections(request: GithubBrokerConnectionsRequest): GithubBrokerResult<List<GithubAuthorizationSession>> =
+            GithubBrokerResult.Success(emptyList())
 
         override suspend fun refreshSession(request: GithubBrokerSessionRequest): GithubBrokerResult<GithubAuthorizationSession> =
             refreshSessionResult ?: GithubBrokerResult.Failure(
@@ -226,5 +235,8 @@ class GithubAuthorizationCoordinatorTest {
 
         override suspend fun listRepositories(request: GithubBrokerSessionRequest): GithubBrokerResult<List<GithubRepositoryGrant>> =
             listResult ?: GithubBrokerResult.Success(emptyList())
+
+        override suspend fun selectRepositories(request: GithubBrokerRepositorySelectionRequest): GithubBrokerResult<List<GithubRepositoryGrant>> =
+            GithubBrokerResult.Success(emptyList())
     }
 }

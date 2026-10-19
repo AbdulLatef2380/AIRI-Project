@@ -1,21 +1,27 @@
 package com.airi.assistant.connector.app.github
 
 /**
- * Application-level contract for the future server-side broker.
- * These Kotlin types describe domain operations only; they are not an HTTP
- * schema. Endpoint paths, wire formats, and authorization handoff must come
- * from the deployed broker specification before a network adapter is added.
+ * Application-level Broker contract shared by Android and a future server
+ * adapter. The authenticated AIRI subject is obtained from the Broker's
+ * bearer session; it is deliberately not accepted as a client-supplied field.
+ *
+ * This is a domain contract, not an HTTP implementation. The wire mapping is
+ * documented in docs/architecture/GITHUB_BROKER_CONTRACT_2026-10-20_AR.md.
  */
 interface GithubBrokerClient {
     val availability: GithubBrokerAvailability
 
     suspend fun beginAuthorization(
         request: GithubBrokerAuthorizationRequest,
-    ): GithubBrokerResult<Unit>
+    ): GithubBrokerResult<GithubBrokerAuthorizationStart>
 
     suspend fun exchangeAuthorizationCode(
         request: GithubBrokerCodeExchange,
     ): GithubBrokerResult<GithubAuthorizationSession>
+
+    suspend fun listConnections(
+        request: GithubBrokerConnectionsRequest,
+    ): GithubBrokerResult<List<GithubAuthorizationSession>>
 
     suspend fun refreshSession(
         request: GithubBrokerSessionRequest,
@@ -28,6 +34,10 @@ interface GithubBrokerClient {
     suspend fun listRepositories(
         request: GithubBrokerSessionRequest,
     ): GithubBrokerResult<List<GithubRepositoryGrant>>
+
+    suspend fun selectRepositories(
+        request: GithubBrokerRepositorySelectionRequest,
+    ): GithubBrokerResult<List<GithubRepositoryGrant>>
 }
 
 enum class GithubBrokerAvailability { CONFIGURED, BROKER_NOT_CONFIGURED }
@@ -39,24 +49,37 @@ sealed interface GithubBrokerResult<out T> {
 
 data class GithubBrokerAuthorizationRequest(
     val projectId: String,
-    val state: String,
+    /** Client-generated nonce bound to the authenticated Broker transaction. */
+    val clientNonce: String,
     val codeChallenge: String,
     val requestedScopes: Set<String>,
 ) {
     override fun toString(): String =
-        "GithubBrokerAuthorizationRequest(projectId=$projectId, state=<redacted>, codeChallenge=<redacted>, requestedScopes=$requestedScopes)"
+        "GithubBrokerAuthorizationRequest(projectId=$projectId, clientNonce=<redacted>, " +
+            "codeChallenge=<redacted>, requestedScopes=$requestedScopes)"
+}
+
+data class GithubBrokerAuthorizationStart(
+    val transactionId: String,
+    val authorizationUrl: String,
+    val expiresAtMs: Long,
+) {
+    override fun toString(): String =
+        "GithubBrokerAuthorizationStart(transactionId=<redacted>, authorizationUrl=<redacted>, expiresAtMs=$expiresAtMs)"
 }
 
 data class GithubBrokerCodeExchange(
     val projectId: String,
-    val authorizationCode: String,
-    val codeVerifier: String,
-    val requestedScopes: Set<String>,
+    val transactionId: String,
+    val handoffCode: String,
 ) {
     override fun toString(): String =
-        "GithubBrokerCodeExchange(projectId=$projectId, authorizationCode=<redacted>, " +
-            "codeVerifier=<redacted>, requestedScopes=$requestedScopes)"
+        "GithubBrokerCodeExchange(projectId=$projectId, transactionId=<redacted>, handoffCode=<redacted>)"
 }
+
+data class GithubBrokerConnectionsRequest(
+    val projectId: String? = null,
+)
 
 data class GithubBrokerSessionRequest(
     val projectId: String,
@@ -66,17 +89,31 @@ data class GithubBrokerSessionRequest(
         "GithubBrokerSessionRequest(projectId=$projectId, airiConnectionId=<redacted>)"
 }
 
+data class GithubBrokerRepositorySelectionRequest(
+    val projectId: String,
+    val airiConnectionId: String,
+    val repositoryIds: Set<Long>,
+) {
+    override fun toString(): String =
+        "GithubBrokerRepositorySelectionRequest(projectId=$projectId, airiConnectionId=<redacted>, " +
+            "repositoryIds=$repositoryIds)"
+}
+
 /** Default DI binding. It never opens a browser or fabricates successful readiness. */
 class NotConfiguredGithubBrokerClient : GithubBrokerClient {
     override val availability: GithubBrokerAvailability = GithubBrokerAvailability.BROKER_NOT_CONFIGURED
 
     override suspend fun beginAuthorization(
         request: GithubBrokerAuthorizationRequest,
-    ): GithubBrokerResult<Unit> = unavailable()
+    ): GithubBrokerResult<GithubBrokerAuthorizationStart> = unavailable()
 
     override suspend fun exchangeAuthorizationCode(
         request: GithubBrokerCodeExchange,
     ): GithubBrokerResult<GithubAuthorizationSession> = unavailable()
+
+    override suspend fun listConnections(
+        request: GithubBrokerConnectionsRequest,
+    ): GithubBrokerResult<List<GithubAuthorizationSession>> = unavailable()
 
     override suspend fun refreshSession(
         request: GithubBrokerSessionRequest,
@@ -88,6 +125,10 @@ class NotConfiguredGithubBrokerClient : GithubBrokerClient {
 
     override suspend fun listRepositories(
         request: GithubBrokerSessionRequest,
+    ): GithubBrokerResult<List<GithubRepositoryGrant>> = unavailable()
+
+    override suspend fun selectRepositories(
+        request: GithubBrokerRepositorySelectionRequest,
     ): GithubBrokerResult<List<GithubRepositoryGrant>> = unavailable()
 
     private fun <T> unavailable(): GithubBrokerResult<T> = GithubBrokerResult.Failure(

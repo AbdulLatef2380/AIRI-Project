@@ -115,14 +115,18 @@ sealed interface GithubAuthorizationResult<out T> {
     data class Failure(val failure: GithubAuthorizationFailure) : GithubAuthorizationResult<Nothing>
 }
 
-/** Contains no URI or external handoff details until the broker contract defines them. */
+/** Client-safe Broker handoff projection; it contains no token or installation ID. */
 data class GithubAuthorizationStart(
     val projectId: String,
     val state: String,
     val requestedScopes: Set<String>,
+    val transactionId: String,
+    val authorizationUrl: String,
+    val expiresAtMs: Long,
 ) {
     override fun toString(): String =
-        "GithubAuthorizationStart(projectId=$projectId, state=<redacted>, requestedScopes=$requestedScopes)"
+        "GithubAuthorizationStart(projectId=$projectId, state=<redacted>, transactionId=<redacted>, " +
+            "authorizationUrl=<redacted>, requestedScopes=$requestedScopes, expiresAtMs=$expiresAtMs)"
 }
 
 data class GithubRevocationResult(

@@ -163,7 +163,20 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         )
         viewModelScope.launch {
             try {
-                githubAuthorizationCoordinator.beginAuthorization(projectId)
+                when (val result = githubAuthorizationCoordinator.beginAuthorization(projectId)) {
+                    is com.airi.assistant.connector.app.github.GithubAuthorizationResult.Success -> {
+                        val url = result.value.authorizationUrl
+                        val uri = android.net.Uri.parse(url)
+                        if (uri.scheme == "https" && uri.host in setOf("github.com", "www.github.com")) {
+                            _googleAuthorizationEffects.emit(
+                                GoogleAuthorizationEffect.LaunchBrowser(
+                                    Intent(Intent.ACTION_VIEW, uri)
+                                )
+                            )
+                        }
+                    }
+                    is com.airi.assistant.connector.app.github.GithubAuthorizationResult.Failure -> Unit
+                }
             } finally {
                 refreshGithubProjectAuthorizationState()
             }
@@ -194,6 +207,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         project: com.airi.assistant.workspace.WorkspaceRuntime.WorkspaceSession? =
             ServiceLocator.workspaceRuntime.activeSession.value,
     ) {
+        _items.value = buildItems()
         val projectId = project?.sessionId?.takeIf(String::isNotBlank)
         _githubProjectAuthorization.value = GithubProjectAuthorizationUiState(
             projectId = projectId,
@@ -209,6 +223,13 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     /** Starts a non-Google provider flow through the shared authorization manager. */
     fun beginConnectorAuthorization(id: String, presentationContext: Context = getApplication<Application>()) {
         if (id.isBlank()) return
+        // GitHub is project-scoped and broker-authorized. It must never enter
+        // the generic credential form, which belongs to explicitly supported
+        // legacy providers and has no tenant/repository binding.
+        if (id == "github") {
+            connectGithubProject()
+            return
+        }
         // The visible Google card represents the shared identity, but Gmail is
         // the first concrete data surface and needs its own read-only OAuth
         // scope. Starting the global identity-only flow left users "connected"
@@ -305,9 +326,9 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 name        = ctx.getString(R.string.integration_github_name),
                 description = ctx.getString(R.string.integration_github_description),
                 emoji       = "",
-                readiness   = IntegrationReadinessPolicy.credentialBacked(secureStorage.isGithubConnected()),
-                connectedAs = secureStorage.getGithubUsername(),
-                lastUpdated = secureStorage.getGithubUpdated()
+                readiness   = githubProjectReadiness(),
+                connectedAs = githubProjectAccountLogin(),
+                lastUpdated = 0L
             ),
             IntegrationItem(
                 id          = "telegram",
@@ -457,6 +478,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     // ── Connect / Disconnect ──────────────────────────────────────────────────
 
+    /**
+     * Legacy PAT dialog entry point retained only for source compatibility.
+     * The Integrations UI never routes GitHub here; project-scoped Broker
+     * authorization is the only supported product flow.
+     */
     fun connectGithub() {
         val current = _dialog.value as? DialogState.Github ?: return
         if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return
@@ -681,14 +707,6 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
             }
         }
 
-        // : One-time migration — bridge any PAT already stored in the legacy
-        // SecureStorage "github_token" key into ConnectorAuthManager "github"/"pat".
-        // Runs every launch but is a no-op once ConnectorAuthManager already has the key.
-        val existingGithubPat = secureStorage.getGithubToken()
-        if (!existingGithubPat.isNullOrBlank() && authManager.getCredential("github", "pat").isNullOrBlank()) {
-            authManager.storeCredential("github", "pat", existingGithubPat)
-        }
-
         // Subscribe to OAuth deep-link callbacks from MainActivity
         viewModelScope.launch {
             com.airi.assistant.domain.event.EventBus.events.collect { event ->
@@ -703,8 +721,27 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun disconnect(id: String) {
         viewModelScope.launch {
+            if (id == "github") {
+                disconnectGithubProject()
+                return@launch
+            }
             authorizationManager.disconnect(id)
             refresh()
         }
     }
+
+    private fun githubProjectState(): GithubAuthorizationState =
+        ServiceLocator.workspaceRuntime.activeSession.value?.sessionId
+            ?.takeIf(String::isNotBlank)
+            ?.let(githubAuthorizationCoordinator::stateFor)
+            ?: GithubAuthorizationState.SignedOut
+
+    private fun githubProjectReadiness(): IntegrationReadiness = when (githubProjectState()) {
+        is GithubAuthorizationState.Ready -> IntegrationReadiness.READY
+        else -> IntegrationReadiness.DISCONNECTED
+    }
+
+    private fun githubProjectAccountLogin(): String =
+        (githubProjectState() as? GithubAuthorizationState.Ready)
+            ?.session?.accountLogin.orEmpty()
 }

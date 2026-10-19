@@ -4,7 +4,7 @@
 
 لا يوجد في مستودع AIRI Broker خلفي منشور أو مشروع Backend مستقل لتبادل GitHub authorization code. الموجود هو عقد Android typed وعميل `NotConfiguredGithubBrokerClient`، ولذلك لا يجوز إضافة HTTP adapter فعلي قبل اعتماد عقد wire ونشر خدمة تملك الأسرار.
 
-آخر نسخة مفحوصة من `main` هي commit `9158abb003e2f01c0b08043e9055f8cb48c89a5e`، والفرع المحلي نظيف ومتزامن مع `origin/main` وقت الفحص.
+آخر نسخة مفحوصة من `main` هي commit `67b83cbd` (`docs: define GitHub App broker phase three plan`)، والفرع المحلي نظيف ومتزامن مع `origin/main` وقت بدء Phase 3A/3B.
 
 ## ما تثبته البنية الحالية
 
@@ -32,7 +32,7 @@ GitHub App web flow يستخدم `client_id` وcallback مسجلاً و`state` �
 6. طبقة GitHub API server-side تنفذ أولاً عمليات القراءة فقط بعد التحقق من project/session/repository grant. عمليات الكتابة تُقبل فقط مع approval continuation كامل من AIRI، idempotency key وSHA/branch المتحقق منه.
 7. Secret Manager/observability يمنع تسجيل authorization code وstate وverifier وaccess/refresh tokens وrequest bodies المحتوية على محتوى المستودع.
 
-هذه بنية متطلبات، وليست عقد API منشوراً. لا ينبغي كتابة endpoint paths أو JSON schemas حتى يُعتمد wire contract ويُحدد النشر الفعلي.
+هذه بنية متطلبات، وليست عقد API منشوراً. لا ينبغي كتابة endpoint paths أو JSON schemas حتى يُعتمد wire contract ويُحدد النشر الفعلي. سجل Phase 3A الحالي في `docs/research/GITHUB_APP_BROKER_PHASE3A_STATUS_2026-10-19_AR.md`، وبوابة العقد غير التنفيذي في `docs/integrations/GITHUB_BROKER_WIRE_CONTRACT.md`.
 
 ## الصلاحيات المقترحة للنسخة الأولى
 

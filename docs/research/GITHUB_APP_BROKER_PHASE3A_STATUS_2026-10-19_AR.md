@@ -74,3 +74,13 @@ GITHUB_WRITE_PATH_VIA_BROKER = NOT_ENABLED
 ```text
 BLOCKED_EXTERNAL_BROKER
 ```
+
+## نتيجة اكتشاف 3C التحضيرية
+
+بعد فحص إعدادات الجلسة، والموصلات، ومستودعات GitHub المتاحة للحساب المحدد، لم يظهر Broker أو Backend مستقل يمكن اعتماده. كما أن إعدادات الجلسة الحالية لا توفر تكامل Broker جاهزًا، ومخزن الأسرار غير متاح للاستعلام من هذه البيئة. هذه النتيجة لا تثبت عدم وجود أسرار في حساب خارجي؛ تثبت فقط عدم إمكانية استخدامها أو قراءتها في هذه الجلسة دون قناة معتمدة.
+
+لذلك لم يتم إنشاء HTTP adapter، ولم يتم تعديل `ServiceLocator`، ولم يتم تفعيل callback أو أدوات GitHub عبر OAuth. يبقى `NotConfiguredGithubBrokerClient` هو التنفيذ الآمن والصحيح.
+
+## مدخلات الانتقال إلى 3C التنفيذية
+
+يلزم توفير Broker staging فعلي أو مستودع Backend معتمد، إضافة إلى معلومات عامة يمكن مراجعتها: عنوان HTTPS، البيئة، GitHub App client ID أو slug، callback URI المسجل، ومواصفة wire contract أو artifact اختبار. لا تُرسل client secret أو private key أو access/refresh token في المحادثة؛ تُستخدم قناة أسرار معتمدة عند الحاجة.

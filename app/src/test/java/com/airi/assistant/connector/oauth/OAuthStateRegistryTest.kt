@@ -122,4 +122,12 @@ class OAuthStateRegistryTest {
         }
         assertTrue(thrown)
     }
+
+    @Test
+    fun ttlPolicyAcceptsOnlyNonNegativeAgeWithinInclusiveBoundary() {
+        assertTrue(OAuthStateTtlPolicy.isFresh(1_000L, 1_000L, 300_000L))
+        assertTrue(OAuthStateTtlPolicy.isFresh(1_000L, 301_000L, 300_000L))
+        assertFalse(OAuthStateTtlPolicy.isFresh(1_000L, 301_001L, 300_000L))
+        assertFalse(OAuthStateTtlPolicy.isFresh(1_000L, 999L, 300_000L))
+    }
 }

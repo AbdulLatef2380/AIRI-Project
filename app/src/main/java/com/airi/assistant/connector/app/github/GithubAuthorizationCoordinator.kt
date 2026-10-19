@@ -243,7 +243,13 @@ class GithubAuthorizationCoordinator(
         }
         return when (result) {
             is GithubBrokerResult.Failure -> fail(project, result.failure)
-            is GithubBrokerResult.Success -> GithubAuthorizationResult.Success(result.value)
+            is GithubBrokerResult.Success -> {
+                if (result.value.any { !isValidRepositoryGrant(it) }) {
+                    fail(project, GithubAuthorizationFailureCode.INVALID_CALLBACK)
+                } else {
+                    GithubAuthorizationResult.Success(result.value)
+                }
+            }
         }
     }
 
@@ -268,6 +274,9 @@ class GithubAuthorizationCoordinator(
         GithubProjectIdPolicy.normalize(session.projectId) == session.projectId &&
             session.accountLogin.isNotBlank() && session.accessToken.isNotBlank() &&
             session.expiresAtMs?.let { it > nowMs() } != false
+
+    private fun isValidRepositoryGrant(grant: GithubRepositoryGrant): Boolean =
+        grant.repositoryId > 0L && grant.owner.isNotBlank() && grant.name.isNotBlank()
 
     private fun <T> fail(
         projectId: String,

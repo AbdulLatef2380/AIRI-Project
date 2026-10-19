@@ -106,8 +106,7 @@ object OAuthStateRegistry {
 
     fun consumeRequest(state: String): ConsumedRequest? {
         val entry = store.remove(state) ?: return null
-        val ageMs = System.currentTimeMillis() - entry.issuedAtMs
-        return if (ageMs in 0..TOKEN_EXPIRY_MS) {
+        return if (OAuthStateTtlPolicy.isFresh(entry.issuedAtMs, System.currentTimeMillis(), TOKEN_EXPIRY_MS)) {
             ConsumedRequest(entry.connectorId, entry.codeVerifier, entry.requestedScopes, entry.ownerBinding)
         } else {
             null
@@ -120,7 +119,7 @@ object OAuthStateRegistry {
      */
     fun isPending(state: String): Boolean {
         val entry = store[state] ?: return false
-        return (System.currentTimeMillis() - entry.issuedAtMs) in 0..TOKEN_EXPIRY_MS
+        return OAuthStateTtlPolicy.isFresh(entry.issuedAtMs, System.currentTimeMillis(), TOKEN_EXPIRY_MS)
     }
 
     /**
@@ -131,7 +130,7 @@ object OAuthStateRegistry {
     fun pendingRoute(state: String): PendingRoute? {
         if (state.isBlank()) return null
         val entry = store[state] ?: return null
-        return if ((System.currentTimeMillis() - entry.issuedAtMs) in 0..TOKEN_EXPIRY_MS) {
+        return if (OAuthStateTtlPolicy.isFresh(entry.issuedAtMs, System.currentTimeMillis(), TOKEN_EXPIRY_MS)) {
             PendingRoute(entry.connectorId, entry.ownerBinding)
         } else {
             null
@@ -140,6 +139,15 @@ object OAuthStateRegistry {
 
     private fun evictExpired() {
         val now = System.currentTimeMillis()
-        store.entries.removeAll { (_, v) -> now - v.issuedAtMs !in 0..TOKEN_EXPIRY_MS }
+        store.entries.removeAll { (_, v) -> !OAuthStateTtlPolicy.isFresh(v.issuedAtMs, now, TOKEN_EXPIRY_MS) }
+    }
+}
+
+/** Pure TTL rule shared by the registry and deterministic JVM tests. */
+internal object OAuthStateTtlPolicy {
+    fun isFresh(issuedAtMs: Long, nowMs: Long, ttlMs: Long): Boolean {
+        if (ttlMs < 0L) return false
+        val ageMs = nowMs - issuedAtMs
+        return ageMs in 0L..ttlMs
     }
 }

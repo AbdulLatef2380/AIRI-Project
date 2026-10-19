@@ -84,3 +84,14 @@ BLOCKED_EXTERNAL_BROKER
 ## مدخلات الانتقال إلى 3C التنفيذية
 
 يلزم توفير Broker staging فعلي أو مستودع Backend معتمد، إضافة إلى معلومات عامة يمكن مراجعتها: عنوان HTTPS، البيئة، GitHub App client ID أو slug، callback URI المسجل، ومواصفة wire contract أو artifact اختبار. لا تُرسل client secret أو private key أو access/refresh token في المحادثة؛ تُستخدم قناة أسرار معتمدة عند الحاجة.
+
+## تنفيذ آمن لاحق قبل Broker الحقيقي
+
+أضيفت حواجز محلية لا تعتمد على Broker خارجي:
+
+- `OAuthStateTtlPolicy` يطبق TTL قابلًا للاختبار حتميًا مع رفض replay والعمر السالب.
+- `GithubAuthorizationCoordinator.listRepositories` يرفض أي grant لا يملك `repositoryId` موجبًا رقميًا أو owner/name غير مكتملين.
+- بقي `NotConfiguredGithubBrokerClient` هو binding الافتراضي، وبقيت عمليات الكتابة خلف `GitHubMutationPolicy` والموافقة المستمرة.
+- أضيفت اختبارات TTL ورفض grant غير صالح، لكنها اختبارات JVM/fake وليست إثبات اتصال GitHub staging.
+
+تظل بوابة التنفيذ الخارجي مغلقة حتى توفير Broker staging وwire contract معتمدين؛ لا يوجد HTTP adapter في هذه المرحلة.

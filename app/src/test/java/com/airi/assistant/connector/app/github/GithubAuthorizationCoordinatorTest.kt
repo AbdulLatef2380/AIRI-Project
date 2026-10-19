@@ -115,6 +115,25 @@ class GithubAuthorizationCoordinatorTest {
     }
 
     @Test
+    fun repositoryReadRejectsNonNumericOrIncompleteGrantBeforeExposure() = runBlocking {
+        val broker = FakeBroker().apply {
+            listResult = GithubBrokerResult.Success(
+                listOf(GithubRepositoryGrant(0L, "owner", "repo"))
+            )
+        }
+        val store = GithubSessionStore(FakeCredentialStore())
+        store.save(session("project-one", setOf("repo:read"), expiresAt = 90_000L))
+        val coordinator = GithubAuthorizationCoordinator(broker, store, nowMs = { 10_000L })
+
+        val result = coordinator.listRepositories("project-one")
+
+        assertEquals(
+            GithubAuthorizationFailureCode.INVALID_CALLBACK,
+            (result as GithubAuthorizationResult.Failure).failure.code,
+        )
+    }
+
+    @Test
     fun httpFailuresHaveTypedSafeClassification() {
         assertEquals(GithubAuthorizationFailureCode.HTTP_UNAUTHORIZED, GithubAuthorizationFailure.fromHttpStatus(401).code)
         assertEquals(GithubAuthorizationFailureCode.HTTP_FORBIDDEN, GithubAuthorizationFailure.fromHttpStatus(403).code)
@@ -187,6 +206,7 @@ class GithubAuthorizationCoordinatorTest {
         var exchangeCalls: Int = 0
         var exchangeSession: GithubAuthorizationSession? = null
         var refreshSessionResult: GithubBrokerResult<GithubAuthorizationSession>? = null
+        var listResult: GithubBrokerResult<List<GithubRepositoryGrant>>? = null
 
         override suspend fun beginAuthorization(request: GithubBrokerAuthorizationRequest): GithubBrokerResult<Unit> =
             GithubBrokerResult.Success(Unit)
@@ -206,6 +226,6 @@ class GithubAuthorizationCoordinatorTest {
             GithubBrokerResult.Success(Unit)
 
         override suspend fun listRepositories(request: GithubBrokerSessionRequest): GithubBrokerResult<List<GithubRepositoryGrant>> =
-            GithubBrokerResult.Success(request.session.repositories)
+            listResult ?: GithubBrokerResult.Success(request.session.repositories)
     }
 }

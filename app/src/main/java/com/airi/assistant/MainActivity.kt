@@ -170,6 +170,16 @@ class MainActivity : ComponentActivity() {
                 if (result is com.airi.assistant.connector.app.github.GithubAuthorizationResult.Failure) {
                     Log.w(TAG, "GitHub OAuth callback rejected code=${result.failure.code}")
                 }
+                // MainActivity owns the one-time callback consumption and code
+                // exchange. Notify UI projections only after that work; the
+                // subscriber must not consume the callback a second time.
+                com.airi.assistant.domain.event.EventBus.emitSync(
+                    com.airi.assistant.domain.event.AppEvent.OAuthCallbackReceived(
+                        code = data.getQueryParameter("code").orEmpty(),
+                        state = state,
+                        provider = "github",
+                    )
+                )
                 return@launch
             }
             val result = ServiceLocator.connectorAuthorizationManager.completeOAuth(data)

@@ -194,14 +194,15 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         project: com.airi.assistant.workspace.WorkspaceRuntime.WorkspaceSession? =
             ServiceLocator.workspaceRuntime.activeSession.value,
     ) {
-        val previous = _githubProjectAuthorization.value
         val projectId = project?.sessionId?.takeIf(String::isNotBlank)
         _githubProjectAuthorization.value = GithubProjectAuthorizationUiState(
             projectId = projectId,
             projectName = project?.name,
             authorizationState = projectId?.let(githubAuthorizationCoordinator::stateFor)
                 ?: GithubAuthorizationState.SignedOut,
-            isLoading = previous.isLoading && previous.projectId == projectId,
+            // A refresh observes the completed coordinator state. Do not carry
+            // a stale spinner across broker failure, callback, or resume.
+            isLoading = false,
         )
     }
 
@@ -665,12 +666,12 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
      * Only called from callers that subscribe to [EventBus.events].
      */
     fun handleOAuthCallback(code: String, state: String) {
-        // Browser callbacks are consumed and routed by MainActivity through
-        // OAuthStateRegistry. This method remains only for legacy callers and
-        // intentionally does not inspect or log authorization codes.
-        if (code.isBlank() || state.isBlank()) {
-            android.util.Log.w("IntegrationsVM", "Ignored incomplete OAuth callback")
-        }
+        // MainActivity owns state consumption and code exchange. Refresh only
+        // the UI projection; never consume or exchange the callback twice.
+        // A provider denial has no authorization code but still has a valid
+        // state, so it must refresh the visible failure state as well.
+        if (state.isBlank()) return
+        refreshGithubProjectAuthorizationState()
     }
 
     init {
@@ -692,7 +693,9 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             com.airi.assistant.domain.event.EventBus.events.collect { event ->
                 if (event is com.airi.assistant.domain.event.AppEvent.OAuthCallbackReceived) {
-                    handleOAuthCallback(code = event.code, state = event.state)
+                    if (event.provider == "github") {
+                        handleOAuthCallback(code = event.code, state = event.state)
+                    }
                 }
             }
         }

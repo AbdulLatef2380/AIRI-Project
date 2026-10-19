@@ -60,6 +60,39 @@ class OAuthStateRegistryTest {
     }
 
     @Test
+    fun pkceStateBindsGithubProjectAndCannotBeReplayed() {
+        val scopes = setOf("repo:read")
+        val authorization = OAuthStateRegistry.issuePkce(
+            connectorId = "github",
+            requestedScopes = scopes,
+            ownerBinding = "project-one",
+        )
+
+        val consumed = OAuthStateRegistry.consumeRequest(authorization.state)
+        assertEquals("github", consumed?.connectorId)
+        assertEquals("project-one", consumed?.ownerBinding)
+        assertEquals(scopes, consumed?.requestedScopes)
+        assertTrue(requireNotNull(consumed?.codeVerifier).isNotBlank())
+        assertNull(OAuthStateRegistry.consumeRequest(authorization.state))
+    }
+
+    @Test
+    fun pendingRouteExposesOnlyOwnerMetadataAndDoesNotConsumePkceState() {
+        val authorization = OAuthStateRegistry.issuePkce(
+            connectorId = "github",
+            ownerBinding = "project-one",
+        )
+
+        assertEquals(
+            OAuthStateRegistry.PendingRoute("github", "project-one"),
+            OAuthStateRegistry.pendingRoute(authorization.state),
+        )
+        assertTrue(OAuthStateRegistry.isPending(authorization.state))
+        assertEquals("project-one", OAuthStateRegistry.consumeRequest(authorization.state)?.ownerBinding)
+        assertNull(OAuthStateRegistry.pendingRoute(authorization.state))
+    }
+
+    @Test
     fun dropboxPkceStateBindsTheGrantedDropboxScopes() {
         val scopes = setOf("account_info.read", "files.metadata.read", "files.content.read")
         val authorization = OAuthStateRegistry.issuePkce("dropbox", scopes)

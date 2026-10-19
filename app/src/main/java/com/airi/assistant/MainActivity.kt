@@ -153,6 +153,25 @@ class MainActivity : ComponentActivity() {
         if (data.pathSegments.firstOrNull() != "callback") return
 
         lifecycleScope.launch {
+            val state = data.getQueryParameter("state").orEmpty()
+            val pendingRoute = com.airi.assistant.connector.oauth.OAuthStateRegistry.pendingRoute(state)
+            if (pendingRoute?.connectorId == "github") {
+                val coordinator = ServiceLocator.githubAuthorizationCoordinator
+                val projectId = pendingRoute.ownerBinding.orEmpty()
+                val result = when {
+                    projectId.isBlank() -> coordinator.rejectCallback(projectId, state)
+                    data.getQueryParameter("error") != null -> coordinator.rejectCallback(projectId, state)
+                    else -> coordinator.completeCallback(
+                        projectId = projectId,
+                        state = state,
+                        authorizationCode = data.getQueryParameter("code").orEmpty(),
+                    )
+                }
+                if (result is com.airi.assistant.connector.app.github.GithubAuthorizationResult.Failure) {
+                    Log.w(TAG, "GitHub OAuth callback rejected code=${result.failure.code}")
+                }
+                return@launch
+            }
             val result = ServiceLocator.connectorAuthorizationManager.completeOAuth(data)
             if (result is com.airi.assistant.connector.ConnectorAuthorizationManager.CompletionResult.Failed) {
                 android.util.Log.w("AIRI_OAUTH", "OAuth callback rejected code=${result.code}")

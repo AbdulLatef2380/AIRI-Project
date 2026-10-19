@@ -60,6 +60,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -73,6 +74,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringArrayResource
@@ -89,6 +91,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airi.assistant.R
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.connector.ConnectorAccessProfile
+import com.airi.assistant.connector.app.github.GithubAuthorizationFailureCode
+import com.airi.assistant.connector.app.github.GithubAuthorizationState
 import com.airi.assistant.ui.components.ConnectorAccessProfileDialog
 import com.airi.assistant.ui.viewmodel.IntegrationsViewModel
 import com.airi.assistant.ui.viewmodel.IntegrationReadiness
@@ -108,6 +112,7 @@ fun IntegrationsScreen(
     val context = LocalContext.current
     val vm: IntegrationsViewModel = viewModel()
     val items by vm.items.collectAsState()
+    val githubProjectAuthorization by vm.githubProjectAuthorization.collectAsState()
     val dialog by vm.dialog.collectAsState()
     val accessProfileRequest by vm.accessProfileRequest.collectAsState()
     val googleFeedback by vm.googleFeedback.collectAsState()
@@ -122,6 +127,16 @@ fun IntegrationsScreen(
     val focusedIntegration = items.firstOrNull { it.id == initialConnectorId }
     val locale = LocalConfiguration.current.locales[0]
     val snackbarHostState = remember { SnackbarHostState() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                vm.refreshGithubProjectAuthorization()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     LaunchedEffect(googleFeedback) {
         googleFeedback?.let { feedback ->
             snackbarHostState.showSnackbar(context.getString(feedback))
@@ -155,7 +170,8 @@ fun IntegrationsScreen(
     }
     // When entered from a connector detail route, authorize only that selected connector.
     LaunchedEffect(initialConnectorId) {
-        initialConnectorId?.takeIf(String::isNotBlank)?.let(vm::beginConnectorAuthorization)
+        initialConnectorId?.takeIf(String::isNotBlank)?.takeUnless { it == "github" }
+            ?.let(vm::beginConnectorAuthorization)
     }
 
     Scaffold(
@@ -213,24 +229,33 @@ fun IntegrationsScreen(
             }
 
             if (initialConnectorId == null) items(items, key = { it.id }) { item ->
-                IntegrationCard(
-                    item = item,
-                    onConnect = {
-                        when (item.id) {
-                            // Route token connectors through the shared
-                            // authorization boundary first so the user selects
-                            // READ/WRITE access before the token is committed.
-                            "github" -> vm.beginConnectorAuthorization("github", context)
-                            "telegram" -> vm.beginConnectorAuthorization("telegram", context)
-                            "notion", "notion_mcp" -> vm.openNotionDialog()
-                            "zapier" -> vm.beginConnectorAuthorization("zapier", context)
-                            "microsoft_graph" -> vm.beginConnectorAuthorization("microsoft_graph", context)
-                            in providerTokenConnectorIds -> vm.beginConnectorAuthorization(item.id, context)
-                            "google" -> vm.beginConnectorAuthorization("google", context)
-                        }
-                    },
-                    onDisconnect = { vm.disconnect(item.id) }
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    IntegrationCard(
+                        item = item,
+                        onConnect = {
+                            when (item.id) {
+                                // PAT remains an explicit user-selected, global credential flow.
+                                "github" -> vm.beginConnectorAuthorization("github", context)
+                                "telegram" -> vm.beginConnectorAuthorization("telegram", context)
+                                "notion", "notion_mcp" -> vm.openNotionDialog()
+                                "zapier" -> vm.beginConnectorAuthorization("zapier", context)
+                                "microsoft_graph" -> vm.beginConnectorAuthorization("microsoft_graph", context)
+                                in providerTokenConnectorIds -> vm.beginConnectorAuthorization(item.id, context)
+                                "google" -> vm.beginConnectorAuthorization("google", context)
+                            }
+                        },
+                        onDisconnect = { vm.disconnect(item.id) },
+                        connectLabelRes = if (item.id == "github") R.string.integration_github_connect_pat else null,
+                        connectedAsLabelRes = if (item.id == "github") R.string.integration_github_connected_via_pat else null,
+                    )
+                    if (item.id == "github") {
+                        GithubProjectAuthorizationPanel(
+                            state = githubProjectAuthorization,
+                            onConnect = vm::connectGithubProject,
+                            onDisconnect = vm::disconnectGithubProject,
+                        )
+                    }
+                }
             }
 
             if (initialConnectorId != null) {
@@ -268,6 +293,15 @@ fun IntegrationsScreen(
                             item = focusedItem,
                             onConnect = { vm.beginConnectorAuthorization(focusedItem.id, context) },
                             onDisconnect = { vm.disconnect(focusedItem.id) },
+                            connectLabelRes = if (focusedItem.id == "github") R.string.integration_github_connect_pat else null,
+                            connectedAsLabelRes = if (focusedItem.id == "github") R.string.integration_github_connected_via_pat else null,
+                        )
+                    }
+                    if (focusedItem.id == "github") item(key = "github_project_authorization") {
+                        GithubProjectAuthorizationPanel(
+                            state = githubProjectAuthorization,
+                            onConnect = vm::connectGithubProject,
+                            onDisconnect = vm::disconnectGithubProject,
                         )
                     }
                 }
@@ -369,7 +403,9 @@ fun IntegrationsScreen(
 private fun IntegrationCard(
     item: IntegrationsViewModel.IntegrationItem,
     onConnect: () -> Unit,
-    onDisconnect: () -> Unit
+    onDisconnect: () -> Unit,
+    connectLabelRes: Int? = null,
+    connectedAsLabelRes: Int? = null,
 ) {
     val ready = item.isReady
     val borderColor = if (ready) Color(0xFF4ADE80).copy(alpha = 0.35f)
@@ -448,7 +484,7 @@ private fun IntegrationCard(
                     Spacer(Modifier.height(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            stringResource(R.string.integration_connected_as),
+                            stringResource(connectedAsLabelRes ?: R.string.integration_connected_as),
                             style = MaterialTheme.typography.labelSmall,
                             color = AiriTheme.onBackground.copy(alpha = 0.42f)
                         )
@@ -510,11 +546,150 @@ private fun IntegrationCard(
                     ),
                     shape = AIRIShapes.md
                 ) {
-                    Text(stringResource(R.string.integration_connect), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(connectLabelRes ?: R.string.integration_connect), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
     }
+}
+
+@Composable
+private fun GithubProjectAuthorizationPanel(
+    state: IntegrationsViewModel.GithubProjectAuthorizationUiState,
+    onConnect: () -> Unit,
+    onDisconnect: () -> Unit,
+) {
+    val authorizationState = state.authorizationState
+    val ready = authorizationState as? GithubAuthorizationState.Ready
+    val failure = (authorizationState as? GithubAuthorizationState.Failed)?.failure
+    val statusLabel = when (authorizationState) {
+        GithubAuthorizationState.SignedOut -> stringResource(R.string.github_project_status_disconnected)
+        is GithubAuthorizationState.AwaitingAuthorization -> stringResource(R.string.github_project_status_awaiting)
+        is GithubAuthorizationState.Exchanging -> stringResource(R.string.github_project_status_exchanging)
+        is GithubAuthorizationState.Ready -> stringResource(R.string.github_project_status_connected)
+        is GithubAuthorizationState.Expired -> stringResource(R.string.github_project_status_expired)
+        is GithubAuthorizationState.Revoked -> if (authorizationState.remoteRevocationConfirmed) {
+            stringResource(R.string.github_project_status_revoked_remote)
+        } else {
+            stringResource(R.string.github_project_status_revoked_local)
+        }
+        GithubAuthorizationState.Cancelled -> stringResource(R.string.github_project_status_cancelled)
+        is GithubAuthorizationState.Failed -> ""
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth().border(1.dp, AiriTheme.outline, AIRIShapes.xl),
+        shape = AIRIShapes.xl,
+        color = AiriTheme.surfaceVariant,
+        contentColor = AiriTheme.onSurface,
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                stringResource(R.string.github_project_auth_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = AiriTheme.onSurface,
+            )
+            Text(
+                stringResource(R.string.github_project_auth_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = AiriTheme.onSurfaceVariant,
+            )
+            if (state.projectId == null) {
+                Text(
+                    stringResource(R.string.github_project_no_active),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AiriTheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    stringResource(R.string.github_project_current_project, state.projectName.orEmpty()),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = AiriTheme.onSurfaceVariant,
+                )
+                if (ready == null && failure == null) {
+                    Text(statusLabel, style = MaterialTheme.typography.bodyMedium, color = AiriTheme.onSurface)
+                }
+                if (ready != null) {
+                    Text(statusLabel, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF4ADE80))
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Text(
+                            "@${ready.session.accountLogin}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color(0xFF4ADE80),
+                        )
+                    }
+                }
+                if (failure != null) {
+                    Surface(color = Color(0xFF7F1D1D).copy(alpha = 0.18f), shape = AIRIShapes.md) {
+                        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                Text(
+                                    failure.code.name,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFFF8A8A),
+                                )
+                            }
+                            Text(
+                                stringResource(githubAuthorizationFailureMessage(failure.code)),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AiriTheme.onSurface,
+                            )
+                        }
+                    }
+                }
+            }
+            if (state.projectId != null) {
+                if (ready != null) {
+                    OutlinedButton(
+                        onClick = onDisconnect,
+                        enabled = !state.isLoading,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = AIRIShapes.md,
+                    ) {
+                        if (state.isLoading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        else Text(stringResource(R.string.github_project_action_disconnect))
+                    }
+                } else {
+                    val actionLabel = when (authorizationState) {
+                        is GithubAuthorizationState.Expired -> R.string.github_project_action_reconnect
+                        is GithubAuthorizationState.Failed -> R.string.github_project_action_retry
+                        else -> R.string.github_project_action_connect
+                    }
+                    Button(
+                        onClick = onConnect,
+                        enabled = !state.isLoading && authorizationState !is GithubAuthorizationState.AwaitingAuthorization &&
+                            authorizationState !is GithubAuthorizationState.Exchanging,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+                        shape = AIRIShapes.md,
+                    ) {
+                        if (state.isLoading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        else Text(stringResource(actionLabel), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun githubAuthorizationFailureMessage(code: GithubAuthorizationFailureCode): Int = when (code) {
+    GithubAuthorizationFailureCode.BROKER_NOT_CONFIGURED -> R.string.github_project_error_broker_not_configured
+    GithubAuthorizationFailureCode.INVALID_PROJECT -> R.string.github_project_error_invalid_project
+    GithubAuthorizationFailureCode.INVALID_CALLBACK, GithubAuthorizationFailureCode.INVALID_STATE -> R.string.github_project_error_invalid_callback
+    GithubAuthorizationFailureCode.PROJECT_MISMATCH -> R.string.github_project_error_project_mismatch
+    GithubAuthorizationFailureCode.NETWORK_ERROR, GithubAuthorizationFailureCode.PROVIDER_UNAVAILABLE -> R.string.github_project_error_network
+    GithubAuthorizationFailureCode.ACCESS_DENIED -> R.string.github_project_error_access_denied
+    GithubAuthorizationFailureCode.INSUFFICIENT_PERMISSIONS, GithubAuthorizationFailureCode.HTTP_FORBIDDEN -> R.string.github_project_error_permissions
+    GithubAuthorizationFailureCode.SESSION_EXPIRED, GithubAuthorizationFailureCode.SESSION_REVOKED,
+    GithubAuthorizationFailureCode.HTTP_UNAUTHORIZED -> R.string.github_project_error_expired
+    GithubAuthorizationFailureCode.SECURE_STORAGE_UNAVAILABLE -> R.string.github_project_error_storage
+    GithubAuthorizationFailureCode.CORRUPT_SESSION -> R.string.github_project_error_corrupt
+    GithubAuthorizationFailureCode.RATE_LIMITED -> R.string.github_project_error_rate_limited
+    GithubAuthorizationFailureCode.HTTP_NOT_FOUND, GithubAuthorizationFailureCode.HTTP_CONFLICT,
+    GithubAuthorizationFailureCode.HTTP_INVALID_REQUEST, GithubAuthorizationFailureCode.HTTP_FAILURE ->
+        R.string.github_project_error_generic
 }
 @Composable
 private fun StatusBadge(readiness: IntegrationReadiness) {

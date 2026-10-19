@@ -34,7 +34,12 @@ object OAuthStateRegistry {
         val connectorId: String,
         val codeVerifier: String?,
         val requestedScopes: Set<String> = emptySet(),
+        /** Optional owner binding (for example, a validated project id). */
+        val ownerBinding: String? = null,
     )
+
+    /** Non-secret routing metadata only; callback handlers must still consume and validate the state. */
+    data class PendingRoute(val connectorId: String, val ownerBinding: String?)
 
     data class PkceAuthorization(
         val state: String,
@@ -45,6 +50,7 @@ object OAuthStateRegistry {
         val connectorId: String,
         val codeVerifier: String? = null,
         val requestedScopes: Set<String> = emptySet(),
+        val ownerBinding: String? = null,
         val issuedAtMs: Long = System.currentTimeMillis()
     )
 
@@ -60,10 +66,14 @@ object OAuthStateRegistry {
     fun issueWithScopes(connectorId: String, requestedScopes: Set<String>): String =
         issueEntry(connectorId, requestedScopes = requestedScopes).first
 
-    fun issuePkce(connectorId: String, requestedScopes: Set<String> = emptySet()): PkceAuthorization {
+    fun issuePkce(
+        connectorId: String,
+        requestedScopes: Set<String> = emptySet(),
+        ownerBinding: String? = null,
+    ): PkceAuthorization {
         val verifierBytes = ByteArray(48).also { rng.nextBytes(it) }
         val verifier = urlEncoder.encodeToString(verifierBytes)
-        val state = issueEntry(connectorId, verifier, requestedScopes).first
+        val state = issueEntry(connectorId, verifier, requestedScopes, ownerBinding).first
         val challenge = MessageDigest.getInstance("SHA-256")
             .digest(verifier.toByteArray(Charsets.US_ASCII))
         return PkceAuthorization(
@@ -76,12 +86,13 @@ object OAuthStateRegistry {
         connectorId: String,
         codeVerifier: String? = null,
         requestedScopes: Set<String> = emptySet(),
+        ownerBinding: String? = null,
     ): Pair<String, String?> {
         require(connectorId.isNotBlank()) { "connectorId must not be blank" }
         val bytes = ByteArray(18).also { rng.nextBytes(it) }
         val token = urlEncoder.encodeToString(bytes)
         evictExpired()
-        store[token] = Entry(connectorId, codeVerifier, requestedScopes.toSet())
+        store[token] = Entry(connectorId, codeVerifier, requestedScopes.toSet(), ownerBinding)
         return token to codeVerifier
     }
 
@@ -96,8 +107,8 @@ object OAuthStateRegistry {
     fun consumeRequest(state: String): ConsumedRequest? {
         val entry = store.remove(state) ?: return null
         val ageMs = System.currentTimeMillis() - entry.issuedAtMs
-        return if (ageMs <= TOKEN_EXPIRY_MS) {
-            ConsumedRequest(entry.connectorId, entry.codeVerifier, entry.requestedScopes)
+        return if (ageMs in 0..TOKEN_EXPIRY_MS) {
+            ConsumedRequest(entry.connectorId, entry.codeVerifier, entry.requestedScopes, entry.ownerBinding)
         } else {
             null
         }
@@ -109,11 +120,26 @@ object OAuthStateRegistry {
      */
     fun isPending(state: String): Boolean {
         val entry = store[state] ?: return false
-        return (System.currentTimeMillis() - entry.issuedAtMs) <= TOKEN_EXPIRY_MS
+        return (System.currentTimeMillis() - entry.issuedAtMs) in 0..TOKEN_EXPIRY_MS
+    }
+
+    /**
+     * Returns only connector and owner metadata so the activity can choose the
+     * correct callback handler without consuming the one-use PKCE request.
+     * This is not a validation path; the selected handler must call consumeRequest.
+     */
+    fun pendingRoute(state: String): PendingRoute? {
+        if (state.isBlank()) return null
+        val entry = store[state] ?: return null
+        return if ((System.currentTimeMillis() - entry.issuedAtMs) in 0..TOKEN_EXPIRY_MS) {
+            PendingRoute(entry.connectorId, entry.ownerBinding)
+        } else {
+            null
+        }
     }
 
     private fun evictExpired() {
         val now = System.currentTimeMillis()
-        store.entries.removeAll { (_, v) -> now - v.issuedAtMs > TOKEN_EXPIRY_MS }
+        store.entries.removeAll { (_, v) -> now - v.issuedAtMs !in 0..TOKEN_EXPIRY_MS }
     }
 }

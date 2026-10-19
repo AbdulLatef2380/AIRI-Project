@@ -10,6 +10,7 @@ import com.airi.assistant.R
 import com.airi.assistant.connector.ConnectorAccessProfile
 import com.airi.assistant.connector.ConnectorAuthManager
 import com.airi.assistant.connector.ConnectorAuthorizationManager
+import com.airi.assistant.connector.app.github.GithubAuthorizationState
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.integrations.google.GoogleDataAuthorization
@@ -31,6 +32,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     private val secureStorage = ServiceLocator.secureStorage
     private val authManager: ConnectorAuthManager = ServiceLocator.connectorAuthManager
     private val authorizationManager: ConnectorAuthorizationManager = ServiceLocator.connectorAuthorizationManager
+    private val githubAuthorizationCoordinator = ServiceLocator.githubAuthorizationCoordinator
     // The registered GoogleConnector uses this same process-scoped service. Keeping
     // data access tokens only here prevents per-ViewModel token split-brain.
     private val googleAuthService = ServiceLocator.googleAuthService
@@ -90,6 +92,13 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
             get() = readiness == IntegrationReadiness.READY
     }
 
+    data class GithubProjectAuthorizationUiState(
+        val projectId: String?,
+        val projectName: String?,
+        val authorizationState: GithubAuthorizationState,
+        val isLoading: Boolean = false,
+    )
+
     sealed interface GoogleAuthorizationEffect {
         data class LaunchIdentity(val connectorId: String) : GoogleAuthorizationEffect
         data class LaunchConsent(val pendingIntent: PendingIntent) : GoogleAuthorizationEffect
@@ -98,6 +107,16 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     private val _items = MutableStateFlow(buildItems())
     val items: StateFlow<List<IntegrationItem>> = _items.asStateFlow()
+
+    private val _githubProjectAuthorization = MutableStateFlow(
+        GithubProjectAuthorizationUiState(
+            projectId = null,
+            projectName = null,
+            authorizationState = GithubAuthorizationState.SignedOut,
+        )
+    )
+    val githubProjectAuthorization: StateFlow<GithubProjectAuthorizationUiState> =
+        _githubProjectAuthorization.asStateFlow()
 
     private val _googleFeedback = MutableStateFlow<Int?>(null)
     val googleFeedback: StateFlow<Int?> = _googleFeedback.asStateFlow()
@@ -120,6 +139,70 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     fun refresh() {
         _items.value = buildItems()
+        refreshGithubProjectAuthorizationState()
+    }
+
+    /** Refreshes only the OAuth projection for the currently selected workspace/project. */
+    fun refreshGithubProjectAuthorization() {
+        refreshGithubProjectAuthorizationState()
+    }
+
+    /** Starts project-scoped OAuth. It never falls back to the global PAT flow. */
+    fun connectGithubProject() {
+        val project = ServiceLocator.workspaceRuntime.activeSession.value
+        val projectId = project?.sessionId?.takeIf(String::isNotBlank)
+        if (projectId == null) {
+            refreshGithubProjectAuthorizationState(project)
+            return
+        }
+        _githubProjectAuthorization.value = GithubProjectAuthorizationUiState(
+            projectId = projectId,
+            projectName = project.name,
+            authorizationState = githubAuthorizationCoordinator.stateFor(projectId),
+            isLoading = true,
+        )
+        viewModelScope.launch {
+            try {
+                githubAuthorizationCoordinator.beginAuthorization(projectId)
+            } finally {
+                refreshGithubProjectAuthorizationState()
+            }
+        }
+    }
+
+    /** Removes only the active project's OAuth session; the separate PAT is untouched. */
+    fun disconnectGithubProject() {
+        val projectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId
+            ?.takeIf(String::isNotBlank) ?: return
+        val projectName = ServiceLocator.workspaceRuntime.activeSession.value?.name
+        _githubProjectAuthorization.value = GithubProjectAuthorizationUiState(
+            projectId = projectId,
+            projectName = projectName,
+            authorizationState = githubAuthorizationCoordinator.stateFor(projectId),
+            isLoading = true,
+        )
+        viewModelScope.launch {
+            try {
+                githubAuthorizationCoordinator.revokeSession(projectId)
+            } finally {
+                refreshGithubProjectAuthorizationState()
+            }
+        }
+    }
+
+    private fun refreshGithubProjectAuthorizationState(
+        project: com.airi.assistant.workspace.WorkspaceRuntime.WorkspaceSession? =
+            ServiceLocator.workspaceRuntime.activeSession.value,
+    ) {
+        val previous = _githubProjectAuthorization.value
+        val projectId = project?.sessionId?.takeIf(String::isNotBlank)
+        _githubProjectAuthorization.value = GithubProjectAuthorizationUiState(
+            projectId = projectId,
+            projectName = project?.name,
+            authorizationState = projectId?.let(githubAuthorizationCoordinator::stateFor)
+                ?: GithubAuthorizationState.SignedOut,
+            isLoading = previous.isLoading && previous.projectId == projectId,
+        )
     }
 
     /** Starts a non-Google provider flow through the shared authorization manager. */
@@ -591,6 +674,12 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     init {
+        viewModelScope.launch {
+            ServiceLocator.workspaceRuntime.activeSession.collect { project ->
+                refreshGithubProjectAuthorizationState(project)
+            }
+        }
+
         // : One-time migration — bridge any PAT already stored in the legacy
         // SecureStorage "github_token" key into ConnectorAuthManager "github"/"pat".
         // Runs every launch but is a no-op once ConnectorAuthManager already has the key.

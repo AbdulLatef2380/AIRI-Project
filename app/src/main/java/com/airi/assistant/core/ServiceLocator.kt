@@ -223,6 +223,20 @@ object ServiceLocator {
         com.airi.assistant.connector.ConnectorAuthManager(requireContext())
     }
 
+    /** Creates the project-scoped GitHub OAuth layer with an explicitly injected broker. */
+    fun createGithubAuthorizationCoordinator(
+        broker: com.airi.assistant.connector.app.github.GithubBrokerClient =
+            com.airi.assistant.connector.app.github.NotConfiguredGithubBrokerClient(),
+    ): com.airi.assistant.connector.app.github.GithubAuthorizationCoordinator =
+        com.airi.assistant.connector.app.github.GithubAuthorizationCoordinator(
+            broker = broker,
+            sessionStore = com.airi.assistant.connector.app.github.GithubSessionStore(connectorAuthManager),
+        )
+
+    val githubAuthorizationCoordinator: com.airi.assistant.connector.app.github.GithubAuthorizationCoordinator by lazy {
+        createGithubAuthorizationCoordinator()
+    }
+
     val remoteControlAndroidAdapter: com.airi.assistant.remote.FirestoreRemoteControlAndroidAdapter by lazy {
         com.airi.assistant.remote.FirestoreRemoteControlAndroidAdapter(authService)
     }

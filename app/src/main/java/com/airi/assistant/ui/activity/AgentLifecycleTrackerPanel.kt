@@ -67,9 +67,9 @@ fun AgentLifecycleTrackerPanel(
     var expanded by rememberSaveable { mutableStateOf(true) }
     val executionId = projection.events.firstOrNull()?.executionId.orEmpty()
     var expandedGroups by rememberSaveable(executionId) {
-        mutableStateOf(if (isWorking) projection.groups.map { it.id } else emptyList())
+        mutableStateOf<List<String>>(if (isWorking) projection.groups.map { it.id } else emptyList())
     }
-    var expandedEvents by rememberSaveable(executionId) { mutableStateOf(emptyList<String>()) }
+    var expandedEvents by rememberSaveable(executionId) { mutableStateOf<List<String>>(emptyList()) }
     val panelDescription = stringResource(R.string.agent_trace_panel_description)
     LaunchedEffect(isWorking, projection.groups.map { it.id }) {
         if (isWorking) expandedGroups = expandedGroups + projection.groups.map { it.id }

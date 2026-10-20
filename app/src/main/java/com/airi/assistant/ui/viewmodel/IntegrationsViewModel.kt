@@ -10,7 +10,10 @@ import com.airi.assistant.R
 import com.airi.assistant.connector.ConnectorAccessProfile
 import com.airi.assistant.connector.ConnectorAuthManager
 import com.airi.assistant.connector.ConnectorAuthorizationManager
+import com.airi.assistant.connector.app.github.GithubAuthorizationFailure
+import com.airi.assistant.connector.app.github.GithubAuthorizationResult
 import com.airi.assistant.connector.app.github.GithubAuthorizationState
+import com.airi.assistant.connector.app.github.GithubRepositoryGrant
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.integrations.google.GoogleDataAuthorization
@@ -49,8 +52,8 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
      * reception (via [AppEvent.OAuthCallbackReceived]), the incoming `state`
      * must match [oauthStateToken] or the callback is rejected as CSRF.
      *
-     * Current GitHub and Telegram integrations use token-paste flows and do not
-     * use this token. It is here for forward-compatibility with browser OAuth.
+     * GitHub uses its project-scoped coordinator; Telegram uses a credential
+     * form. This state is retained for the other browser OAuth callbacks.
      */
     private val oauthStateToken: String = buildString {
         val bytes = ByteArray(24)
@@ -97,7 +100,23 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         val projectName: String?,
         val authorizationState: GithubAuthorizationState,
         val isLoading: Boolean = false,
+        val runtimeReady: Boolean = false,
     )
+
+    data class GithubProjectRepositoryUiState(
+        val projectId: String? = null,
+        val connectionId: String? = null,
+        val repositories: List<GithubRepositoryGrant> = emptyList(),
+        val selectedRepositoryIds: Set<Long> = emptySet(),
+        val savedRepositoryIds: Set<Long> = emptySet(),
+        val isLoading: Boolean = false,
+        val isSaving: Boolean = false,
+        val hasLoaded: Boolean = false,
+        val error: GithubAuthorizationFailure? = null,
+    ) {
+        val hasUnsavedChanges: Boolean
+            get() = selectedRepositoryIds != savedRepositoryIds
+    }
 
     sealed interface GoogleAuthorizationEffect {
         data class LaunchIdentity(val connectorId: String) : GoogleAuthorizationEffect
@@ -117,6 +136,10 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     )
     val githubProjectAuthorization: StateFlow<GithubProjectAuthorizationUiState> =
         _githubProjectAuthorization.asStateFlow()
+
+    private val _githubProjectRepositories = MutableStateFlow(GithubProjectRepositoryUiState())
+    val githubProjectRepositories: StateFlow<GithubProjectRepositoryUiState> =
+        _githubProjectRepositories.asStateFlow()
 
     private val _googleFeedback = MutableStateFlow<Int?>(null)
     val googleFeedback: StateFlow<Int?> = _googleFeedback.asStateFlow()
@@ -144,7 +167,52 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     /** Refreshes only the OAuth projection for the currently selected workspace/project. */
     fun refreshGithubProjectAuthorization() {
-        refreshGithubProjectAuthorizationState()
+        refreshGithubProjectAuthorizationState(forceRepositoryRefresh = true)
+    }
+
+    fun refreshGithubRepositories() {
+        refreshGithubProjectAuthorizationState(forceRepositoryRefresh = true)
+    }
+
+    fun setGithubRepositorySelected(repositoryId: Long, selected: Boolean) {
+        val current = _githubProjectRepositories.value
+        if (current.isLoading || current.isSaving || current.repositories.none { it.repositoryId == repositoryId }) return
+        val updated = current.selectedRepositoryIds.toMutableSet().apply {
+            if (selected) add(repositoryId) else remove(repositoryId)
+        }
+        _githubProjectRepositories.value = current.copy(selectedRepositoryIds = updated)
+    }
+
+    fun saveGithubRepositorySelection() {
+        val current = _githubProjectRepositories.value
+        val projectId = current.projectId ?: return
+        val connectionId = current.connectionId ?: return
+        if (current.isLoading || current.isSaving || !current.hasUnsavedChanges) return
+        val allowedIds = current.repositories.map { it.repositoryId }.toSet()
+        if (!allowedIds.containsAll(current.selectedRepositoryIds)) return
+        _githubProjectRepositories.value = current.copy(isSaving = true, error = null)
+        viewModelScope.launch {
+            val result = githubAuthorizationCoordinator.selectRepositories(projectId, current.selectedRepositoryIds)
+            val latest = _githubProjectRepositories.value
+            if (latest.projectId != projectId || latest.connectionId != connectionId ||
+                ServiceLocator.workspaceRuntime.activeSession.value?.sessionId != projectId
+            ) return@launch
+            when (result) {
+                is GithubAuthorizationResult.Success -> {
+                    val savedIds = result.value.map { it.repositoryId }.toSet()
+                    _githubProjectRepositories.value = latest.copy(
+                        selectedRepositoryIds = savedIds,
+                        savedRepositoryIds = savedIds,
+                        isSaving = false,
+                        error = null,
+                    )
+                }
+                is GithubAuthorizationResult.Failure -> {
+                    _githubProjectRepositories.value = latest.copy(isSaving = false, error = result.failure)
+                    refreshGithubProjectAuthorizationState()
+                }
+            }
+        }
     }
 
     /** Starts project-scoped OAuth. It never falls back to the global PAT flow. */
@@ -167,12 +235,16 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                     is com.airi.assistant.connector.app.github.GithubAuthorizationResult.Success -> {
                         val url = result.value.authorizationUrl
                         val uri = android.net.Uri.parse(url)
-                        if (uri.scheme == "https" && uri.host in setOf("github.com", "www.github.com")) {
+                        if (uri.scheme == "https" && uri.host in setOf("github.com", "www.github.com") &&
+                            uri.userInfo == null && (uri.port == -1 || uri.port == 443)
+                        ) {
                             _googleAuthorizationEffects.emit(
                                 GoogleAuthorizationEffect.LaunchBrowser(
                                     Intent(Intent.ACTION_VIEW, uri)
                                 )
                             )
+                        } else {
+                            githubAuthorizationCoordinator.cancelAuthorization(projectId, result.value.state)
                         }
                     }
                     is com.airi.assistant.connector.app.github.GithubAuthorizationResult.Failure -> Unit
@@ -183,7 +255,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /** Removes only the active project's OAuth session; the separate PAT is untouched. */
+    /** Removes only the active project's OAuth session; legacy tokens are not used as a fallback. */
     fun disconnectGithubProject() {
         val projectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId
             ?.takeIf(String::isNotBlank) ?: return
@@ -206,18 +278,81 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     private fun refreshGithubProjectAuthorizationState(
         project: com.airi.assistant.workspace.WorkspaceRuntime.WorkspaceSession? =
             ServiceLocator.workspaceRuntime.activeSession.value,
+        forceRepositoryRefresh: Boolean = false,
     ) {
         _items.value = buildItems()
         val projectId = project?.sessionId?.takeIf(String::isNotBlank)
+        val authorizationState = projectId?.let(githubAuthorizationCoordinator::stateFor)
+            ?: GithubAuthorizationState.SignedOut
+        val runtimeState = ServiceLocator.connectorRegistry.get("github")?.state()?.value
         _githubProjectAuthorization.value = GithubProjectAuthorizationUiState(
             projectId = projectId,
             projectName = project?.name,
-            authorizationState = projectId?.let(githubAuthorizationCoordinator::stateFor)
-                ?: GithubAuthorizationState.SignedOut,
+            authorizationState = authorizationState,
             // A refresh observes the completed coordinator state. Do not carry
             // a stale spinner across broker failure, callback, or resume.
             isLoading = false,
+            runtimeReady = runtimeState?.let { it.connected && it.healthy } == true,
         )
+        val ready = authorizationState as? GithubAuthorizationState.Ready
+        if (projectId == null || ready == null) {
+            _githubProjectRepositories.value = GithubProjectRepositoryUiState(projectId = projectId)
+        } else {
+            loadGithubRepositories(
+                projectId = projectId,
+                connectionId = ready.session.airiConnectionId,
+                initiallySelectedIds = ready.session.repositories.map { it.repositoryId }.toSet(),
+                force = forceRepositoryRefresh,
+            )
+        }
+    }
+
+    private fun loadGithubRepositories(
+        projectId: String,
+        connectionId: String,
+        initiallySelectedIds: Set<Long>,
+        force: Boolean,
+    ) {
+        val current = _githubProjectRepositories.value
+        if (current.projectId == projectId && current.connectionId == connectionId &&
+            !force && (current.isLoading || current.hasLoaded || current.error != null)
+        ) return
+        _githubProjectRepositories.value = GithubProjectRepositoryUiState(
+            projectId = projectId,
+            connectionId = connectionId,
+            selectedRepositoryIds = initiallySelectedIds,
+            savedRepositoryIds = initiallySelectedIds,
+            isLoading = true,
+        )
+        viewModelScope.launch {
+            val result = githubAuthorizationCoordinator.listRepositories(projectId)
+            val latest = _githubProjectRepositories.value
+            if (latest.projectId != projectId || latest.connectionId != connectionId ||
+                ServiceLocator.workspaceRuntime.activeSession.value?.sessionId != projectId
+            ) return@launch
+            when (result) {
+                is GithubAuthorizationResult.Success -> {
+                    val availableIds = result.value.map { it.repositoryId }.toSet()
+                    val savedIds = initiallySelectedIds.intersect(availableIds)
+                    _githubProjectRepositories.value = latest.copy(
+                        repositories = result.value,
+                        selectedRepositoryIds = savedIds,
+                        savedRepositoryIds = savedIds,
+                        isLoading = false,
+                        hasLoaded = true,
+                        error = null,
+                    )
+                }
+                is GithubAuthorizationResult.Failure -> {
+                    _githubProjectRepositories.value = latest.copy(
+                        repositories = emptyList(),
+                        isLoading = false,
+                        hasLoaded = false,
+                        error = result.failure,
+                    )
+                }
+            }
+        }
     }
 
     /** Starts a non-Google provider flow through the shared authorization manager. */
@@ -255,7 +390,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                     )
                 }
                 is ConnectorAuthorizationManager.StartResult.CredentialRequired -> when (result.connectorId) {
-                    "github" -> openGithubDialog()
+                    "github" -> _googleFeedback.value = R.string.github_project_error_broker_not_configured
                     "telegram" -> openTelegramDialog()
                     "notion_mcp" -> openNotionDialog()
                     else -> openProviderTokenDialog(result.connectorId, result.provider, result.label)
@@ -283,7 +418,9 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 }
                 is ConnectorAuthorizationManager.StartResult.Ready -> refresh()
                 is ConnectorAuthorizationManager.StartResult.Failed -> {
-                    _googleFeedback.value = R.string.integration_google_sign_in_failed
+                    _googleFeedback.value = if (result.code == "github_broker_required") {
+                        R.string.github_project_error_broker_not_configured
+                    } else R.string.integration_google_sign_in_failed
                 }
             }
         }
@@ -355,12 +492,6 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
 
     sealed class DialogState {
         object None : DialogState()
-        data class Github(
-            val connectorId: String = "github",
-            val token: String = "",
-            val loading: Boolean = false,
-            val error: String? = null
-        ) : DialogState()
         data class Telegram(
             val connectorId: String = "telegram",
             val token: String = "",
@@ -386,7 +517,6 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     private val _dialog = MutableStateFlow<DialogState>(DialogState.None)
     val dialog: StateFlow<DialogState> = _dialog.asStateFlow()
 
-    fun openGithubDialog()   { activeConnectorId = "github"; _dialog.value = DialogState.Github() }
     fun openTelegramDialog() { activeConnectorId = "telegram"; _dialog.value = DialogState.Telegram() }
     fun openNotionDialog() { activeConnectorId = "notion"; _dialog.value = DialogState.Notion() }
     fun openProviderTokenDialog(connectorId: String, provider: String, credentialLabel: String) {
@@ -398,12 +528,6 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         _dialog.value = DialogState.None
         activeConnectorId = null
         pendingGoogleScopes = emptySet()
-    }
-
-    fun updateGithubToken(token: String) {
-        val current = _dialog.value as? DialogState.Github ?: return
-        if (!ConnectorScreenIsolationPolicy.acceptsDialogUpdate(current.connectorId, activeConnectorId)) return
-        _dialog.value = current.copy(token = token, error = null)
     }
 
     fun updateTelegramToken(token: String) {
@@ -477,40 +601,6 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     // ── Connect / Disconnect ──────────────────────────────────────────────────
-
-    /**
-     * Legacy PAT dialog entry point retained only for source compatibility.
-     * The Integrations UI never routes GitHub here; project-scoped Broker
-     * authorization is the only supported product flow.
-     */
-    fun connectGithub() {
-        val current = _dialog.value as? DialogState.Github ?: return
-        if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return
-        if (current.token.isBlank()) {
-            _dialog.value = current.copy(
-                error = getApplication<Application>().getString(R.string.integration_error_paste_github)
-            )
-            return
-        }
-        _dialog.value = current.copy(loading = true, error = null)
-        viewModelScope.launch {
-            when (val result = authorizationManager.submitCredential("github", current.token)) {
-                is ConnectorAuthorizationManager.CompletionResult.Ready -> {
-                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
-                    _dialog.value = DialogState.None
-                    refresh()
-                }
-                is ConnectorAuthorizationManager.CompletionResult.Failed -> {
-                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
-                    _dialog.value = current.copy(loading = false, error = result.message)
-                }
-                is ConnectorAuthorizationManager.CompletionResult.ConsentRequired -> {
-                    if (!ConnectorScreenIsolationPolicy.acceptsResult(current.connectorId, activeConnectorId)) return@launch
-                    _dialog.value = current.copy(loading = false, error = "Additional authorization is required")
-                }
-            }
-        }
-    }
 
     fun connectTelegram() {
         val current = _dialog.value as? DialogState.Telegram ?: return
@@ -736,12 +826,18 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
             ?.let(githubAuthorizationCoordinator::stateFor)
             ?: GithubAuthorizationState.SignedOut
 
-    private fun githubProjectReadiness(): IntegrationReadiness = when (githubProjectState()) {
-        is GithubAuthorizationState.Ready -> IntegrationReadiness.READY
-        else -> IntegrationReadiness.DISCONNECTED
+    private fun githubProjectReadiness(): IntegrationReadiness {
+        if (githubProjectState() !is GithubAuthorizationState.Ready) return IntegrationReadiness.DISCONNECTED
+        val runtime = ServiceLocator.connectorRegistry.get("github")?.state()?.value
+        return if (runtime?.let { it.connected && it.healthy } == true) {
+            IntegrationReadiness.READY
+        } else {
+            IntegrationReadiness.DISCONNECTED
+        }
     }
 
     private fun githubProjectAccountLogin(): String =
-        (githubProjectState() as? GithubAuthorizationState.Ready)
-            ?.session?.accountLogin.orEmpty()
+        if (githubProjectReadiness() == IntegrationReadiness.READY) {
+            (githubProjectState() as? GithubAuthorizationState.Ready)?.session?.accountLogin.orEmpty()
+        } else ""
 }

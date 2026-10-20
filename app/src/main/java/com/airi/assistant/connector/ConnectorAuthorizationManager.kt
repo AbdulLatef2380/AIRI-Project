@@ -255,13 +255,14 @@ class ConnectorAuthorizationManager(
 
     /** Securely validates and commits PAT/API/MCP credentials, then health-checks. */
     suspend fun submitCredential(id: String, credential: String): CompletionResult = withContext(Dispatchers.IO) {
+        val runtimeId = resolveRuntimeId(id)
+        GithubCredentialSubmissionPolicy.rejection(runtimeId)?.let { return@withContext it }
         if (!authManager.isSecureStorageAvailable || !secureStorage.isEncrypted) {
             return@withContext CompletionResult.Failed(
                 "secure_storage_unavailable",
                 "Encrypted credential storage is unavailable; the credential was not accepted."
             )
         }
-        val runtimeId = resolveRuntimeId(id)
         val surfaceIds = authorizationSurfaceIds(id, runtimeId)
         if (surfaceIds.any { accessProfileStore.get(it) == ConnectorAccessProfile.NOT_CONFIGURED }) {
             return@withContext CompletionResult.Failed(
@@ -271,17 +272,6 @@ class ConnectorAuthorizationManager(
         }
         if (credential.isBlank()) return@withContext CompletionResult.Failed("credential_missing", "Credential cannot be empty")
         val validated = when (runtimeId) {
-            // GitHub has one runtime authority. Store the PAT in the connector
-            // vault, then let GitHubConnector.connect() validate /user and set
-            // the canonical connection state. The former direct-service path is
-            // intentionally not used here, preventing two health checks and
-            // two independent connection states from diverging.
-            "github" -> if (authManager.storeCredential("github", "pat", credential.trim())) {
-                authManager.setExplicitlyDisconnected("github", false)
-                Result.success(true)
-            } else {
-                Result.failure(IllegalStateException("Secure credential storage is unavailable"))
-            }
             "telegram" -> telegramService.validateAndConnect(credential).map { true }
             "notion_mcp" -> {
                 if (!secureStorage.isEncrypted) Result.failure(IllegalStateException("Secure credential storage is unavailable"))
@@ -311,11 +301,6 @@ class ConnectorAuthorizationManager(
                 )
                 if (state.connected && state.healthy) CompletionResult.Ready(runtimeId, state)
                 else {
-                    if (runtimeId == "github") {
-                        authManager.clearCredential("github", "pat")
-                        authManager.setExplicitlyDisconnected("github", true)
-                        secureStorage.disconnect("github")
-                    }
                     if (runtimeId == "notion_mcp") secureStorage.clearIntegrationToken("notion")
                     CompletionResult.Failed("health_check_failed", state.errorMessage ?: state.statusLine.ifBlank { "Connector health check failed" }, true)
                 }
@@ -486,4 +471,15 @@ class ConnectorAuthorizationManager(
     private fun ConnectorState.toCompletion(id: String): CompletionResult =
         if (connected && healthy) CompletionResult.Ready(id, this)
         else CompletionResult.Failed("health_check_failed", errorMessage ?: statusLine.ifBlank { "Connector health check failed" }, true)
+}
+
+/** Generic credential forms must never create a global GitHub PAT connection. */
+internal object GithubCredentialSubmissionPolicy {
+    fun rejection(runtimeId: String): ConnectorAuthorizationManager.CompletionResult.Failed? =
+        if (runtimeId == "github") {
+            ConnectorAuthorizationManager.CompletionResult.Failed(
+                "github_broker_required",
+                "GitHub credentials cannot be submitted as a personal access token. Connect this project through the authorization broker.",
+            )
+        } else null
 }

@@ -91,6 +91,28 @@ class GithubAuthorizationCoordinatorTest {
     }
 
     @Test
+    fun untrustedBrokerAuthorizationUrlIsRejectedBeforeItCanBeLaunched() = runBlocking {
+        val broker = FakeBroker().apply {
+            beginResult = GithubBrokerResult.Success(
+                GithubBrokerAuthorizationStart(
+                    transactionId = "tx-one",
+                    authorizationUrl = "https://attacker.example/collect",
+                    expiresAtMs = System.currentTimeMillis() + 60_000L,
+                )
+            )
+        }
+        val coordinator = GithubAuthorizationCoordinator(broker, GithubSessionStore(FakeCredentialStore()))
+
+        val result = coordinator.beginAuthorization("project-one")
+
+        assertEquals(GithubAuthorizationFailureCode.INVALID_CALLBACK, (result as GithubAuthorizationResult.Failure).failure.code)
+        assertEquals(
+            GithubAuthorizationFailureCode.INVALID_CALLBACK,
+            (coordinator.stateFor("project-one") as GithubAuthorizationState.Failed).failure.code,
+        )
+    }
+
+    @Test
     fun expiredSessionRefreshesOnlyThroughBrokerAndRevocationAlwaysClearsLocally() = runBlocking {
         val credentials = FakeCredentialStore()
         val store = GithubSessionStore(credentials)
@@ -112,6 +134,95 @@ class GithubAuthorizationCoordinatorTest {
         assertEquals(GithubAuthorizationFailureCode.BROKER_NOT_CONFIGURED, revoked.remoteFailure?.code)
         assertEquals(GithubSessionReadResult.Missing, store.load("project-one"))
         assertEquals(false, (coordinator.stateFor("project-one") as GithubAuthorizationState.Revoked).remoteRevocationConfirmed)
+    }
+
+    @Test
+    fun refreshCannotSwitchConnectionOrWidenScopesOrRepositoryPermissions() = runBlocking {
+        val original = session("project-one", setOf("repo:read"), expiresAt = 9_000L)
+        val store = GithubSessionStore(FakeCredentialStore())
+        store.save(original)
+        val broker = FakeBroker().apply {
+            refreshSessionResult = GithubBrokerResult.Success(
+                original.copy(
+                    airiConnectionId = "another-connection",
+                    grantedScopes = setOf("repo:read", "repo:write"),
+                    repositories = listOf(
+                        GithubRepositoryGrant(
+                            1L, "owner", "repo", mapOf("contents" to GithubRepositoryPermission.WRITE)
+                        )
+                    ),
+                    expiresAtMs = 50_000L,
+                )
+            )
+        }
+        val coordinator = GithubAuthorizationCoordinator(broker, store, nowMs = { 10_000L })
+
+        val result = coordinator.refreshSession("project-one")
+
+        assertEquals(
+            GithubAuthorizationFailureCode.INSUFFICIENT_PERMISSIONS,
+            (result as GithubAuthorizationResult.Failure).failure.code,
+        )
+        val preserved = (store.load("project-one") as GithubSessionReadResult.Found).session
+        assertEquals("connection-project-one", preserved.airiConnectionId)
+        assertEquals(setOf("repo:read"), preserved.grantedScopes)
+    }
+
+    @Test
+    fun repositorySelectionMustMatchBrokerResponseAndIsPersistedPerProject() = runBlocking {
+        val selected = GithubRepositoryGrant(1L, "owner", "repo")
+        val store = GithubSessionStore(FakeCredentialStore())
+        store.save(session("project-one", setOf("repo:read"), expiresAt = 90_000L))
+        val broker = FakeBroker().apply {
+            listResult = GithubBrokerResult.Success(listOf(selected))
+            selectionResult = GithubBrokerResult.Success(listOf(selected))
+        }
+        val coordinator = GithubAuthorizationCoordinator(broker, store, nowMs = { 10_000L })
+
+        val result = coordinator.selectRepositories("project-one", setOf(1L))
+
+        assertTrue(result is GithubAuthorizationResult.Success)
+        assertEquals(
+            setOf(1L),
+            (store.load("project-one") as GithubSessionReadResult.Found).session.repositories.map { it.repositoryId }.toSet(),
+        )
+        broker.selectionResult = GithubBrokerResult.Success(emptyList())
+        val mismatch = coordinator.selectRepositories("project-one", setOf(1L))
+        assertEquals(
+            GithubAuthorizationFailureCode.INSUFFICIENT_PERMISSIONS,
+            (mismatch as GithubAuthorizationResult.Failure).failure.code,
+        )
+    }
+
+    @Test
+    fun projectFilteredConnectionListRejectsSessionsFromAnotherProject() = runBlocking {
+        val broker = FakeBroker().apply {
+            connectionsResult = listOf(session("project-two", setOf("repo:read"), expiresAt = 90_000L))
+        }
+        val coordinator = GithubAuthorizationCoordinator(broker, GithubSessionStore(FakeCredentialStore()), nowMs = { 10_000L })
+
+        val result = coordinator.listConnections("project-one")
+
+        assertEquals(
+            GithubAuthorizationFailureCode.INVALID_CALLBACK,
+            (result as GithubAuthorizationResult.Failure).failure.code,
+        )
+    }
+
+    @Test
+    fun brokerUnauthorizedResponseMovesPersistedSessionToReauthorizationState() = runBlocking {
+        val store = GithubSessionStore(FakeCredentialStore())
+        store.save(session("project-one", setOf("repo:read"), expiresAt = 90_000L))
+        val broker = FakeBroker().apply {
+            listResult = GithubBrokerResult.Failure(
+                GithubAuthorizationFailure(GithubAuthorizationFailureCode.HTTP_UNAUTHORIZED)
+            )
+        }
+        val coordinator = GithubAuthorizationCoordinator(broker, store, nowMs = { 10_000L })
+
+        coordinator.listRepositories("project-one")
+
+        assertTrue(coordinator.stateFor("project-one") is GithubAuthorizationState.Expired)
     }
 
     @Test
@@ -172,7 +283,7 @@ class GithubAuthorizationCoordinatorTest {
             )
         )
 
-        assertEquals("approval_context_required", (result as ConnectorOutput.Failure).code)
+        assertEquals("github_broker_not_configured", (result as ConnectorOutput.Failure).code)
         assertEquals(0, adapterCalls)
     }
 
@@ -202,17 +313,20 @@ class GithubAuthorizationCoordinatorTest {
 
     private class FakeBroker : GithubBrokerClient {
         override var availability: GithubBrokerAvailability = GithubBrokerAvailability.CONFIGURED
+        var beginResult: GithubBrokerResult<GithubBrokerAuthorizationStart>? = null
         var exchangeCalls: Int = 0
         var exchangeSession: GithubAuthorizationSession? = null
         var refreshSessionResult: GithubBrokerResult<GithubAuthorizationSession>? = null
         var listResult: GithubBrokerResult<List<GithubRepositoryGrant>>? = null
+        var selectionResult: GithubBrokerResult<List<GithubRepositoryGrant>>? = null
+        var connectionsResult: List<GithubAuthorizationSession> = emptyList()
 
         override suspend fun beginAuthorization(request: GithubBrokerAuthorizationRequest): GithubBrokerResult<GithubBrokerAuthorizationStart> =
-            GithubBrokerResult.Success(
+            beginResult ?: GithubBrokerResult.Success(
                 GithubBrokerAuthorizationStart(
                     transactionId = "transaction-${request.projectId}",
                     authorizationUrl = "https://github.com/apps/airi/installations/new",
-                    expiresAtMs = 90_000L,
+                    expiresAtMs = System.currentTimeMillis() + 60_000L,
                 )
             )
 
@@ -223,7 +337,7 @@ class GithubAuthorizationCoordinatorTest {
         }
 
         override suspend fun listConnections(request: GithubBrokerConnectionsRequest): GithubBrokerResult<List<GithubAuthorizationSession>> =
-            GithubBrokerResult.Success(emptyList())
+            GithubBrokerResult.Success(connectionsResult)
 
         override suspend fun refreshSession(request: GithubBrokerSessionRequest): GithubBrokerResult<GithubAuthorizationSession> =
             refreshSessionResult ?: GithubBrokerResult.Failure(
@@ -237,6 +351,9 @@ class GithubAuthorizationCoordinatorTest {
             listResult ?: GithubBrokerResult.Success(emptyList())
 
         override suspend fun selectRepositories(request: GithubBrokerRepositorySelectionRequest): GithubBrokerResult<List<GithubRepositoryGrant>> =
-            GithubBrokerResult.Success(emptyList())
+            selectionResult ?: GithubBrokerResult.Success(
+                (listResult as? GithubBrokerResult.Success)?.value.orEmpty()
+                    .filter { it.repositoryId in request.repositoryIds }
+            )
     }
 }

@@ -2,6 +2,7 @@ package com.airi.assistant.connector.app.github
 
 import com.airi.assistant.connector.oauth.OAuthStateRegistry
 import kotlinx.coroutines.CancellationException
+import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -14,8 +15,13 @@ class GithubAuthorizationCoordinator(
     private val sessionStore: GithubSessionStore,
     private val nowMs: () -> Long = System::currentTimeMillis,
 ) {
+    private data class PendingBrokerTransaction(
+        val transactionId: String,
+        val expiresAtMs: Long,
+    )
+
     private val transientStates = ConcurrentHashMap<String, GithubAuthorizationState>()
-    private val brokerTransactions = ConcurrentHashMap<String, String>()
+    private val brokerTransactions = ConcurrentHashMap<String, PendingBrokerTransaction>()
 
     suspend fun beginAuthorization(
         projectId: String,
@@ -56,16 +62,31 @@ class GithubAuthorizationCoordinator(
                 OAuthStateRegistry.consumeRequest(pkce.state)
                 fail(project, brokerResult.failure)
             }
-            is GithubBrokerResult.Success -> GithubAuthorizationResult.Success(
-                GithubAuthorizationStart(
-                    projectId = project,
-                    state = pkce.state,
-                    requestedScopes = scopes,
-                    transactionId = brokerResult.value.transactionId,
-                    authorizationUrl = brokerResult.value.authorizationUrl,
-                    expiresAtMs = brokerResult.value.expiresAtMs,
-                ).also { brokerTransactions[pkce.state] = it.transactionId }
-            )
+            is GithubBrokerResult.Success -> {
+                val brokerStart = brokerResult.value
+                if (brokerStart.transactionId.isBlank() || brokerStart.expiresAtMs <= nowMs() ||
+                    !isTrustedAuthorizationUrl(brokerStart.authorizationUrl)
+                ) {
+                    OAuthStateRegistry.consumeRequest(pkce.state)
+                    fail(project, GithubAuthorizationFailureCode.INVALID_CALLBACK)
+                } else {
+                    GithubAuthorizationResult.Success(
+                        GithubAuthorizationStart(
+                            projectId = project,
+                            state = pkce.state,
+                            requestedScopes = scopes,
+                            transactionId = brokerStart.transactionId,
+                            authorizationUrl = brokerStart.authorizationUrl,
+                            expiresAtMs = brokerStart.expiresAtMs,
+                        ).also {
+                            brokerTransactions[pkce.state] = PendingBrokerTransaction(
+                                transactionId = it.transactionId,
+                                expiresAtMs = it.expiresAtMs,
+                            )
+                        }
+                    )
+                }
+            }
         }
     }
 
@@ -76,7 +97,7 @@ class GithubAuthorizationCoordinator(
     ): GithubAuthorizationResult<GithubAuthorizationSession> {
         val request = state.takeIf(String::isNotBlank)?.let(OAuthStateRegistry::consumeRequest)
             ?: return fail(projectId, GithubAuthorizationFailureCode.INVALID_STATE)
-        val transactionId = brokerTransactions.remove(state)
+        val transaction = brokerTransactions.remove(state)
             ?: return fail(projectId, GithubAuthorizationFailureCode.INVALID_STATE)
         val project = GithubProjectIdPolicy.normalize(projectId)
             ?: return fail(projectId, GithubAuthorizationFailureCode.INVALID_PROJECT)
@@ -85,6 +106,9 @@ class GithubAuthorizationCoordinator(
         }
         if (request.ownerBinding != project) {
             return fail(project, GithubAuthorizationFailureCode.PROJECT_MISMATCH)
+        }
+        if (transaction.expiresAtMs <= nowMs()) {
+            return fail(project, GithubAuthorizationFailureCode.INVALID_STATE)
         }
         if (authorizationCode.isBlank() || request.codeVerifier.isNullOrBlank()) {
             return fail(project, GithubAuthorizationFailureCode.INVALID_CALLBACK)
@@ -97,7 +121,7 @@ class GithubAuthorizationCoordinator(
             broker.exchangeAuthorizationCode(
                 GithubBrokerCodeExchange(
                     projectId = project,
-                    transactionId = transactionId,
+                    transactionId = transaction.transactionId,
                     handoffCode = authorizationCode,
                 )
             )
@@ -180,6 +204,8 @@ class GithubAuthorizationCoordinator(
                 val refreshed = brokerResult.value
                 if (refreshed.projectId != project || !isValidSession(refreshed)) {
                     fail(project, GithubAuthorizationFailureCode.PROJECT_MISMATCH)
+                } else if (!isNonExpandingRefresh(session, refreshed)) {
+                    fail(project, GithubAuthorizationFailureCode.INSUFFICIENT_PERMISSIONS)
                 } else when (val stored = sessionStore.save(refreshed)) {
                     GithubSessionWriteResult.Saved -> {
                         transientStates[project] = GithubAuthorizationState.Ready(refreshed.summary())
@@ -255,7 +281,7 @@ class GithubAuthorizationCoordinator(
         return when (result) {
             is GithubBrokerResult.Failure -> fail(project, result.failure)
             is GithubBrokerResult.Success -> {
-                if (result.value.any { !isValidRepositoryGrant(it) }) {
+                if (!isValidRepositoryGrants(result.value)) {
                     fail(project, GithubAuthorizationFailureCode.INVALID_CALLBACK)
                 } else {
                     GithubAuthorizationResult.Success(result.value)
@@ -291,9 +317,15 @@ class GithubAuthorizationCoordinator(
         }
         return when (result) {
             is GithubBrokerResult.Failure -> fail(project, result.failure)
-            is GithubBrokerResult.Success -> if (result.value.any { !isValidRepositoryGrant(it) }) {
-                fail(project, GithubAuthorizationFailureCode.INVALID_CALLBACK)
-            } else GithubAuthorizationResult.Success(result.value)
+            is GithubBrokerResult.Success -> {
+                val returnedIds = result.value.map { it.repositoryId }.toSet()
+                if (!isValidRepositoryGrants(result.value) || returnedIds != repositoryIds) {
+                    fail(project, GithubAuthorizationFailureCode.INSUFFICIENT_PERMISSIONS)
+                } else when (val saved = sessionStore.save(session.copy(repositories = result.value))) {
+                    GithubSessionWriteResult.Saved -> GithubAuthorizationResult.Success(result.value)
+                    is GithubSessionWriteResult.Failure -> fail(project, saved.failure)
+                }
+            }
         }
     }
 
@@ -317,8 +349,9 @@ class GithubAuthorizationCoordinator(
         return when (result) {
             is GithubBrokerResult.Failure -> GithubAuthorizationResult.Failure(result.failure)
             is GithubBrokerResult.Success -> if (result.value.any { session ->
-                GithubProjectIdPolicy.normalize(session.projectId) != session.projectId || !isValidSession(session)
-            }) {
+                GithubProjectIdPolicy.normalize(session.projectId) != session.projectId ||
+                    (normalizedProject != null && session.projectId != normalizedProject) || !isValidSession(session)
+            } || result.value.map { it.airiConnectionId }.toSet().size != result.value.size) {
                 GithubAuthorizationResult.Failure(
                     GithubAuthorizationFailure(GithubAuthorizationFailureCode.INVALID_CALLBACK)
                 )
@@ -334,11 +367,13 @@ class GithubAuthorizationCoordinator(
         return when (val loaded = sessionStore.load(project)) {
             GithubSessionReadResult.Missing -> transientStates[project] ?: GithubAuthorizationState.SignedOut
             is GithubSessionReadResult.Failure -> GithubAuthorizationState.Failed(loaded.failure)
-            is GithubSessionReadResult.Found -> if (loaded.session.isExpired(nowMs())) {
-                transientStates[project]?.takeIf { it is GithubAuthorizationState.Failed }
-                    ?: GithubAuthorizationState.Expired(loaded.session.summary())
-            } else {
-                GithubAuthorizationState.Ready(loaded.session.summary())
+            is GithubSessionReadResult.Found -> {
+                val transientFailure = (transientStates[project] as? GithubAuthorizationState.Failed)?.failure
+                if (loaded.session.isExpired(nowMs()) || transientFailure?.code in REAUTHORIZATION_FAILURES) {
+                    GithubAuthorizationState.Expired(loaded.session.summary())
+                } else {
+                    GithubAuthorizationState.Ready(loaded.session.summary())
+                }
             }
         }
     }
@@ -347,10 +382,40 @@ class GithubAuthorizationCoordinator(
         GithubProjectIdPolicy.normalize(session.projectId) == session.projectId &&
             session.airiConnectionId.isNotBlank() && session.githubAccountId > 0L &&
             session.accountLogin.isNotBlank() &&
-            session.expiresAtMs?.let { it > nowMs() } != false
+            session.expiresAtMs?.let { it > nowMs() } != false &&
+            session.grantedScopes.none(String::isBlank) && isValidRepositoryGrants(session.repositories)
 
     private fun isValidRepositoryGrant(grant: GithubRepositoryGrant): Boolean =
         grant.repositoryId > 0L && grant.owner.isNotBlank() && grant.name.isNotBlank()
+
+    private fun isValidRepositoryGrants(grants: List<GithubRepositoryGrant>): Boolean =
+        grants.all(::isValidRepositoryGrant) && grants.map { it.repositoryId }.toSet().size == grants.size
+
+    /** A refresh may narrow authority but cannot silently switch identities or widen grants. */
+    private fun isNonExpandingRefresh(
+        previous: GithubAuthorizationSession,
+        refreshed: GithubAuthorizationSession,
+    ): Boolean {
+        if (refreshed.airiConnectionId != previous.airiConnectionId ||
+            refreshed.githubAccountId != previous.githubAccountId ||
+            !previous.grantedScopes.containsAll(refreshed.grantedScopes)
+        ) return false
+        val oldGrants = previous.repositories.associateBy { it.repositoryId }
+        return refreshed.repositories.all { grant ->
+            val old = oldGrants[grant.repositoryId] ?: return@all false
+            grant.permissions.all { (permission, level) ->
+                level.ordinal <= (old.permissions[permission] ?: GithubRepositoryPermission.NONE).ordinal
+            }
+        }
+    }
+
+    private fun isTrustedAuthorizationUrl(value: String): Boolean = runCatching {
+        val uri = URI(value)
+        uri.scheme.equals("https", ignoreCase = true) &&
+            (uri.host.equals("github.com", ignoreCase = true) ||
+                uri.host.equals("www.github.com", ignoreCase = true)) &&
+            uri.rawUserInfo == null && (uri.port == -1 || uri.port == 443)
+    }.getOrDefault(false)
 
     private fun <T> fail(
         projectId: String,
@@ -366,5 +431,12 @@ class GithubAuthorizationCoordinator(
         return GithubAuthorizationResult.Failure(failure)
     }
 
-    private companion object { const val GITHUB_CONNECTOR_ID = "github" }
+    private companion object {
+        const val GITHUB_CONNECTOR_ID = "github"
+        val REAUTHORIZATION_FAILURES = setOf(
+            GithubAuthorizationFailureCode.SESSION_EXPIRED,
+            GithubAuthorizationFailureCode.SESSION_REVOKED,
+            GithubAuthorizationFailureCode.HTTP_UNAUTHORIZED,
+        )
+    }
 }

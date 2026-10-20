@@ -25,7 +25,8 @@ class GitHubConnectorProjectSecretTest {
     }
 
     @Test
-    fun missingProjectSecretFailsClosedWithoutReadingLegacyCredentialOrCallingAdapter() = runBlocking {
+    fun unconfiguredBrokerBlocksProjectAndLegacyPatBeforeReadingEitherCredential() = runBlocking {
+        SecretVault.storeProjectSecret(PROJECT_ID, "GITHUB_PAT", PROJECT_SECRET, "github")
         var legacyReads = 0
         var adapterCalls = 0
         val connector = GitHubConnector(
@@ -43,87 +44,54 @@ class GitHubConnectorProjectSecretTest {
 
         val output = connector.execute(projectInput())
 
-        assertEquals("project_secret_missing", (output as ConnectorOutput.Failure).code)
+        assertEquals("github_broker_not_configured", (output as ConnectorOutput.Failure).code)
         assertEquals(0, legacyReads)
         assertEquals(0, adapterCalls)
     }
 
     @Test
-    fun invalidProjectOwnershipFailsClosedWithoutLegacyFallbackOrAdapterCall() = runBlocking {
-        SecretVault.storeProjectSecret(PROJECT_ID, "GITHUB_PAT", PROJECT_SECRET, "github")
+    fun oldGlobalPatCannotMakeConnectorAppearConnected() = runBlocking {
         var legacyReads = 0
-        var adapterCalls = 0
         val connector = GitHubConnector(
-            secretVault = SecretVault,
             legacyCredentialProvider = { _, _ ->
                 legacyReads++
                 "fixture-legacy-credential"
             },
-            projectExecutionOwnership = { false },
+        )
+
+        val state = connector.connect()
+
+        assertFalse(state.connected)
+        assertFalse(state.healthy)
+        assertTrue(state.statusLine.contains("Broker", ignoreCase = true))
+        assertEquals(0, legacyReads)
+    }
+
+    @Test
+    fun writeActionDoesNotQueueApprovalOrReachProviderWhenBrokerIsMissing() = runBlocking {
+        var adapterCalls = 0
+        val connector = GitHubConnector(
+            secretVault = SecretVault,
+            projectExecutionOwnership = { true },
             tokenExecutor = { _, _ ->
                 adapterCalls++
                 ConnectorOutput.Success("unexpected")
             }
         )
 
-        val output = connector.execute(projectInput())
+        val output = connector.execute(
+            projectInput(action = "create_issue").copy(
+                params = mapOf("repo" to "owner/repo", "title" to "fixture")
+            )
+        )
 
-        assertEquals("project_secret_context_rejected", (output as ConnectorOutput.Failure).code)
-        assertEquals(0, legacyReads)
+        assertEquals("github_broker_not_configured", (output as ConnectorOutput.Failure).code)
         assertEquals(0, adapterCalls)
     }
 
-    @Test
-    fun ownedProjectExecutionUsesProjectSecretInInjectedAdapterOnly() = runBlocking {
-        SecretVault.storeProjectSecret(PROJECT_ID, "GITHUB_PAT", PROJECT_SECRET, "github")
-        var legacyReads = 0
-        var adapterCalls = 0
-        var projectCredentialReachedAdapter = false
-        val connector = GitHubConnector(
-            secretVault = SecretVault,
-            legacyCredentialProvider = { _, _ ->
-                legacyReads++
-                "fixture-legacy-credential"
-            },
-            projectExecutionOwnership = { execution ->
-                execution.taskId == TASK_ID && execution.projectId == PROJECT_ID && execution.stepId == STEP_ID
-            },
-            tokenExecutor = { input, token ->
-                adapterCalls++
-                projectCredentialReachedAdapter = token == PROJECT_SECRET && input.action == "list_repos"
-                ConnectorOutput.Success("fixture-project-adapter-result")
-            }
-        )
-
-        val output = connector.execute(projectInput())
-
-        assertTrue(output is ConnectorOutput.Success)
-        assertEquals(0, legacyReads)
-        assertEquals(1, adapterCalls)
-        assertTrue(projectCredentialReachedAdapter)
-        assertFalse((output as ConnectorOutput.Success).text.contains(PROJECT_SECRET))
-    }
-
-    @Test
-    fun unscopedProfileToolFailsClosedWithoutLegacyPatFallback() = runBlocking {
-        var dispatchedAction: String? = null
-        val connector = GitHubConnector(
-            legacyCredentialProvider = { _, _ -> "fixture-token" },
-            tokenExecutor = { input, _ ->
-                dispatchedAction = input.action
-                ConnectorOutput.Success("fixture profile")
-            },
-        )
-
-        assertTrue(connector.agentActions().any { it.id == "get_user" })
-        val output = connector.execute(ConnectorInput(action = "get_user", authorizationActionId = "get_user"))
-
-        assertEquals("project_context_required", (output as ConnectorOutput.Failure).code)
-        assertEquals(null, dispatchedAction)
-    }
-
-    private fun projectInput() = ConnectorInput(
-        action = "list_repos",
+    private fun projectInput(action: String = "list_repos") = ConnectorInput(
+        action = action,
+        params = mapOf("limit" to "10"),
         execution = ConnectorExecutionContext(
             projectId = PROJECT_ID,
             taskId = TASK_ID,

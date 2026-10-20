@@ -74,7 +74,9 @@ class GithubSessionStore internal constructor(
             session.airiConnectionId.isBlank() || session.githubAccountId <= 0L ||
             session.accountLogin.isBlank() ||
             session.expiresAtMs?.let { it <= 0L } == true ||
-            session.repositories.any { it.repositoryId <= 0L || it.owner.isBlank() || it.name.isBlank() }
+            session.grantedScopes.any(String::isBlank) ||
+            session.repositories.any { it.repositoryId <= 0L || it.owner.isBlank() || it.name.isBlank() } ||
+            session.repositories.map { it.repositoryId }.toSet().size != session.repositories.size
         ) {
             return GithubSessionWriteResult.Failure(
                 GithubAuthorizationFailure(GithubAuthorizationFailureCode.INVALID_CALLBACK)

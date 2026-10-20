@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,6 +43,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -113,6 +115,7 @@ fun IntegrationsScreen(
     val vm: IntegrationsViewModel = viewModel()
     val items by vm.items.collectAsState()
     val githubProjectAuthorization by vm.githubProjectAuthorization.collectAsState()
+    val githubProjectRepositories by vm.githubProjectRepositories.collectAsState()
     val dialog by vm.dialog.collectAsState()
     val accessProfileRequest by vm.accessProfileRequest.collectAsState()
     val googleFeedback by vm.googleFeedback.collectAsState()
@@ -150,6 +153,7 @@ fun IntegrationsScreen(
         else vm.onGoogleDataAuthorizationCancelled()
     }
     LaunchedEffect(vm) {
+        vm.refresh()
         vm.googleAuthorizationEffects.collect { effect ->
             when (effect) {
                 is IntegrationsViewModel.GoogleAuthorizationEffect.LaunchIdentity -> {
@@ -248,8 +252,12 @@ fun IntegrationsScreen(
                     if (item.id == "github") {
                         GithubProjectAuthorizationPanel(
                             state = githubProjectAuthorization,
+                            repositories = githubProjectRepositories,
                             onConnect = vm::connectGithubProject,
                             onDisconnect = vm::disconnectGithubProject,
+                            onRefreshRepositories = vm::refreshGithubRepositories,
+                            onRepositorySelected = vm::setGithubRepositorySelected,
+                            onSaveRepositories = vm::saveGithubRepositorySelection,
                         )
                     }
                 }
@@ -298,8 +306,12 @@ fun IntegrationsScreen(
                     if (focusedItem.id == "github") item(key = "github_project_authorization") {
                         GithubProjectAuthorizationPanel(
                             state = githubProjectAuthorization,
+                            repositories = githubProjectRepositories,
                             onConnect = vm::connectGithubProject,
                             onDisconnect = vm::disconnectGithubProject,
+                            onRefreshRepositories = vm::refreshGithubRepositories,
+                            onRepositorySelected = vm::setGithubRepositorySelected,
+                            onSaveRepositories = vm::saveGithubRepositorySelection,
                         )
                     }
                 }
@@ -307,25 +319,6 @@ fun IntegrationsScreen(
 
             item { Spacer(Modifier.height(24.dp)) }
         }
-    }
-    if (dialog is IntegrationsViewModel.DialogState.Github) {
-        val state = dialog as IntegrationsViewModel.DialogState.Github
-        TokenDialog(
-            title = stringResource(R.string.integration_github_dialog_title),
-            emoji = "",
-            // Token-acquisition steps stay in English because every label they
-            // reference (GitHub menu names, scopes) is itself English in the
-            // GitHub UI — translating them would make the steps unfollowable.
-            steps = stringArrayResource(R.array.integration_github_steps).toList(),
-            inputLabel = stringResource(R.string.integration_github_token_label),
-            inputHint = "ghp_xxxxxxxxxxxxxxxxxxxx",
-            token = state.token,
-            loading = state.loading,
-            error = state.error,
-            onTokenChange = { vm.updateGithubToken(it) },
-            onConfirm = { vm.connectGithub() },
-            onDismiss = { vm.closeDialog() }
-        )
     }
     if (dialog is IntegrationsViewModel.DialogState.Telegram) {
         val state = dialog as IntegrationsViewModel.DialogState.Telegram
@@ -554,8 +547,12 @@ private fun IntegrationCard(
 @Composable
 private fun GithubProjectAuthorizationPanel(
     state: IntegrationsViewModel.GithubProjectAuthorizationUiState,
+    repositories: IntegrationsViewModel.GithubProjectRepositoryUiState,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
+    onRefreshRepositories: () -> Unit,
+    onRepositorySelected: (Long, Boolean) -> Unit,
+    onSaveRepositories: () -> Unit,
 ) {
     val authorizationState = state.authorizationState
     val ready = authorizationState as? GithubAuthorizationState.Ready
@@ -564,7 +561,11 @@ private fun GithubProjectAuthorizationPanel(
         GithubAuthorizationState.SignedOut -> stringResource(R.string.github_project_status_disconnected)
         is GithubAuthorizationState.AwaitingAuthorization -> stringResource(R.string.github_project_status_awaiting)
         is GithubAuthorizationState.Exchanging -> stringResource(R.string.github_project_status_exchanging)
-        is GithubAuthorizationState.Ready -> stringResource(R.string.github_project_status_connected)
+        is GithubAuthorizationState.Ready -> if (state.runtimeReady) {
+            stringResource(R.string.github_project_status_connected)
+        } else {
+            stringResource(R.string.github_project_status_runtime_unavailable)
+        }
         is GithubAuthorizationState.Expired -> stringResource(R.string.github_project_status_expired)
         is GithubAuthorizationState.Revoked -> if (authorizationState.remoteRevocationConfirmed) {
             stringResource(R.string.github_project_status_revoked_remote)
@@ -609,14 +610,24 @@ private fun GithubProjectAuthorizationPanel(
                     Text(statusLabel, style = MaterialTheme.typography.bodyMedium, color = AiriTheme.onSurface)
                 }
                 if (ready != null) {
-                    Text(statusLabel, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF4ADE80))
+                    Text(
+                        statusLabel,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (state.runtimeReady) Color(0xFF4ADE80) else MaterialTheme.colorScheme.tertiary,
+                    )
                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                         Text(
                             "@${ready.session.accountLogin}",
                             style = MaterialTheme.typography.labelMedium,
-                            color = Color(0xFF4ADE80),
+                            color = if (state.runtimeReady) Color(0xFF4ADE80) else AiriTheme.onSurfaceVariant,
                         )
                     }
+                    GithubProjectRepositoriesPanel(
+                        state = repositories,
+                        onRefresh = onRefreshRepositories,
+                        onSelected = onRepositorySelected,
+                        onSave = onSaveRepositories,
+                    )
                 }
                 if (failure != null) {
                     Surface(color = Color(0xFF7F1D1D).copy(alpha = 0.18f), shape = AIRIShapes.md) {
@@ -666,6 +677,112 @@ private fun GithubProjectAuthorizationPanel(
                         if (state.isLoading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                         else Text(stringResource(actionLabel), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GithubProjectRepositoriesPanel(
+    state: IntegrationsViewModel.GithubProjectRepositoryUiState,
+    onRefresh: () -> Unit,
+    onSelected: (Long, Boolean) -> Unit,
+    onSave: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.github_project_repositories_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = AiriTheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onRefresh, enabled = !state.isLoading && !state.isSaving) {
+                Text(stringResource(R.string.github_project_repositories_refresh))
+            }
+        }
+        when {
+            state.isLoading -> Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.github_project_repositories_loading), style = MaterialTheme.typography.bodySmall)
+            }
+            state.error != null -> Surface(
+                color = Color(0xFF7F1D1D).copy(alpha = 0.18f),
+                shape = AIRIShapes.md,
+            ) {
+                Text(
+                    stringResource(githubAuthorizationFailureMessage(state.error.code)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AiriTheme.onSurface,
+                    modifier = Modifier.fillMaxWidth().padding(10.dp),
+                )
+            }
+            !state.hasLoaded -> Text(
+                stringResource(R.string.github_project_repositories_not_loaded),
+                style = MaterialTheme.typography.bodySmall,
+                color = AiriTheme.onSurfaceVariant,
+            )
+            state.repositories.isEmpty() -> Text(
+                stringResource(R.string.github_project_repositories_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = AiriTheme.onSurfaceVariant,
+            )
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    items(state.repositories, key = { "github_repository_${it.repositoryId}" }) { repository ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = repository.repositoryId in state.selectedRepositoryIds,
+                                onCheckedChange = { checked -> onSelected(repository.repositoryId, checked) },
+                                enabled = !state.isSaving,
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                    Text(
+                                        "${repository.owner}/${repository.name}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = AiriTheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                if (repository.permissions.isNotEmpty()) {
+                                    Text(
+                                        repository.permissions.entries.joinToString(" · ") {
+                                            "${it.key}: ${it.value.name.lowercase(Locale.ROOT)}"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = AiriTheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Button(
+                    onClick = onSave,
+                    enabled = state.hasUnsavedChanges && !state.isSaving,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+                    shape = AIRIShapes.md,
+                ) {
+                    if (state.isSaving) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    else Text(stringResource(R.string.github_project_repositories_save), color = AiriTheme.onBackground)
                 }
             }
         }

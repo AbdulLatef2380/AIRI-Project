@@ -85,9 +85,9 @@ class GitHubConnector(
         ConnectorAgentAction("list_prs", "List pull requests for a repository.", parameters = mapOf(
             "repo" to ConnectorAgentParameter(description = "owner/name repository", required = true)
         ), providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.GITHUB_FINE_GRAINED_TOKEN_PERMISSION, "Pull requests: read"))),
-        ConnectorAgentAction("status", "Return the current GitHub connection status.", providerGrants = listOf(ConnectorProviderGrant(
+        ConnectorAgentAction("status", "Return the current project-scoped GitHub authorization and runtime status without exposing credentials.", providerGrants = listOf(ConnectorProviderGrant(
             ConnectorProviderGrantKind.PROVIDER_ENDPOINT_PERMISSION,
-            "A valid user-authorized GitHub personal access token; actual token permissions are not introspected by AIRI.",
+            "A configured Broker runtime and a verified project-scoped GitHub session; no PAT fallback is permitted.",
         ))),
         ConnectorAgentAction("create_issue", "Create a repository issue after explicit task approval.",
             permission = ConnectorPermissionLevel.WRITE, supportsApprovedContinuation = true,
@@ -145,26 +145,15 @@ class GitHubConnector(
     override fun state(): StateFlow<ConnectorState> = _state.asStateFlow()
 
     override suspend fun connect(): ConnectorState = withContext(Dispatchers.IO) {
-        val token = legacyCredentialProvider(id, "pat")
-        if (token.isNullOrBlank()) { _state.value = ConnectorState(false, statusLine = "No PAT", errorMessage = "Set a GitHub PAT in Connectors settings"); return@withContext _state.value }
-        try {
-            val user = apiGet("/user", token)
-            val login = user.optString("login", "unknown")
-            _state.value = ConnectorState(true, true, "Connected as @$login", System.currentTimeMillis())
-            AgentActivityBus.emit("GitHub connected as @$login", ActivityCategory.CONNECTOR)
-        } catch (e: GitHubApiHttpException) {
-            val failure = GitHubApiFailurePolicy.map(e.statusCode, e.rateLimitRemaining)
-            val needsAuth = failure.code == "authorization_required"
-            _state.value = ConnectorState(
-                connected = false,
-                healthy = false,
-                statusLine = if (needsAuth) "Authorization required" else "Connection check failed",
-                lastUpdatedMs = System.currentTimeMillis(),
-                errorMessage = failure.message,
-            )
-        } catch (_: Exception) {
-            _state.value = ConnectorState(false, false, "Connection check failed", System.currentTimeMillis(), "GitHub connection could not be verified")
-        }
+        // A legacy global PAT is not evidence of a project-scoped Broker session.
+        // Keep the connector unavailable until a real Broker-backed runtime adapter is installed.
+        _state.value = ConnectorState(
+            connected = false,
+            healthy = false,
+            statusLine = "Project GitHub Broker runtime unavailable",
+            lastUpdatedMs = System.currentTimeMillis(),
+            errorMessage = "GitHub actions require a configured project-scoped authorization Broker",
+        )
         _state.value
     }
 
@@ -174,6 +163,12 @@ class GitHubConnector(
     }
 
     override suspend fun execute(input: ConnectorInput): ConnectorOutput = withContext(Dispatchers.IO) {
+        if (!LEGACY_PROJECT_PAT_EXECUTION_ENABLED) {
+            return@withContext ConnectorOutput.Failure(
+                code = "github_broker_not_configured",
+                message = "GitHub actions are unavailable until a project-scoped Broker runtime is configured; PAT fallback is disabled",
+            )
+        }
         when (val mutation = GitHubMutationPolicy.evaluate(input.action)) {
             GitHubMutationPolicy.Decision.Allowed -> Unit
             is GitHubMutationPolicy.Decision.RequiresTaskApproval -> {
@@ -594,5 +589,6 @@ class GitHubConnector(
 
     private companion object {
         const val GITHUB_PAT_SECRET_ID = "GITHUB_PAT"
+        const val LEGACY_PROJECT_PAT_EXECUTION_ENABLED = false
     }
 }

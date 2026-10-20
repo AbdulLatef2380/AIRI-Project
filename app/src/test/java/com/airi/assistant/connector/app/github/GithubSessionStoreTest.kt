@@ -35,6 +35,21 @@ class GithubSessionStoreTest {
     }
 
     @Test
+    fun duplicateRepositoryIdsCannotBePersistedAsDistinctGrants() {
+        val repository = GithubRepositoryGrant(1L, "owner", "alpha")
+        val invalid = session("project-one", "alpha").copy(
+            repositories = listOf(repository, repository.copy(name = "renamed")),
+        )
+
+        val result = GithubSessionStore(FakeCredentialStore()).save(invalid)
+
+        assertEquals(
+            GithubAuthorizationFailureCode.INVALID_CALLBACK,
+            (result as GithubSessionWriteResult.Failure).failure.code,
+        )
+    }
+
+    @Test
     fun unavailableSecureStorageDoesNotPretendToSaveOrRead() {
         val store = GithubSessionStore(FakeCredentialStore(available = false))
         val write = store.save(session("project-one", "alpha")) as GithubSessionWriteResult.Failure

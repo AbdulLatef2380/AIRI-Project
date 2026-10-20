@@ -46,6 +46,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -107,7 +108,8 @@ fun AgentLifecycleTrackerPanel(
                     state = listState,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 420.dp),
+                        .testTag("agent-trace-list")
+                        .heightIn(max = 238.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
                     projection.groups.forEach { group ->

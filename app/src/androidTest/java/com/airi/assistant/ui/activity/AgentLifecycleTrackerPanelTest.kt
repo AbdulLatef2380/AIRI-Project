@@ -9,10 +9,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
@@ -41,12 +44,12 @@ class AgentLifecycleTrackerPanelTest {
         composeRule.onNodeWithText("Searched 1 times").assertIsDisplayed()
         composeRule.onNodeWithText("Memory operations 1").assertIsDisplayed()
         composeRule.onNodeWithText("2 tasks").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Files · 1. Expand group").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Commands · 1. Expand group").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Tools · 1. Expand group").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Search · 1. Expand group").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Memory · 1. Expand group").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Tasks · 2. Expand group").assertIsDisplayed()
+        assertGroupVisible("Files · 1. Expand group")
+        assertGroupVisible("Commands · 1. Expand group")
+        assertGroupVisible("Tools · 1. Expand group")
+        assertGroupVisible("Search · 1. Expand group")
+        assertGroupVisible("Memory · 1. Expand group")
+        assertGroupVisible("Tasks · 2. Expand group")
     }
 
     @Test
@@ -64,10 +67,10 @@ class AgentLifecycleTrackerPanelTest {
     fun statusSemanticsExposeWaitingRunningFailedAndCancelled() {
         setPanel(isWorking = true)
 
-        composeRule.onNodeWithContentDescription("Waiting", substring = true).assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("In progress", substring = true).assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Failed", substring = true).assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Cancelled", substring = true).assertIsDisplayed()
+        assertStatusVisible("Waiting")
+        assertStatusVisible("In progress")
+        assertStatusVisible("Failed")
+        assertStatusVisible("Cancelled")
     }
 
     @Test
@@ -84,7 +87,7 @@ class AgentLifecycleTrackerPanelTest {
             }
         }
 
-        composeRule.onNodeWithContentDescription("Files · 1. Expand group").assertIsDisplayed()
+        assertGroupVisible("Files · 1. Expand group")
     }
 
     @Test
@@ -104,7 +107,7 @@ class AgentLifecycleTrackerPanelTest {
         }
 
         composeRule.onNodeWithText("Read 1 files").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Files · 1. Expand group").assertIsDisplayed()
+        assertGroupVisible("Files · 1. Expand group")
     }
 
     @Test
@@ -120,11 +123,11 @@ class AgentLifecycleTrackerPanelTest {
         }
 
         composeRule.onNodeWithText("Read 1000 files").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Files · 1000. Collapse group").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Commands · 1000. Collapse group").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Tools · 1000. Collapse group").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Search · 1000. Collapse group").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Memory · 1000. Collapse group").assertIsDisplayed()
+        assertGroupVisible("Files · 1000. Collapse group")
+        assertGroupVisible("Commands · 1000. Collapse group")
+        assertGroupVisible("Tools · 1000. Collapse group")
+        assertGroupVisible("Search · 1000. Collapse group")
+        assertGroupVisible("Memory · 1000. Collapse group")
     }
 
     @Test
@@ -181,6 +184,18 @@ class AgentLifecycleTrackerPanelTest {
                 )
             }
         }
+    }
+
+    private fun assertGroupVisible(description: String) {
+        composeRule.onNodeWithTag("agent-trace-list")
+            .performScrollToNode(hasContentDescription(description))
+        composeRule.onNodeWithContentDescription(description).assertIsDisplayed()
+    }
+
+    private fun assertStatusVisible(status: String) {
+        composeRule.onNodeWithTag("agent-trace-list")
+            .performScrollToNode(hasContentDescription(status, substring = true))
+        composeRule.onNodeWithContentDescription(status, substring = true).assertIsDisplayed()
     }
 
     private fun fixtureProjection(): UnifiedExecutionTraceProjection {

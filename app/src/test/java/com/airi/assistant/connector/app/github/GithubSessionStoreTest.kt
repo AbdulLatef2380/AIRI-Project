@@ -51,7 +51,7 @@ class GithubSessionStoreTest {
 
     @Test
     fun unavailableSecureStorageDoesNotPretendToSaveOrRead() {
-        val store = GithubSessionStore(FakeCredentialStore(available = false))
+        val store = GithubSessionStore(FakeCredentialStore(isAvailable = false))
         val write = store.save(session("project-one", "alpha")) as GithubSessionWriteResult.Failure
         val read = store.load("project-one") as GithubSessionReadResult.Failure
         assertEquals(GithubAuthorizationFailureCode.SECURE_STORAGE_UNAVAILABLE, write.failure.code)

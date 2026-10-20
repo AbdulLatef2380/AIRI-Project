@@ -8,10 +8,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.test.assertDoesNotExist
-import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -24,6 +23,7 @@ import com.airi.assistant.ui.trace.UnifiedExecutionTraceGroup
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceProjection
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceSummary
 import com.airi.assistant.ui.trace.UnifiedTraceCategory
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -53,21 +53,21 @@ class AgentLifecycleTrackerPanelTest {
     fun groupExpansionShowsEventsAndCollapseHidesThem() {
         setPanel(isWorking = false)
 
-        composeRule.onNodeWithText("Read file").assertDoesNotExist()
+        assertTrue(composeRule.onAllNodesWithText("Read file").fetchSemanticsNodes().isEmpty())
         composeRule.onNodeWithContentDescription("Files · 1. Expand group").performClick()
         composeRule.onNodeWithText("Read file").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Files · 1. Collapse group").performClick()
-        composeRule.onNodeWithText("Read file").assertDoesNotExist()
+        assertTrue(composeRule.onAllNodesWithText("Read file").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
     fun statusSemanticsExposeWaitingRunningFailedAndCancelled() {
         setPanel(isWorking = true)
 
-        composeRule.onNodeWithContentDescription("Waiting", substring = true).assertExists()
-        composeRule.onNodeWithContentDescription("In progress", substring = true).assertExists()
-        composeRule.onNodeWithContentDescription("Failed", substring = true).assertExists()
-        composeRule.onNodeWithContentDescription("Cancelled", substring = true).assertExists()
+        composeRule.onNodeWithContentDescription("Waiting", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("In progress", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Failed", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Cancelled", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -103,8 +103,8 @@ class AgentLifecycleTrackerPanelTest {
             }
         }
 
-        composeRule.onNodeWithText("Read 1 files").assertExists()
-        composeRule.onNodeWithContentDescription("Files · 1. Expand group").assertExists()
+        composeRule.onNodeWithText("Read 1 files").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Files · 1. Expand group").assertIsDisplayed()
     }
 
     @Test
@@ -119,12 +119,12 @@ class AgentLifecycleTrackerPanelTest {
             }
         }
 
-        composeRule.onNodeWithText("Read 1000 files").assertExists()
-        composeRule.onNodeWithContentDescription("Files · 1000. Collapse group").assertExists()
-        composeRule.onNodeWithContentDescription("Commands · 1000. Collapse group").assertExists()
-        composeRule.onNodeWithContentDescription("Tools · 1000. Collapse group").assertExists()
-        composeRule.onNodeWithContentDescription("Search · 1000. Collapse group").assertExists()
-        composeRule.onNodeWithContentDescription("Memory · 1000. Collapse group").assertExists()
+        composeRule.onNodeWithText("Read 1000 files").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Files · 1000. Collapse group").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Commands · 1000. Collapse group").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Tools · 1000. Collapse group").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Search · 1000. Collapse group").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Memory · 1000. Collapse group").assertIsDisplayed()
     }
 
     @Test
@@ -167,7 +167,7 @@ class AgentLifecycleTrackerPanelTest {
                 ),
             )
         }
-        composeRule.onNodeWithContentDescription("Files · 2. Collapse group").assertExists()
+        composeRule.onNodeWithContentDescription("Files · 2. Collapse group").assertIsDisplayed()
         composeRule.onNodeWithText("Read streamed file").assertIsDisplayed()
     }
 

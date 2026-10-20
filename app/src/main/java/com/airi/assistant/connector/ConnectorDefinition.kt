@@ -9,6 +9,8 @@ enum class ConnectorAvailability {
 
 enum class ConnectorAuthenticationType {
     OAUTH2,
+    /** Authorization-code OAuth whose token exchange is brokered server-side. */
+    OAUTH2_CONFIDENTIAL,
     API_KEY,
     PERSONAL_ACCESS_TOKEN,
     OAUTH2_AND_API,
@@ -182,7 +184,7 @@ object OfficialConnectorCatalog {
             limitations = listOf("Read-only first slice: root site metadata and files from a selected site."),
         ),
         partial("microsoft_todo", "Microsoft To Do", "Microsoft", ConnectorAuthenticationType.OAUTH2, "Microsoft", "https://to-do.live.com", docs = "https://learn.microsoft.com/en-us/graph/api/resources/todotask", capabilities = listOf(ConnectorCapability("todo.read", "Read the signed-in user's To Do tasks")), requiredScopes = listOf(ConnectorProviderScopes.MICROSOFT_USER_READ, ConnectorProviderScopes.MICROSOFT_TASKS_READ), tags = listOf("tasks", "microsoft"), limitations = listOf("Read-only task lists and tasks.")),
-        partial("github", "GitHub", "Development", ConnectorAuthenticationType.PERSONAL_ACCESS_TOKEN, website = "https://github.com", docs = "https://docs.github.com", capabilities = listOf(ConnectorCapability("repositories.read", "Read repositories"), ConnectorCapability("issues.read", "Read issues")), tags = listOf("git", "code", "development")),
+        partial("github", "GitHub", "Development", ConnectorAuthenticationType.OAUTH2_CONFIDENTIAL, website = "https://github.com", docs = "https://docs.github.com", capabilities = listOf(ConnectorCapability("repositories.read", "Read repositories"), ConnectorCapability("issues.read", "Read issues")), tags = listOf("git", "code", "development"), limitations = listOf("Authorization is project-scoped and must complete through AIRI's server-side GitHub broker; personal access token forms are not accepted.")),
         tokenReadOnly("gitlab", "GitLab", "Development", ConnectorAuthenticationType.PERSONAL_ACCESS_TOKEN, website = "https://gitlab.com", docs = "https://docs.gitlab.com/api/user/", capabilityId = "projects.read", capabilityDescription = "List authorized projects", credentialNote = "requires a GitLab token with read_api scope", tags = listOf("git", "code")),
         tokenReadOnly("figma", "Figma", "Design", ConnectorAuthenticationType.PERSONAL_ACCESS_TOKEN, website = "https://www.figma.com", docs = "https://www.figma.com/developers/api#auth", capabilityId = "identity.read", capabilityDescription = "Read the authorized Figma identity", credentialNote = "requires a Figma personal access token", tags = listOf("design", "files")),
         soon("jira", "Jira", "Development", ConnectorAuthenticationType.OAUTH2_AND_API, provider = "Atlassian", website = "https://www.atlassian.com/software/jira", tags = listOf("issues", "development")),

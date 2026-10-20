@@ -14,7 +14,7 @@ object PrimaryConnectorContracts {
         PrimaryConnectorContract("google_gmail", "google", ConnectorAuthMode.OAUTH2_PKCE),
         PrimaryConnectorContract("google_calendar", "google", ConnectorAuthMode.OAUTH2_PKCE),
         PrimaryConnectorContract("google_drive", "google", ConnectorAuthMode.OAUTH2_PKCE),
-        PrimaryConnectorContract("github", "github", ConnectorAuthMode.PERSONAL_ACCESS_TOKEN),
+        PrimaryConnectorContract("github", "github", ConnectorAuthMode.OAUTH2_CONFIDENTIAL),
         PrimaryConnectorContract("telegram", "telegram", ConnectorAuthMode.API_KEY),
         PrimaryConnectorContract("notion", "notion_mcp", ConnectorAuthMode.MCP_CONFIGURATION),
         PrimaryConnectorContract("zapier", "zapier", ConnectorAuthMode.OAUTH2_CONFIDENTIAL),

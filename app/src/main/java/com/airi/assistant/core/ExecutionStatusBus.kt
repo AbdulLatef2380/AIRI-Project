@@ -59,7 +59,7 @@ object ExecutionStatusBus {
         sessionId: String = "",
     ) {
         if (executionId.isBlank()) {
-            Log.w(TAG, "EXEC_STATUS_REJECTED missing executionId")
+            safeLog { Log.w(TAG, "EXEC_STATUS_REJECTED missing executionId") }
             return
         }
         _status.value = AgentState(
@@ -75,7 +75,7 @@ object ExecutionStatusBus {
         traceBuffer.begin(executionId, sessionId)
         toolTraceLifecycle.begin(executionId)
         appendTrace(executionId, ExecutionTraceKind.PLANNING, "Planning task", goalDescription, machineTag = "planning")
-        Log.i(TAG, "EXEC_STATUS_PLANNING goalChars=${goalDescription.length} nodes=$totalNodes")
+        safeLog { Log.i(TAG, "EXEC_STATUS_PLANNING goalChars=${goalDescription.length} nodes=$totalNodes") }
     }
 
     /** Signal that a specific node wave has started executing. */
@@ -147,7 +147,7 @@ object ExecutionStatusBus {
         if (!acceptsEvent(_status.value.executionId, executionId) ||
             !toolTraceLifecycle.admitStart(executionId, actionId)
         ) {
-            Log.w(TAG, "TRACE_TOOL_START_REJECTED owner=${executionId.take(8)}")
+            safeLog { Log.w(TAG, "TRACE_TOOL_START_REJECTED owner=${executionId.take(8)}") }
             return
         }
         appendTrace(
@@ -233,7 +233,7 @@ object ExecutionStatusBus {
         if (acceptsEvent(_status.value.executionId, executionId)) {
             appendTrace(executionId, ExecutionTraceKind.RECOVERING, "Recovering step", reason)
         }
-        Log.i(TAG, "EXEC_STATUS_RECOVERING node=$nodeId attempt=$retryCount reasonChars=${reason.length}")
+        safeLog { Log.i(TAG, "EXEC_STATUS_RECOVERING node=$nodeId attempt=$retryCount reasonChars=${reason.length}") }
     }
 
     /** Signal that reflection is running post-graph. */
@@ -271,7 +271,7 @@ object ExecutionStatusBus {
                 machineTag = if (success) "execution_completed" else "execution_failed",
             )
         }
-        Log.i(TAG, "EXEC_STATUS ${stage.name}")
+        safeLog { Log.i(TAG, "EXEC_STATUS ${stage.name}") }
     }
 
     /** Publishes a compact, user-safe final verification result for ChatScreen. */
@@ -308,7 +308,7 @@ object ExecutionStatusBus {
         if (acceptsEvent(_status.value.executionId, executionId)) {
             appendTrace(executionId, ExecutionTraceKind.CANCELLED, "Execution cancelled", machineTag = "execution_cancelled")
         }
-        Log.i(TAG, "EXEC_STATUS_CANCELLED")
+        safeLog { Log.i(TAG, "EXEC_STATUS_CANCELLED") }
     }
 
     /** Reset to idle (e.g. on session clear or ViewModel cleared). */
@@ -332,7 +332,7 @@ object ExecutionStatusBus {
         if (!acceptsEvent(_status.value.executionId, executionId) ||
             !toolTraceLifecycle.admitTerminal(executionId, actionId)
         ) {
-            Log.w(TAG, "TRACE_TOOL_TERMINAL_REJECTED owner=${executionId.take(8)}")
+            safeLog { Log.w(TAG, "TRACE_TOOL_TERMINAL_REJECTED owner=${executionId.take(8)}") }
             return
         }
         appendTrace(
@@ -372,7 +372,7 @@ object ExecutionStatusBus {
             machineTag = machineTag,
         ) ?: return
         _trace.value = traceBuffer.snapshot()
-        Log.d(TAG, "TRACE kind=${event.kind} seq=${event.sequence} execution=${event.executionId.take(8)}")
+        safeLog { Log.d(TAG, "TRACE kind=${event.kind} seq=${event.sequence} execution=${event.executionId.take(8)}") }
     }
 
     // ── Internal helper ───────────────────────────────────────────────────────
@@ -390,5 +390,10 @@ object ExecutionStatusBus {
 
     private fun MutableStateFlow<AgentState>.update(transform: (AgentState) -> AgentState) {
         value = transform(value)
+    }
+
+    /** Observability must never break execution, including local JVM tests. */
+    private inline fun safeLog(block: () -> Int) {
+        runCatching { block() }
     }
 }

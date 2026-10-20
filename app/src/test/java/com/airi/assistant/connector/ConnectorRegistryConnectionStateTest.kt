@@ -68,6 +68,7 @@ class ConnectorRegistryConnectionStateTest {
         assertTrue(fastState.connected && fastState.healthy)
         slow.release.complete(Unit)
         slowJob.await()
+        Unit
     }
 
     private class RestoreConnector(override val id: String) : Connector {

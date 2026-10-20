@@ -73,12 +73,14 @@ class ExecutionTraceBufferTest {
             executionId = "exec-1",
             kind = ExecutionTraceKind.TOOL_FAILED,
             summary = "Tool failed",
+            actionId = "tool-1",
             errorCode = " AUTHORIZATION_REQUIRED ",
         )!!
         val unsafe = buffer.append(
             executionId = "exec-1",
             kind = ExecutionTraceKind.TOOL_FAILED,
             summary = "Tool failed",
+            actionId = "tool-2",
             errorCode = "authorization_required\nprovider-secret",
         )!!
 

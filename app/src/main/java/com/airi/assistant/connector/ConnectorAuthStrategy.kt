@@ -127,7 +127,9 @@ object ConnectorAuthStrategies {
             runtimeId == "box" -> ConnectorAuthMode.OAUTH2_CONFIDENTIAL
             runtimeId == "zapier" -> ConnectorAuthMode.OAUTH2_CONFIDENTIAL
             runtimeId == "notion" || runtimeId == "notion_mcp" -> ConnectorAuthMode.MCP_CONFIGURATION
-            auth == ConnectorAuthenticationType.OAUTH2 || auth == ConnectorAuthenticationType.OAUTH2_AND_API -> ConnectorAuthMode.OAUTH2_PKCE
+            auth == ConnectorAuthenticationType.OAUTH2 -> ConnectorAuthMode.OAUTH2_PKCE
+            auth == ConnectorAuthenticationType.OAUTH2_CONFIDENTIAL -> ConnectorAuthMode.OAUTH2_CONFIDENTIAL
+            auth == ConnectorAuthenticationType.OAUTH2_AND_API -> ConnectorAuthMode.OAUTH2_PKCE
             auth == ConnectorAuthenticationType.API_KEY -> ConnectorAuthMode.API_KEY
             auth == ConnectorAuthenticationType.PERSONAL_ACCESS_TOKEN -> ConnectorAuthMode.PERSONAL_ACCESS_TOKEN
             auth == ConnectorAuthenticationType.MCP -> ConnectorAuthMode.MCP_CONFIGURATION

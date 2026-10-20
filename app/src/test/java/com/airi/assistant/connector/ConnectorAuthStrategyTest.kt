@@ -36,7 +36,7 @@ class ConnectorAuthStrategyTest {
             "google_sheets" to ConnectorAuthMode.OAUTH2_PKCE,
             "google_contacts" to ConnectorAuthMode.OAUTH2_PKCE,
             "google_tasks" to ConnectorAuthMode.OAUTH2_PKCE,
-            "github" to ConnectorAuthMode.PERSONAL_ACCESS_TOKEN,
+            "github" to ConnectorAuthMode.OAUTH2_CONFIDENTIAL,
             "telegram" to ConnectorAuthMode.API_KEY,
             "notion" to ConnectorAuthMode.MCP_CONFIGURATION,
             "microsoft_outlook" to ConnectorAuthMode.OAUTH2_PKCE,

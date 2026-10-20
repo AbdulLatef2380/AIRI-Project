@@ -274,9 +274,9 @@ private fun ActivityEventRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (canExpand) Modifier.clickable(role = Role.Button, onClick = onToggle) else Modifier)
-                .then(if (canExpand) Modifier.semantics {
+                .then(if (canExpand) Modifier.semantics(mergeDescendants = true) {
                     contentDescription = "${event.title}. $accessibleStatus. $detailToggleDescription"
-                } else Modifier.semantics {
+                } else Modifier.semantics(mergeDescendants = true) {
                     contentDescription = "${event.title}. $accessibleStatus"
                 })
                 .padding(start = (48 + depth * 18).dp, end = 6.dp, top = 3.dp, bottom = 3.dp),

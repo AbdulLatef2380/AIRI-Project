@@ -50,7 +50,7 @@ jobs:
         sdkmanager --install "build-tools;36.0.0"
 
     - name: Grant execute permission
-      run: chmod +x gradlew .github/scripts/run-instrumentation.sh
+      run: chmod +x gradlew .github/scripts/run-instrumentation.sh .github/scripts/set-emulator-locale.sh
 
     - name: Verify source contracts and localization
       run: |
@@ -124,13 +124,17 @@ jobs:
     - name: Run Android instrumentation tests
       uses: reactivecircus/android-emulator-runner@v2
       timeout-minutes: 35
+      env:
+        EXPECTED_LOCALE: en-US
       with:
         api-level: 29
         target: default
         arch: x86_64
         disable-animations: true
         emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 2048
-        script: bash .github/scripts/run-instrumentation.sh
+        script: |
+          bash .github/scripts/set-emulator-locale.sh "$EXPECTED_LOCALE"
+          bash .github/scripts/run-instrumentation.sh
 
     - name: Collect instrumentation and accessibility evidence
       if: always()
@@ -220,7 +224,7 @@ jobs:
         sdkmanager --install "ndk;25.2.9519653"
         sdkmanager --install "cmake;3.22.1"
     - name: Grant execute permission
-      run: chmod +x gradlew .github/scripts/run-instrumentation.sh
+      run: chmod +x gradlew .github/scripts/run-instrumentation.sh .github/scripts/set-emulator-locale.sh
     - name: Prepare instrumentation APKs
       run: |
         ./gradlew --no-daemon --max-workers=1 \
@@ -240,8 +244,7 @@ jobs:
         disable-animations: true
         emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 2048
         script: |
-          adb shell "cmd locale set ${EXPECTED_LOCALE}" || adb shell "setprop persist.sys.locale ${EXPECTED_LOCALE}"
-          adb shell am broadcast -a android.intent.action.LOCALE_CHANGED >/dev/null 2>&1 || true
+          bash .github/scripts/set-emulator-locale.sh "$EXPECTED_LOCALE"
           bash .github/scripts/run-instrumentation.sh
 
     - name: Collect matrix evidence

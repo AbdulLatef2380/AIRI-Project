@@ -117,7 +117,7 @@ check("connector detail UI is a data presentation layer, not an auth bypass", [
 check("connector authorization UI state is isolated by connector identity", [
     ("active connector target exists", "private var activeConnectorId: String?" in integrations_vm),
     ("authorization selects the active target", "activeConnectorId = id" in integrations_vm),
-    ("dialog models carry connector identity", "val connectorId: String = \"github\"" in integrations_vm and "val connectorId: String = \"telegram\"" in integrations_vm and "val connectorId: String = \"notion\"" in integrations_vm),
+    ("dialog models carry connector identity", "val connectorId: String = \"telegram\"" in integrations_vm and "val connectorId: String = \"notion\"" in integrations_vm and "data class GithubProjectAuthorizationUiState(" in integrations_vm and "val projectId: String?" in integrations_vm and "val authorizationState: GithubAuthorizationState" in integrations_vm),
     ("provider token dialog carries connector identity", "data class ProviderToken(\n            val connectorId: String" in integrations_vm),
     ("stale async results are rejected", "acceptsResult(current.connectorId, activeConnectorId)" in integrations_vm),
     ("Google callback is surface-bound", "acceptsResult(pendingGoogleSurfaceId, activeConnectorId)" in integrations_vm),

@@ -137,9 +137,9 @@ jobs:
         mkdir -p ci-instrumentation
         cp -R app/build/outputs/androidTest-results ci-instrumentation/androidTest-results 2>/dev/null || true
         cp -R app/build/reports/androidTests ci-instrumentation/androidTests 2>/dev/null || true
-        adb logcat -d -t 500 > ci-instrumentation/logcat.txt 2>/dev/null || true
-        adb shell uiautomator dump /sdcard/airi-ui.xml >/dev/null 2>&1 || true
-        adb pull /sdcard/airi-ui.xml ci-instrumentation/ui.xml >/dev/null 2>&1 || true
+        timeout 10s adb logcat -d -t 500 > ci-instrumentation/logcat.txt 2>/dev/null || true
+        timeout 10s adb shell uiautomator dump /sdcard/airi-ui.xml >/dev/null 2>&1 || true
+        timeout 10s adb pull /sdcard/airi-ui.xml ci-instrumentation/ui.xml >/dev/null 2>&1 || true
 
     - name: Upload instrumentation evidence
       if: always()
@@ -248,9 +248,9 @@ jobs:
         mkdir -p ci-instrumentation-${{ matrix.api-level }}-${{ matrix.locale }}
         cp -R app/build/outputs/androidTest-results ci-instrumentation-${{ matrix.api-level }}-${{ matrix.locale }}/androidTest-results 2>/dev/null || true
         cp -R app/build/reports/androidTests ci-instrumentation-${{ matrix.api-level }}-${{ matrix.locale }}/androidTests 2>/dev/null || true
-        adb logcat -d -t 500 > ci-instrumentation-${{ matrix.api-level }}-${{ matrix.locale }}/logcat.txt 2>/dev/null || true
-        adb shell uiautomator dump /sdcard/airi-ui.xml >/dev/null 2>&1 || true
-        adb pull /sdcard/airi-ui.xml ci-instrumentation-${{ matrix.api-level }}-${{ matrix.locale }}/ui.xml >/dev/null 2>&1 || true
+        timeout 10s adb logcat -d -t 500 > ci-instrumentation-${{ matrix.api-level }}-${{ matrix.locale }}/logcat.txt 2>/dev/null || true
+        timeout 10s adb shell uiautomator dump /sdcard/airi-ui.xml >/dev/null 2>&1 || true
+        timeout 10s adb pull /sdcard/airi-ui.xml ci-instrumentation-${{ matrix.api-level }}-${{ matrix.locale }}/ui.xml >/dev/null 2>&1 || true
     - name: Upload matrix evidence
       if: always()
       uses: actions/upload-artifact@v4

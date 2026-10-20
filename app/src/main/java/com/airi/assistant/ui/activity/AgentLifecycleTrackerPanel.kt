@@ -107,7 +107,7 @@ fun AgentLifecycleTrackerPanel(
                     state = listState,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 238.dp),
+                        .heightIn(max = 420.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
                     projection.groups.forEach { group ->
@@ -192,14 +192,26 @@ private fun ActivitySummaryRow(
             modifier = Modifier.size(16.dp),
         )
         Spacer(Modifier.width(8.dp))
-        Text(
-            text = items.joinToString(" · ").ifBlank { stringResource(R.string.agent_lifecycle_working) },
+        Column(
             modifier = Modifier.weight(1f),
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+        ) {
+            if (items.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.agent_lifecycle_working),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                items.forEach { item ->
+                    Text(
+                        text = item,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
         Icon(
             imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
             contentDescription = null,

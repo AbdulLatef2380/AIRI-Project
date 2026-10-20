@@ -1971,4 +1971,11 @@
     <string name="agent_trace_collapse_event">隐藏事件详情</string>
     <string name="agent_lifecycle_status_waiting">等待中</string>
     <string name="agent_lifecycle_status_cancelled">已取消</string>
+    <string name="github_project_status_runtime_unavailable">GitHub OAuth 已授权，但在配置 Broker 运行时之前无法执行操作。</string>
+    <string name="github_project_repositories_title">已授权的仓库</string>
+    <string name="github_project_repositories_refresh">刷新</string>
+    <string name="github_project_repositories_loading">正在从授权 Broker 加载仓库…</string>
+    <string name="github_project_repositories_not_loaded">尚未从 Broker 加载仓库。</string>
+    <string name="github_project_repositories_empty">Broker 未返回此项目可用的仓库。</string>
+    <string name="github_project_repositories_save">保存仓库选择</string>
 </resources>

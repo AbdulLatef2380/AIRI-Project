@@ -1971,4 +1971,11 @@
     <string name="agent_trace_collapse_event">Ocultar detalles del evento</string>
     <string name="agent_lifecycle_status_waiting">En espera</string>
     <string name="agent_lifecycle_status_cancelled">Cancelado</string>
+    <string name="github_project_status_runtime_unavailable">GitHub OAuth está autorizado, pero las acciones no están disponibles hasta configurar el runtime del Broker.</string>
+    <string name="github_project_repositories_title">Repositorios autorizados</string>
+    <string name="github_project_repositories_refresh">Actualizar</string>
+    <string name="github_project_repositories_loading">Cargando repositorios desde el Broker de autorización…</string>
+    <string name="github_project_repositories_not_loaded">Los repositorios aún no se han cargado desde el Broker.</string>
+    <string name="github_project_repositories_empty">El Broker no devolvió repositorios disponibles para este proyecto.</string>
+    <string name="github_project_repositories_save">Guardar selección de repositorios</string>
 </resources>

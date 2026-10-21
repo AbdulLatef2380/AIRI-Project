@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
@@ -44,12 +45,15 @@ class AgentLifecycleTrackerPanelTest {
         composeRule.onNodeWithText("Searched 1 times").assertIsDisplayed()
         composeRule.onNodeWithText("Memory operations 1").assertIsDisplayed()
         composeRule.onNodeWithText("2 tasks").assertIsDisplayed()
-        assertGroupVisible("Files · 1. Expand group")
-        assertGroupVisible("Commands · 1. Expand group")
-        assertGroupVisible("Tools · 1. Expand group")
-        assertGroupVisible("Search · 1. Expand group")
-        assertGroupVisible("Memory · 1. Expand group")
-        assertGroupVisible("Tasks · 2. Expand group")
+        assertGroupVisible("Files · 1. Expand group", index = 0)
+        assertGroupVisible("Commands · 1. Expand group", index = 1)
+        assertGroupVisible("Tools · 1. Expand group", index = 2)
+        assertGroupVisible("Search · 1. Expand group", index = 3)
+        assertGroupVisible("Memory · 1. Expand group", index = 4)
+        // PLAN and TASK are distinct projector categories but share the Tasks
+        // presentation title, so each has its own one-event header.
+        assertGroupVisible("Tasks · 1. Expand group", index = 5)
+        assertGroupVisible("Tasks · 1. Expand group", index = 6)
     }
 
     @Test
@@ -87,7 +91,7 @@ class AgentLifecycleTrackerPanelTest {
             }
         }
 
-        assertGroupVisible("Files · 1. Expand group")
+        assertGroupVisible("Files · 1. Expand group", index = 0)
     }
 
     @Test
@@ -107,7 +111,7 @@ class AgentLifecycleTrackerPanelTest {
         }
 
         composeRule.onNodeWithText("Read 1 files").assertIsDisplayed()
-        assertGroupVisible("Files · 1. Expand group")
+        assertGroupVisible("Files · 1. Expand group", index = 0)
     }
 
     @Test
@@ -123,11 +127,11 @@ class AgentLifecycleTrackerPanelTest {
         }
 
         composeRule.onNodeWithText("Read 1000 files").assertIsDisplayed()
-        assertGroupVisible("Files · 1000. Collapse group")
-        assertGroupVisible("Commands · 1000. Collapse group")
-        assertGroupVisible("Tools · 1000. Collapse group")
-        assertGroupVisible("Search · 1000. Collapse group")
-        assertGroupVisible("Memory · 1000. Collapse group")
+        assertGroupVisible("Files · 1000. Collapse group", index = 0)
+        assertGroupVisible("Commands · 1000. Collapse group", index = 1_001)
+        assertGroupVisible("Tools · 1000. Collapse group", index = 2_002)
+        assertGroupVisible("Search · 1000. Collapse group", index = 3_003)
+        assertGroupVisible("Memory · 1000. Collapse group", index = 4_004)
     }
 
     @Test
@@ -186,9 +190,9 @@ class AgentLifecycleTrackerPanelTest {
         }
     }
 
-    private fun assertGroupVisible(description: String) {
+    private fun assertGroupVisible(description: String, index: Int) {
         composeRule.onNodeWithTag("agent-trace-list")
-            .performScrollToNode(hasContentDescription(description))
+            .performScrollToIndex(index)
         composeRule.onNodeWithContentDescription(description).assertIsDisplayed()
     }
 

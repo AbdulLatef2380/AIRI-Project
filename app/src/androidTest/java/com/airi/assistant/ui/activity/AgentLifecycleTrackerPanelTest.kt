@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -52,8 +53,10 @@ class AgentLifecycleTrackerPanelTest {
         assertGroupVisible("Memory · 1. Expand group", index = 4)
         // PLAN and TASK are distinct projector categories but share the Tasks
         // presentation title, so each has its own one-event header.
-        assertGroupVisible("Tasks · 1. Expand group", index = 5)
-        assertGroupVisible("Tasks · 1. Expand group", index = 6)
+        composeRule.onNodeWithTag("agent-trace-list")
+            .performScrollToIndex(5)
+        composeRule.onAllNodesWithContentDescription("Tasks · 1. Expand group")
+            .assertCountEquals(2)
     }
 
     @Test

@@ -242,7 +242,10 @@ jobs:
         target: default
         arch: x86_64
         disable-animations: true
-        emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 2048
+        # API 35 system services (notably com.android.phone) exceed the 2 GiB
+        # guest budget on the hosted runner and can leave adb offline during boot.
+        # Keep API 29 at the previous budget; give API 35 a 4 GiB guest budget.
+        emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory ${{ matrix.api-level == 35 && 4096 || 2048 }}
         script: |
           bash .github/scripts/set-emulator-locale.sh "$EXPECTED_LOCALE"
           bash .github/scripts/run-instrumentation.sh

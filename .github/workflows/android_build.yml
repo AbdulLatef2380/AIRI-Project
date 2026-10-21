@@ -199,7 +199,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api-level: [29, 35]
+        # API 35's hosted system image does not reach sys.boot_completed on
+        # the current GitHub runner. Keep a stable legacy baseline and the
+        # latest stable image that boots reliably in this matrix.
+        api-level: [29, 34]
         locale: [en-US, ar-SA]
     steps:
     - name: Checkout Repository
@@ -239,13 +242,10 @@ jobs:
         EXPECTED_LOCALE: ${{ matrix.locale }}
       with:
         api-level: ${{ matrix.api-level }}
-        target: google_apis
+        target: default
         arch: x86_64
-        profile: pixel_5
         disable-animations: true
-        # Use the runner's documented Google APIs Pixel profile configuration.
-        # Explicit memory/core/Vulkan overrides made API 35 fail before boot.
-        emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+        emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 2048
         script: |
           bash .github/scripts/set-emulator-locale.sh "$EXPECTED_LOCALE"
           bash .github/scripts/run-instrumentation.sh

@@ -239,15 +239,14 @@ jobs:
         EXPECTED_LOCALE: ${{ matrix.locale }}
       with:
         api-level: ${{ matrix.api-level }}
-        target: default
+        target: ${{ matrix.api-level == 35 && 'google_apis' || 'default' }}
         arch: x86_64
+        profile: ${{ matrix.api-level == 35 && 'pixel_5' || '' }}
         disable-animations: true
-        # API 35's hosted emulator image reports invalid ColorBuffer objects
-        # with swiftshader_indirect, cascading into system-service ANRs. Use
-        # the software renderer for deterministic headless instrumentation.
-        # Retain the larger guest budget and CPU allocation for API 35's
-        # heavier system image when hardware acceleration is unavailable.
-        emulator-options: -no-window -gpu off -no-snapshot -noaudio -no-boot-anim -camera-back none -memory ${{ matrix.api-level == 35 && 4096 || 2048 }} -cores ${{ matrix.api-level == 35 && 4 || 2 }}
+        # API 35 is stable on the documented Google APIs Pixel profile with
+        # SwiftShader. The default image plus -gpu off repeatedly left
+        # system services unresponsive and crashed instrumentation at 0/0.
+        emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-load -no-snapshot-save -noaudio -no-boot-anim -camera-back none -camera-front none -feature -Vulkan -memory ${{ matrix.api-level == 35 && 4096 || 2048 }} -cores ${{ matrix.api-level == 35 && 4 || 2 }}
         script: |
           bash .github/scripts/set-emulator-locale.sh "$EXPECTED_LOCALE"
           bash .github/scripts/run-instrumentation.sh

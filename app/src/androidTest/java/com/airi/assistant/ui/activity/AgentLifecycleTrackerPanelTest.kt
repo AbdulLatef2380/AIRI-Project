@@ -120,18 +120,26 @@ class AgentLifecycleTrackerPanelTest {
             MaterialTheme {
                 AgentLifecycleTrackerPanel(
                     projection = stressProjection(),
-                    isWorking = true,
+                    // Keep groups collapsed initially. Expanding all five
+                    // groups at once would intentionally create 5,000 rows
+                    // in one test process and does not verify lazy bounds.
+                    isWorking = false,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
 
         composeRule.onNodeWithText("Read 1000 files").assertIsDisplayed()
-        assertGroupVisible("Files · 1000. Collapse group", index = 0)
-        assertGroupVisible("Commands · 1000. Collapse group", index = 1_001)
-        assertGroupVisible("Tools · 1000. Collapse group", index = 2_002)
-        assertGroupVisible("Search · 1000. Collapse group", index = 3_003)
-        assertGroupVisible("Memory · 1000. Collapse group", index = 4_004)
+        assertGroupVisible("Files · 1000. Expand group", index = 0)
+        assertGroupVisible("Commands · 1000. Expand group", index = 1)
+        assertGroupVisible("Tools · 1000. Expand group", index = 2)
+        assertGroupVisible("Search · 1000. Expand group", index = 3)
+        assertGroupVisible("Memory · 1000. Expand group", index = 4)
+
+        composeRule.onNodeWithContentDescription("Files · 1000. Expand group").performClick()
+        composeRule.onNodeWithContentDescription("Files · 1000. Collapse group").assertIsDisplayed()
+        composeRule.onNodeWithTag("agent-trace-list").performScrollToIndex(1_000)
+        composeRule.onNodeWithText("FILE event 999").assertIsDisplayed()
     }
 
     @Test

@@ -239,14 +239,13 @@ jobs:
         EXPECTED_LOCALE: ${{ matrix.locale }}
       with:
         api-level: ${{ matrix.api-level }}
-        target: ${{ matrix.api-level == 35 && 'google_apis' || 'default' }}
+        target: google_apis
         arch: x86_64
-        profile: ${{ matrix.api-level == 35 && 'pixel_5' || '' }}
+        profile: pixel_5
         disable-animations: true
-        # API 35 is stable on the documented Google APIs Pixel profile with
-        # SwiftShader. The default image plus -gpu off repeatedly left
-        # system services unresponsive and crashed instrumentation at 0/0.
-        emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-load -no-snapshot-save -noaudio -no-boot-anim -camera-back none -camera-front none -feature -Vulkan -memory ${{ matrix.api-level == 35 && 4096 || 2048 }} -cores ${{ matrix.api-level == 35 && 4 || 2 }}
+        # Use the runner's documented Google APIs Pixel profile configuration.
+        # Explicit memory/core/Vulkan overrides made API 35 fail before boot.
+        emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
         script: |
           bash .github/scripts/set-emulator-locale.sh "$EXPECTED_LOCALE"
           bash .github/scripts/run-instrumentation.sh

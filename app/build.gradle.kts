@@ -223,9 +223,12 @@ dependencies {
     // Android framework org.json methods are stubs in local JVM tests.
     // Use the JVM implementation so manifest round-trip tests execute real JSON.
     testImplementation("org.json:json:20240303")
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test:core:1.5.0")
-    androidTestImplementation("androidx.test:runner:1.5.2")
+    // AndroidX Test 1.7.x is the stable line for current Android releases,
+    // including API 35. The older 1.5.x runner crashed before discovering
+    // instrumentation tests on the API 35 emulator.
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test:core:1.7.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.room:room-testing:${libs.versions.room.get()}")
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")

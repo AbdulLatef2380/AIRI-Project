@@ -203,10 +203,10 @@ object ResponseOptimizer {
     ): GenerationConfig {
         val base = when (queryType) {
             QueryType.SIMPLE     -> GenerationConfig(temperature = 0.3f, maxTokens = minOf(128,  ramCappedMaxTokens))
-            QueryType.ANALYTICAL -> GenerationConfig(temperature = 0.7f, maxTokens = minOf(512,  ramCappedMaxTokens))
+            QueryType.ANALYTICAL -> GenerationConfig(temperature = 0.7f, maxTokens = minOf(2048, ramCappedMaxTokens))
             QueryType.ACTION     -> GenerationConfig(temperature = 0.5f, maxTokens = minOf(256,  ramCappedMaxTokens))
-            QueryType.CREATIVE   -> GenerationConfig(temperature = 0.9f, maxTokens = minOf(1024, ramCappedMaxTokens))
-            QueryType.UNKNOWN    -> GenerationConfig(temperature = 0.7f, maxTokens = minOf(256,  ramCappedMaxTokens))
+            QueryType.CREATIVE   -> GenerationConfig(temperature = 0.9f, maxTokens = minOf(2048, ramCappedMaxTokens))
+            QueryType.UNKNOWN    -> GenerationConfig(temperature = 0.7f, maxTokens = minOf(768, ramCappedMaxTokens))
         }
         val latencyFactor = when {
             recentP90Ms >= 9000L -> 0.55f
@@ -237,6 +237,21 @@ object ResponseOptimizer {
             inputLength < 200 -> minOf(queryTypeCap, 320)
             else              -> queryTypeCap
         }
+    }
+
+    /**
+     * Maximum new tokens that fit after the prompt and a small runtime reserve.
+     * Returning 1 instead of an arbitrary floor is intentional: when the prompt
+     * already fills the local context, a larger floor would exceed n_ctx.
+     */
+    fun localOutputTokenCap(
+        nCtx: Int,
+        estimatedPromptTokens: Int,
+        requestedMaxTokens: Int,
+        reserveTokens: Int = 128,
+    ): Int {
+        val remaining = nCtx - estimatedPromptTokens - reserveTokens
+        return requestedMaxTokens.coerceAtLeast(1).coerceAtMost(remaining.coerceAtLeast(1))
     }
 
     fun shouldSemanticCut(
@@ -329,9 +344,17 @@ object ResponseOptimizer {
      * Generate contextual follow-up chips based on the AI response content.
      * Returns empty list for very short responses.
      */
-    fun generateSuggestions(response: String, languageCode: String = Locale.getDefault().language): List<String> {
+    fun generateSuggestions(response: String, languageCode: String = Locale.getDefault().language): List<String> =
+        generateSuggestions(userInput = "", response = response, languageCode = languageCode)
+
+    /** Deterministic, local-only suggestions derived from both sides of the turn. */
+    fun generateSuggestions(
+        userInput: String,
+        response: String,
+        languageCode: String = Locale.getDefault().language,
+    ): List<String> {
         if (response.length < 50) return emptyList()
-        val lower = response.lowercase(Locale.ROOT)
+        val lower = "$userInput\n$response".lowercase(Locale.ROOT)
         fun localized(en: List<String>, ar: List<String>, es: List<String>, zh: List<String>): List<String> =
             when (languageCode.substringBefore('-').lowercase(Locale.ROOT)) {
                 "ar" -> ar
@@ -344,17 +367,17 @@ object ResponseOptimizer {
             lower.contains("class ") || lower.contains("function") ||
             lower.contains("كود") || lower.contains("código") || lower.contains("代码") ->
                 localized(
-                    en = listOf("Explain this code", "Add error handling", "Optimize it"),
-                    ar = listOf("اشرح هذا الكود", "أضف معالجة للأخطاء", "حسّنه"),
-                    es = listOf("Explica este código", "Añade manejo de errores", "Optimízalo"),
-                    zh = listOf("解释这段代码", "添加错误处理", "优化代码"),
+                    en = listOf("Analyze the code, identify likely bugs, and suggest practical improvements", "Add tests and error handling for this implementation", "Optimize this code for performance, security, and maintainability"),
+                    ar = listOf("حلّل الكود وحدد الأخطاء المحتملة واقترح تحسينات عملية", "أضف اختبارات ومعالجة واضحة للأخطاء لهذا التنفيذ", "حسّن الكود من حيث الأداء والأمان وسهولة الصيانة"),
+                    es = listOf("Analiza el código, detecta errores y propone mejoras prácticas", "Añade pruebas y manejo de errores a esta implementación", "Optimiza el código para rendimiento, seguridad y mantenimiento"),
+                    zh = listOf("分析代码并找出潜在错误，提出实用改进", "为这段实现添加测试和错误处理", "从性能、安全性和可维护性方面优化代码"),
                 )
 
             lower.contains("step") || lower.contains("how to") || lower.contains("paso") ||
             lower.contains("步骤") || lower.contains("1.") || lower.contains("خطوات") ->
                 localized(
-                    en = listOf("Explain step 1", "What's next?", "Simplify this"),
-                    ar = listOf("اشرح الخطوة الأولى", "ما الخطوة التالية؟", "بسّط الشرح"),
+                    en = listOf("Explain the first step with a concrete example", "Turn the proposed plan into the next executable tasks", "Rewrite the steps in a simpler, easier-to-follow way"),
+                    ar = listOf("اشرح الخطوة الأولى بمثال عملي واضح", "حوّل الخطة المقترحة إلى مهام تنفيذية تالية", "أعد كتابة الخطوات بطريقة أبسط وأسهل للتنفيذ"),
                     es = listOf("Explica el paso 1", "¿Qué sigue?", "Simplifícalo"),
                     zh = listOf("解释第 1 步", "接下来做什么？", "简化说明"),
                 )
@@ -363,8 +386,8 @@ object ResponseOptimizer {
             lower.contains("por lo tanto") || lower.contains("因为") || lower.contains("因此") ||
             lower.contains("لأن") || lower.contains("لذلك") ->
                 localized(
-                    en = listOf("Explain more", "Give an example", "Summarize"),
-                    ar = listOf("وضّح أكثر", "أعطني مثالاً", "لخّص الإجابة"),
+                    en = listOf("Explain the reasoning in more detail with a practical example", "Show how to apply this idea to a realistic case", "Summarize the answer into the key decisions and caveats"),
+                    ar = listOf("اشرح الفكرة بتفصيل أكبر مع مثال عملي", "وضّح كيفية تطبيق هذه الفكرة على حالة واقعية", "لخّص الإجابة في القرارات والنقاط المهمة والقيود"),
                     es = listOf("Amplía la explicación", "Dame un ejemplo", "Resume la respuesta"),
                     zh = listOf("详细说明", "举个例子", "总结回答"),
                 )
@@ -373,8 +396,8 @@ object ResponseOptimizer {
             lower.contains("diferencia") || lower.contains("versus") || lower.contains("vs") ||
             lower.contains("比较") || lower.contains("区别") || lower.contains("قارن") ->
                 localized(
-                    en = listOf("Go deeper", "Which is better?", "Give pros & cons"),
-                    ar = listOf("تعمّق في المقارنة", "أيهما أفضل؟", "اذكر المزايا والعيوب"),
+                    en = listOf("Compare the alternatives by performance, cost, and ease of use", "Recommend the best option for my constraints and explain why", "List the trade-offs, risks, and situations where each option fits"),
+                    ar = listOf("قارن بين البدائل من حيث الأداء والتكلفة وسهولة الاستخدام", "رشّح الخيار الأنسب لقيودي واشرح سبب التوصية", "اذكر المفاضلات والمخاطر ومتى يناسب كل خيار"),
                     es = listOf("Profundiza en la comparación", "¿Cuál es mejor?", "Ventajas y desventajas"),
                     zh = listOf("深入比较", "哪个更好？", "列出优缺点"),
                 )
@@ -382,24 +405,24 @@ object ResponseOptimizer {
             lower.contains("analyze") || lower.contains("analyse") || lower.contains("analiza") ||
             lower.contains("análisis") || lower.contains("分析") || lower.contains("حلل") ->
                 localized(
-                    en = listOf("More detail", "Key takeaways?", "Summarize"),
-                    ar = listOf("أضف مزيداً من التفاصيل", "ما أهم النقاط؟", "لخّص الإجابة"),
+                    en = listOf("Expand the analysis with evidence, assumptions, and limitations", "Extract the key findings and the next practical step", "Turn the analysis into a concise decision-ready summary"),
+                    ar = listOf("وسّع التحليل بالأدلة والافتراضات والقيود المهمة", "استخرج أهم النتائج والخطوة العملية التالية", "حوّل التحليل إلى ملخص واضح يساعد على اتخاذ القرار"),
                     es = listOf("Más detalles", "¿Puntos clave?", "Resume la respuesta"),
                     zh = listOf("补充细节", "关键要点？", "总结回答"),
                 )
 
             response.length > 500 ->
                 localized(
-                    en = listOf("Summarize this", "Key points?", "Simplify"),
-                    ar = listOf("لخّص الإجابة", "ما أهم النقاط؟", "بسّط الشرح"),
+                    en = listOf("Summarize the answer into the most important points", "Extract the decisions, risks, and open questions", "Rewrite the explanation as a clear practical checklist"),
+                    ar = listOf("لخّص الإجابة في أهم النقاط المفيدة", "استخرج القرارات والمخاطر والأسئلة المفتوحة", "حوّل الشرح إلى قائمة عملية واضحة"),
                     es = listOf("Resume esto", "¿Puntos clave?", "Simplifícalo"),
                     zh = listOf("总结内容", "关键要点？", "简化说明"),
                 )
 
             response.length > 200 ->
                 localized(
-                    en = listOf("Tell me more", "Give an example"),
-                    ar = listOf("أخبرني المزيد", "أعطني مثالاً"),
+                    en = listOf("Explain the most important part in more detail with an example", "What practical next step should I take from this answer?"),
+                    ar = listOf("اشرح أهم جزء بتفصيل أكبر مع مثال عملي", "ما الخطوة العملية التالية التي ينبغي أن أبدأ بها؟"),
                     es = listOf("Cuéntame más", "Dame un ejemplo"),
                     zh = listOf("继续说明", "举个例子"),
                 )

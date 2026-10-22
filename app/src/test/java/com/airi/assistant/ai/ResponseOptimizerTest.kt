@@ -3,9 +3,17 @@ package com.airi.assistant.ai
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ResponseOptimizerTest {
+    @Test
+    fun localOutputNeverExceedsRemainingContext() {
+        assertEquals(872, ResponseOptimizer.localOutputTokenCap(2048, 1000, 1200))
+        assertEquals(1, ResponseOptimizer.localOutputTokenCap(2048, 2000, 1200))
+        assertEquals(384, ResponseOptimizer.localOutputTokenCap(4096, 1000, 384))
+    }
+
     @Test
     fun knownGreetingMayUseTheExplicitFastPath() {
         assertNotNull(ResponseOptimizer.tryFastResponse("hi"))
@@ -37,20 +45,32 @@ class ResponseOptimizerTest {
     fun smartRepliesFollowTheConfiguredAppLanguage() {
         val response = "```kotlin\nclass Example { fun run() {} }\n``` This implementation can be reviewed and improved with tests."
         assertEquals(
-            listOf("اشرح هذا الكود", "أضف معالجة للأخطاء", "حسّنه"),
+            listOf("حلّل الكود وحدد الأخطاء المحتملة واقترح تحسينات عملية", "أضف اختبارات ومعالجة واضحة للأخطاء لهذا التنفيذ", "حسّن الكود من حيث الأداء والأمان وسهولة الصيانة"),
             ResponseOptimizer.generateSuggestions(response, "ar"),
         )
         assertEquals(
-            listOf("Explain this code", "Add error handling", "Optimize it"),
+            listOf("Analyze the code, identify likely bugs, and suggest practical improvements", "Add tests and error handling for this implementation", "Optimize this code for performance, security, and maintainability"),
             ResponseOptimizer.generateSuggestions(response, "en"),
         )
         assertEquals(
-            listOf("Explica este código", "Añade manejo de errores", "Optimízalo"),
+            listOf("Analiza el código, detecta errores y propone mejoras prácticas", "Añade pruebas y manejo de errores a esta implementación", "Optimiza el código para rendimiento, seguridad y mantenimiento"),
             ResponseOptimizer.generateSuggestions(response, "es"),
         )
         assertEquals(
-            listOf("解释这段代码", "添加错误处理", "优化代码"),
+            listOf("分析代码并找出潜在错误，提出实用改进", "为这段实现添加测试和错误处理", "从性能、安全性和可维护性方面优化代码"),
             ResponseOptimizer.generateSuggestions(response, "zh"),
         )
+    }
+
+    @Test
+    fun suggestionsUseTheUserTaskAndRemainComplete() {
+        val suggestions = ResponseOptimizer.generateSuggestions(
+            userInput = "قارن بين Gemini وClaude لمشروع Android",
+            response = "كلاهما يدعم الاستدعاء الوظيفي، لكن الاختيار يعتمد على التكلفة والسياق والخصوصية.",
+            languageCode = "ar",
+        )
+        assertEquals(3, suggestions.size)
+        assertTrue(suggestions.all { it.length > 25 })
+        assertTrue(suggestions.first().contains("الأداء"))
     }
 }

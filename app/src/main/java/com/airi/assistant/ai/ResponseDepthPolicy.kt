@@ -15,7 +15,14 @@ object ResponseDepthPolicy {
         "explain", "describe", "why", "how", "compare", "difference",
         "pros and cons", "step by step", "in detail", "elaborate",
         "اشرح", "وضح", "وضّح", "لماذا", "كيف", "قارن", "الفرق",
-        "خطوة بخطوة", "بالتفصيل", "حلل", "حلّل",
+        "خطوة بخطوة", "بالتفصيل", "حلل", "حلّل", "شرح شامل", "تحليل شامل",
+        "تقرير مفصل", "تقرير شامل", "بأكبر قدر من التفاصيل",
+    )
+
+    private val briefMarkers = listOf(
+        "briefly", "in one sentence", "short answer", "be concise", "just the answer",
+        "باختصار", "باختصار شديد", "إجابة قصيرة", "اجب باختصار", "أجب باختصار",
+        "في جملة واحدة", "بدون شرح طويل",
     )
 
     private val openEndedMarkers = listOf(
@@ -27,6 +34,7 @@ object ResponseDepthPolicy {
     fun resolve(input: String, queryType: QueryType): ResponseDepth {
         val text = input.trim().lowercase()
         if (text.isBlank()) return ResponseDepth.STANDARD
+        if (briefMarkers.any(text::contains)) return ResponseDepth.BRIEF
         if (openEndedMarkers.any(text::contains) || detailMarkers.any(text::contains)) {
             return ResponseDepth.DETAILED
         }

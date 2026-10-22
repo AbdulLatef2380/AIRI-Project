@@ -5,6 +5,14 @@ import org.junit.Test
 
 class ResponseDepthPolicyTest {
     @Test
+    fun explicitBriefInstructionWinsOverDetailedQuestion() {
+        assertEquals(
+            ResponseDepth.BRIEF,
+            ResponseDepthPolicy.resolve("اشرح باختصار كيف تعمل الموصلات", QueryType.ANALYTICAL),
+        )
+    }
+
+    @Test
     fun shortGreetingRemainsBrief() {
         assertEquals(
             ResponseDepth.BRIEF,

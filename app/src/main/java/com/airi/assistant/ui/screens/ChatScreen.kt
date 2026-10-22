@@ -3752,6 +3752,10 @@ fun AiriChatInputBar(
                             .background(AiriTheme.surfaceVariant.copy(alpha = 0.78f))
                             .border(1.dp, AiriTheme.outline.copy(alpha = 0.32f), AIRIShapes.pill)
                             .clickable { onSmartReply(reply) }
+                            .semantics {
+                                contentDescription = reply
+                                role = Role.Button
+                            }
                             .padding(horizontal = 10.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -3762,15 +3766,15 @@ fun AiriChatInputBar(
                             tint = AiriTheme.onSurfaceVariant,
                             modifier = Modifier.size(14.dp),
                         )
-                        Text(
-                            text = reply,
-                            color = AiriTheme.onSurface,
-                            fontSize = 13.sp,
-                            lineHeight = 18.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection(reply)) {
+                            Text(
+                                text = reply,
+                                color = AiriTheme.onSurface,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
                     }
                 }
             }

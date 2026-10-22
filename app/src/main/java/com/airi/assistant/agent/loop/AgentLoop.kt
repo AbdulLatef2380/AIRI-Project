@@ -9,6 +9,9 @@ import com.airi.assistant.agent.loop.tool.ToolDispatcher
 import com.airi.assistant.agent.loop.tool.ToolSchema
 import com.airi.assistant.agent.loop.tool.ToolSpecAdapter
 import com.airi.assistant.ai.QueryType
+import com.airi.assistant.ai.ResponseDepth
+import com.airi.assistant.ai.ResponseDepthPolicy
+import com.airi.assistant.ai.ResponseOptimizer
 import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.core.UniversalRuntimeTraceRecorder
@@ -960,13 +963,12 @@ the tool returns an actual error.
                 // QueryType controls routing and tool policy, not a universal
                 // brevity limit. Leave analytical and creative answers room to
                 // finish instead of truncating them at the old fixed ceiling.
-                maxTokens             = when (queryType) {
-                    QueryType.SIMPLE     -> 768
-                    QueryType.ACTION     -> 1024
-                    QueryType.ANALYTICAL -> 1536
-                    QueryType.CREATIVE   -> 2048
-                    QueryType.UNKNOWN    -> 1024
-                },
+                maxTokens             = adaptiveOutputTokens(
+                    input = input,
+                    queryType = queryType,
+                    estimatedPromptTokens = estimatedTokens,
+                    providerId = providerId,
+                ),
                 temperature           = 0.3f,   // low temp for structured decisions
                 queryType             = queryType,
                 requiresStreaming      = true,
@@ -1017,6 +1019,38 @@ the tool returns an actual error.
 
         if (error != null) throw RuntimeException(error)
         return buf.toString().trim()
+    }
+
+    /**
+     * Output length is a quality decision, not a routing shortcut. Cloud models
+     * may use a larger budget for genuinely detailed work; local llama.cpp is
+     * capped by the remaining live context so a long answer cannot evict the
+     * prompt or exhaust the phone's context window.
+     */
+    private fun adaptiveOutputTokens(
+        input: String,
+        queryType: QueryType,
+        estimatedPromptTokens: Int,
+        providerId: String,
+    ): Int {
+        val depth = ResponseDepthPolicy.resolve(input, queryType)
+        val requested = when (depth) {
+            ResponseDepth.BRIEF -> 384
+            ResponseDepth.STANDARD -> 1_024
+            ResponseDepth.DETAILED -> when (queryType) {
+                QueryType.ANALYTICAL -> 4_096
+                QueryType.CREATIVE -> 3_072
+                else -> 2_560
+            }
+        }
+        val local = providerId.isBlank() || providerId.equals("local", ignoreCase = true)
+        if (!local) return requested
+        val budget = runCatching { contextBudgetProvider() }.getOrDefault(ContextBudget.UNLOADED)
+        return ResponseOptimizer.localOutputTokenCap(
+            nCtx = budget.nCtx,
+            estimatedPromptTokens = estimatedPromptTokens,
+            requestedMaxTokens = requested,
+        )
     }
 
     // ── Tool schema → system prompt block ─────────────────────────────────────

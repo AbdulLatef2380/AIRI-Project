@@ -7,6 +7,25 @@ import org.junit.Test
 
 class CapabilityIntentDetectorTest {
     @Test
+    fun naturalArabicRecentRequestsRequireWebSearch() {
+        listOf(
+            "ما آخر أخبار السودان؟",
+            "أعطني أخبار السودان خلال آخر 24 ساعة",
+            "كم سعر الدولار مقابل الجنيه السوداني اليوم؟",
+            "ابحث عن أحدث إصدار لهذه المكتبة",
+        ).forEach { input ->
+            assertTrue(input, CapabilityIntentDetector.detect(input)
+                .requires(CapabilityIntentDetector.Capability.WEB_SEARCH))
+        }
+    }
+
+    @Test
+    fun creativeTodayRequestDoesNotAutomaticallyRequireWebSearch() {
+        assertFalse(CapabilityIntentDetector.detect("اكتب لي قصة عن يوم جميل")
+            .requires(CapabilityIntentDetector.Capability.WEB_SEARCH))
+    }
+
+    @Test
     fun arabicDateVariantsRequireCurrentTime() {
         assertTrue(CapabilityIntentDetector.detect("كم اليوم بالتاريخ الميلادي؟")
             .requires(CapabilityIntentDetector.Capability.CURRENT_TIME))

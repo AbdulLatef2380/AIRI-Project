@@ -2164,8 +2164,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 if (wasEmpty) autoTitleAfterSuccessfulResponse(sessionId, trimmedInput)
                 _smartReplies.value = ResponseOptimizer.generateSuggestions(
-                    fastHit,
-                    LanguageManager.getCurrentLanguage(appContext),
+                    userInput = trimmedInput,
+                    response = fastHit,
+                    languageCode = LanguageManager.getCurrentLanguage(appContext),
                 )
                 streamAccumulator.setLength(0); _streamingText.value = ""
                 finishGeneration(generationId)
@@ -2643,8 +2644,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     refreshTodayTokens()
                     if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
                         _smartReplies.value = ResponseOptimizer.generateSuggestions(
-                            normalizedAnswer,
-                            LanguageManager.getCurrentLanguage(appContext),
+                            userInput = trimmedInput,
+                            response = normalizedAnswer,
+                            languageCode = LanguageManager.getCurrentLanguage(appContext),
                         )
                     }
                     subscriptionManager.recordConsecutiveSuccess()

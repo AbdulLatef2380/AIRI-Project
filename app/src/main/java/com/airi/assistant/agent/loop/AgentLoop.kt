@@ -964,7 +964,7 @@ the tool returns an actual error.
                 // brevity limit. Leave analytical and creative answers room to
                 // finish instead of truncating them at the old fixed ceiling.
                 maxTokens             = adaptiveOutputTokens(
-                    input = input,
+                    input = currentPromptText?.takeIf { it.isNotBlank() } ?: prompt,
                     queryType = queryType,
                     estimatedPromptTokens = estimatedTokens,
                     providerId = providerId,

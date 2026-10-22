@@ -217,8 +217,14 @@ object ModelCapabilityEngine {
         values[Capability.PDF_INPUT] = pdfStatus
         values[Capability.OCR] = CapabilityStatus.UNSUPPORTED
         values[Capability.STREAMING] = if (modelNamed) CapabilityStatus.SUPPORTED else CapabilityStatus.UNKNOWN
-        values[Capability.TOOL_CALLING] = CapabilityStatus.UNKNOWN
-        values[Capability.FUNCTION_CALLING] = CapabilityStatus.UNKNOWN
+        val nativeToolTransport = when {
+            !modelNamed -> CapabilityStatus.UNKNOWN
+            provider in setOf(CloudProvider.GEMINI, CloudProvider.OPENAI, CloudProvider.ANTHROPIC) ->
+                CapabilityStatus.SUPPORTED
+            else -> CapabilityStatus.UNKNOWN
+        }
+        values[Capability.TOOL_CALLING] = nativeToolTransport
+        values[Capability.FUNCTION_CALLING] = nativeToolTransport
         values[Capability.STRUCTURED_OUTPUT] = CapabilityStatus.UNKNOWN
         values[Capability.JSON_OUTPUT] = CapabilityStatus.UNKNOWN
         return ModelCapabilityDescriptor(

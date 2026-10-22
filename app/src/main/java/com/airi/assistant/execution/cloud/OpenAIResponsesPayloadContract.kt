@@ -59,6 +59,14 @@ internal object OpenAIResponsesPayloadContract {
         append("],")
         append("\"max_output_tokens\":${request.maxTokens},")
         append("\"temperature\":${request.temperature},")
+        if (request.toolDefinitions.isNotEmpty()) {
+            append("\"tools\":[")
+            request.toolDefinitions.forEachIndexed { index, definition ->
+                if (index > 0) append(",")
+                append(ToolDefinitionJson.openAiResponseFunction(definition))
+            }
+            append("],\"tool_choice\":\"auto\",")
+        }
         append("\"stream\":true")
         append("}")
     }

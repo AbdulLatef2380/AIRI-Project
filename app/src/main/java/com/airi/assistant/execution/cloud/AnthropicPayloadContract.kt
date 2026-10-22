@@ -32,7 +32,22 @@ internal object AnthropicPayloadContract {
         var needsComma = false
         request.conversationHistory.forEach { turn ->
             if (needsComma) append(",")
-            append("{\"role\":${jsonString(turn.role)},\"content\":${jsonString(turn.content)}}")
+            val nativeCall = ToolCallHistoryCodec.parseMarker(turn.content)
+            when {
+                turn.kind == "tool_result" -> {
+                    append("{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":")
+                    append(jsonString(turn.toolCallId.ifBlank { "call_${turn.toolName}" }))
+                    append(",\"content\":${jsonString(turn.content)} }]}")
+                }
+                turn.role == "assistant" && nativeCall != null -> {
+                    val id = nativeCall.id.ifBlank { "call_${nativeCall.name}" }
+                    append("{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":")
+                    append(jsonString(id)).append(",\"name\":")
+                    append(jsonString(nativeCall.name)).append(",\"input\":")
+                    append(nativeCall.arguments.toString()).append("}]}")
+                }
+                else -> append("{\"role\":${jsonString(turn.role)},\"content\":${jsonString(turn.content)}}")
+            }
             needsComma = true
         }
         if (needsComma) append(",")
@@ -57,7 +72,16 @@ internal object AnthropicPayloadContract {
             hasContent = true
         }
         append("]}")
-        append("],\"stream\":true}")
+        append("]")
+        if (request.toolDefinitions.isNotEmpty()) {
+            append(",\"tools\":[")
+            request.toolDefinitions.forEachIndexed { index, definition ->
+                if (index > 0) append(",")
+                append(ToolDefinitionJson.anthropicTool(definition))
+            }
+            append("]")
+        }
+        append(",\"stream\":true}")
     }
 
     private fun jsonString(value: String): String =

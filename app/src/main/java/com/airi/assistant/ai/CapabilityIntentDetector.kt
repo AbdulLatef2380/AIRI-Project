@@ -48,7 +48,9 @@ object CapabilityIntentDetector {
     private val webPatterns = listOf(
         "search the web", "search online", "look up", "latest news", "current price",
         "ابحث في الويب", "ابحث على الانترنت", "ابحث على الإنترنت", "آخر الأخبار",
-        "اخر الاخبار", "السعر الحالي", "معلومات حديثة", "معلومة حديثة",
+        "اخر الاخبار", "الاخبار", "اخبار", "خبر", "السعر الحالي", "سعر الدولار",
+        "سعر الصرف", "معلومات حديثة", "معلومة حديثة", "احدث اصدار", "أحدث إصدار",
+        "افتح هذا الرابط", "لخص محتواه", "لخص الرابط", "قارن أحدث المعلومات",
     )
 
     private val connectorTargets = mapOf(
@@ -124,7 +126,15 @@ object CapabilityIntentDetector {
 
         if (timePatterns.any(text::contains)) capabilities += Capability.CURRENT_TIME
         if (memoryPatterns.any(text::contains)) capabilities += Capability.MEMORY_READ
-        if (webPatterns.any(text::contains)) capabilities += Capability.WEB_SEARCH
+        val hasCurrencyPairRequest = text.contains("سعر") &&
+            (text.contains("دولار") || text.contains("جنيه") || text.contains("عملة") || text.contains("صرف"))
+        val hasRecentNewsRequest = (text.contains("خبر") || text.contains("اخبار") || text.contains("الاخبار")) &&
+            (text.contains("اخر") || text.contains("حديث") || text.contains("اليوم") || text.contains("24 ساع"))
+        val hasExplicitWebRequest = webPatterns.any(text::contains) ||
+            text.contains("http://") || text.contains("https://")
+        if (hasExplicitWebRequest || hasCurrencyPairRequest || hasRecentNewsRequest) {
+            capabilities += Capability.WEB_SEARCH
+        }
 
         // A request may mention more than one provider (for example Gmail and
         // GitHub in the same sentence). Selecting only the first match silently

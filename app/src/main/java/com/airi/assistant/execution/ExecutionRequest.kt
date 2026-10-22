@@ -44,12 +44,34 @@ data class ExecutionRequest(
     val inlineDataParts:          List<InlineDataPart> = emptyList(),
     /** Optional metadata-only trace for proving attachment delivery. */
     val attachmentTrace:          AttachmentDeliveryTrace? = null,
+    /** Provider-neutral tool declarations. Adapters translate these to their native wire format. */
+    val toolDefinitions:          List<ToolDefinition> = emptyList(),
     /** Correlation identity; generated at the request boundary and preserved downstream. */
     val identity:                 ExecutionIdentity? = null,
     /** Explicit privacy/routing boundary for this request. */
     val allowCloud:               Boolean = true,
 ) {
-    data class ConversationTurn(val role: String, val content: String)
+    data class ToolDefinition(
+        val name: String,
+        val description: String,
+        val parameters: List<ToolParameter> = emptyList(),
+    )
+
+    data class ToolParameter(
+        val name: String,
+        val type: String,
+        val description: String = "",
+        val required: Boolean = true,
+        val enumValues: List<String> = emptyList(),
+    )
+
+    data class ConversationTurn(
+        val role: String,
+        val content: String,
+        val kind: String = "text",
+        val toolName: String = "",
+        val toolCallId: String = "",
+    )
     data class ImagePart(
         val mimeType: String,
         val base64Data: String,
@@ -84,5 +106,6 @@ data class ExecutionRequest(
         if (resolvedProviderId.isNotBlank()) append(" resolvedProvider=$resolvedProviderId")
         if (resolvedModelId.isNotBlank()) append(" resolvedModel=$resolvedModelId")
         if (conversationHistory.isNotEmpty()) append(" history=${conversationHistory.size}")
+        if (toolDefinitions.isNotEmpty()) append(" toolDefs=${toolDefinitions.size}")
     }
 }

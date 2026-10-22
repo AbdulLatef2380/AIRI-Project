@@ -92,6 +92,7 @@ open class OpenAIAdapter(
 
         var conn: HttpURLConnection? = null
         val fullText       = StringBuilder()
+        val nativeCalls    = linkedMapOf<Int, NativeToolCallWire.Call>()
         var promptTokens   = 0
         var completeTokens = 0
         val startMs        = System.currentTimeMillis()
@@ -172,6 +173,14 @@ open class OpenAIAdapter(
                         fullText.append(token)
                         onToken(token)
                     }
+                    event.toolCalls.forEach { delta ->
+                        val current = nativeCalls[delta.index]
+                        nativeCalls[delta.index] = NativeToolCallWire.Call(
+                            name = delta.name.ifBlank { current?.name.orEmpty() },
+                            argumentsJson = current?.argumentsJson.orEmpty() + delta.arguments,
+                            id = delta.id.ifBlank { current?.id.orEmpty() },
+                        )
+                    }
 
                     // Usage (present in the final chunk when stream_options.include_usage=true)
                     event.promptTokens?.let { promptTokens = it }
@@ -188,6 +197,17 @@ open class OpenAIAdapter(
                 }
             }
 
+            if (fullText.isBlank() && nativeCalls.isNotEmpty()) {
+                val wire = nativeCalls.values.joinToString("\n") { NativeToolCallWire.encode(it) }
+                onToken(wire)
+                return@withContext CloudProviderAdapter.AdapterResult.Success(
+                    fullText = wire,
+                    latencyMs = System.currentTimeMillis() - startMs,
+                    promptTokens = promptTokens,
+                    completionTokens = completeTokens,
+                    executedModelId = model,
+                )
+            }
             if (fullText.isBlank()) {
                 return@withContext CloudProviderAdapter.AdapterResult.Failure(
                     error = "Provider returned no text",
@@ -452,6 +472,14 @@ open class OpenAIAdapter(
         append("\"temperature\":${req.temperature},")
         append("\"stream\":true,")
         append("\"stream_options\":{\"include_usage\":true}")
+        if (req.toolDefinitions.isNotEmpty()) {
+            append(",\"tools\":[")
+            req.toolDefinitions.forEachIndexed { index, definition ->
+                if (index > 0) append(",")
+                append(ToolDefinitionJson.openAiFunction(definition))
+            }
+            append("],\"tool_choice\":\"auto\"")
+        }
         append("}")
     }
 

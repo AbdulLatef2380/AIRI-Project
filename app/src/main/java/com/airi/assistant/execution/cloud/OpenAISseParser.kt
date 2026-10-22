@@ -9,12 +9,20 @@ import com.google.gson.JsonParser
 internal object OpenAISseParser {
     data class Event(
         val text: String = "",
+        val toolCalls: List<ToolCallDelta> = emptyList(),
         val promptTokens: Int? = null,
         val completionTokens: Int? = null,
         val hasProviderError: Boolean = false,
         val errorCode: String? = null,
         val errorType: String? = null,
         val malformed: Boolean = false,
+    )
+
+    data class ToolCallDelta(
+        val index: Int,
+        val id: String = "",
+        val name: String = "",
+        val arguments: String = "",
     )
 
     fun parse(payload: String): Event {
@@ -39,6 +47,17 @@ internal object OpenAISseParser {
         val firstChoice = choices?.firstObjectOrNull()
         val delta = firstChoice?.get("delta")?.takeIf { it.isJsonObject }?.asJsonObject
         val text = delta?.get("content")?.textContent().orEmpty()
+        val toolCalls = delta?.get("tool_calls")?.takeIf { it.isJsonArray }?.asJsonArray
+            ?.mapIndexedNotNull { index, element ->
+                val call = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapIndexedNotNull null
+                val function = call.get("function")?.takeIf { it.isJsonObject }?.asJsonObject
+                ToolCallDelta(
+                    index = call.intValue("index") ?: index,
+                    id = call.stringValue("id").orEmpty(),
+                    name = function?.stringValue("name").orEmpty(),
+                    arguments = function?.stringValue("arguments").orEmpty(),
+                )
+            }.orEmpty()
         val usage = root.get("usage")?.takeIf { it.isJsonObject }?.asJsonObject
         val promptTokens = usage?.intValue("prompt_tokens")
         val completionTokens = usage?.intValue("completion_tokens")
@@ -48,6 +67,7 @@ internal object OpenAISseParser {
         if (choices == null && usage == null) return Event(malformed = true)
         return Event(
             text = text,
+            toolCalls = toolCalls,
             promptTokens = promptTokens,
             completionTokens = completionTokens,
         )

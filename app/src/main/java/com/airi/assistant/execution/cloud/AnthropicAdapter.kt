@@ -14,6 +14,7 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import org.json.JSONObject
 
 /**
  * Production-grade Anthropic Claude streaming adapter.
@@ -81,6 +82,7 @@ class AnthropicAdapter(
         }
         var conn: HttpURLConnection? = null
         val fullText       = StringBuilder()
+        val nativeCalls    = linkedMapOf<String, NativeToolCallWire.Call>()
         var promptTokens   = 0
         var completeTokens = 0
         val startMs        = System.currentTimeMillis()
@@ -136,11 +138,35 @@ class AnthropicAdapter(
                             if (payload.isBlank()) continue@sseLoop
 
                             when (currentEventType) {
+                                "content_block_start" -> {
+                                    val block = runCatching { JSONObject(payload).optJSONObject("content_block") }.getOrNull()
+                                    if (block?.optString("type") == "tool_use") {
+                                        val id = block.optString("id", block.optString("name"))
+                                        nativeCalls[id] = NativeToolCallWire.Call(
+                                            name = block.optString("name"),
+                                            argumentsJson = block.optJSONObject("input")?.toString() ?: "{}",
+                                            id = id,
+                                        )
+                                    }
+                                }
                                 "content_block_delta" -> {
-                                    val token = extractDeltaText(payload)
-                                    if (token.isNotEmpty()) {
-                                        fullText.append(token)
-                                        onToken(token)
+                                    val delta = runCatching { JSONObject(payload).optJSONObject("delta") }.getOrNull()
+                                    if (delta?.optString("type") == "input_json_delta") {
+                                        val id = nativeCalls.keys.lastOrNull()
+                                        val current = id?.let(nativeCalls::get)
+                                        if (id != null && current != null) {
+                                            nativeCalls[id] = current.copy(
+                                                argumentsJson = if (current.argumentsJson == "{}") {
+                                                    delta.optString("partial_json", "")
+                                                } else current.argumentsJson + delta.optString("partial_json", "")
+                                            )
+                                        }
+                                    } else {
+                                        val token = extractDeltaText(payload)
+                                        if (token.isNotEmpty()) {
+                                            fullText.append(token)
+                                            onToken(token)
+                                        }
                                     }
                                 }
                                 "message_start" -> {
@@ -170,6 +196,17 @@ class AnthropicAdapter(
                 )
             }
 
+            if (fullText.isBlank() && nativeCalls.isNotEmpty()) {
+                val wire = nativeCalls.values.joinToString("\n") { NativeToolCallWire.encode(it) }
+                onToken(wire)
+                return@withContext CloudProviderAdapter.AdapterResult.Success(
+                    fullText = wire,
+                    latencyMs = System.currentTimeMillis() - startMs,
+                    promptTokens = promptTokens,
+                    completionTokens = completeTokens,
+                    executedModelId = model,
+                )
+            }
             val latency = System.currentTimeMillis() - startMs
             if (fullText.isBlank()) {
                 trace?.markProviderResponse(false, attachmentIds)

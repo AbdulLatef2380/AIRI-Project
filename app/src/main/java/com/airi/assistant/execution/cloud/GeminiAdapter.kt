@@ -75,6 +75,7 @@ class GeminiAdapter(
 
         var conn: HttpURLConnection? = null
         val fullText       = StringBuilder()
+        val nativeCalls    = mutableListOf<NativeToolCallWire.Call>()
         var lastPayload    = ""
         var promptTokens   = 0
         var completeTokens = 0
@@ -151,6 +152,9 @@ class GeminiAdapter(
                     if (event.terminal) sawTerminal = true
                     val token = event.text
                     if (token.isNotEmpty()) { fullText.append(token); onToken(token) }
+                    event.toolCalls.forEach { call ->
+                        nativeCalls += NativeToolCallWire.Call(call.name, call.argumentsJson)
+                    }
                     event.promptTokens?.let { promptTokens = it }
                     event.completionTokens?.let { completeTokens = it }
                 }
@@ -165,6 +169,17 @@ class GeminiAdapter(
                 )
             }
 
+            if (fullText.isBlank() && nativeCalls.isNotEmpty()) {
+                val wire = nativeCalls.joinToString("\n") { NativeToolCallWire.encode(it) }
+                onToken(wire)
+                return@withContext CloudProviderAdapter.AdapterResult.Success(
+                    fullText = wire,
+                    latencyMs = System.currentTimeMillis() - startMs,
+                    promptTokens = promptTokens,
+                    completionTokens = completeTokens,
+                    executedModelId = model,
+                )
+            }
             if (fullText.isBlank()) {
                 trace?.markProviderResponse(false, attachmentIds)
                 val mapped = CloudErrorMapper.map(200, lastPayload)
@@ -212,15 +227,41 @@ class GeminiAdapter(
             append(jsonString(req.systemPrompt))
             append("}]},")
         }
+        if (req.toolDefinitions.isNotEmpty()) {
+            append("\"tools\":[{\"functionDeclarations\":[")
+            req.toolDefinitions.forEachIndexed { index, definition ->
+                if (index > 0) append(",")
+                append(ToolDefinitionJson.geminiDeclaration(definition))
+            }
+            append("]}],")
+        }
         append("\"contents\":[")
         var first = true
         for (turn in req.conversationHistory) {
             if (!first) append(",")
             first = false
-            val role = if (turn.role == "assistant") "model" else "user"
-            append("{\"role\":\"$role\",\"parts\":[{\"text\":")
-            append(jsonString(turn.content))
-            append("}]}")
+            val nativeCall = ToolCallHistoryCodec.parseMarker(turn.content)
+            when {
+                turn.kind == "tool_result" -> {
+                    append("{\"role\":\"user\",\"parts\":[{\"functionResponse\":{\"name\":")
+                    append(jsonString(turn.toolName))
+                    append(",\"response\":{\"result\":")
+                    append(jsonString(turn.content))
+                    append("}}}]}")
+                }
+                turn.role == "assistant" && nativeCall != null -> {
+                    append("{\"role\":\"model\",\"parts\":[{\"functionCall\":{\"name\":")
+                    append(jsonString(nativeCall.name))
+                    append(",\"args\":").append(nativeCall.arguments.toString())
+                    append("}}]}")
+                }
+                else -> {
+                    val role = if (turn.role == "assistant") "model" else "user"
+                    append("{\"role\":\"$role\",\"parts\":[{\"text\":")
+                    append(jsonString(turn.content))
+                    append("}]}")
+                }
+            }
         }
         if (req.prompt.isNotBlank() || req.imageParts.isNotEmpty() || req.inlineDataParts.isNotEmpty()) {
             if (!first) append(",")

@@ -10,6 +10,7 @@ import org.json.JSONObject
 internal object GeminiSseParser {
     data class Event(
         val text: String = "",
+        val toolCalls: List<ToolCall> = emptyList(),
         val terminal: Boolean = false,
         val promptTokens: Int? = null,
         val completionTokens: Int? = null,
@@ -19,6 +20,8 @@ internal object GeminiSseParser {
         val finishReason: String? = null,
         val malformed: Boolean = false,
     )
+
+    data class ToolCall(val name: String, val argumentsJson: String)
 
     fun parse(payload: String): Event {
         val root = runCatching { JSONObject(payload) }.getOrNull()
@@ -33,6 +36,7 @@ internal object GeminiSseParser {
         }
 
         val candidates = root.optJSONArray("candidates")
+        val toolCalls = mutableListOf<ToolCall>()
         val text = buildString {
             if (candidates != null) {
                 for (i in 0 until candidates.length()) {
@@ -42,6 +46,13 @@ internal object GeminiSseParser {
                     for (j in 0 until parts.length()) {
                         val part = parts.optJSONObject(j) ?: continue
                         append(part.optString("text", ""))
+                        part.optJSONObject("functionCall")?.let { call ->
+                            val name = call.optString("name", "").trim()
+                            val args = call.optJSONObject("args")
+                            if (name.isNotBlank() && args != null) {
+                                toolCalls += ToolCall(name, args.toString())
+                            }
+                        }
                     }
                 }
             }
@@ -56,6 +67,7 @@ internal object GeminiSseParser {
         val usage = root.optJSONObject("usageMetadata")
         return Event(
             text = text,
+            toolCalls = toolCalls,
             terminal = !finishReason.isNullOrBlank(),
             promptTokens = usage?.optIntOrNull("promptTokenCount"),
             completionTokens = usage?.optIntOrNull("candidatesTokenCount"),

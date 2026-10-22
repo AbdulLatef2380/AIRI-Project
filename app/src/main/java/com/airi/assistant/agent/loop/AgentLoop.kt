@@ -782,8 +782,9 @@ the tool returns an actual error.
 
                 // Append the assistant's tool_call + tool result to history so the LLM
                 // sees what it asked for and what it got back.
-                history.add(ConversationTurn.Assistant(rawResponse))
-                history.add(ConversationTurn.ToolResult(toolName, effectiveResult))
+                val nativeToolCallId = nativeToolCallId(rawResponse)
+                history.add(ConversationTurn.Assistant(rawResponse, nativeToolCallId))
+                history.add(ConversationTurn.ToolResult(toolName, effectiveResult, nativeToolCallId))
                 runtimeTrace?.resultReturned(executionId, sessionId, toolName)
                 runtimeTrace?.capabilityStage(
                     executionId, sessionId, toolName,
@@ -905,9 +906,17 @@ the tool returns an actual error.
         val requestTurns = history.map { turn ->
             when (turn) {
                 is ConversationTurn.User -> ExecutionRequest.ConversationTurn("user", turn.content)
-                is ConversationTurn.Assistant -> ExecutionRequest.ConversationTurn("assistant", turn.content)
+                is ConversationTurn.Assistant -> ExecutionRequest.ConversationTurn(
+                    role = "assistant",
+                    content = turn.content,
+                    toolCallId = turn.toolCallId,
+                )
                 is ConversationTurn.ToolResult -> ExecutionRequest.ConversationTurn(
-                    "user", "[Tool ${turn.toolName}: ${turn.result.take(400)}]"
+                    role = "tool",
+                    content = turn.result.take(4000),
+                    kind = "tool_result",
+                    toolName = turn.toolName,
+                    toolCallId = turn.toolCallId,
                 )
             }
         }
@@ -971,6 +980,21 @@ the tool returns an actual error.
                 inlineDataParts       = attachmentParts,
                 attachmentTrace       = attachmentTrace,
                 identity              = identity,
+                toolDefinitions       = tools.map { schema ->
+                    ExecutionRequest.ToolDefinition(
+                        name = schema.name,
+                        description = schema.description,
+                        parameters = schema.parameters.map { (name, param) ->
+                            ExecutionRequest.ToolParameter(
+                                name = name,
+                                type = param.type,
+                                description = param.description,
+                                required = param.required,
+                                enumValues = param.allowedValues.toList(),
+                            )
+                        },
+                    )
+                },
 
                 conversationHistory   = requestProjection.conversationHistory,
                 requiresToolCalling   = tools.isNotEmpty(),
@@ -1013,10 +1037,17 @@ the tool returns an actual error.
         val startedAtMs: Long,
     )
 
+    private fun nativeToolCallId(rawResponse: String): String = runCatching {
+        org.json.JSONObject(rawResponse.trim())
+            .optJSONObject("tool_call")
+            ?.optString("id", "")
+            .orEmpty()
+    }.getOrDefault("")
+
     sealed class ConversationTurn {
         data class User(val content: String) : ConversationTurn()
-        data class Assistant(val content: String) : ConversationTurn()
-        data class ToolResult(val toolName: String, val result: String) : ConversationTurn()
+        data class Assistant(val content: String, val toolCallId: String = "") : ConversationTurn()
+        data class ToolResult(val toolName: String, val result: String, val toolCallId: String = "") : ConversationTurn()
     }
 
     sealed class StepEvent {

@@ -60,6 +60,8 @@ jobs:
         python3 scripts/connector_lifecycle_static_scan.py
         python3 scripts/runtime_state_simulation.py
         python3 scripts/telemetry_privacy_scan.py
+        python3 scripts/verify_google_oauth_config.py --config app/google-services.json
+        python3 -m unittest discover -s scripts -p 'test_google_oauth_config.py' -v
         if [ -n "${OPENAI_API_KEY:-}" ] || [ -n "${GEMINI_API_KEY:-}" ]; then
           python3 tools/stability/cloud_api_smoke.py --allow-missing
         else
@@ -179,6 +181,9 @@ jobs:
           APKSIGNER="${ANDROID_HOME:-${ANDROID_SDK_ROOT}}/build-tools/36.0.0/apksigner"
           test -x "$APKSIGNER"
           "$APKSIGNER" verify --verbose ci-artifacts/release.apk
+          APK_SHA1="$("$APKSIGNER" verify --print-certs ci-artifacts/release.apk | sed -n 's/^Signer #1 certificate SHA-1 digest: //p' | head -n 1)"
+          test -n "$APK_SHA1"
+          python3 scripts/verify_google_oauth_config.py --config app/google-services.json --expected-sha1 "$APK_SHA1"
           "$APKSIGNER" verify --verbose ci-artifacts/debug.apk || true
         else
           cp ci-artifacts/SHA256SUMS ci-artifacts/UNSIGNED_SHA256SUMS

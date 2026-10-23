@@ -9,6 +9,7 @@ import com.airi.assistant.domain.event.EventBus
 import com.airi.assistant.memory.entity.AuditLogEntity
 import com.airi.assistant.memory.repository.AuditRepository
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.OAuthProvider
@@ -115,11 +116,14 @@ class AuthService(
                     EventBus.emitSync(AppEvent.UserSignedIn(uid, "google"))
                     onResult(null)
                 } else {
-                    val msg = task.exception?.localizedMessage ?: "Google sign-in failed"
-                    Log.w(TAG, "AIRI AUTH_SIGN_IN_FAILED provider=google reason=$msg")
-                    auditRepository?.warn("AUTH", "AUTH_SIGN_IN_FAILED provider=google reason=$msg")
-                    EventBus.emitSync(AppEvent.AuthFailed(msg))
-                    onResult(msg)
+                    val exception = task.exception
+                    val safeCode = (exception as? FirebaseAuthException)?.errorCode
+                        ?.takeIf(String::isNotBlank)
+                        ?: "unknown"
+                    Log.w(TAG, "AIRI AUTH_SIGN_IN_FAILED provider=google code=$safeCode")
+                    auditRepository?.warn("AUTH", "AUTH_SIGN_IN_FAILED provider=google code=$safeCode")
+                    EventBus.emitSync(AppEvent.AuthFailed(safeCode))
+                    onResult(safeCode)
                 }
             }
     }

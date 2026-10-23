@@ -257,6 +257,7 @@
     <string name="integration_google_connected">Cuenta de Google conectada.</string>
     <string name="integration_google_sign_in_cancelled">Se canceló el inicio de sesión de Google. No se conectó ninguna cuenta.</string>
     <string name="integration_google_sign_in_failed">No se pudo completar el inicio de sesión de Google. Comprueba tu conexión y configuración, e inténtalo de nuevo.</string>
+    <string name="integration_google_storage_unavailable">El almacenamiento cifrado no está disponible. No se guardó el acceso de Google; habilita el almacenamiento seguro e inténtalo de nuevo.</string>
     <string name="integration_google_missing_email">Google no devolvió una dirección de correo, por lo que no se conectó ninguna cuenta.</string>
     <string name="integration_google_data_authorized">Se autorizó el acceso a los datos de Google.</string>
     <string name="integration_google_authorization_cancelled">Se canceló la autorización de datos de Google. Tu cuenta sigue iniciada.</string>
@@ -1031,12 +1032,15 @@
     <string name="login_google_client_id_missing">Falta el ID de cliente OAuth para iniciar sesión con Google. Contacta con el administrador de la aplicación.</string>
     <string name="login_google_firebase_config_missing">La autenticación de Firebase no está configurada para esta aplicación. Contacta con el administrador.</string>
     <string name="login_google_provider_disabled">El inicio de sesión con Google está desactivado para esta aplicación. Actívalo en la configuración del proveedor de autenticación.</string>
-    <string name="login_google_sha_mismatch">El certificado de firma de esta aplicación no está registrado para iniciar sesión con Google. Contacta con el administrador.</string>
+    <string name="login_google_app_misconfigured">Google rechazó la configuración de inicio de sesión de esta aplicación. Verifica el paquete Android, el ID de cliente Web OAuth y las huellas SHA-1 en Firebase, y reemplaza google-services.json.</string>
+    <string name="login_google_sha_mismatch">La huella SHA-1 de firma de esta compilación no está registrada en Firebase. Registra el certificado que firmó la aplicación y descarga un google-services.json actualizado.</string>
     <string name="login_google_credential_failure">El inicio de sesión con Google no pudo acceder al servicio de credenciales del dispositivo. Inténtalo de nuevo.</string>
     <string name="login_google_network_failure">El inicio de sesión con Google no pudo conectarse al servicio. Comprueba tu conexión e inténtalo de nuevo.</string>
     <string name="login_google_unknown_failure">No se pudo completar el inicio de sesión con Google. Inténtalo de nuevo o elige otro método.</string>
     <string name="login_google_cancelled">Se canceló el inicio de sesión con Google.</string>
     <string name="login_google_no_id_token">Google no devolvió un token de inicio de sesión. Inténtalo de nuevo.</string>
+    <string name="login_google_no_account">No hay ninguna cuenta de Google disponible en este dispositivo. Añade una cuenta o elige otro método de inicio de sesión.</string>
+    <string name="login_google_play_services">Google Play services no está disponible o está desactualizado. Actívalo o actualízalo y vuelve a intentarlo.</string>
     <string name="login_google_exchange_failed">No se pudo completar el inicio de sesión con Google. Comprueba tu conexión e inténtalo de nuevo.</string>
     <string name="login_github_context_unavailable">El inicio de sesión con GitHub no se puede abrir desde esta pantalla. Inténtalo de nuevo desde la aplicación AIRI.</string>
     <string name="login_github_failed">No se pudo completar el inicio de sesión con GitHub. Comprueba tu conexión e inténtalo de nuevo.</string>

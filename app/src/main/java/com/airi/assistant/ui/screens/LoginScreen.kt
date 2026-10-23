@@ -35,7 +35,6 @@ import com.airi.assistant.R
 import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.domain.auth.AuthService
 import com.airi.assistant.integrations.google.GoogleCredentialManagerClient
-import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -158,11 +157,9 @@ fun LoginScreen(
                                     }
                                 }
                             },
-                            onFailure = {
+                            onFailure = { error ->
                                 isLoading = false
-                                feedback = LoginFeedbackPolicy.googleApiFailure(
-                                    wasCancelled = it is GetCredentialCancellationException,
-                                )
+                                feedback = LoginFeedbackPolicy.googleCredentialFailure(error)
                             },
                         )
                     }
@@ -325,12 +322,15 @@ private fun LoginFeedbackBanner(feedback: LoginFeedback) {
         LoginFeedback.GOOGLE_FIREBASE_CONFIG_MISSING -> stringResource(R.string.login_google_firebase_config_missing)
         LoginFeedback.GOOGLE_PROVIDER_DISABLED -> stringResource(R.string.login_google_provider_disabled)
         LoginFeedback.GOOGLE_SHA_MISMATCH -> stringResource(R.string.login_google_sha_mismatch)
+        LoginFeedback.GOOGLE_APP_MISCONFIGURED -> stringResource(R.string.login_google_app_misconfigured)
         LoginFeedback.GOOGLE_CREDENTIAL_MANAGER_FAILURE -> stringResource(R.string.login_google_credential_failure)
         LoginFeedback.GOOGLE_NETWORK_FAILURE -> stringResource(R.string.login_google_network_failure)
         LoginFeedback.GOOGLE_UNKNOWN_FAILURE -> stringResource(R.string.login_google_unknown_failure)
         LoginFeedback.GOOGLE_CANCELLED -> stringResource(R.string.login_google_cancelled)
         LoginFeedback.GOOGLE_NO_ID_TOKEN -> stringResource(R.string.login_google_no_id_token)
         LoginFeedback.GOOGLE_EXCHANGE_FAILED -> stringResource(R.string.login_google_exchange_failed)
+        LoginFeedback.GOOGLE_NO_ACCOUNT -> stringResource(R.string.login_google_no_account)
+        LoginFeedback.GOOGLE_PLAY_SERVICES -> stringResource(R.string.login_google_play_services)
         LoginFeedback.GITHUB_CONTEXT_UNAVAILABLE -> stringResource(R.string.login_github_context_unavailable)
         LoginFeedback.GITHUB_FAILED -> stringResource(R.string.login_github_failed)
         LoginFeedback.EMAIL_REQUIRED -> stringResource(R.string.login_email_required)

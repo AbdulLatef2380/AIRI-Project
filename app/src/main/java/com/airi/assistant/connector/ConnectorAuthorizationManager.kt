@@ -404,6 +404,11 @@ class ConnectorAuthorizationManager(
         }
         is GoogleDataAuthorization.ConsentRequired -> CompletionResult.ConsentRequired(connectorId, requiredOAuthScopesFor(connectorId))
         GoogleDataAuthorization.Cancelled -> CompletionResult.Failed("authorization_cancelled", "Google data authorization was cancelled")
+        is GoogleDataAuthorization.Failed -> CompletionResult.Failed(
+            "google_${result.reason.name.lowercase()}",
+            "Google data authorization failed: ${result.reason.name}",
+            retryable = result.reason == com.airi.assistant.integrations.google.GoogleSignInFailureReason.NETWORK,
+        )
         GoogleDataAuthorization.Unavailable -> CompletionResult.Failed("authorization_unavailable", "Google data authorization is unavailable", true)
     }
 

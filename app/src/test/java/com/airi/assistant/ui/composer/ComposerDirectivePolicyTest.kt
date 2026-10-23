@@ -77,4 +77,20 @@ class ComposerDirectivePolicyTest {
             ComposerDirectivePolicy.applySelection("  @pro لخص @docs/architecture", "project_docs", isKnowledge = true)
         )
     }
+
+    @Test
+    fun selectingAnAlreadySelectedSkillIsIdempotent() {
+        val text = "/skill:web_search إصلاح المشروع"
+        assertEquals(text, ComposerDirectivePolicy.applySelection(text, "web_search", isKnowledge = false))
+    }
+
+    @Test
+    fun leadingSkillIdsDeduplicateExistingDuplicateDirectives() {
+        assertEquals(
+            listOf("web_search", "code_assistant"),
+            ComposerDirectivePolicy.leadingSkillIds(
+                "/skill:web_search /skill:web_search /skill:code_assistant نفذ"
+            ),
+        )
+    }
 }

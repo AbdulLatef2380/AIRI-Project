@@ -123,7 +123,7 @@ class SkillRegistry(private val context: Context) {
                 skills.add(CustomSkillAiriSkillAdapter(customSkill, customSkillExecutor))
             }
 
-        return skills
+        return skills.distinctBy { it.skillId }
     }
 
     /**
@@ -142,7 +142,7 @@ class SkillRegistry(private val context: Context) {
             .forEach { customSkill ->
                 skills.add(CustomSkillAiriSkillAdapter(customSkill, customSkillExecutor))
             }
-        return skills
+        return skills.distinctBy { it.skillId }
     }
 
     private fun areRuntimeDependenciesAvailable(dependencies: List<String>): Boolean =
@@ -469,7 +469,8 @@ class SkillRegistry(private val context: Context) {
             )
         })
         // ── Custom / user-installed skills ────────────────────────────────────
-        addAll(customSkillRepository.getAllSkills().map { skill ->
+        val officialIds = OfficialSkillLibrary.ALL.mapTo(mutableSetOf()) { it.manifest.id }
+        addAll(customSkillRepository.getAllSkills().filterNot { it.id in officialIds }.map { skill ->
             SkillInfo(
                 id = skill.id,
                 name = skill.name,

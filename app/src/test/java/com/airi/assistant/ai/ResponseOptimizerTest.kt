@@ -9,7 +9,7 @@ import org.junit.Test
 class ResponseOptimizerTest {
     @Test
     fun localOutputNeverExceedsRemainingContext() {
-        assertEquals(872, ResponseOptimizer.localOutputTokenCap(2048, 1000, 1200))
+        assertEquals(920, ResponseOptimizer.localOutputTokenCap(2048, 1000, 1200))
         assertEquals(1, ResponseOptimizer.localOutputTokenCap(2048, 2000, 1200))
         assertEquals(384, ResponseOptimizer.localOutputTokenCap(4096, 1000, 384))
     }

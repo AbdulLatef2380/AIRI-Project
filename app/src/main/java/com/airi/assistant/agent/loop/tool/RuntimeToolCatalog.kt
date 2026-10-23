@@ -136,6 +136,11 @@ object RuntimeToolCatalog {
             .replace("ملف", "file")
             .replace("رسائل", "email")
             .replace("بريد", "email")
+            .replace("آخر", "latest")
+            .replace("اقرأ", "read")
+            .replace("لخص", "summarize")
+            .replace("تلخيص", "summarize")
+            .replace("غير مقروء", "unread")
             .replace("مشكلة", "issue")
             .replace("مشكلات", "issues")
             .replace("طلب سحب", "pull request")
@@ -144,12 +149,24 @@ object RuntimeToolCatalog {
             .split(Regex("[^a-z0-9]+"))
             .filter { it.length >= 4 }
             .distinct()
-        return tokens.sumOf { token ->
+        val lexicalScore = tokens.sumOf { token ->
             when {
                 request.contains(token) -> token.length
                 else -> 0
             }
         }
+        val action = schema.name.substringAfterLast('_')
+        val focusedScore = when {
+            schema.name.contains("gmail_read") &&
+                listOf("read", "latest", "summarize", "unread", "inbox", "sent").any { request.contains(it) } -> 40
+            schema.name.contains("gmail_list") &&
+                listOf("email", "latest", "unread", "inbox", "sent", "list").any { request.contains(it) } -> 30
+            schema.name.contains("github_get_file") &&
+                listOf("file", "read", "content").any { request.contains(it) } -> 40
+            action == "read" && request.contains("read") -> 10
+            else -> 0
+        }
+        return lexicalScore + focusedScore
     }
 
     private fun RuntimeToolContract.promptSchema(): ToolSchema {

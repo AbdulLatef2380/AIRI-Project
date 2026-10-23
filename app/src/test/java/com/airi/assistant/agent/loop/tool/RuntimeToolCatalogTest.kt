@@ -226,6 +226,47 @@ class RuntimeToolCatalogTest {
     }
 
     @Test
+    fun ArabicLatestGmailRequestPrioritizesReadBeforeSiblingListAction() {
+        val intent = CapabilityIntentDetector.Intent(
+            capabilities = setOf(CapabilityIntentDetector.Capability.CONNECTOR_READ),
+            connectorIds = setOf("google"),
+        )
+        val result = RuntimeToolCatalog.assemble(
+            builtins = emptyList(),
+            skills = emptyList(),
+            connectors = listOf(
+                RuntimeToolContract.connector(
+                    ToolSchema("connector_google_gmail_list", "List Gmail messages"), available = true,
+                ),
+                RuntimeToolContract.connector(
+                    ToolSchema("connector_google_gmail_read", "Read a Gmail message"), available = true,
+                ),
+            ),
+            intent = intent,
+            requestText = "لخص آخر رسائل Gmail غير المقروءة",
+        )
+
+        assertEquals("connector_google_gmail_read", result.schemas.first().name)
+        assertEquals(
+            setOf("connector_google_gmail_list", "connector_google_gmail_read"),
+            result.schemas.map { it.name }.toSet(),
+        )
+    }
+
+    @Test
+    fun GmailListAndReadRemainAvailableWithinACompactToolBudget() {
+        val tools = listOf(
+            ToolSchema("connector_google_gmail_list", "List Gmail messages"),
+            ToolSchema("connector_google_gmail_read", "Read a Gmail message"),
+        )
+
+        val selection = ToolSchemaPromptBudget.select(tools, maxChars = 180)
+
+        assertEquals(tools.map { it.name }, selection.tools.map { it.name })
+        assertEquals(0, selection.omittedCount)
+    }
+
+    @Test
     fun sideEffectsWithoutTypedTaskRouteAreNotAdvertisedAsExecutable() {
         val result = RuntimeToolCatalog.assemble(
             builtins = BuiltinTools.ALL,

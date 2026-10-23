@@ -28,6 +28,7 @@
     <string name="integration_google_connected">Google account connected.</string>
     <string name="integration_google_sign_in_cancelled">Google sign-in was cancelled. No account was connected.</string>
     <string name="integration_google_sign_in_failed">Google sign-in could not be completed. Check your connection and configuration, then try again.</string>
+    <string name="integration_google_storage_unavailable">Encrypted storage is unavailable. Google access was not saved; enable secure storage and try again.</string>
     <string name="integration_google_missing_email">Google did not return an email address, so no account was connected.</string>
     <string name="integration_google_data_authorized">Google data access is authorized.</string>
     <string name="integration_google_authorization_cancelled">Google data authorization was cancelled. Your account remains signed in.</string>
@@ -1298,12 +1299,15 @@
     <string name="login_google_client_id_missing">Google sign-in is missing its OAuth client ID. Contact the app administrator.</string>
     <string name="login_google_firebase_config_missing">Firebase authentication is not configured for this app. Contact the app administrator.</string>
     <string name="login_google_provider_disabled">Google sign-in is disabled for this app. Enable it in the authentication provider settings.</string>
-    <string name="login_google_sha_mismatch">This app signing certificate is not registered for Google sign-in. Contact the app administrator.</string>
+    <string name="login_google_app_misconfigured">Google rejected this app\'s sign-in configuration. Verify the Android package, Web OAuth client ID, and SHA-1 fingerprints in Firebase, then replace google-services.json.</string>
+    <string name="login_google_sha_mismatch">This build\'s signing SHA-1 is not registered in Firebase. Register the certificate that signed this app, then download an updated google-services.json.</string>
     <string name="login_google_credential_failure">Google sign-in could not access the device credential service. Try again.</string>
     <string name="login_google_network_failure">Google sign-in could not reach the service. Check your connection and try again.</string>
     <string name="login_google_unknown_failure">Google sign-in could not be completed. Try again or choose another method.</string>
     <string name="login_google_cancelled">Google sign-in was cancelled.</string>
     <string name="login_google_no_id_token">Google did not return a sign-in token. Try again.</string>
+    <string name="login_google_no_account">No Google account is available on this device. Add a Google account or choose another sign-in method.</string>
+    <string name="login_google_play_services">Google Play services are unavailable or out of date. Enable or update them, then try again.</string>
     <string name="login_google_exchange_failed">Google sign-in could not be completed. Check your connection and try again.</string>
     <string name="login_github_context_unavailable">GitHub sign-in cannot open from this screen. Try again from the AIRI app.</string>
     <string name="login_github_failed">GitHub sign-in could not be completed. Check your connection and try again.</string>

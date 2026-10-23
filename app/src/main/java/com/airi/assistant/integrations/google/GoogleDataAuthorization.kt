@@ -17,6 +17,7 @@ sealed interface GoogleDataAuthorization {
     data class ConsentRequired(val pendingIntent: PendingIntent) : GoogleDataAuthorization
     data object Cancelled : GoogleDataAuthorization
     data object Unavailable : GoogleDataAuthorization
+    data class Failed(val reason: GoogleSignInFailureReason) : GoogleDataAuthorization
 }
 
 /** Maps only the read-only action scopes currently allowed by the user's surface profiles. */

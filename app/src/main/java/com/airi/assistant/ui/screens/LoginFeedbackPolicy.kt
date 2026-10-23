@@ -1,5 +1,8 @@
 package com.airi.assistant.ui.screens
 
+import com.airi.assistant.integrations.google.GoogleSignInFailureClassifier
+import com.airi.assistant.integrations.google.GoogleSignInFailureReason
+
 /**
  * User-safe outcomes for the authentication entry screen.
  *
@@ -13,12 +16,15 @@ internal enum class LoginFeedback {
     GOOGLE_FIREBASE_CONFIG_MISSING,
     GOOGLE_PROVIDER_DISABLED,
     GOOGLE_SHA_MISMATCH,
+    GOOGLE_APP_MISCONFIGURED,
     GOOGLE_CREDENTIAL_MANAGER_FAILURE,
     GOOGLE_NETWORK_FAILURE,
     GOOGLE_UNKNOWN_FAILURE,
     GOOGLE_CANCELLED,
     GOOGLE_NO_ID_TOKEN,
     GOOGLE_EXCHANGE_FAILED,
+    GOOGLE_NO_ACCOUNT,
+    GOOGLE_PLAY_SERVICES,
     GITHUB_CONTEXT_UNAVAILABLE,
     GITHUB_FAILED,
     EMAIL_REQUIRED,
@@ -42,33 +48,39 @@ internal object LoginFeedbackPolicy {
         statusCode: Int? = null,
     ): LoginFeedback = when {
         wasCancelled -> LoginFeedback.GOOGLE_CANCELLED
-        statusCode == 10 -> LoginFeedback.GOOGLE_SHA_MISMATCH // DEVELOPER_ERROR
-        statusCode == 8 -> LoginFeedback.GOOGLE_NETWORK_FAILURE // INTERNAL_ERROR/network path
-        else -> LoginFeedback.GOOGLE_CREDENTIAL_MANAGER_FAILURE
+        else -> feedbackFor(GoogleSignInFailureClassifier.reasonForStatus(statusCode)
+            ?: GoogleSignInFailureReason.UNKNOWN)
     }
+
+    fun googleCredentialFailure(error: Throwable): LoginFeedback =
+        feedbackFor(GoogleSignInFailureClassifier.classify(error))
 
     /** Classifies raw provider/Firebase diagnostics without exposing them in UI. */
     fun googleAuthFailure(message: String?): LoginFeedback {
-        val normalized = message.orEmpty().lowercase()
-        return when {
-            normalized.isBlank() -> LoginFeedback.GOOGLE_UNKNOWN_FAILURE
-            normalized.containsAny("network", "timeout", "unavailable") ->
-                LoginFeedback.GOOGLE_NETWORK_FAILURE
-            normalized.containsAny("operation-not-allowed", "provider disabled", "provider is disabled") ->
-                LoginFeedback.GOOGLE_PROVIDER_DISABLED
-            normalized.containsAny("sha", "fingerprint", "developer error", "status code: 10") ->
-                LoginFeedback.GOOGLE_SHA_MISMATCH
-            normalized.containsAny("firebaseapp", "firebase app", "google-services", "configuration") ->
-                LoginFeedback.GOOGLE_FIREBASE_CONFIG_MISSING
-            normalized.containsAny("credential manager", "credentialmanager", "credential provider") ->
-                LoginFeedback.GOOGLE_CREDENTIAL_MANAGER_FAILURE
-            normalized.containsAny("client id", "server client", "oauth client") ->
-                LoginFeedback.GOOGLE_CLIENT_ID_MISSING
-            else -> LoginFeedback.GOOGLE_UNKNOWN_FAILURE
-        }
+        return feedbackFor(
+            GoogleSignInFailureClassifier.classify(
+                IllegalStateException(message.orEmpty())
+            )
+        )
     }
 
-    private fun String.containsAny(vararg values: String): Boolean = values.any(::contains)
+    private fun feedbackFor(reason: GoogleSignInFailureReason): LoginFeedback = when (reason) {
+        GoogleSignInFailureReason.CANCELLED -> LoginFeedback.GOOGLE_CANCELLED
+        GoogleSignInFailureReason.NO_ACCOUNT -> LoginFeedback.GOOGLE_NO_ACCOUNT
+        GoogleSignInFailureReason.CLIENT_ID_MISSING -> LoginFeedback.GOOGLE_CLIENT_ID_MISSING
+        GoogleSignInFailureReason.FIREBASE_CONFIGURATION -> LoginFeedback.GOOGLE_FIREBASE_CONFIG_MISSING
+        GoogleSignInFailureReason.APP_MISCONFIGURED -> LoginFeedback.GOOGLE_APP_MISCONFIGURED
+        GoogleSignInFailureReason.PROVIDER_DISABLED -> LoginFeedback.GOOGLE_PROVIDER_DISABLED
+        GoogleSignInFailureReason.SIGNING_CERTIFICATE_NOT_REGISTERED -> LoginFeedback.GOOGLE_SHA_MISMATCH
+        GoogleSignInFailureReason.NETWORK -> LoginFeedback.GOOGLE_NETWORK_FAILURE
+        GoogleSignInFailureReason.PLAY_SERVICES_UNAVAILABLE -> LoginFeedback.GOOGLE_PLAY_SERVICES
+        GoogleSignInFailureReason.CREDENTIAL_PROVIDER_UNAVAILABLE,
+        GoogleSignInFailureReason.ACTIVITY_CONTEXT_REQUIRED -> LoginFeedback.GOOGLE_CREDENTIAL_MANAGER_FAILURE
+        GoogleSignInFailureReason.NO_ID_TOKEN -> LoginFeedback.GOOGLE_NO_ID_TOKEN
+        GoogleSignInFailureReason.INVALID_CREDENTIAL -> LoginFeedback.GOOGLE_EXCHANGE_FAILED
+        GoogleSignInFailureReason.SECURE_STORAGE_UNAVAILABLE,
+        GoogleSignInFailureReason.UNKNOWN -> LoginFeedback.GOOGLE_UNKNOWN_FAILURE
+    }
 
     fun emailValidation(email: String, password: String): LoginFeedback? = when {
         email.isBlank() -> LoginFeedback.EMAIL_REQUIRED

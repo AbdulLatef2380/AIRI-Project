@@ -149,8 +149,11 @@ fun IntegrationsScreen(
     val googleAuthorizationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) vm.onGoogleDataAuthorizationResult(result.data)
-        else vm.onGoogleDataAuthorizationCancelled()
+        when {
+            result.data != null -> vm.onGoogleDataAuthorizationResult(result.data, context)
+            result.resultCode == Activity.RESULT_CANCELED -> vm.onGoogleDataAuthorizationCancelled()
+            else -> vm.onGoogleDataAuthorizationFailed()
+        }
     }
     LaunchedEffect(vm) {
         vm.refresh()

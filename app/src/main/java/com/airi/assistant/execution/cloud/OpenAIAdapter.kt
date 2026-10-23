@@ -198,7 +198,7 @@ open class OpenAIAdapter(
             }
 
             if (fullText.isBlank() && nativeCalls.isNotEmpty()) {
-                val wire = nativeCalls.values.joinToString("\n") { NativeToolCallWire.encode(it) }
+                val wire = NativeToolCallWire.encode(nativeCalls.values.toList())
                 onToken(wire)
                 return@withContext CloudProviderAdapter.AdapterResult.Success(
                     fullText = wire,

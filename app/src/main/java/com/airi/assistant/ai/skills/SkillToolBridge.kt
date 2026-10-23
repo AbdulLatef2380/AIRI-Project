@@ -74,8 +74,9 @@ class SkillToolBridge(
                 }
             }
         }
-        Log.d(TAG, "AIRI SKILL_SCHEMAS_BUILT count=${schemas.size} names=${schemas.map { it.name }.joinToString()}")
-        return schemas
+        val uniqueSchemas = schemas.distinctBy { it.name }
+        Log.d(TAG, "AIRI SKILL_SCHEMAS_BUILT count=${uniqueSchemas.size} names=${uniqueSchemas.map { it.name }.joinToString()}")
+        return uniqueSchemas
     }
 
     /** Uses the same permission, connector, memory, and model gates as invocation. */

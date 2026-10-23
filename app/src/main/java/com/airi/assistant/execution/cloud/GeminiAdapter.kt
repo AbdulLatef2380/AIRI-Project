@@ -170,7 +170,7 @@ class GeminiAdapter(
             }
 
             if (fullText.isBlank() && nativeCalls.isNotEmpty()) {
-                val wire = nativeCalls.joinToString("\n") { NativeToolCallWire.encode(it) }
+                val wire = NativeToolCallWire.encode(nativeCalls)
                 onToken(wire)
                 return@withContext CloudProviderAdapter.AdapterResult.Success(
                     fullText = wire,

@@ -27,6 +27,22 @@ object ComposerDirectivePolicy {
         val directive = if (isKnowledge) "@knowledge:$directiveId" else "/skill:$directiveId"
         val (prefix, suffix) = splitLeadingDirectives(trimmed)
 
+        // Selecting an already-visible directive must be idempotent. Apart from
+        // preventing duplicate Compose keys, this keeps the user's task text
+        // intact when the picker is opened again for the same skill.
+        val selectedIds = if (isKnowledge) leadingKnowledgeIds(trimmed) else leadingSkillIds(trimmed)
+        if (directiveId in selectedIds) {
+            val queryPrefix = if (isKnowledge) "@" else "/"
+            val remaining = suffix.trimStart().let { candidate ->
+                if (candidate.startsWith(queryPrefix)) {
+                    val queryEnd = candidate.indexOfFirst(Char::isWhitespace)
+                        .let { if (it < 0) candidate.length else it }
+                    candidate.substring(queryEnd).trimStart()
+                } else candidate
+            }
+            return buildDirectiveText(prefix, remaining)
+        }
+
         // Replace the leading picker query (`/web` or `@docs`) instead of
         // treating it as task text. Matching is limited to the first token so
         // slashes and at-signs inside the actual task remain untouched.
@@ -55,14 +71,7 @@ object ComposerDirectivePolicy {
 
     /** Returns all leading skill IDs in their visual/order-of-application order. */
     fun leadingSkillIds(text: String): List<String> {
-        var remaining = text.trimStart()
-        val result = mutableListOf<String>()
-        while (true) {
-            val match = skillDirective.matchEntirePrefix(remaining) ?: break
-            result += match.groupValues[1]
-            remaining = remaining.removeRange(match.range).trimStart()
-        }
-        return result
+        return leadingIds(text, skillDirective)
     }
 
     /** Removes all leading skill and knowledge directives, leaving task text. */
@@ -125,6 +134,19 @@ object ComposerDirectivePolicy {
             remaining = remaining.removeRange(match.range).trimStart()
         }
         return prefix.toString() to remaining
+    }
+
+    private fun leadingKnowledgeIds(text: String): List<String> = leadingIds(text, knowledgeDirective)
+
+    private fun leadingIds(text: String, directive: Regex): List<String> {
+        var remaining = text.trimStart()
+        val result = mutableListOf<String>()
+        while (true) {
+            val match = directive.matchEntirePrefix(remaining) ?: break
+            result += match.groupValues[1]
+            remaining = remaining.removeRange(match.range).trimStart()
+        }
+        return result.distinct()
     }
 
     private fun String.takeWhileDirectives(): String = splitLeadingDirectives(this).first

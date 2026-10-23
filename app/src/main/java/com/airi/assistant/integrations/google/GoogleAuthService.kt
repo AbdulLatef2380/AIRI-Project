@@ -36,7 +36,7 @@ class GoogleAuthService(
             Log.w(
                 "GoogleAuthService",
                 "Credential Manager identity request failed type=${error.javaClass.simpleName} " +
-                    "message=${error.message?.take(160)}"
+                    "reason=${GoogleSignInFailureClassifier.classify(error).name}"
             )
         }
 
@@ -95,11 +95,18 @@ class GoogleAuthService(
         return requiredScopes.isNotEmpty() && dataAccessScopes == requiredScopes
     }
 
+    /** True only when at least one complete Google product-surface grant is active. */
+    fun hasAnyAuthorizedDataAccess(): Boolean = GoogleDataScopes.surfaceIds.any { surfaceId ->
+        hasAuthorizedDataScopes(surfaceId, GoogleDataScopes.scopesForSurface(surfaceId))
+    }
+
     /** Convenience overload that accepts one complete catalog surface grant. */
     fun authorizeDataAccess(requestedScopes: Set<String>): Task<GoogleDataAuthorization> {
         val surfaceId = GoogleDataScopes.surfaceIds.singleOrNull {
             GoogleDataScopes.scopesForSurface(it) == requestedScopes
-        } ?: return Tasks.forException(IllegalArgumentException("Google authorization scope set is not tied to one surface"))
+        } ?: return Tasks.forResult(
+            GoogleDataAuthorization.Failed(GoogleSignInFailureReason.FIREBASE_CONFIGURATION)
+        )
         return authorizeDataAccess(surfaceId, requestedScopes, context)
     }
 
@@ -109,10 +116,15 @@ class GoogleAuthService(
         requestedScopes: Set<String>,
         presentationContext: Context = context,
     ): Task<GoogleDataAuthorization> {
-        if (!secureStorage.isEncrypted) return Tasks.forResult(GoogleDataAuthorization.Unavailable)
+        if (!secureStorage.isEncrypted) return Tasks.forResult(
+            GoogleDataAuthorization.Failed(GoogleSignInFailureReason.SECURE_STORAGE_UNAVAILABLE)
+        )
+        if (!GooglePresentationContextPolicy.hasActivity(presentationContext)) return Tasks.forResult(
+            GoogleDataAuthorization.Failed(GoogleSignInFailureReason.ACTIVITY_CONTEXT_REQUIRED)
+        )
         val scopes = requestedScopes.filter(String::isNotBlank).toSet()
         if (!GoogleDataScopes.isValidSurfaceRequest(surfaceId, scopes)) {
-            return Tasks.forException(IllegalArgumentException("Google authorization scope does not belong to this connector surface"))
+            return Tasks.forResult(GoogleDataAuthorization.Failed(GoogleSignInFailureReason.FIREBASE_CONFIGURATION))
         }
         pendingScopes[surfaceId] = scopes
         val request = AuthorizationRequest.builder()
@@ -120,13 +132,22 @@ class GoogleAuthService(
             .build()
         // Google may need to launch a consent resolution; use the Activity-backed context
         // supplied by the UI rather than the application context.
-        return Identity.getAuthorizationClient(presentationContext).authorize(request).continueWith { task ->
-            if (!task.isSuccessful) {
-                pendingScopes.remove(surfaceId)
-                markNeedsAuthorization(surfaceId, "Google authorization could not be refreshed")
-                return@continueWith GoogleDataAuthorization.Unavailable
+        return try {
+            Identity.getAuthorizationClient(presentationContext).authorize(request).continueWith { task ->
+                if (!task.isSuccessful) {
+                    pendingScopes.remove(surfaceId)
+                    markNeedsAuthorization(surfaceId, "Google authorization could not be refreshed")
+                    return@continueWith GoogleDataAuthorization.Failed(
+                        task.exception?.let(GoogleSignInFailureClassifier::classify)
+                            ?: GoogleSignInFailureReason.UNKNOWN
+                    )
+                }
+                authorizationFromResult(surfaceId, task.result, scopes)
             }
-            authorizationFromResult(surfaceId, task.result, scopes)
+        } catch (error: Exception) {
+            pendingScopes.remove(surfaceId)
+            markNeedsAuthorization(surfaceId, "Google authorization client could not be started")
+            Tasks.forResult(GoogleDataAuthorization.Failed(GoogleSignInFailureClassifier.classify(error)))
         }
     }
 
@@ -157,7 +178,8 @@ class GoogleAuthService(
                     GoogleDataAuthorization.Authorized -> Unit
                     is GoogleDataAuthorization.ConsentRequired -> Unit // State is marked; UI may launch it on explicit request.
                     GoogleDataAuthorization.Cancelled,
-                    GoogleDataAuthorization.Unavailable -> markNeedsAuthorization(surfaceId, "Google authorization needs attention")
+                    GoogleDataAuthorization.Unavailable,
+                    is GoogleDataAuthorization.Failed -> markNeedsAuthorization(surfaceId, "Google authorization needs attention")
                 }
             } catch (_: Exception) {
                 markNeedsAuthorization(surfaceId, "Google authorization could not be restored")
@@ -173,14 +195,14 @@ class GoogleAuthService(
     ): GoogleDataAuthorization {
         if (!secureStorage.isEncrypted) {
             pendingScopes.remove(surfaceId)
-            return GoogleDataAuthorization.Unavailable
+            return GoogleDataAuthorization.Failed(GoogleSignInFailureReason.SECURE_STORAGE_UNAVAILABLE)
         }
         val pending = pendingScopes[surfaceId]
         if (pending.isNullOrEmpty() || requestedScopes != pending ||
             !GoogleDataScopes.isValidSurfaceRequest(surfaceId, requestedScopes)
         ) {
             pendingScopes.remove(surfaceId)
-            return GoogleDataAuthorization.Unavailable
+            return GoogleDataAuthorization.Failed(GoogleSignInFailureReason.FIREBASE_CONFIGURATION)
         }
         if (resultIntent == null) {
             pendingScopes.remove(surfaceId)
@@ -190,14 +212,20 @@ class GoogleAuthService(
         return try {
             val result = Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(resultIntent)
             authorizationFromResult(surfaceId, result, requestedScopes)
-        } catch (_: ApiException) {
+        } catch (error: ApiException) {
             pendingScopes.remove(surfaceId)
-            markNeedsAuthorization(surfaceId, "Google consent was cancelled")
-            GoogleDataAuthorization.Cancelled
-        } catch (_: Exception) {
+            val reason = GoogleSignInFailureClassifier.classify(error)
+            if (reason == GoogleSignInFailureReason.CANCELLED) {
+                markNeedsAuthorization(surfaceId, "Google consent was cancelled")
+                GoogleDataAuthorization.Cancelled
+            } else {
+                markNeedsAuthorization(surfaceId, "Google authorization result could not be verified")
+                GoogleDataAuthorization.Failed(reason)
+            }
+        } catch (error: Exception) {
             pendingScopes.remove(surfaceId)
             markNeedsAuthorization(surfaceId, "Google authorization result could not be verified")
-            GoogleDataAuthorization.Unavailable
+            GoogleDataAuthorization.Failed(GoogleSignInFailureClassifier.classify(error))
         }
     }
 
@@ -216,13 +244,13 @@ class GoogleAuthService(
         if (!GoogleDataScopes.isValidSurfaceRequest(surfaceId, requestedScopes)) {
             pendingScopes.remove(surfaceId)
             markNeedsAuthorization(surfaceId, "Google authorization scope was rejected")
-            return GoogleDataAuthorization.Unavailable
+            return GoogleDataAuthorization.Failed(GoogleSignInFailureReason.FIREBASE_CONFIGURATION)
         }
         if (result.hasResolution()) {
             val pendingIntent = result.pendingIntent ?: run {
                 pendingScopes.remove(surfaceId)
                 markNeedsAuthorization(surfaceId, "Google consent is unavailable")
-                return GoogleDataAuthorization.Unavailable
+                return GoogleDataAuthorization.Failed(GoogleSignInFailureReason.CREDENTIAL_PROVIDER_UNAVAILABLE)
             }
             markNeedsAuthorization(surfaceId, "Google consent required")
             return GoogleDataAuthorization.ConsentRequired(pendingIntent)
@@ -231,12 +259,12 @@ class GoogleAuthService(
         if (token.isNullOrBlank()) {
             pendingScopes.remove(surfaceId)
             markNeedsAuthorization(surfaceId, "Google did not issue an access token")
-            return GoogleDataAuthorization.Unavailable
+            return GoogleDataAuthorization.Failed(GoogleSignInFailureReason.NO_ID_TOKEN)
         }
         if (!secureStorage.saveGoogleSurfaceScopes(surfaceId, requestedScopes)) {
             pendingScopes.remove(surfaceId)
             markNeedsAuthorization(surfaceId, "Encrypted storage is unavailable; Google access was not retained")
-            return GoogleDataAuthorization.Unavailable
+            return GoogleDataAuthorization.Failed(GoogleSignInFailureReason.SECURE_STORAGE_UNAVAILABLE)
         }
         sessions[surfaceId] = SurfaceSession(token, requestedScopes.toSet())
         pendingScopes.remove(surfaceId)

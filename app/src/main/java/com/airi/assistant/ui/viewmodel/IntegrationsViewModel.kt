@@ -17,9 +17,10 @@ import com.airi.assistant.connector.app.github.GithubRepositoryGrant
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.integrations.google.GoogleDataAuthorization
+import com.airi.assistant.integrations.google.GoogleSignInFailureClassifier
+import com.airi.assistant.integrations.google.GoogleSignInFailureReason
 import com.airi.assistant.integrations.telegram.TelegramService
 import com.airi.assistant.integrations.google.GoogleIdentityCredential
-import androidx.credentials.exceptions.GetCredentialCancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -418,9 +419,14 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 }
                 is ConnectorAuthorizationManager.StartResult.Ready -> refresh()
                 is ConnectorAuthorizationManager.StartResult.Failed -> {
-                    _googleFeedback.value = if (result.code == "github_broker_required") {
-                        R.string.github_project_error_broker_not_configured
-                    } else R.string.integration_google_sign_in_failed
+                    _googleFeedback.value = when {
+                        result.code == "github_broker_required" -> R.string.github_project_error_broker_not_configured
+                        authorizationId == "google" || authorizationId.startsWith("google_") ->
+                            GoogleIntegrationSignInPolicy.failureFeedback(
+                                GoogleSignInFailureClassifier.classifyCode(result.code, result.message)
+                            )
+                        else -> R.string.integration_google_sign_in_failed
+                    }
                 }
             }
         }
@@ -481,7 +487,10 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 name        = ctx.getString(R.string.integration_google_name),
                 description = ctx.getString(R.string.integration_google_description),
                 emoji       = "",
-                readiness   = IntegrationReadinessPolicy.credentialBacked(secureStorage.isGoogleConnected()),
+                readiness   = IntegrationReadinessPolicy.google(
+                    hasSignedInIdentity = !googleAuthService.getLastSignedInEmail().isNullOrBlank(),
+                    hasDataAccessToken = googleAuthService.hasAnyAuthorizedDataAccess(),
+                ),
                 connectedAs = googleAuthService.getLastSignedInEmail().orEmpty(),
                 lastUpdated = secureStorage.getGoogleUpdated()
             )
@@ -587,13 +596,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             googleAuthService.requestIdentity(presentationContext).fold(
                 onSuccess = { identity -> onGoogleSignInSuccess(identity, presentationContext) },
-                onFailure = {
+                onFailure = { error ->
                     if (ConnectorScreenIsolationPolicy.acceptsResult(surfaceId, activeConnectorId)) {
-                        _googleFeedback.value = if (it is GetCredentialCancellationException) {
-                            GoogleIntegrationSignInPolicy.cancelledFeedback()
-                        } else {
-                            GoogleIntegrationSignInPolicy.providerFailureFeedback()
-                        }
+                        _googleFeedback.value = GoogleIntegrationSignInPolicy.failureFeedback(
+                            GoogleSignInFailureClassifier.classify(error)
+                        )
                     }
                 },
             )
@@ -673,7 +680,13 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                     requestGoogleDataAuthorization(result.connectorId, result.scopes, presentationContext)
                 }
                 is ConnectorAuthorizationManager.CompletionResult.Failed -> {
-                    _googleFeedback.value = GoogleIntegrationSignInPolicy.providerFailureFeedback()
+                    _googleFeedback.value = if (result.code == "google_email_missing") {
+                        GoogleIntegrationSignInPolicy.missingEmailFeedback()
+                    } else {
+                        GoogleIntegrationSignInPolicy.failureFeedback(
+                            GoogleSignInFailureClassifier.classifyCode(result.code, result.message)
+                        )
+                    }
                 }
                 is ConnectorAuthorizationManager.CompletionResult.Ready -> refresh()
             }
@@ -694,27 +707,35 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         pendingGoogleSurfaceId = surfaceId
         pendingGoogleScopes = scopes
         googleAuthService.authorizeDataAccess(surfaceId, scopes, presentationContext)
-            .addOnSuccessListener { result -> handleGoogleDataAuthorization(result, surfaceId) }
-            .addOnFailureListener {
+            .addOnSuccessListener { result -> handleGoogleDataAuthorization(result, surfaceId, presentationContext) }
+            .addOnFailureListener { error ->
                 pendingGoogleScopes = emptySet()
                 googleAuthService.clearDataAccessToken(surfaceId)
                 refreshGoogleConnectorState()
-                _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
+                _googleFeedback.value = GoogleIntegrationSignInPolicy.dataAuthorizationFailureFeedback(
+                    GoogleSignInFailureClassifier.classify(error)
+                )
             }
     }
 
-    fun onGoogleDataAuthorizationResult(resultIntent: Intent?) {
+    fun onGoogleDataAuthorizationResult(
+        resultIntent: Intent?,
+        presentationContext: Context = getApplication<Application>(),
+    ) {
         if (!ConnectorScreenIsolationPolicy.acceptsResult(pendingGoogleSurfaceId, activeConnectorId)) return
         val currentScopes = authorizationManager.requiredOAuthScopesFor(pendingGoogleSurfaceId)
         if (pendingGoogleScopes.isEmpty() || pendingGoogleScopes != currentScopes) {
             pendingGoogleScopes = emptySet()
             googleAuthService.clearDataAccessToken(pendingGoogleSurfaceId)
-            _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
+            _googleFeedback.value = GoogleIntegrationSignInPolicy.dataAuthorizationFailureFeedback(
+                GoogleSignInFailureReason.FIREBASE_CONFIGURATION
+            )
             return
         }
         handleGoogleDataAuthorization(
             googleAuthService.completeDataAuthorization(resultIntent, pendingGoogleSurfaceId, pendingGoogleScopes),
             pendingGoogleSurfaceId,
+            presentationContext,
         )
     }
 
@@ -726,7 +747,20 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationCancelledFeedback()
     }
 
-    private fun handleGoogleDataAuthorization(result: GoogleDataAuthorization, surfaceId: String) {
+    fun onGoogleDataAuthorizationFailed() {
+        val surfaceId = pendingGoogleSurfaceId
+        if (!ConnectorScreenIsolationPolicy.acceptsResult(surfaceId, activeConnectorId)) return
+        pendingGoogleScopes = emptySet()
+        googleAuthService.clearDataAccessToken(surfaceId)
+        refreshGoogleConnectorState()
+        _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
+    }
+
+    private fun handleGoogleDataAuthorization(
+        result: GoogleDataAuthorization,
+        surfaceId: String,
+        presentationContext: Context,
+    ) {
         when (result) {
             GoogleDataAuthorization.Authorized -> {
                 pendingGoogleScopes = emptySet()
@@ -737,9 +771,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                             _googleFeedback.value = GoogleIntegrationSignInPolicy.dataAuthorizedFeedback()
                         }
                         is ConnectorAuthorizationManager.CompletionResult.ConsentRequired ->
-                            requestGoogleDataAuthorization(completion.connectorId, completion.scopes)
+                            requestGoogleDataAuthorization(completion.connectorId, completion.scopes, presentationContext)
                         is ConnectorAuthorizationManager.CompletionResult.Failed ->
-                            _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
+                            _googleFeedback.value = GoogleIntegrationSignInPolicy.dataAuthorizationFailureFeedback(
+                                GoogleSignInFailureClassifier.classifyCode(completion.code, completion.message)
+                            )
                     }
                 }
             }
@@ -758,6 +794,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 googleAuthService.clearDataAccessToken(surfaceId)
                 _googleFeedback.value = GoogleIntegrationSignInPolicy.authorizationFailedFeedback()
             }
+            is GoogleDataAuthorization.Failed -> {
+                pendingGoogleScopes = emptySet()
+                googleAuthService.clearDataAccessToken(surfaceId)
+                _googleFeedback.value = GoogleIntegrationSignInPolicy.dataAuthorizationFailureFeedback(result.reason)
+            }
         }
     }
 
@@ -766,9 +807,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         _googleFeedback.value = GoogleIntegrationSignInPolicy.cancelledFeedback()
     }
 
-    fun onGoogleSignInFailed() {
+    fun onGoogleSignInFailed(error: Throwable? = null) {
         if (!ConnectorScreenIsolationPolicy.acceptsResult(pendingGoogleSurfaceId, activeConnectorId)) return
-        _googleFeedback.value = GoogleIntegrationSignInPolicy.providerFailureFeedback()
+        _googleFeedback.value = error?.let {
+            GoogleIntegrationSignInPolicy.failureFeedback(GoogleSignInFailureClassifier.classify(it))
+        } ?: GoogleIntegrationSignInPolicy.providerFailureFeedback()
     }
 
     fun consumeGoogleFeedback() {

@@ -99,6 +99,8 @@ class AgentLoop(
         private const val TOOL_CALL_INSTRUCTION = """
 When you need to use a tool, respond ONLY with this exact JSON (no markdown, no prose):
 {"tool_call":{"name":"<tool_name>","args":{"<param>":"<value>"}}}
+When independent tools are required in the same step, use one ordered envelope:
+{"tool_calls":[{"id":"call-1","name":"<tool_name>","args":{}},{"id":"call-2","name":"<tool_name>","args":{}}]}
 
 When you have a complete answer for the user, respond normally in plain text.
 Do not mix tool_call JSON with prose in the same message.
@@ -214,6 +216,7 @@ the tool returns an actual error.
         var isPlanPublished = false
         var durableExecutionContext: AgentLoopExecutionContext? = null
         var activeToolTrace: ActiveToolTrace? = null
+        val pendingToolCalls = ArrayDeque<com.airi.assistant.ai.intent.ToolCall>()
 
         val fullSystemPrompt = systemPrompt + "\n\n" + toolSelection.promptBlock + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
@@ -381,7 +384,10 @@ the tool returns an actual error.
                 stepsUsed++
 
                 val tokenBuffer = StringBuilder()
-                val rawResponse = callLLM(
+                val queuedToolCall = pendingToolCalls.removeFirstOrNull()
+                val rawResponse = queuedToolCall?.let {
+                    com.airi.assistant.agent.loop.tool.TextToolCallProtocol.encode(it)
+                } ?: callLLM(
                     prompt       = "", // history carries the full context
                     systemPrompt = fullSystemPrompt,
                     history      = history,
@@ -415,18 +421,32 @@ the tool returns an actual error.
                 }
 
                 // Parse: tool_call block or final answer?
-                var parseResult = com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(rawResponse)
-                var toolCall = (parseResult as? com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call)
-                    ?.let { it.name to it.args }
+                var parseResult = if (queuedToolCall != null) {
+                    com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call(
+                        queuedToolCall.toolName, queuedToolCall.params, queuedToolCall.id,
+                    )
+                } else {
+                    com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(rawResponse)
+                }
+                var parsedToolCalls = when (parseResult) {
+                    is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call -> listOf(parseResult.toolCall)
+                    is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Calls -> parseResult.calls
+                    else -> emptyList()
+                }
+                if (parsedToolCalls.isNotEmpty()) {
+                    pendingToolCalls.addAll(parsedToolCalls.drop(1))
+                }
+                var toolCall = parsedToolCalls.firstOrNull()
                 runtimeTrace?.parser(
                     executionId = executionId,
                     sessionId = sessionId,
                     parsed = toolCall != null,
-                    toolName = toolCall?.first,
+                    toolName = toolCall?.toolName,
                     reason = when (parseResult) {
                         is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Invalid -> parseResult.reason.name
                         com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.NotAToolCall -> "NO_CANDIDATE"
                         is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call -> null
+                        is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Calls -> null
                     },
                 )
 
@@ -469,8 +489,13 @@ the tool returns an actual error.
                     }
                     if (retryResponse.isNotBlank()) {
                         parseResult = com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(retryResponse)
-                        toolCall = (parseResult as? com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call)
-                            ?.let { it.name to it.args }
+                        parsedToolCalls = when (parseResult) {
+                            is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call -> listOf(parseResult.toolCall)
+                            is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Calls -> parseResult.calls
+                            else -> emptyList()
+                        }
+                        pendingToolCalls.addAll(parsedToolCalls)
+                        toolCall = pendingToolCalls.removeFirstOrNull()
                         runtimeTrace?.modelResponse(
                             executionId = executionId,
                             sessionId = sessionId,
@@ -482,17 +507,18 @@ the tool returns an actual error.
                             executionId = executionId,
                             sessionId = sessionId,
                             parsed = toolCall != null,
-                            toolName = toolCall?.first,
+                            toolName = toolCall?.toolName,
                             reason = when (parseResult) {
                                 is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Invalid ->
                                     "RETRY_${parseResult.reason.name}"
                                 com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.NotAToolCall ->
                                     "RETRY_NO_CANDIDATE"
                                 is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call -> null
+                                is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Calls -> null
                             },
                         )
                         if (toolCall != null) {
-                            Log.i(TAG, "AIRI TOOL_CALL_RETRY_OK step=$stepsUsed tool=${toolCall.first}")
+                            Log.i(TAG, "AIRI TOOL_CALL_RETRY_OK step=$stepsUsed tool=${toolCall.toolName}")
                         }
                     }
                 }
@@ -507,8 +533,8 @@ the tool returns an actual error.
                 }
 
                 // Execute the tool
-                val toolName = toolCall.first
-                val rawToolArgs = toolCall.second
+                val toolName = toolCall.toolName
+                val rawToolArgs = toolCall.params
                 val selectedToolSchema = effectiveTools.firstOrNull { it.name == toolName }
                 val strictValidation = selectedToolSchema?.let { schema ->
                     StrictArgumentValidator.validate(

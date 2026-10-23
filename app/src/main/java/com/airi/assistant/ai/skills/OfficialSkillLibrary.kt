@@ -300,7 +300,24 @@ object OfficialSkillLibrary {
                 modelAccess  = SkillModelAccess.NONE,
                 dependencies = listOf("connector:google"),
                 connectorActionDependencies = listOf("google:gmail_list", "google:gmail_read"),
-                tags         = listOf("email", "gmail", "inbox", "mail")
+                tags         = listOf("email", "gmail", "inbox", "mail"),
+                tools        = listOf(
+                    SkillManifest.ToolDef(
+                        name = "gmail_assistant",
+                        description = "Read and summarize the requested Gmail messages",
+                        parameters = mapOf(
+                            "query" to SkillManifest.ParamDef(
+                                "string",
+                                "Mailbox request such as latest, unread, sent, or inbox",
+                            ),
+                            "max" to SkillManifest.ParamDef(
+                                "integer",
+                                "Maximum number of messages to read",
+                                required = false,
+                            ),
+                        ),
+                    ),
+                )
             ),
             tier    = Tier.CONNECTOR,
             factory = ::GmailAssistantSkill

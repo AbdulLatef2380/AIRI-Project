@@ -1,5 +1,8 @@
 package com.airi.assistant.ui.viewmodel
 
+import com.airi.assistant.R
+import com.airi.assistant.integrations.google.GoogleSignInFailureReason
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -26,6 +29,28 @@ class GoogleIntegrationSignInPolicyTest {
         assertNotEquals(
             GoogleIntegrationSignInPolicy.connectedFeedback(),
             GoogleIntegrationSignInPolicy.cancelledFeedback()
+        )
+    }
+
+    @Test
+    fun mapsTypedIdentityAndConsentFailuresToLocalizedResourceKeys() {
+        assertEquals(
+            R.string.login_google_no_account,
+            GoogleIntegrationSignInPolicy.failureFeedback(GoogleSignInFailureReason.NO_ACCOUNT),
+        )
+        assertEquals(
+            R.string.login_google_app_misconfigured,
+            GoogleIntegrationSignInPolicy.failureFeedback(GoogleSignInFailureReason.APP_MISCONFIGURED),
+        )
+        assertEquals(
+            R.string.integration_google_storage_unavailable,
+            GoogleIntegrationSignInPolicy.dataAuthorizationFailureFeedback(
+                GoogleSignInFailureReason.SECURE_STORAGE_UNAVAILABLE,
+            ),
+        )
+        assertEquals(
+            R.string.integration_google_authorization_cancelled,
+            GoogleIntegrationSignInPolicy.dataAuthorizationFailureFeedback(GoogleSignInFailureReason.CANCELLED),
         )
     }
 }

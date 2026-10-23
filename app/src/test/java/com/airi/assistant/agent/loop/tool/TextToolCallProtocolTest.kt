@@ -70,4 +70,26 @@ class TextToolCallProtocolTest {
             result
         )
     }
+
+    @Test
+    fun parsesMultipleCallsInStableOrderWithIds() {
+        val result = TextToolCallProtocol.parse(
+            """{"tool_calls":[{"id":"call-1","name":"gmail_list","args":{"max":3}},{"id":"call-2","name":"gmail_read","args":{"id":"m1"}}]}"""
+        )
+        assertTrue(result is TextToolCallProtocol.ParseResult.Calls)
+        val calls = (result as TextToolCallProtocol.ParseResult.Calls).calls
+        assertEquals(listOf("call-1", "call-2"), calls.map { it.id })
+        assertEquals(listOf("gmail_list", "gmail_read"), calls.map { it.toolName })
+        assertEquals("3", calls.first().params["max"])
+    }
+
+    @Test
+    fun encodeRoundTripKeepsMultipleCallsAndIds() {
+        val calls = listOf(
+            com.airi.assistant.ai.intent.ToolCall("gmail_list", mapOf("max" to "3"), "call-1"),
+            com.airi.assistant.ai.intent.ToolCall("gmail_read", mapOf("id" to "m1"), "call-2"),
+        )
+        val result = TextToolCallProtocol.parse(TextToolCallProtocol.encode(calls))
+        assertEquals(TextToolCallProtocol.ParseResult.Calls(calls), result)
+    }
 }

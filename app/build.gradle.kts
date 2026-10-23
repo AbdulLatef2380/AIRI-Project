@@ -24,6 +24,36 @@ android {
         applicationId = "com.airi.assistant"
         minSdk = 26
         targetSdk = 36
+        // Firebase emits Android OAuth client certificate fingerprints in
+        // google-services.json. Embed only these public SHA-1 fingerprints so
+        // Credential Manager can fail early with a precise signing diagnosis.
+        val googleServicesFile = file("google-services.json")
+        val googleAndroidOAuthSha1s = runCatching {
+            val root = groovy.json.JsonSlurper().parse(googleServicesFile) as? Map<*, *>
+            val clients = root?.get("client") as? List<*>
+            clients.orEmpty().flatMap { clientValue ->
+                val client = clientValue as? Map<*, *> ?: return@flatMap emptyList()
+                val clientInfo = client["client_info"] as? Map<*, *> ?: return@flatMap emptyList()
+                val androidInfo = clientInfo["android_client_info"] as? Map<*, *>
+                if (androidInfo?.get("package_name") != applicationId) return@flatMap emptyList()
+                val oauthClients = client["oauth_client"] as? List<*> ?: return@flatMap emptyList()
+                oauthClients.mapNotNull { oauthValue ->
+                    val oauth = oauthValue as? Map<*, *> ?: return@mapNotNull null
+                    if (oauth["client_type"].toString() != "1") return@mapNotNull null
+                    val oauthAndroidInfo = oauth["android_info"] as? Map<*, *> ?: return@mapNotNull null
+                    if (oauthAndroidInfo["package_name"] != applicationId) return@mapNotNull null
+                    oauthAndroidInfo["certificate_hash"]?.toString()
+                        ?.filter(Char::isLetterOrDigit)
+                        ?.lowercase()
+                        ?.takeIf { it.length == 40 }
+                }
+            }.distinct()
+        }.getOrDefault(emptyList())
+        buildConfigField(
+            "String",
+            "GOOGLE_ANDROID_OAUTH_CERT_SHA1S",
+            "\"${googleAndroidOAuthSha1s.joinToString(",")}\"",
+        )
         // CI supplies a monotonic run number for distributable artifacts;
         // local builds remain reproducible when the variable is absent.
         versionCode = System.getenv("AIRI_VERSION_CODE")

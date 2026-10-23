@@ -28,18 +28,26 @@ class LoginFeedbackPolicyTest {
     }
 
     @Test
-    fun googleApiStatusCodesKeepConfigurationAndNetworkCausesDistinct() {
+    fun googleApiStatusCodesKeepConfigurationNetworkAndUnknownCausesDistinct() {
         assertEquals(
-            LoginFeedback.GOOGLE_SHA_MISMATCH,
+            LoginFeedback.GOOGLE_APP_MISCONFIGURED,
             LoginFeedbackPolicy.googleApiFailure(wasCancelled = false, statusCode = 10),
         )
         assertEquals(
             LoginFeedback.GOOGLE_NETWORK_FAILURE,
+            LoginFeedbackPolicy.googleApiFailure(wasCancelled = false, statusCode = 7),
+        )
+        assertEquals(
+            LoginFeedback.GOOGLE_NETWORK_FAILURE,
+            LoginFeedbackPolicy.googleApiFailure(wasCancelled = false, statusCode = 15),
+        )
+        assertEquals(
+            LoginFeedback.GOOGLE_UNKNOWN_FAILURE,
             LoginFeedbackPolicy.googleApiFailure(wasCancelled = false, statusCode = 8),
         )
         assertEquals(
-            LoginFeedback.GOOGLE_CREDENTIAL_MANAGER_FAILURE,
-            LoginFeedbackPolicy.googleApiFailure(wasCancelled = false, statusCode = 13),
+            LoginFeedback.GOOGLE_UNKNOWN_FAILURE,
+            LoginFeedbackPolicy.googleApiFailure(wasCancelled = false, statusCode = null),
         )
     }
 
@@ -52,6 +60,10 @@ class LoginFeedbackPolicyTest {
         assertEquals(
             LoginFeedback.GOOGLE_FIREBASE_CONFIG_MISSING,
             LoginFeedbackPolicy.googleAuthFailure("FirebaseApp is not initialized"),
+        )
+        assertEquals(
+            LoginFeedback.GOOGLE_APP_MISCONFIGURED,
+            LoginFeedbackPolicy.googleAuthFailure("DEVELOPER_ERROR"),
         )
         assertEquals(
             LoginFeedback.GOOGLE_NETWORK_FAILURE,

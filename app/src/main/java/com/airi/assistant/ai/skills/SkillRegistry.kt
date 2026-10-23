@@ -479,7 +479,7 @@ class SkillRegistry(private val context: Context) {
                 isEnabled = isSkillEnabled(skill.id)
             )
         })
-    }
+    }.distinctBy { it.id }
 
     fun buildSkillDescriptionBlock(): String {
         val available = getAvailableSkills()

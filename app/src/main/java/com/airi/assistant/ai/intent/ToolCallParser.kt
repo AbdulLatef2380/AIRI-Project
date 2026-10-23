@@ -4,7 +4,8 @@ import org.json.JSONObject
 
 data class ToolCall(
     val toolName: String,
-    val params: Map<String, String>
+    val params: Map<String, String>,
+    val id: String = "",
 )
 
 object ToolCallParser {
@@ -20,7 +21,7 @@ object ToolCallParser {
             for (key in paramsJson.keys()) {
                 params[key] = paramsJson.optString(key, "")
             }
-            ToolCall(toolName, params)
+            ToolCall(toolName, params, json.optString("id", ""))
         } catch (e: Exception) {
             null
         }

@@ -481,7 +481,10 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                 name        = ctx.getString(R.string.integration_google_name),
                 description = ctx.getString(R.string.integration_google_description),
                 emoji       = "",
-                readiness   = IntegrationReadinessPolicy.credentialBacked(secureStorage.isGoogleConnected()),
+                readiness   = IntegrationReadinessPolicy.google(
+                    hasSignedInIdentity = !googleAuthService.getLastSignedInEmail().isNullOrBlank(),
+                    hasDataAccessToken = googleAuthService.hasAnyAuthorizedDataAccess(),
+                ),
                 connectedAs = googleAuthService.getLastSignedInEmail().orEmpty(),
                 lastUpdated = secureStorage.getGoogleUpdated()
             )

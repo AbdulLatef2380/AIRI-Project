@@ -95,6 +95,11 @@ class GoogleAuthService(
         return requiredScopes.isNotEmpty() && dataAccessScopes == requiredScopes
     }
 
+    /** True only when at least one complete Google product-surface grant is active. */
+    fun hasAnyAuthorizedDataAccess(): Boolean = GoogleDataScopes.surfaceIds.any { surfaceId ->
+        hasAuthorizedDataScopes(surfaceId, GoogleDataScopes.scopesForSurface(surfaceId))
+    }
+
     /** Convenience overload that accepts one complete catalog surface grant. */
     fun authorizeDataAccess(requestedScopes: Set<String>): Task<GoogleDataAuthorization> {
         val surfaceId = GoogleDataScopes.surfaceIds.singleOrNull {

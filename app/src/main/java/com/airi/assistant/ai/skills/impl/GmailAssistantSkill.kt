@@ -13,6 +13,7 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
     override val name = "gmail_assistant"
     override val description = "Read and summarize important emails from Gmail"
     override val parameters: Map<String, String> = mapOf(
+        "query" to "the user's mailbox request, including latest/unread/sent/inbox intent",
         "max" to "maximum number of emails to return (default 5)"
     )
 
@@ -44,7 +45,9 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
             return SkillResult(false, "", "Gmail data access is not authorized. Connect Gmail and grant its read permission in Integrations.")
         }
 
-        val input   = params["input"] as? String ?: ""
+        val input = ((params["input"] as? String).orEmpty()).ifBlank {
+            (params["query"] as? String).orEmpty()
+        }
         val context = params["context"] as? SkillContext
         val max     = resolveMax(input, context)
 
@@ -57,28 +60,35 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
 
         // The connector intentionally returns IDs only from list; message content
         // is fetched through the separately authorized read action.
-        val messageId = Regex("(?m)^Message ID:\\s*([A-Za-z0-9_-]+)\\s*$")
-            .find(list.data)
-            ?.groupValues
-            ?.getOrNull(1)
-        if (messageId.isNullOrBlank()) {
+        val messageIds = GmailMessageListParser.messageIds(list.data, max)
+        if (messageIds.isEmpty()) {
             return SkillResult(true, "No matching Gmail messages found.", null, metadata = mapOf("execution_path" to "connector_runtime"))
         }
 
-        val read = ConnectorSkillRuntime.execute(
-            connectorId = "google",
-            action = "gmail_read",
-            params = mapOf("message_id" to messageId),
-        )
-        if (!read.success) return read
         val mailboxLabel = when {
             "sent" in resolveQuery(input) -> "sent"
             "inbox" in resolveQuery(input) -> "inbox"
             else -> "matching"
         }
-        return read.copy(
-            data = "Latest $mailboxLabel Gmail message (for summarization):\n${read.data.take(MAX_RESULT_CHARS)}",
-            metadata = read.metadata + mapOf("mailbox" to mailboxLabel),
+        val messages = mutableListOf<String>()
+        messageIds.forEachIndexed { index, messageId ->
+            val read = ConnectorSkillRuntime.execute(
+                connectorId = "google",
+                action = "gmail_read",
+                params = mapOf("message_id" to messageId),
+            )
+            if (!read.success) return read
+            messages += "Message ${index + 1} ($messageId):\n${read.data}"
+        }
+        return SkillResult(
+            success = true,
+            data = "Latest $mailboxLabel Gmail messages (for summarization):\n" +
+                messages.joinToString("\n\n").take(MAX_RESULT_CHARS),
+            metadata = mapOf(
+                "execution_path" to "connector_runtime",
+                "mailbox" to mailboxLabel,
+                "message_count" to messageIds.size.toString(),
+            ),
         )
     }
 

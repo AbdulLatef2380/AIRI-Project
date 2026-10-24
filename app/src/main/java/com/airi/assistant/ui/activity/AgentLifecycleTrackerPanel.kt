@@ -207,13 +207,13 @@ private fun ActivitySummaryRow(
                     style = MaterialTheme.typography.bodySmall,
                 )
             } else {
-                Text(
-                    text = items.joinToString(" · "),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                items.forEach { item ->
+                    Text(
+                        text = item,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
         }
         Icon(

@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.material3.MaterialTheme
+import androidx.test.platform.app.InstrumentationRegistry
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceEvent
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceGroup
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceProjection
@@ -106,10 +107,12 @@ class AgentLifecycleTrackerPanelTest {
         setPanel(isWorking = true)
 
         composeRule.onNodeWithTag("agent-trace-summary").performClick()
-        assertStatusVisible("Waiting")
-        assertStatusVisible("In progress")
-        assertStatusVisible("Failed")
-        assertStatusVisible("Cancelled")
+        expandFixtureGroups()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        assertStatusVisible(context.getString(R.string.agent_lifecycle_status_waiting))
+        assertStatusVisible(context.getString(R.string.agent_lifecycle_status_running))
+        assertStatusVisible(context.getString(R.string.agent_lifecycle_status_failed))
+        assertStatusVisible(context.getString(R.string.agent_lifecycle_status_cancelled))
     }
 
     @Test
@@ -249,6 +252,24 @@ class AgentLifecycleTrackerPanelTest {
         composeRule.onNodeWithContentDescription(status, substring = true).assertIsDisplayed()
     }
 
+    private fun expandFixtureGroups() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val expand = context.getString(R.string.agent_trace_expand_group)
+        listOf(
+            R.string.agent_trace_group_files,
+            R.string.agent_trace_group_commands,
+            R.string.agent_trace_group_tools,
+            R.string.agent_trace_group_search,
+            R.string.agent_trace_group_memory,
+            R.string.agent_trace_group_tasks,
+            R.string.agent_trace_group_tasks,
+        ).forEachIndexed { index, titleRes ->
+            composeRule.onNodeWithTag("agent-trace-list").performScrollToIndex(index * 2)
+            composeRule.onNodeWithContentDescription(
+                "${context.getString(titleRes)} · 1. $expand",
+            ).performClick()
+        }
+    }
     private fun fixtureProjection(): UnifiedExecutionTraceProjection {
         val events = listOf(
             event("file-1", UnifiedTraceCategory.FILE, TaskStatus.COMPLETED, "Read file"),

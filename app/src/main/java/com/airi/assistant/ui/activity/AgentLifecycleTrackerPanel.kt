@@ -211,7 +211,7 @@ private fun ActivitySummaryRow(
                     )
                 }
             }
-        )
+        }
         Icon(
             imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
             contentDescription = null,

@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.material3.MaterialTheme
 import androidx.test.platform.app.InstrumentationRegistry
+import com.airi.assistant.R
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceEvent
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceGroup
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceProjection

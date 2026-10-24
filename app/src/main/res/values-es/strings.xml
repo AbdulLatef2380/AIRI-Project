@@ -1453,6 +1453,7 @@
     <string name="agent_plan_stage_completed">Completado</string>
     <string name="agent_plan_stage_failed">Falló</string>
     <string name="agent_plan_stage_cancelled">Cancelado</string>
+    <string name="agent_plan_stage_stopping">Deteniendo</string>
     <string name="agent_plan_stage_idle">En espera</string>
     <string name="agent_plan_step_queued">En cola</string>
     <string name="agent_plan_step_running">En ejecución</string>
@@ -1973,6 +1974,10 @@
     <string name="agent_trace_collapse_group">Contraer grupo</string>
     <string name="agent_trace_expand_event">Mostrar detalles del evento</string>
     <string name="agent_trace_collapse_event">Ocultar detalles del evento</string>
+    <string name="agent_trace_event_tool_action">Acción de herramienta</string>
+    <string name="agent_trace_event_connection_action">Acción de conexión</string>
+    <string name="agent_trace_event_technical_name">Nombre técnico</string>
+    <string name="agent_trace_event_details">Detalles</string>
     <string name="agent_lifecycle_status_waiting">En espera</string>
     <string name="agent_lifecycle_status_cancelled">Cancelado</string>
     <string name="github_project_status_runtime_unavailable">GitHub OAuth está autorizado, pero las acciones no están disponibles hasta configurar el runtime del Broker.</string>

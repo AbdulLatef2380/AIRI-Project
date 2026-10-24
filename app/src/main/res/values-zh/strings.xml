@@ -1453,6 +1453,7 @@
     <string name="agent_plan_stage_completed">已完成</string>
     <string name="agent_plan_stage_failed">失败</string>
     <string name="agent_plan_stage_cancelled">已取消</string>
+    <string name="agent_plan_stage_stopping">正在停止</string>
     <string name="agent_plan_stage_idle">等待开始</string>
     <string name="agent_plan_step_queued">排队中</string>
     <string name="agent_plan_step_running">运行中</string>
@@ -1973,6 +1974,10 @@
     <string name="agent_trace_collapse_group">收起分组</string>
     <string name="agent_trace_expand_event">显示事件详情</string>
     <string name="agent_trace_collapse_event">隐藏事件详情</string>
+    <string name="agent_trace_event_tool_action">工具操作</string>
+    <string name="agent_trace_event_connection_action">连接操作</string>
+    <string name="agent_trace_event_technical_name">技术名称</string>
+    <string name="agent_trace_event_details">详细信息</string>
     <string name="agent_lifecycle_status_waiting">等待中</string>
     <string name="agent_lifecycle_status_cancelled">已取消</string>
     <string name="github_project_status_runtime_unavailable">GitHub OAuth 已授权，但在配置 Broker 运行时之前无法执行操作。</string>

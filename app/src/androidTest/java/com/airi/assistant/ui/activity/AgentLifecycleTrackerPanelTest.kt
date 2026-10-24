@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.material3.MaterialTheme
+import androidx.test.platform.app.InstrumentationRegistry
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceEvent
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceGroup
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceProjection
@@ -64,10 +65,11 @@ class AgentLifecycleTrackerPanelTest {
     fun statusSemanticsExposeWaitingRunningFailedAndCancelled() {
         setPanel(isWorking = true)
 
-        composeRule.onNodeWithContentDescription("Waiting", substring = true).assertExists()
-        composeRule.onNodeWithContentDescription("In progress", substring = true).assertExists()
-        composeRule.onNodeWithContentDescription("Failed", substring = true).assertExists()
-        composeRule.onNodeWithContentDescription("Cancelled", substring = true).assertExists()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        composeRule.onNodeWithContentDescription(context.getString(R.string.agent_lifecycle_status_waiting), substring = true).assertExists()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.agent_lifecycle_status_running), substring = true).assertExists()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.agent_lifecycle_status_failed), substring = true).assertExists()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.agent_lifecycle_status_cancelled), substring = true).assertExists()
     }
 
     @Test

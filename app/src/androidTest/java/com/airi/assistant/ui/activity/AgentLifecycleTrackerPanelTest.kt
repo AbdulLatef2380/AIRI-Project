@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -41,12 +42,9 @@ class AgentLifecycleTrackerPanelTest {
     fun rendersSummaryAndAllProjectionGroups() {
         setPanel(isWorking = false)
 
-        composeRule.onNodeWithText("Read 1 files").assertIsDisplayed()
-        composeRule.onNodeWithText("Ran 1 commands").assertIsDisplayed()
-        composeRule.onNodeWithText("Used 1 tools").assertIsDisplayed()
-        composeRule.onNodeWithText("Searched 1 times").assertIsDisplayed()
-        composeRule.onNodeWithText("Memory operations 1").assertIsDisplayed()
-        composeRule.onNodeWithText("2 tasks").assertIsDisplayed()
+        composeRule.onNodeWithText("Read 1 files", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("2 tasks", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithTag("agent-trace-summary").performClick()
         assertGroupVisible("Files · 1. Expand group", index = 0)
         assertGroupVisible("Commands · 1. Expand group", index = 1)
         assertGroupVisible("Tools · 1. Expand group", index = 2)
@@ -61,10 +59,20 @@ class AgentLifecycleTrackerPanelTest {
     }
 
     @Test
+    fun detailsAreCollapsedUntilTheSummaryIsOpened() {
+        setPanel(isWorking = false)
+
+        assertTrue(composeRule.onAllNodesWithTag("agent-trace-list").fetchSemanticsNodes().isEmpty())
+        composeRule.onNodeWithTag("agent-trace-summary").performClick()
+        composeRule.onNodeWithTag("agent-trace-list").assertIsDisplayed()
+    }
+
+    @Test
     fun groupExpansionShowsEventsAndCollapseHidesThem() {
         setPanel(isWorking = false)
 
         assertTrue(composeRule.onAllNodesWithText("Read file").fetchSemanticsNodes().isEmpty())
+        composeRule.onNodeWithTag("agent-trace-summary").performClick()
         composeRule.onNodeWithContentDescription("Files · 1. Expand group").performClick()
         composeRule.onNodeWithText("Read file").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Files · 1. Collapse group").performClick()
@@ -72,9 +80,32 @@ class AgentLifecycleTrackerPanelTest {
     }
 
     @Test
+    fun technicalToolNameIsSeparateFromHumanTitleAndDetailsAreLabeled() {
+        composeRule.setContent {
+            MaterialTheme {
+                AgentLifecycleTrackerPanel(
+                    projection = technicalToolProjection(),
+                    isWorking = false,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("agent-trace-summary").performClick()
+        composeRule.onNodeWithContentDescription("Tools · 1. Expand group").performClick()
+        composeRule.onNodeWithText("Tool action").assertIsDisplayed()
+        composeRule.onNodeWithText("skill_github_repository_read", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Tool action. skill_github_repository_read. Failed. Show event details")
+            .performClick()
+        composeRule.onNodeWithText("Details").assertIsDisplayed()
+        composeRule.onNodeWithText("Repository access was denied").assertIsDisplayed()
+    }
+
+    @Test
     fun statusSemanticsExposeWaitingRunningFailedAndCancelled() {
         setPanel(isWorking = true)
 
+        composeRule.onNodeWithTag("agent-trace-summary").performClick()
         assertStatusVisible("Waiting")
         assertStatusVisible("In progress")
         assertStatusVisible("Failed")
@@ -95,6 +126,7 @@ class AgentLifecycleTrackerPanelTest {
             }
         }
 
+        composeRule.onNodeWithTag("agent-trace-summary").performClick()
         assertGroupVisible("Files · 1. Expand group", index = 0)
     }
 
@@ -114,7 +146,8 @@ class AgentLifecycleTrackerPanelTest {
             }
         }
 
-        composeRule.onNodeWithText("Read 1 files").assertIsDisplayed()
+        composeRule.onNodeWithText("Read 1 files", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithTag("agent-trace-summary").performClick()
         assertGroupVisible("Files · 1. Expand group", index = 0)
     }
 
@@ -134,6 +167,7 @@ class AgentLifecycleTrackerPanelTest {
         }
 
         composeRule.onNodeWithText("Read 1000 files").assertIsDisplayed()
+        composeRule.onNodeWithTag("agent-trace-summary").performClick()
         assertGroupVisible("Files · 1000. Expand group", index = 0)
         assertGroupVisible("Commands · 1000. Expand group", index = 1)
         assertGroupVisible("Tools · 1000. Expand group", index = 2)
@@ -161,6 +195,7 @@ class AgentLifecycleTrackerPanelTest {
             }
         }
 
+        composeRule.onNodeWithTag("agent-trace-summary").performClick()
         composeRule.onNodeWithContentDescription("Files · 1. Expand group").performClick()
         composeRule.onNodeWithText("Read file").assertIsDisplayed()
         composeRule.runOnIdle {
@@ -293,11 +328,34 @@ class AgentLifecycleTrackerPanelTest {
         )
     }
 
+    private fun technicalToolProjection(): UnifiedExecutionTraceProjection {
+        val tool = event(
+            id = "technical-tool",
+            category = UnifiedTraceCategory.TOOL,
+            status = TaskStatus.FAILED,
+            title = "skill_github_repository_read",
+            detailLog = "Repository access was denied",
+        )
+        return UnifiedExecutionTraceProjection(
+            events = listOf(tool),
+            groups = listOf(
+                UnifiedExecutionTraceGroup(
+                    id = "tools",
+                    title = "Tools",
+                    category = UnifiedTraceCategory.TOOL,
+                    events = listOf(tool),
+                ),
+            ),
+            summary = UnifiedExecutionTraceSummary(toolsUsed = 1),
+        )
+    }
+
     private fun event(
         id: String,
         category: UnifiedTraceCategory,
         status: TaskStatus,
         title: String,
+        detailLog: String? = null,
     ) = UnifiedExecutionTraceEvent(
         executionId = "ui-test-run",
         eventId = id,
@@ -306,7 +364,7 @@ class AgentLifecycleTrackerPanelTest {
         timestampMs = 1_000L,
         title = title,
         status = status,
-        detailLog = null,
+        detailLog = detailLog,
         category = category,
     )
 }

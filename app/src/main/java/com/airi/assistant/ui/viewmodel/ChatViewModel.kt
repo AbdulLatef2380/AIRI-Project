@@ -228,6 +228,8 @@ data class AgentState(
     val executionStage:         ExecutionStage = ExecutionStage.IDLE,
     val recoveryReason:         String  = "",
     val retryCount:             Int     = 0,
+    /** True after the owner accepted a stop request and before terminal cancellation. */
+    val cancellationRequested:  Boolean = false,
     // ── : Real confirmation gate ───────────────────────────────────────
     // When non-null, the UI MUST show a blocking confirmation dialog and
     // call ChatViewModel.confirmAccessibilityAction(approved) before the
@@ -1131,6 +1133,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // ── Generation cancellation ───────────────────────────────────────────────
 
     private val _isCancelled = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val cancellationRequested = java.util.concurrent.atomic.AtomicBoolean(false)
     private val generationSequence = java.util.concurrent.atomic.AtomicLong(0L)
 
     /** Identifier of the only user-visible generation allowed at a time. */
@@ -1159,6 +1162,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun finishGeneration(generationId: Long) {
         if (!isCurrentGeneration(generationId)) return
         val completedSessionId = activeGenerationSessionId
+        if (cancellationRequested.get()) {
+            val executionId = ExecutionStatusBus.status.value.executionId
+            if (executionId.isNotBlank()) {
+                ExecutionStatusBus.onGraphCancelled(executionId)
+            }
+        }
         streamAccumulator.setLength(0)
         _streamingText.value = ""
         _agentState.value = AgentState()
@@ -1167,6 +1176,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         activeGenerationId = 0L
         activeGenerationSessionId = null
         activeGenerationJob = null
+        cancellationRequested.set(false)
         val deferred = deferredLlamaHistory
         if (deferred != null && deferred.sessionId == _currentSessionId.value) {
             llamaManager.setHistory(deferred.messages)
@@ -1178,8 +1188,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun cancelGeneration() {
         val generationId = activeGenerationId
-        if (_agentState.value.isWorking && generationId != 0L) {
+        if (_agentState.value.isWorking && generationId != 0L && cancellationRequested.compareAndSet(false, true)) {
             _isCancelled.set(true)
+            val executionId = ExecutionStatusBus.status.value.executionId
+            if (executionId.isNotBlank()) {
+                ExecutionStatusBus.onGraphCancellationRequested(executionId)
+            }
             hybridOrchestrator.cancel()
             // Vision runs directly through LlamaManager and therefore must receive
             // the same stop request as text generation.
@@ -2025,6 +2039,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         activeGenerationId = generationId
         activeGenerationSessionId = generationSessionId
         _isCancelled.set(false)
+        cancellationRequested.set(false)
         val generationJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
             if (!isCurrentGeneration(generationId)) return@launch
             _agentState.value = AgentState(
@@ -4496,6 +4511,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         activeGenerationId = generationId
         activeGenerationSessionId = sessionAtDispatch
         _isCancelled.set(false)
+        cancellationRequested.set(false)
         val generationJob = viewModelScope.launch(start = CoroutineStart.LAZY) {
             if (!isCurrentGeneration(generationId)) return@launch
             if (ModelManager.getCurrent()?.id != modelIdAtDispatch) {

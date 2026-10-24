@@ -48,6 +48,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -65,16 +67,15 @@ fun AgentLifecycleTrackerPanel(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    var expanded by rememberSaveable { mutableStateOf(true) }
+    // Keep the live surface compact by default. Details are user-invoked so the
+    // execution trace supports the answer instead of competing with it.
+    var expanded by rememberSaveable { mutableStateOf(false) }
     val executionId = projection.events.firstOrNull()?.executionId.orEmpty()
     var expandedGroups by rememberSaveable(executionId) {
-        mutableStateOf<List<String>>(if (isWorking) projection.groups.map { it.id } else emptyList())
+        mutableStateOf<List<String>>(emptyList())
     }
     var expandedEvents by rememberSaveable(executionId) { mutableStateOf<List<String>>(emptyList()) }
     val panelDescription = stringResource(R.string.agent_trace_panel_description)
-    LaunchedEffect(isWorking, projection.groups.map { it.id }) {
-        if (isWorking) expandedGroups = expandedGroups + projection.groups.map { it.id }
-    }
     val lastEventKey = projection.events.lastOrNull()?.let { it.eventId to it.status }
 
     LaunchedEffect(lastEventKey, expanded) {
@@ -180,6 +181,7 @@ private fun ActivitySummaryRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("agent-trace-summary")
             .clickable(role = Role.Button, onClick = onToggle)
             .semantics {
                 contentDescription = toggleDescription
@@ -205,13 +207,13 @@ private fun ActivitySummaryRow(
                     style = MaterialTheme.typography.bodySmall,
                 )
             } else {
-                items.forEach { item ->
-                    Text(
-                        text = item,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
+                Text(
+                    text = items.joinToString(" · "),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
         Icon(
@@ -275,6 +277,15 @@ private fun ActivityEventRow(
 ) {
     val canExpand = hasChildren || !event.detailLog.isNullOrBlank()
     val accessibleStatus = statusLabel(event.status)
+    val technicalEvent = event.category == UnifiedTraceCategory.TOOL ||
+        event.category == UnifiedTraceCategory.CONNECTOR
+    val humanTitle = stringResource(
+        if (event.category == UnifiedTraceCategory.CONNECTOR) {
+            R.string.agent_trace_event_connection_action
+        } else {
+            R.string.agent_trace_event_tool_action
+        },
+    )
     val detailToggleDescription = stringResource(
         if (expanded) R.string.agent_trace_collapse_event else R.string.agent_trace_expand_event,
     )
@@ -288,25 +299,59 @@ private fun ActivityEventRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (canExpand) Modifier.clickable(role = Role.Button, onClick = onToggle) else Modifier)
-                .then(if (canExpand) Modifier.semantics(mergeDescendants = true) {
-                    contentDescription = "${event.title}. $accessibleStatus. $detailToggleDescription"
+            .then(if (canExpand) Modifier.semantics(mergeDescendants = true) {
+                    contentDescription = if (technicalEvent) {
+                        "$humanTitle. ${event.title}. $accessibleStatus. $detailToggleDescription"
+                    } else {
+                        "${event.title}. $accessibleStatus. $detailToggleDescription"
+                    }
                 } else Modifier.semantics(mergeDescendants = true) {
-                    contentDescription = "${event.title}. $accessibleStatus"
+                    contentDescription = if (technicalEvent) {
+                        "$humanTitle. ${event.title}. $accessibleStatus"
+                    } else {
+                        "${event.title}. $accessibleStatus"
+                    }
                 })
                 .padding(start = (48 + depth * 18).dp, end = 6.dp, top = 3.dp, bottom = 3.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ActivityCategoryIcon(event.category, Modifier.size(15.dp))
             Spacer(Modifier.width(7.dp))
-            Text(
-                text = event.title,
-                modifier = Modifier.weight(1f),
-                color = color,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = if (event.status == TaskStatus.RUNNING || event.status == TaskStatus.FAILED) FontWeight.Medium else FontWeight.Normal,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (technicalEvent) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
+                    Text(
+                        text = humanTitle,
+                        color = color,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = if (event.status == TaskStatus.RUNNING || event.status == TaskStatus.FAILED) FontWeight.Medium else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "${stringResource(R.string.agent_trace_event_technical_name)}: ${event.title}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            textDirection = TextDirection.Ltr,
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            } else {
+                Text(
+                    text = event.title,
+                    modifier = Modifier.weight(1f),
+                    color = color,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = if (event.status == TaskStatus.RUNNING || event.status == TaskStatus.FAILED) FontWeight.Medium else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             StatusIcon(event.status)
             if (canExpand) {
                 Spacer(Modifier.width(3.dp))
@@ -319,15 +364,26 @@ private fun ActivityEventRow(
             }
         }
         AnimatedVisibility(visible = expanded && canExpand) {
-            Text(
-                text = event.detailLog.orEmpty(),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                fontSize = 10.sp,
-                lineHeight = 14.sp,
+            Column(
                 modifier = Modifier.padding(start = (70 + depth * 18).dp, end = 10.dp, bottom = 5.dp),
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis,
-            )
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
+                if (!event.detailLog.isNullOrBlank()) {
+                    Text(
+                        text = stringResource(R.string.agent_trace_event_details),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                    Text(
+                        text = event.detailLog.orEmpty(),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
     }
 }

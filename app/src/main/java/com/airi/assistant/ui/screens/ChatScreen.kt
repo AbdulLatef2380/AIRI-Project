@@ -803,6 +803,13 @@ fun ChatScreen(
     val taskMetrics = remember(agentActivityEvents, agentState.executionId) {
         taskActivityMetrics(agentActivityEvents, agentState.executionId.takeIf { it.isNotBlank() })
     }
+    // The assistant turn owns the live trace when it has an execution-scoped
+    // event stream. Do not render a second copy above the composer.
+    val hasInlineExecutionSurface = agentState.executionId.isNotBlank() && (
+        agentState.isWorking || executionTrace.any {
+            it.executionId == agentState.executionId && it.sessionId == currentSessionId
+        }
+    )
 
     Scaffold(
         modifier             = Modifier.fillMaxSize(),
@@ -849,10 +856,11 @@ fun ChatScreen(
         },
             bottomBar = {
                 Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
-                    // The plan is a contextual layer attached to the composer.
-                    // It must never be forced by Plan Mode alone: only an
-                    // admitted multi-step execution may make it visible.
-                    if (isPanelVisible && showPanel) {
+                    // Fallback plan dock for executions without an inline trace.
+                    // When the assistant turn owns the live trace, showing this
+                    // surface too would duplicate the same execution above the
+                    // composer.
+                    if (isPanelVisible && showPanel && !hasInlineExecutionSurface) {
                         com.airi.assistant.ui.plan.AgentPlanOverlay(
                             modifier = Modifier.fillMaxWidth(),
                             planViewModel = agentPlanViewModel

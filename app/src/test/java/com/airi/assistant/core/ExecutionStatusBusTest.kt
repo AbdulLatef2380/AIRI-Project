@@ -1,5 +1,6 @@
 package com.airi.assistant.core
 
+import com.airi.assistant.ui.viewmodel.ExecutionStage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -44,6 +45,33 @@ class ExecutionStatusBusTest {
         assertEquals("step_started", stepEvents[0].machineTag)
         assertEquals("step_completed", stepEvents[1].machineTag)
         assertEquals("tool_call", ExecutionStatusBus.trace.value.first { it.actionId == "tool-1" }.machineTag)
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
+    fun cancellationRequestClosesAdmissionBeforeTerminalCancellation() {
+        val executionId = "cancellation-gate-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Long task", 2, executionId, sessionId = "session-1")
+
+        ExecutionStatusBus.onGraphCancellationRequested(executionId)
+        ExecutionStatusBus.onGraphCancellationRequested(executionId)
+
+        assertTrue(ExecutionStatusBus.status.value.cancellationRequested)
+        assertEquals("Stopping…", ExecutionStatusBus.status.value.currentAction)
+        val traceBeforeLateEvent = ExecutionStatusBus.trace.value
+        ExecutionStatusBus.onToolStarted(executionId, "late-tool", "late_tool")
+        ExecutionStatusBus.onGraphCompleted(success = true, executionId = executionId)
+
+        assertEquals(traceBeforeLateEvent, ExecutionStatusBus.trace.value)
+        assertTrue(ExecutionStatusBus.status.value.isWorking)
+
+        ExecutionStatusBus.onGraphCancelled(executionId)
+
+        assertFalse(ExecutionStatusBus.status.value.isWorking)
+        assertEquals(ExecutionStage.CANCELLED, ExecutionStatusBus.status.value.executionStage)
+        assertFalse(ExecutionStatusBus.status.value.cancellationRequested)
+        assertEquals(1, ExecutionStatusBus.trace.value.count { it.kind == ExecutionTraceKind.CANCELLED })
         ExecutionStatusBus.reset()
     }
 }

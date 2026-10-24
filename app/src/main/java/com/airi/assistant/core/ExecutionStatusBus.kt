@@ -93,7 +93,7 @@ object ExecutionStatusBus {
                 currentAction   = nodeActions.joinToString(", ").take(80)
             )
         }
-        if (acceptsEvent(_status.value.executionId, executionId)) {
+        if (belongsToActiveExecution(_status.value, executionId)) {
             nodeIds.forEachIndexed { index, nodeId ->
                 appendTrace(
                     executionId,
@@ -121,7 +121,7 @@ object ExecutionStatusBus {
                 activeNodeId   = nodeId
             )
         }
-        if (acceptsEvent(_status.value.executionId, executionId)) {
+        if (belongsToActiveExecution(_status.value, executionId)) {
             appendTrace(
                 executionId,
                 ExecutionTraceKind.STEP_COMPLETED,
@@ -144,7 +144,7 @@ object ExecutionStatusBus {
         toolName: String,
         detail: String? = null,
     ) {
-        if (!acceptsEvent(_status.value.executionId, executionId) ||
+        if (!belongsToActiveExecution(_status.value, executionId) ||
             !toolTraceLifecycle.admitStart(executionId, actionId)
         ) {
             safeLog { Log.w(TAG, "TRACE_TOOL_START_REJECTED owner=${executionId.take(8)}") }
@@ -230,7 +230,7 @@ object ExecutionStatusBus {
                 currentAction  = "Recovering: ${reason.take(60)}"
             )
         }
-        if (acceptsEvent(_status.value.executionId, executionId)) {
+        if (belongsToActiveExecution(_status.value, executionId)) {
             appendTrace(executionId, ExecutionTraceKind.RECOVERING, "Recovering step", reason)
         }
         safeLog { Log.i(TAG, "EXEC_STATUS_RECOVERING node=$nodeId attempt=$retryCount reasonChars=${reason.length}") }
@@ -242,7 +242,7 @@ object ExecutionStatusBus {
             if (!belongsToActiveExecution(current, executionId)) current
             else current.copy(executionStage = ExecutionStage.REFLECTING, currentAction = "Analysing results...")
         }
-        if (acceptsEvent(_status.value.executionId, executionId)) {
+        if (belongsToActiveExecution(_status.value, executionId)) {
             appendTrace(executionId, ExecutionTraceKind.REFLECTING, "Reviewing execution result")
         }
     }
@@ -253,8 +253,10 @@ object ExecutionStatusBus {
         executionId: String = "",
     ) {
         val stage = if (success) ExecutionStage.COMPLETED else ExecutionStage.FAILED
+        var accepted = false
         _status.update { current ->
             if (!belongsToActiveExecution(current, executionId)) return@update current
+            accepted = true
             current.copy(
                 isWorking      = false,
                 executionStage = stage,
@@ -263,7 +265,7 @@ object ExecutionStatusBus {
                 activeNodeAction = ""
             )
         }
-        if (acceptsEvent(_status.value.executionId, executionId)) {
+        if (accepted) {
             appendTrace(
                 executionId,
                 if (success) ExecutionTraceKind.COMPLETED else ExecutionTraceKind.FAILED,
@@ -272,6 +274,28 @@ object ExecutionStatusBus {
             )
         }
         safeLog { Log.i(TAG, "EXEC_STATUS ${stage.name}") }
+    }
+
+    /**
+     * Records the user's stop request without pretending that cancellation has
+     * already completed. While this flag is set, late node/tool events for the
+     * same execution are rejected until [onGraphCancelled] closes the owner.
+     */
+    fun onGraphCancellationRequested(executionId: String) {
+        _status.update { current ->
+            if (!acceptsEvent(current.executionId, executionId) ||
+                !current.isWorking ||
+                current.cancellationRequested
+            ) {
+                current
+            } else {
+                current.copy(
+                    currentAction = "Stopping…",
+                    cancellationRequested = true,
+                )
+            }
+        }
+        safeLog { Log.i(TAG, "EXEC_STATUS_CANCELLATION_REQUESTED") }
     }
 
     /** Publishes a compact, user-safe final verification result for ChatScreen. */
@@ -295,17 +319,22 @@ object ExecutionStatusBus {
 
     /** Signal explicit user or lifecycle cancellation of the active graph. */
     fun onGraphCancelled(executionId: String) {
+        var accepted = false
         _status.update { current ->
-            if (!belongsToActiveExecution(current, executionId)) return@update current
+            if (!acceptsEvent(current.executionId, executionId) ||
+                current.executionStage in TERMINAL_STAGES
+            ) return@update current
+            accepted = true
             current.copy(
                 isWorking = false,
                 executionStage = ExecutionStage.CANCELLED,
                 currentAction = "Cancelled",
                 activeNodeId = "",
                 activeNodeAction = "",
+                cancellationRequested = false,
             )
         }
-        if (acceptsEvent(_status.value.executionId, executionId)) {
+        if (accepted) {
             appendTrace(executionId, ExecutionTraceKind.CANCELLED, "Execution cancelled", machineTag = "execution_cancelled")
         }
         safeLog { Log.i(TAG, "EXEC_STATUS_CANCELLED") }
@@ -329,7 +358,7 @@ object ExecutionStatusBus {
         detail: String?,
         errorCode: String? = null,
     ) {
-        if (!acceptsEvent(_status.value.executionId, executionId) ||
+        if (!belongsToActiveExecution(_status.value, executionId) ||
             !toolTraceLifecycle.admitTerminal(executionId, actionId)
         ) {
             safeLog { Log.w(TAG, "TRACE_TOOL_TERMINAL_REJECTED owner=${executionId.take(8)}") }
@@ -386,7 +415,15 @@ object ExecutionStatusBus {
             activeSessionId == eventSessionId
 
     private fun belongsToActiveExecution(current: AgentState, executionId: String): Boolean =
-        acceptsEvent(current.executionId, executionId)
+        acceptsEvent(current.executionId, executionId) &&
+            current.executionStage !in TERMINAL_STAGES &&
+            !current.cancellationRequested
+
+    private val TERMINAL_STAGES = setOf(
+        ExecutionStage.COMPLETED,
+        ExecutionStage.FAILED,
+        ExecutionStage.CANCELLED,
+    )
 
     private fun MutableStateFlow<AgentState>.update(transform: (AgentState) -> AgentState) {
         value = transform(value)

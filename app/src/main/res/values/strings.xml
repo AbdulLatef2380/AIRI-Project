@@ -1798,6 +1798,7 @@
     <string name="agent_plan_stage_completed">Completed</string>
     <string name="agent_plan_stage_failed">Failed</string>
     <string name="agent_plan_stage_cancelled">Cancelled</string>
+    <string name="agent_plan_stage_stopping">Stopping</string>
     <string name="agent_plan_stage_idle">Waiting</string>
     <string name="agent_plan_step_queued">Queued</string>
     <string name="agent_plan_step_running">Running</string>
@@ -2314,6 +2315,10 @@
     <string name="agent_trace_collapse_group">Collapse group</string>
     <string name="agent_trace_expand_event">Show event details</string>
     <string name="agent_trace_collapse_event">Hide event details</string>
+    <string name="agent_trace_event_tool_action">Tool action</string>
+    <string name="agent_trace_event_connection_action">Connection action</string>
+    <string name="agent_trace_event_technical_name">Technical name</string>
+    <string name="agent_trace_event_details">Details</string>
     <string name="agent_lifecycle_status_waiting">Waiting</string>
     <string name="agent_lifecycle_status_cancelled">Cancelled</string>
 </resources>

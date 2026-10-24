@@ -1696,6 +1696,7 @@
     <string name="agent_plan_stage_completed">اكتمل</string>
     <string name="agent_plan_stage_failed">فشل</string>
     <string name="agent_plan_stage_cancelled">أُلغي</string>
+    <string name="agent_plan_stage_stopping">جارٍ الإيقاف</string>
     <string name="agent_plan_stage_idle">بانتظار البدء</string>
     <string name="agent_plan_step_queued">في الانتظار</string>
     <string name="agent_plan_step_running">قيد التنفيذ</string>
@@ -2213,6 +2214,10 @@
     <string name="agent_trace_collapse_group">طي المجموعة</string>
     <string name="agent_trace_expand_event">عرض تفاصيل الحدث</string>
     <string name="agent_trace_collapse_event">إخفاء تفاصيل الحدث</string>
+    <string name="agent_trace_event_tool_action">إجراء أداة</string>
+    <string name="agent_trace_event_connection_action">إجراء اتصال</string>
+    <string name="agent_trace_event_technical_name">الاسم التقني</string>
+    <string name="agent_trace_event_details">التفاصيل</string>
     <string name="agent_lifecycle_status_waiting">قيد الانتظار</string>
     <string name="agent_lifecycle_status_cancelled">أُلغي</string>
 </resources>

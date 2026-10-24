@@ -77,15 +77,20 @@ fun AgentPlanOverlay(
     val isExpanded by planViewModel.isPanelExpanded.collectAsStateWithLifecycle()
     val steps by planViewModel.steps.collectAsStateWithLifecycle()
     val stage by planViewModel.currentStage.collectAsStateWithLifecycle()
+    val cancellationRequested by planViewModel.cancellationRequested.collectAsStateWithLifecycle()
     val goal by planViewModel.goalDescription.collectAsStateWithLifecycle()
     val panelTitle = stringResource(R.string.execution_steps_label)
-    val stageText = stageLabel(stage)
+    val stageText = if (cancellationRequested) {
+        stringResource(R.string.agent_plan_stage_stopping)
+    } else {
+        stageLabel(stage)
+    }
     val completed = steps.count { it.status == PlanStepStatus.COMPLETED }
     val terminal = steps.count { it.status.isTerminal }
     val progress = if (steps.isEmpty()) 0f else (completed.toFloat() / steps.size).coerceIn(0f, 1f)
     val activeStep = steps.lastOrNull { it.status.isActive }
     val shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
-    val accent = stageAccent(stage)
+    val accent = if (cancellationRequested) SemanticWarn else stageAccent(stage)
 
     AnimatedVisibility(
         visible = isVisible,

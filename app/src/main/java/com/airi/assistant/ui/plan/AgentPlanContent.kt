@@ -74,6 +74,7 @@ fun AgentPlanContent(
 ) {
     val steps by viewModel.steps.collectAsStateWithLifecycle()
     val stage by viewModel.currentStage.collectAsStateWithLifecycle()
+    val cancellationRequested by viewModel.cancellationRequested.collectAsStateWithLifecycle()
     val goal  by viewModel.goalDescription.collectAsStateWithLifecycle()
     val traceEntries by viewModel.traceEntries.collectAsStateWithLifecycle()
     val traceFilter by viewModel.traceFilter.collectAsStateWithLifecycle()
@@ -95,13 +96,16 @@ fun AgentPlanContent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            ContentPulseDot(color = stageColor(stage), active = stage == ExecutionStage.EXECUTING)
+            ContentPulseDot(
+                color = stageColor(stage, cancellationRequested),
+                active = stage == ExecutionStage.EXECUTING && !cancellationRequested,
+            )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    stageLabel(stage),
+                    stageLabel(stage, cancellationRequested),
                     fontSize    = 12.sp,
                     fontWeight  = FontWeight.SemiBold,
-                    color       = stageColor(stage)
+                    color       = stageColor(stage, cancellationRequested)
                 )
                 if (goal.isNotBlank()) {
                     Text(
@@ -485,7 +489,9 @@ private fun ContentPulseDot(color: Color, active: Boolean) {
 }
 
 @Composable
-private fun stageColor(stage: ExecutionStage) = when (stage) {
+private fun stageColor(stage: ExecutionStage, cancellationRequested: Boolean = false) = when {
+    cancellationRequested -> SemanticWarn
+    else -> when (stage) {
     ExecutionStage.PLANNING   -> CosmicAccent
     ExecutionStage.EXECUTING  -> CosmicAccent
     ExecutionStage.RECOVERING -> SemanticWarn
@@ -494,10 +500,13 @@ private fun stageColor(stage: ExecutionStage) = when (stage) {
     ExecutionStage.FAILED     -> SemanticError
     ExecutionStage.CANCELLED  -> AiriTheme.onSurface.copy(alpha = 0.5f)
     ExecutionStage.IDLE       -> AiriTheme.onSurface.copy(alpha = 0.4f)
+    }
 }
 
 @Composable
-private fun stageLabel(stage: ExecutionStage) = when (stage) {
+private fun stageLabel(stage: ExecutionStage, cancellationRequested: Boolean = false) = if (cancellationRequested) {
+    stringResource(R.string.agent_plan_stage_stopping)
+} else when (stage) {
     ExecutionStage.PLANNING   -> stringResource(R.string.agent_plan_stage_planning)
     ExecutionStage.EXECUTING  -> stringResource(R.string.agent_plan_stage_executing)
     ExecutionStage.RECOVERING -> stringResource(R.string.agent_plan_stage_recovering)

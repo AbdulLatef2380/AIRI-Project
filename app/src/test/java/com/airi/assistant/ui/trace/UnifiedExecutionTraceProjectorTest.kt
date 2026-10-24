@@ -289,6 +289,50 @@ class UnifiedExecutionTraceProjectorTest {
     }
 
     @Test
+    fun `canonical events are ordered by timestamp then stable sequence`() {
+        val result = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-order",
+            traceEntries = listOf(
+                trace("run-order", 3, 2_000, ExecutionTraceKind.TOOL_COMPLETED, "Read file later", "later"),
+                trace("run-order", 1, 1_000, ExecutionTraceKind.PLANNING, "Planning task"),
+                trace("run-order", 2, 2_000, ExecutionTraceKind.STEP_STARTED, "Read file first", "first"),
+            ).shuffled(Random(7)),
+            activityEvents = emptyList(),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertEquals(listOf(1L, 2L, 3L), result.events.map { it.sequence })
+        assertEquals(
+            result.events.map { it.eventId }.toSet(),
+            result.groups.flatMap { it.events }.map { it.eventId }.toSet(),
+        )
+    }
+
+    @Test
+    fun `activity details are redacted before entering the presentation projection`() {
+        val result = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-redaction",
+            traceEntries = emptyList(),
+            activityEvents = listOf(
+                ActivityEvent(
+                    id = "activity-redacted",
+                    message = "Read file report.txt",
+                    detail = "Authorization: Bearer top-secret-token",
+                    executionId = "run-redaction",
+                    category = ActivityCategory.SANDBOX,
+                ),
+            ),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        val detail = result.events.single().detailLog.orEmpty()
+        assertFalse(detail.contains("top-secret-token"))
+        assertFalse(detail.contains("Authorization: Bearer"))
+    }
+
+    @Test
     fun `tool compatibility events are ignored when structured actions exist`() {
         val activity = ActivityEvent(
             message = "Tool dispatched: web_search",

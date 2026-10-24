@@ -31,6 +31,8 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
     val isPanelExpanded: StateFlow<Boolean> = _isPanelExpanded.asStateFlow()
     private val _currentStage = MutableStateFlow(ExecutionStage.IDLE)
     val currentStage: StateFlow<ExecutionStage> = _currentStage.asStateFlow()
+    private val _cancellationRequested = MutableStateFlow(false)
+    val cancellationRequested: StateFlow<Boolean> = _cancellationRequested.asStateFlow()
     private val _goalDescription = MutableStateFlow("")
     val goalDescription: StateFlow<String> = _goalDescription.asStateFlow()
 
@@ -87,6 +89,7 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
         }.launchIn(viewModelScope)
         ExecutionStatusBus.status.onEach { state ->
             _currentStage.value = state.executionStage
+            _cancellationRequested.value = state.cancellationRequested
             if (state.executionId.isNotBlank() && state.executionId != _executionId.value) {
                 _executionId.value = state.executionId
                 _observedTraceSequence.value = 0L

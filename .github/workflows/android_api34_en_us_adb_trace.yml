@@ -1,0 +1,89 @@
+name: AIRI API 34 en-US Instrumentation ADB Trace
+
+on:
+  workflow_dispatch:
+    inputs:
+      collect_bugreport:
+        description: Include a full emulator bugreport on failure (may contain detailed device state)
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  api34-en-us-adb-trace:
+    name: API 34 / en-US / detailed ADB trace
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      EXPECTED_API_LEVEL: '34'
+      EXPECTED_LOCALE: en-US
+      ADB_TRACE_DIR: ci-instrumentation-adb-trace
+      TEST_TIMEOUT_SECONDS: '900'
+      COLLECT_BUGREPORT_ON_FAILURE: ${{ inputs.collect_bugreport }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          accept-android-sdk-licenses: true
+
+      - name: Install API 34 and app build toolchains
+        run: |
+          sdkmanager --install "platforms;android-34"
+          sdkmanager --install "platforms;android-36"
+          sdkmanager --install "build-tools;36.0.0"
+          sdkmanager --install "ndk;25.2.9519653"
+          sdkmanager --install "cmake;3.22.1"
+
+      - name: Prepare instrumentation APKs
+        run: |
+          chmod +x gradlew .github/scripts/set-emulator-locale.sh .github/scripts/run-instrumentation-adb-trace.sh
+          ./gradlew --no-daemon --max-workers=1 \
+            '-Dorg.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m -XX:+UseSerialGC' \
+            '-Dkotlin.daemon.jvmargs=-Xmx1536m' \
+            :app:assembleDebugAndroidTest --stacktrace
+
+      - name: Run API 34 en-US instrumentation with live ADB trace
+        uses: reactivecircus/android-emulator-runner@v2
+        timeout-minutes: 40
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 2048
+          script: bash .github/scripts/run-instrumentation-adb-trace.sh
+
+      - name: Collect host-side test reports
+        if: always()
+        run: |
+          mkdir -p ci-instrumentation-adb-trace/host-reports
+          cp -R app/build/outputs/androidTest-results ci-instrumentation-adb-trace/host-reports/androidTest-results 2>/dev/null || true
+          cp -R app/build/reports/androidTests ci-instrumentation-adb-trace/host-reports/androidTests 2>/dev/null || true
+          cp -R app/build/outputs/connected_android_test_additional_output ci-instrumentation-adb-trace/host-reports/additional-output 2>/dev/null || true
+          printf 'run_id=%s\nrun_attempt=%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > ci-instrumentation-adb-trace/host-reports/workflow-run.txt
+
+      - name: Upload detailed ADB trace and test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIRI-API34-en-US-ADB-Trace
+          path: ci-instrumentation-adb-trace/
+          if-no-files-found: warn
+          retention-days: 1

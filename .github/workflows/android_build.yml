@@ -214,8 +214,8 @@ jobs:
         include:
           - api-level: 29
             locale: en-US
-            memory: 2048
-            cores: 2
+            memory: 4096
+            cores: 4
             target: google_apis
           - api-level: 29
             locale: ar-SA

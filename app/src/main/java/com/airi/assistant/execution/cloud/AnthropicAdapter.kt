@@ -4,6 +4,7 @@ import android.util.Log
 import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.AttachmentDeliveryStage
 import com.airi.assistant.execution.ExecutionRequest
+import com.airi.assistant.execution.CompletionMetadata
 import com.airi.assistant.execution.security.SecureApiKeyStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -119,6 +120,7 @@ class AnthropicAdapter(
 
             var currentEventType = ""
             var sawMessageStop = false
+            var stopReason: String? = null
 
             BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { reader ->
                 var line: String?
@@ -174,6 +176,9 @@ class AnthropicAdapter(
                                 }
                                 "message_delta" -> {
                                     completeTokens = extractIntField(payload, "output_tokens") ?: completeTokens
+                                    stopReason = runCatching {
+                                        JSONObject(payload).optJSONObject("delta")?.optString("stop_reason")
+                                    }.getOrNull()?.takeIf { it.isNotBlank() }
                                 }
                                 // message_stop signals end of stream — exit the use block cleanly.
                                 "message_stop" -> {
@@ -205,6 +210,7 @@ class AnthropicAdapter(
                     promptTokens = promptTokens,
                     completionTokens = completeTokens,
                     executedModelId = model,
+                    completion = CompletionMetadata.fromProvider(providerId, stopReason ?: "message_stop"),
                 )
             }
             val latency = System.currentTimeMillis() - startMs
@@ -227,7 +233,8 @@ class AnthropicAdapter(
                 latencyMs        = latency,
                 promptTokens     = promptTokens,
                 completionTokens = completeTokens,
-                executedModelId  = model
+                executedModelId  = model,
+                completion       = CompletionMetadata.fromProvider(providerId, stopReason ?: "message_stop")
             )
 
         } catch (e: kotlinx.coroutines.CancellationException) {

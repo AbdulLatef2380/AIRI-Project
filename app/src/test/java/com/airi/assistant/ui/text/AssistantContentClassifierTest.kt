@@ -45,6 +45,23 @@ class AssistantContentClassifierTest {
         assertTrue(analysis.codeBlocks.single().code.contains("class Calculator"))
     }
 
+    @Test fun completeCalculatorReplyKeepsIndependentFullCodeArtifact() {
+        val response = "شرح مختصر.\n```python\nimport math\ndef calculate(expression):\n    return eval(expression, {\"__builtins__\": {}}, {\"math\": math})\n\nprint(calculate(\"2 + 2\"))\n```\nملاحظات التشغيل منفصلة."
+        val analysis = AssistantContentClassifier.analyse(response)
+        assertTrue(analysis.containsCode)
+        assertEquals("python", analysis.codeBlocks.single().language)
+        assertTrue(analysis.codeBlocks.single().code.contains("def calculate"))
+        assertTrue(analysis.codeBlocks.single().code.contains("print(calculate"))
+    }
+
+    @Test fun multipleArtifactsRemainIndependentlyCopyable() {
+        val response = "شرح\n```python\nprint(1)\n```\nثم إعدادات\n```json\n{\"ready\": true}\n```"
+        val blocks = AssistantContentClassifier.analyse(response).codeBlocks
+        assertEquals(2, blocks.size)
+        assertEquals("python", blocks[0].language)
+        assertEquals("json", blocks[1].language)
+    }
+
     @Test fun mixedDirectionIsDetected() {
         assertEquals(AssistantContentKind.MIXED_DIRECTION, AssistantContentClassifier.analyse("هذا code إنجليزي").kind)
         assertEquals(AssistantContentKind.RTL_TEXT, AssistantContentClassifier.analyse("هذا نص عربي").direction)

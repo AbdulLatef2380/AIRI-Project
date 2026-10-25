@@ -4,6 +4,7 @@ import com.airi.assistant.execution.CapabilityProfile
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.ExecutionResult
+import com.airi.assistant.execution.CompletionMetadata
 
 /**
  * Contract every runtime backend must satisfy.
@@ -43,7 +44,7 @@ interface RuntimeBackend {
     suspend fun generateStream(
         request:    ExecutionRequest,
         onToken:    suspend (String) -> Unit,
-        onComplete: suspend (String, Long) -> Unit,
+        onComplete: suspend (String, Long, CompletionMetadata) -> Unit,
         onError:    suspend (String) -> Unit
     )
 

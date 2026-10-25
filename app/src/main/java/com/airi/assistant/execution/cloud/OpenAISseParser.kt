@@ -12,6 +12,7 @@ internal object OpenAISseParser {
         val toolCalls: List<ToolCallDelta> = emptyList(),
         val promptTokens: Int? = null,
         val completionTokens: Int? = null,
+        val finishReason: String? = null,
         val hasProviderError: Boolean = false,
         val errorCode: String? = null,
         val errorType: String? = null,
@@ -46,6 +47,7 @@ internal object OpenAISseParser {
         val choices = root.get("choices")?.takeIf { it.isJsonArray }?.asJsonArray
         val firstChoice = choices?.firstObjectOrNull()
         val delta = firstChoice?.get("delta")?.takeIf { it.isJsonObject }?.asJsonObject
+        val finishReason = firstChoice?.stringValue("finish_reason")
         val text = delta?.get("content")?.textContent().orEmpty()
         val toolCalls = delta?.get("tool_calls")?.takeIf { it.isJsonArray }?.asJsonArray
             ?.mapIndexedNotNull { index, element ->
@@ -70,6 +72,7 @@ internal object OpenAISseParser {
             toolCalls = toolCalls,
             promptTokens = promptTokens,
             completionTokens = completionTokens,
+            finishReason = finishReason,
         )
     }
 

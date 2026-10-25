@@ -9,6 +9,7 @@ import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.ExecutionResult
+import com.airi.assistant.execution.CompletionMetadata
 import com.airi.assistant.execution.cloud.CloudAdapterFactory
 import com.airi.assistant.execution.cloud.CloudErrorType
 import com.airi.assistant.execution.cloud.CloudProviderAdapter
@@ -102,7 +103,7 @@ class CloudBackend(
     override suspend fun generateStream(
         request: ExecutionRequest,
         onToken: suspend (String) -> Unit,
-        onComplete: suspend (String, Long) -> Unit,
+        onComplete: suspend (String, Long, CompletionMetadata) -> Unit,
         onError: suspend (String) -> Unit
     ) {
         cancelRequested.set(false)
@@ -285,7 +286,7 @@ class CloudBackend(
                     RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.INFO,
                         "${provider.displayName} OK: ${result.latencyMs}ms tokens=${promptTok}p+${compTok}c")
                     _totalLatencyMs.addAndGet(System.currentTimeMillis() - requestStart); _globalTotalLatencyMs.addAndGet(System.currentTimeMillis() - requestStart)
-                    onComplete(result.fullText, result.latencyMs)
+                    onComplete(result.fullText, result.latencyMs, result.completion)
                     return   // Success — do NOT continue to next provider
                 }
                 is CloudProviderAdapter.AdapterResult.Failure -> {

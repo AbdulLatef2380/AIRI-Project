@@ -12,16 +12,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -39,6 +33,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.AiriTheme
 
@@ -90,53 +86,7 @@ fun MarkdownText(
                 }
                 is RenderBlock.Code -> {
                     Spacer(Modifier.height(6.dp))
-                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(codeBack, RoundedCornerShape(10.dp))
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = block.language,
-                                    color = codeFore,
-                                    fontSize = 11.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                if (onCopyCode != null) {
-                                    IconButton(
-                                        onClick = { onCopyCode(block.text) },
-                                        modifier = Modifier.size(40.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.ContentCopy,
-                                            contentDescription = stringResource(R.string.copy_code),
-                                            tint = AiriTheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-                                Text(
-                                    text = CodeSyntaxHighlighter.highlight(block.text, block.language),
-                                    style = TextStyle(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 13.sp,
-                                        lineHeight = 20.sp,
-                                        color = CodeSyntaxHighlighter.defaultColor,
-                                        textDirection = TextDirection.Ltr
-                                    ),
-                                    softWrap = false,
-                                    modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
-                                )
-                            }
-                        }
-                    }
+                    CodeBlockCard(block.language, block.text, codeBack, codeFore, onCopyCode)
                     Spacer(Modifier.height(4.dp))
                 }
                 is RenderBlock.HRule -> {

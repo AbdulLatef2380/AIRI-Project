@@ -3,6 +3,7 @@ package com.airi.assistant.execution.cloud
 import android.util.Log
 import com.airi.assistant.execution.AttachmentDeliveryStage
 import com.airi.assistant.execution.ExecutionRequest
+import com.airi.assistant.execution.CompletionMetadata
 import com.airi.assistant.execution.security.SecureApiKeyStore
 import com.airi.assistant.execution.CloudProvider
 import kotlinx.coroutines.Dispatchers
@@ -77,8 +78,9 @@ class GeminiAdapter(
         val fullText       = StringBuilder()
         val nativeCalls    = mutableListOf<NativeToolCallWire.Call>()
         var lastPayload    = ""
-        var promptTokens   = 0
-        var completeTokens = 0
+            var promptTokens   = 0
+            var completeTokens = 0
+            var finishReason: String? = null
         val startMs        = System.currentTimeMillis()
 
         try {
@@ -150,6 +152,7 @@ class GeminiAdapter(
                         )
                     }
                     if (event.terminal) sawTerminal = true
+                    if (!event.finishReason.isNullOrBlank()) finishReason = event.finishReason
                     val token = event.text
                     if (token.isNotEmpty()) { fullText.append(token); onToken(token) }
                     event.toolCalls.forEach { call ->
@@ -178,6 +181,7 @@ class GeminiAdapter(
                     promptTokens = promptTokens,
                     completionTokens = completeTokens,
                     executedModelId = model,
+                    completion = CompletionMetadata.fromProvider(providerId, finishReason),
                 )
             }
             if (fullText.isBlank()) {
@@ -205,7 +209,8 @@ class GeminiAdapter(
             CloudProviderAdapter.AdapterResult.Success(
                 fullText = fullText.toString(), latencyMs = latency,
                 promptTokens = promptTokens, completionTokens = completeTokens,
-                executedModelId = model
+                executedModelId = model,
+                completion = CompletionMetadata.fromProvider(providerId, finishReason),
             )
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e

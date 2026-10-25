@@ -1,6 +1,7 @@
 package com.airi.assistant.execution.cloud
 
 import com.airi.assistant.execution.ExecutionRequest
+import com.airi.assistant.execution.CompletionMetadata
 
 /**
  * Contract for a production-grade cloud provider streaming adapter.
@@ -63,7 +64,9 @@ interface CloudProviderAdapter {
             val promptTokens:     Int = 0,
             val completionTokens: Int = 0,
             /** Wire-level model identifier used by the adapter. */
-            val executedModelId:  String = ""
+            val executedModelId:     String = "",
+            /** Normalized finish_reason/stop_reason evidence from the provider. */
+            val completion:          CompletionMetadata = CompletionMetadata(),
         ) : AdapterResult() {
             val totalTokens: Int get() = promptTokens + completionTokens
         }

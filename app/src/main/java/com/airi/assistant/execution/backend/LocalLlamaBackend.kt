@@ -8,6 +8,7 @@ import com.airi.assistant.execution.CapabilityProfile
 import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.ExecutionRequest
+import com.airi.assistant.execution.CompletionMetadata
 import com.airi.assistant.execution.ExecutionResult
 import com.airi.assistant.execution.accounting.TokenAccountant
 import kotlinx.coroutines.CompletableDeferred
@@ -122,7 +123,7 @@ class LocalLlamaBackend(
     override suspend fun generateStream(
         request:    ExecutionRequest,
         onToken:    suspend (String) -> Unit,
-        onComplete: suspend (String, Long) -> Unit,
+        onComplete: suspend (String, Long, CompletionMetadata) -> Unit,
         onError:    suspend (String)       -> Unit
     ) {
         if (!isAvailable) {
@@ -214,7 +215,14 @@ class LocalLlamaBackend(
                             Log.w(TAG, "tokenAccountant.recordLocal failed: ${e.message}")
                         }
                     }
-                    onComplete(event.text, event.latency)
+                    onComplete(
+                        event.text,
+                        event.latency,
+                        CompletionMetadata(
+                            providerId = id,
+                            rawReason = "local_native_complete",
+                        ),
+                    )
                 }
                 is LlamaEvent.Error    -> {
                     finished.set(true)

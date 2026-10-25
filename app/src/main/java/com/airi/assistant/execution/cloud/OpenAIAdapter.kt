@@ -4,6 +4,7 @@ import android.util.Log
 import com.airi.assistant.execution.AttachmentDeliveryStage
 import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.ExecutionRequest
+import com.airi.assistant.execution.CompletionMetadata
 import com.airi.assistant.execution.security.SecureApiKeyStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -95,6 +96,7 @@ open class OpenAIAdapter(
         val nativeCalls    = linkedMapOf<Int, NativeToolCallWire.Call>()
         var promptTokens   = 0
         var completeTokens = 0
+        var finishReason: String? = null
         val startMs        = System.currentTimeMillis()
 
         try {
@@ -185,6 +187,7 @@ open class OpenAIAdapter(
                     // Usage (present in the final chunk when stream_options.include_usage=true)
                     event.promptTokens?.let { promptTokens = it }
                     event.completionTokens?.let { completeTokens = it }
+                    event.finishReason?.let { finishReason = it }
                 }
                 streamFailure?.let { return@withContext it }
                 if (!sawDone) {
@@ -206,6 +209,7 @@ open class OpenAIAdapter(
                     promptTokens = promptTokens,
                     completionTokens = completeTokens,
                     executedModelId = model,
+                    completion = CompletionMetadata.fromProvider(providerId, finishReason),
                 )
             }
             if (fullText.isBlank()) {
@@ -226,7 +230,8 @@ open class OpenAIAdapter(
                 latencyMs        = latency,
                 promptTokens     = promptTokens,
                 completionTokens = completeTokens,
-                executedModelId  = model
+                executedModelId  = model,
+                completion       = CompletionMetadata.fromProvider(providerId, finishReason),
             )
 
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -278,6 +283,7 @@ open class OpenAIAdapter(
         val fullText = StringBuilder()
         var promptTokens = 0
         var completeTokens = 0
+        var completionReason: String? = null
         var sawDone = false
         val startMs = System.currentTimeMillis()
         return try {
@@ -325,6 +331,9 @@ open class OpenAIAdapter(
                         "response.completed", "response.done" -> {
                             promptTokens = jsonIntField(payload, "input_tokens") ?: promptTokens
                             completeTokens = jsonIntField(payload, "output_tokens") ?: completeTokens
+                            completionReason = jsonStringField(payload, "status") ?: "completed"
+                            val incompleteReason = jsonStringField(payload, "incomplete_details")
+                            if (!incompleteReason.isNullOrBlank()) completionReason = incompleteReason
                             sawDone = true
                             break
                         }
@@ -368,6 +377,7 @@ open class OpenAIAdapter(
                 promptTokens = promptTokens,
                 completionTokens = completeTokens,
                 executedModelId = model,
+                completion = CompletionMetadata.fromProvider(providerId, completionReason),
             )
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e

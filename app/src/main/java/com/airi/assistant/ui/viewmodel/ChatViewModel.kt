@@ -2506,10 +2506,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
                 val streamedAnswer = (streamAccumulator.toString() + reasoningParser.finish()).trim()
-                val responseStatus = GenerationResponsePolicy.classify(loopResult.terminalState)
+                val responseStatus = GenerationResponsePolicy.classify(loopResult.terminalState, streamedAnswer)
                 val normalizedAnswer = if (responseStatus == GenerationResponseStatus.SUCCESS) {
                     ReasoningStreamParser.extractAnswer(loopResult.finalAnswer).ifBlank { streamedAnswer }
-                } else ""
+                } else streamedAnswer
                 when (responseStatus) {
                     GenerationResponseStatus.CANCELLED -> {
                         _generationPhase.value = GenerationPhase.CANCELLED
@@ -2528,6 +2528,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             sessionId = sessionId,
                             replyToMessageId = userMessage.id,
                             partialResponseSaved = partialSaved
+                        )
+                        return@launch
+                    }
+                    GenerationResponseStatus.INCOMPLETE -> {
+                        val partialSaved = GenerationResponsePolicy.shouldPersistIncompleteResponse(responseStatus, streamedAnswer) &&
+                            persistAssistantResponse(streamedAnswer)
+                        _generationPhase.value = GenerationPhase.CLEANUP
+                        _lastExecutionError.value = ExecutionErrorProjection(
+                            executionId = "generation-$generationId",
+                            message = appContext.getString(R.string.err_incomplete_response),
+                            messageResId = R.string.err_incomplete_response,
+                            stage = ExecutionFailureStage.RESPONSE,
+                            sessionId = sessionId,
+                            replyToMessageId = userMessage.id,
+                            partialResponseSaved = partialSaved,
                         )
                         return@launch
                     }

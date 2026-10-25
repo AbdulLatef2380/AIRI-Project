@@ -43,6 +43,11 @@ if [[ -n "$trace_dir" ]]; then
   adb shell am broadcast -a android.intent.action.LOCALE_CHANGED >"$trace_dir/locale-changed-broadcast.log" 2>&1 || true
   echo "Locale change broadcast output:"
   cat "$trace_dir/locale-changed-broadcast.log" || true
+  # API 34 may still be reconciling package and role state after the locale
+  # broadcast. Do not start instrumentation while those managers are tearing
+  # down and reinstalling packages; otherwise the runner can report 0 tests
+  # and remove the test APK before discovery completes.
+  sleep 12
 else
   if adb shell cmd locale set --user 0 "$requested_locale" >/dev/null 2>&1; then
     echo "Configured emulator locale with LocaleManager: $requested_locale"
@@ -55,4 +60,7 @@ else
     exit 1
   fi
   adb shell am broadcast -a android.intent.action.LOCALE_CHANGED >/dev/null 2>&1 || true
+  # Allow API 34 package/role reconciliation to settle before Gradle starts
+  # instrumentation discovery.
+  sleep 12
 fi

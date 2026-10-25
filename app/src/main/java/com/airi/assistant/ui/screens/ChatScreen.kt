@@ -2409,12 +2409,12 @@ fun ChatMessageList(
 private fun FinalAnswerVerificationBadge(state: FinalAnswerUiState) {
     var expanded by rememberSaveable(state.verified, state.issueCount) { mutableStateOf(false) }
     val positive = state.verified
-    val title = if (positive) "تمت مراجعة الإجابة" else "تحتاج الإجابة إلى مراجعة إضافية"
-    val subtitle = if (positive) {
-        "فحص سريع للاكتمال قبل العرض"
-    } else {
-        "قد توجد نقاط غير مكتملة؛ يمكنك مراجعة التفاصيل"
-    }
+    val title = stringResource(
+        if (positive) R.string.execution_review_passed_title else R.string.execution_review_attention_title
+    )
+    val subtitle = stringResource(
+        if (positive) R.string.execution_review_passed_subtitle else R.string.execution_review_attention_subtitle
+    )
     val tint = if (positive) Color(0xFF7AD9A1) else Color(0xFFFFC266)
     Column(
         modifier = Modifier
@@ -2439,7 +2439,9 @@ private fun FinalAnswerVerificationBadge(state: FinalAnswerUiState) {
             }
             Icon(
                 imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                contentDescription = "عرض التفاصيل",
+                contentDescription = stringResource(
+                    if (expanded) R.string.execution_review_hide_details else R.string.execution_review_show_details
+                ),
                 tint = AiriTheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
@@ -2448,14 +2450,14 @@ private fun FinalAnswerVerificationBadge(state: FinalAnswerUiState) {
             Column(Modifier.padding(start = 24.dp, top = 6.dp)) {
                 if (state.details.isEmpty()) {
                     Text(
-                        "لا توجد ملاحظات إضافية.",
+                        stringResource(R.string.execution_review_no_details),
                         color = AiriTheme.onSurfaceVariant,
                         fontSize = 11.sp
                     )
                 } else {
                     state.details.forEach { detail ->
                         Text(
-                            "• ${detail.take(160)}",
+                            "• ${executionVerificationDetailMessage(detail)}",
                             color = AiriTheme.onSurfaceVariant,
                             fontSize = 11.sp,
                             modifier = Modifier.padding(vertical = 1.dp)
@@ -2465,6 +2467,17 @@ private fun FinalAnswerVerificationBadge(state: FinalAnswerUiState) {
             }
         }
     }
+}
+
+@Composable
+private fun executionVerificationDetailMessage(detail: String): String = when {
+    detail.startsWith("No execution evidence", ignoreCase = true) ->
+        stringResource(R.string.execution_review_no_evidence)
+    detail.startsWith("One or more plan nodes failed", ignoreCase = true) ->
+        stringResource(R.string.execution_review_failed_steps)
+    detail.contains("succeeded without an output message", ignoreCase = true) ->
+        stringResource(R.string.execution_review_missing_output)
+    else -> stringResource(R.string.execution_review_generic_issue)
 }
 
 fun Modifier.verticalScrollbar(

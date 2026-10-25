@@ -18,6 +18,7 @@ object LanguageRuntimeManager {
 
     private val ARABIC_RANGE  = Pattern.compile("[\\u0600-\\u06FF\\u0750-\\u077F]+")
     private val ENGLISH_RANGE = Pattern.compile("[a-zA-Z]{3,}")
+    private val LATIN_RUN = Regex("([a-zA-Z0-9][a-zA-Z0-9 _\\-./]*[a-zA-Z0-9])")
 
     enum class DominantDirection { RTL, LTR, MIXED, NEUTRAL }
 
@@ -42,17 +43,29 @@ object LanguageRuntimeManager {
         DominantDirection.NEUTRAL -> LayoutDirection.Rtl   // default app direction
     }
 
-    /**
-     * Wrap inline English words inside Arabic text with Unicode LTR isolate marks
-     * so BiDi algorithm renders them correctly without flipping punctuation.
-     *
-     * U+2066 = LTR Isolate, U+2069 = Pop Directional Isolate
-     */
+    /** Wrap Latin runs in prose while preserving inline/fenced code byte-for-byte. */
     fun isolateLatinRuns(text: String): String {
         if (!text.contains(Regex("[a-zA-Z]"))) return text
-        return text.replace(Regex("([a-zA-Z0-9][a-zA-Z0-9 _\\-./]*[a-zA-Z0-9])")) {
-            "\u2066${it.value}\u2069"
+        val output = StringBuilder(text.length + 16)
+        var cursor = 0
+        while (cursor < text.length) {
+            val codeStart = text.indexOf('`', cursor)
+            if (codeStart < 0) {
+                output.append(isolateLatinProse(text.substring(cursor)))
+                break
+            }
+            output.append(isolateLatinProse(text.substring(cursor, codeStart)))
+            val delimiter = if (text.startsWith("```", codeStart)) "```" else "`"
+            val closeStart = text.indexOf(delimiter, codeStart + delimiter.length)
+            val end = if (closeStart < 0) text.length else closeStart + delimiter.length
+            output.append(text.substring(codeStart, end))
+            cursor = end
         }
+        return output.toString()
+    }
+
+    private fun isolateLatinProse(text: String): String = text.replace(LATIN_RUN) {
+        "\u2066${it.value}\u2069"
     }
 
     /** Strip all directional Unicode control characters for plain-text contexts. */

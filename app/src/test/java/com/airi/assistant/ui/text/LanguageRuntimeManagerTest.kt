@@ -34,4 +34,25 @@ class LanguageRuntimeManagerTest {
         assertTrue(formatted.contains(":"))
         assertEquals(input, LanguageRuntimeManager.stripBidiMarks(formatted))
     }
+
+    @Test
+    fun isolatesProseWithoutMutatingInlineOrFencedCode() {
+        val inlineCode = "`println(1 + 1)`"
+        val fencedCode = "```python\nimport tkinter as tk\nprint('مرحبا')\n```"
+        val input = "شرح عربي حول $inlineCode ثم:\n$fencedCode\nبعد الكود Provider"
+
+        val formatted = LanguageRuntimeManager.isolateLatinRuns(input)
+
+        assertTrue(formatted.contains(inlineCode))
+        assertTrue(formatted.contains(fencedCode))
+        assertEquals(input, LanguageRuntimeManager.stripBidiMarks(formatted))
+    }
+
+    @Test
+    fun preservesAnUnclosedStreamingCodeFence() {
+        val partial = "```python\nprint('مرحبا')"
+        val input = "شرح عربي\n$partial"
+
+        assertTrue(LanguageRuntimeManager.isolateLatinRuns(input).endsWith(partial))
+    }
 }

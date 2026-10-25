@@ -33,6 +33,18 @@ class AssistantContentClassifierTest {
         assertEquals(AssistantContentKind.RICH_CONTENT, AssistantContentClassifier.analyse("# Long\n\n" + "text ".repeat(150)).kind)
     }
 
+    @Test fun longMixedReplyRetainsCopyableCodeBlockMetadata() {
+        val code = "import tkinter as tk\n\nclass Calculator:\n    def __init__(self):\n        self.root = tk.Tk()"
+        val response = "شرح عربي يسبق المثال.\n```python\n$code\n```\n" + "شرح إضافي ".repeat(100)
+
+        val analysis = AssistantContentClassifier.analyse(response)
+
+        assertEquals(AssistantContentKind.RICH_CONTENT, analysis.kind)
+        assertTrue(analysis.containsCode)
+        assertEquals("python", analysis.codeBlocks.single().language)
+        assertTrue(analysis.codeBlocks.single().code.contains("class Calculator"))
+    }
+
     @Test fun mixedDirectionIsDetected() {
         assertEquals(AssistantContentKind.MIXED_DIRECTION, AssistantContentClassifier.analyse("هذا code إنجليزي").kind)
         assertEquals(AssistantContentKind.RTL_TEXT, AssistantContentClassifier.analyse("هذا نص عربي").direction)

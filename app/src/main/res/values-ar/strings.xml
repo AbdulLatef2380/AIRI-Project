@@ -591,6 +591,18 @@
     <!-- Common actions -->
     <string name="dismiss">رفض</string>
     <string name="copy">نسخ</string>
+    <string name="copy_code">نسخ الكود</string>
+    <string name="execution_review_passed_title">اكتملت فحوص التنفيذ</string>
+    <string name="execution_review_passed_subtitle">توفرت نتائج للأدوات ولم تفشل خطوات الخطة. لا يثبت ذلك صحة الحقائق أو الكود.</string>
+    <string name="execution_review_attention_title">تحتاج أدلة التنفيذ إلى مراجعة</string>
+    <string name="execution_review_attention_subtitle">فشلت خطوة أو أكثر من الخطة أو لم تُنتج مخرجات.</string>
+    <string name="execution_review_show_details">عرض تفاصيل فحوص التنفيذ</string>
+    <string name="execution_review_hide_details">إخفاء تفاصيل فحوص التنفيذ</string>
+    <string name="execution_review_no_details">لا توجد تفاصيل إضافية لفحوص التنفيذ.</string>
+    <string name="execution_review_no_evidence">لا تتوفر أدلة على تنفيذ المهمة.</string>
+    <string name="execution_review_failed_steps">فشلت خطوة واحدة أو أكثر من الخطة.</string>
+    <string name="execution_review_missing_output">اكتملت خطوة في الخطة من دون مخرجات.</string>
+    <string name="execution_review_generic_issue">حدثت مشكلة في فحوص التنفيذ.</string>
     <string name="edit">تعديل</string>
     <string name="select_text">تحديد نص</string>
     <string name="confirm">تأكيد</string>

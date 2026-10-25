@@ -592,6 +592,18 @@
     <!-- Common actions -->
     <string name="dismiss">Dismiss</string>
     <string name="copy">Copy</string>
+    <string name="copy_code">Copy code</string>
+    <string name="execution_review_passed_title">Execution checks passed</string>
+    <string name="execution_review_passed_subtitle">Tool results were present and no plan step failed. This does not verify factual accuracy or code correctness.</string>
+    <string name="execution_review_attention_title">Execution evidence needs review</string>
+    <string name="execution_review_attention_subtitle">One or more plan steps failed or produced no output.</string>
+    <string name="execution_review_show_details">Show execution-check details</string>
+    <string name="execution_review_hide_details">Hide execution-check details</string>
+    <string name="execution_review_no_details">No additional execution-check details.</string>
+    <string name="execution_review_no_evidence">No execution evidence is available.</string>
+    <string name="execution_review_failed_steps">One or more plan steps failed.</string>
+    <string name="execution_review_missing_output">A completed plan step produced no output.</string>
+    <string name="execution_review_generic_issue">An execution-check issue occurred.</string>
     <string name="edit">Edit</string>
     <string name="select_text">Select Text</string>
     <string name="confirm">Confirm</string>

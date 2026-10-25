@@ -1,29 +1,45 @@
 package com.airi.assistant.ui.util
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airi.assistant.R
 import com.airi.assistant.ui.theme.AiriTheme
 
 /**
@@ -49,7 +65,8 @@ fun MarkdownText(
     modifier    : Modifier = Modifier,
     textColor   : Color    = AiriTheme.onSurface.copy(alpha = 0.93f),
     baseFontSp  : Float    = 15f,
-    lineHeightSp: Float    = 23f
+    lineHeightSp: Float    = 23f,
+    onCopyCode  : ((String) -> Unit)? = null
 ) {
     val codeBack  = Color(0xFF0D1118)
     val codeFore  = Color(0xFF79C0FF)
@@ -73,19 +90,52 @@ fun MarkdownText(
                 }
                 is RenderBlock.Code -> {
                     Spacer(Modifier.height(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(codeBack, RoundedCornerShape(10.dp))
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                    ) {
-                        Text(
-                            text       = block.text,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize   = 13.sp,
-                            lineHeight = 20.sp,
-                            color      = codeFore
-                        )
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(codeBack, RoundedCornerShape(10.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = block.language,
+                                    color = codeFore,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (onCopyCode != null) {
+                                    IconButton(
+                                        onClick = { onCopyCode(block.text) },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.ContentCopy,
+                                            contentDescription = stringResource(R.string.copy_code),
+                                            tint = AiriTheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                                Text(
+                                    text = CodeSyntaxHighlighter.highlight(block.text, block.language),
+                                    style = TextStyle(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 13.sp,
+                                        lineHeight = 20.sp,
+                                        color = CodeSyntaxHighlighter.defaultColor,
+                                        textDirection = TextDirection.Ltr
+                                    ),
+                                    softWrap = false,
+                                    modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                                )
+                            }
+                        }
                     }
                     Spacer(Modifier.height(4.dp))
                 }
@@ -111,7 +161,7 @@ private sealed class RenderBlock {
         val fontSizeSp : Float       = 15f,
         val fontWeight : FontWeight? = null
     ) : RenderBlock()
-    data class Code(val text: String) : RenderBlock()
+    data class Code(val language: String, val text: String) : RenderBlock()
     object HRule : RenderBlock()
 }
 
@@ -131,13 +181,14 @@ private fun buildRenderBlocks(
 
         // Fenced code block — consume until closing ``` or EOF (streaming-safe)
         if (trimmed.startsWith("```")) {
+            val language = trimmed.removePrefix("```").trim().split(Regex("\\s+")).firstOrNull().orEmpty().ifBlank { "text" }
             val codeLines = mutableListOf<String>()
             i++
             while (i < lines.size && !lines[i].trimStart().startsWith("```")) {
                 codeLines.add(lines[i]); i++
             }
             if (i < lines.size) i++
-            out += RenderBlock.Code(codeLines.joinToString("\n"))
+            out += RenderBlock.Code(language, codeLines.joinToString("\n"))
             continue
         }
 

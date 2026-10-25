@@ -257,18 +257,18 @@ class AgentLifecycleTrackerPanelTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val expand = context.getString(R.string.agent_trace_expand_group)
         listOf(
-            R.string.agent_trace_group_files to 0,
-            R.string.agent_trace_group_commands to 0,
-            R.string.agent_trace_group_tools to 0,
-            R.string.agent_trace_group_search to 0,
-            R.string.agent_trace_group_memory to 0,
-            R.string.agent_trace_group_tasks to 0,
-            R.string.agent_trace_group_tasks to 1,
-        ).forEachIndexed { index, (titleRes, occurrence) ->
+            R.string.agent_trace_group_files,
+            R.string.agent_trace_group_commands,
+            R.string.agent_trace_group_tools,
+            R.string.agent_trace_group_search,
+            R.string.agent_trace_group_memory,
+            R.string.agent_trace_group_tasks,
+            R.string.agent_trace_group_tasks,
+        ).forEachIndexed { index, titleRes ->
             composeRule.onNodeWithTag("agent-trace-list").performScrollToIndex(index * 2)
             composeRule.onAllNodesWithContentDescription(
                 "${context.getString(titleRes)} · 1. $expand",
-            ).get(occurrence).performClick()
+            ).get(0).performClick()
         }
     }
     private fun fixtureProjection(): UnifiedExecutionTraceProjection {

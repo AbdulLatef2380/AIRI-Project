@@ -255,7 +255,7 @@ jobs:
         sdkmanager --install "ndk;25.2.9519653"
         sdkmanager --install "cmake;3.22.1"
     - name: Grant execute permission
-      run: chmod +x gradlew .github/scripts/run-instrumentation.sh .github/scripts/set-emulator-locale.sh
+      run: chmod +x gradlew .github/scripts/run-instrumentation.sh .github/scripts/run-instrumentation-traced.sh .github/scripts/set-emulator-locale.sh
     - name: Prepare instrumentation APKs
       run: |
         ./gradlew --no-daemon --max-workers=1 \
@@ -275,8 +275,13 @@ jobs:
         disable-animations: true
         emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory ${{ matrix.memory }} -cores ${{ matrix.cores }}
         script: |
-          bash .github/scripts/set-emulator-locale.sh "$EXPECTED_LOCALE"
-          bash .github/scripts/run-instrumentation.sh
+          if [ "$EXPECTED_API_LEVEL" = "34" ] && [ "$EXPECTED_LOCALE" = "ar-SA" ]; then
+            export INSTRUMENTATION_TRACE_DIR="ci-instrumentation-${EXPECTED_API_LEVEL}-${EXPECTED_LOCALE}/runtime"
+            bash .github/scripts/run-instrumentation-traced.sh "$EXPECTED_LOCALE"
+          else
+            bash .github/scripts/set-emulator-locale.sh "$EXPECTED_LOCALE"
+            bash .github/scripts/run-instrumentation.sh
+          fi
 
     - name: Collect matrix evidence
       if: always()

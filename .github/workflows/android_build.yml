@@ -247,7 +247,10 @@ jobs:
         EXPECTED_LOCALE: ${{ matrix.locale }}
       with:
         api-level: ${{ matrix.api-level }}
-        target: default
+        # The API 34 default image intermittently loses PackageManager/Binder
+        # state on hosted runners before instrumentation discovery. The
+        # Google APIs image is the stable API 34 image for this matrix.
+        target: google_apis
         arch: x86_64
         disable-animations: true
         emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 2048

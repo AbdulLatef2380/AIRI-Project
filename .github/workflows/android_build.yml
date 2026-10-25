@@ -216,18 +216,22 @@ jobs:
             locale: en-US
             memory: 2048
             cores: 2
+            target: google_apis
           - api-level: 29
             locale: ar-SA
             memory: 4096
             cores: 4
+            target: google_apis
           - api-level: 34
             locale: en-US
             memory: 4096
             cores: 4
+            target: default
           - api-level: 34
             locale: ar-SA
             memory: 4096
             cores: 4
+            target: default
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
@@ -266,10 +270,7 @@ jobs:
         EXPECTED_LOCALE: ${{ matrix.locale }}
       with:
         api-level: ${{ matrix.api-level }}
-        # The API 34 default image intermittently loses PackageManager/Binder
-        # state on hosted runners before instrumentation discovery. The
-        # Google APIs image is the stable API 34 image for this matrix.
-        target: google_apis
+        target: ${{ matrix.target }}
         arch: x86_64
         disable-animations: true
         emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory ${{ matrix.memory }} -cores ${{ matrix.cores }}

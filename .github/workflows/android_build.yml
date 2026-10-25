@@ -207,8 +207,27 @@ jobs:
         # API 35's hosted system image does not reach sys.boot_completed on
         # the current GitHub runner. Keep a stable legacy baseline and the
         # latest stable image that boots reliably in this matrix.
-        api-level: [29, 34]
-        locale: [en-US, ar-SA]
+        # Arabic and API 34 runs exercise a heavier RTL/GMS path and have
+        # repeatedly shown Binder/package-manager pressure at the 2 GiB
+        # default guest budget. Keep the English API 29 baseline unchanged,
+        # and size only the affected matrix entries explicitly.
+        include:
+          - api-level: 29
+            locale: en-US
+            memory: 2048
+            cores: 2
+          - api-level: 29
+            locale: ar-SA
+            memory: 4096
+            cores: 4
+          - api-level: 34
+            locale: en-US
+            memory: 4096
+            cores: 4
+          - api-level: 34
+            locale: ar-SA
+            memory: 4096
+            cores: 4
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
@@ -253,7 +272,7 @@ jobs:
         target: google_apis
         arch: x86_64
         disable-animations: true
-        emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 2048
+        emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory ${{ matrix.memory }} -cores ${{ matrix.cores }}
         script: |
           bash .github/scripts/set-emulator-locale.sh "$EXPECTED_LOCALE"
           bash .github/scripts/run-instrumentation.sh

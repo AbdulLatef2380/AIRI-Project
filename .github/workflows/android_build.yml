@@ -224,13 +224,13 @@ jobs:
             target: google_apis
           - api-level: 34
             locale: en-US
-            memory: 4096
-            cores: 2
+            memory: 6144
+            cores: 4
             target: google_apis
           - api-level: 34
             locale: ar-SA
-            memory: 4096
-            cores: 2
+            memory: 6144
+            cores: 4
             target: google_apis
     steps:
     - name: Checkout Repository
@@ -264,7 +264,7 @@ jobs:
           :app:assembleDebugAndroidTest --stacktrace
     - name: Run locale instrumentation
       uses: reactivecircus/android-emulator-runner@v2
-      timeout-minutes: 35
+      timeout-minutes: 45
       env:
         EXPECTED_API_LEVEL: ${{ matrix.api-level }}
         EXPECTED_LOCALE: ${{ matrix.locale }}

@@ -68,7 +68,7 @@ private class HybridOrchestratorModelBridge(
                 request    = request,
                 context    = context,
                 onToken    = { token -> sb.append(token) },
-                onComplete = { _, _, _ -> },
+                onComplete = { _, _, _, _ -> },
                 onError    = { err, _ -> errorMsg = err }
             )
         } catch (e: Exception) {

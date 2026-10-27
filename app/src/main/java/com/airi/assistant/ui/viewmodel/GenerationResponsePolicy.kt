@@ -1,6 +1,8 @@
 package com.airi.assistant.ui.viewmodel
 
 import com.airi.assistant.agent.loop.AgentLoop
+import com.airi.assistant.execution.CompletionMetadata
+import com.airi.assistant.execution.CompletionReason
 
 /** Terminal classification for one user-visible generation. */
 enum class GenerationResponseStatus {
@@ -27,6 +29,18 @@ object GenerationResponsePolicy {
      * contains an unclosed fenced artifact. Keep that distinction visible to
      * the UI instead of presenting a cut-off program as a finished answer.
      */
+    fun classify(
+        terminalState: AgentLoop.TerminalState,
+        content: String,
+        metadata: CompletionMetadata,
+    ): GenerationResponseStatus {
+        if (metadata.reason == CompletionReason.CONTENT_FILTER) return GenerationResponseStatus.FAILURE
+        if (metadata.reason == CompletionReason.LENGTH_LIMIT || metadata.reason == CompletionReason.CONNECTION_LOST) {
+            return if (content.isBlank()) GenerationResponseStatus.FAILURE else GenerationResponseStatus.INCOMPLETE
+        }
+        return classify(terminalState, content)
+    }
+
     fun classify(terminalState: AgentLoop.TerminalState, content: String): GenerationResponseStatus {
         val base = classify(terminalState)
         return if (base == GenerationResponseStatus.SUCCESS && hasUnclosedFence(content)) {

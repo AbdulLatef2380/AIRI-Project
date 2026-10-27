@@ -264,6 +264,7 @@ data class ExecutionErrorProjection(
     val sessionId: String? = null,
     val replyToMessageId: Long? = null,
     val partialResponseSaved: Boolean = false,
+    val continuationPrompt: String? = null,
 )
 
 enum class ExecutionStage {
@@ -1346,7 +1347,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         ),
                         context    = appContext,
                         onToken    = { tok -> buf.append(tok) },
-                        onComplete = { text, _, _ -> if (text.isNotBlank()) { buf.clear(); buf.append(text) } },
+                        onComplete = { text, _, _, _ -> if (text.isNotBlank()) { buf.clear(); buf.append(text) } },
                         onError    = { err, _ -> Log.w("AIRI_AEE", "LLM planner error: $err") }
                     )
                     buf.toString().trim()
@@ -2506,7 +2507,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
                 val streamedAnswer = (streamAccumulator.toString() + reasoningParser.finish()).trim()
-                val responseStatus = GenerationResponsePolicy.classify(loopResult.terminalState, streamedAnswer)
+                val responseStatus = GenerationResponsePolicy.classify(loopResult.terminalState, streamedAnswer, loopResult.completionMetadata)
                 val normalizedAnswer = if (responseStatus == GenerationResponseStatus.SUCCESS) {
                     ReasoningStreamParser.extractAnswer(loopResult.finalAnswer).ifBlank { streamedAnswer }
                 } else streamedAnswer
@@ -2543,6 +2544,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             sessionId = sessionId,
                             replyToMessageId = userMessage.id,
                             partialResponseSaved = partialSaved,
+                            continuationPrompt = ResponseContinuationPolicy.buildPrompt(
+                                streamedAnswer,
+                                loopResult.completionMetadata.rawReason ?: loopResult.completionMetadata.reason.name,
+                            ),
                         )
                         return@launch
                     }

@@ -8,6 +8,7 @@ import com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy
 import com.airi.assistant.agent.loop.tool.ToolDispatcher
 import com.airi.assistant.agent.loop.tool.ToolSchema
 import com.airi.assistant.agent.loop.tool.ToolSpecAdapter
+import com.airi.assistant.ai.OutputBudgetPolicy
 import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.ResponseDepth
 import com.airi.assistant.ai.ResponseDepthPolicy
@@ -15,6 +16,7 @@ import com.airi.assistant.ai.ResponseOptimizer
 import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.core.UniversalRuntimeTraceRecorder
+import com.airi.assistant.execution.CompletionMetadata
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.AgentPromptTokenEstimator
 import com.airi.assistant.execution.ExecutionIdentity
@@ -116,6 +118,7 @@ the tool returns an actual error.
         val toolsInvoked: List<String>,
         val terminalState: TerminalState = TerminalState.SUCCESS,
         val failureMessage: String? = null,
+        val completionMetadata: CompletionMetadata = CompletionMetadata(),
     )
 
     enum class TerminalState { SUCCESS, FAILURE, TIMEOUT, CANCELLED, NO_RESPONSE }
@@ -188,6 +191,7 @@ the tool returns an actual error.
             )
         }
         val toolsInvoked = mutableListOf<String>()
+        var completionMetadata = CompletionMetadata()
         val history      = priorConversation.mapNotNull { turn ->
             when (turn.role.lowercase()) {
                 "user" -> ConversationTurn.User(turn.content)
@@ -356,6 +360,7 @@ the tool returns an actual error.
                     onToken = onToken,
                     identity = requestIdentity,
                     localHistoryStartIndex = priorHistoryCount,
+                    onCompletionMetadata = { completionMetadata = it },
                 )
                 runtimeTrace?.modelResponse(
                     executionId = executionId,
@@ -367,10 +372,10 @@ the tool returns an actual error.
                 runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = if (response.isBlank()) "NO_RESPONSE" else "SUCCESS")
                 return@withTimeout if (response.isBlank()) {
                     ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
-                    LoopResult("", 1, emptyList(), terminalState = TerminalState.NO_RESPONSE)
+                    LoopResult("", 1, emptyList(), terminalState = TerminalState.NO_RESPONSE, completionMetadata = completionMetadata)
                 } else {
                     ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
-                    LoopResult(response, 1, emptyList(), terminalState = TerminalState.SUCCESS)
+                    LoopResult(response, 1, emptyList(), terminalState = TerminalState.SUCCESS, completionMetadata = completionMetadata)
                 }
             }
 
@@ -404,6 +409,7 @@ the tool returns an actual error.
                     },
                     identity      = requestIdentity,
                     localHistoryStartIndex = priorHistoryCount,
+                    onCompletionMetadata = { completionMetadata = it },
                 )
 
                 Log.d(TAG, "Agent step completed: step=$stepsUsed responseChars=${rawResponse.length}")
@@ -417,7 +423,7 @@ the tool returns an actual error.
                 if (rawResponse.isBlank()) {
                     runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = "NO_RESPONSE")
                     ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
-                    return@withTimeout LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.NO_RESPONSE)
+                    return@withTimeout LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.NO_RESPONSE, completionMetadata = completionMetadata)
                 }
 
                 // Parse: tool_call block or final answer?
@@ -480,6 +486,7 @@ the tool returns an actual error.
                             onToken        = {},   // don't stream retry to UI
                             identity       = requestIdentity,
                             localHistoryStartIndex = priorHistoryCount,
+                            onCompletionMetadata = { completionMetadata = it },
                         )
                     } catch (e: CancellationException) {
                         throw e
@@ -529,7 +536,7 @@ the tool returns an actual error.
                     onStepComplete(StepEvent.FinalAnswer(rawResponse, stepsUsed))
                     runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = "SUCCESS")
                     ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
-                    return@withTimeout LoopResult(rawResponse, stepsUsed, toolsInvoked)
+                    return@withTimeout LoopResult(rawResponse, stepsUsed, toolsInvoked, completionMetadata = completionMetadata)
                 }
 
                 // Execute the tool
@@ -865,10 +872,10 @@ the tool returns an actual error.
             )
             if (summary.isBlank()) {
                 ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
-                return@withTimeout LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.NO_RESPONSE)
+                return@withTimeout LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.NO_RESPONSE, completionMetadata = completionMetadata)
             }
             ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
-            return@withTimeout LoopResult(summary, stepsUsed, toolsInvoked, terminalState = TerminalState.SUCCESS)
+            return@withTimeout LoopResult(summary, stepsUsed, toolsInvoked, terminalState = TerminalState.SUCCESS, completionMetadata = completionMetadata)
             }
 
         } catch (e: TimeoutCancellationException) {
@@ -889,6 +896,7 @@ the tool returns an actual error.
                 toolsInvoked = toolsInvoked,
                 terminalState = TerminalState.TIMEOUT,
                 failureMessage = "Agent execution timed out.",
+                completionMetadata = completionMetadata,
             )
         } catch (e: CancellationException) {
             activeToolTrace?.let { active ->
@@ -901,7 +909,7 @@ the tool returns an actual error.
                 )
             }
             ExecutionStatusBus.onGraphCancelled(executionId)
-            return LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.CANCELLED)
+            return LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.CANCELLED, completionMetadata = completionMetadata)
         } catch (e: Exception) {
             ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
             Log.e(TAG, "AgentLoop failed type=${e.javaClass.simpleName}")
@@ -911,6 +919,7 @@ the tool returns an actual error.
                 toolsInvoked = toolsInvoked,
                 terminalState = TerminalState.FAILURE,
                 failureMessage = e.message,
+                completionMetadata = completionMetadata,
             )
         }
     }
@@ -931,6 +940,7 @@ the tool returns an actual error.
         onToken:       suspend (String) -> Unit,
         identity:      ExecutionIdentity,
         localHistoryStartIndex: Int = 0,
+        onCompletionMetadata: (CompletionMetadata) -> Unit = {},
     ): String {
         val requestTurns = history.map { turn ->
             when (turn) {
@@ -1039,7 +1049,10 @@ the tool returns an actual error.
                     }
                 }
             },
-            onComplete = { text, _, _ -> if (text.isNotBlank()) { buf.clear(); buf.append(text) } },
+            onComplete = { text, _, _, metadata ->
+                onCompletionMetadata(metadata)
+                if (text.isNotBlank()) { buf.clear(); buf.append(text) }
+            },
             onError    = { msg, _ -> error = msg }
         )
 
@@ -1058,26 +1071,13 @@ the tool returns an actual error.
         queryType: QueryType,
         estimatedPromptTokens: Int,
         providerId: String,
-    ): Int {
-        val depth = ResponseDepthPolicy.resolve(input, queryType)
-        val requested = when (depth) {
-            ResponseDepth.BRIEF -> 384
-            ResponseDepth.STANDARD -> 1_024
-            ResponseDepth.DETAILED -> when (queryType) {
-                QueryType.ANALYTICAL -> 4_096
-                QueryType.CREATIVE -> 3_072
-                else -> 2_560
-            }
-        }
-        val local = providerId.isBlank() || providerId.equals("local", ignoreCase = true)
-        if (!local) return requested
-        val budget = runCatching { contextBudgetProvider() }.getOrDefault(ContextBudget.UNLOADED)
-        return ResponseOptimizer.localOutputTokenCap(
-            nCtx = budget.nCtx,
-            estimatedPromptTokens = estimatedPromptTokens,
-            requestedMaxTokens = requested,
-        )
-    }
+    ): Int = OutputBudgetPolicy.effectiveTokens(
+        input = input,
+        queryType = queryType,
+        estimatedPromptTokens = estimatedPromptTokens,
+        providerId = providerId,
+        budget = runCatching { contextBudgetProvider() }.getOrDefault(ContextBudget.UNLOADED),
+    )
 
     // ── Tool schema → system prompt block ─────────────────────────────────────
 

@@ -71,6 +71,7 @@ class AssistantContentClassifierTest {
         val result = AssistantContentClassifier.analyse("شرح عربي\n```kotlin\nval x = 1", isStreaming = true)
         assertEquals(AssistantContentKind.STREAMING_CONTENT, result.kind)
         assertTrue(result.containsCode)
+        assertEquals(false, result.codeBlocks.single().isComplete)
     }
 
     @Test fun emptyResponseIsEmptyState() {

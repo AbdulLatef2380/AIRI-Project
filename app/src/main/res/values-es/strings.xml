@@ -1999,4 +1999,14 @@
     <string name="github_project_repositories_not_loaded">Los repositorios aún no se han cargado desde el Broker.</string>
     <string name="github_project_repositories_empty">El Broker no devolvió repositorios disponibles para este proyecto.</string>
     <string name="github_project_repositories_save">Guardar selección de repositorios</string>
+    <string name="continue_response">Continuar respuesta</string>
+
+    <string name="artifact_copied">Copied reusable content</string>
+    <string name="artifact_expand">Open full content</string>
+    <string name="artifact_save">Save content</string>
+    <string name="artifact_save_failed">Could not save content</string>
+    <string name="artifact_saved">Content saved</string>
+    <string name="artifact_share">Share content</string>
+    <string name="artifact_share_failed">Could not open sharing</string>
+    <string name="err_incomplete_response">The response ended before a complete reusable block was received. Review the saved partial response or retry.</string>
 </resources>

@@ -86,7 +86,13 @@ fun MarkdownText(
                 }
                 is RenderBlock.Code -> {
                     Spacer(Modifier.height(6.dp))
-                    CodeBlockCard(block.language, block.text, codeBack, codeFore, onCopyCode)
+                    if (block.complete) {
+                        CodeBlockCard(block.language, block.text, codeBack, codeFore, onCopyCode)
+                    } else {
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                            Text(block.text, color = codeFore, fontFamily = FontFamily.Monospace, fontSize = 13.sp, softWrap = false)
+                        }
+                    }
                     Spacer(Modifier.height(4.dp))
                 }
                 is RenderBlock.HRule -> {
@@ -111,7 +117,7 @@ private sealed class RenderBlock {
         val fontSizeSp : Float       = 15f,
         val fontWeight : FontWeight? = null
     ) : RenderBlock()
-    data class Code(val language: String, val text: String) : RenderBlock()
+    data class Code(val language: String, val text: String, val complete: Boolean) : RenderBlock()
     object HRule : RenderBlock()
 }
 
@@ -137,8 +143,9 @@ private fun buildRenderBlocks(
             while (i < lines.size && !lines[i].trimStart().startsWith("```")) {
                 codeLines.add(lines[i]); i++
             }
-            if (i < lines.size) i++
-            out += RenderBlock.Code(language, codeLines.joinToString("\n"))
+            val complete = i < lines.size
+            if (complete) i++
+            out += RenderBlock.Code(language, codeLines.joinToString("\n"), complete)
             continue
         }
 

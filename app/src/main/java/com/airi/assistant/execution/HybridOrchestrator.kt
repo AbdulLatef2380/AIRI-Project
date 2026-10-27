@@ -129,14 +129,14 @@ class HybridOrchestrator(
      * @param request     Fully-formed execution request.
      * @param context     Android Context for device signals.
      * @param onToken     Per-token callback (may fire from IO thread).
-     * @param onComplete  Called exactly once on success: (fullText, latencyMs, origin).
+     * @param onComplete  Called exactly once on success: (fullText, latencyMs, origin, metadata).
      * @param onError     Called exactly once when ALL backends fail: (message, origin).
      */
     suspend fun executeStream(
         request:    ExecutionRequest,
         context:    Context,
         onToken:    suspend (String) -> Unit,
-        onComplete: suspend (String, Long, ExecOrigin) -> Unit,
+        onComplete: suspend (String, Long, ExecOrigin, CompletionMetadata) -> Unit,
         onError:    suspend (String, ExecOrigin)       -> Unit
     ) = executionLock.withLock {
         val genId = generationGate.beginGeneration()
@@ -292,7 +292,7 @@ class HybridOrchestrator(
                         onToken(token)
                     }
                 },
-                onComplete = { fullText, latencyMs ->
+                onComplete = { fullText, latencyMs, completionMetadata ->
                     val streamedText = attemptBuffer.toString()
                     val committedText = fullText.ifBlank { streamedText }
                     val streamMatchesFinal = streamedText.isBlank() || committedText.startsWith(streamedText)
@@ -317,7 +317,7 @@ class HybridOrchestrator(
                             onToken(committedText.substring(streamedText.length))
                         }
                         move(ExecutionLifecycleState.COMPLETED)
-                        onComplete(committedText, latencyMs, backend.origin)
+                        onComplete(committedText, latencyMs, backend.origin, completionMetadata)
                     }
                 },
                 onError    = { error ->
@@ -400,7 +400,7 @@ class HybridOrchestrator(
         backend:    RuntimeBackend,
         request:    ExecutionRequest,
         onToken:    suspend (String) -> Unit,
-        onComplete: suspend (String, Long, ExecOrigin) -> Unit,
+        onComplete: suspend (String, Long, ExecOrigin, CompletionMetadata) -> Unit,
         onError:    suspend (String, ExecOrigin)       -> Unit
     ) {
         updateDiagnostics { copy(activeBackend = backend.id, activeOrigin = backend.origin) }
@@ -411,10 +411,10 @@ class HybridOrchestrator(
                 onToken    = { token ->
                     if (generationGate.accepts(genId)) onToken(token)
                 },
-                onComplete = { fullText, latencyMs ->
+                onComplete = { fullText, latencyMs, completionMetadata ->
                     if (generationGate.accepts(genId)) {
                         updateDiagnostics { copy(isStreaming = false, lastStreamDurationMs = latencyMs) }
-                        onComplete(fullText, latencyMs, backend.origin)
+                        onComplete(fullText, latencyMs, backend.origin, completionMetadata)
                     }
                 },
                 onError    = { error ->

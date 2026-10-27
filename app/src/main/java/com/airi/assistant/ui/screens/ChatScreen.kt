@@ -2319,7 +2319,7 @@ fun ChatMessageList(
             ) {
                 executionError?.let { failure ->
                     item(key = "execution-error-${failure.executionId}", contentType = "execution-error") {
-                        ExecutionErrorBubble(failure)
+                        ExecutionErrorBubble(failure) { prompt -> viewModel.updateComposerText(prompt) }
                     }
                 }
                 if (streamingText.isNotEmpty() && isGenerating) {
@@ -3026,7 +3026,7 @@ private fun FullscreenResponseViewer(
 }
 
 @Composable
-private fun ExecutionErrorBubble(error: ExecutionErrorProjection) {
+private fun ExecutionErrorBubble(error: ExecutionErrorProjection, onContinue: (String) -> Unit = {}) {
     val message = error.messageResId?.let { stringResource(it) } ?: error.message
     val stageLabel = stringResource(
         when (error.stage) {
@@ -3086,6 +3086,11 @@ private fun ExecutionErrorBubble(error: ExecutionErrorProjection) {
                         fontSize = 11.sp,
                         lineHeight = 15.sp
                     )
+                }
+                error.continuationPrompt?.let { prompt ->
+                    TextButton(onClick = { onContinue(prompt) }) {
+                        Text(stringResource(R.string.continue_response))
+                    }
                 }
             }
         }

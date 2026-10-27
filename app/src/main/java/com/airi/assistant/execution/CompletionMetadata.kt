@@ -29,12 +29,13 @@ data class CompletionMetadata(
         fun fromProvider(providerId: String, rawReason: String?): CompletionMetadata {
             val normalized = rawReason?.trim()?.uppercase().orEmpty()
             val reason = when (normalized) {
-                "STOP", "END_TURN", "COMPLETED", "DONE" -> CompletionReason.STOP
+                "STOP", "END_TURN", "COMPLETED", "DONE", "MESSAGE_STOP", "LOCAL_NATIVE_COMPLETE" -> CompletionReason.STOP
                 "LENGTH", "MAX_TOKENS", "MAX_OUTPUT_TOKENS", "TOKEN_LIMIT", "MODEL_LENGTH" -> CompletionReason.LENGTH_LIMIT
                 "SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "CONTENT_FILTER", "SPII", "IMAGE_SAFETY" -> CompletionReason.CONTENT_FILTER
                 "TOOL_CALLS", "FUNCTION_CALL", "TOOL_USE" -> CompletionReason.TOOL_CALLS
                 "CANCELLED", "CANCELED" -> CompletionReason.CANCELLED
                 "ERROR", "FAILED" -> CompletionReason.ERROR
+                "CONNECTION_LOST", "DISCONNECTED", "EOF", "NETWORK_ERROR" -> CompletionReason.CONNECTION_LOST
                 else -> CompletionReason.UNKNOWN
             }
             return CompletionMetadata(reason, rawReason?.takeIf { it.isNotBlank() }, providerId)

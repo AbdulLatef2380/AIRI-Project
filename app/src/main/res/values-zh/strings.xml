@@ -1999,4 +1999,14 @@
     <string name="github_project_repositories_not_loaded">尚未从 Broker 加载仓库。</string>
     <string name="github_project_repositories_empty">Broker 未返回此项目可用的仓库。</string>
     <string name="github_project_repositories_save">保存仓库选择</string>
+    <string name="continue_response">继续回复</string>
+
+    <string name="artifact_copied">Copied reusable content</string>
+    <string name="artifact_expand">Open full content</string>
+    <string name="artifact_save">Save content</string>
+    <string name="artifact_save_failed">Could not save content</string>
+    <string name="artifact_saved">Content saved</string>
+    <string name="artifact_share">Share content</string>
+    <string name="artifact_share_failed">Could not open sharing</string>
+    <string name="err_incomplete_response">The response ended before a complete reusable block was received. Review the saved partial response or retry.</string>
 </resources>

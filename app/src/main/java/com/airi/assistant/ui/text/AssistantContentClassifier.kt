@@ -24,7 +24,7 @@ data class AssistantContentAnalysis(
     val codeBlocks: List<AssistantCodeBlock> = emptyList(),
 )
 
-data class AssistantCodeBlock(val language: String, val code: String)
+data class AssistantCodeBlock(val language: String, val code: String, val isComplete: Boolean = true)
 
 /**
  * Classifies before rendering. Incomplete fences are deliberately retained as
@@ -42,6 +42,7 @@ object AssistantContentClassifier {
             direction = AssistantContentKind.PLAIN_TEXT,
         )
         val codeBlocks = fencedCodeBlocks(text)
+        val hasCompleteCode = codeBlocks.any { it.isComplete }
         val hasFence = text.contains("```")
         val incompleteFence = hasFence && text.split("```").size % 2 == 0
         val hasTable = isMarkdownTable(text)
@@ -56,19 +57,19 @@ object AssistantContentClassifier {
             isStreaming && (hasFence || incompleteFence) -> AssistantContentKind.STREAMING_CONTENT
             long -> AssistantContentKind.RICH_CONTENT
             hasTable -> AssistantContentKind.TABLE
-            codeBlocks.isNotEmpty() -> AssistantContentKind.CODE_BLOCK
+            hasCompleteCode -> AssistantContentKind.CODE_BLOCK
             looksStructured(text) -> AssistantContentKind.STRUCTURED_CODE
             looksMarkdown(text) -> AssistantContentKind.MARKDOWN
             direction == AssistantContentKind.MIXED_DIRECTION -> AssistantContentKind.MIXED_DIRECTION
             else -> AssistantContentKind.PLAIN_TEXT
         }
-        return AssistantContentAnalysis(kind, codeBlocks.isNotEmpty() || hasFence, hasTable, long, direction, codeBlocks)
+        return AssistantContentAnalysis(kind, codeBlocks.any { it.isComplete } || hasFence, hasTable, long, direction, codeBlocks)
     }
 
     fun fencedCodeBlocks(text: String): List<AssistantCodeBlock> {
         val regex = Regex("```([A-Za-z0-9_+#.-]*)\\s*\\n?([\\s\\S]*?)(?:```|$)")
         return regex.findAll(text).map { match ->
-            AssistantCodeBlock(match.groupValues[1].ifBlank { "text" }, match.groupValues[2].trimEnd())
+            AssistantCodeBlock(match.groupValues[1].ifBlank { "text" }, match.groupValues[2].trimEnd(), match.value.trimEnd().endsWith("```"))
         }.toList()
     }
 

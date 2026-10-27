@@ -1730,6 +1730,7 @@
     <string name="err_generation_failed">Unable to generate a response. Please try again.</string>
     <string name="err_empty_response">The model completed without returning an answer. Check the model or provider and try again.</string>
     <string name="err_incomplete_response">The response ended before a complete reusable block was received. Review the saved partial response or retry.</string>
+    <string name="continue_response">Continue response</string>
     <string name="err_agent_loop_timeout">AIRI reached its processing deadline before completing a response. Any partial output was not treated as a complete answer.</string>
     <string name="err_cloud_credentials_invalid">The saved API key for this provider is invalid. Check its settings and try again.</string>
     <string name="err_cloud_model_unavailable">The selected model is not available from this provider. Choose another model or verify provider settings.</string>

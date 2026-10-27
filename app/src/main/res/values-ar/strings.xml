@@ -1631,6 +1631,7 @@
     <string name="err_generation_failed">تعذّر إنشاء الاستجابة. حاول مرة أخرى.</string>
     <string name="err_empty_response">اكتمل التوليد دون وصول إجابة. تحقق من النموذج أو المزوّد ثم حاول مرة أخرى.</string>
     <string name="err_incomplete_response">انتهى الرد قبل استلام المخرج القابل لإعادة الاستخدام كاملاً. راجع الرد الجزئي المحفوظ أو حاول مرة أخرى.</string>
+    <string name="continue_response">متابعة الرد</string>
     <string name="err_agent_loop_timeout">انتهت مهلة المعالجة قبل اكتمال رد AIRI؛ لم تُعامل أي مخرجات جزئية على أنها إجابة كاملة.</string>
     <string name="err_cloud_credentials_invalid">مفتاح API المحفوظ لهذا الموفّر غير صالح. تحقّق من إعداداته وحاول مجددًا.</string>
     <string name="err_cloud_model_unavailable">النموذج المحدد غير متاح لدى هذا الموفّر. اختر نموذجًا آخر أو تحقّق من إعدادات الموفّر.</string>

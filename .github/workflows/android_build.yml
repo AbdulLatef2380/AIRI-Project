@@ -254,6 +254,22 @@ jobs:
         sdkmanager --install "build-tools;36.0.0"
         sdkmanager --install "ndk;25.2.9519653"
         sdkmanager --install "cmake;3.22.1"
+    - name: Preinstall emulator with bounded retry
+      run: |
+        set -euo pipefail
+        for attempt in 1 2 3; do
+          if sdkmanager --install "emulator" --channel=0; then
+            echo "Android Emulator installation succeeded on attempt ${attempt}."
+            break
+          fi
+          if [ "${attempt}" -eq 3 ]; then
+            echo "Android Emulator installation failed after ${attempt} attempts." >&2
+            exit 1
+          fi
+          echo "Android Emulator installation failed; removing any partial package before retry ${attempt}..." >&2
+          rm -rf "${ANDROID_SDK_ROOT:-${ANDROID_HOME}}/emulator"
+          sleep 5
+        done
     - name: Grant execute permission
       run: chmod +x gradlew .github/scripts/run-instrumentation.sh .github/scripts/run-instrumentation-traced.sh .github/scripts/run-instrumentation-dispatch.sh .github/scripts/set-emulator-locale.sh
     - name: Prepare instrumentation APKs

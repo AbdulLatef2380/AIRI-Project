@@ -10,6 +10,7 @@ import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.ExecutionResult
 import com.airi.assistant.execution.CompletionMetadata
+import com.airi.assistant.execution.CompletionReason
 import com.airi.assistant.execution.cloud.CloudAdapterFactory
 import com.airi.assistant.execution.cloud.CloudErrorType
 import com.airi.assistant.execution.cloud.CloudProviderAdapter
@@ -215,7 +216,8 @@ class CloudBackend(
                 promptTok = 0
                 compTok = 0
                 var attemptEmittedAnyToken = false
-                val attemptResult = adapter.streamGenerate(
+                val attemptResult = streamWithAutomaticContinuation(
+                    adapter = adapter,
                     request = targetRequest,
                     onToken = { token ->
                         if (token.isNotEmpty()) {
@@ -345,6 +347,91 @@ class CloudBackend(
         }
     }
 
+    /** Continue length-limited cloud responses internally instead of asking the user to tap Continue. */
+    private suspend fun streamWithAutomaticContinuation(
+        adapter: CloudProviderAdapter,
+        request: ExecutionRequest,
+        onToken: suspend (String) -> Unit,
+        onUsage: suspend (Int, Int) -> Unit,
+    ): CloudProviderAdapter.AdapterResult {
+        val aggregate = StringBuilder()
+        var nextRequest = request
+        var totalPromptTokens = 0
+        var totalCompletionTokens = 0
+        var lastSuccess: CloudProviderAdapter.AdapterResult.Success? = null
+
+        repeat(MAX_CONTINUATION_HOPS) { hop ->
+            val hopText = StringBuilder()
+            val result = adapter.streamGenerate(
+                request = nextRequest,
+                onToken = { token ->
+                    hopText.append(token)
+                    // Preserve normal token-by-token streaming for the first
+                    // provider request. Continuation hops are held briefly so
+                    // overlap removal can prevent duplicated text.
+                    if (hop == 0 && token.isNotEmpty()) onToken(token)
+                },
+                onUsage = { prompt, completion ->
+                    totalPromptTokens += prompt
+                    totalCompletionTokens += completion
+                },
+            )
+            if (result is CloudProviderAdapter.AdapterResult.Failure) return result
+
+            val success = result as CloudProviderAdapter.AdapterResult.Success
+            val emitted = success.fullText.ifBlank { hopText.toString() }
+            if (emitted.isBlank()) return success
+            if (hop == 0) {
+                aggregate.append(emitted)
+            } else {
+                val overlap = suffixPrefixOverlap(aggregate.toString(), emitted)
+                val suffix = emitted.drop(overlap)
+                aggregate.append(suffix)
+                if (suffix.isNotEmpty()) onToken(suffix)
+            }
+            lastSuccess = success
+
+            if (success.completion.reason != CompletionReason.LENGTH_LIMIT || hop == MAX_CONTINUATION_HOPS - 1) {
+                onUsage(totalPromptTokens, totalCompletionTokens)
+                return success.copy(
+                    fullText = aggregate.toString(),
+                    promptTokens = totalPromptTokens,
+                    completionTokens = totalCompletionTokens,
+                )
+            }
+
+            RuntimeEventLog.post(
+                "CLOUD_BACKEND",
+                EventSeverity.INFO,
+                "Automatic continuation hop=${hop + 1}/$MAX_CONTINUATION_HOPS provider=${adapter.providerId} chars=${aggregate.length}",
+            )
+            nextRequest = request.copy(
+                prompt = "Continue the previous answer from exactly where it stopped. Do not repeat any text.",
+                conversationHistory = request.conversationHistory + listOf(
+                    ExecutionRequest.ConversationTurn("user", request.prompt),
+                    ExecutionRequest.ConversationTurn("assistant", aggregate.toString()),
+                ),
+                imageParts = emptyList(),
+                inlineDataParts = emptyList(),
+                attachmentTrace = null,
+            )
+        }
+
+        return lastSuccess ?: CloudProviderAdapter.AdapterResult.Failure(
+            error = "Cloud provider returned no response",
+            errorType = CloudErrorType.UNKNOWN,
+            retryable = false,
+        )
+    }
+
+    private fun suffixPrefixOverlap(previous: String, next: String): Int {
+        val max = minOf(previous.length, next.length, MAX_OVERLAP_CHARS)
+        for (length in max downTo 1) {
+            if (previous.takeLast(length) == next.take(length)) return length
+        }
+        return 0
+    }
+
     override suspend fun generate(request: ExecutionRequest): ExecutionResult =
         withContext(Dispatchers.IO) {
             if (cancelRequested.get()) {
@@ -460,6 +547,8 @@ class CloudBackend(
     companion object {
         private const val TAG         = "AIRI_CloudBackend"
         private const val MAX_RETRIES = 3
+        private const val MAX_CONTINUATION_HOPS = 8
+        private const val MAX_OVERLAP_CHARS = 2_000
 
         
         private val _globalRequestCount  = java.util.concurrent.atomic.AtomicInteger(0)

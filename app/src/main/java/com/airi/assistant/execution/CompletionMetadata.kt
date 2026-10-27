@@ -30,7 +30,8 @@ data class CompletionMetadata(
             val normalized = rawReason?.trim()?.uppercase().orEmpty()
             val reason = when (normalized) {
                 "STOP", "END_TURN", "COMPLETED", "DONE", "MESSAGE_STOP", "LOCAL_NATIVE_COMPLETE" -> CompletionReason.STOP
-                "LENGTH", "MAX_TOKENS", "MAX_OUTPUT_TOKENS", "TOKEN_LIMIT", "MODEL_LENGTH" -> CompletionReason.LENGTH_LIMIT
+                "LENGTH", "MAX_TOKENS", "MAX_OUTPUT_TOKENS", "TOKEN_LIMIT", "MODEL_LENGTH",
+                "INCOMPLETE", "INCOMPLETE_DETAILS", "PAUSE_TURN", "CONTINUATION" -> CompletionReason.LENGTH_LIMIT
                 "SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "CONTENT_FILTER", "SPII", "IMAGE_SAFETY" -> CompletionReason.CONTENT_FILTER
                 "TOOL_CALLS", "FUNCTION_CALL", "TOOL_USE" -> CompletionReason.TOOL_CALLS
                 "CANCELLED", "CANCELED" -> CompletionReason.CANCELLED

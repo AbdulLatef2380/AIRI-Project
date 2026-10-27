@@ -8,9 +8,9 @@ object OutputBudgetPolicy {
         ResponseDepth.BRIEF -> 384
         ResponseDepth.STANDARD -> 1_024
         ResponseDepth.DETAILED -> when (queryType) {
-            QueryType.ANALYTICAL -> 4_096
-            QueryType.CREATIVE -> 3_072
-            else -> 2_560
+            QueryType.ANALYTICAL -> 8_192
+            QueryType.CREATIVE -> 6_144
+            else -> 8_192
         }
     }
 

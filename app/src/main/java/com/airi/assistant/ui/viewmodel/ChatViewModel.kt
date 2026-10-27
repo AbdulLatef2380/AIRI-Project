@@ -264,7 +264,6 @@ data class ExecutionErrorProjection(
     val sessionId: String? = null,
     val replyToMessageId: Long? = null,
     val partialResponseSaved: Boolean = false,
-    val continuationPrompt: String? = null,
 )
 
 enum class ExecutionStage {
@@ -2544,10 +2543,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             sessionId = sessionId,
                             replyToMessageId = userMessage.id,
                             partialResponseSaved = partialSaved,
-                            continuationPrompt = ResponseContinuationPolicy.buildPrompt(
-                                streamedAnswer,
-                                loopResult.completionMetadata.rawReason ?: loopResult.completionMetadata.reason.name,
-                            ),
                         )
                         return@launch
                     }

@@ -8,7 +8,7 @@ readonly GRADLE_ARGS=(
   :app:connectedDebugAndroidTest
   --stacktrace
 )
-readonly TEST_TIMEOUT_SECONDS=900
+readonly TEST_TIMEOUT_SECONDS="${INSTRUMENTATION_TEST_TIMEOUT_SECONDS:-900}"
 readonly EXPECTED_API_LEVEL="${EXPECTED_API_LEVEL:-29}"
 
 dump_diagnostics() {

@@ -200,7 +200,7 @@ jobs:
   instrumentation_matrix:
     name: Instrumentation API ${{ matrix.api-level }} / ${{ matrix.locale }}
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: ${{ matrix.job_timeout_minutes }}
     strategy:
       fail-fast: false
       matrix:
@@ -217,21 +217,33 @@ jobs:
             memory: 4096
             cores: 4
             target: google_apis
+            job_timeout_minutes: 55
+            step_timeout_minutes: 45
+            test_timeout_seconds: 900
           - api-level: 29
             locale: ar-SA
             memory: 4096
             cores: 4
             target: google_apis
+            job_timeout_minutes: 55
+            step_timeout_minutes: 45
+            test_timeout_seconds: 900
           - api-level: 34
             locale: en-US
             memory: 6144
             cores: 4
             target: aosp_atd
+            job_timeout_minutes: 90
+            step_timeout_minutes: 75
+            test_timeout_seconds: 1800
           - api-level: 34
             locale: ar-SA
             memory: 6144
             cores: 4
             target: aosp_atd
+            job_timeout_minutes: 90
+            step_timeout_minutes: 75
+            test_timeout_seconds: 1800
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
@@ -280,10 +292,11 @@ jobs:
           :app:assembleDebugAndroidTest --stacktrace
     - name: Run locale instrumentation
       uses: reactivecircus/android-emulator-runner@v2
-      timeout-minutes: 45
+      timeout-minutes: ${{ matrix.step_timeout_minutes }}
       env:
         EXPECTED_API_LEVEL: ${{ matrix.api-level }}
         EXPECTED_LOCALE: ${{ matrix.locale }}
+        INSTRUMENTATION_TEST_TIMEOUT_SECONDS: ${{ matrix.test_timeout_seconds }}
       with:
         api-level: ${{ matrix.api-level }}
         target: ${{ matrix.target }}

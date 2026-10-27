@@ -593,6 +593,8 @@
     <string name="dismiss">Dismiss</string>
     <string name="copy">Copy</string>
     <string name="copy_code">Copy code</string>
+    <string name="copy_table">Copy table</string>
+    <string name="share_table">Share table</string>
     <string name="execution_review_passed_title">Execution checks passed</string>
     <string name="execution_review_passed_subtitle">Tool results were present and no plan step failed. This does not verify factual accuracy or code correctness.</string>
     <string name="execution_review_attention_title">Execution evidence needs review</string>
@@ -2336,6 +2338,7 @@
     <string name="agent_lifecycle_status_waiting">Waiting</string>
     <string name="agent_lifecycle_status_cancelled">Cancelled</string>
     <string name="artifact_copied">Copied reusable content</string>
+    <string name="table_copied">Copied table</string>
     <string name="artifact_expand">Open full content</string>
     <string name="artifact_share">Share content</string>
     <string name="artifact_save">Save content</string>

@@ -508,6 +508,8 @@
     <string name="dismiss">Descartar</string>
     <string name="copy">Copiar</string>
     <string name="copy_code">Copiar código</string>
+    <string name="copy_table">Copiar tabla</string>
+    <string name="share_table">Compartir tabla</string>
     <string name="execution_review_passed_title">Comprobaciones de ejecución superadas</string>
     <string name="execution_review_passed_subtitle">Las herramientas devolvieron resultados y ningún paso del plan falló. Esto no verifica los hechos ni la corrección del código.</string>
     <string name="execution_review_attention_title">Hay que revisar las pruebas de ejecución</string>
@@ -2002,6 +2004,7 @@
     <string name="continue_response">Continuar respuesta</string>
 
     <string name="artifact_copied">Contenido reutilizable copiado</string>
+    <string name="table_copied">Tabla copiada</string>
     <string name="artifact_expand">Abrir contenido completo</string>
     <string name="artifact_save">Guardar contenido</string>
     <string name="artifact_save_failed">No se pudo guardar el contenido</string>

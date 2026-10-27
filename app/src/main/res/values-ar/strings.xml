@@ -592,6 +592,8 @@
     <string name="dismiss">رفض</string>
     <string name="copy">نسخ</string>
     <string name="copy_code">نسخ الكود</string>
+    <string name="copy_table">نسخ الجدول</string>
+    <string name="share_table">مشاركة الجدول</string>
     <string name="execution_review_passed_title">اكتملت فحوص التنفيذ</string>
     <string name="execution_review_passed_subtitle">توفرت نتائج للأدوات ولم تفشل خطوات الخطة. لا يثبت ذلك صحة الحقائق أو الكود.</string>
     <string name="execution_review_attention_title">تحتاج أدلة التنفيذ إلى مراجعة</string>
@@ -2235,6 +2237,7 @@
     <string name="agent_lifecycle_status_waiting">قيد الانتظار</string>
     <string name="agent_lifecycle_status_cancelled">أُلغي</string>
     <string name="artifact_copied">تم نسخ المحتوى القابل لإعادة الاستخدام</string>
+    <string name="table_copied">تم نسخ الجدول</string>
     <string name="artifact_expand">فتح المحتوى كاملاً</string>
     <string name="artifact_share">مشاركة المحتوى</string>
     <string name="artifact_save">حفظ المحتوى</string>

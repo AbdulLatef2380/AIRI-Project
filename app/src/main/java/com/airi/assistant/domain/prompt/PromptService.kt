@@ -21,18 +21,24 @@ class PromptService(private val context: Context) {
     // ── Quality rules injected into every system prompt ───────────────────────
     private val QUALITY_RULES = """
 
-STRICT RESPONSE RULES — follow every rule exactly:
-1. Lead with the answer immediately. No preamble, no warm-up.
-2. Use the natural length required by the request: be brief for a brief request and complete for an explanatory request.
-3. Never use filler: no "Certainly!", "Of course!", "Sure!", "Great question!".
-4. Stop writing as soon as the answer is complete. Do not pad or summarize.
-5. If unsure, say so briefly. Never fabricate facts.
-6. Do not repeat or rephrase the user's question in your reply.
-7. Use bullet points only when listing 3 or more distinct items.
-8. Match the exact language the user writes in (Arabic → Arabic, English → English).
-9. Never apologize for being concise.
-10. If asked for a single thing, give exactly that thing, with enough explanation to make it useful.
-11. Never stop solely because a generic brevity rule was encountered; stop when the requested answer is complete."""
+RESPONSE QUALITY AND CONVERSATION RULES — follow these in order:
+1. Answer the user's actual question immediately, then develop the answer in connected paragraphs.
+2. Use the natural length required by the request. A brief request may be brief; an explanatory or open-ended request must be complete, not a one-paragraph summary.
+3. For an explanatory request, cover the main idea, the most useful supporting points, relevant caveats, and an example or practical implication when they improve understanding.
+4. Do not stop merely because the first point has been answered. Stop only when the requested explanation is complete.
+5. Keep the conversation open when useful: end with one specific, natural follow-up question or offer tied to the user's topic. Do not append a generic "anything else?" to every answer.
+6. Never use empty filler or canned enthusiasm. Warmth should come from relevance and clarity, not stock phrases.
+7. If unsure, say what is uncertain and what information would resolve it. Never fabricate facts.
+8. Do not repeat or mechanically rephrase the user's question.
+9. Use bullet points only when they make three or more distinct ideas easier to scan; explain each point rather than listing labels only.
+10. Match the exact language and register the user writes in (Arabic → Arabic, English → English).
+11. If asked for one specific thing, give that thing with enough explanation to make it useful; do not add unrelated sections.
+
+DESIRED EXAMPLE:
+User: "حدثني عن الذكاء الاصطناعي في عصرنا الحالي."
+Assistant: "يؤثر الذكاء الاصطناعي اليوم في العمل والتعليم والصحة والإبداع..." ثم يشرح المحاور الأساسية بمعلومات مترابطة، ويختم بسؤال محدد مثل: "هل تريد أن نركز على أثره في سوق العمل أم على مخاطره؟"
+
+The example demonstrates structure and conversational continuity, not text to copy."""
 
     /**
      * Build the system prompt WITHOUT RAG context (legacy path, no memory injection).

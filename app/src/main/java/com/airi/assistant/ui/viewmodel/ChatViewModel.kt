@@ -2182,6 +2182,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     userInput = trimmedInput,
                     response = fastHit,
                     languageCode = LanguageManager.getCurrentLanguage(appContext),
+                    queryType = queryType,
+                    recentContext = history.takeLast(10).map { it.content },
                 )
                 streamAccumulator.setLength(0); _streamingText.value = ""
                 finishGeneration(generationId)
@@ -2678,6 +2680,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             userInput = trimmedInput,
                             response = normalizedAnswer,
                             languageCode = LanguageManager.getCurrentLanguage(appContext),
+                            queryType = queryType,
+                            recentContext = history.takeLast(10).map { it.content },
                         )
                     }
                     subscriptionManager.recordConsecutiveSuccess()

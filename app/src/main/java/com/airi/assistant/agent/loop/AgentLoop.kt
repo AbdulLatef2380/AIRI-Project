@@ -857,7 +857,7 @@ the tool returns an actual error.
             history.add(ConversationTurn.User("You have reached your step limit. Summarise what you have done and what the final answer is."))
             val summary = callLLM(
                 prompt = "",
-                systemPrompt = systemPrompt + "\n\nYou have no tools available for this final response. Synthesize the completed results and provide a concise answer to the user.",
+                systemPrompt = systemPrompt + "\n\nYou have no tools available for this final response. Synthesize the completed results and provide a complete answer at the natural length required by the user's request; do not compress useful context.",
                 history = history,
                 tools = emptyList(),
                 queryType = queryType,

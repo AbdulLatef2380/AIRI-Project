@@ -202,7 +202,10 @@ object ResponseOptimizer {
         isPremium: Boolean
     ): GenerationConfig {
         val base = when (queryType) {
-            QueryType.SIMPLE     -> GenerationConfig(temperature = 0.3f, maxTokens = minOf(128,  ramCappedMaxTokens))
+            // SIMPLE is a routing category, not a response-length category.
+            // Genuine greetings use tryFastResponse; explanatory questions
+            // routed as SIMPLE still need enough room to finish.
+            QueryType.SIMPLE     -> GenerationConfig(temperature = 0.3f, maxTokens = minOf(1024, ramCappedMaxTokens))
             QueryType.ANALYTICAL -> GenerationConfig(temperature = 0.7f, maxTokens = minOf(2048, ramCappedMaxTokens))
             QueryType.ACTION     -> GenerationConfig(temperature = 0.5f, maxTokens = minOf(256,  ramCappedMaxTokens))
             QueryType.CREATIVE   -> GenerationConfig(temperature = 0.9f, maxTokens = minOf(2048, ramCappedMaxTokens))
@@ -341,20 +344,87 @@ object ResponseOptimizer {
     // ── Smart reply suggestions ───────────────────────────────────────────────
 
     /**
-     * Generate contextual follow-up chips based on the AI response content.
-     * Returns empty list for very short responses.
+     * A response-only call has no conversation context and is therefore not
+     * eligible for smart replies. This prevents stale/generic chips from being
+     * fabricated from the assistant message alone.
      */
-    fun generateSuggestions(response: String, languageCode: String = Locale.getDefault().language): List<String> =
-        generateSuggestions(userInput = "", response = response, languageCode = languageCode)
+    fun generateSuggestions(
+        response: String,
+        languageCode: String = Locale.getDefault().language,
+    ): List<String> = emptyList()
 
-    /** Deterministic, local-only suggestions derived from both sides of the turn. */
+    /**
+     * Generate contextual follow-up chips from the user's request and answer.
+     *
+     * Smart replies are deliberately conservative. The official Smart Reply
+     * pattern uses recent conversation context, confidence filtering, and no
+     * suggestions for unsupported/sensitive contexts. AIRI mirrors that
+     * contract locally: no user message means no chips, action/analysis turns
+     * are not casual reply conversations, and there is no length-only fallback.
+     */
     fun generateSuggestions(
         userInput: String,
         response: String,
         languageCode: String = Locale.getDefault().language,
+        queryType: QueryType = QueryType.SIMPLE,
+        recentContext: List<String> = emptyList(),
     ): List<String> {
-        if (response.length < 50) return emptyList()
-        val lower = "$userInput\n$response".lowercase(Locale.ROOT)
+        val input = userInput.trim()
+        val answer = response.trim()
+        if (input.length < 3 || answer.length < 50) return emptyList()
+        // Smart replies are for casual conversational turns, not tool/action
+        // execution or analytical/creative deliverables.
+        if (queryType != QueryType.SIMPLE) return emptyList()
+
+        val inputLower = input.lowercase(Locale.ROOT)
+        val answerLower = answer.lowercase(Locale.ROOT)
+        val contextLower = (recentContext.takeLast(10) + input + answer)
+            .joinToString("\n")
+            .lowercase(Locale.ROOT)
+
+        fun containsAny(text: String, terms: List<String>): Boolean = terms.any(text::contains)
+
+        // Do not turn sensitive or credential-bearing conversations into
+        // one-tap continuations. This follows the official Smart Reply
+        // sensitive-topic filtering principle and avoids leaking a chip that
+        // could encourage an unsafe next action.
+        if (containsAny(contextLower, listOf(
+                "suicide", "self-harm", "قتل النفس", "انتحار", "abuse", "اعتداء",
+                "password", "كلمة المرور", "api key", "access token", "رمز الدخول",
+            ))) return emptyList()
+
+        val asksForCode = containsAny(inputLower, listOf(
+            "code", "bug", "debug", "program", "function", "class", "kotlin", "java", "python",
+            "كود", "برمج", "دالة", "صنف", "خطأ برمجي", "تصحيح",
+        ))
+        val asksForSteps = containsAny(inputLower, listOf(
+            "step", "steps", "how to", "walk me through", "instructions", "plan",
+            "خطوة", "خطوات", "كيف أ", "كيف يمكن", "طريقة", "خطة",
+        ))
+        val asksForReasoning = containsAny(inputLower, listOf(
+            "why", "because", "reason", "explain why", "لماذا", "السبب", "بسبب", "لأن",
+        ))
+        val asksForComparison = containsAny(inputLower, listOf(
+            "compare", "comparison", "difference", "versus", " vs ", "قارن", "مقارنة", "الفرق",
+        ))
+        val asksForAnalysis = containsAny(inputLower, listOf(
+            "analyze", "analyse", "analysis", "evaluate", "حلل", "حلّل", "تحليل", "قيّم",
+        ))
+        val asksOpenEnded = containsAny(inputLower, listOf(
+            "tell me about", "give me an overview", "حدثني عن", "أعطني نظرة عامة",
+        ))
+
+        val answerHasCode = answerLower.contains("```") || containsAny(answerLower, listOf("fun ", "class ", "function "))
+        val answerHasSteps = answerLower.contains("1.") || containsAny(answerLower, listOf("step", "خطوة", "خطوات"))
+        // A marker in the answer is not enough: the user's turn must establish
+        // the intent, otherwise incidental words create unrelated chips.
+        val codeContext = asksForCode && answerHasCode
+        val stepContext = asksForSteps && answerHasSteps
+
+        // Keep the context variable meaningful: only recent turns plus the
+        // current turn may influence eligibility, never unrelated app state.
+        if (contextLower.isBlank()) return emptyList()
+
         fun localized(en: List<String>, ar: List<String>, es: List<String>, zh: List<String>): List<String> =
             when (languageCode.substringBefore('-').lowercase(Locale.ROOT)) {
                 "ar" -> ar
@@ -362,10 +432,9 @@ object ResponseOptimizer {
                 "zh" -> zh
                 else -> en
             }
+
         return when {
-            lower.contains("```") || lower.contains("fun ") ||
-            lower.contains("class ") || lower.contains("function") ||
-            lower.contains("كود") || lower.contains("código") || lower.contains("代码") ->
+            codeContext ->
                 localized(
                     en = listOf("Analyze the code, identify likely bugs, and suggest practical improvements", "Add tests and error handling for this implementation", "Optimize this code for performance, security, and maintainability"),
                     ar = listOf("حلّل الكود وحدد الأخطاء المحتملة واقترح تحسينات عملية", "أضف اختبارات ومعالجة واضحة للأخطاء لهذا التنفيذ", "حسّن الكود من حيث الأداء والأمان وسهولة الصيانة"),
@@ -373,8 +442,7 @@ object ResponseOptimizer {
                     zh = listOf("分析代码并找出潜在错误，提出实用改进", "为这段实现添加测试和错误处理", "从性能、安全性和可维护性方面优化代码"),
                 )
 
-            lower.contains("step") || lower.contains("how to") || lower.contains("paso") ||
-            lower.contains("步骤") || lower.contains("1.") || lower.contains("خطوات") ->
+            stepContext ->
                 localized(
                     en = listOf("Explain the first step with a concrete example", "Turn the proposed plan into the next executable tasks", "Rewrite the steps in a simpler, easier-to-follow way"),
                     ar = listOf("اشرح الخطوة الأولى بمثال عملي واضح", "حوّل الخطة المقترحة إلى مهام تنفيذية تالية", "أعد كتابة الخطوات بطريقة أبسط وأسهل للتنفيذ"),
@@ -382,9 +450,7 @@ object ResponseOptimizer {
                     zh = listOf("解释第 1 步", "接下来做什么？", "简化说明"),
                 )
 
-            lower.contains("because") || lower.contains("therefore") || lower.contains("porque") ||
-            lower.contains("por lo tanto") || lower.contains("因为") || lower.contains("因此") ||
-            lower.contains("لأن") || lower.contains("لذلك") ->
+            asksForReasoning && containsAny(answerLower, listOf("because", "therefore", "reason", "لأن", "لذلك", "السبب")) ->
                 localized(
                     en = listOf("Explain the reasoning in more detail with a practical example", "Show how to apply this idea to a realistic case", "Summarize the answer into the key decisions and caveats"),
                     ar = listOf("اشرح الفكرة بتفصيل أكبر مع مثال عملي", "وضّح كيفية تطبيق هذه الفكرة على حالة واقعية", "لخّص الإجابة في القرارات والنقاط المهمة والقيود"),
@@ -392,9 +458,7 @@ object ResponseOptimizer {
                     zh = listOf("详细说明", "举个例子", "总结回答"),
                 )
 
-            lower.contains("compare") || lower.contains("difference") || lower.contains("compara") ||
-            lower.contains("diferencia") || lower.contains("versus") || lower.contains("vs") ||
-            lower.contains("比较") || lower.contains("区别") || lower.contains("قارن") ->
+            asksForComparison ->
                 localized(
                     en = listOf("Compare the alternatives by performance, cost, and ease of use", "Recommend the best option for my constraints and explain why", "List the trade-offs, risks, and situations where each option fits"),
                     ar = listOf("قارن بين البدائل من حيث الأداء والتكلفة وسهولة الاستخدام", "رشّح الخيار الأنسب لقيودي واشرح سبب التوصية", "اذكر المفاضلات والمخاطر ومتى يناسب كل خيار"),
@@ -402,8 +466,7 @@ object ResponseOptimizer {
                     zh = listOf("深入比较", "哪个更好？", "列出优缺点"),
                 )
 
-            lower.contains("analyze") || lower.contains("analyse") || lower.contains("analiza") ||
-            lower.contains("análisis") || lower.contains("分析") || lower.contains("حلل") ->
+            asksForAnalysis ->
                 localized(
                     en = listOf("Expand the analysis with evidence, assumptions, and limitations", "Extract the key findings and the next practical step", "Turn the analysis into a concise decision-ready summary"),
                     ar = listOf("وسّع التحليل بالأدلة والافتراضات والقيود المهمة", "استخرج أهم النتائج والخطوة العملية التالية", "حوّل التحليل إلى ملخص واضح يساعد على اتخاذ القرار"),
@@ -411,20 +474,12 @@ object ResponseOptimizer {
                     zh = listOf("补充细节", "关键要点？", "总结回答"),
                 )
 
-            response.length > 500 ->
+            asksOpenEnded && answer.length > 200 ->
                 localized(
-                    en = listOf("Summarize the answer into the most important points", "Extract the decisions, risks, and open questions", "Rewrite the explanation as a clear practical checklist"),
-                    ar = listOf("لخّص الإجابة في أهم النقاط المفيدة", "استخرج القرارات والمخاطر والأسئلة المفتوحة", "حوّل الشرح إلى قائمة عملية واضحة"),
-                    es = listOf("Resume esto", "¿Puntos clave?", "Simplifícalo"),
-                    zh = listOf("总结内容", "关键要点？", "简化说明"),
-                )
-
-            response.length > 200 ->
-                localized(
-                    en = listOf("Explain the most important part in more detail with an example", "What practical next step should I take from this answer?"),
-                    ar = listOf("اشرح أهم جزء بتفصيل أكبر مع مثال عملي", "ما الخطوة العملية التالية التي ينبغي أن أبدأ بها؟"),
-                    es = listOf("Cuéntame más", "Dame un ejemplo"),
-                    zh = listOf("继续说明", "举个例子"),
+                    en = listOf("Give me a practical example", "What are the main limitations or risks?", "How does this affect everyday life?"),
+                    ar = listOf("أعطني مثالًا عمليًا على ذلك", "ما أبرز القيود أو المخاطر؟", "كيف يؤثر ذلك في الحياة اليومية؟"),
+                    es = listOf("Dame un ejemplo práctico", "¿Cuáles son sus límites o riesgos?", "¿Cómo afecta a la vida diaria?"),
+                    zh = listOf("给我一个实际例子", "主要限制或风险是什么？", "这如何影响日常生活？"),
                 )
 
             else -> emptyList()

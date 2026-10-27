@@ -29,6 +29,14 @@ class ResponseDepthPolicyTest {
     }
 
     @Test
+    fun openEndedArabicTopicRequestIsDetailedEvenWhenRoutingIsSimple() {
+        assertEquals(
+            ResponseDepth.DETAILED,
+            ResponseDepthPolicy.resolve("حدثني عن الذكاء الاصطناعي في عصرنا الحالي", QueryType.SIMPLE),
+        )
+    }
+
+    @Test
     fun multiPartRequestIsDetailed() {
         assertEquals(
             ResponseDepth.DETAILED,

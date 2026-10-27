@@ -10,7 +10,9 @@ object OutputBudgetPolicy {
         ResponseDepth.DETAILED -> when (queryType) {
             QueryType.ANALYTICAL -> 8_192
             QueryType.CREATIVE -> 6_144
-            else -> 8_192
+            // Routing describes tool/side-effect needs, not answer length.
+            // Open-ended explanations can still be routed as SIMPLE.
+            else -> 4_096
         }
     }
 

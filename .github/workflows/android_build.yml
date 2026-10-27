@@ -226,12 +226,12 @@ jobs:
             locale: en-US
             memory: 6144
             cores: 4
-            target: default
+            target: aosp_atd
           - api-level: 34
             locale: ar-SA
             memory: 6144
             cores: 4
-            target: default
+            target: aosp_atd
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4

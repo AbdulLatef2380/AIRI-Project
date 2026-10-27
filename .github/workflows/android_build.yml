@@ -224,14 +224,14 @@ jobs:
             target: google_apis
           - api-level: 34
             locale: en-US
-            memory: 4096
+            memory: 6144
             cores: 4
-            target: default
+            target: google_apis
           - api-level: 34
             locale: ar-SA
-            memory: 4096
+            memory: 6144
             cores: 4
-            target: default
+            target: google_apis
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4

@@ -225,7 +225,7 @@ object ResponseOptimizer {
             recentP90Ms >= 6000L && queryType != QueryType.CREATIVE -> (base.temperature - 0.1f).coerceAtLeast(0.2f)
             else -> base.temperature
         }
-        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "adaptive_tuning queryType=${queryType.name} p90=${recentP90Ms}ms premium=$isPremium baseTokens=${base.maxTokens} tunedTokens=$tunedTokens temp=$tunedTemperature")
+        diagnosticLog("adaptive_tuning queryType=${queryType.name} p90=${recentP90Ms}ms premium=$isPremium baseTokens=${base.maxTokens} tunedTokens=$tunedTokens temp=$tunedTemperature")
         return GenerationConfig(temperature = tunedTemperature, maxTokens = tunedTokens)
     }
 
@@ -274,7 +274,7 @@ object ResponseOptimizer {
         val maxElapsed = if (isPremium) 6500L else 4200L
         val hasSemanticStop = lastBoundaryIndex(partialText) >= 80
         val shouldCut = elapsedMs >= maxElapsed && tokensStreamed >= minTokens && hasSemanticStop
-        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "semantic_cut_check queryType=${queryType.name} elapsed=${elapsedMs}ms tokens=$tokensStreamed boundary=$hasSemanticStop premium=$isPremium cut=$shouldCut")
+        diagnosticLog("semantic_cut_check queryType=${queryType.name} elapsed=${elapsedMs}ms tokens=$tokensStreamed boundary=$hasSemanticStop premium=$isPremium cut=$shouldCut")
         return shouldCut
     }
 
@@ -286,7 +286,7 @@ object ResponseOptimizer {
             return SemanticCutResult(cleaned, false, "no_better_boundary")
         }
         val cut = cleaned.take(boundary + 1).trim()
-        if (com.airi.assistant.BuildConfig.DEBUG) Log.d(TAG, "semantic_cut_applied original_len=${cleaned.length} cut_len=${cut.length}")
+        diagnosticLog("semantic_cut_applied original_len=${cleaned.length} cut_len=${cut.length}")
         return SemanticCutResult("$cut\n\nResponse shortened to keep AIRI fast.", true, "semantic_boundary")
     }
 
@@ -474,7 +474,11 @@ object ResponseOptimizer {
                     zh = listOf("补充细节", "关键要点？", "总结回答"),
                 )
 
-            asksOpenEnded && answer.length > 200 ->
+            // Arabic answers can be concise while still containing enough
+            // context for useful, topic-specific follow-up actions. Keep the
+            // gate high enough to reject one-line replies without discarding
+            // a complete answer of roughly one paragraph.
+            asksOpenEnded && answer.length >= 120 ->
                 localized(
                     en = listOf("Give me a practical example", "What are the main limitations or risks?", "How does this affect everyday life?"),
                     ar = listOf("أعطني مثالًا عمليًا على ذلك", "ما أبرز القيود أو المخاطر؟", "كيف يؤثر ذلك في الحياة اليومية؟"),

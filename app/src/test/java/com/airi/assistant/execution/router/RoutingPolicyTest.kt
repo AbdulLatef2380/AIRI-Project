@@ -3,6 +3,7 @@ package com.airi.assistant.execution.router
 import com.airi.assistant.ai.QueryType
 import com.airi.assistant.core.debug.ThermalLevel
 import com.airi.assistant.execution.CapabilityProfile
+import com.airi.assistant.execution.CompletionMetadata
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.ExecutionRequest
@@ -249,7 +250,7 @@ class RoutingPolicyTest {
         override suspend fun generateStream(
             request: ExecutionRequest,
             onToken: suspend (String) -> Unit,
-            onComplete: suspend (String, Long) -> Unit,
+            onComplete: suspend (String, Long, CompletionMetadata) -> Unit,
             onError: suspend (String) -> Unit
         ) = error("Not used by RoutingPolicyTest")
 

@@ -2001,12 +2001,12 @@
     <string name="github_project_repositories_save">Guardar selección de repositorios</string>
     <string name="continue_response">Continuar respuesta</string>
 
-    <string name="artifact_copied">Copied reusable content</string>
-    <string name="artifact_expand">Open full content</string>
-    <string name="artifact_save">Save content</string>
-    <string name="artifact_save_failed">Could not save content</string>
-    <string name="artifact_saved">Content saved</string>
-    <string name="artifact_share">Share content</string>
-    <string name="artifact_share_failed">Could not open sharing</string>
-    <string name="err_incomplete_response">The response ended before a complete reusable block was received. Review the saved partial response or retry.</string>
+    <string name="artifact_copied">Contenido reutilizable copiado</string>
+    <string name="artifact_expand">Abrir contenido completo</string>
+    <string name="artifact_save">Guardar contenido</string>
+    <string name="artifact_save_failed">No se pudo guardar el contenido</string>
+    <string name="artifact_saved">Contenido guardado</string>
+    <string name="artifact_share">Compartir contenido</string>
+    <string name="artifact_share_failed">No se pudo abrir la opción para compartir</string>
+    <string name="err_incomplete_response">La respuesta terminó antes de que se recibiera un bloque reutilizable completo. Revisa la respuesta parcial guardada o inténtalo de nuevo.</string>
 </resources>

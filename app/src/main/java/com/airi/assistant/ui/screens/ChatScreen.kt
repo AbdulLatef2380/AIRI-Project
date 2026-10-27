@@ -2319,7 +2319,7 @@ fun ChatMessageList(
             ) {
                 executionError?.let { failure ->
                     item(key = "execution-error-${failure.executionId}", contentType = "execution-error") {
-                        ExecutionErrorBubble(failure) { prompt -> viewModel.updateComposerText(prompt) }
+                        ExecutionErrorBubble(failure, onContinue = onEditMessage)
                     }
                 }
                 if (streamingText.isNotEmpty() && isGenerating) {

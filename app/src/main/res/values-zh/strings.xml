@@ -2001,12 +2001,12 @@
     <string name="github_project_repositories_save">保存仓库选择</string>
     <string name="continue_response">继续回复</string>
 
-    <string name="artifact_copied">Copied reusable content</string>
-    <string name="artifact_expand">Open full content</string>
-    <string name="artifact_save">Save content</string>
-    <string name="artifact_save_failed">Could not save content</string>
-    <string name="artifact_saved">Content saved</string>
-    <string name="artifact_share">Share content</string>
-    <string name="artifact_share_failed">Could not open sharing</string>
-    <string name="err_incomplete_response">The response ended before a complete reusable block was received. Review the saved partial response or retry.</string>
+    <string name="artifact_copied">已复制可复用内容</string>
+    <string name="artifact_expand">打开完整内容</string>
+    <string name="artifact_save">保存内容</string>
+    <string name="artifact_save_failed">无法保存内容</string>
+    <string name="artifact_saved">内容已保存</string>
+    <string name="artifact_share">分享内容</string>
+    <string name="artifact_share_failed">无法打开分享界面</string>
+    <string name="err_incomplete_response">响应在收到完整的可复用内容块之前结束。请查看已保存的部分响应，或重试。</string>
 </resources>

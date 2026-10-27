@@ -119,9 +119,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.airi.assistant.ui.text.BidiAwareMarkdownRenderer
 import com.airi.assistant.ui.text.ContentAwareMessageRenderer
-import com.airi.assistant.ui.trace.InlineExecutionTrace
-import com.airi.assistant.ui.components.ThinkingAnimation
-import androidx.compose.runtime.snapshotFlow
+import com.airi.assistant.ui.text.AdaptiveContentPolicyimport com.airi.assistant.ui.components.ThinkingAnimationimport androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -2694,7 +2692,10 @@ fun AiBubble(
     var showContextMenu by remember { mutableStateOf(false) }
     var isSelectingText by remember { mutableStateOf(false) }
     var showFullscreenViewer by remember { mutableStateOf(false) }
-    val hasRichContent = remember(text) { ChatRichContentPolicy.needsFullscreen(text) }
+    val adaptivePlan = remember(text) { AdaptiveContentPolicy.plan(text) }
+    val hasRichContent = remember(text, adaptivePlan.showFullscreen) {
+        adaptivePlan.showFullscreen || ChatRichContentPolicy.needsFullscreen(text)
+    }
     val textDirection = remember(text) { chatTextDirection(text) }
     val avatarAtEnd = remember(text) { ChatPresentationPolicy.assistantAvatarAtEnd(text) }
     val responseGesture = if (isSelectingText) {
@@ -2792,6 +2793,12 @@ fun AiBubble(
                                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI code", code))
                                     },
+                                    onCopyTable = { table ->
+                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI table", table))
+                                        android.widget.Toast.makeText(context, R.string.table_copied, android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    onShareTable = { table -> onShare(table) },
                                 )
                             }
                             if (isSelectingText) SelectionContainer { renderContent() } else renderContent()
@@ -2803,15 +2810,17 @@ fun AiBubble(
                         onDismissRequest = { showContextMenu = false },
                         modifier = Modifier.background(AiriTheme.surfaceVariant)
                     ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.copy), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.ContentCopy, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                            onClick = {
-                                showContextMenu = false
-                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
-                            }
-                        )
+                        if (ContentUnitAction.COPY in adaptivePlan.messageActions) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.copy), color = AiriTheme.onBackground) },
+                                leadingIcon = { Icon(Icons.Outlined.ContentCopy, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                                onClick = {
+                                    showContextMenu = false
+                                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
+                                }
+                            )
+                        }
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.select_text), color = AiriTheme.onBackground) },
                             leadingIcon = { Icon(Icons.Outlined.TextFields, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
@@ -2820,11 +2829,13 @@ fun AiBubble(
                                 isSelectingText = true
                             }
                         )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.share), color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.Share, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                            onClick = { showContextMenu = false; onShare(text) }
-                        )
+                        if (ContentUnitAction.SHARE in adaptivePlan.messageActions) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.share), color = AiriTheme.onBackground) },
+                                leadingIcon = { Icon(Icons.Outlined.Share, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                                onClick = { showContextMenu = false; onShare(text) }
+                            )
+                        }
                         if (hasRichContent) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.expand), color = AiriTheme.onBackground) },
@@ -2862,15 +2873,7 @@ fun AiBubble(
                     IconButton(onClick = { showContextMenu = true }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Outlined.MoreHoriz, contentDescription = stringResource(R.string.more_options), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
                     }
-                    // Copy
-                    IconButton(onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
-                    }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.copy), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
-                    }
-                    if (hasRichContent) {
+                    // Copy full message — deliberately separate from unit copy actions.                    }                    if (hasRichContent) {
                         IconButton(onClick = { showFullscreenViewer = true }, modifier = Modifier.size(48.dp)) {
                             Icon(Icons.Outlined.OpenInFull, contentDescription = stringResource(R.string.expand), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
                         }

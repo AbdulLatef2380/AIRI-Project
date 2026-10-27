@@ -553,7 +553,7 @@
     <!-- Common actions -->
     <string name="dismiss">رفض</string>
     <string name="copy">نسخ</string>
-    <string name="edit">تعديل</string>
+    <string name="copy_code">نسخ الكود</string>    <string name="edit">تعديل</string>
     <string name="select_text">تحديد نص</string>
     <string name="confirm">تأكيد</string>
     <string name="clear">مسح</string>
@@ -2134,44 +2134,4 @@
     <string name="attachment_detail_size">الحجم</string>
     <string name="attachment_size_unknown">حجم غير معروف</string>
     <string name="open_attachment">فتح المرفق</string>
-    <string name="attachment_batch_too_large">يتجاوز مجموع المرفقات حد 40 ميجابايت. أزل ملفاً أو أكثر ثم حاول مرة أخرى.</string>
-    <string name="attachment_cloud_consent_required">يلزم تأكيد لمرة واحدة قبل إرسال هذه الملفات إلى نموذج سحابي.</string>
-    <string name="attachment_cloud_consent_title">إرسال المرفقات إلى الذكاء الاصطناعي السحابي؟</string>
-    <string name="attachment_cloud_consent_message">إذا وُجّه هذا الطلب إلى الذكاء الاصطناعي السحابي، فقد تتم مشاركة المحتوى التالي الذي قدمه المستخدم مع المزوّد %1$s: %2$s. تسري هذه الموافقة على عملية الإرسال هذه فقط.</string>
-    <string name="attachment_cloud_long_text_label">مسودة رسالة طويلة (%1$d حرفاً)</string>
-    <string name="attachment_cloud_consent_send_once">إرسال مرة واحدة</string>
-    <!-- رسائل أخطاء الأدوات الظاهرة للمستخدم -->
-    <string name="tool_error_auth_required">يجب ربط %1$s أولاً، ثم حاول مرة أخرى.</string>
-    <string name="tool_error_network_unavailable">الاتصال بالإنترنت غير متاح. تحقق من اتصالك ثم حاول مرة أخرى.</string>
-    <string name="tool_error_memory_unavailable">الذاكرة غير متاحة في هذه الجلسة. ابدأ جلسة جديدة أو حاول مرة أخرى.</string>
-    <string name="tool_error_memory_scope_unavailable">تحتاج AIRI إلى جلسة قبل أن تتمكن من البحث في الذاكرة.</string>
-    <string name="tool_error_permission_denied">لا يملك AIRI الإذن لتنفيذ هذا الإجراء.</string>
-    <string name="tool_error_approval_required">يحتاج هذا الإجراء إلى موافقتك قبل المتابعة.</string>
-    <string name="tool_error_not_connected">%1$s غير متصل. اربطه من الإعدادات ثم حاول مرة أخرى.</string>
-    <string name="tool_error_tool_not_found">هذه القدرة غير متاحة في جلسة AIRI الحالية.</string>
-    <string name="tool_error_unsupported">هذه القدرة غير مدعومة في بيئة التشغيل الحالية.</string>
-    <string name="tool_error_generic">تعذر على AIRI إكمال هذه القدرة. حاول مرة أخرى.</string>
-    <string name="connectors_access_profile_write_only">كتابة فقط</string>
-    <string name="connectors_access_profile_none_description">لن يستخدم AIRI هذه الخدمة لتنفيذ أي إجراء للوكيل.</string>
-    <string name="connectors_access_profile_read_only_description">يمكن لـAIRI عرض البيانات أو البحث فيها دون إنشائها أو تعديلها.</string>
-    <string name="connectors_access_profile_write_only_description">يمكن لـAIRI إنشاء البيانات أو تحديثها دون قراءة البيانات الموجودة.</string>
-    <string name="connectors_access_profile_read_write_description">يمكن لـAIRI قراءة البيانات وإنشاءها أو تحديثها. وتتطلب الإجراءات الإتلافية تأكيدًا مستقلًا.</string>
-    <string name="connectors_access_profile_full_description">قد تتاح جميع أنواع الإجراءات المعلنة، مع بقاء الإجراءات الإتلافية والإدارية بحاجة إلى تأكيد.</string>
-    <string name="connectors_access_profile_continue">متابعة</string>
-    <string name="connectors_access_profile_change">تغيير مستوى الوصول</string>
-    <string name="connector_open_provider">فتح تطبيق أو موقع الخدمة</string>
-    <string name="connectors_test_connection_started">بدأ فحص الاتصال؛ ستتحدث حالة الموصل عند اكتماله.</string>
-    <string name="connector_auth_context_description">راجع هذا الموصل وصادقه دون تغيير إعدادات التكاملات الأخرى.</string>
-    <string name="connector_auth_context_targeted">تدفق التفويض هذا خاص بالموصل المحدد فقط.</string>
-    <string name="connector_auth_retry">متابعة التفويض</string>
-    <string name="agent_trace_summary_memory">%1$d عمليات ذاكرة</string>
-    <string name="agent_trace_panel_description">نشاط التنفيذ الحي</string>
-    <string name="agent_trace_expand_panel">توسيع نشاط التنفيذ</string>
-    <string name="agent_trace_collapse_panel">طي نشاط التنفيذ</string>
-    <string name="agent_trace_expand_group">توسيع المجموعة</string>
-    <string name="agent_trace_collapse_group">طي المجموعة</string>
-    <string name="agent_trace_expand_event">عرض تفاصيل الحدث</string>
-    <string name="agent_trace_collapse_event">إخفاء تفاصيل الحدث</string>
-    <string name="agent_lifecycle_status_waiting">قيد الانتظار</string>
-    <string name="agent_lifecycle_status_cancelled">أُلغي</string>
-</resources>
+    <string name="attachment_batch_too_large">يتجاوز مجموع المرفقات حد 40 ميجابايت. أزل ملفاً أو أكثر ثم حاول مرة أخرى.</string></resources>

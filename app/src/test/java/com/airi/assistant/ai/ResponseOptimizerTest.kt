@@ -65,7 +65,7 @@ class ResponseOptimizerTest {
             ResponseOptimizer.generateSuggestions(userInput, response, "en"),
         )
         assertEquals(
-            listOf("Analiza el código, detecta errores y propone mejoras prácticas", "Añade pruebas y manejo de errores a esta implementación", "Optimiza este código para rendimiento, seguridad y mantenimiento"),
+            listOf("Analiza el código, detecta errores y propone mejoras prácticas", "Añade pruebas y manejo de errores a esta implementación", "Optimiza el código para rendimiento, seguridad y mantenimiento"),
             ResponseOptimizer.generateSuggestions(userInput, response, "es"),
         )
         assertEquals(

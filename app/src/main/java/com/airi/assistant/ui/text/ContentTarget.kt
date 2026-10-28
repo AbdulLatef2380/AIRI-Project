@@ -55,4 +55,3 @@ fun AssistantContentUnit.toContentTarget(messageId: String): ContentTarget.Block
         complete = complete,
         actions = actions,
     )
-}

@@ -15,7 +15,6 @@ enum class ContentUnitAction {
     COPY,
     SHARE,
     SAVE,
-    EXPAND,
 }
 
 data class AssistantContentUnit(
@@ -30,7 +29,6 @@ data class AssistantContentUnit(
 data class AdaptiveContentPlan(
     val units: List<AssistantContentUnit>,
     val messageActions: Set<ContentUnitAction>,
-    val showFullscreen: Boolean,
 ) {
     val hasIndependentUnits: Boolean
         get() = units.any { it.kind != ContentUnitKind.PROSE }
@@ -39,7 +37,7 @@ data class AdaptiveContentPlan(
 /** Pure policy: determines presentation and action scope from content semantics and state. */
 object AdaptiveContentPolicy {
     fun plan(text: String, isStreaming: Boolean = false): AdaptiveContentPlan {
-        if (text.isBlank()) return AdaptiveContentPlan(emptyList(), emptySet(), false)
+        if (text.isBlank()) return AdaptiveContentPlan(emptyList(), emptySet())
 
         val analysis = AssistantContentClassifier.analyse(text, isStreaming)
         val units = mutableListOf<AssistantContentUnit>().apply {
@@ -56,7 +54,6 @@ object AdaptiveContentPolicy {
                             if (block.isComplete) {
                                 add(ContentUnitAction.SHARE)
                                 add(ContentUnitAction.SAVE)
-                                add(ContentUnitAction.EXPAND)
                             }
                         },
                     ),
@@ -88,12 +85,10 @@ object AdaptiveContentPolicy {
         val messageActions = buildSet {
             if (text.isNotBlank()) add(ContentUnitAction.COPY)
             if (!isStreaming && text.isNotBlank()) add(ContentUnitAction.SHARE)
-            if (!isStreaming && analysis.isLong) add(ContentUnitAction.EXPAND)
         }
         return AdaptiveContentPlan(
             units = units,
             messageActions = messageActions,
-            showFullscreen = !isStreaming && analysis.isLong,
         )
     }
 

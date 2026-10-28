@@ -449,6 +449,7 @@
     <string name="perf_mode_label_quality"> Calidad</string>
     <string name="perf_footer_note">El modo de rendimiento afecta: ventana de contexto, tokens máximos y estrategia de truncado. Los cambios se aplican al siguiente mensaje.</string>
     <string name="expand">Expandir</string>
+    <string name="chat_fullscreen_title">Respuesta de AIRI</string>
     <string name="collapse">Contraer</string>
     <string name="show_more">Mostrar más</string>
     <string name="show_less">Mostrar menos</string>

@@ -395,7 +395,7 @@ object ResponseOptimizer {
 
         val asksForCode = containsAny(inputLower, listOf(
             "code", "bug", "debug", "program", "function", "class", "kotlin", "java", "python",
-            "كود", "برمج", "دالة", "صنف", "خطأ برمجي", "تصحيح",
+            "كود", "الكود", "برمج", "دالة", "صنف", "خطأ برمجي", "تصحيح",
         ))
         val asksForSteps = containsAny(inputLower, listOf(
             "step", "steps", "how to", "walk me through", "instructions", "plan",
@@ -425,8 +425,9 @@ object ResponseOptimizer {
         // current turn may influence eligibility, never unrelated app state.
         if (contextLower.isBlank()) return emptyList()
 
+        val normalizedLanguage = languageCode.trim().substringBefore('-').lowercase(Locale.ROOT)
         fun localized(en: List<String>, ar: List<String>, es: List<String>, zh: List<String>): List<String> =
-            when (languageCode.substringBefore('-').lowercase(Locale.ROOT)) {
+            when (normalizedLanguage) {
                 "ar" -> ar
                 "es" -> es
                 "zh" -> zh

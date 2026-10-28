@@ -30,7 +30,6 @@ class AdaptiveContentPolicyTest {
         assertTrue(ContentUnitAction.COPY in code.actions)
         assertFalse(ContentUnitAction.SHARE in code.actions)
         assertFalse(ContentUnitAction.SAVE in code.actions)
-        assertFalse(ContentUnitAction.EXPAND in code.actions)
         assertFalse(ContentUnitAction.SHARE in plan.messageActions)
     }
 

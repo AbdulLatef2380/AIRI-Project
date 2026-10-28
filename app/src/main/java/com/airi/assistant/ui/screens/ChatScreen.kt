@@ -2718,9 +2718,6 @@ fun AiBubble(
     var isSelectingText by remember { mutableStateOf(false) }
     var showFullscreenViewer by remember { mutableStateOf(false) }
     val adaptivePlan = remember(text) { AdaptiveContentPolicy.plan(text) }
-    val hasRichContent = remember(text, adaptivePlan.showFullscreen) {
-        adaptivePlan.showFullscreen || ChatRichContentPolicy.needsFullscreen(text)
-    }
     val textDirection = remember(text) { chatTextDirection(text) }
     val avatarAtEnd = remember(text) { ChatPresentationPolicy.assistantAvatarAtEnd(text) }
     val responseGesture = if (isSelectingText) {
@@ -2728,6 +2725,9 @@ fun AiBubble(
     } else {
         Modifier.combinedClickable(
             onClick = { },
+            onDoubleClick = {
+                if (text.isNotBlank()) showFullscreenViewer = true
+            },
             onLongClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 showContextMenu = true
@@ -2861,13 +2861,6 @@ fun AiBubble(
                                 onClick = { showContextMenu = false; onShare(text) }
                             )
                         }
-                        if (hasRichContent) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.expand), color = AiriTheme.onBackground) },
-                                leadingIcon = { Icon(Icons.Outlined.OpenInFull, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                                onClick = { showContextMenu = false; showFullscreenViewer = true }
-                            )
-                        }
                         Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
                         DropdownMenuItem(
                             text = { Text("Export as PDF", color = AiriTheme.onBackground) },
@@ -2906,11 +2899,6 @@ fun AiBubble(
                             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
                         }, modifier = Modifier.size(48.dp)) {
                             Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.copy), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
-                        }
-                    }
-                    if (hasRichContent) {
-                        IconButton(onClick = { showFullscreenViewer = true }, modifier = Modifier.size(48.dp)) {
-                            Icon(Icons.Outlined.OpenInFull, contentDescription = stringResource(R.string.expand), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
                         }
                     }
                 }
@@ -3009,7 +2997,7 @@ private fun FullscreenResponseViewer(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = stringResource(R.string.expand),
+                        text = stringResource(R.string.chat_fullscreen_title),
                         color = AiriTheme.onBackground,
                         fontWeight = FontWeight.SemiBold
                     )

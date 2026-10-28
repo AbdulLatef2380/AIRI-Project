@@ -449,6 +449,7 @@
     <string name="perf_mode_label_quality"> 高质量</string>
     <string name="perf_footer_note">性能模式影响：上下文窗口、最大 token 数和截断策略。下一条消息起生效。</string>
     <string name="expand">展开</string>
+    <string name="chat_fullscreen_title">AIRI 回复</string>
     <string name="collapse">收起</string>
     <string name="show_more">显示更多</string>
     <string name="show_less">显示更少</string>

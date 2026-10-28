@@ -512,6 +512,7 @@
     <string name="add_model_fab">إضافة نموذج</string>
     <string name="model_settings_icon">إعدادات النموذج</string>
     <string name="expand">توسيع</string>
+    <string name="chat_fullscreen_title">رد AIRI</string>
     <string name="collapse">طي</string>
     <string name="show_more">عرض المزيد</string>
     <string name="show_less">عرض أقل</string>

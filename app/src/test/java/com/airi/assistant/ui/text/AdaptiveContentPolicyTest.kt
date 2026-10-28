@@ -85,7 +85,7 @@ class AdaptiveContentPolicyTest {
         val second = AdaptiveContentPolicy.plan(text, messageId = "stable-message")
 
         assertEquals(first.units.map { it.id }, second.units.map { it.id })
-        assertEquals("stable-message-code-4-1", first.units.single { it.kind == ContentUnitKind.CODE }.id)
+        assertEquals("stable-message-code-0", first.units.single { it.kind == ContentUnitKind.CODE }.id)
     }
 
     @Test
@@ -124,17 +124,35 @@ class AdaptiveContentPolicyTest {
         val plans = stages.map { text ->
             AdaptiveContentPolicy.plan(text, isStreaming = true, messageId = "stream-1")
         }
-        val codeUnits = plans.map { plan -> plan.units.single { it.kind == ContentUnitKind.CODE } }
+        val codeUnits = plans.mapNotNull { plan -> plan.units.firstOrNull { it.kind == ContentUnitKind.CODE } }
 
+        assertEquals(4, codeUnits.size)
         assertEquals(codeUnits.map { it.id }.distinct().single(), codeUnits.first().id)
-        assertEquals("print(1)", codeUnits[3].source)
-        assertFalse(ContentUnitAction.SHARE in codeUnits[1].actions)
-        assertFalse(ContentUnitAction.SAVE in codeUnits[2].actions)
-        assertTrue(ContentUnitAction.SHARE in codeUnits[3].actions)
-        assertTrue(ContentUnitAction.SAVE in codeUnits[3].actions)
+        assertEquals("print(1)", codeUnits[2].source)
+        assertFalse(ContentUnitAction.SHARE in codeUnits[0].actions)
+        assertFalse(ContentUnitAction.SAVE in codeUnits[1].actions)
+        assertTrue(ContentUnitAction.SHARE in codeUnits[2].actions)
+        assertTrue(ContentUnitAction.SAVE in codeUnits[2].actions)
         assertEquals(
             listOf(ContentUnitKind.PROSE, ContentUnitKind.CODE, ContentUnitKind.PROSE),
             plans.last().units.map { it.kind },
+        )
+    }
+
+    @Test
+    fun codeIdentitySurvivesProseArrivingBeforeTheExistingBlock() {
+        val first = AdaptiveContentPolicy.plan(
+            "شرح قبل الكود\n```kotlin\nval x = 1\n```",
+            messageId = "stream-2",
+        )
+        val later = AdaptiveContentPolicy.plan(
+            "عنوان جديد\nشرح قبل الكود\n```kotlin\nval x = 1\n```",
+            messageId = "stream-2",
+        )
+
+        assertEquals(
+            first.units.single { it.kind == ContentUnitKind.CODE }.id,
+            later.units.single { it.kind == ContentUnitKind.CODE }.id,
         )
     }
 }

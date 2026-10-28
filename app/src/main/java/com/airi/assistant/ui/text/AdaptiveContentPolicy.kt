@@ -105,12 +105,15 @@ object AdaptiveContentPolicy {
 
         val ordered = matches.sortedWith(compareBy<UnitMatch> { it.start }.thenBy { it.end })
         val units = mutableListOf<AssistantContentUnit>()
+        val kindOccurrences = mutableMapOf<ContentUnitKind, Int>()
         var cursor = 0
         var occurrence = 0
         ordered.forEach { match ->
             if (match.start < cursor) return@forEach
             addProse(units, text.substring(cursor, match.start), cursor, messageId, occurrence++)
-            units += match.toUnit(messageId, occurrence++)
+            val kindOccurrence = kindOccurrences.getOrDefault(match.kind, 0)
+            kindOccurrences[match.kind] = kindOccurrence + 1
+            units += match.toUnit(messageId, kindOccurrence, occurrence++)
             cursor = match.end
         }
         addProse(units, text.substring(cursor), cursor, messageId, occurrence)
@@ -134,7 +137,7 @@ object AdaptiveContentPolicy {
         start: Int,
         occurrence: Int,
     ) = AssistantContentUnit(
-        id = unitId(messageId, ContentUnitKind.PROSE, start, occurrence),
+        id = unitId(messageId, ContentUnitKind.PROSE, start, occurrence, occurrence),
         kind = ContentUnitKind.PROSE,
         source = source,
         actions = setOf(ContentUnitAction.COPY, ContentUnitAction.SHARE),
@@ -148,8 +151,8 @@ object AdaptiveContentPolicy {
         val language: String? = null,
         val complete: Boolean = true,
     ) {
-        fun toUnit(messageId: String, occurrence: Int) = AssistantContentUnit(
-            id = unitId(messageId, kind, start, occurrence),
+        fun toUnit(messageId: String, kindOccurrence: Int, occurrence: Int) = AssistantContentUnit(
+            id = unitId(messageId, kind, start, kindOccurrence, occurrence),
             kind = kind,
             source = source,
             language = language,
@@ -185,8 +188,19 @@ object AdaptiveContentPolicy {
 
     private data class TableRange(val start: Int, val end: Int, val source: String)
 
-    private fun unitId(messageId: String, kind: ContentUnitKind, start: Int, occurrence: Int): String =
+    private fun unitId(
+        messageId: String,
+        kind: ContentUnitKind,
+        start: Int,
+        kindOccurrence: Int,
+        occurrence: Int,
+    ): String = if (kind == ContentUnitKind.PROSE) {
         "$messageId-${kind.name.lowercase()}-$start-$occurrence"
+    } else {
+        // Block identity is tied to its semantic kind and ordinal, not its source offset.
+        // This keeps a code/table card stable when prose arrives before it during streaming.
+        "$messageId-${kind.name.lowercase()}-$kindOccurrence"
+    }
 
     private fun stableMessageId(value: String): String =
         "message-${value.hashCode().toUInt().toString(16)}"

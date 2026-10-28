@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -42,44 +43,43 @@ fun ContentAwareMessageRenderer(
     val plan = remember(text, isStreaming, messageId) {
         AdaptiveContentPolicy.plan(text, isStreaming, messageId = messageId.ifBlank { "message-${text.hashCode().toUInt().toString(16)}" })
     }
-    val analysis = remember(text, isStreaming) { AssistantContentClassifier.analyse(text, isStreaming) }
-    val codeTargets = plan.units
-        .filter { it.kind == ContentUnitKind.CODE || it.kind == ContentUnitKind.STRUCTURED_DATA }
-        .map { it.toContentTarget(plan.messageId) }
-    when (analysis.kind) {
-        AssistantContentKind.TABLE -> MarkdownTableRenderer(
-            text = text,
-            modifier = modifier,
-            onCopyTable = onCopyTable,
-            onShareTable = onShareTable,
-            tableTarget = plan.units.firstOrNull { it.kind == ContentUnitKind.TABLE }?.toContentTarget(plan.messageId),
-            onContentAction = onContentAction,
-        )
-        AssistantContentKind.STRUCTURED_CODE -> BidiAwareMarkdownRenderer(
-            text = "```text\n${text.trim()}\n```",
-            modifier = modifier,
-            isStreaming = isStreaming,
-            onCopyCode = onCopyCode,
-            codeTargets = codeTargets,
-            onContentAction = onContentAction,
-        )
-        AssistantContentKind.CODE_BLOCK -> BidiAwareMarkdownRenderer(
-            text = text,
-            modifier = modifier,
-            isStreaming = isStreaming,
-            onCopyCode = onCopyCode,
-            codeTargets = codeTargets,
-            onContentAction = onContentAction,
-        )
-        else -> BidiAwareMarkdownRenderer(
-            text = text,
-            modifier = modifier,
-            isStreaming = isStreaming,
-            onCopyCode = onCopyCode,
-            codeTargets = codeTargets,
-            onContentAction = onContentAction,
-        )
+    Column(modifier = modifier.fillMaxWidth()) {
+        plan.units.forEach { unit ->
+            key(unit.id) {
+                val target = unit.toContentTarget(plan.messageId)
+                when (unit.kind) {
+                    ContentUnitKind.PROSE -> BidiAwareMarkdownRenderer(
+                        text = unit.source,
+                        modifier = Modifier.fillMaxWidth(),
+                        isStreaming = isStreaming,
+                    )
+                    ContentUnitKind.CODE,
+                    ContentUnitKind.STRUCTURED_DATA -> BidiAwareMarkdownRenderer(
+                        text = fencedUnit(unit),
+                        modifier = Modifier.fillMaxWidth(),
+                        isStreaming = isStreaming,
+                        onCopyCode = onCopyCode,
+                        codeTargets = listOf(target),
+                        onContentAction = onContentAction,
+                    )
+                    ContentUnitKind.TABLE -> MarkdownTableRenderer(
+                        text = unit.source,
+                        modifier = Modifier.fillMaxWidth(),
+                        onCopyTable = onCopyTable,
+                        onShareTable = onShareTable,
+                        tableTarget = target,
+                        onContentAction = onContentAction,
+                    )
+                }
+            }
+        }
     }
+}
+
+private fun fencedUnit(unit: AssistantContentUnit): String {
+    val language = unit.language?.takeIf { it.isNotBlank() } ?: "text"
+    val opening = "```$language\n"
+    return if (unit.complete) "$opening${unit.source}\n```" else "$opening${unit.source}"
 }
 
 @Composable

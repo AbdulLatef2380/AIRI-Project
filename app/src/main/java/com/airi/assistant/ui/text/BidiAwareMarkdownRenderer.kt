@@ -38,7 +38,9 @@ fun BidiAwareMarkdownRenderer(
     isStreaming: Boolean = false,
     textColor: Color = AiriTheme.onSurface.copy(alpha = 0.93f),
     fillWidth: Boolean = true,
-    onCopyCode: ((String) -> Unit)? = null
+    onCopyCode: ((String) -> Unit)? = null,
+    codeTargets: List<ContentTarget.Block> = emptyList(),
+    onContentAction: ((ContentTarget, ContentUnitAction) -> Unit)? = null,
 ) {
     val direction = remember(text) {
         LanguageRuntimeManager.analyseDirection(text)
@@ -59,7 +61,9 @@ fun BidiAwareMarkdownRenderer(
             rawText  = processedText,
             modifier = if (fillWidth) modifier.fillMaxWidth() else modifier,
             textColor = textColor,
-            onCopyCode = onCopyCode
+            onCopyCode = onCopyCode,
+            codeTargets = codeTargets,
+            onContentAction = onContentAction,
         )
     }
 }

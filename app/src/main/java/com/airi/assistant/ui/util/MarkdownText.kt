@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,6 +37,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.airi.assistant.R
+import com.airi.assistant.ui.text.ContentTarget
+import com.airi.assistant.ui.text.ContentUnitAction
 import com.airi.assistant.ui.theme.AiriTheme
 
 /**
@@ -62,7 +65,9 @@ fun MarkdownText(
     textColor   : Color    = AiriTheme.onSurface.copy(alpha = 0.93f),
     baseFontSp  : Float    = 15f,
     lineHeightSp: Float    = 23f,
-    onCopyCode  : ((String) -> Unit)? = null
+    onCopyCode  : ((String) -> Unit)? = null,
+    codeTargets : List<ContentTarget.Block> = emptyList(),
+    onContentAction: ((ContentTarget, ContentUnitAction) -> Unit)? = null,
 ) {
     val codeBack  = Color(0xFF0D1118)
     val codeFore  = Color(0xFF79C0FF)
@@ -72,6 +77,7 @@ fun MarkdownText(
         buildRenderBlocks(rawText, textColor, codeFore, baseFontSp)
     }
 
+    var codeIndex = 0
     Column(modifier = modifier) {
         blocks.forEachIndexed { idx, block ->
             when (block) {
@@ -87,8 +93,20 @@ fun MarkdownText(
                 is RenderBlock.Code -> {
                     Spacer(Modifier.height(6.dp))
                     if (block.complete) {
-                        CodeBlockCard(block.language, block.text, codeBack, codeFore, onCopyCode)
+                        val target = codeTargets.getOrNull(codeIndex++)
+                        key(target?.blockId ?: "code-${block.language}-${block.text.hashCode()}") {
+                            CodeBlockCard(
+                                language = block.language,
+                                code = block.text,
+                                codeBack = codeBack,
+                                codeFore = codeFore,
+                                onCopyCode = onCopyCode,
+                                target = target,
+                                onContentAction = onContentAction,
+                            )
+                        }
                     } else {
+                        codeIndex++
                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                             Text(block.text, color = codeFore, fontFamily = FontFamily.Monospace, fontSize = 13.sp, softWrap = false)
                         }

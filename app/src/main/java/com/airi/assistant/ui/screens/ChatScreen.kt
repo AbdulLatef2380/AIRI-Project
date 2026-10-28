@@ -120,6 +120,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import com.airi.assistant.ui.text.BidiAwareMarkdownRenderer
 import com.airi.assistant.ui.text.ContentAwareMessageRenderer
 import com.airi.assistant.ui.text.AdaptiveContentPolicy
+import com.airi.assistant.ui.text.ContentTarget
 import com.airi.assistant.ui.text.ContentUnitAction
 import com.airi.assistant.ui.trace.InlineExecutionTrace
 import com.airi.assistant.ui.components.ThinkingAnimation
@@ -2332,7 +2333,12 @@ fun ChatMessageList(
                                 traceEntries = inlineTraceEntries,
                                 activityEvents = inlineActivityEvents,
                                 traceWorking = inlineTraceWorking,
-                                content = { AiStreamingBubble(text = streamingText) },
+                                content = {
+                                    AiStreamingBubble(
+                                        text = streamingText,
+                                        messageId = "streaming-${messages.lastOrNull { it.isUser }?.uid ?: "active"}",
+                                    )
+                                },
                             )
                         }
                     }
@@ -2373,6 +2379,7 @@ fun ChatMessageList(
                         } else {
                             AiBubble(
                                 text            = msg.text,
+                                messageId       = msg.uid,
                                 agentTag        = msg.agentTag,
                                 planLabel       = planLabel,
                                 traceId         = msg.traceId,
@@ -2689,6 +2696,7 @@ private fun AiResponseTurn(
 @Composable
 fun AiBubble(
     text: String,
+    messageId: String = "",
     agentTag: String? = null,
     planLabel: String = "Free",
     traceId: String? = null,
@@ -2709,6 +2717,34 @@ fun AiBubble(
 ) {
     val context   = LocalContext.current
     val haptic    = LocalHapticFeedback.current
+    var pendingSaveTarget by remember { mutableStateOf<ContentTarget.Block?>(null) }
+    val saveContentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        val target = pendingSaveTarget
+        pendingSaveTarget = null
+        if (uri != null && target != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { it.write(target.source.toByteArray(Charsets.UTF_8)) }
+                    ?: error("No output stream")
+                android.widget.Toast.makeText(context, R.string.artifact_saved, android.widget.Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                android.widget.Toast.makeText(context, R.string.artifact_save_failed, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    fun handleContentAction(target: ContentTarget, action: ContentUnitAction) {
+        when (action) {
+            ContentUnitAction.COPY -> {
+                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", target.copyPayload))
+                android.widget.Toast.makeText(context, R.string.artifact_copied, android.widget.Toast.LENGTH_SHORT).show()
+            }
+            ContentUnitAction.SHARE -> onShare(target.sharePayload)
+            ContentUnitAction.SAVE -> if (target is ContentTarget.Block && target.complete) {
+                pendingSaveTarget = target
+                saveContentLauncher.launch("airi-${target.language?.ifBlank { "text" } ?: "text"}.txt")
+            }
+        }
+    }
     val allTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsState()
     val trace = remember(traceId, allTraces) {
         if (traceId != null) allTraces.find { it.id == traceId } else null
@@ -2814,6 +2850,7 @@ fun AiBubble(
                                 ContentAwareMessageRenderer(
                                     text = text,
                                     modifier = Modifier.fillMaxWidth(),
+                                    messageId = messageId,
                                     onCopyCode = { code ->
                                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI code", code))
@@ -2824,6 +2861,7 @@ fun AiBubble(
                                         android.widget.Toast.makeText(context, R.string.table_copied, android.widget.Toast.LENGTH_SHORT).show()
                                     },
                                     onShareTable = { table -> onShare(table) },
+                                    onContentAction = ::handleContentAction,
                                 )
                             }
                             if (isSelectingText) SelectionContainer { renderContent() } else renderContent()
@@ -3098,7 +3136,10 @@ private fun ExecutionErrorBubble(error: ExecutionErrorProjection) {
 }
 
 @Composable
-fun AiStreamingBubble(text: String) {
+fun AiStreamingBubble(
+    text: String,
+    messageId: String = "streaming-active",
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
         horizontalArrangement = ChatPresentationPolicy.assistantBubbleArrangement(),
@@ -3113,7 +3154,12 @@ fun AiStreamingBubble(text: String) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp).padding(top = 1.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
                     CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection(text)) {
-                        ContentAwareMessageRenderer(text = text, modifier = Modifier.fillMaxWidth(), isStreaming = true)
+                        ContentAwareMessageRenderer(
+                            text = text,
+                            modifier = Modifier.fillMaxWidth(),
+                            isStreaming = true,
+                            messageId = messageId,
+                        )
                     }
                     BlinkingCursor()
                 }

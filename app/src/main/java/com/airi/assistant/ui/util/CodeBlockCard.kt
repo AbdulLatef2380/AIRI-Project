@@ -4,8 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.OpenInFull
-import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,6 +42,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.foundation.text.selection.SelectionContainer
 import com.airi.assistant.R
+import com.airi.assistant.ui.text.ContentTarget
+import com.airi.assistant.ui.text.ContentUnitAction
 import com.airi.assistant.ui.theme.AiriTheme
 
 @Composable
@@ -54,23 +53,15 @@ fun CodeBlockCard(
     codeBack: Color,
     codeFore: Color,
     onCopyCode: ((String) -> Unit)?,
+    target: ContentTarget.Block? = null,
+    onContentAction: ((ContentTarget, ContentUnitAction) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
-    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
-        if (uri != null) {
-            runCatching {
-                context.contentResolver.openOutputStream(uri)?.use { it.write(code.toByteArray(Charsets.UTF_8)) }
-                    ?: error("No output stream")
-                android.widget.Toast.makeText(context, R.string.artifact_saved, android.widget.Toast.LENGTH_SHORT).show()
-            }.onFailure {
-                android.widget.Toast.makeText(context, R.string.artifact_save_failed, android.widget.Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
     fun copy() {
-        onCopyCode?.invoke(code) ?: run {
+        if (target != null && onContentAction != null && ContentUnitAction.COPY in target.actions) {
+            onContentAction(target, ContentUnitAction.COPY)
+        } else onCopyCode?.invoke(code) ?: run {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText("AIRI code", code))
         }
@@ -78,6 +69,10 @@ fun CodeBlockCard(
     }
 
     fun share() {
+        if (target != null && onContentAction != null && ContentUnitAction.SHARE in target.actions) {
+            onContentAction(target, ContentUnitAction.SHARE)
+            return
+        }
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_TEXT, code)
@@ -97,11 +92,10 @@ fun CodeBlockCard(
                     IconButton(onClick = { expanded = true }, modifier = Modifier.size(40.dp)) {
                         Icon(Icons.Outlined.OpenInFull, contentDescription = context.getString(R.string.artifact_expand), tint = AiriTheme.onSurfaceVariant)
                     }
-                    IconButton(onClick = ::share, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Outlined.Share, contentDescription = context.getString(R.string.artifact_share), tint = AiriTheme.onSurfaceVariant)
-                    }
-                    IconButton(onClick = { saveLauncher.launch("airi-${language.ifBlank { "text" }.lowercase()}.${languageExtension(language)}") }, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Outlined.Save, contentDescription = context.getString(R.string.artifact_save), tint = AiriTheme.onSurfaceVariant)
+                    if (target == null || ContentUnitAction.SHARE in target.actions) {
+                        IconButton(onClick = ::share, modifier = Modifier.size(40.dp)) {
+                            Icon(Icons.Outlined.Share, contentDescription = context.getString(R.string.artifact_share), tint = AiriTheme.onSurfaceVariant)
+                        }
                     }
                 }
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {

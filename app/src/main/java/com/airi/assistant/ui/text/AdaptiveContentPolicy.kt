@@ -27,6 +27,7 @@ data class AssistantContentUnit(
 )
 
 data class AdaptiveContentPlan(
+    val messageId: String,
     val units: List<AssistantContentUnit>,
     val messageActions: Set<ContentUnitAction>,
 ) {
@@ -36,57 +37,21 @@ data class AdaptiveContentPlan(
 
 /** Pure policy: determines presentation and action scope from content semantics and state. */
 object AdaptiveContentPolicy {
-    fun plan(text: String, isStreaming: Boolean = false): AdaptiveContentPlan {
-        if (text.isBlank()) return AdaptiveContentPlan(emptyList(), emptySet())
+    fun plan(
+        text: String,
+        isStreaming: Boolean = false,
+        messageId: String = stableMessageId(text),
+    ): AdaptiveContentPlan {
+        if (text.isBlank()) return AdaptiveContentPlan(messageId, emptyList(), emptySet())
 
         val analysis = AssistantContentClassifier.analyse(text, isStreaming)
-        val units = mutableListOf<AssistantContentUnit>().apply {
-            analysis.codeBlocks.forEachIndexed { index, block ->
-                add(
-                    AssistantContentUnit(
-                        id = "code-$index-${stableSuffix(block.code)}",
-                        kind = if (block.language.equals("json", true)) ContentUnitKind.STRUCTURED_DATA else ContentUnitKind.CODE,
-                        source = block.code,
-                        language = block.language,
-                        complete = block.isComplete,
-                        actions = buildSet {
-                            add(ContentUnitAction.COPY)
-                            if (block.isComplete) {
-                                add(ContentUnitAction.SHARE)
-                                add(ContentUnitAction.SAVE)
-                            }
-                        },
-                    ),
-                )
-            }
-            if (analysis.containsTable) {
-                add(
-                    AssistantContentUnit(
-                        id = "table-${stableSuffix(text)}",
-                        kind = ContentUnitKind.TABLE,
-                        source = text,
-                        actions = setOf(ContentUnitAction.COPY, ContentUnitAction.SHARE),
-                    ),
-                )
-            }
-            if (isEmpty() && text.isNotBlank()) {
-                add(
-                    AssistantContentUnit(
-                        id = "prose-${stableSuffix(text)}",
-                        kind = ContentUnitKind.PROSE,
-                        source = text,
-                        actions = setOf(ContentUnitAction.COPY, ContentUnitAction.SHARE),
-                    ),
-                )
-            }
-        }.toList()
-
-        // Message actions are deliberately separate from unit actions.
+        val units = parseUnits(text, analysis, messageId)
         val messageActions = buildSet {
-            if (text.isNotBlank()) add(ContentUnitAction.COPY)
-            if (!isStreaming && text.isNotBlank()) add(ContentUnitAction.SHARE)
+            add(ContentUnitAction.COPY)
+            if (!isStreaming) add(ContentUnitAction.SHARE)
         }
         return AdaptiveContentPlan(
+            messageId = messageId,
             units = units,
             messageActions = messageActions,
         )
@@ -107,7 +72,124 @@ object AdaptiveContentPolicy {
         .map { line -> line.trim('|').split('|').map(String::trim) }
         .filter { it.isNotEmpty() }
 
-    private fun stableSuffix(value: String): String = value.hashCode().toUInt().toString(16)
+    private fun parseUnits(
+        text: String,
+        analysis: AssistantContentAnalysis,
+        messageId: String,
+    ): List<AssistantContentUnit> {
+        val matches = mutableListOf<UnitMatch>()
+        AssistantContentClassifier.fencedCodeRanges(text).forEach { block ->
+            matches += UnitMatch(
+                start = block.start,
+                end = block.end,
+                kind = if (block.language.equals("json", true)) ContentUnitKind.STRUCTURED_DATA else ContentUnitKind.CODE,
+                source = block.code,
+                language = block.language,
+                complete = block.isComplete,
+            )
+        }
+        markdownTableRange(text)?.let { table ->
+            matches += UnitMatch(
+                start = table.start,
+                end = table.end,
+                kind = ContentUnitKind.TABLE,
+                source = table.source,
+            )
+        }
+
+        if (matches.isEmpty() && analysis.codeBlocks.isEmpty()) {
+            return listOf(
+                proseUnit(messageId, text, 0, 0),
+            )
+        }
+
+        val ordered = matches.sortedWith(compareBy<UnitMatch> { it.start }.thenBy { it.end })
+        val units = mutableListOf<AssistantContentUnit>()
+        var cursor = 0
+        var occurrence = 0
+        ordered.forEach { match ->
+            if (match.start < cursor) return@forEach
+            addProse(units, text.substring(cursor, match.start), cursor, messageId, occurrence++)
+            units += match.toUnit(messageId, occurrence++)
+            cursor = match.end
+        }
+        addProse(units, text.substring(cursor), cursor, messageId, occurrence)
+        return units
+    }
+
+    private fun addProse(
+        units: MutableList<AssistantContentUnit>,
+        source: String,
+        start: Int,
+        messageId: String,
+        occurrence: Int,
+    ) {
+        if (source.isBlank()) return
+        units += proseUnit(messageId, source, start, occurrence)
+    }
+
+    private fun proseUnit(
+        messageId: String,
+        source: String,
+        start: Int,
+        occurrence: Int,
+    ) = AssistantContentUnit(
+        id = unitId(messageId, ContentUnitKind.PROSE, start, occurrence),
+        kind = ContentUnitKind.PROSE,
+        source = source,
+        actions = setOf(ContentUnitAction.COPY, ContentUnitAction.SHARE),
+    )
+
+    private data class UnitMatch(
+        val start: Int,
+        val end: Int,
+        val kind: ContentUnitKind,
+        val source: String,
+        val language: String? = null,
+        val complete: Boolean = true,
+    ) {
+        fun toUnit(messageId: String, occurrence: Int) = AssistantContentUnit(
+            id = unitId(messageId, kind, start, occurrence),
+            kind = kind,
+            source = source,
+            language = language,
+            complete = complete,
+            actions = buildSet {
+                add(ContentUnitAction.COPY)
+                if (kind == ContentUnitKind.TABLE || complete) add(ContentUnitAction.SHARE)
+                if ((kind == ContentUnitKind.CODE || kind == ContentUnitKind.STRUCTURED_DATA) && complete) {
+                    add(ContentUnitAction.SAVE)
+                }
+            },
+        )
+    }
+
+    private fun markdownTableRange(text: String): TableRange? {
+        val lines = text.split('\n')
+        val starts = IntArray(lines.size)
+        for (index in 1 until lines.size) {
+            starts[index] = starts[index - 1] + lines[index - 1].length + 1
+        }
+        for (separatorIndex in 1 until lines.size) {
+            if (!lines[separatorIndex].trim().matches(TABLE_SEPARATOR)) continue
+            var startLine = separatorIndex - 1
+            while (startLine > 0 && lines[startLine - 1].contains('|')) startLine--
+            var endLine = separatorIndex
+            while (endLine + 1 < lines.size && lines[endLine + 1].contains('|')) endLine++
+            val start = starts[startLine]
+            val end = (starts[endLine] + lines[endLine].length).coerceAtMost(text.length)
+            return TableRange(start, end, text.substring(start, end))
+        }
+        return null
+    }
+
+    private data class TableRange(val start: Int, val end: Int, val source: String)
+
+    private fun unitId(messageId: String, kind: ContentUnitKind, start: Int, occurrence: Int): String =
+        "$messageId-${kind.name.lowercase()}-$start-$occurrence"
+
+    private fun stableMessageId(value: String): String =
+        "message-${value.hashCode().toUInt().toString(16)}"
 
     private val TABLE_SEPARATOR = Regex(
         "^\\|?\\s*:?-{3,}:?\\s*(\\|\\s*:?-{3,}:?\\s*)+\\|?$",

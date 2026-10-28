@@ -33,35 +33,51 @@ fun ContentAwareMessageRenderer(
     text: String,
     modifier: Modifier = Modifier,
     isStreaming: Boolean = false,
+    messageId: String = "",
     onCopyCode: ((String) -> Unit)? = null,
     onCopyTable: ((String) -> Unit)? = null,
     onShareTable: ((String) -> Unit)? = null,
+    onContentAction: ((ContentTarget, ContentUnitAction) -> Unit)? = null,
 ) {
+    val plan = remember(text, isStreaming, messageId) {
+        AdaptiveContentPolicy.plan(text, isStreaming, messageId = messageId.ifBlank { "message-${text.hashCode().toUInt().toString(16)}" })
+    }
     val analysis = remember(text, isStreaming) { AssistantContentClassifier.analyse(text, isStreaming) }
+    val codeTargets = plan.units
+        .filter { it.kind == ContentUnitKind.CODE || it.kind == ContentUnitKind.STRUCTURED_DATA }
+        .map { it.toContentTarget(plan.messageId) }
     when (analysis.kind) {
         AssistantContentKind.TABLE -> MarkdownTableRenderer(
             text = text,
             modifier = modifier,
             onCopyTable = onCopyTable,
             onShareTable = onShareTable,
+            tableTarget = plan.units.firstOrNull { it.kind == ContentUnitKind.TABLE }?.toContentTarget(plan.messageId),
+            onContentAction = onContentAction,
         )
         AssistantContentKind.STRUCTURED_CODE -> BidiAwareMarkdownRenderer(
             text = "```text\n${text.trim()}\n```",
             modifier = modifier,
             isStreaming = isStreaming,
             onCopyCode = onCopyCode,
+            codeTargets = codeTargets,
+            onContentAction = onContentAction,
         )
         AssistantContentKind.CODE_BLOCK -> BidiAwareMarkdownRenderer(
             text = text,
             modifier = modifier,
             isStreaming = isStreaming,
             onCopyCode = onCopyCode,
+            codeTargets = codeTargets,
+            onContentAction = onContentAction,
         )
         else -> BidiAwareMarkdownRenderer(
             text = text,
             modifier = modifier,
             isStreaming = isStreaming,
             onCopyCode = onCopyCode,
+            codeTargets = codeTargets,
+            onContentAction = onContentAction,
         )
     }
 }
@@ -72,6 +88,8 @@ private fun MarkdownTableRenderer(
     modifier: Modifier = Modifier,
     onCopyTable: ((String) -> Unit)? = null,
     onShareTable: ((String) -> Unit)? = null,
+    tableTarget: ContentTarget.Block? = null,
+    onContentAction: ((ContentTarget, ContentUnitAction) -> Unit)? = null,
 ) {
     val tableBounds = remember(text) { findTableBounds(text) }
     val rows = remember(tableBounds.table) { AdaptiveContentPolicy.parseMarkdownTable(tableBounds.table) }
@@ -100,19 +118,31 @@ private fun MarkdownTableRenderer(
                 }
             }
         }
-        if (onCopyTable != null || onShareTable != null) {
+        if (onCopyTable != null || onShareTable != null || onContentAction != null) {
             Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                onCopyTable?.let { copy ->
+                if (onCopyTable != null || onContentAction != null) {
                     IconButton(
-                        onClick = { copy(AdaptiveContentPolicy.tableClipboardText(tableBounds.table)) },
+                        onClick = {
+                            if (tableTarget != null && onContentAction != null) {
+                                onContentAction(tableTarget, ContentUnitAction.COPY)
+                            } else {
+                                onCopyTable?.invoke(AdaptiveContentPolicy.tableClipboardText(tableBounds.table))
+                            }
+                        },
                         modifier = Modifier.size(40.dp),
                     ) {
                         Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.copy_table), tint = AiriTheme.onSurfaceVariant)
                     }
                 }
-                onShareTable?.let { share ->
+                if (onShareTable != null || onContentAction != null) {
                     IconButton(
-                        onClick = { share(AdaptiveContentPolicy.tableShareText(tableBounds.table)) },
+                        onClick = {
+                            if (tableTarget != null && onContentAction != null) {
+                                onContentAction(tableTarget, ContentUnitAction.SHARE)
+                            } else {
+                                onShareTable?.invoke(AdaptiveContentPolicy.tableShareText(tableBounds.table))
+                            }
+                        },
                         modifier = Modifier.size(40.dp),
                     ) {
                         Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.share_table), tint = AiriTheme.onSurfaceVariant)

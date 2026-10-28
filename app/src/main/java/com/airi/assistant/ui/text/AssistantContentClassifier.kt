@@ -26,6 +26,14 @@ data class AssistantContentAnalysis(
 
 data class AssistantCodeBlock(val language: String, val code: String, val isComplete: Boolean = true)
 
+data class AssistantCodeRange(
+    val start: Int,
+    val end: Int,
+    val language: String,
+    val code: String,
+    val isComplete: Boolean,
+)
+
 /**
  * Classifies before rendering. Incomplete fences are deliberately retained as
  * streaming content instead of being permanently classified as prose.
@@ -67,9 +75,19 @@ object AssistantContentClassifier {
     }
 
     fun fencedCodeBlocks(text: String): List<AssistantCodeBlock> {
+        return fencedCodeRanges(text).map { AssistantCodeBlock(it.language, it.code, it.isComplete) }
+    }
+
+    fun fencedCodeRanges(text: String): List<AssistantCodeRange> {
         val regex = Regex("```([A-Za-z0-9_+#.-]*)\\s*\\n?([\\s\\S]*?)(?:```|$)")
         return regex.findAll(text).map { match ->
-            AssistantCodeBlock(match.groupValues[1].ifBlank { "text" }, match.groupValues[2].trimEnd(), match.value.trimEnd().endsWith("```"))
+            AssistantCodeRange(
+                start = match.range.first,
+                end = match.range.last + 1,
+                language = match.groupValues[1].ifBlank { "text" },
+                code = match.groupValues[2].trimEnd(),
+                isComplete = match.value.trimEnd().endsWith("```"),
+            )
         }.toList()
     }
 

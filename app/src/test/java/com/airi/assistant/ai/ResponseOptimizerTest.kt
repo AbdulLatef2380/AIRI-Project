@@ -69,7 +69,7 @@ class ResponseOptimizerTest {
             ResponseOptimizer.generateSuggestions(userInput, response, "es"),
         )
         assertEquals(
-            listOf("分析代码并找出潜在错误，提出实用改进", "为这段实现添加测试和错误处理", "从性能、安全性和可维护性方面优化"),
+            listOf("分析代码并找出潜在错误，提出实用改进", "为这段实现添加测试和错误处理", "从性能、安全性和可维护性方面优化代码"),
             ResponseOptimizer.generateSuggestions(userInput, response, "zh"),
         )
     }

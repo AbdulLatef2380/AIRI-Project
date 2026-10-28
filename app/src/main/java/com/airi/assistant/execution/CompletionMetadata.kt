@@ -24,6 +24,8 @@ data class CompletionMetadata(
     val rawReason: String? = null,
     val providerId: String = "",
     val terminal: Boolean = true,
+    /** Number of additional provider requests used to finish this response. */
+    val continuationHops: Int = 0,
 ) {
     companion object {
         fun fromProvider(providerId: String, rawReason: String?): CompletionMetadata {

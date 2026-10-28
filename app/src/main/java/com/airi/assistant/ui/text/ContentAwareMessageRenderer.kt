@@ -82,16 +82,24 @@ fun ContentAwareMessageRenderer(
         }
         plan.toolOutputs.forEach { output ->
             key(output.id) {
-                ToolOutputCard(output)
+                ToolOutputCard(
+                    output = output,
+                    target = output.toContentTarget(plan.messageId),
+                    onContentAction = onContentAction,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun ToolOutputCard(output: AssistantToolOutput) {
+private fun ToolOutputCard(
+    output: AssistantToolOutput,
+    target: ContentTarget.ToolOutput,
+    onContentAction: (ContentTarget, ContentUnitAction) -> Unit,
+) {
     var expanded by rememberSaveable(output.id) { mutableStateOf(false) }
-    val canExpand = ContentUnitAction.EXPAND in output.actions
+    val canExpand = target.canPerform(ContentUnitAction.EXPAND)
     if (!canExpand) return
 
     Surface(
@@ -107,7 +115,15 @@ private fun ToolOutputCard(output: AssistantToolOutput) {
                     fontSize = 11.sp,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(40.dp)) {
+                IconButton(
+                    onClick = {
+                        if (target.canPerform(ContentUnitAction.EXPAND)) {
+                            onContentAction(target, ContentUnitAction.EXPAND)
+                            expanded = !expanded
+                        }
+                    },
+                    modifier = Modifier.size(40.dp),
+                ) {
                     Icon(
                         imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                         contentDescription = stringResource(
@@ -171,9 +187,9 @@ private fun MarkdownTableRenderer(
                 }
             }
         }
-        if (ContentUnitAction.COPY in tableTarget.actions || ContentUnitAction.SHARE in tableTarget.actions) {
+        if (tableTarget.canPerform(ContentUnitAction.COPY) || tableTarget.canPerform(ContentUnitAction.SHARE)) {
             Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                if (ContentUnitAction.COPY in tableTarget.actions) {
+                if (tableTarget.canPerform(ContentUnitAction.COPY)) {
                     IconButton(
                         onClick = { onContentAction(tableTarget, ContentUnitAction.COPY) },
                         modifier = Modifier.size(40.dp),
@@ -181,7 +197,7 @@ private fun MarkdownTableRenderer(
                         Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.copy_table), tint = AiriTheme.onSurfaceVariant)
                     }
                 }
-                if (ContentUnitAction.SHARE in tableTarget.actions) {
+                if (tableTarget.canPerform(ContentUnitAction.SHARE)) {
                     IconButton(
                         onClick = { onContentAction(tableTarget, ContentUnitAction.SHARE) },
                         modifier = Modifier.size(40.dp),

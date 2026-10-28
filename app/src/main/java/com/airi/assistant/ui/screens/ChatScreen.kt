@@ -123,6 +123,7 @@ import com.airi.assistant.ui.text.AdaptiveContentPolicy
 import com.airi.assistant.ui.text.ContentTarget
 import com.airi.assistant.ui.text.ContentPlatformActions
 import com.airi.assistant.ui.text.ContentUnitAction
+import com.airi.assistant.ui.text.canPerform
 import com.airi.assistant.ui.text.AssistantToolOutput
 import com.airi.assistant.ui.trace.InlineExecutionTrace
 import com.airi.assistant.ui.components.ThinkingAnimation
@@ -2400,6 +2401,7 @@ fun ChatMessageList(
                                     if (msg.executionTraceId == inlineTraceExecutionId) inlineActivityEvents else emptyList()
                                 },
                                 executionTraceWorking = inlineTraceWorking && msg.executionTraceId == inlineTraceExecutionId,
+                                continuationHops = msg.continuationHops,
                                 onFeedback      = { liked -> onFeedback(msg.uid, liked) },
                                 onExportPdf     = onExportPdf,
                                 onExportMarkdown = onExportMarkdown,
@@ -2719,19 +2721,25 @@ private fun rememberContentUnitActionHandler(
     }
     return remember(context, onShare, saveLauncher) {
         { target, action ->
-            val block = target as? ContentTarget.Block
-            if (block != null && action in block.actions) {
+            if (target.canPerform(action)) {
                 when (action) {
                     ContentUnitAction.COPY -> {
-                        ContentPlatformActions.copyPlainText(context, "AIRI", block.copyPayload)
+                        ContentPlatformActions.copyPlainText(context, "AIRI", target.copyPayload)
                         android.widget.Toast.makeText(context, R.string.artifact_copied, android.widget.Toast.LENGTH_SHORT).show()
                     }
-                    ContentUnitAction.SHARE -> onShare(block.sharePayload)
-                    ContentUnitAction.SAVE -> if (block.complete) {
-                        pendingSaveTarget = block
-                        saveLauncher.launch("airi-${block.language?.ifBlank { "text" } ?: "text"}.txt")
+                    ContentUnitAction.SHARE -> onShare(target.sharePayload)
+                    ContentUnitAction.SAVE -> {
+                        val block = target as? ContentTarget.Block
+                        if (block != null) {
+                            pendingSaveTarget = block
+                            saveLauncher.launch("airi-${block.language?.ifBlank { "text" } ?: "text"}.txt")
+                        }
                     }
                     ContentUnitAction.EXPAND -> Unit
+                    ContentUnitAction.SPEAK,
+                    ContentUnitAction.FULLSCREEN,
+                    ContentUnitAction.EXPORT_PDF,
+                    ContentUnitAction.EXPORT_MARKDOWN -> Unit
                 }
             }
         }
@@ -2756,6 +2764,7 @@ fun AiBubble(
     executionTraceEntries: List<ExecutionTraceEvent> = emptyList(),
     executionActivityEvents: List<com.airi.assistant.ui.activity.ActivityEvent> = emptyList(),
     executionTraceWorking: Boolean = false,
+    continuationHops: Int = 0,
     initialFeedback: Int = 0,
     
     onFeedback: (liked: Boolean) -> Unit = {},
@@ -2774,6 +2783,26 @@ fun AiBubble(
     var isSelectingText by remember { mutableStateOf(false) }
     var showFullscreenViewer by remember { mutableStateOf(false) }
     val adaptivePlan = remember(text) { AdaptiveContentPolicy.plan(text) }
+    val messageTarget = remember(messageId, text, adaptivePlan.messageActions) {
+        ContentTarget.Message(messageId = messageId, source = text, actions = adaptivePlan.messageActions)
+    }
+    fun performMessageAction(action: ContentUnitAction) {
+        if (!messageTarget.canPerform(action)) return
+        when (action) {
+            ContentUnitAction.COPY -> {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", messageTarget.copyPayload))
+            }
+            ContentUnitAction.SHARE -> onShare(messageTarget.sharePayload)
+            ContentUnitAction.SPEAK -> onSpeak(messageTarget.source)
+            ContentUnitAction.FULLSCREEN -> if (messageTarget.source.isNotBlank()) showFullscreenViewer = true
+            ContentUnitAction.EXPORT_PDF -> onExportPdf(messageTarget.source)
+            ContentUnitAction.EXPORT_MARKDOWN -> onExportMarkdown(messageTarget.source)
+            ContentUnitAction.SAVE,
+            ContentUnitAction.EXPAND -> Unit
+        }
+    }
     val textDirection = remember(text) { chatTextDirection(text) }
     val avatarAtEnd = remember(text) { ChatPresentationPolicy.assistantAvatarAtEnd(text) }
     val responseGesture = if (isSelectingText) {
@@ -2782,7 +2811,7 @@ fun AiBubble(
         Modifier.combinedClickable(
             onClick = { },
             onDoubleClick = {
-                if (text.isNotBlank()) showFullscreenViewer = true
+                performMessageAction(ContentUnitAction.FULLSCREEN)
             },
             onLongClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -2884,14 +2913,13 @@ fun AiBubble(
                         onDismissRequest = { showContextMenu = false },
                         modifier = Modifier.background(AiriTheme.surfaceVariant)
                     ) {
-                        if (ContentUnitAction.COPY in adaptivePlan.messageActions) {
+                        if (messageTarget.canPerform(ContentUnitAction.COPY)) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.copy), color = AiriTheme.onBackground) },
                                 leadingIcon = { Icon(Icons.Outlined.ContentCopy, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
                                 onClick = {
                                     showContextMenu = false
-                                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
+                                    performMessageAction(ContentUnitAction.COPY)
                                 }
                             )
                         }
@@ -2903,25 +2931,38 @@ fun AiBubble(
                                 isSelectingText = true
                             }
                         )
-                        if (ContentUnitAction.SHARE in adaptivePlan.messageActions) {
+                        if (messageTarget.canPerform(ContentUnitAction.SHARE)) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.share), color = AiriTheme.onBackground) },
                                 leadingIcon = { Icon(Icons.Outlined.Share, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                                onClick = { showContextMenu = false; onShare(text) }
+                                onClick = { showContextMenu = false; performMessageAction(ContentUnitAction.SHARE) }
                             )
                         }
                         Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
-                        DropdownMenuItem(
-                            text = { Text("Export as PDF", color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.PictureAsPdf, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                            onClick = { showContextMenu = false; onExportPdf(text) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Export as Markdown", color = AiriTheme.onBackground) },
-                            leadingIcon = { Icon(Icons.Outlined.Description, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                            onClick = { showContextMenu = false; onExportMarkdown(text) }
-                        )
+                        if (messageTarget.canPerform(ContentUnitAction.EXPORT_PDF)) {
+                            DropdownMenuItem(
+                                text = { Text("Export as PDF", color = AiriTheme.onBackground) },
+                                leadingIcon = { Icon(Icons.Outlined.PictureAsPdf, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                                onClick = { showContextMenu = false; performMessageAction(ContentUnitAction.EXPORT_PDF) }
+                            )
+                        }
+                        if (messageTarget.canPerform(ContentUnitAction.EXPORT_MARKDOWN)) {
+                            DropdownMenuItem(
+                                text = { Text("Export as Markdown", color = AiriTheme.onBackground) },
+                                leadingIcon = { Icon(Icons.Outlined.Description, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
+                                onClick = { showContextMenu = false; performMessageAction(ContentUnitAction.EXPORT_MARKDOWN) }
+                            )
+                        }
                     }
+                }
+
+                if (continuationHops > 0) {
+                    Text(
+                        text = stringResource(R.string.chat_auto_continued, continuationHops),
+                        color = AiriTheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 4.dp, start = 4.dp),
+                    )
                 }
 
                 // Reply actions stay directly on the chat surface without the
@@ -2933,19 +2974,19 @@ fun AiBubble(
                     horizontalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
                     // Speak
-                    IconButton(onClick = { onSpeak(text) }, modifier = Modifier.size(48.dp)) {
+                    if (messageTarget.canPerform(ContentUnitAction.SPEAK)) {
+                        IconButton(onClick = { performMessageAction(ContentUnitAction.SPEAK) }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Outlined.VolumeUp, contentDescription = stringResource(R.string.speak_to_airi), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
+                        }
                     }
                     // More actions
                     IconButton(onClick = { showContextMenu = true }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Outlined.MoreHoriz, contentDescription = stringResource(R.string.more_options), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
                     }
                     // Copy full message — deliberately separate from unit copy actions.
-                    if (ContentUnitAction.COPY in adaptivePlan.messageActions) {
+                    if (messageTarget.canPerform(ContentUnitAction.COPY)) {
                         IconButton(onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
+                            performMessageAction(ContentUnitAction.COPY)
                         }, modifier = Modifier.size(48.dp)) {
                             Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.copy), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
                         }
@@ -3017,7 +3058,7 @@ fun AiBubble(
         FullscreenResponseViewer(
             text = text,
             onDismiss = { showFullscreenViewer = false },
-            onShare = { onShare(text); showFullscreenViewer = false }
+            onShare = { performMessageAction(ContentUnitAction.SHARE); showFullscreenViewer = false }
         )
     }
 }

@@ -2248,4 +2248,5 @@
     <string name="artifact_saved">تم حفظ المحتوى</string>
     <string name="artifact_save_failed">تعذر حفظ المحتوى</string>
     <string name="artifact_share_failed">تعذر فتح المشاركة</string>
+    <string name="chat_auto_continued">تمت المتابعة تلقائياً · %1$d جولة إضافية</string>
 </resources>

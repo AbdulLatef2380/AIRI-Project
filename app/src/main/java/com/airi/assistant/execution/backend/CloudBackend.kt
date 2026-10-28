@@ -387,6 +387,7 @@ class CloudBackend(
                     fullText = aggregate.toString(),
                     promptTokens = totalPromptTokens,
                     completionTokens = totalCompletionTokens,
+                    completion = success.completion.copy(continuationHops = hop),
                 )
             }
             if (hop == 0) {
@@ -407,6 +408,7 @@ class CloudBackend(
                     fullText = aggregate.toString(),
                     promptTokens = totalPromptTokens,
                     completionTokens = totalCompletionTokens,
+                    completion = success.completion.copy(continuationHops = hop),
                 )
             }
 
@@ -421,6 +423,7 @@ class CloudBackend(
                     fullText = aggregate.toString(),
                     promptTokens = totalPromptTokens,
                     completionTokens = totalCompletionTokens,
+                    completion = success.completion.copy(continuationHops = hop),
                 )
             }
 
@@ -457,6 +460,7 @@ class CloudBackend(
                     fullText = aggregate.toString(),
                     promptTokens = totalPromptTokens,
                     completionTokens = totalCompletionTokens,
+                    completion = success.completion.copy(continuationHops = hop),
                 )
             }
         }

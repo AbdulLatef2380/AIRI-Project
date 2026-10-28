@@ -200,6 +200,8 @@ data class ChatMessage(
     val voiceDurationMs: Long = 0L,
     /** Raw tool results are presentation metadata, never merged into [text]. */
     val toolOutputs: List<AssistantToolOutput> = emptyList(),
+    /** UI-only evidence that the cloud response used automatic continuation. */
+    val continuationHops: Int = 0,
 ) {
     val outputPresentation: AssistantOutputPresentation
         get() = AssistantOutputPresentation(
@@ -2682,6 +2684,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 executionTraceSnapshot = ExecutionStatusBus.trace.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId },
                                 executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId },
                                 toolOutputs = toolOutputs.toList(),
+                                continuationHops = loopResult.completionMetadata.continuationHops,
                             )
                         }
                     }

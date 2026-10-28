@@ -16,6 +16,10 @@ enum class ContentUnitAction {
     SHARE,
     SAVE,
     EXPAND,
+    SPEAK,
+    FULLSCREEN,
+    EXPORT_PDF,
+    EXPORT_MARKDOWN,
 }
 
 data class AssistantContentUnit(
@@ -51,7 +55,13 @@ object AdaptiveContentPolicy {
         val units = parseUnits(text, analysis, messageId)
         val messageActions = buildSet {
             add(ContentUnitAction.COPY)
-            if (!isStreaming) add(ContentUnitAction.SHARE)
+            if (!isStreaming) {
+                add(ContentUnitAction.SHARE)
+                add(ContentUnitAction.SPEAK)
+                add(ContentUnitAction.FULLSCREEN)
+                add(ContentUnitAction.EXPORT_PDF)
+                add(ContentUnitAction.EXPORT_MARKDOWN)
+            }
         }
         return AdaptiveContentPlan(
             messageId = messageId,

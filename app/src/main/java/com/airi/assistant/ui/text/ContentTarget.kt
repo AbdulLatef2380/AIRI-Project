@@ -18,6 +18,7 @@ sealed interface ContentTarget {
     data class Message(
         override val messageId: String,
         override val source: String,
+        val actions: Set<ContentUnitAction> = setOf(ContentUnitAction.COPY, ContentUnitAction.SHARE),
     ) : ContentTarget {
         override val kind: ContentUnitKind? = null
     }
@@ -41,9 +42,35 @@ sealed interface ContentTarget {
             get() = when (kind) {
                 ContentUnitKind.TABLE -> AdaptiveContentPolicy.tableShareText(source)
                 else -> source
-            }
+        }
+    }
+
+    /** Tool output is a separate presentation target, never an agent-output block. */
+    data class ToolOutput(
+        override val messageId: String,
+        val outputId: String,
+        val toolName: String,
+        val step: Int,
+        override val source: String,
+        val truncated: Boolean = false,
+        val actions: Set<ContentUnitAction> = emptySet(),
+    ) : ContentTarget {
+        override val kind: ContentUnitKind? = null
     }
 }
+
+/** Single enforcement point for every ARPE content action. */
+object ContentActionPolicy {
+    fun allows(target: ContentTarget, action: ContentUnitAction): Boolean = when (target) {
+        is ContentTarget.Message -> action in target.actions
+        is ContentTarget.Block -> action in target.actions &&
+            (action != ContentUnitAction.SAVE || target.complete)
+        is ContentTarget.ToolOutput -> action in target.actions
+    }
+}
+
+fun ContentTarget.canPerform(action: ContentUnitAction): Boolean =
+    ContentActionPolicy.allows(this, action)
 
 fun AssistantContentUnit.toContentTarget(messageId: String): ContentTarget.Block =
     ContentTarget.Block(
@@ -53,5 +80,16 @@ fun AssistantContentUnit.toContentTarget(messageId: String): ContentTarget.Block
         source = source,
         language = language,
         complete = complete,
+        actions = actions,
+    )
+
+fun AssistantToolOutput.toContentTarget(messageId: String): ContentTarget.ToolOutput =
+    ContentTarget.ToolOutput(
+        messageId = messageId,
+        outputId = id,
+        toolName = toolName,
+        step = step,
+        source = text,
+        truncated = truncated,
         actions = actions,
     )

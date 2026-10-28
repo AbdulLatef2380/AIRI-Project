@@ -53,6 +53,21 @@ class AdaptiveContentPolicyTest {
         assertEquals(ContentUnitKind.PROSE, plan.units.single().kind)
         assertTrue(ContentUnitAction.COPY in plan.messageActions)
         assertTrue(ContentUnitAction.SHARE in plan.messageActions)
+        assertTrue(ContentUnitAction.SPEAK in plan.messageActions)
+        assertTrue(ContentUnitAction.FULLSCREEN in plan.messageActions)
+        assertTrue(ContentUnitAction.EXPORT_PDF in plan.messageActions)
+        assertTrue(ContentUnitAction.EXPORT_MARKDOWN in plan.messageActions)
+    }
+
+    @Test
+    fun streamingMessageDoesNotExposeFinalOnlyActions() {
+        val actions = AdaptiveContentPolicy.plan("partial response", isStreaming = true).messageActions
+        assertTrue(ContentUnitAction.COPY in actions)
+        assertFalse(ContentUnitAction.SHARE in actions)
+        assertFalse(ContentUnitAction.SPEAK in actions)
+        assertFalse(ContentUnitAction.FULLSCREEN in actions)
+        assertFalse(ContentUnitAction.EXPORT_PDF in actions)
+        assertFalse(ContentUnitAction.EXPORT_MARKDOWN in actions)
     }
 
     @Test
@@ -245,5 +260,48 @@ $existingText""",
         assertEquals(text, plan.units.single().source)
         assertFalse(ContentUnitAction.SAVE in plan.messageActions)
         assertFalse(ContentUnitAction.EXPAND in plan.units.single().actions)
+    }
+
+    @Test
+    fun contentActionPolicyRequiresDeclaredActionAndCompleteSave() {
+        val incomplete = ContentTarget.Block(
+            messageId = "m",
+            blockId = "b",
+            kind = ContentUnitKind.CODE,
+            source = "partial",
+            complete = false,
+            actions = setOf(ContentUnitAction.COPY, ContentUnitAction.SAVE, ContentUnitAction.EXPAND),
+        )
+        assertTrue(incomplete.canPerform(ContentUnitAction.COPY))
+        assertTrue(incomplete.canPerform(ContentUnitAction.EXPAND))
+        assertFalse(incomplete.canPerform(ContentUnitAction.SAVE))
+        assertFalse(incomplete.canPerform(ContentUnitAction.SHARE))
+    }
+
+    @Test
+    fun messagePolicyAllowsOnlyDeclaredMessageActions() {
+        val target = ContentTarget.Message(
+            messageId = "m",
+            source = "answer",
+            actions = setOf(ContentUnitAction.COPY, ContentUnitAction.EXPORT_MARKDOWN),
+        )
+        assertTrue(target.canPerform(ContentUnitAction.COPY))
+        assertTrue(target.canPerform(ContentUnitAction.EXPORT_MARKDOWN))
+        assertFalse(target.canPerform(ContentUnitAction.SPEAK))
+        assertFalse(target.canPerform(ContentUnitAction.FULLSCREEN))
+    }
+
+    @Test
+    fun toolOutputActionsHaveIndependentTargetScope() {
+        val target = AssistantToolOutput(
+            id = "tool-1",
+            toolName = "search",
+            step = 1,
+            text = "result",
+            actions = setOf(ContentUnitAction.EXPAND),
+        ).toContentTarget("message-1")
+        assertTrue(target.canPerform(ContentUnitAction.EXPAND))
+        assertFalse(target.canPerform(ContentUnitAction.COPY))
+        assertEquals("result", target.source)
     }
 }

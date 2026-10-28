@@ -2349,4 +2349,5 @@
     <string name="artifact_saved">Content saved</string>
     <string name="artifact_save_failed">Could not save content</string>
     <string name="artifact_share_failed">Could not open sharing</string>
+    <string name="chat_auto_continued">Continued automatically · %1$d more turn(s)</string>
 </resources>

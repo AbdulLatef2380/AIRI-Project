@@ -13,6 +13,8 @@ data class RuntimeCapabilityInventory(
 
     enum class Availability {
         READY,
+        /** Registered and selected for this request, but omitted by prompt budget. */
+        CONTEXT_OMITTED,
         NOT_READY,
         AUTH_REQUIRED,
         PERMISSION_REQUIRED,
@@ -84,7 +86,7 @@ data class RuntimeCapabilityInventory(
                         .joinToString { "${it.key.name.lowercase()}=${it.value}" } + ".")
                 }
             }
-            appendLine("- 'Not exposed' means only that this request's intent/policy did not include that tool; it does not mean the product feature is absent. 'Exposed/admitted' is not proof that a provider, OS permission, sandbox, or approval will succeed. Never claim execution until the real tool result confirms it.")
+            appendLine("- 'Not exposed' normally means this request's intent/policy did not include that tool; status=context_omitted is different and means the selected candidate was removed only by the prompt context budget. Neither state means the product feature is absent. 'Exposed/admitted' is not proof that a provider, OS permission, sandbox, or approval will succeed. Never claim execution until the real tool result confirms it.")
             appendLine("- When asked what AIRI supports, answer from this snapshot and distinguish registered, ready, auth/permission/configuration-required, and request-exposed states. Do not turn a missing tool schema into a claim that AIRI has no such feature.")
             if (important.isNotEmpty()) {
                 appendLine("- Relevant registered entries (status fields are independent):")
@@ -151,11 +153,14 @@ data class RuntimeCapabilityInventory(
             catalog: RuntimeToolCatalog.Result,
             dispatcherAdmittedNames: Set<String>,
             additionalEntries: List<Entry> = emptyList(),
+            contextOmittedNames: Set<String> = emptySet(),
         ): RuntimeCapabilityInventory {
             val selected = catalog.exposed.mapTo(mutableSetOf()) { it.schema.name }
             val entries = catalog.candidates.map { contract ->
                 val name = contract.schema.name
-                val availability = when (contract.source) {
+                val availability = if (name in contextOmittedNames) {
+                    Availability.CONTEXT_OMITTED
+                } else when (contract.source) {
                     // Built-in schemas are declarations. Device permissions, current
                     // session, sandbox, and side-effect policy are only authoritative
                     // at runtime, so schema presence alone cannot certify readiness.
@@ -200,7 +205,9 @@ data class RuntimeCapabilityInventory(
                     inRequestCatalog = name in selected,
                     exposedToAgent = name in dispatcherAdmittedNames,
                     admittedToDispatcher = name in dispatcherAdmittedNames && availability == Availability.READY,
-                    detail = contract.reason ?: if (
+                    detail = if (name in contextOmittedNames) {
+                        "Registered candidate omitted from the model prompt because of the current context budget."
+                    } else contract.reason ?: if (
                         contract.source == RuntimeToolContract.Source.BUILTIN && availability == Availability.UNKNOWN
                     ) "Registered handler; actual device/session/policy readiness is checked at invocation." else null,
                 )

@@ -107,12 +107,15 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import com.airi.assistant.execution.ExecOrigin
@@ -605,14 +608,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         Log.i("AIRI", "PLAN_MODE_TOGGLED active=${_isPlanModeActive.value}")
     }
 
-    // ── Skill tool count — number of skill_* tools the agent can call ─────────
-    // Computed once at VM creation; stable for the ViewModel's lifetime.
-    // SkillToolBridge.asToolSchemas() reads from SkillRegistry (SharedPreferences)
-    // so we wrap in runCatching to be safe.
-    private val _activeSkillCount = MutableStateFlow(
-        runCatching { skillToolBridge.asToolSchemas().size }.getOrDefault(0)
+    // ── Live skill tool count — derived from the canonical registry ───────────
+    // SkillToolBridge reads the current SharedPreferences-backed SkillRegistry.
+    // Polling only while subscribed keeps the Chat UI correct when another
+    // screen installs, removes, disables, or reconnects a skill.
+    val activeSkillCount: StateFlow<Int> = flow {
+        while (currentCoroutineContext().isActive) {
+            emit(runCatching { skillToolBridge.asToolSchemas().size }.getOrDefault(0))
+            delay(SKILL_COUNT_REFRESH_MS)
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
+        initialValue = runCatching { skillToolBridge.asToolSchemas().size }.getOrDefault(0),
     )
-    val activeSkillCount: StateFlow<Int> = _activeSkillCount.asStateFlow()
 
     // ── UI State ──────────────────────────────────────────────────────────────
 
@@ -2360,6 +2369,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val runtimeInventory = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.from(
                 catalog = catalog,
                 dispatcherAdmittedNames = dispatcherAdmittedNames,
+                contextOmittedNames = permissionFilteredTools.map { it.name }.toSet() - dispatcherAdmittedNames,
                 additionalEntries = connectorCapabilityInventoryEntries(
                     input = trimmedInput,
                     connectorIdsRequested = capabilityIntent.connectorIds,
@@ -2369,7 +2379,41 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     dispatcherAdmittedNames = dispatcherAdmittedNames,
                 ) + sandboxCapabilityInventoryEntries(),
             )
-            val fullSystemPrompt = systemPrompt + "\n\n" + runtimeInventory.promptBlock(trimmedInput)
+            val platformSnapshot = com.airi.assistant.agent.loop.tool.PlatformCapabilitySnapshot.from(
+                inventory = runtimeInventory,
+                activeModelId = requestedModelIdAtDispatch,
+                activeProviderId = requestedProviderIdAtDispatch,
+                contextBudget = llamaManager.contextBudget,
+                agentEntries = runCatching {
+                    com.airi.assistant.agent.subagent.SubAgentRegistry.capabilities().map { capability ->
+                        com.airi.assistant.agent.loop.tool.PlatformCapabilitySnapshot.Entry(
+                            id = capability.agentId,
+                            family = com.airi.assistant.agent.loop.tool.PlatformCapabilitySnapshot.Family.AGENT,
+                            status = "registered",
+                            registered = true,
+                            exposed = false,
+                            admitted = false,
+                            detail = capability.description,
+                        )
+                    }
+                }.getOrDefault(emptyList()),
+                memoryEntries = listOf(
+                    com.airi.assistant.agent.loop.tool.PlatformCapabilitySnapshot.Entry(
+                        id = "memory.semantic_retrieval",
+                        family = com.airi.assistant.agent.loop.tool.PlatformCapabilitySnapshot.Family.MEMORY,
+                        status = if (memoryManager.isSemanticMemoryReady()) "ready" else "not_ready",
+                        registered = true,
+                        exposed = true,
+                        admitted = true,
+                        detail = if (memoryManager.isSemanticMemoryReady()) "On-device semantic retrieval is available." else "Falls back to bounded recent-memory retrieval; no embedding model is loaded.",
+                    ),
+                ),
+            )
+            val platformSnapshotBlock = platformSnapshot.promptBlock()
+            val fullSystemPrompt = com.airi.assistant.ai.prompt.DynamicPromptEngine.appendPlatformCapabilitySnapshot(
+                systemPrompt + "\n\n" + runtimeInventory.promptBlock(trimmedInput),
+                platformSnapshotBlock,
+            )
             llamaManager.systemPromptTokenEstimate =
                 com.airi.assistant.ai.prompt.budget.PromptBudgetLedger.estimateTokens(fullSystemPrompt)
             Log.i("AIRI", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${liveSkillSchemas.size} connectors=${connectorToolBridge.asToolSchemas().size} selected=${activeTools.size} queryType=${queryType.name} capabilities=${capabilityIntent.capabilities} candidates=${catalog.candidates.size} exposed=${catalog.exposed.size} filtered=${catalog.filtered.map { it.toolName + ":" + it.reason.name }}")
@@ -2440,6 +2484,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     visionParts  = visionParts,
                     attachmentParts = attachmentParts,
                     attachmentTrace = attachmentTrace,
+                    platformCapabilitySnapshot = platformSnapshotBlock,
                     onToken      = token@{ tok ->
                         if (!isCurrentGeneration(generationId) || _isCancelled.get()) return@token
                         val visibleToken = reasoningParser.consume(tok)
@@ -5391,6 +5436,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val MAX_SHORTCUT_SUGGESTIONS = 6
         const val MAX_KNOWLEDGE_SHORTCUT_SCAN = 50
         const val MAX_SELECTED_KNOWLEDGE_CHARS = 500
+        const val SKILL_COUNT_REFRESH_MS = 500L
         val SKILL_DIRECTIVE = Regex("""^/skill:([A-Za-z0-9_.-]+)\s*""")
         val KNOWLEDGE_DIRECTIVE = Regex("""^@knowledge:([A-Za-z0-9-]+)\s*""")
     }

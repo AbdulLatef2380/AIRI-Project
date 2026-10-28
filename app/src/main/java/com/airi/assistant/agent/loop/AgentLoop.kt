@@ -88,6 +88,7 @@ class AgentLoop(
         // (file ops, web search, code execution) can easily exceed 60s on
         // local inference, especially with retries and multi-step reasoning.
         private const val TIMEOUT_MS       = 120_000L
+        private const val MAX_PLATFORM_SNAPSHOT_CHARS = 12_000
         /**
          * : Stable principal registered in [ScopedPermissionRegistry] for the
          * agent loop's tool-dispatch sandbox context. All tool calls on behalf of
@@ -155,6 +156,8 @@ the tool returns an actual error.
         executionContextFactory: AgentLoopExecutionContextFactory? = null,
         /** Request-scoped capability state produced by the canonical runtime catalog. */
         runtimeCapabilities: List<com.airi.assistant.core.CapabilitySnapshotEntry> = emptyList(),
+        /** Redacted platform snapshot rendered into every agent-turn system prompt. */
+        platformCapabilitySnapshot: String = "",
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
         val permissionProfile = com.airi.assistant.core.AgentPermissionProfile.resolve(
@@ -222,7 +225,10 @@ the tool returns an actual error.
         var activeToolTrace: ActiveToolTrace? = null
         val pendingToolCalls = ArrayDeque<com.airi.assistant.ai.intent.ToolCall>()
 
-        val fullSystemPrompt = systemPrompt + "\n\n" + toolSelection.promptBlock + TOOL_CALL_INSTRUCTION
+        val platformBlock = platformCapabilitySnapshot.trim().take(MAX_PLATFORM_SNAPSHOT_CHARS)
+        val promptWithPlatformSnapshot = if (platformBlock.isBlank() || systemPrompt.contains("AIRI PLATFORM CAPABILITY SNAPSHOT")) systemPrompt else
+            systemPrompt + "\n\n" + platformBlock
+        val fullSystemPrompt = promptWithPlatformSnapshot + "\n\n" + toolSelection.promptBlock + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
         // Establish the owner before any deterministic or model-selected tool.
         ExecutionStatusBus.onGraphStarted(
@@ -348,7 +354,7 @@ the tool returns an actual error.
             if (effectiveTools.isEmpty()) {
                 val response = callLLM(
                     prompt = input,
-                    systemPrompt = systemPrompt,
+                    systemPrompt = promptWithPlatformSnapshot,
                     history = history,
                     tools = effectiveTools,
                     queryType = queryType,
@@ -857,7 +863,7 @@ the tool returns an actual error.
             history.add(ConversationTurn.User("You have reached your step limit. Summarise what you have done and what the final answer is."))
             val summary = callLLM(
                 prompt = "",
-                systemPrompt = systemPrompt + "\n\nYou have no tools available for this final response. Synthesize the completed results and provide a complete answer at the natural length required by the user's request; do not compress useful context.",
+                systemPrompt = promptWithPlatformSnapshot + "\n\nYou have no tools available for this final response. Synthesize the completed results and provide a complete answer at the natural length required by the user's request; do not compress useful context.",
                 history = history,
                 tools = emptyList(),
                 queryType = queryType,

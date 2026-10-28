@@ -68,6 +68,17 @@ object DynamicPromptEngine {
      */
     private const val DEFAULT_MAX_RAG_TOKENS = 512
 
+    /**
+     * Add a request-scoped platform snapshot to an already assembled prompt.
+     * Kept here so callers that assemble the base prompt through PromptService
+     * still use one canonical, deduplicating insertion rule.
+     */
+    fun appendPlatformCapabilitySnapshot(basePrompt: String, snapshotBlock: String): String {
+        val block = snapshotBlock.trim()
+        if (block.isBlank() || basePrompt.contains("AIRI PLATFORM CAPABILITY SNAPSHOT")) return basePrompt
+        return basePrompt.trimEnd() + "\n\n" + block
+    }
+
     // ── Public API ─────────────────────────────────────────────────────────────
 
     /**
@@ -111,6 +122,7 @@ object DynamicPromptEngine {
         memorySummary:   String          = "",
         skillBlock:      String          = "",
         toolBlock:       String          = "",
+        platformCapabilityBlock: String  = "",
         maxRagTokens:    Int             = -1,
         extraContext:    String          = "",
         contextBudget:   ContextBudget   = ContextBudget.UNLOADED
@@ -197,10 +209,17 @@ object DynamicPromptEngine {
             sb.append(toolBlock.trim())
         }
 
-        // ── 10. Quality rules ─────────────────────────────────────────────────────
+        // ── 10. Live platform capability snapshot ───────────────────────────────
+        // Bounded and redacted; it describes runtime facts but grants no authority.
+        if (platformCapabilityBlock.isNotBlank()) {
+            sb.append("\n\n")
+            sb.append(platformCapabilityBlock.trim())
+        }
+
+        // ── 11. Quality rules ─────────────────────────────────────────────────────
         sb.append(QUALITY_RULES)
 
-        // ── 11. User custom prompt override ──────────────────────────────────────
+        // ── 12. User custom prompt override ──────────────────────────────────────
         if (customPrompt.isNotBlank()) {
             sb.append("\n")
             sb.append(customPrompt.trim())

@@ -2008,6 +2008,9 @@
     <string name="table_copied">Tabla copiada</string>
     <string name="artifact_expand">Abrir contenido completo</string>
     <string name="artifact_save">Guardar contenido</string>
+    <string name="assistant_tool_output_label">Salida de herramienta · %1$s · paso %2$d</string>
+    <string name="assistant_tool_output_show">Mostrar salida de herramienta</string>
+    <string name="assistant_tool_output_hide">Ocultar salida de herramienta</string>
     <string name="artifact_save_failed">No se pudo guardar el contenido</string>
     <string name="artifact_saved">Contenido guardado</string>
     <string name="artifact_share">Compartir contenido</string>

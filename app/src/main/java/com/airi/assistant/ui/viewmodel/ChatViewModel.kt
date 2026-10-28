@@ -138,6 +138,10 @@ import com.airi.assistant.product.AiriIdentityProfile
 import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.ui.activity.ActivityEvent
 import com.airi.assistant.core.ExecutionTraceEvent
+import com.airi.assistant.ui.text.AssistantOutputPresentation
+import com.airi.assistant.ui.text.AssistantToolOutput
+
+private const val MAX_TOOL_OUTPUT_PRESENTATION_CHARS = 4_000
 
 data class ChatMessage(
     val text: String,
@@ -192,9 +196,17 @@ data class ChatMessage(
      * controls instead of plain text.
      */
     val voiceRecordingPath: String? = null,
-    /** Duration of the voice recording in milliseconds (for display). */
-    val voiceDurationMs: Long = 0L
-)
+    /** Duration of the voice recording in milliseconds. */
+    val voiceDurationMs: Long = 0L,
+    /** Raw tool results are presentation metadata, never merged into [text]. */
+    val toolOutputs: List<AssistantToolOutput> = emptyList(),
+) {
+    val outputPresentation: AssistantOutputPresentation
+        get() = AssistantOutputPresentation(
+            agentOutput = if (isUser) "" else text,
+            toolOutputs = if (isUser) emptyList() else toolOutputs,
+        )
+}
 
 /**
  * AgentState — live autonomous execution status surfaced in the UI.
@@ -2362,6 +2374,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
             var tokenCount = 0
             var firstTokenReceived = false
+            val toolOutputs = mutableListOf<AssistantToolOutput>()
             val requestStart = System.currentTimeMillis()
             val needsResummarize = summaryPlan.shouldSummarize
             val olderToFold = summaryPlan.olderTurns
@@ -2389,7 +2402,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 executionSource = hybridOrchestrator.lastExecutionSource,
                                 executionTraceId = ExecutionStatusBus.status.value.executionId.takeIf { it.isNotBlank() },
                                 executionTraceSnapshot = ExecutionStatusBus.trace.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId },
-                                executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId }
+                                executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId },
+                                toolOutputs = toolOutputs.toList(),
                             )
                         }
                     }
@@ -2452,7 +2466,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 // blocking dialog via the existing confirmation gate, then inject
                                 // the user's decision back into the loop as the tool result.
                                 val result = stepEvent.result
-                                if (result.startsWith("CONFIRMATION_REQUIRED|")) {
+                                val overrideResult = if (result.startsWith("CONFIRMATION_REQUIRED|")) {
                                     val parts   = result.split("|", limit = 3)
                                     val action  = parts.getOrElse(1) { "Proceed?" }
                                     val details = parts.getOrElse(2) { "" }
@@ -2485,6 +2499,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                     }
                                     null  // no override — AgentLoop uses original result
                                 }
+                                val outputForPresentation = overrideResult ?: result
+                                toolOutputs += AssistantToolOutput(
+                                    id = "tool-$generationId-${stepEvent.step}",
+                                    toolName = stepEvent.toolName,
+                                    step = stepEvent.step,
+                                    text = outputForPresentation.take(MAX_TOOL_OUTPUT_PRESENTATION_CHARS),
+                                    truncated = outputForPresentation.length > MAX_TOOL_OUTPUT_PRESENTATION_CHARS,
+                                )
+                                overrideResult
                             }
                             is com.airi.assistant.agent.loop.AgentLoop.StepEvent.FinalAnswer -> {
                                 Log.i("AIRI", "AGENT_LOOP_FINAL steps=${stepEvent.steps}")
@@ -2657,7 +2680,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 executionSource = hybridOrchestrator.lastExecutionSource,
                                 executionTraceId = ExecutionStatusBus.status.value.executionId.takeIf { it.isNotBlank() },
                                 executionTraceSnapshot = ExecutionStatusBus.trace.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId },
-                                executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId }
+                                executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId },
+                                toolOutputs = toolOutputs.toList(),
                             )
                         }
                     }

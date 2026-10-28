@@ -121,7 +121,9 @@ import com.airi.assistant.ui.text.BidiAwareMarkdownRenderer
 import com.airi.assistant.ui.text.ContentAwareMessageRenderer
 import com.airi.assistant.ui.text.AdaptiveContentPolicy
 import com.airi.assistant.ui.text.ContentTarget
+import com.airi.assistant.ui.text.ContentPlatformActions
 import com.airi.assistant.ui.text.ContentUnitAction
+import com.airi.assistant.ui.text.AssistantToolOutput
 import com.airi.assistant.ui.trace.InlineExecutionTrace
 import com.airi.assistant.ui.components.ThinkingAnimation
 import androidx.compose.runtime.snapshotFlow
@@ -2337,6 +2339,7 @@ fun ChatMessageList(
                                     AiStreamingBubble(
                                         text = streamingText,
                                         messageId = "streaming-${messages.lastOrNull { it.isUser }?.uid ?: "active"}",
+                                        onShare = onShareAiResponse,
                                     )
                                 },
                             )
@@ -2378,8 +2381,9 @@ fun ChatMessageList(
                             )
                         } else {
                             AiBubble(
-                                text            = msg.text,
+                                text            = msg.outputPresentation.agentOutput,
                                 messageId       = msg.uid,
+                                toolOutputs     = msg.outputPresentation.toolOutputs,
                                 agentTag        = msg.agentTag,
                                 planLabel       = planLabel,
                                 traceId         = msg.traceId,
@@ -2694,9 +2698,52 @@ private fun AiResponseTurn(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
+private fun rememberContentUnitActionHandler(
+    onShare: (String) -> Unit,
+): (ContentTarget, ContentUnitAction) -> Unit {
+    val context = LocalContext.current
+    var pendingSaveTarget by remember { mutableStateOf<ContentTarget.Block?>(null) }
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        val target = pendingSaveTarget
+        pendingSaveTarget = null
+        if (uri != null && target != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.use {
+                    it.write(target.source.toByteArray(Charsets.UTF_8))
+                } ?: error("No output stream")
+                android.widget.Toast.makeText(context, R.string.artifact_saved, android.widget.Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                android.widget.Toast.makeText(context, R.string.artifact_save_failed, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    return remember(context, onShare, saveLauncher) {
+        { target, action ->
+            val block = target as? ContentTarget.Block
+            if (block != null && action in block.actions) {
+                when (action) {
+                    ContentUnitAction.COPY -> {
+                        ContentPlatformActions.copyPlainText(context, "AIRI", block.copyPayload)
+                        android.widget.Toast.makeText(context, R.string.artifact_copied, android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    ContentUnitAction.SHARE -> onShare(block.sharePayload)
+                    ContentUnitAction.SAVE -> if (block.complete) {
+                        pendingSaveTarget = block
+                        saveLauncher.launch("airi-${block.language?.ifBlank { "text" } ?: "text"}.txt")
+                    }
+                    ContentUnitAction.EXPAND -> Unit
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
 fun AiBubble(
     text: String,
     messageId: String = "",
+    toolOutputs: List<AssistantToolOutput> = emptyList(),
     agentTag: String? = null,
     planLabel: String = "Free",
     traceId: String? = null,
@@ -2717,34 +2764,7 @@ fun AiBubble(
 ) {
     val context   = LocalContext.current
     val haptic    = LocalHapticFeedback.current
-    var pendingSaveTarget by remember { mutableStateOf<ContentTarget.Block?>(null) }
-    val saveContentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
-        val target = pendingSaveTarget
-        pendingSaveTarget = null
-        if (uri != null && target != null) {
-            runCatching {
-                context.contentResolver.openOutputStream(uri)?.use { it.write(target.source.toByteArray(Charsets.UTF_8)) }
-                    ?: error("No output stream")
-                android.widget.Toast.makeText(context, R.string.artifact_saved, android.widget.Toast.LENGTH_SHORT).show()
-            }.onFailure {
-                android.widget.Toast.makeText(context, R.string.artifact_save_failed, android.widget.Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-    fun handleContentAction(target: ContentTarget, action: ContentUnitAction) {
-        when (action) {
-            ContentUnitAction.COPY -> {
-                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", target.copyPayload))
-                android.widget.Toast.makeText(context, R.string.artifact_copied, android.widget.Toast.LENGTH_SHORT).show()
-            }
-            ContentUnitAction.SHARE -> onShare(target.sharePayload)
-            ContentUnitAction.SAVE -> if (target is ContentTarget.Block && target.complete) {
-                pendingSaveTarget = target
-                saveContentLauncher.launch("airi-${target.language?.ifBlank { "text" } ?: "text"}.txt")
-            }
-        }
-    }
+    val handleContentAction = rememberContentUnitActionHandler(onShare)
     val allTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsState()
     val trace = remember(traceId, allTraces) {
         if (traceId != null) allTraces.find { it.id == traceId } else null
@@ -2851,17 +2871,8 @@ fun AiBubble(
                                     text = text,
                                     modifier = Modifier.fillMaxWidth(),
                                     messageId = messageId,
-                                    onCopyCode = { code ->
-                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI code", code))
-                                    },
-                                    onCopyTable = { table ->
-                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI table", table))
-                                        android.widget.Toast.makeText(context, R.string.table_copied, android.widget.Toast.LENGTH_SHORT).show()
-                                    },
-                                    onShareTable = { table -> onShare(table) },
-                                    onContentAction = ::handleContentAction,
+                                    toolOutputs = toolOutputs,
+                                    onContentAction = handleContentAction,
                                 )
                             }
                             if (isSelectingText) SelectionContainer { renderContent() } else renderContent()
@@ -3139,7 +3150,9 @@ private fun ExecutionErrorBubble(error: ExecutionErrorProjection) {
 fun AiStreamingBubble(
     text: String,
     messageId: String = "streaming-active",
+    onShare: (String) -> Unit = {},
 ) {
+    val handleContentAction = rememberContentUnitActionHandler(onShare)
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
         horizontalArrangement = ChatPresentationPolicy.assistantBubbleArrangement(),
@@ -3159,6 +3172,7 @@ fun AiStreamingBubble(
                             modifier = Modifier.fillMaxWidth(),
                             isStreaming = true,
                             messageId = messageId,
+                            onContentAction = handleContentAction,
                         )
                     }
                     BlinkingCursor()
@@ -4684,11 +4698,7 @@ private fun shareAiResponse(context: android.content.Context, response: String) 
     val shareText = response.trim()
     if (shareText.isBlank()) return
     AnalyticsService.shareableOutputShared("android_share")
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, shareText)
-    }
-    context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_chat)))
+    ContentPlatformActions.launchShare(context, shareText, context.getString(R.string.share_chat))
 }
 
 private fun shareChatTranscript(context: android.content.Context, messages: List<ChatMessage>) {

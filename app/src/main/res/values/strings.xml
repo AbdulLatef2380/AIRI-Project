@@ -2342,6 +2342,9 @@
     <string name="table_copied">Copied table</string>
     <string name="artifact_expand">Open full content</string>
     <string name="artifact_share">Share content</string>
+    <string name="assistant_tool_output_label">Tool output · %1$s · step %2$d</string>
+    <string name="assistant_tool_output_show">Show tool output</string>
+    <string name="assistant_tool_output_hide">Hide tool output</string>
     <string name="artifact_save">Save content</string>
     <string name="artifact_saved">Content saved</string>
     <string name="artifact_save_failed">Could not save content</string>

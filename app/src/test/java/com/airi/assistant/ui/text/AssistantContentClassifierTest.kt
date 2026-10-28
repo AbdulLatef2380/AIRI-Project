@@ -20,6 +20,22 @@ class AssistantContentClassifierTest {
         assertTrue(result.codeBlocks.single().code.contains("val airi"))
     }
 
+    @Test fun inlineAndTildeFencesAreNotExtractedAsArpeCodeBlocks() {
+        val text = "Inline ```kotlin val x = 1```\n~~~kotlin\nval y = 2\n~~~"
+        val analysis = AssistantContentClassifier.analyse(text)
+
+        assertTrue(analysis.codeBlocks.isEmpty())
+        assertEquals(false, analysis.containsCode)
+    }
+
+    @Test fun quotedFenceIsNotExtractedAsAnIndependentArtifact() {
+        val quoted = "> ```kotlin\n> val quoted = true\n> ```"
+        val analysis = AssistantContentClassifier.analyse(quoted)
+
+        assertTrue(analysis.codeBlocks.isEmpty())
+        assertEquals(false, analysis.containsCode)
+    }
+
     @Test fun jsonIsStructuredCode() {
         assertEquals(AssistantContentKind.STRUCTURED_CODE, AssistantContentClassifier.analyse("{\"model\":\"airi\"}").kind)
     }

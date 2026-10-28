@@ -2008,6 +2008,9 @@
     <string name="table_copied">已复制表格</string>
     <string name="artifact_expand">打开完整内容</string>
     <string name="artifact_save">保存内容</string>
+    <string name="assistant_tool_output_label">工具输出 · %1$s · 步骤 %2$d</string>
+    <string name="assistant_tool_output_show">显示工具输出</string>
+    <string name="assistant_tool_output_hide">隐藏工具输出</string>
     <string name="artifact_save_failed">无法保存内容</string>
     <string name="artifact_saved">内容已保存</string>
     <string name="artifact_share">分享内容</string>

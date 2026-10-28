@@ -15,6 +15,7 @@ enum class ContentUnitAction {
     COPY,
     SHARE,
     SAVE,
+    EXPAND,
 }
 
 data class AssistantContentUnit(
@@ -30,6 +31,7 @@ data class AdaptiveContentPlan(
     val messageId: String,
     val units: List<AssistantContentUnit>,
     val messageActions: Set<ContentUnitAction>,
+    val toolOutputs: List<AssistantToolOutput> = emptyList(),
 ) {
     val hasIndependentUnits: Boolean
         get() = units.any { it.kind != ContentUnitKind.PROSE }
@@ -41,8 +43,9 @@ object AdaptiveContentPolicy {
         text: String,
         isStreaming: Boolean = false,
         messageId: String = stableMessageId(text),
+        toolOutputs: List<AssistantToolOutput> = emptyList(),
     ): AdaptiveContentPlan {
-        if (text.isBlank()) return AdaptiveContentPlan(messageId, emptyList(), emptySet())
+        if (text.isBlank()) return AdaptiveContentPlan(messageId, emptyList(), emptySet(), toolOutputs)
 
         val analysis = AssistantContentClassifier.analyse(text, isStreaming)
         val units = parseUnits(text, analysis, messageId)
@@ -54,6 +57,7 @@ object AdaptiveContentPolicy {
             messageId = messageId,
             units = units,
             messageActions = messageActions,
+            toolOutputs = toolOutputs,
         )
     }
 
@@ -160,6 +164,9 @@ object AdaptiveContentPolicy {
             actions = buildSet {
                 add(ContentUnitAction.COPY)
                 if (kind == ContentUnitKind.TABLE || complete) add(ContentUnitAction.SHARE)
+                if (kind == ContentUnitKind.CODE || kind == ContentUnitKind.STRUCTURED_DATA) {
+                    add(ContentUnitAction.EXPAND)
+                }
                 if ((kind == ContentUnitKind.CODE || kind == ContentUnitKind.STRUCTURED_DATA) && complete) {
                     add(ContentUnitAction.SAVE)
                 }

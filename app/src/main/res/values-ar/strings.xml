@@ -2242,6 +2242,9 @@
     <string name="artifact_expand">فتح المحتوى كاملاً</string>
     <string name="artifact_share">مشاركة المحتوى</string>
     <string name="artifact_save">حفظ المحتوى</string>
+    <string name="assistant_tool_output_label">نتيجة الأداة · %1$s · الخطوة %2$d</string>
+    <string name="assistant_tool_output_show">إظهار نتيجة الأداة</string>
+    <string name="assistant_tool_output_hide">إخفاء نتيجة الأداة</string>
     <string name="artifact_saved">تم حفظ المحتوى</string>
     <string name="artifact_save_failed">تعذر حفظ المحتوى</string>
     <string name="artifact_share_failed">تعذر فتح المشاركة</string>

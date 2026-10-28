@@ -12,6 +12,7 @@ import com.airi.assistant.execution.ExecutionResult
 import com.airi.assistant.execution.CompletionMetadata
 import com.airi.assistant.execution.CompletionReason
 import com.airi.assistant.execution.cloud.CloudAdapterFactory
+import com.airi.assistant.execution.cloud.CloudContinuationPolicy
 import com.airi.assistant.execution.cloud.CloudErrorType
 import com.airi.assistant.execution.cloud.CloudProviderAdapter
 import com.airi.assistant.execution.cloud.RetryPolicy
@@ -360,7 +361,7 @@ class CloudBackend(
         var totalCompletionTokens = 0
         var lastSuccess: CloudProviderAdapter.AdapterResult.Success? = null
 
-        repeat(MAX_CONTINUATION_HOPS) { hop ->
+        repeat(CloudContinuationPolicy.MAX_HOPS) { hop ->
             val hopText = StringBuilder()
             val result = adapter.streamGenerate(
                 request = nextRequest,
@@ -380,18 +381,41 @@ class CloudBackend(
 
             val success = result as CloudProviderAdapter.AdapterResult.Success
             val emitted = success.fullText.ifBlank { hopText.toString() }
-            if (emitted.isBlank()) return success
+            if (emitted.isBlank()) {
+                onUsage(totalPromptTokens, totalCompletionTokens)
+                return success.copy(
+                    fullText = aggregate.toString(),
+                    promptTokens = totalPromptTokens,
+                    completionTokens = totalCompletionTokens,
+                )
+            }
             if (hop == 0) {
                 aggregate.append(emitted)
             } else {
-                val overlap = suffixPrefixOverlap(aggregate.toString(), emitted)
+                val overlap = CloudContinuationPolicy.safeOverlapToDrop(aggregate.toString(), emitted)
                 val suffix = emitted.drop(overlap)
                 aggregate.append(suffix)
                 if (suffix.isNotEmpty()) onToken(suffix)
             }
             lastSuccess = success
 
-            if (success.completion.reason != CompletionReason.LENGTH_LIMIT || hop == MAX_CONTINUATION_HOPS - 1) {
+            if (!CloudContinuationPolicy.shouldContinue(success.completion.reason) ||
+                hop == CloudContinuationPolicy.MAX_HOPS - 1
+            ) {
+                onUsage(totalPromptTokens, totalCompletionTokens)
+                return success.copy(
+                    fullText = aggregate.toString(),
+                    promptTokens = totalPromptTokens,
+                    completionTokens = totalCompletionTokens,
+                )
+            }
+
+            val remainingOutputTokens = CloudContinuationPolicy.remainingOutputTokens(
+                totalRequestedTokens = request.maxTokens,
+                reportedCompletionTokens = totalCompletionTokens,
+                aggregateText = aggregate.toString(),
+            )
+            if (remainingOutputTokens == 0) {
                 onUsage(totalPromptTokens, totalCompletionTokens)
                 return success.copy(
                     fullText = aggregate.toString(),
@@ -403,10 +427,17 @@ class CloudBackend(
             RuntimeEventLog.post(
                 "CLOUD_BACKEND",
                 EventSeverity.INFO,
-                "Automatic continuation hop=${hop + 1}/$MAX_CONTINUATION_HOPS provider=${adapter.providerId} chars=${aggregate.length}",
+                "Automatic continuation hop=${hop + 1}/${CloudContinuationPolicy.MAX_HOPS} provider=${adapter.providerId} chars=${aggregate.length}",
             )
+            val continuationPrompt = CloudContinuationPolicy.CONTINUATION_PROMPT
             nextRequest = request.copy(
-                prompt = "Continue the previous answer from exactly where it stopped. Do not repeat any text.",
+                prompt = continuationPrompt,
+                maxTokens = remainingOutputTokens,
+                estimatedPromptTokens = CloudContinuationPolicy.continuationPromptEstimate(
+                    basePromptTokens = request.estimatedPromptTokens,
+                    aggregateText = aggregate.toString(),
+                    continuationPrompt = continuationPrompt,
+                ),
                 conversationHistory = request.conversationHistory + listOf(
                     ExecutionRequest.ConversationTurn("user", request.prompt),
                     ExecutionRequest.ConversationTurn("assistant", aggregate.toString()),
@@ -415,6 +446,19 @@ class CloudBackend(
                 inlineDataParts = emptyList(),
                 attachmentTrace = null,
             )
+            if (!capabilities.canFit(nextRequest)) {
+                RuntimeEventLog.post(
+                    "CLOUD_BACKEND",
+                    EventSeverity.WARN,
+                    "Automatic continuation stopped: accumulated context exceeds the cloud request budget",
+                )
+                onUsage(totalPromptTokens, totalCompletionTokens)
+                return success.copy(
+                    fullText = aggregate.toString(),
+                    promptTokens = totalPromptTokens,
+                    completionTokens = totalCompletionTokens,
+                )
+            }
         }
 
         return lastSuccess ?: CloudProviderAdapter.AdapterResult.Failure(
@@ -422,14 +466,6 @@ class CloudBackend(
             errorType = CloudErrorType.UNKNOWN,
             retryable = false,
         )
-    }
-
-    private fun suffixPrefixOverlap(previous: String, next: String): Int {
-        val max = minOf(previous.length, next.length, MAX_OVERLAP_CHARS)
-        for (length in max downTo 1) {
-            if (previous.takeLast(length) == next.take(length)) return length
-        }
-        return 0
     }
 
     override suspend fun generate(request: ExecutionRequest): ExecutionResult =
@@ -547,9 +583,6 @@ class CloudBackend(
     companion object {
         private const val TAG         = "AIRI_CloudBackend"
         private const val MAX_RETRIES = 3
-        private const val MAX_CONTINUATION_HOPS = 8
-        private const val MAX_OVERLAP_CHARS = 2_000
-
         
         private val _globalRequestCount  = java.util.concurrent.atomic.AtomicInteger(0)
         private val _globalErrorCount    = java.util.concurrent.atomic.AtomicInteger(0)

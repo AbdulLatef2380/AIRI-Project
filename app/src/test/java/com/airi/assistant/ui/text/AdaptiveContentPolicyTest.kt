@@ -15,6 +15,7 @@ class AdaptiveContentPolicyTest {
         assertTrue(ContentUnitAction.COPY in code.actions)
         assertTrue(ContentUnitAction.SHARE in code.actions)
         assertTrue(ContentUnitAction.SAVE in code.actions)
+        assertTrue(ContentUnitAction.EXPAND in code.actions)
         assertTrue(ContentUnitAction.COPY in plan.messageActions)
         assertTrue(ContentUnitAction.SHARE in plan.messageActions)
         assertFalse(code.source.contains("شرح قبل"))
@@ -28,6 +29,7 @@ class AdaptiveContentPolicyTest {
 
         assertEquals(ContentUnitKind.CODE, code.kind)
         assertTrue(ContentUnitAction.COPY in code.actions)
+        assertTrue(ContentUnitAction.EXPAND in code.actions)
         assertFalse(ContentUnitAction.SHARE in code.actions)
         assertFalse(ContentUnitAction.SAVE in code.actions)
         assertFalse(ContentUnitAction.SHARE in plan.messageActions)
@@ -154,5 +156,94 @@ class AdaptiveContentPolicyTest {
             first.units.single { it.kind == ContentUnitKind.CODE }.id,
             later.units.single { it.kind == ContentUnitKind.CODE }.id,
         )
+    }
+
+    @Test
+    fun sessionPreservesEveryExistingUnitWhenNewBlocksAreInsertedBeforeThem() {
+        val session = AdaptiveContentSession("stream-insert")
+        val existingText = """Intro
+```kotlin
+val kept = 1
+```
+| A | B |
+| --- | --- |
+| 1 | 2 |
+Tail"""
+        val before = session.plan(existingText, isStreaming = true)
+        val inserted = session.plan(
+            """New lead
+```python
+print(0)
+```
+$existingText""",
+            isStreaming = true,
+        )
+
+        assertTrue(before.units.isNotEmpty())
+        assertTrue(
+            "Missing existing unit IDs: ${before.units.filter { old -> inserted.units.none { it.id == old.id } }}",
+            before.units.all { old -> inserted.units.any { it.id == old.id } },
+        )
+        assertEquals(
+            setOf(ContentUnitKind.PROSE, ContentUnitKind.CODE, ContentUnitKind.TABLE),
+            before.units.map { it.kind }.toSet(),
+        )
+        assertEquals(2, inserted.units.count { it.kind == ContentUnitKind.CODE })
+        assertEquals(
+            inserted.units.size,
+            inserted.units.map { it.id }.distinct().size,
+        )
+    }
+
+    @Test
+    fun sessionKeepsExistingIdentityWhenAnIdenticalBlockIsPrepended() {
+        val session = AdaptiveContentSession("duplicate-stream")
+        val text = "```kotlin\nval same = 1\n```"
+        val existing = session.plan(text, isStreaming = true).units.single()
+        val updated = session.plan("$text\n$text", isStreaming = true)
+        val laterDuplicate = updated.units.last()
+
+        assertEquals(existing.id, laterDuplicate.id)
+        assertEquals(2, updated.units.map { it.id }.distinct().size)
+    }
+
+    @Test
+    fun sessionKeepsIdentityAsStreamingUnitGrowsAndCloses() {
+        val session = AdaptiveContentSession("growing-stream")
+        val partial = session.plan("```kotlin\nfun", isStreaming = true).units.single()
+        val complete = session.plan("```kotlin\nfun ready() = true\n```", isStreaming = false).units.single()
+
+        assertEquals(partial.id, complete.id)
+        assertTrue(complete.complete)
+    }
+
+    @Test
+    fun toolOutputsRemainSeparateFromAgentContentUnits() {
+        val toolOutput = AssistantToolOutput(
+            id = "tool-1-1",
+            toolName = "search",
+            step = 1,
+            text = "tool-only result",
+        )
+        val plan = AdaptiveContentPolicy.plan(
+            text = "Agent final answer",
+            messageId = "separate-output",
+            toolOutputs = listOf(toolOutput),
+        )
+
+        assertEquals(listOf("Agent final answer"), plan.units.map { it.source })
+        assertEquals(listOf(toolOutput), plan.toolOutputs)
+        assertTrue(ContentUnitAction.EXPAND in plan.toolOutputs.single().actions)
+    }
+
+    @Test
+    fun markdownOutsideTheArpeArtifactProfileStaysInProseScope() {
+        val text = "> block quote\n~~~kotlin\nval x = 1\n~~~\n- [ ] task\n[link](https://example.com)"
+        val plan = AdaptiveContentPolicy.plan(text, messageId = "markdown-limits")
+
+        assertEquals(listOf(ContentUnitKind.PROSE), plan.units.map { it.kind })
+        assertEquals(text, plan.units.single().source)
+        assertFalse(ContentUnitAction.SAVE in plan.messageActions)
+        assertFalse(ContentUnitAction.EXPAND in plan.units.single().actions)
     }
 }

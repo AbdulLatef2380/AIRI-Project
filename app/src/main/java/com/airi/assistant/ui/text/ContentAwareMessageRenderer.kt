@@ -1,6 +1,7 @@
 package com.airi.assistant.ui.text
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,12 +13,19 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -35,13 +43,15 @@ fun ContentAwareMessageRenderer(
     modifier: Modifier = Modifier,
     isStreaming: Boolean = false,
     messageId: String = "",
-    onCopyCode: ((String) -> Unit)? = null,
-    onCopyTable: ((String) -> Unit)? = null,
-    onShareTable: ((String) -> Unit)? = null,
-    onContentAction: ((ContentTarget, ContentUnitAction) -> Unit)? = null,
+    toolOutputs: List<AssistantToolOutput> = emptyList(),
+    onContentAction: (ContentTarget, ContentUnitAction) -> Unit,
 ) {
-    val plan = remember(text, isStreaming, messageId) {
-        AdaptiveContentPolicy.plan(text, isStreaming, messageId = messageId.ifBlank { "message-${text.hashCode().toUInt().toString(16)}" })
+    val resolvedMessageId = messageId.ifBlank {
+        remember { "message-${text.hashCode().toUInt().toString(16)}" }
+    }
+    val contentSession = remember(resolvedMessageId) { AdaptiveContentSession(resolvedMessageId) }
+    val plan = remember(text, isStreaming, resolvedMessageId, toolOutputs) {
+        contentSession.plan(text, isStreaming, toolOutputs)
     }
     Column(modifier = modifier.fillMaxWidth()) {
         plan.units.forEach { unit ->
@@ -58,17 +68,62 @@ fun ContentAwareMessageRenderer(
                         text = fencedUnit(unit),
                         modifier = Modifier.fillMaxWidth(),
                         isStreaming = isStreaming,
-                        onCopyCode = onCopyCode,
                         codeTargets = listOf(target),
                         onContentAction = onContentAction,
                     )
                     ContentUnitKind.TABLE -> MarkdownTableRenderer(
                         text = unit.source,
                         modifier = Modifier.fillMaxWidth(),
-                        onCopyTable = onCopyTable,
-                        onShareTable = onShareTable,
                         tableTarget = target,
                         onContentAction = onContentAction,
+                    )
+                }
+            }
+        }
+        plan.toolOutputs.forEach { output ->
+            key(output.id) {
+                ToolOutputCard(output)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolOutputCard(output: AssistantToolOutput) {
+    var expanded by rememberSaveable(output.id) { mutableStateOf(false) }
+    val canExpand = ContentUnitAction.EXPAND in output.actions
+    if (!canExpand) return
+
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        color = AiriTheme.surfaceVariant,
+        shape = AIRIShapes.sm,
+    ) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.assistant_tool_output_label, output.toolName, output.step),
+                    color = AiriTheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                        contentDescription = stringResource(
+                            if (expanded) R.string.assistant_tool_output_hide else R.string.assistant_tool_output_show,
+                        ),
+                        tint = AiriTheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (expanded) {
+                SelectionContainer {
+                    Text(
+                        text = if (output.truncated) "${output.text}\n…" else output.text,
+                        color = AiriTheme.onSurface,
+                        fontSize = 12.sp,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     )
                 }
             }
@@ -86,10 +141,8 @@ private fun fencedUnit(unit: AssistantContentUnit): String {
 private fun MarkdownTableRenderer(
     text: String,
     modifier: Modifier = Modifier,
-    onCopyTable: ((String) -> Unit)? = null,
-    onShareTable: ((String) -> Unit)? = null,
-    tableTarget: ContentTarget.Block? = null,
-    onContentAction: ((ContentTarget, ContentUnitAction) -> Unit)? = null,
+    tableTarget: ContentTarget.Block,
+    onContentAction: (ContentTarget, ContentUnitAction) -> Unit,
 ) {
     val tableBounds = remember(text) { findTableBounds(text) }
     val rows = remember(tableBounds.table) { AdaptiveContentPolicy.parseMarkdownTable(tableBounds.table) }
@@ -118,31 +171,19 @@ private fun MarkdownTableRenderer(
                 }
             }
         }
-        if (onCopyTable != null || onShareTable != null || onContentAction != null) {
+        if (ContentUnitAction.COPY in tableTarget.actions || ContentUnitAction.SHARE in tableTarget.actions) {
             Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                if (onCopyTable != null || onContentAction != null) {
+                if (ContentUnitAction.COPY in tableTarget.actions) {
                     IconButton(
-                        onClick = {
-                            if (tableTarget != null && onContentAction != null) {
-                                onContentAction(tableTarget, ContentUnitAction.COPY)
-                            } else {
-                                onCopyTable?.invoke(AdaptiveContentPolicy.tableClipboardText(tableBounds.table))
-                            }
-                        },
+                        onClick = { onContentAction(tableTarget, ContentUnitAction.COPY) },
                         modifier = Modifier.size(40.dp),
                     ) {
                         Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.copy_table), tint = AiriTheme.onSurfaceVariant)
                     }
                 }
-                if (onShareTable != null || onContentAction != null) {
+                if (ContentUnitAction.SHARE in tableTarget.actions) {
                     IconButton(
-                        onClick = {
-                            if (tableTarget != null && onContentAction != null) {
-                                onContentAction(tableTarget, ContentUnitAction.SHARE)
-                            } else {
-                                onShareTable?.invoke(AdaptiveContentPolicy.tableShareText(tableBounds.table))
-                            }
-                        },
+                        onClick = { onContentAction(tableTarget, ContentUnitAction.SHARE) },
                         modifier = Modifier.size(40.dp),
                     ) {
                         Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.share_table), tint = AiriTheme.onSurfaceVariant)

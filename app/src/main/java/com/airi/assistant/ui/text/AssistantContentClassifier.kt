@@ -35,8 +35,10 @@ data class AssistantCodeRange(
 )
 
 /**
- * Classifies before rendering. Incomplete fences are deliberately retained as
- * streaming content instead of being permanently classified as prose.
+ * Classifies before rendering. ARPE intentionally extracts only standalone,
+ * non-nested triple-backtick fences with a simple language token. Other Markdown
+ * syntax stays in the prose renderer and does not receive block-scoped actions.
+ * Incomplete fences remain streaming content until a closing fence arrives.
  */
 object AssistantContentClassifier {
     const val RICH_CONTENT_THRESHOLD = 600
@@ -51,8 +53,8 @@ object AssistantContentClassifier {
         )
         val codeBlocks = fencedCodeBlocks(text)
         val hasCompleteCode = codeBlocks.any { it.isComplete }
-        val hasFence = text.contains("```")
-        val incompleteFence = hasFence && text.split("```").size % 2 == 0
+        val hasFence = codeBlocks.isNotEmpty()
+        val incompleteFence = codeBlocks.any { !it.isComplete }
         val hasTable = isMarkdownTable(text)
         val long = text.length >= RICH_CONTENT_THRESHOLD
         val direction = when (LanguageRuntimeManager.analyseDirection(text)) {
@@ -79,8 +81,7 @@ object AssistantContentClassifier {
     }
 
     fun fencedCodeRanges(text: String): List<AssistantCodeRange> {
-        val regex = Regex("```([A-Za-z0-9_+#.-]*)\\s*\\n?([\\s\\S]*?)(?:```|$)")
-        return regex.findAll(text).map { match ->
+        return FENCED_CODE_REGEX.findAll(text).map { match ->
             AssistantCodeRange(
                 start = match.range.first,
                 end = match.range.last + 1,
@@ -112,4 +113,9 @@ object AssistantContentClassifier {
             line.contains("`") || line.trim() == ">" || line.trim().startsWith("> ") ||
             line.matches(Regex("^[-*_]{3,}\\s*$"))
     }
+
+    private val FENCED_CODE_REGEX = Regex(
+        "^[ \\t]*```([A-Za-z0-9_+#.-]*)[ \\t]*(?:\\r?\\n|\\z)([\\s\\S]*?)(?:^[ \\t]*```[ \\t]*(?=\\r?\\n|\\z)|\\z)",
+        setOf(RegexOption.MULTILINE),
+    )
 }

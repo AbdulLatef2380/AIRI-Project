@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.OpenInFull
+import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,11 +59,13 @@ fun CodeBlockCard(
     onContentAction: ((ContentTarget, ContentUnitAction) -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable(target?.messageId, target?.blockId) { mutableStateOf(false) }
     fun copy() {
-        if (target != null && onContentAction != null && ContentUnitAction.COPY in target.actions) {
-            onContentAction(target, ContentUnitAction.COPY)
-        } else onCopyCode?.invoke(code) ?: run {
+        if (target != null) {
+            if (ContentUnitAction.COPY in target.actions) onContentAction?.invoke(target, ContentUnitAction.COPY)
+            return
+        }
+        onCopyCode?.invoke(code) ?: run {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboard.setPrimaryClip(ClipData.newPlainText("AIRI code", code))
         }
@@ -69,8 +73,8 @@ fun CodeBlockCard(
     }
 
     fun share() {
-        if (target != null && onContentAction != null && ContentUnitAction.SHARE in target.actions) {
-            onContentAction(target, ContentUnitAction.SHARE)
+        if (target != null) {
+            if (ContentUnitAction.SHARE in target.actions) onContentAction?.invoke(target, ContentUnitAction.SHARE)
             return
         }
         val intent = Intent(Intent.ACTION_SEND).apply {
@@ -81,20 +85,42 @@ fun CodeBlockCard(
             .onFailure { android.widget.Toast.makeText(context, R.string.artifact_share_failed, android.widget.Toast.LENGTH_SHORT).show() }
     }
 
+    fun expand() {
+        if (target != null) {
+            if (ContentUnitAction.EXPAND !in target.actions || onContentAction == null) return
+            onContentAction(target, ContentUnitAction.EXPAND)
+        }
+        expanded = true
+    }
+
+    fun save() {
+        val block = target ?: return
+        if (ContentUnitAction.SAVE in block.actions) onContentAction?.invoke(block, ContentUnitAction.SAVE)
+    }
+
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Surface(shape = RoundedCornerShape(10.dp), color = codeBack, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(language.ifBlank { "text" }, color = codeFore, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
-                    IconButton(onClick = ::copy, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Outlined.ContentCopy, contentDescription = context.getString(R.string.copy_code), tint = AiriTheme.onSurfaceVariant)
+                    if (target == null || (ContentUnitAction.COPY in target.actions && onContentAction != null)) {
+                        IconButton(onClick = ::copy, modifier = Modifier.size(40.dp)) {
+                            Icon(Icons.Outlined.ContentCopy, contentDescription = context.getString(R.string.copy_code), tint = AiriTheme.onSurfaceVariant)
+                        }
                     }
-                    IconButton(onClick = { expanded = true }, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Outlined.OpenInFull, contentDescription = context.getString(R.string.artifact_expand), tint = AiriTheme.onSurfaceVariant)
+                    if (target == null || (ContentUnitAction.EXPAND in target.actions && onContentAction != null)) {
+                        IconButton(onClick = ::expand, modifier = Modifier.size(40.dp)) {
+                            Icon(Icons.Outlined.OpenInFull, contentDescription = context.getString(R.string.artifact_expand), tint = AiriTheme.onSurfaceVariant)
+                        }
                     }
-                    if (target == null || ContentUnitAction.SHARE in target.actions) {
+                    if (target == null || (ContentUnitAction.SHARE in target.actions && onContentAction != null)) {
                         IconButton(onClick = ::share, modifier = Modifier.size(40.dp)) {
                             Icon(Icons.Outlined.Share, contentDescription = context.getString(R.string.artifact_share), tint = AiriTheme.onSurfaceVariant)
+                        }
+                    }
+                    if (target != null && ContentUnitAction.SAVE in target.actions && onContentAction != null) {
+                        IconButton(onClick = ::save, modifier = Modifier.size(40.dp)) {
+                            Icon(Icons.Outlined.FileDownload, contentDescription = context.getString(R.string.artifact_save), tint = AiriTheme.onSurfaceVariant)
                         }
                     }
                 }

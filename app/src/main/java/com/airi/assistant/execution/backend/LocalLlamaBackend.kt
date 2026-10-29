@@ -134,6 +134,10 @@ class LocalLlamaBackend(
             onError("Local context budget exceeded before generation")
             return
         }
+        if (request.requiresToolCalling && request.toolDefinitions.isEmpty()) {
+            onError("Local tool execution was requested without an admitted tool definition")
+            return
+        }
         val requestedModelId = request.requestedModelId
         val loadedModelId = ModelManager.getCurrent()?.id.orEmpty()
         if (requestedModelId.isNotBlank() && requestedModelId != loadedModelId) {
@@ -158,11 +162,15 @@ class LocalLlamaBackend(
             }
         }
         val events = Channel<LlamaEvent>(Channel.UNLIMITED)
+        val localSystemPrompt = LocalToolCallPromptContract.appendIfMissing(
+            request.systemPrompt,
+            request.toolDefinitions,
+        )
 
         try {
             llamaManager.generateStream(
                 prompt         = request.localPrompt.ifBlank { request.prompt },
-                systemPrompt   = request.systemPrompt,
+                systemPrompt   = localSystemPrompt,
                 maxTokens      = request.maxTokens,
                 temperature    = request.temperature,
                 repeatPenalty  = 1.1f,
@@ -257,6 +265,14 @@ class LocalLlamaBackend(
                 code = "context_limit",
             )
         }
+        if (request.requiresToolCalling && request.toolDefinitions.isEmpty()) {
+            return ExecutionResult.Failure(
+                error = "Local tool execution was requested without an admitted tool definition",
+                origin = ExecOrigin.LOCAL,
+                retryable = false,
+                code = "tool_definitions_missing",
+            )
+        }
         val requestedModelId = request.requestedModelId
         val loadedModelId = ModelManager.getCurrent()?.id.orEmpty()
         if (requestedModelId.isNotBlank() && requestedModelId != loadedModelId) {
@@ -290,7 +306,10 @@ class LocalLlamaBackend(
         try {
             llamaManager.generateStream(
                 prompt         = request.localPrompt.ifBlank { request.prompt },
-                systemPrompt   = request.systemPrompt,
+                systemPrompt   = LocalToolCallPromptContract.appendIfMissing(
+                    request.systemPrompt,
+                    request.toolDefinitions,
+                ),
                 maxTokens      = request.maxTokens,
                 temperature    = request.temperature,
                 repeatPenalty  = 1.1f,

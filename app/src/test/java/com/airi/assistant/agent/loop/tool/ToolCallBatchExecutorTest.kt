@@ -26,6 +26,34 @@ class ToolCallBatchExecutorTest {
     }
 
     @Test
+    fun dependentReadArgumentsRemainOrdered() = runBlocking {
+        val active = java.util.concurrent.atomic.AtomicInteger(0)
+        val peak = java.util.concurrent.atomic.AtomicInteger(0)
+        val requests = listOf(
+            ToolCallBatchExecutor.Request(
+                id = "call-1",
+                toolName = "read_repositories",
+                arguments = emptyMap(),
+                schema = ToolSchema("read_repositories", "read"),
+            ),
+            ToolCallBatchExecutor.Request(
+                id = "call-2",
+                toolName = "read_file",
+                arguments = mapOf("repository" to "${'$'}call-1"),
+                schema = ToolSchema("read_file", "read"),
+            ),
+        )
+        ToolCallBatchExecutor.execute(requests) {
+            val now = active.incrementAndGet()
+            peak.updateAndGet { old -> maxOf(old, now) }
+            delay(25)
+            active.decrementAndGet()
+            it.toolName
+        }
+        assertEquals("dependent reads must not overlap", 1, peak.get())
+    }
+
+    @Test
     fun writesRemainOrdered() = runBlocking {
         val order = Collections.synchronizedList(mutableListOf<String>())
         val writeSchema = ToolSchema(

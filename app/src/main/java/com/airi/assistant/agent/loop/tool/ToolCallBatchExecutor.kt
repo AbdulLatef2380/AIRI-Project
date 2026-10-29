@@ -26,7 +26,7 @@ object ToolCallBatchExecutor {
         requests: List<Request>,
         executeOne: suspend (Request) -> T,
     ): List<Outcome<T>> {
-        if (requests.size < 2 || requests.any { it.schema.sideEffectPolicy != ToolSchema.SideEffectPolicy.READ_ONLY }) {
+        if (!canRunConcurrently(requests)) {
             return requests.map { Outcome(it, executeOne(it)) }
         }
         return coroutineScope {
@@ -34,5 +34,29 @@ object ToolCallBatchExecutor {
                 async { Outcome(request, executeOne(request)) }
             }.awaitAll()
         }
+    }
+
+    /**
+     * A read-only schema is necessary but not sufficient for concurrency.
+     * Providers may express a dependency by referring to a previous call id
+     * in an argument (for example `$call-1` or `{{call-1}}`).  Such a batch is
+     * kept ordered; unknown/duplicate ids are also fail-closed.
+     */
+    fun canRunConcurrently(requests: List<Request>): Boolean {
+        if (requests.size < 2) return false
+        if (requests.any { it.schema.sideEffectPolicy != ToolSchema.SideEffectPolicy.READ_ONLY }) return false
+        val ids = requests.map { it.id.trim() }
+        if (ids.any { it.isBlank() } || ids.size != ids.toSet().size) return false
+        val priorIds = mutableSetOf<String>()
+        requests.forEach { request ->
+            val argumentText = request.arguments.values.joinToString(" ")
+            if (priorIds.any { id ->
+                    argumentText.contains("$" + id) ||
+                        argumentText.contains("{{" + id + "}}") ||
+                        argumentText.contains("call_id=" + id)
+                }) return false
+            priorIds += request.id
+        }
+        return true
     }
 }

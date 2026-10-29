@@ -8,6 +8,18 @@ import org.junit.Test
 
 class CanonicalIntentClassifierTest {
     @Test
+    fun resolvedIntentRetainsRuntimeCapabilitiesAndConnectors() {
+        val input = "اقرأ مستودعاتي في GitHub"
+        val chat = CanonicalIntentClassifier.classify(input)
+        val runtime = com.airi.assistant.ai.CapabilityIntentDetector.detect(input)
+        val resolved = ResolvedIntent.from(input, chat, runtime)
+
+        assertEquals(setOf("github"), resolved.requestedConnectorIds)
+        assertTrue(resolved.requiredCapabilities.contains("CONNECTOR_READ"))
+        assertEquals(runtime, resolved.toCapabilityIntent())
+    }
+
+    @Test
     fun greetingsRemainSimpleConversation() {
         assertEquals(ChatIntent.Kind.CONVERSATION, CanonicalIntentClassifier.classify("hello").kind)
         assertEquals(QueryType.SIMPLE, CanonicalIntentClassifier.classify("مرحبا").queryType)

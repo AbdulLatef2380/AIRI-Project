@@ -2382,7 +2382,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // SkillToolBridge already handles these in ToolDispatcher — they just weren't
             // being advertised to the LLM in the system prompt (the gap that caused
             // skill_code_assistant, skill_research_agent, etc. to never be invoked).
-            val capabilityIntent = com.airi.assistant.ai.CapabilityIntentDetector.detect(trimmedInput)
+            val detectedCapabilityIntent = com.airi.assistant.ai.CapabilityIntentDetector.detect(trimmedInput)
+            // ResolvedIntent is the single request-scoped contract shared by
+            // classification, capability admission, and diagnostics. The
+            // detector remains a pure candidate producer; downstream code uses
+            // only the resolved projection.
+            val resolvedRuntimeIntent = com.airi.assistant.domain.intent.ResolvedIntent.from(
+                input = trimmedInput,
+                intent = chatIntent,
+                runtimeIntent = detectedCapabilityIntent,
+            )
+            val capabilityIntent = resolvedRuntimeIntent.toCapabilityIntent()
             val capabilityFailures = mutableListOf<com.airi.assistant.agent.loop.tool.CapabilitySourceFailure>()
             val liveSkillSchemas = runCatching { skillToolBridge.asToolSchemas() }.getOrElse { error ->
                 capabilityFailures += com.airi.assistant.agent.loop.tool.CapabilitySourceFailure(

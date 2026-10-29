@@ -1,5 +1,7 @@
 package com.airi.assistant.domain.intent
 
+import com.airi.assistant.ai.CapabilityIntentDetector
+
 /** Shared semantic projection consumed by routing, admission and diagnostics. */
 data class ResolvedIntent(
     val kind: IntentKind,
@@ -9,6 +11,8 @@ data class ResolvedIntent(
     val risk: ChatIntent.Risk,
     val missingSlots: List<IntentSlot> = emptyList(),
     val rationale: List<String> = emptyList(),
+    val requestedConnectorIds: Set<String> = emptySet(),
+    val requiredCapabilities: Set<String> = emptySet(),
 ) {
     enum class IntentKind { CONVERSATION, QUESTION, CREATIVE, CONNECTOR_ACTION, DEVICE_ACTION, CLARIFICATION }
     data class ResolvedCapability(val family: String, val operation: String, val risk: ChatIntent.Risk)
@@ -16,7 +20,11 @@ data class ResolvedIntent(
     data class IntentSlot(val name: String)
 
     companion object {
-        fun from(input: String, intent: ChatIntent): ResolvedIntent {
+        fun from(
+            input: String,
+            intent: ChatIntent,
+            runtimeIntent: CapabilityIntentDetector.Intent = CapabilityIntentDetector.Intent(),
+        ): ResolvedIntent {
             val capability = intent.canonicalCapability.orEmpty()
             val kind = when {
                 intent.kind == ChatIntent.Kind.CONVERSATION -> IntentKind.CONVERSATION
@@ -30,7 +38,7 @@ data class ResolvedIntent(
             val targets = intent.typedSlots
                 .filterValues { it.type == ChatIntent.TypedSlot.SlotType.TARGET }
                 .map { IntentTarget(it.key, it.value.value) }
-            val missing = if (kind == IntentKind.CONNECTOR_ACTION && targets.isEmpty()) {
+            val missing = if (kind == IntentKind.CONNECTOR_ACTION && targets.isEmpty() && runtimeIntent.connectorIds.isEmpty()) {
                 listOf(IntentSlot("connector_target"))
             } else emptyList()
             return ResolvedIntent(
@@ -43,9 +51,19 @@ data class ResolvedIntent(
                 risk = intent.risk,
                 missingSlots = missing,
                 rationale = listOf("canonical=${intent.rationale}", "input_chars=${input.length}"),
+                requestedConnectorIds = runtimeIntent.connectorIds,
+                requiredCapabilities = runtimeIntent.capabilities.map { it.name }.toSet(),
             )
         }
     }
+
+    /** Converts the resolved contract back to the runtime detector type. */
+    fun toCapabilityIntent(): CapabilityIntentDetector.Intent = CapabilityIntentDetector.Intent(
+        capabilities = requiredCapabilities.mapNotNull { name ->
+            runCatching { CapabilityIntentDetector.Capability.valueOf(name) }.getOrNull()
+        }.toSet(),
+        connectorIds = requestedConnectorIds,
+    )
 }
 
 val ChatIntent.resolvedIntent: ResolvedIntent

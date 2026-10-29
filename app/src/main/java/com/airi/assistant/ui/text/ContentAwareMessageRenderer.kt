@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +29,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.sp
@@ -166,21 +171,24 @@ private fun MarkdownTableRenderer(
         tableBounds.before.takeIf(String::isNotBlank)?.let { prose ->
             BidiAwareMarkdownRenderer(text = prose, fillWidth = false, onCopyCode = null)
         }
-        Row(Modifier.horizontalScroll(rememberScrollState())) {
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                rows.forEachIndexed { index, cells ->
-                    Surface(
-                        color = if (index == 0) AiriTheme.surfaceVariant else AiriTheme.surface,
-                        shape = AIRIShapes.sm,
-                    ) {
-                        Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
-                            cells.forEach { cell ->
-                                Text(
-                                    text = cell,
-                                    color = AiriTheme.onSurface,
-                                    fontSize = if (index == 0) 12.sp else 11.sp,
-                                    modifier = Modifier.width(140.dp).padding(end = 8.dp),
-                                )
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Row(Modifier.horizontalScroll(rememberScrollState())) {
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    rows.forEachIndexed { index, cells ->
+                        Surface(
+                            color = if (index == 0) AiriTheme.surfaceVariant else AiriTheme.surface,
+                            shape = AIRIShapes.sm,
+                        ) {
+                            Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
+                                cells.forEach { cell ->
+                                    Text(
+                                        text = cell,
+                                        color = AiriTheme.onSurface,
+                                        fontSize = if (index == 0) 12.sp else 11.sp,
+                                        style = TextStyle(textDirection = TextDirection.Content),
+                                        modifier = Modifier.width(140.dp).padding(end = 8.dp),
+                                    )
+                                }
                             }
                         }
                     }

@@ -19,6 +19,7 @@ object LanguageRuntimeManager {
     private val ARABIC_RANGE  = Pattern.compile("[\\u0600-\\u06FF\\u0750-\\u077F]+")
     private val ENGLISH_RANGE = Pattern.compile("[a-zA-Z]{3,}")
     private val LATIN_RUN = Regex("([a-zA-Z0-9][a-zA-Z0-9 _\\-./]*[a-zA-Z0-9])")
+    private val LATIN_CHARACTER = Regex("[a-zA-Z]")
 
     enum class DominantDirection { RTL, LTR, MIXED, NEUTRAL }
 
@@ -45,7 +46,7 @@ object LanguageRuntimeManager {
 
     /** Wrap Latin runs in prose while preserving inline/fenced code byte-for-byte. */
     fun isolateLatinRuns(text: String): String {
-        if (!text.contains(Regex("[a-zA-Z]"))) return text
+        if (!LATIN_CHARACTER.containsMatchIn(text)) return text
         val output = StringBuilder(text.length + 16)
         var cursor = 0
         while (cursor < text.length) {

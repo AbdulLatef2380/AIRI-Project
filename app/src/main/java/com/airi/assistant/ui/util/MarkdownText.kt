@@ -139,6 +139,12 @@ private sealed class RenderBlock {
     object HRule : RenderBlock()
 }
 
+private val FENCE_LANGUAGE_SEPARATOR = Regex("\\s+")
+private val HORIZONTAL_RULE = Regex("^[-*_]{3,}\\s*$")
+private val HEADING_LINE = Regex("^(#{1,6})\\s+(.+)")
+private val BULLET_LINE = Regex("^(\\s*)[-*+•◦▪]\\s+(.+)")
+private val ORDERED_LINE = Regex("^(\\s*)([0-9٠-٩۰-۹]+)[.)]\\s+(.+)")
+
 private fun buildRenderBlocks(
     text     : String,
     textColor: Color,
@@ -155,7 +161,7 @@ private fun buildRenderBlocks(
 
         // Fenced code block — consume until closing ``` or EOF (streaming-safe)
         if (trimmed.startsWith("```")) {
-            val language = trimmed.removePrefix("```").trim().split(Regex("\\s+")).firstOrNull().orEmpty().ifBlank { "text" }
+            val language = trimmed.removePrefix("```").trim().split(FENCE_LANGUAGE_SEPARATOR).firstOrNull().orEmpty().ifBlank { "text" }
             val codeLines = mutableListOf<String>()
             i++
             while (i < lines.size && !lines[i].trimStart().startsWith("```")) {
@@ -168,12 +174,12 @@ private fun buildRenderBlocks(
         }
 
         // Horizontal rule
-        if (line.matches(Regex("^[-*_]{3,}\\s*$"))) {
+        if (HORIZONTAL_RULE.matches(line)) {
             out += RenderBlock.HRule; i++; continue
         }
 
         // Heading  # / ## / ###
-        val hm = Regex("^(#{1,6})\\s+(.+)").find(line)
+        val hm = HEADING_LINE.find(line)
         if (hm != null) {
             val level  = hm.groupValues[1].length
             val fsp    = when (level) { 1 -> baseFsp + 7f; 2 -> baseFsp + 4f; else -> baseFsp + 2f }
@@ -187,8 +193,9 @@ private fun buildRenderBlocks(
             i++; continue
         }
 
-        // Bullet list item  - / * / +
-        val bm = Regex("^(\\s*)[-*+]\\s+(.+)").find(line)
+        // Bullet list item. Arabic-speaking models commonly emit a literal
+        // bullet glyph instead of Markdown's -, *, or + marker.
+        val bm = BULLET_LINE.find(line)
         if (bm != null) {
             val indent = (bm.groupValues[1].length / 2).coerceAtMost(3)
             out += RenderBlock.Prose(
@@ -202,8 +209,8 @@ private fun buildRenderBlocks(
             i++; continue
         }
 
-        // Ordered list item  1. 2. 3. …
-        val nm = Regex("^(\\s*)(\\d+)\\.\\s+(.+)").find(line)
+        // Ordered list item  1. 2. 3. …, including Arabic-Indic digits.
+        val nm = ORDERED_LINE.find(line)
         if (nm != null) {
             val indent = (nm.groupValues[1].length / 2).coerceAtMost(3)
             val num    = nm.groupValues[2]

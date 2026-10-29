@@ -95,7 +95,7 @@ object AssistantContentClassifier {
     fun isMarkdownTable(text: String): Boolean {
         val lines = text.lines().map(String::trim).filter(String::isNotEmpty)
         return lines.size >= 2 && lines.any { it.count { ch -> ch == '|' } >= 2 } &&
-            lines.drop(1).any { it.matches(Regex("^\\|?\\s*:?-{3,}:?\\s*(\\|\\s*:?-{3,}:?\\s*)+\\|?$")) }
+            lines.drop(1).any { TABLE_SEPARATOR.matches(it) }
     }
 
     fun looksStructured(text: String): Boolean {
@@ -103,16 +103,23 @@ object AssistantContentClassifier {
         return (value.startsWith("{") && value.endsWith("}")) ||
             (value.startsWith("[") && value.endsWith("]")) ||
             (value.startsWith("<") && value.endsWith(">")) ||
-            value.lines().count { it.matches(Regex("^\\s*[A-Za-z0-9_.-]+\\s*:\\s*.+$")) } >= 2 ||
-            value.lines().count { it.matches(Regex("^\\s*(ERROR|WARN|INFO|DEBUG)\\b.*$")) } >= 2
+            value.lines().count { KEY_VALUE_LINE.matches(it) } >= 2 ||
+            value.lines().count { LOG_LINE.matches(it) } >= 2
     }
 
     fun looksMarkdown(text: String): Boolean = text.lines().any { line ->
-        line.trimStart().startsWith("#") || line.trimStart().matches(Regex("^[-*+]\\s+.+")) ||
-            line.trimStart().matches(Regex("^\\d+\\.\\s+.+")) || line.contains("**") ||
+        line.trimStart().startsWith("#") || BULLET_LINE.matches(line.trimStart()) ||
+            ORDERED_LINE.matches(line.trimStart()) || line.contains("**") ||
             line.contains("`") || line.trim() == ">" || line.trim().startsWith("> ") ||
-            line.matches(Regex("^[-*_]{3,}\\s*$"))
+            HORIZONTAL_RULE.matches(line)
     }
+
+    private val TABLE_SEPARATOR = Regex("^\\|?\\s*:?-{3,}:?\\s*(\\|\\s*:?-{3,}:?\\s*)+\\|?$")
+    private val KEY_VALUE_LINE = Regex("^\\s*[A-Za-z0-9_.-]+\\s*:\\s*.+$")
+    private val LOG_LINE = Regex("^\\s*(ERROR|WARN|INFO|DEBUG)\\b.*$")
+    private val BULLET_LINE = Regex("^[-*+•◦▪]\\s+.+")
+    private val ORDERED_LINE = Regex("^[0-9٠-٩۰-۹]+[.)]\\s+.+")
+    private val HORIZONTAL_RULE = Regex("^[-*_]{3,}\\s*$")
 
     private val FENCED_CODE_REGEX = Regex(
         "^[ \\t]*```([A-Za-z0-9_+#.-]*)[ \\t]*(?:\\r?\\n|\\z)([\\s\\S]*?)(?:^[ \\t]*```[ \\t]*(?=\\r?\\n|\\z)|\\z)",

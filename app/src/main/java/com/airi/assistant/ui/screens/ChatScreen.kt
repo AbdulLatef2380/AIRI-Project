@@ -3246,7 +3246,11 @@ fun AiStreamingBubble(
                     CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection(text)) {
                         ContentAwareMessageRenderer(
                             text = text,
-                            modifier = Modifier.fillMaxWidth(),
+                            // The cursor is a sibling in this Row. A full-width
+                            // child would consume the row before the cursor is
+                            // measured, making it wrap or disappear at the
+                            // trailing edge during streaming.
+                            modifier = Modifier.weight(1f),
                             isStreaming = true,
                             messageId = messageId,
                             onContentAction = handleContentAction,

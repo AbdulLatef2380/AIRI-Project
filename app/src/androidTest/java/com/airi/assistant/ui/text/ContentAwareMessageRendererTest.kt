@@ -12,6 +12,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.AiriTheme
+import com.airi.assistant.ui.util.MarkdownText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -77,6 +78,22 @@ class ContentAwareMessageRendererTest {
         assertEquals(ContentUnitAction.SAVE, receivedAction)
         composeRule.onNodeWithContentDescription(context.getString(R.string.artifact_expand)).performClick()
         assertEquals(ContentUnitAction.EXPAND, receivedAction)
+    }
+
+    @Test
+    fun standaloneMarkdownCodeBlockUsesItsCopyCallback() {
+        var copied: String? = null
+        composeRule.setContent {
+            AiriTheme {
+                MarkdownText(
+                    rawText = "```kotlin\nval standalone = true\n```",
+                    onCopyCode = { copied = it },
+                )
+            }
+        }
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        composeRule.onNodeWithContentDescription(context.getString(R.string.copy_code)).performClick()
+        assertEquals("val standalone = true", copied)
     }
 
     @Test

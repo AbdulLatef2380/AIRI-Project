@@ -3,6 +3,7 @@ package com.airi.assistant.ui.text
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import androidx.compose.ui.unit.LayoutDirection
 
 class LanguageRuntimeManagerTest {
     @Test
@@ -10,6 +11,12 @@ class LanguageRuntimeManagerTest {
         assertEquals(LanguageRuntimeManager.DominantDirection.RTL, LanguageRuntimeManager.analyseDirection("مرحبا بالعالم"))
         assertEquals(LanguageRuntimeManager.DominantDirection.LTR, LanguageRuntimeManager.analyseDirection("Provider error 429"))
         assertEquals(LanguageRuntimeManager.DominantDirection.MIXED, LanguageRuntimeManager.analyseDirection("تعذر الاتصال بـ Gemini"))
+    }
+
+    @Test
+    fun mixedArabicTechnicalReplyKeepsArabicContainerDirection() {
+        val reply = "شرح عربي ثم ```python\nprint('hello')\n```"
+        assertEquals(LayoutDirection.Rtl, LanguageRuntimeManager.toLayoutDirection(LanguageRuntimeManager.analyseDirection(reply)))
     }
 
     @Test

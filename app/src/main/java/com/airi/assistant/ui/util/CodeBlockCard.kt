@@ -60,10 +60,19 @@ fun CodeBlockCard(
     onContentAction: ((ContentTarget, ContentUnitAction) -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val highlightedCode = remember(code, language) {
+        CodeSyntaxHighlighter.highlight(code, language)
+    }
     var expanded by rememberSaveable(target?.messageId, target?.blockId) { mutableStateOf(false) }
     fun copy() {
-        val scopedTarget = target ?: return
-        if (scopedTarget.canPerform(ContentUnitAction.COPY)) onContentAction?.invoke(scopedTarget, ContentUnitAction.COPY)
+        val scopedTarget = target
+        if (scopedTarget != null) {
+            if (scopedTarget.canPerform(ContentUnitAction.COPY)) {
+                onContentAction?.invoke(scopedTarget, ContentUnitAction.COPY)
+            }
+        } else {
+            onCopyCode?.invoke(code)
+        }
     }
 
     fun share() {
@@ -89,7 +98,7 @@ fun CodeBlockCard(
             Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(language.ifBlank { "text" }, color = codeFore, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
-                    if (target != null && target.canPerform(ContentUnitAction.COPY) && onContentAction != null) {
+                    if ((target?.canPerform(ContentUnitAction.COPY) == true && onContentAction != null) || (target == null && onCopyCode != null)) {
                         IconButton(onClick = ::copy, modifier = Modifier.size(40.dp)) {
                             Icon(Icons.Outlined.ContentCopy, contentDescription = context.getString(R.string.copy_code), tint = AiriTheme.onSurfaceVariant)
                         }
@@ -112,7 +121,7 @@ fun CodeBlockCard(
                 }
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                     Text(
-                        text = CodeSyntaxHighlighter.highlight(code, language),
+                        text = highlightedCode,
                         style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp, color = CodeSyntaxHighlighter.defaultColor, textDirection = TextDirection.Ltr),
                         softWrap = false,
                         modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
@@ -123,23 +132,25 @@ fun CodeBlockCard(
     }
 
     if (expanded) {
-        Dialog(onDismissRequest = { expanded = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            Surface(modifier = Modifier.fillMaxWidth().padding(14.dp), shape = RoundedCornerShape(14.dp), color = codeBack, tonalElevation = 8.dp) {
-                Column(Modifier.padding(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(language.ifBlank { "text" }, color = codeFore, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
-                        IconButton(onClick = { expanded = false }) {
-                            Icon(Icons.Outlined.Close, contentDescription = context.getString(R.string.close), tint = AiriTheme.onSurfaceVariant)
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Dialog(onDismissRequest = { expanded = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+                Surface(modifier = Modifier.fillMaxWidth().padding(14.dp), shape = RoundedCornerShape(14.dp), color = codeBack, tonalElevation = 8.dp) {
+                    Column(Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(language.ifBlank { "text" }, color = codeFore, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { expanded = false }) {
+                                Icon(Icons.Outlined.Close, contentDescription = context.getString(R.string.close), tint = AiriTheme.onSurfaceVariant)
+                            }
                         }
-                    }
-                    SelectionContainer {
-                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-                            Text(
-                                text = CodeSyntaxHighlighter.highlight(code, language),
-                                style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp, color = CodeSyntaxHighlighter.defaultColor, textDirection = TextDirection.Ltr),
-                                softWrap = false,
-                                modifier = Modifier.padding(vertical = 8.dp),
-                            )
+                        SelectionContainer {
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                                Text(
+                                    text = highlightedCode,
+                                    style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp, color = CodeSyntaxHighlighter.defaultColor, textDirection = TextDirection.Ltr),
+                                    softWrap = false,
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                )
+                            }
                         }
                     }
                 }

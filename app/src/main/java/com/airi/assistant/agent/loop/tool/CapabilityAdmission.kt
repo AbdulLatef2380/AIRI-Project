@@ -21,6 +21,8 @@ enum class Availability {
     PERMISSION_REQUIRED,
     CONTEXT_OMITTED,
     BLOCKED_BY_POLICY,
+    CONFIGURATION_REQUIRED,
+    DEPENDENCY_MISSING,
     BUILD_FAILED,
     UNSUPPORTED,
 }
@@ -43,10 +45,17 @@ data class CapabilitySourceFailure(
 )
 
 sealed class CapabilityAssemblyResult {
-    data class Ready(val catalog: RuntimeToolCatalog.Result) : CapabilityAssemblyResult()
+    data class Ready(
+        val catalog: RuntimeToolCatalog.Result,
+        val decisions: List<CapabilityDecision> = emptyList(),
+    ) : CapabilityAssemblyResult()
     data class Degraded(
         val catalog: RuntimeToolCatalog.Result,
         val failedSources: List<CapabilitySourceFailure>,
+        val decisions: List<CapabilityDecision> = emptyList(),
     ) : CapabilityAssemblyResult()
-    data class Failed(val failures: List<CapabilitySourceFailure>) : CapabilityAssemblyResult()
+    data class Failed(
+        val failures: List<CapabilitySourceFailure>,
+        val decisions: List<CapabilityDecision> = emptyList(),
+    ) : CapabilityAssemblyResult()
 }

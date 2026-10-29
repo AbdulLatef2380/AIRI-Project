@@ -26,6 +26,14 @@ class CapabilityIntentDetectorTest {
     }
 
     @Test
+    fun mentioningTodayInsideCreativeRequestDoesNotRequireCurrentTime() {
+        assertFalse(CapabilityIntentDetector.detect("اكتب لي قصة عن today في المدينة")
+            .requires(CapabilityIntentDetector.Capability.CURRENT_TIME))
+        assertFalse(CapabilityIntentDetector.detect("اكتب لي قصة عن اليوم في المدينة")
+            .requires(CapabilityIntentDetector.Capability.CURRENT_TIME))
+    }
+
+    @Test
     fun arabicDateVariantsRequireCurrentTime() {
         assertTrue(CapabilityIntentDetector.detect("كم اليوم بالتاريخ الميلادي؟")
             .requires(CapabilityIntentDetector.Capability.CURRENT_TIME))

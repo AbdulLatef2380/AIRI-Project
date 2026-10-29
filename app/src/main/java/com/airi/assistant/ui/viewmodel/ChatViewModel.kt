@@ -2421,16 +2421,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 Log.e("AIRI", "RUNTIME_TOOL_CATALOG_BUILD_FAILED", error)
             }
-            if (connectorSchemaResult.isFailure && capabilityIntent.connectorIds.isNotEmpty()) {
-                val sourceNames = capabilityFailures.joinToString { it.sourceId }
-                _messages.update { current ->
-                    current + ChatMessage(
-                        text = "فهمت أنك تريد استخدام موصل خارجي، لكن فشل تجهيز أدوات التنفيذ ($sourceNames). الموصل ليس بالضرورة غير متاح؛ أعد تهيئته أو أعد المحاولة بعد مراجعة سجل runtime.",
-                        isUser = false,
-                    )
-                }
-                return@launch
-            }
             val catalog = connectorSchemaResult.getOrElse {
                 com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.assemble(
                     builtins = com.airi.assistant.agent.loop.tool.BuiltinTools.ALL,
@@ -2440,6 +2430,32 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     statusOverrides = agentLoopBuiltinStatusOverrides(),
                     requestText = trimmedInput,
                 )
+            }
+            val connectorSchemaCount = connectorSchemaResult.getOrNull()?.size ?: 0
+            val skillsRequested = selectedSkillIds.isNotEmpty() ||
+                (capabilityIntent.connectorIds.contains("*") &&
+                    (trimmedInput.contains("skill", ignoreCase = true) || trimmedInput.contains("مهار")))
+            val admission = com.airi.assistant.agent.loop.tool.CapabilityAdmissionEvaluator.evaluate(
+                catalog = catalog,
+                intent = capabilityIntent,
+                failures = capabilityFailures,
+                skillsRequested = skillsRequested,
+            )
+            val failedAdmission = admission.result as? com.airi.assistant.agent.loop.tool.CapabilityAssemblyResult.Failed
+            if (failedAdmission != null) {
+                val failedSources = failedAdmission.failures.joinToString { it.sourceId }
+                val requestedTargets = capabilityIntent.connectorIds
+                    .filter { it != "*" }
+                    .joinToString()
+                    .ifBlank { "القدرة المطلوبة" }
+                _messages.update { current ->
+                    current + ChatMessage(
+                        text = "لم أرسل الطلب إلى النموذج لأن تجهيز $requestedTargets فشل ($failedSources). أعد المصادقة أو التهيئة ثم أعد المحاولة؛ راجع سجل runtime لمعرفة المرحلة الفاشلة.",
+                        isUser = false,
+                    )
+                }
+                Log.w("AIRI", "CAPABILITY_ADMISSION_FAILED sources=$failedSources decisions=${admission.decisions.count { it.requested }}")
+                return@launch
             }
             val allActiveTools = catalog.schemas
             // QueryType describes answer shape; CapabilityIntent describes live
@@ -2525,13 +2541,31 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val requiredToolBudgetNotice = omittedRequiredTools.takeIf { it.isNotEmpty() }?.let {
                 "\n\n[CAPABILITY_ADMISSION_FAILED]\nThe following tools are required by the user's request but could not fit in the context budget: ${it.joinToString(", ")}. Do not claim the capability is unavailable; explain that the request must be shortened or retried with a larger context."
             }.orEmpty()
+            val admissionDecisionBlock = admission.decisions
+                .filter { it.requested }
+                .takeIf { it.isNotEmpty() }
+                ?.joinToString(
+                    prefix = "\n\n[REQUEST_CAPABILITY_DECISIONS]\n",
+                    separator = "\n",
+                ) { decision ->
+                    "${decision.capabilityId}: status=${decision.status.name.lowercase()}, registered=${decision.registered}, exposed=${decision.exposed}, executable=${decision.executable}, next_action=${decision.nextAction.name.lowercase()}" +
+                        (decision.reason?.let { "; reason=${it.take(180)}" } ?: "")
+                }
+                .orEmpty()
+            val degradedCapabilityNotice = (admission.result as? com.airi.assistant.agent.loop.tool.CapabilityAssemblyResult.Degraded)
+                ?.failedSources
+                ?.joinToString { "${it.sourceId}:${it.stage}" }
+                ?.takeIf { it.isNotBlank() }
+                ?.let { "\n\n[CAPABILITY_SOURCES_DEGRADED]\nSome non-required capability sources failed during assembly: $it. Do not claim those sources were executed or verified." }
+                .orEmpty()
             val fullSystemPrompt = com.airi.assistant.ai.prompt.DynamicPromptEngine.appendPlatformCapabilitySnapshot(
-                systemPrompt + "\n\n" + runtimeInventory.promptBlock(trimmedInput) + requiredToolBudgetNotice,
+                systemPrompt + "\n\n" + runtimeInventory.promptBlock(trimmedInput) +
+                    admissionDecisionBlock + degradedCapabilityNotice + requiredToolBudgetNotice,
                 platformSnapshotBlock,
             )
             llamaManager.systemPromptTokenEstimate =
                 com.airi.assistant.ai.prompt.budget.PromptBudgetLedger.estimateTokens(fullSystemPrompt)
-            Log.i("AIRI", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${liveSkillSchemas.size} connectors=${connectorToolBridge.asToolSchemas().size} selected=${activeTools.size} queryType=${queryType.name} capabilities=${capabilityIntent.capabilities} candidates=${catalog.candidates.size} exposed=${catalog.exposed.size} filtered=${catalog.filtered.map { it.toolName + ":" + it.reason.name }}")
+            Log.i("AIRI", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${liveSkillSchemas.size} connectors=$connectorSchemaCount selected=${activeTools.size} queryType=${queryType.name} capabilities=${capabilityIntent.capabilities} candidates=${catalog.candidates.size} exposed=${catalog.exposed.size} filtered=${catalog.filtered.map { it.toolName + ":" + it.reason.name }}")
 
             var tokenCount = 0
             var firstTokenReceived = false

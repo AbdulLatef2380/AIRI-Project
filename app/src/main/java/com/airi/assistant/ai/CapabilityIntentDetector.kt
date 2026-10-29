@@ -32,7 +32,7 @@ object CapabilityIntentDetector {
 
     private val timePatterns = listOf(
         "what time", "current time", "time is it", "today's date", "todays date",
-        "current date", "date today", "what date", "today",
+        "current date", "date today", "what date",
         "كم الساعة", "الساعة الان", "الوقت الان", "التاريخ اليوم",
         "تاريخ اليوم", "التاريخ الحالي", "التاريخ الميلادي", "اليوم كم",
         "كم اليوم", "ما تاريخ اليوم", "ما هو تاريخ اليوم", "تاريخ اليوم كم",
@@ -124,7 +124,9 @@ object CapabilityIntentDetector {
         val capabilities = linkedSetOf<Capability>()
         val connectors = linkedSetOf<String>()
 
-        if (timePatterns.any(text::contains)) capabilities += Capability.CURRENT_TIME
+        if (timePatterns.any(text::contains) || text == "today" || text == "اليوم") {
+            capabilities += Capability.CURRENT_TIME
+        }
         if (memoryPatterns.any(text::contains)) capabilities += Capability.MEMORY_READ
         val hasCurrencyPairRequest = text.contains("سعر") &&
             (text.contains("دولار") || text.contains("جنيه") || text.contains("عملة") || text.contains("صرف"))

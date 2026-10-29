@@ -13,6 +13,14 @@ import com.airi.assistant.tools.execution.NotesTool
 import com.airi.assistant.tools.execution.SearchTool
 import com.airi.assistant.torch.TorchController
 import com.airi.assistant.torch.TorchResult
+import com.airi.assistant.ai.skills.SkillManifest
+import com.airi.assistant.ai.skills.SkillRegistry
+import com.airi.assistant.domain.customskill.CustomSkill
+import com.airi.assistant.domain.customskill.SkillConfig
+import com.airi.assistant.domain.customskill.SkillProposalStore
+import com.airi.assistant.domain.customskill.ProposalSource
+import com.airi.assistant.domain.customskill.SkillType
+import com.airi.assistant.marketplace.GitHubSkillImporter
 import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.ActivityEvent
@@ -377,6 +385,77 @@ class ToolDispatcher(
                 val details = args["details"] ?: ""
                 // Return a special marker that ChatViewModel can detect
                 ToolResult.Success("CONFIRMATION_REQUIRED|$action|$details")
+            }
+
+            "create_skill_proposal" -> {
+                val name = args["name"].orEmpty().trim()
+                val description = args["description"].orEmpty().trim()
+                val endpoint = args["endpoint"].orEmpty().trim()
+                val method = args["method"].orEmpty().trim().ifBlank { "POST" }.uppercase()
+                val body = args["body_template"].orEmpty().ifBlank { "{\"input\": \"{{input}}\"}" }
+                val permissions = args["permissions"].orEmpty().split(',').map { it.trim() }.filter { it.isNotBlank() }
+                val id = name.lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_').take(64)
+                if (id.length < 3 || name.length !in 3..80 || description.length !in 10..500 || endpoint.isBlank()) {
+                    ToolResult.Error("Invalid skill proposal fields", code = ToolErrorCodes.INVALID_ARGUMENT)
+                } else {
+                    val manifest = SkillManifest(
+                        id = id,
+                        name = name,
+                        description = description,
+                        version = "1.0.0",
+                        author = "AIRI",
+                        permissions = permissions,
+                        endpoint = endpoint,
+                        requiresConfirmation = true,
+                    )
+                    val skill = CustomSkill(
+                        id = id,
+                        name = name,
+                        description = description,
+                        type = SkillType.API,
+                        config = SkillConfig(endpoint = endpoint, method = method, bodyTemplate = body),
+                        createdAt = System.currentTimeMillis(),
+                    )
+                    val registry = SkillRegistry(context)
+                    if (!registry.validateDynamicManifest(manifest, endpoint, method, body, SkillType.API)) {
+                        ToolResult.Error("Skill proposal failed AIRI validation", code = ToolErrorCodes.INVALID_ARGUMENT)
+                    } else {
+                        val proposal = SkillProposalStore(context).create(
+                            skill = skill,
+                            manifest = manifest,
+                            source = ProposalSource.AIRI_GENERATED,
+                            sourceUrl = args["source_url"],
+                        )
+                        Log.i(TAG, "AIRI SKILL_PROPOSAL_CREATED id=${proposal.id} source=generated")
+                        ToolResult.Success("SKILL_PROPOSAL_REQUIRED|${proposal.id}", provenance = ToolProvenance.SKILL)
+                    }
+                }
+            }
+
+            "import_skill_proposal" -> {
+                val url = args["url"].orEmpty().trim()
+                if (!url.startsWith("https://")) {
+                    ToolResult.Error("Skill import requires an HTTPS URL", code = ToolErrorCodes.INVALID_ARGUMENT)
+                } else {
+                    val imported = GitHubSkillImporter.importFromUrl(url)
+                    val manifest = imported.manifest
+                    val skill = imported.skill
+                    if (!imported.success || manifest == null || skill == null) {
+                        ToolResult.Error(imported.errors.joinToString("; ").ifBlank { "Skill import failed" }, code = ToolErrorCodes.EXECUTION_FAILED)
+                    } else if (!SkillRegistry(context).validateDynamicManifest(manifest, skill.config.endpoint, skill.config.method, skill.config.bodyTemplate, skill.type)) {
+                        ToolResult.Error("Imported skill failed AIRI validation", code = ToolErrorCodes.INVALID_ARGUMENT)
+                    } else {
+                        val proposal = SkillProposalStore(context).create(
+                            skill = skill,
+                            manifest = manifest,
+                            source = ProposalSource.AIRI_IMPORTED_FROM_INTERNET,
+                            sourceUrl = url,
+                            warnings = imported.warnings,
+                        )
+                        Log.i(TAG, "AIRI SKILL_PROPOSAL_CREATED id=${proposal.id} source=internet")
+                        ToolResult.Success("SKILL_PROPOSAL_REQUIRED|${proposal.id}", provenance = ToolProvenance.SKILL)
+                    }
+                }
             }
 
             // ── Skill invocations (skill_*) ────────────────────────────────────

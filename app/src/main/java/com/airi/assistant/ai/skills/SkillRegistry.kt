@@ -353,6 +353,19 @@ class SkillRegistry(private val context: Context) {
         }
     }
 
+    /** Validate a dynamic skill without writing it to the registry or repository. */
+    fun validateDynamicManifest(
+        manifest: SkillManifest,
+        endpoint: String,
+        method: String = "POST",
+        bodyTemplate: String = """{"input": "{{input}}"}""",
+        type: SkillType = SkillType.API,
+    ): Boolean = isValidDynamicManifest(manifest) &&
+        isTrustedHttpsEndpoint(endpoint.trim()) &&
+        method.trim().uppercase() in SUPPORTED_HTTP_METHODS &&
+        bodyTemplate.isNotBlank() &&
+        type in REMOTE_SKILL_TYPES
+
     fun isCustomSkillAvailable(skill: CustomSkill): Boolean =
         isSkillEnabled(skill.id) && hasRunnableEndpoint(skill)
 

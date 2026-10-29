@@ -174,16 +174,39 @@ object BuiltinTools {
         dangerous   = false
     )
 
+    val CREATE_SKILL_PROPOSAL = ToolSchema(
+        name = "create_skill_proposal",
+        description = "Create a validated skill proposal for the user to review and explicitly save. Never persist or activate the skill before user approval.",
+        parameters = mapOf(
+            "name" to ToolSchema.Param("string", "Skill name", minLength = 3, maxLength = 80),
+            "description" to ToolSchema.Param("string", "What the skill does", minLength = 10, maxLength = 500),
+            "endpoint" to ToolSchema.Param("url", "HTTPS API endpoint", minLength = 1, maxLength = 4096, allowedSchemes = setOf("https")),
+            "method" to ToolSchema.Param("string", "HTTP method", required = false, allowedValues = setOf("GET", "POST", "PUT", "PATCH", "DELETE")),
+            "body_template" to ToolSchema.Param("string", "JSON request body template", required = false, maxLength = 20_000),
+            "permissions" to ToolSchema.Param("string", "Comma-separated declared permissions", required = false, maxLength = 2_000),
+            "source_url" to ToolSchema.Param("url", "Internet source URL, if this was imported", required = false, maxLength = 4096, allowedSchemes = setOf("https")),
+        ),
+        category = ToolSchema.Category.EXTERNAL,
+    )
+
+    val IMPORT_SKILL_PROPOSAL = ToolSchema(
+        name = "import_skill_proposal",
+        description = "Import and validate a skill manifest from a trusted HTTPS GitHub skill URL, then ask the user whether to save it. Never persist before approval.",
+        parameters = mapOf("url" to ToolSchema.Param("url", "HTTPS GitHub skill URL", minLength = 1, maxLength = 4096, allowedSchemes = setOf("https"))),
+        category = ToolSchema.Category.EXTERNAL,
+    )
+
         /** Full set of tools for an ACTION-capable session. */
     val ALL: List<ToolSchema> = listOf(
         READ_SCREEN, OPEN_APP, TAP, TYPE_TEXT, SCROLL_DOWN, GO_BACK,
         WEB_SEARCH, FETCH_URL, MEMORY_RECALL,
         CALENDAR_READ, CURRENT_TIME, FLASHLIGHT, CALENDAR_CREATE, SET_ALARM, CREATE_NOTE, TERMINAL_EXECUTE,
-        ASK_CONFIRMATION
+        ASK_CONFIRMATION, CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL
     )
 
     /** Minimal set for plain chat (no accessibility, no calendar write). */
     val CHAT_ONLY: List<ToolSchema> = listOf(
-        WEB_SEARCH, FETCH_URL, MEMORY_RECALL, CALENDAR_READ, CURRENT_TIME, CREATE_NOTE, TERMINAL_EXECUTE
+        WEB_SEARCH, FETCH_URL, MEMORY_RECALL, CALENDAR_READ, CURRENT_TIME, CREATE_NOTE, TERMINAL_EXECUTE,
+        CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL
     )
 }

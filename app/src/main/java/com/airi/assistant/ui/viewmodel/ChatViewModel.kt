@@ -2513,7 +2513,46 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 // blocking dialog via the existing confirmation gate, then inject
                                 // the user's decision back into the loop as the tool result.
                                 val result = stepEvent.result
-                                val overrideResult = if (result.startsWith("CONFIRMATION_REQUIRED|")) {
+                                val overrideResult = if (result.startsWith("SKILL_PROPOSAL_REQUIRED|")) {
+                                    val proposalId = result.substringAfter('|').trim()
+                                    val proposalStore = com.airi.assistant.domain.customskill.SkillProposalStore(appContext)
+                                    val proposal = proposalStore.get(proposalId)
+                                    if (proposal == null) {
+                                        "User could not review the skill proposal because it is no longer available. Do not save or activate it."
+                                    } else {
+                                        val details = buildString {
+                                            append("AIRI wants to save this skill in the Skills library.\n")
+                                            append("Name: ${proposal.skill.name}\n")
+                                            append("Purpose: ${proposal.skill.description}\n")
+                                            append("Source: ${proposal.source.name}\n")
+                                            proposal.sourceUrl?.let { append("Source URL: $it\n") }
+                                            append("Endpoint: ${proposal.skill.config.endpoint}\n")
+                                            append("Method: ${proposal.skill.config.method}\n")
+                                            append("Permissions: ${proposal.manifest.permissions.ifEmpty { listOf("none declared") }.joinToString()}\n")
+                                            proposal.warnings.take(5).takeIf { it.isNotEmpty() }?.let { append("Warnings: ${it.joinToString("; ")}\n") }
+                                            proposal.risks.take(5).takeIf { it.isNotEmpty() }?.let { append("Risks: ${it.joinToString("; ")}") }
+                                        }
+                                        val approved = awaitAccessibilityConfirmation("Save skill: ${proposal.skill.name}", details)
+                                        if (approved) {
+                                            val persisted = proposalStore.accept(proposal.id) { approvedProposal ->
+                                                SkillRegistry(appContext).registerDynamicFromManifest(
+                                                    manifest = approvedProposal.manifest,
+                                                    endpoint = approvedProposal.skill.config.endpoint,
+                                                    method = approvedProposal.skill.config.method,
+                                                    bodyTemplate = approvedProposal.skill.config.bodyTemplate,
+                                                    headers = approvedProposal.skill.config.headers,
+                                                    type = approvedProposal.skill.type,
+                                                    createdAt = approvedProposal.skill.createdAt,
+                                                )
+                                            }
+                                            if (persisted) "User approved and saved skill '${proposal.skill.name}'. It is now available to the next AgentLoop turns."
+                                            else "User approved the skill, but persistence failed. Do not claim that it was saved."
+                                        } else {
+                                            proposalStore.reject(proposal.id)
+                                            "User rejected skill '${proposal.skill.name}'. Do not save or activate it."
+                                        }
+                                    }
+                                } else if (result.startsWith("CONFIRMATION_REQUIRED|")) {
                                     val parts   = result.split("|", limit = 3)
                                     val action  = parts.getOrElse(1) { "Proceed?" }
                                     val details = parts.getOrElse(2) { "" }

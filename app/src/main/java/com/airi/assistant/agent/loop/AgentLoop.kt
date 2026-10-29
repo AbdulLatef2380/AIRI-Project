@@ -219,6 +219,16 @@ the tool returns an actual error.
             },
             permissionProfile = permissionProfile,
         )
+        runtimeTrace?.intentStage(executionId, sessionId, "INTENT_RAW", "received")
+        runtimeTrace?.intentStage(executionId, sessionId, "INTENT_NORMALIZED", "normalized")
+        runtimeTrace?.intentStage(executionId, sessionId, "INTENT_DETECTED", "capability_detector")
+        runtimeTrace?.intentStage(executionId, sessionId, "INTENT_RESOLVED", "agent_loop")
+        runtimeTrace?.intentStage(executionId, sessionId, "CAPABILITY_REQUESTED", if (tools.isEmpty()) "none" else "requested")
+        runtimeTrace?.intentStage(executionId, sessionId, "CATALOG_ASSEMBLED", if (effectiveTools.isEmpty()) "empty" else "assembled")
+        effectiveTools.forEach { tool ->
+            runtimeTrace?.intentStage(executionId, sessionId, "TOOL_EXPOSED", "exposed", capabilityId = tool.name)
+            runtimeTrace?.intentStage(executionId, sessionId, "TOOL_ADMITTED", "admitted", capabilityId = tool.name)
+        }
         val toolLedger = ToolCallLedger()
         var isPlanPublished = false
         var durableExecutionContext: AgentLoopExecutionContext? = null
@@ -438,7 +448,14 @@ the tool returns an actual error.
                         queuedToolCall.toolName, queuedToolCall.params, queuedToolCall.id,
                     )
                 } else {
-                    com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(rawResponse)
+                    val nativeCalls = com.airi.assistant.execution.cloud.NativeToolCallWire.decode(rawResponse)
+                    if (nativeCalls.isNotEmpty()) {
+                        com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(
+                            com.airi.assistant.execution.cloud.NativeToolCallWire.encode(nativeCalls)
+                        )
+                    } else {
+                        com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(rawResponse)
+                    }
                 }
                 var parsedToolCalls = when (parseResult) {
                     is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call -> listOf(parseResult.toolCall)
@@ -501,7 +518,14 @@ the tool returns an actual error.
                         ""
                     }
                     if (retryResponse.isNotBlank()) {
-                        parseResult = com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(retryResponse)
+                        val nativeRetryCalls = com.airi.assistant.execution.cloud.NativeToolCallWire.decode(retryResponse)
+                        parseResult = if (nativeRetryCalls.isNotEmpty()) {
+                            com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(
+                                com.airi.assistant.execution.cloud.NativeToolCallWire.encode(nativeRetryCalls)
+                            )
+                        } else {
+                            com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(retryResponse)
+                        }
                         parsedToolCalls = when (parseResult) {
                             is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call -> listOf(parseResult.toolCall)
                             is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Calls -> parseResult.calls

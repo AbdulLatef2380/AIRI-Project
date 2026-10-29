@@ -277,6 +277,26 @@ class UniversalRuntimeTraceRecorder(
         outcome = RuntimeTraceRedaction.safeReason(outcome)
     )
 
+    fun intentStage(
+        executionId: String,
+        sessionId: String,
+        stage: String,
+        outcome: String,
+        capabilityId: String? = null,
+        reason: String? = null,
+    ) = record(
+        eventType = UniversalTraceEventType.INTENT_STAGE_RECORDED,
+        executionId = executionId,
+        sessionId = sessionId,
+        component = "IntentResolution",
+        outcome = RuntimeTraceRedaction.safeReason(outcome),
+        toolNames = capabilityId?.let(::listOf).orEmpty(),
+        attributes = buildMap {
+            put("stage", RuntimeTraceRedaction.safeReason(stage))
+            reason?.let { put("reason", RuntimeTraceRedaction.safeReason(it)) }
+        },
+    )
+
     private fun record(
         traceId: String? = null,
         executionId: String,
@@ -325,6 +345,7 @@ enum class UniversalTraceEventType {
     RESULT_RETURNED,
     MODEL_CONTINUATION_COMPLETED,
     UI_PROJECTION_COMPLETED,
+    INTENT_STAGE_RECORDED,
 }
 
 enum class CapabilityRuntimeStage {

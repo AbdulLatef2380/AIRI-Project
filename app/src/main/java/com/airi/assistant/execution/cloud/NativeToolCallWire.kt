@@ -19,6 +19,25 @@ internal object NativeToolCallWire {
         }.toString()
     }
 
+    /** Decode a provider-normalized native envelope before text parsing fallback. */
+    fun decode(content: String): List<Call> {
+        val root = runCatching { JSONObject(content.trim()) }.getOrNull() ?: return emptyList()
+        val objects = when {
+            root.has("tool_call") -> listOfNotNull(root.optJSONObject("tool_call"))
+            root.has("tool_calls") -> buildList {
+                val calls = root.optJSONArray("tool_calls") ?: return@buildList
+                for (index in 0 until calls.length()) calls.optJSONObject(index)?.let(::add)
+            }
+            else -> emptyList()
+        }
+        return objects.mapNotNull { call ->
+            val name = call.optString("name").trim()
+            if (name.isBlank()) return@mapNotNull null
+            val args = call.optJSONObject("args") ?: call.optJSONObject("arguments") ?: JSONObject()
+            Call(name = name, argumentsJson = args.toString(), id = call.optString("id"))
+        }
+    }
+
     private fun callJson(call: Call): JSONObject = JSONObject().apply {
         put("name", call.name)
         put("args", runCatching { JSONObject(call.argumentsJson) }.getOrElse { JSONObject() })

@@ -15,28 +15,6 @@ internal object AgentLoopSideEffectPolicy {
         DURABLE_CONTEXT_REQUIRED
     }
 
-    private val sideEffectingTools = setOf(
-        "calendar_create",
-        "set_alarm",
-        "create_note",
-        "open_app",
-        "tap",
-        "type_text",
-        "scroll_down",
-        "go_back",
-        "flashlight",
-        // terminal_execute can mutate the workspace and consume process resources;
-        // it must never be treated as a read-only tool by the chat loop.
-        "terminal_execute"
-    )
-
-    fun decide(toolName: String, hasDurableExecutionContext: Boolean): Decision = when {
-        toolName !in sideEffectingTools -> Decision.ALLOW_READ
-        toolName == "calendar_create" && hasDurableExecutionContext -> Decision.ALLOW_TYPED_CALENDAR_CREATE
-        toolName == "terminal_execute" && hasDurableExecutionContext -> Decision.ALLOW_TYPED_TERMINAL
-        else -> Decision.DURABLE_CONTEXT_REQUIRED
-    }
-
     /** Canonical admission path for new tools; policy is carried by the schema. */
     fun decide(schema: ToolSchema, hasDurableExecutionContext: Boolean): Decision = when {
         schema.sideEffectPolicy == ToolSchema.SideEffectPolicy.READ_ONLY -> Decision.ALLOW_READ
@@ -46,8 +24,16 @@ internal object AgentLoopSideEffectPolicy {
             schema.name == "terminal_execute" && hasDurableExecutionContext -> Decision.ALLOW_TYPED_TERMINAL
         schema.sideEffectPolicy != ToolSchema.SideEffectPolicy.READ_ONLY ->
             Decision.DURABLE_CONTEXT_REQUIRED
-        else -> decide(schema.name, hasDurableExecutionContext)
+        else -> Decision.ALLOW_READ
     }
+
+    /** Compatibility adapter resolves the name through the canonical schema registry. */
+    fun decide(toolName: String, hasDurableExecutionContext: Boolean): Decision =
+        decide(
+            BuiltinTools.ALL.firstOrNull { it.name == toolName }
+                ?: ToolSchema(toolName, "Unknown tool", sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT),
+            hasDurableExecutionContext,
+        )
 
     fun blockedMessage(toolName: String): String = when (toolName) {
         "calendar_create" -> "Calendar creation requires a task-owned approval session before it can run."
@@ -61,11 +47,13 @@ internal object AgentLoopSideEffectPolicy {
     /** Catalog-level blocks apply to device actions; terminal is admitted by the
      * AgentLoop durable-context filter and the gateway's bounded command policy. */
     fun blockedToolOverrides(): Map<String, RuntimeToolCatalog.StatusOverride> =
-        (sideEffectingTools - "terminal_execute")
-            .associateWith { toolName ->
+        BuiltinTools.ALL
+            .filter { it.sideEffectPolicy != ToolSchema.SideEffectPolicy.READ_ONLY && it.name != "terminal_execute" }
+            .associate { tool ->
+                tool.name to
                 RuntimeToolCatalog.StatusOverride(
                     readiness = RuntimeToolContract.Readiness.BLOCKED,
-                    reason = blockedMessage(toolName),
+                    reason = blockedMessage(tool.name),
                 )
             }
 }

@@ -6,6 +6,17 @@ import org.junit.Test
 
 class NativeToolCallParserTest {
     @Test
+    fun normalizedNativeEnvelopeDecodesBeforeTextFallback() {
+        val calls = NativeToolCallWire.decode(
+            "{\"tool_calls\":[{\"id\":\"call-1\",\"name\":\"web_search\",\"args\":{\"query\":\"AIRI\"}}]}"
+        )
+        assertEquals(1, calls.size)
+        assertEquals("web_search", calls.single().name)
+        assertEquals("call-1", calls.single().id)
+        assertTrue(calls.single().argumentsJson.contains("AIRI"))
+    }
+
+    @Test
     fun geminiFunctionCallIsNormalized() {
         val event = GeminiSseParser.parse(
             """{"candidates":[{"content":{"parts":[{"functionCall":{"name":"web_search","args":{"query":"أخبار السودان"}}}]},"finishReason":"STOP"}]}"""

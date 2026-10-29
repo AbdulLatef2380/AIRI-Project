@@ -2431,10 +2431,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     requestText = trimmedInput,
                 )
             }
-            val connectorSchemaCount = connectorSchemaResult.getOrNull()
-                ?.candidates
-                ?.count { it.source == com.airi.assistant.agent.loop.tool.RuntimeToolContract.Source.CONNECTOR }
-                ?: 0
+            val connectorSchemaCount = connectorSchemaResult.getOrNull()?.exposed?.size ?: 0
             val skillsRequested = selectedSkillIds.isNotEmpty() ||
                 (capabilityIntent.connectorIds.contains("*") &&
                     (trimmedInput.contains("skill", ignoreCase = true) || trimmedInput.contains("مهار")))

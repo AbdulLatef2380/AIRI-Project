@@ -462,6 +462,71 @@ the tool returns an actual error.
                     is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Calls -> parseResult.calls
                     else -> emptyList()
                 }
+                // P2: execute only independent read-only batches concurrently.
+                // Writes and dependency-bearing calls continue through the
+                // existing single-tool path below, preserving confirmation and
+                // durable-context guarantees.
+                val batchSchemas = parsedToolCalls.map { call ->
+                    call to effectiveTools.firstOrNull { it.name == call.toolName }
+                }
+                if (batchSchemas.size > 1 && batchSchemas.all { it.second?.sideEffectPolicy == ToolSchema.SideEffectPolicy.READ_ONLY }) {
+                    val batchRequests = batchSchemas.map { (call, schema) ->
+                        com.airi.assistant.agent.loop.tool.ToolCallBatchExecutor.Request(
+                            id = call.id.ifBlank { "call_${call.toolName}" },
+                            toolName = call.toolName,
+                            arguments = call.params,
+                            schema = schema!!,
+                        )
+                    }
+                    val batchResults = com.airi.assistant.agent.loop.tool.ToolCallBatchExecutor.execute(batchRequests) { request ->
+                        val validation = StrictArgumentValidator.validate(
+                            spec = ToolSpecAdapter.fromSchema(request.schema),
+                            raw = request.arguments,
+                        )
+                        if (!validation.isValid) {
+                            ToolDispatcher.ToolResult.Error(
+                                validation.failure?.message ?: "Invalid tool arguments.",
+                                code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.INVALID_ARGUMENT,
+                            )
+                        } else if (agentSandbox != null) {
+                            agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
+                                ctx.guardTool(request.toolName)
+                                dispatcher.execute(request.toolName, validation.arguments?.canonical ?: request.arguments, appContext, executionId)
+                            }
+                        } else {
+                            dispatcher.execute(request.toolName, validation.arguments?.canonical ?: request.arguments, appContext, executionId)
+                        }
+                    }
+                    history.add(ConversationTurn.Assistant(rawResponse))
+                    batchResults.forEach { outcome ->
+                        val result = outcome.value
+                        val resultText = when (result) {
+                            is ToolDispatcher.ToolResult.Success -> result.output
+                            is ToolDispatcher.ToolResult.Error -> "Error [${result.code}]: ${result.message}"
+                        }
+                        toolsInvoked += outcome.request.toolName
+                        onStepComplete(
+                            StepEvent.ToolExecuted(
+                                outcome.request.toolName,
+                                outcome.request.arguments,
+                                resultText,
+                                stepsUsed,
+                            )
+                        )
+                        history.add(ConversationTurn.ToolResult(outcome.request.toolName, resultText, outcome.request.id))
+                        runtimeTrace?.dispatched(executionId, sessionId, outcome.request.toolName, "parallel_read_batch")
+                        runtimeTrace?.executionCompleted(
+                            executionId, sessionId, outcome.request.toolName,
+                            result is ToolDispatcher.ToolResult.Success,
+                            0L,
+                            resultText.length,
+                            (result as? ToolDispatcher.ToolResult.Error)?.code,
+                        )
+                        runtimeTrace?.resultReturned(executionId, sessionId, outcome.request.toolName)
+                    }
+                    runtimeTrace?.continuation(executionId, sessionId, continued = stepsUsed < MAX_STEPS, terminalState = "PARALLEL_READ_BATCH")
+                    continue
+                }
                 if (parsedToolCalls.isNotEmpty()) {
                     pendingToolCalls.addAll(parsedToolCalls.drop(1))
                 }

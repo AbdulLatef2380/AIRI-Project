@@ -2016,4 +2016,5 @@
     <string name="artifact_share">Compartir contenido</string>
     <string name="artifact_share_failed">No se pudo abrir la opción para compartir</string>
     <string name="err_incomplete_response">La respuesta terminó antes de que se recibiera un bloque reutilizable completo. Revisa la respuesta parcial guardada o inténtalo de nuevo.</string>
+    <string name="chat_auto_continued">Continuado automáticamente · %1$d turno(s) más</string>
 </resources>

@@ -2016,4 +2016,5 @@
     <string name="artifact_share">分享内容</string>
     <string name="artifact_share_failed">无法打开分享界面</string>
     <string name="err_incomplete_response">响应在收到完整的可复用内容块之前结束。请查看已保存的部分响应，或重试。</string>
+    <string name="chat_auto_continued">已自动继续 · 另外 %1$d 轮</string>
 </resources>

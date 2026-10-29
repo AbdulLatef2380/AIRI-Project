@@ -2120,6 +2120,7 @@ private fun AiriHistoryPanel(
                                 isFavorite = session.id in favoriteSessionIds,
                                 onFavorite = { viewModel.setSessionFavorite(session.id, session.id !in favoriteSessionIds) },
                                 onArchive = { viewModel.archiveSession(session.id) },
+                                icon = Icons.Outlined.ChatBubbleOutline,
                                 onShare = { shareSession(context, session) }
                             )
                     }

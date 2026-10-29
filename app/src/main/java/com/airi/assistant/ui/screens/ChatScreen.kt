@@ -313,6 +313,15 @@ fun ChatScreen(
         }
     }
 
+    LaunchedEffect(viewModel) {
+        viewModel.generationNotice.collect { messageResId ->
+            snackbarHost.showSnackbar(
+                message = context.getString(messageResId),
+                duration = SnackbarDuration.Short,
+            )
+        }
+    }
+
     LaunchedEffect(contextResetWarning) {
         val warning = contextResetWarning ?: return@LaunchedEffect
         // : Context-reset is an implementation detail — removed from user-facing snackbar.
@@ -3682,8 +3691,10 @@ fun AiriChatInputBar(
     val isInteractionLocked = isGenerating || isDispatchingAttachment || isLongTextConversionInFlight
     val isTextEditingEnabled = isGenerating ||
         (isInferenceReady && !isDispatchingAttachment && !isLongTextConversionInFlight)
-    val canSend = (text.isNotBlank() || attachments.isNotEmpty()) && isInferenceReady && !modelState.isModelLoading && !isInteractionLocked
     val isTyping = text.isNotBlank()
+    val hasComposerOverride = isTyping || attachments.isNotEmpty()
+    val canSend = hasComposerOverride && isInferenceReady && !modelState.isModelLoading &&
+        !isDispatchingAttachment && !isLongTextConversionInFlight
     val shortcutInput = text.trimStart()
     val showingSkillShortcuts = shortcutInput.startsWith("/") && !shortcutInput.startsWith("/skill:")
     val showingKnowledgeShortcuts = shortcutInput.startsWith("@")
@@ -4317,13 +4328,13 @@ fun AiriChatInputBar(
                                     contentDescription = attachmentDescription
                                     role = Role.Button
                                 }
-                                .clickable(enabled = !isInteractionLocked) { showAttachPopup = true },
+                                .clickable(enabled = !isDispatchingAttachment && !isLongTextConversionInFlight) { showAttachPopup = true },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.Add,
                                 attachmentDescription,
-                                tint = AiriTheme.onBackground.copy(if (!isInteractionLocked) 0.7f else 0.3f),
+                                tint = AiriTheme.onBackground.copy(if (!isDispatchingAttachment && !isLongTextConversionInFlight) 0.7f else 0.3f),
                                 modifier = Modifier.size(22.dp),
                             )
                         }

@@ -29,6 +29,22 @@ class ChatMainActionPolicyTest {
     }
 
     @Test
+    fun newComposerContentTakesPriorityOverCancelWhileGenerating() {
+        assertEquals(
+            ChatMainAction.SEND,
+            ChatMainActionPolicy.resolve(
+                showSend = true,
+                isGenerating = true,
+                isDispatchingAttachment = false,
+                isLongTextConversionInFlight = false,
+                canSend = true,
+                inferenceReady = true,
+                modelLoading = false,
+            )
+        )
+    }
+
+    @Test
     fun voiceIsAvailableOnlyWhenNoSendContentAndInferenceIsReady() {
         assertEquals(
             ChatMainAction.VOICE,

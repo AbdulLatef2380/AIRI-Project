@@ -1160,11 +1160,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _isCancelled = java.util.concurrent.atomic.AtomicBoolean(false)
     private val cancellationRequested = java.util.concurrent.atomic.AtomicBoolean(false)
     private val generationSequence = java.util.concurrent.atomic.AtomicLong(0L)
+    private val _generationNotice = MutableSharedFlow<Int>(extraBufferCapacity = 4)
+    val generationNotice: SharedFlow<Int> = _generationNotice.asSharedFlow()
 
     /** Identifier of the only user-visible generation allowed at a time. */
     @Volatile private var activeGenerationId: Long = 0L
     @Volatile private var activeGenerationSessionId: String? = null
     @Volatile private var activeGenerationJob: Job? = null
+    /** A replacement composer request waits for the old owner to reach terminal cleanup. */
+    @Volatile private var queuedComposerRequest: QueuedComposerRequest? = null
+
+    private data class QueuedComposerRequest(
+        val input: String,
+        val attachments: List<com.airi.assistant.domain.ChatAttachment> = emptyList(),
+        val cloudAttachmentConsent: Boolean = false,
+    )
     private data class DeferredLlamaHistory(
         val sessionId: String,
         val messages: List<com.airi.assistant.memory.entity.ChatMessage>,
@@ -1187,6 +1197,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun finishGeneration(generationId: Long) {
         if (!isCurrentGeneration(generationId)) return
         val completedSessionId = activeGenerationSessionId
+        val queuedRequest = queuedComposerRequest
+        queuedComposerRequest = null
         if (cancellationRequested.get()) {
             val executionId = ExecutionStatusBus.status.value.executionId
             if (executionId.isNotBlank()) {
@@ -1209,11 +1221,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } else if (completedSessionId == _currentSessionId.value) {
             deferredLlamaHistory = null
         }
+        if (queuedRequest != null && completedSessionId == _currentSessionId.value) {
+            viewModelScope.launch {
+                if (queuedRequest.attachments.isEmpty()) {
+                    sendMessage(queuedRequest.input, queuedRequest.cloudAttachmentConsent)
+                } else {
+                    sendMessageWithAttachments(
+                        input = queuedRequest.input,
+                        attachments = queuedRequest.attachments,
+                        cloudAttachmentConsent = queuedRequest.cloudAttachmentConsent,
+                        onRejected = { failure ->
+                            _lastExecutionError.value = ExecutionErrorProjection(
+                                executionId = "queued-generation",
+                                message = "Queued request could not start: ${failure.name}",
+                                messageResId = null,
+                                stage = ExecutionFailureStage.PREPARATION,
+                                sessionId = _currentSessionId.value,
+                            )
+                        },
+                    )
+                }
+            }
+        }
     }
 
     fun cancelGeneration() {
         val generationId = activeGenerationId
-        if (_agentState.value.isWorking && generationId != 0L && cancellationRequested.compareAndSet(false, true)) {
+        if (generationId != 0L && cancellationRequested.compareAndSet(false, true)) {
             _isCancelled.set(true)
             val executionId = ExecutionStatusBus.status.value.executionId
             if (executionId.isNotBlank()) {
@@ -1232,6 +1266,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 severity = EventSeverity.INFO,
                 reason = "Generation $generationId cancelled by user after ${lastGenerationDurationMs}ms"
             )
+            _generationNotice.tryEmit(R.string.exec_generation_cancelled)
             com.airi.assistant.domain.logging.ProofLogger.streamCancelled(
                 byUser = true,
                 tokensStreamed = 0
@@ -1938,12 +1973,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return InputDirectives(remaining, skillIds.distinct(), knowledgeId)
     }
 
-    fun sendMessage(input: String, cloudAttachmentConsent: Boolean = false): Boolean =
-        sendMessageInternal(
+    fun sendMessage(input: String, cloudAttachmentConsent: Boolean = false): Boolean {
+        if (generationBusy()) {
+            queuedComposerRequest = QueuedComposerRequest(
+                input = input,
+                cloudAttachmentConsent = cloudAttachmentConsent,
+            )
+            cancelGeneration()
+            return true
+        }
+        return sendMessageInternal(
             input,
             allowLongTextConversion = true,
             cloudAttachmentConsent = cloudAttachmentConsent,
         )
+    }
+
+    private fun generationBusy(): Boolean =
+        activeGenerationId != 0L || _agentState.value.isWorking
 
     fun requiresLongTextCloudConsent(input: String): Boolean =
         requiresCloudAttachmentConsent() && LongTextAttachmentPolicy.shouldAutoConvert(input)
@@ -3885,6 +3932,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         if (attachments.isEmpty()) {
             sendMessage(input.trim())
+            return
+        }
+        if (generationBusy()) {
+            queuedComposerRequest = QueuedComposerRequest(
+                input = input,
+                attachments = attachments,
+                cloudAttachmentConsent = cloudAttachmentConsent,
+            )
+            onAccepted()
+            cancelGeneration()
             return
         }
         if (attachments.any {

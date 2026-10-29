@@ -12,9 +12,9 @@ internal object ChatMainActionPolicy {
         inferenceReady: Boolean,
         modelLoading: Boolean,
     ): ChatMainAction = when {
-        isGenerating -> ChatMainAction.CANCEL
         isDispatchingAttachment || isLongTextConversionInFlight -> ChatMainAction.NONE
         showSend && canSend -> ChatMainAction.SEND
+        isGenerating -> ChatMainAction.CANCEL
         showSend -> ChatMainAction.NONE
         inferenceReady && !modelLoading -> ChatMainAction.VOICE
         else -> ChatMainAction.NONE

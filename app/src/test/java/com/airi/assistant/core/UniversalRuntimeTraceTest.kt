@@ -9,6 +9,22 @@ import org.junit.Test
 class UniversalRuntimeTraceTest {
 
     @Test
+    fun recordsOrderedIntentAdmissionStages() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        val executionId = "execution-1"
+        val sessionId = "session-1"
+        recorder.begin(executionId, sessionId, "model", "provider", "test", "hello", emptyList())
+        recorder.intentStage(executionId, sessionId, "INTENT_RAW", "received")
+        recorder.intentStage(executionId, sessionId, "INTENT_RESOLVED", "resolved")
+        recorder.intentStage(executionId, sessionId, "TOOL_ADMITTED", "admitted", "web_search")
+
+        val stages = recorder.events
+            .filter { it.eventType == UniversalTraceEventType.INTENT_STAGE_RECORDED }
+            .map { it.attributes["stage"] }
+        assertEquals(listOf("INTENT_RAW", "INTENT_RESOLVED", "TOOL_ADMITTED"), stages)
+    }
+
+    @Test
     fun begin_recordsGenericCapabilitySnapshotAndToolExposure() {
         val recorder = UniversalRuntimeTraceRecorder()
         val tool = ToolSchema(

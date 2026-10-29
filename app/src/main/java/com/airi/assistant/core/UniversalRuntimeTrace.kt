@@ -161,6 +161,7 @@ class UniversalRuntimeTraceRecorder(
         parsed: Boolean,
         toolName: String? = null,
         reason: String? = null,
+        parserKind: String = "text_json_tool_call",
     ) = record(
         eventType = UniversalTraceEventType.TOOL_PARSE_COMPLETED,
         executionId = executionId,
@@ -169,7 +170,7 @@ class UniversalRuntimeTraceRecorder(
         outcome = if (parsed) "parsed" else "not_parsed",
         toolNames = toolName?.let(::listOf).orEmpty(),
         attributes = buildMap {
-            put("parser", "text_json_tool_call")
+            put("parser", RuntimeTraceRedaction.safeReason(parserKind))
             reason?.let { put("reason", RuntimeTraceRedaction.safeReason(it)) }
         }
     )

@@ -443,15 +443,17 @@ the tool returns an actual error.
                 }
 
                 // Parse: tool_call block or final answer?
+                val nativeEnvelope = if (queuedToolCall == null) {
+                    com.airi.assistant.execution.cloud.NativeToolCallWire.decode(rawResponse)
+                } else emptyList()
                 var parseResult = if (queuedToolCall != null) {
                     com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call(
                         queuedToolCall.toolName, queuedToolCall.params, queuedToolCall.id,
                     )
                 } else {
-                    val nativeCalls = com.airi.assistant.execution.cloud.NativeToolCallWire.decode(rawResponse)
-                    if (nativeCalls.isNotEmpty()) {
+                    if (nativeEnvelope.isNotEmpty()) {
                         com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(
-                            com.airi.assistant.execution.cloud.NativeToolCallWire.encode(nativeCalls)
+                            com.airi.assistant.execution.cloud.NativeToolCallWire.encode(nativeEnvelope)
                         )
                     } else {
                         com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(rawResponse)
@@ -542,6 +544,7 @@ the tool returns an actual error.
                         is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call -> null
                         is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Calls -> null
                     },
+                    parserKind = if (nativeEnvelope.isNotEmpty()) "native_tool_envelope" else "text_json_tool_call",
                 )
 
                 // Retry: if the response looks like a malformed tool call (contains

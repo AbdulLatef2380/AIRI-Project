@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -71,6 +72,7 @@ fun HistoryScreen(viewModel: ChatViewModel, onBack: () -> Unit, onSessionSelecte
                     items(sessions, key = { it.id }) { session ->
                         HistorySessionItem(
                             session = session,
+                            icon = historySessionIcon(viewModel.sessionIconKey(session)),
                             onSelect = { viewModel.loadSession(session.id); onSessionSelected() },
                             onDelete = { sessionToDelete = session },
                             onRename = { renameDraft = session.title; renameTarget = session },
@@ -108,7 +110,7 @@ fun HistoryScreen(viewModel: ChatViewModel, onBack: () -> Unit, onSessionSelecte
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-internal fun HistorySessionItem(session: ChatSessionSummary, onSelect: () -> Unit, onDelete: () -> Unit, onRename: () -> Unit, onPin: () -> Unit, isFavorite: Boolean, onFavorite: () -> Unit, onArchive: () -> Unit, onShare: () -> Unit) {
+internal fun HistorySessionItem(session: ChatSessionSummary, icon: ImageVector, onSelect: () -> Unit, onDelete: () -> Unit, onRename: () -> Unit, onPin: () -> Unit, isFavorite: Boolean, onFavorite: () -> Unit, onArchive: () -> Unit, onShare: () -> Unit) {
     val time = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     var actions by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().clip(AIRIShapes.md).background(if (actions) AiriTheme.surfaceVariant else AiriTheme.surface).combinedClickable(onClick = onSelect, onLongClick = { actions = !actions }).padding(14.dp)) {
@@ -116,6 +118,7 @@ internal fun HistorySessionItem(session: ChatSessionSummary, onSelect: () -> Uni
             if (session.isPinned) Icon(Icons.Filled.PushPin, "مثبتة", tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(15.dp))
             Text(time.format(Date(session.updatedAt)), color = AiriTheme.onSurfaceVariant.copy(.55f), fontSize = 11.sp)
             Spacer(Modifier.weight(1f))
+            Icon(icon, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
             Text(session.title.ifBlank { "محادثة جديدة" }, color = AiriTheme.onBackground, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(4.dp))
@@ -132,6 +135,21 @@ internal fun HistorySessionItem(session: ChatSessionSummary, onSelect: () -> Uni
             }
         }
     }
+}
+
+private fun historySessionIcon(key: String): ImageVector = when (key) {
+    "greeting" -> Icons.Outlined.ChatBubbleOutline
+    "image" -> Icons.Outlined.Image
+    "code" -> Icons.Outlined.Code
+    "mail" -> Icons.Outlined.MailOutline
+    "terminal" -> Icons.Outlined.Terminal
+    "bug" -> Icons.Outlined.BugReport
+    "document" -> Icons.Outlined.Description
+    "calendar" -> Icons.Outlined.CalendarMonth
+    "language" -> Icons.Outlined.Language
+    "search" -> Icons.Outlined.Search
+    "memory" -> Icons.Outlined.Psychology
+    else -> Icons.Outlined.Forum
 }
 
 @Composable

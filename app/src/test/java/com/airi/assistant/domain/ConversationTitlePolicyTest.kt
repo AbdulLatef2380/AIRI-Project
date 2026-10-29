@@ -29,4 +29,13 @@ class ConversationTitlePolicyTest {
     @Test fun blankInputUsesSafeFallback() {
         assertEquals("محادثة جديدة", ConversationTitlePolicy.generate("   "))
     }
+
+    @Test fun greetingGetsSemanticTitle() {
+        assertEquals("تبادل تحايا", ConversationTitlePolicy.generate("مرحباً يا AIRI"))
+    }
+
+    @Test fun greetingGetsMonochromeSemanticIconKey() {
+        assertEquals("greeting", ConversationTitlePolicy.iconKey("Hello, how are you?"))
+        assertEquals("code", ConversationTitlePolicy.iconKey("اقرأ هذا المستودع في GitHub"))
+    }
 }

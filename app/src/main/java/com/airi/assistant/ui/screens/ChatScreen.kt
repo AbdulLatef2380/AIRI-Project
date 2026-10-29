@@ -2375,6 +2375,7 @@ fun ChatMessageList(
                             UserBubble(
                                 text               = msg.text,
                                 imageUri           = msg.imageUri,
+                                attachments        = msg.attachments,
                                 voiceRecordingPath = msg.voiceRecordingPath,
                                 voiceDurationMs    = msg.voiceDurationMs,
                                 onEdit             = { onEditMessage(msg.text) },
@@ -2523,6 +2524,7 @@ fun Modifier.verticalScrollbar(
 fun UserBubble(
     text: String,
     imageUri: String? = null,
+    attachments: List<ChatAttachment> = emptyList(),
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {},
     voiceRecordingPath: String? = null,
@@ -2536,6 +2538,7 @@ fun UserBubble(
     val haptic  = LocalHapticFeedback.current
 
     var showContextMenu by remember { mutableStateOf(false) }
+    var previewAttachment by remember { mutableStateOf<ChatAttachment?>(null) }
     var isSelectingText by remember { mutableStateOf(false) }
     var isExpanded by rememberSaveable(text, imageUri) { mutableStateOf(false) }
     val isLongMessage = imageUri == null && LongTextAttachmentPolicy.shouldCollapseInline(displayText)
@@ -2593,6 +2596,23 @@ fun UserBubble(
                                 .clip(AIRIShapes.md).background(Color.Black.copy(alpha = 0.25f)),
                             contentScale = androidx.compose.ui.layout.ContentScale.Fit
                         )
+                        if (displayText.isNotBlank()) Spacer(Modifier.height(8.dp))
+                    }
+                    val fileAttachments = attachments.filterNot { it.isVisualImage }
+                    if (fileAttachments.isNotEmpty()) {
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            items(fileAttachments, key = { it.uid }) { attachment ->
+                                AttachmentChip(
+                                    attachment = attachment,
+                                    isRemovalEnabled = false,
+                                    onRemove = {},
+                                    onPreview = { previewAttachment = attachment },
+                                )
+                            }
+                        }
                         if (displayText.isNotBlank()) Spacer(Modifier.height(8.dp))
                     }
                     if (displayText.isNotBlank() || imageUri == null) {
@@ -2674,6 +2694,12 @@ fun UserBubble(
                     )
                 }
             }
+        }
+        previewAttachment?.let { attachment ->
+            AttachmentPreviewDialog(
+                attachment = attachment,
+                onDismiss = { previewAttachment = null },
+            )
         }
 }
 

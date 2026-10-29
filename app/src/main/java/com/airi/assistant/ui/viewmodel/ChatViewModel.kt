@@ -185,6 +185,8 @@ data class ChatMessage(
      * Bitmap is held by the ViewModel's [transientCameraBitmaps] map).
      */
     val imageUri: String? = null,
+    /** Persisted attachments reconstructed for the chat bubble. UI-only. */
+    val attachments: List<ChatAttachment> = emptyList(),
     /**
      * Which runtime produced this assistant response.
      * [ExecOrigin.NONE] for user messages and untagged system messages.
@@ -1713,11 +1715,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _currentSessionId.value = sessionId
             preferences.edit().putString(KEY_SESSION_ID, sessionId).apply()
             _messages.value = history.map { msg ->
+                val messageAttachments = attachmentPreviews(msg.attachmentJson)
                 ChatMessage(
-                    text = msg.content,
+                    text = attachmentBubbleText(msg.content, messageAttachments),
                     isUser = msg.role == "user",
                     id = msg.id,
-                    imageUri = attachmentPreviewUri(msg.attachmentJson)
+                    imageUri = attachmentPreviewUri(msg.attachmentJson),
+                    attachments = messageAttachments,
                 )
             }
             _streamingText.value = if (activeGenerationSessionId == sessionId) streamAccumulator.toString() else ""
@@ -1788,15 +1792,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val normalized = title.trim().replace(Regex("[\\r\\n]+"), " ").take(80)
         if (normalized.isBlank() || sessionId.isBlank()) return
         viewModelScope.launch {
+            val iconKeys = preferences.getStringSet(KEY_SESSION_ICON_KEYS, emptySet()).orEmpty().toMutableSet()
+            if (iconKeys.none { it.startsWith("$sessionId=") }) {
+                memoryManager.getAllSessions().firstOrNull { it.id == sessionId }?.let { session ->
+                    iconKeys += "$sessionId=${ConversationTitlePolicy.iconKey(session.title)}"
+                }
+            }
             memoryManager.renameSession(sessionId, normalized)
             val manualTitles = preferences.getStringSet(KEY_MANUAL_TITLE_SESSIONS, emptySet()).orEmpty() + sessionId
-            preferences.edit().putStringSet(KEY_MANUAL_TITLE_SESSIONS, manualTitles).apply()
+            preferences.edit()
+                .putStringSet(KEY_MANUAL_TITLE_SESSIONS, manualTitles)
+                .putStringSet(KEY_SESSION_ICON_KEYS, iconKeys)
+                .apply()
             refreshSessions()
         }
     }
 
-    /** Titles are generated only after a successful assistant response is stored. */
-    private suspend fun autoTitleAfterSuccessfulResponse(sessionId: String, firstUserText: String) {
+    /** Generate the title as soon as the first user message is durable. */
+    private suspend fun autoTitleAfterFirstUserMessage(sessionId: String, firstUserText: String) {
         if (sessionId.isBlank() || firstUserText.isBlank()) return
         val done = preferences.getStringSet(KEY_AUTO_TITLE_SESSIONS, emptySet()).orEmpty()
         val manuallyNamed = preferences.getStringSet(KEY_MANUAL_TITLE_SESSIONS, emptySet()).orEmpty()
@@ -1808,11 +1821,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val title = ConversationTitlePolicy.generate(firstUserText)
             if (title.isBlank() || title in defaultTitles) return
             memoryManager.renameSession(sessionId, title)
-            preferences.edit().putStringSet(KEY_AUTO_TITLE_SESSIONS, done + sessionId).apply()
+            val iconKeys = preferences.getStringSet(KEY_SESSION_ICON_KEYS, emptySet()).orEmpty().toMutableSet()
+            iconKeys.removeAll { it.startsWith("$sessionId=") }
+            iconKeys += "$sessionId=${ConversationTitlePolicy.iconKey(firstUserText)}"
+            preferences.edit()
+                .putStringSet(KEY_AUTO_TITLE_SESSIONS, done + sessionId)
+                .putStringSet(KEY_SESSION_ICON_KEYS, iconKeys)
+                .apply()
+            refreshSessions()
             Log.i("AIRI_HISTORY", "AUTO_TITLE_CREATED session=$sessionId")
         }.onFailure { error ->
             Log.w("AIRI_HISTORY", "AUTO_TITLE_FAILED session=$sessionId type=${error.javaClass.simpleName}")
         }
+    }
+
+    /** The icon key is independent from the editable title and survives renames. */
+    fun sessionIconKey(session: com.airi.assistant.memory.dao.ChatSessionSummary): String {
+        val entries = preferences.getStringSet(KEY_SESSION_ICON_KEYS, emptySet()).orEmpty()
+        return entries.firstOrNull { it.startsWith("${session.id}=") }
+            ?.substringAfter('=')
+            ?.takeIf { it.isNotBlank() }
+            ?: ConversationTitlePolicy.iconKey(session.title)
     }
 
     fun setSessionPinned(sessionId: String, isPinned: Boolean) {
@@ -2104,6 +2133,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 attachmentJson = attachmentJson,
                 projectId = activeProjectId
             )
+            if (wasEmpty) autoTitleAfterFirstUserMessage(sessionId, trimmedInput)
             if (stagedForSession && pendingAttachmentSessionId == sessionId) {
                 pendingAttachmentSessionId = null
                 pendingImageUriForNextSend = null
@@ -2124,12 +2154,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val triggerPaywallAfterSend = paywallLevel != UpsellLevel.NONE
             refreshPowerLevel()
             if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
+                val messageAttachments = attachmentPreviews(attachmentJson)
                 _messages.update {
                     it + ChatMessage(
-                        text = trimmedInput,
+                        text = attachmentBubbleText(trimmedInput, messageAttachments),
                         isUser = true,
                         id = userMessage.id,
-                        imageUri = attachedForBubble
+                        imageUri = attachedForBubble,
+                        attachments = messageAttachments,
                     )
                 }
             }
@@ -2200,7 +2232,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
                 }
-                if (wasEmpty) autoTitleAfterSuccessfulResponse(sessionId, trimmedInput)
                 _smartReplies.value = ResponseOptimizer.generateSuggestions(
                     userInput = trimmedInput,
                     response = fastHit,
@@ -2772,7 +2803,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             )
                         }
                     }
-                    if (wasEmpty) autoTitleAfterSuccessfulResponse(sessionId, trimmedInput)
                     // Record inference outcome for adaptive intelligence
                     runCatching {
                         val isCloud = _lastExecOrigin.value == ExecOrigin.CLOUD
@@ -4729,18 +4759,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 attachmentJson = attachmentJson,
                 projectId = activeProjectId
             )
+            if (wasEmpty) {
+                autoTitleAfterFirstUserMessage(
+                    sessionId,
+                    trimmedInput.ifBlank { "تحليل صورة" },
+                )
+            }
             acceptedUserMessageId = userMsg.id
             if (pendingAttachmentSessionId == sessionId) {
                 pendingAttachmentSessionId = null
                 pendingAttachmentJsonForNextSend = null
             }
             if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
+                val messageAttachments = attachmentPreviews(attachmentJson)
                 _messages.update {
                     it + ChatMessage(
-                        text = userMarker,
+                        text = attachmentBubbleText(userMarker, messageAttachments),
                         isUser = true,
                         id = userMsg.id,
-                        imageUri = displayableUri
+                        imageUri = displayableUri,
+                        attachments = messageAttachments,
                     )
                 }
             }
@@ -4809,7 +4847,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 it + ChatMessage(fullText, isUser = false, id = asstMsg.id)
                             }
                         }
-                        if (wasEmpty) autoTitleAfterSuccessfulResponse(sessionId, visionPrompt)
                         finishGeneration(generationId)
                         refreshSessions()
                         refreshPowerLevel()
@@ -5448,6 +5485,49 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }.getOrNull()
     }
 
+    /** Rebuilds safe, openable attachment descriptors for history and sent bubbles. */
+    private fun attachmentPreviews(metadata: String?): List<ChatAttachment> {
+        if (metadata.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val root = File(appContext.filesDir, "attachments").canonicalFile
+            val entries = org.json.JSONArray(metadata)
+            buildList {
+                for (index in 0 until entries.length()) {
+                    val entry = entries.optJSONObject(index) ?: continue
+                    val storedName = entry.optString("file_name")
+                    if (storedName.isBlank() || storedName != File(storedName).name) continue
+                    val file = File(root, storedName).canonicalFile
+                    if (file.parentFile != root || !file.isFile) continue
+                    val kind = runCatching {
+                        ChatAttachment.Kind.valueOf(entry.optString("kind"))
+                    }.getOrDefault(ChatAttachment.Kind.FILE)
+                    val uri = runCatching {
+                        androidx.core.content.FileProvider.getUriForFile(
+                            appContext,
+                            "${appContext.packageName}.fileprovider",
+                            file,
+                        )
+                    }.getOrNull()
+                    add(ChatAttachment(
+                        id = "history-${file.name}",
+                        kind = kind,
+                        uri = uri,
+                        displayName = entry.optString("display_name").ifBlank { file.name },
+                        mimeType = entry.optString("mime_type").ifBlank { null },
+                        sizeBytes = entry.optLong("size_bytes", file.length()),
+                        persistedPath = file.absolutePath,
+                    ))
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    /** Hides transport/context markers from the bubble while preserving them for the model. */
+    private fun attachmentBubbleText(content: String, attachments: List<ChatAttachment>): String {
+        if (attachments.isEmpty()) return content
+        return content.substringBefore("\n\n[Attachment metadata:").trim()
+    }
+
     private suspend fun currentSessionOrCreate(): String {
         val current = _currentSessionId.value
         if (current.isNotBlank()) return current
@@ -5468,6 +5548,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val KEY_SESSION_ID = "current_session_id"
         const val KEY_AUTO_TITLE_SESSIONS = "auto_title_sessions"
         const val KEY_MANUAL_TITLE_SESSIONS = "manual_title_sessions"
+        const val KEY_SESSION_ICON_KEYS = "session_icon_keys"
 
         const val SLOW_GENERATION_WARN_MS = 10_000L
         const val SEMANTIC_BUDGET_PCT     = 20

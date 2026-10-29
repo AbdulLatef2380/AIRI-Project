@@ -5,10 +5,6 @@ import com.airi.assistant.ai.QueryType
 
 /** Pure classifier adapter: it describes intent and never dispatches a tool. */
 object CanonicalIntentClassifier {
-    private val greetings = setOf(
-        "hello", "hi", "hey", "مرحبا", "اهلا", "هلا", "السلام عليكم",
-        "thank you", "thanks", "شكرا", "تمام", "موافق", "ok", "okay",
-    )
     private val creative = listOf(
         "write a poem", "write me a poem", "write a story", "create a poem",
         "اكتب قصيدة", "اكتب قصة", "قصة قصيرة", "ابتكر", "تخيل",
@@ -24,7 +20,7 @@ object CanonicalIntentClassifier {
         val text = normalized.normalized
         require(text.isNotBlank()) { "input must not be blank" }
 
-        if (text in greetings) {
+        if (ConversationIntentDetector.isGreeting(text)) {
             return ChatIntent(ChatIntent.Kind.CONVERSATION, QueryType.SIMPLE, confidence = ChatIntent.Confidence.HIGH,
                 risk = ChatIntent.Risk.NONE, rationale = "exact_greeting")
         }

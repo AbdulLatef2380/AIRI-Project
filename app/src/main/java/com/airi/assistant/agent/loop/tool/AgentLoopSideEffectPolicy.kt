@@ -37,6 +37,18 @@ internal object AgentLoopSideEffectPolicy {
         else -> Decision.DURABLE_CONTEXT_REQUIRED
     }
 
+    /** Canonical admission path for new tools; policy is carried by the schema. */
+    fun decide(schema: ToolSchema, hasDurableExecutionContext: Boolean): Decision = when {
+        schema.sideEffectPolicy == ToolSchema.SideEffectPolicy.READ_ONLY -> Decision.ALLOW_READ
+        schema.sideEffectPolicy == ToolSchema.SideEffectPolicy.REQUIRES_USER_CONFIRMATION &&
+            schema.name == "calendar_create" && hasDurableExecutionContext -> Decision.ALLOW_TYPED_CALENDAR_CREATE
+        schema.sideEffectPolicy == ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT &&
+            schema.name == "terminal_execute" && hasDurableExecutionContext -> Decision.ALLOW_TYPED_TERMINAL
+        schema.sideEffectPolicy != ToolSchema.SideEffectPolicy.READ_ONLY ->
+            Decision.DURABLE_CONTEXT_REQUIRED
+        else -> decide(schema.name, hasDurableExecutionContext)
+    }
+
     fun blockedMessage(toolName: String): String = when (toolName) {
         "calendar_create" -> "Calendar creation requires a task-owned approval session before it can run."
         "create_note" -> "Creating a note requires a task-owned approval session before it can run."

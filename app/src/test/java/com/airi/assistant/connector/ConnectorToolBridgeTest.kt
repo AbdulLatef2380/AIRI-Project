@@ -191,6 +191,27 @@ class ConnectorToolBridgeTest {
         assertEquals(0.25, domainSpec.arguments.first { it.name == "ratio" }.constraints.minDecimal!!, 0.0)
     }
 
+    @Test
+    fun connectorPermissionSurvivesToolSchemaConversion() {
+        val registry = ConnectorRegistry().apply {
+            register(TestConnector("github", connected = true, healthy = true))
+        }
+        val profiles = InMemoryConnectorAccessProfileStore().apply {
+            set("github", ConnectorAccessProfile.FULL_ACCESS)
+        }
+        val schemas = bridge(registry, profiles).asToolSchemas(includeUnavailable = true)
+            .associateBy { it.name }
+
+        assertEquals(
+            com.airi.assistant.agent.loop.tool.ToolSchema.SideEffectPolicy.READ_ONLY,
+            schemas.getValue("connector_github_list_repos").sideEffectPolicy,
+        )
+        assertEquals(
+            com.airi.assistant.agent.loop.tool.ToolSchema.SideEffectPolicy.REQUIRES_USER_CONFIRMATION,
+            schemas.getValue("connector_github_create_issue").sideEffectPolicy,
+        )
+    }
+
     private fun bridge(registry: ConnectorRegistry, profiles: ConnectorAccessProfileStore) =
         ConnectorToolBridge(registry, ConnectorRuntimeManager(registry, profiles), profiles)
 

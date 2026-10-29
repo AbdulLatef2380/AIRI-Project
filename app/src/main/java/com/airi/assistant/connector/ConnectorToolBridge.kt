@@ -128,6 +128,14 @@ class ConnectorToolBridge(
                 )
             },
             category = ToolSchema.Category.EXTERNAL,
+            sideEffectPolicy = when {
+                action.permission == ConnectorPermissionLevel.READ ->
+                    ToolSchema.SideEffectPolicy.READ_ONLY
+                action.requiresConfirmation ->
+                    ToolSchema.SideEffectPolicy.REQUIRES_USER_CONFIRMATION
+                else ->
+                    ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT
+            },
         )
     }
 }

@@ -2077,9 +2077,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return false
         }
         val chatIntent = com.airi.assistant.domain.intent.CanonicalIntentClassifier.classify(trimmedInput)
+        val resolvedIntent = com.airi.assistant.domain.intent.ResolvedIntent.from(trimmedInput, chatIntent)
         val queryType = chatIntent.queryType
         val wordCount = trimmedInput.split(Regex("\\s+")).size
         Log.d("AIRI_INTENT", "type=${queryType.name} input_words=$wordCount")
+        Log.d("AIRI_INTENT", "resolved kind=${resolvedIntent.kind} capabilities=${resolvedIntent.capabilities.map { it.operation }} targets=${resolvedIntent.targets} missing=${resolvedIntent.missingSlots.map { it.name }}")
         com.airi.assistant.domain.logging.ProofLogger.classificationResult(
             input = trimmedInput, queryType = queryType.name, wordCount = wordCount
         )
@@ -2381,15 +2383,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // being advertised to the LLM in the system prompt (the gap that caused
             // skill_code_assistant, skill_research_agent, etc. to never be invoked).
             val capabilityIntent = com.airi.assistant.ai.CapabilityIntentDetector.detect(trimmedInput)
+            val capabilityFailures = mutableListOf<com.airi.assistant.agent.loop.tool.CapabilitySourceFailure>()
             val liveSkillSchemas = runCatching { skillToolBridge.asToolSchemas() }.getOrElse { error ->
-                Log.e("AIRI", "SKILL_SCHEMA_BUILD_FAILED; skill tools were not advertised for this turn", error)
+                capabilityFailures += com.airi.assistant.agent.loop.tool.CapabilitySourceFailure(
+                    sourceId = "skills",
+                    stage = "schema_build",
+                    message = error.message ?: "Skill schema construction failed",
+                    causeType = error.javaClass.simpleName,
+                )
+                Log.e("AIRI", "SKILL_SCHEMA_BUILD_FAILED", error)
                 emptyList()
             }
-            val catalog = runCatching {
+            val connectorSchemaResult = runCatching {
                 val connectorSchemas = connectorToolBridge.asToolSchemas(includeUnavailable = true)
-                val executableConnectorNames = connectorToolBridge.asToolSchemas()
-                    .map { it.name }
-                    .toSet()
+                val executableConnectorNames = connectorToolBridge.asToolSchemas().map { it.name }.toSet()
                 val connectorStatusOverrides = connectorActionStatusOverrides(connectorSchemas)
                 com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.assemble(
                     builtins = com.airi.assistant.agent.loop.tool.BuiltinTools.ALL,
@@ -2405,15 +2412,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     statusOverrides = agentLoopBuiltinStatusOverrides() + connectorStatusOverrides,
                     requestText = trimmedInput,
                 )
-            }.getOrElse { error ->
-                Log.e(
-                    "AIRI",
-                    "RUNTIME_TOOL_CATALOG_BUILD_FAILED; connector and skill tools were not advertised for this turn",
-                    error,
+            }.onFailure { error ->
+                capabilityFailures += com.airi.assistant.agent.loop.tool.CapabilitySourceFailure(
+                    sourceId = "connectors",
+                    stage = "catalog_build",
+                    message = error.message ?: "Connector catalog construction failed",
+                    causeType = error.javaClass.simpleName,
                 )
+                Log.e("AIRI", "RUNTIME_TOOL_CATALOG_BUILD_FAILED", error)
+            }
+            if (connectorSchemaResult.isFailure && capabilityIntent.connectorIds.isNotEmpty()) {
+                val sourceNames = capabilityFailures.joinToString { it.sourceId }
+                _messages.update { current ->
+                    current + ChatMessage(
+                        text = "فهمت أنك تريد استخدام موصل خارجي، لكن فشل تجهيز أدوات التنفيذ ($sourceNames). الموصل ليس بالضرورة غير متاح؛ أعد تهيئته أو أعد المحاولة بعد مراجعة سجل runtime.",
+                        isUser = false,
+                    )
+                }
+                return@launch
+            }
+            val catalog = connectorSchemaResult.getOrElse {
                 com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.assemble(
                     builtins = com.airi.assistant.agent.loop.tool.BuiltinTools.ALL,
-                    skills = emptyList(),
+                    skills = liveSkillSchemas,
                     connectors = emptyList(),
                     intent = capabilityIntent,
                     statusOverrides = agentLoopBuiltinStatusOverrides(),
@@ -2439,10 +2460,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val permissionFilteredTools = requestPermissionProfile.filterTools(candidateTools)
             val toolPromptBudget = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
                 .toolCharsCap(llamaManager.contextBudget.availableForContent)
-            val activeTools = com.airi.assistant.agent.loop.tool.ToolSchemaPromptBudget.select(
+            val toolSelection = com.airi.assistant.agent.loop.tool.ToolSchemaPromptBudget.select(
                 permissionFilteredTools,
                 toolPromptBudget,
-            ).tools
+                requiredToolNames = catalog.requiredToolNames,
+            )
+            val activeTools = toolSelection.tools
+            val omittedRequiredTools = toolSelection.requiredButOmittedToolNames
+            if (omittedRequiredTools.isNotEmpty()) {
+                _messages.update { current ->
+                    current + ChatMessage(
+                        text = "لا أستطيع تنفيذ هذا الطلب بأمان لأن أدواته الأساسية (${omittedRequiredTools.joinToString(", ")}) لا تتسع في ميزانية السياق الحالية. اختصر الطلب أو أعد المحاولة بنموذج ذي سياق أكبر.",
+                        isUser = false,
+                    )
+                }
+                Log.w("AIRI", "CAPABILITY_CONTEXT_BUDGET_BLOCKED tools=${omittedRequiredTools.joinToString()}")
+                return@launch
+            }
             val dispatcherAdmittedNames = activeTools.mapTo(mutableSetOf()) { it.name }
             val runtimeInventory = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.from(
                 catalog = catalog,
@@ -2488,8 +2522,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 ),
             )
             val platformSnapshotBlock = platformSnapshot.promptBlock()
+            val requiredToolBudgetNotice = omittedRequiredTools.takeIf { it.isNotEmpty() }?.let {
+                "\n\n[CAPABILITY_ADMISSION_FAILED]\nThe following tools are required by the user's request but could not fit in the context budget: ${it.joinToString(", ")}. Do not claim the capability is unavailable; explain that the request must be shortened or retried with a larger context."
+            }.orEmpty()
             val fullSystemPrompt = com.airi.assistant.ai.prompt.DynamicPromptEngine.appendPlatformCapabilitySnapshot(
-                systemPrompt + "\n\n" + runtimeInventory.promptBlock(trimmedInput),
+                systemPrompt + "\n\n" + runtimeInventory.promptBlock(trimmedInput) + requiredToolBudgetNotice,
                 platformSnapshotBlock,
             )
             llamaManager.systemPromptTokenEstimate =

@@ -47,4 +47,24 @@ class AgentLoopSideEffectPolicyTest {
         )
         assertTrue(AgentLoopSideEffectPolicy.blockedMessage("calendar_create").contains("approval session"))
     }
+
+    @Test
+    fun schemaMetadataControlsUnknownSideEffectName() {
+        val customWrite = ToolSchema(
+            name = "connector_custom_create_record",
+            description = "Create a record in an external service",
+            sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
+        )
+        assertEquals(
+            AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED,
+            AgentLoopSideEffectPolicy.decide(customWrite, hasDurableExecutionContext = false),
+        )
+        assertEquals(
+            AgentLoopSideEffectPolicy.Decision.ALLOW_READ,
+            AgentLoopSideEffectPolicy.decide(
+                customWrite.copy(sideEffectPolicy = ToolSchema.SideEffectPolicy.READ_ONLY),
+                hasDurableExecutionContext = false,
+            ),
+        )
+    }
 }

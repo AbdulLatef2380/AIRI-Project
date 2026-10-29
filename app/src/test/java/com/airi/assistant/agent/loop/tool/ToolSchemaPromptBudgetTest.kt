@@ -55,4 +55,19 @@ class ToolSchemaPromptBudgetTest {
         assertTrue(block.contains("min=1"))
         assertTrue(block.contains("max=100"))
     }
+
+    @Test
+    fun requiredToolIsSelectedBeforeUnrelatedToolAndReportedIfImpossible() {
+        val required = ToolSchema("required_tool", "x".repeat(120))
+        val unrelated = ToolSchema("unrelated_tool", "small")
+
+        val selection = ToolSchemaPromptBudget.select(
+            listOf(unrelated, required),
+            maxChars = 400,
+            requiredToolNames = setOf("required_tool"),
+        )
+
+        assertTrue(selection.requiredButOmittedToolNames.isEmpty())
+        assertEquals("required_tool", selection.tools.first().name)
+    }
 }

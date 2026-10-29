@@ -14,6 +14,12 @@ class CanonicalIntentClassifierTest {
     }
 
     @Test
+    fun punctuationAndExtendedGreetingRemainConversation() {
+        assertEquals(ChatIntent.Kind.CONVERSATION, CanonicalIntentClassifier.classify("Hello AIRI!").kind)
+        assertEquals(ChatIntent.Kind.CONVERSATION, CanonicalIntentClassifier.classify("السلام عليكم، كيف حالك؟").kind)
+    }
+
+    @Test
     fun shortActionsAreNotDemotedByLength() {
         val english = CanonicalIntentClassifier.classify("open settings")
         val arabic = CanonicalIntentClassifier.classify("افتح الإعدادات")
@@ -42,6 +48,8 @@ class CanonicalIntentClassifierTest {
         assertEquals("connector_write", intent.canonicalCapability)
         assertEquals(ChatIntent.Risk.SIDE_EFFECT, intent.risk)
         assertTrue(intent.isExecutableCandidate)
+        assertEquals(ResolvedIntent.IntentKind.CONNECTOR_ACTION, intent.resolvedIntent.kind)
+        assertEquals(ChatIntent.Risk.SIDE_EFFECT, intent.resolvedIntent.risk)
     }
 
     @Test

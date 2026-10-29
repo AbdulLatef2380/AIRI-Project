@@ -1,5 +1,7 @@
 package com.airi.assistant.domain
 
+import com.airi.assistant.domain.intent.ConversationIntentDetector
+
 /**
  * Builds a short, local-only conversation title and icon key from the first
  * user request.
@@ -16,19 +18,13 @@ object ConversationTitlePolicy {
     private val markdown = Regex("[*_`#>~]+")
     private val whitespace = Regex("\\s+")
 
-    private val greetingPatterns = listOf(
-        "hello", "hi", "hey", "good morning", "good evening", "good afternoon",
-        "مرحبا", "مرحباً", "اهلا", "أهلا", "اهلاً", "أهلاً", "السلام عليكم",
-        "صباح الخير", "مساء الخير", "تحياتي", "كيف حالك", "شلونك",
-    )
-
     fun generate(input: String): String {
         val cleaned = normalize(input)
         if (cleaned.isBlank()) return "محادثة جديدة"
 
         val lower = cleaned.lowercase()
         val taskTitle = when {
-            greetingPatterns.any { lower == it || lower.startsWith("$it ") } -> {
+            ConversationIntentDetector.isGreeting(cleaned) -> {
                 if (cleaned.any { it in '\u0600'..'\u06FF' }) "تبادل تحايا" else "Friendly greeting"
             }
             lower.contains("image") || lower.contains("photo") || lower.contains("picture") ||
@@ -73,7 +69,7 @@ object ConversationTitlePolicy {
         val cleaned = normalize(input)
         val lower = cleaned.lowercase()
         return when {
-            greetingPatterns.any { lower == it || lower.startsWith("$it ") } -> "greeting"
+            ConversationIntentDetector.isGreeting(cleaned) -> "greeting"
             lower.contains("image") || lower.contains("photo") || lower.contains("picture") ||
                 lower.contains("صورة") || lower.contains("صور") -> "image"
             lower.contains("github") || lower.contains("repository") || lower.contains("repo") ||

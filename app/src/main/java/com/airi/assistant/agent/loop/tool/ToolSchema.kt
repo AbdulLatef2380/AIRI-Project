@@ -13,7 +13,11 @@ data class ToolSchema(
     val description: String,
     val parameters:  Map<String, Param> = emptyMap(),
     val dangerous:   Boolean = false,   // requires user confirmation before execution
-    val category:    Category = Category.SYSTEM
+    val category:    Category = Category.SYSTEM,
+    /** True when this capability is required to satisfy the current request. */
+    val requiredForRequest: Boolean = false,
+    /** Explicit admission semantics; never infer this from a display label. */
+    val sideEffectPolicy: SideEffectPolicy = SideEffectPolicy.READ_ONLY,
 ) {
     data class Param(
         val type:        String,          // "string" | "int" | "number" | "boolean"
@@ -37,6 +41,12 @@ data class ToolSchema(
         COMMUNICATION,  // Email, messaging
         EXTERNAL        // Third-party connectors
     }
+
+    enum class SideEffectPolicy {
+        READ_ONLY,
+        REQUIRES_DURABLE_CONTEXT,
+        REQUIRES_USER_CONFIRMATION,
+    }
 }
 
 /** The concrete tool schemas wired into AgentLoop for every session. */
@@ -52,7 +62,8 @@ object BuiltinTools {
         name        = "open_app",
         description = "Launch an installed Android app by its name.",
         parameters  = mapOf("app_name" to ToolSchema.Param("string", "App name as shown on device, e.g. 'Settings', 'WhatsApp'", maxLength = 128)),
-        category    = ToolSchema.Category.AUTOMATION
+        category    = ToolSchema.Category.AUTOMATION,
+        sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
     )
 
     val TAP = ToolSchema(
@@ -60,24 +71,28 @@ object BuiltinTools {
         description = "Tap a UI element by its visible text or content description.",
         parameters  = mapOf("target" to ToolSchema.Param("string", "Visible text or label of the element to tap", minLength = 1, maxLength = 256)),
         category    = ToolSchema.Category.AUTOMATION,
-        dangerous   = false
+        dangerous   = false,
+        sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
     )
 
     val TYPE_TEXT = ToolSchema(
         name        = "type_text",
         description = "Type text into the currently focused input field.",
         parameters  = mapOf("text" to ToolSchema.Param("string", "Text to type", minLength = 1, maxLength = 10_000)),
-        category    = ToolSchema.Category.AUTOMATION
+        category    = ToolSchema.Category.AUTOMATION,
+        sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
     )
 
     val SCROLL_DOWN = ToolSchema(
         name        = "scroll_down",
-        description = "Scroll the current screen downward."
+        description = "Scroll the current screen downward.",
+        sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
     )
 
     val GO_BACK = ToolSchema(
         name        = "go_back",
-        description = "Press the Android back button."
+        description = "Press the Android back button.",
+        sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
     )
 
     val WEB_SEARCH = ToolSchema(
@@ -113,6 +128,7 @@ object BuiltinTools {
         parameters = mapOf("enabled" to ToolSchema.Param("boolean", "true to turn on, false to turn off")),
         category = ToolSchema.Category.SYSTEM,
         dangerous = true,
+        sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_USER_CONFIRMATION,
     )
 
     val CALENDAR_CREATE = ToolSchema(
@@ -124,7 +140,8 @@ object BuiltinTools {
             "duration_min" to ToolSchema.Param("int", "Duration in minutes", required = false, minInt = 1, maxInt = 1_440)
         ),
         category  = ToolSchema.Category.SYSTEM,
-        dangerous = true
+        dangerous = true,
+        sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_USER_CONFIRMATION,
     )
 
     val SET_ALARM = ToolSchema(
@@ -134,7 +151,8 @@ object BuiltinTools {
             "time"  to ToolSchema.Param("string", "Time as 'HH:mm' or natural language like '7am'", minLength = 1, maxLength = 128),
             "label" to ToolSchema.Param("string", "Alarm label", required = false, maxLength = 256)
         ),
-        category = ToolSchema.Category.SYSTEM
+        category = ToolSchema.Category.SYSTEM,
+        sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_USER_CONFIRMATION,
     )
 
     val CREATE_NOTE = ToolSchema(
@@ -144,7 +162,8 @@ object BuiltinTools {
             "title"   to ToolSchema.Param("string", "Note title", minLength = 1, maxLength = 256),
             "content" to ToolSchema.Param("string", "Note body text", minLength = 1, maxLength = 50_000)
         ),
-        category = ToolSchema.Category.PRODUCTIVITY
+        category = ToolSchema.Category.PRODUCTIVITY,
+        sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_USER_CONFIRMATION,
     )
 
     val TERMINAL_EXECUTE = ToolSchema(
@@ -152,7 +171,8 @@ object BuiltinTools {
         description = "Run one command in AIRI's restricted sandbox terminal and return its output. Network and unsafe commands remain blocked by AIRI governance.",
         parameters  = mapOf("command" to ToolSchema.Param("string", "A single shell command for the restricted AIRI sandbox", minLength = 1, maxLength = 4_000)),
         category    = ToolSchema.Category.PRODUCTIVITY,
-        dangerous  = true
+        dangerous  = true,
+        sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
     )
 
     val ASK_CONFIRMATION = ToolSchema(

@@ -7,9 +7,14 @@ object ToolSchemaPromptBudget {
         val promptBlock: String,
         val omittedCount: Int,
         val omittedToolNames: List<String> = emptyList(),
+        val requiredButOmittedToolNames: List<String> = emptyList(),
     )
 
-    fun select(tools: List<ToolSchema>, maxChars: Int): Selection {
+    fun select(
+        tools: List<ToolSchema>,
+        maxChars: Int,
+        requiredToolNames: Set<String> = tools.filter { it.requiredForRequest }.map { it.name }.toSet(),
+    ): Selection {
         val budget = maxChars.coerceAtLeast(0)
         val header = "AVAILABLE TOOLS:\n"
         if (tools.isEmpty()) return Selection(emptyList(), header, 0)
@@ -18,24 +23,27 @@ object ToolSchemaPromptBudget {
             "AVAILABLE TOOLS:".take(budget),
             tools.size,
             tools.map { it.name },
+            tools.map { it.name }.filter { it in requiredToolNames },
         )
 
-        val chunks = tools.map(::renderTool)
+        val orderedTools = tools.sortedWith(compareByDescending<ToolSchema> { it.name in requiredToolNames })
+        val chunks = orderedTools.map(::renderTool)
         val selected = mutableListOf<ToolSchema>()
         val selectedChunks = mutableListOf<String>()
         var length = header.length
         val footerReserve = OMITTED_SUFFIX_RESERVE
         chunks.forEachIndexed { index, chunk ->
             val hasLaterCandidate = index < chunks.lastIndex
-            val reserve = if (hasLaterCandidate) footerReserve else 0
+            val reserve = if (orderedTools[index].name in requiredToolNames) 0
+                else if (hasLaterCandidate) footerReserve else 0
             if (length + chunk.length + reserve <= budget) {
-                selected += tools[index]
+                selected += orderedTools[index]
                 selectedChunks += chunk
                 length += chunk.length
             }
         }
 
-        var omitted = tools.size - selected.size
+        var omitted = orderedTools.size - selected.size
         var block = header + selectedChunks.joinToString("")
         if (omitted > 0) {
             val suffix = "[${omitted} tool schemas omitted by the context budget; omitted tools are not available in this request.]\n"
@@ -52,7 +60,9 @@ object ToolSchemaPromptBudget {
             tools = selected,
             promptBlock = block,
             omittedCount = omitted,
-            omittedToolNames = tools.map { it.name }.filterNot { name -> selected.any { it.name == name } },
+            omittedToolNames = orderedTools.map { it.name }.filterNot { name -> selected.any { it.name == name } },
+            requiredButOmittedToolNames = orderedTools.map { it.name }
+                .filter { it in requiredToolNames && selected.none { tool -> tool.name == it } },
         )
     }
 

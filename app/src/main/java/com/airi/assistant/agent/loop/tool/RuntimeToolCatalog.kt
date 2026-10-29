@@ -12,6 +12,8 @@ object RuntimeToolCatalog {
         val candidates: List<RuntimeToolContract>,
         val exposed: List<RuntimeToolContract>,
         val filtered: List<FilteredTool>,
+        /** Names selected by intent and therefore mandatory for a truthful turn. */
+        val requiredToolNames: Set<String> = emptySet(),
     ) {
         val schemas: List<ToolSchema> get() = exposed.map { it.promptSchema() }
     }
@@ -87,6 +89,14 @@ object RuntimeToolCatalog {
                 (requestText.contains("screen", ignoreCase = true) || requestText.contains("الشاشة"))) add("read_screen")
             if (intent.requires(CapabilityIntentDetector.Capability.TERMINAL_EXECUTE)) add("terminal_execute")
         }
+        val requiredConnectorNames = exposed
+            .filter { contract ->
+                contract.source == RuntimeToolContract.Source.CONNECTOR &&
+                    ("*" in requestedConnectorIds || contract.capabilityId?.let { it in requestedConnectorIds } == true)
+            }
+            .map { it.schema.name }
+            .toSet()
+        val requiredToolNames = targetedBuiltins + requiredConnectorNames
         val normalizedRequest = CapabilityIntentDetector.normalize(requestText)
         val ordered = exposed.distinctBy { it.schema.name }.sortedWith(
             compareBy<RuntimeToolContract> { contract ->
@@ -110,6 +120,7 @@ object RuntimeToolCatalog {
             candidates = candidates,
             exposed = ordered,
             filtered = filtered,
+            requiredToolNames = requiredToolNames,
         )
     }
 

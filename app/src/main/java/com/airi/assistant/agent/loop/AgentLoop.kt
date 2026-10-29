@@ -173,7 +173,7 @@ the tool returns an actual error.
                 else -> false
             }
             val sideEffectAllowed = com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy
-                .decide(schema.name, typedContextAvailable) !=
+                .decide(schema, typedContextAvailable) !=
                 com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED
             val terminalEnabled = schema.name != "terminal_execute" ||
                 com.airi.assistant.domain.terminal.TerminalExecutionPolicy.evaluate("echo").allowed
@@ -643,7 +643,7 @@ the tool returns an actual error.
                     durableExecutionContext = executionContextFactory?.createFor(toolName)
                 }
                 val sideEffectDecision = AgentLoopSideEffectPolicy.decide(
-                    toolName = toolName,
+                    schema = selectedToolSchema ?: ToolSchema(name = toolName, description = "Unknown tool"),
                     hasDurableExecutionContext = durableExecutionContext != null
                 )
                 val toolResult = if (toolValidationError != null) {
@@ -839,14 +839,23 @@ the tool returns an actual error.
                     com.airi.assistant.core.CapabilityRuntimeStage.MODEL_CONTINUED,
                     if (stepsUsed < MAX_STEPS) "continued" else "terminal",
                 )
+                val recoveryDecision = if (toolResult is ToolDispatcher.ToolResult.Error) {
+                    SelfHealingExecutor.decision(
+                        errorCode = toolResult.code,
+                        sideEffectPolicy = selectedToolSchema?.sideEffectPolicy
+                            ?: ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
+                        hasIdempotencyKey = toolArgs["idempotency_key"].orEmpty().isNotBlank(),
+                    )
+                } else SelfHealingExecutor.Decision.STOP_AND_EXPLAIN
                 if (toolResult is ToolDispatcher.ToolResult.Error &&
                     toolResult.retryable &&
+                    recoveryDecision == SelfHealingExecutor.Decision.RETRY_PARAMETER_REPAIR &&
                     stepsUsed < MAX_STEPS
                 ) {
                     val healing = SelfHealingExecutor.recoverFromToolError(
                         failedToolName = toolName,
                         errorMessage = toolResult.message.take(300),
-                        originalInput = ""
+                        originalInput = input,
                     )
                     history.add(
                         ConversationTurn.User(

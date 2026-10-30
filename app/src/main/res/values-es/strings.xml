@@ -1980,6 +1980,7 @@
     <string name="agent_trace_group_search">Búsqueda</string>
     <string name="agent_trace_group_memory">Memoria</string>
     <string name="agent_trace_group_tasks">Tareas</string>
+    <string name="agent_trace_group_model">Modelo</string>
     <string name="agent_trace_group_activity">Actividad</string>
     <string name="agent_trace_summary_tasks">%1$d tareas</string>
     <string name="agent_trace_panel_description">Actividad de ejecución en directo</string>

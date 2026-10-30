@@ -158,6 +158,8 @@ the tool returns an actual error.
         runtimeCapabilities: List<com.airi.assistant.core.CapabilitySnapshotEntry> = emptyList(),
         /** Redacted platform snapshot rendered into every agent-turn system prompt. */
         platformCapabilitySnapshot: String = "",
+        /** Stable caller-owned identity used to join agent, runtime, and UI traces. */
+        requestedExecutionId: String? = null,
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
         val permissionProfile = com.airi.assistant.core.AgentPermissionProfile.resolve(
@@ -204,7 +206,7 @@ the tool returns an actual error.
         }.toMutableList()
         val priorHistoryCount = history.size
         var stepsUsed    = 0
-        val executionId   = UUID.randomUUID().toString()
+        val executionId   = requestedExecutionId?.takeIf(String::isNotBlank) ?: UUID.randomUUID().toString()
         val requestIdentity = ChatExecutionIdentityContract.create(sessionId, executionId)
         val traceId = runtimeTrace?.begin(
             executionId = executionId,

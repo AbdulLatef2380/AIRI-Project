@@ -1980,6 +1980,7 @@
     <string name="agent_trace_group_search">搜索</string>
     <string name="agent_trace_group_memory">记忆</string>
     <string name="agent_trace_group_tasks">任务</string>
+    <string name="agent_trace_group_model">模型</string>
     <string name="agent_trace_group_activity">活动</string>
     <string name="agent_trace_summary_tasks">%1$d 个任务</string>
     <string name="agent_trace_panel_description">实时执行活动</string>

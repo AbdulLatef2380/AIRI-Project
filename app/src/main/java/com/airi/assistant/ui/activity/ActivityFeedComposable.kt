@@ -10,7 +10,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -69,7 +81,7 @@ private fun CompactFeed(events: List<ActivityEvent>, totalCount: Int, onExpand: 
         verticalArrangement = Arrangement.spacedBy(3.dp)) {
         events.forEach { event ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(event.category.emoji, fontSize = 11.sp)
+                ActivityFeedCategoryIcon(event.category, Modifier.size(14.dp))
                 Text(event.message.take(72), fontSize = 11.sp,
                     color = sevColor(event.severity).copy(alpha = 0.85f), maxLines = 1, modifier = Modifier.weight(1f))
                 Text(fmtTime(event.timestampMs), fontSize = 10.sp, color = AiriTheme.onBackground.copy(alpha = 0.25f))
@@ -100,7 +112,7 @@ private fun ExpandedFeed(events: List<ActivityEvent>, categoryFilter: ActivityCa
             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Chip("All", categoryFilter == null) { onFilterChange(null) }
             ActivityCategory.entries.take(6).forEach { cat ->
-                Chip(cat.emoji, categoryFilter == cat) { onFilterChange(if (categoryFilter == cat) null else cat) }
+                Chip(cat.label, categoryFilter == cat) { onFilterChange(if (categoryFilter == cat) null else cat) }
             }
         }
         Divider(color = AiriTheme.onBackground.copy(alpha = 0.07f))
@@ -115,7 +127,7 @@ private fun ExpandedFeed(events: List<ActivityEvent>, categoryFilter: ActivityCa
                     .then(if (hasDetail) Modifier.clickable { detailVisible = !detailVisible } else Modifier)
                     .padding(horizontal = 14.dp, vertical = 6.dp)) {
                     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(event.category.emoji, fontSize = 13.sp, modifier = Modifier.padding(top = 1.dp))
+                        ActivityFeedCategoryIcon(event.category, Modifier.size(15.dp).padding(top = 1.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(event.message, fontSize = 12.sp, color = sevColor(event.severity), lineHeight = 17.sp)
                             Text("$categoryLabel · ${fmtTime(event.timestampMs)}", fontSize = 10.sp, color = AiriTheme.onBackground.copy(alpha = 0.3f))
@@ -146,6 +158,28 @@ private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+
+@Composable
+internal fun ActivityFeedCategoryIcon(category: ActivityCategory, modifier: Modifier = Modifier) {
+    val image = when (category) {
+        ActivityCategory.REASONING, ActivityCategory.ORCHESTRATION -> Icons.Outlined.TaskAlt
+        ActivityCategory.TOOL -> Icons.Outlined.Build
+        ActivityCategory.CONNECTOR, ActivityCategory.VOICE -> Icons.Outlined.Language
+        ActivityCategory.ROUTING -> Icons.Outlined.Folder
+        ActivityCategory.MEMORY, ActivityCategory.MODEL -> Icons.Outlined.Memory
+        ActivityCategory.SANDBOX -> Icons.Outlined.Terminal
+        ActivityCategory.ACCESSIBILITY -> Icons.Outlined.Search
+        ActivityCategory.SYSTEM -> Icons.Outlined.Description
+        ActivityCategory.CONTEXT_RESET -> Icons.Outlined.ErrorOutline
+    }
+    Icon(
+        imageVector = image,
+        contentDescription = null,
+        tint = AiriTheme.onSurface.copy(alpha = 0.58f),
+        modifier = modifier,
+    )
+}
+
 private fun fmtTime(ms: Long): String = timeFmt.format(Date(ms))
 @Composable
 private fun sevColor(sev: ActivitySeverity) = when (sev) {

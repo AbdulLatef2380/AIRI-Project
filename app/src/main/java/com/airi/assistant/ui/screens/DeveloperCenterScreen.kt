@@ -27,6 +27,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.crash.RuntimeHealthMonitor
 import com.airi.assistant.ui.activity.AgentActivityBus
+import com.airi.assistant.ui.activity.ActivityFeedCategoryIcon
 import com.airi.assistant.ui.theme.*
 import com.airi.assistant.ui.theme.AiriTheme
 import androidx.compose.ui.res.stringResource
@@ -121,7 +122,7 @@ private fun RuntimeTab() {
         DevCard(title = "Recent Activity") {
             events.take(10).forEach { event ->
                 Row(modifier = Modifier.padding(vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(event.category.emoji, fontSize = 11.sp)
+                    ActivityFeedCategoryIcon(event.category, Modifier.size(14.dp))
                     Text(event.message.take(80), fontSize = 10.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 14.sp, modifier = Modifier.weight(1f))
                 }
             }

@@ -182,18 +182,19 @@ class UnifiedExecutionTraceProjectorTest {
     }
 
     @Test
-    fun `duplicate unstructured activity rows within the window collapse`() {
+    fun `distinct unstructured activity rows with repeated text remain visible`() {
         val first = ActivityEvent(
             id = "activity-1",
             timestampMs = 1_000,
             message = "Reading README.md",
             executionId = "run-1",
             category = ActivityCategory.SANDBOX,
+            sequenceNumber = 1L,
         )
-        val second = first.copy(id = "activity-2", timestampMs = 1_900)
+        val second = first.copy(id = "activity-2", timestampMs = 1_900, sequenceNumber = 2L)
         val result = project("run-1", emptyList(), listOf(first, second))
 
-        assertEquals(listOf("activity-1"), result.map { it.eventId })
+        assertEquals(listOf("activity-1", "activity-2"), result.map { it.eventId })
     }
 
     @Test
@@ -209,6 +210,24 @@ class UnifiedExecutionTraceProjectorTest {
         val result = project("run-1", emptyList(), listOf(first, second))
 
         assertEquals(listOf("activity-1", "activity-2"), result.map { it.eventId })
+    }
+
+    @Test
+    fun `same timestamp activity follows monotonic sequence instead of source list order`() {
+        val first = ActivityEvent(
+            id = "phase-1",
+            timestampMs = 1_000,
+            message = "phase one",
+            executionId = "run-1",
+            category = ActivityCategory.MODEL,
+            sequenceNumber = 1L,
+        )
+        val second = first.copy(id = "phase-2", message = "phase two", sequenceNumber = 2L)
+
+        val result = project("run-1", emptyList(), listOf(second, first))
+
+        assertEquals(listOf("phase-1", "phase-2"), result.map { it.eventId })
+        assertEquals(UnifiedTraceCategory.MODEL, result.first().category)
     }
 
     @Test
@@ -356,9 +375,10 @@ class UnifiedExecutionTraceProjectorTest {
             executionId = "run-1",
             traceEntries = listOf(
                 trace("run-1", 1, 1_000, ExecutionTraceKind.PLANNING, "Planning task"),
-                trace("run-1", 2, 1_100, ExecutionTraceKind.STEP_STARTED, "Review repository", "step-1"),
-                trace("run-1", 3, 1_200, ExecutionTraceKind.TOOL_COMPLETED, "Read file README.md", "file-1"),
-                trace("run-1", 4, 1_300, ExecutionTraceKind.STEP_COMPLETED, "Step completed", "step-1"),
+                trace("run-1", 2, 1_100, ExecutionTraceKind.STEP_STARTED, "Executing step", "shared-action", detail = "Review repository"),
+                trace("run-1", 3, 1_150, ExecutionTraceKind.TOOL_STARTED, "Running tool: read_file", "shared-action"),
+                trace("run-1", 4, 1_200, ExecutionTraceKind.TOOL_COMPLETED, "Running tool: read_file", "shared-action"),
+                trace("run-1", 5, 1_300, ExecutionTraceKind.STEP_COMPLETED, "Step completed", "shared-action"),
             ),
             activityEvents = emptyList(),
             planningTaskLabel = "Planning task",
@@ -368,9 +388,14 @@ class UnifiedExecutionTraceProjectorTest {
         val plan = result.taskTree.single()
         assertEquals(UnifiedTraceCategory.PLAN, plan.event.category)
         assertEquals(1, plan.children.size)
-        assertEquals(TaskStatus.COMPLETED, plan.children.single().event.status)
-        assertEquals("Review repository", plan.children.single().event.title)
-        assertEquals("Read file README.md", plan.children.single().children.single().event.title)
+        val step = plan.children.single()
+        val expectedStepTitle = if (java.util.Locale.getDefault().language == "ar") "خطوة الوكيل" else "Agent step"
+        assertEquals(expectedStepTitle, step.event.title)
+        assertEquals(TaskStatus.COMPLETED, step.event.status)
+        assertTrue(step.event.detailLog.orEmpty().contains("Review repository"))
+        assertEquals(1, step.children.size)
+        assertEquals("read_file", step.children.single().event.title)
+        assertEquals(TaskStatus.COMPLETED, step.children.single().event.status)
     }
 
     @Test
@@ -467,12 +492,14 @@ class UnifiedExecutionTraceProjectorTest {
         summary: String,
         actionId: String? = null,
         errorCode: String? = null,
+        detail: String? = null,
     ) = ExecutionTraceEvent(
         executionId = executionId,
         sequence = sequence,
         timestampMs = timestampMs,
         kind = kind,
         summary = summary,
+        detail = detail,
         actionId = actionId,
         errorCode = errorCode,
     )

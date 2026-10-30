@@ -34,11 +34,14 @@ import kotlinx.coroutines.flow.update
 object ExecutionStatusBus {
 
     private const val TAG = "ExecutionStatusBus"
+    private const val MAX_TRACE_HISTORY = 8
 
     private val _status = MutableStateFlow(AgentState())
     private val traceBuffer = ExecutionTraceBuffer()
     private val toolTraceLifecycle = ExecutionToolTraceLifecycle()
     private val _trace = MutableStateFlow<List<ExecutionTraceEvent>>(emptyList())
+    private val traceLock = Any()
+    private val traceHistory = linkedMapOf<String, List<ExecutionTraceEvent>>()
 
     // : Wrap status with FlowPressureMonitor to detect slow collectors.
     // monitorFlow wraps the Flow at the read-side; _status remains a MutableStateFlow
@@ -46,6 +49,13 @@ object ExecutionStatusBus {
     val status: StateFlow<AgentState> = _status.asStateFlow()
     /** Ordered, bounded, user-safe summaries for the active execution trace. */
     val trace: StateFlow<List<ExecutionTraceEvent>> = _trace.asStateFlow()
+
+    /** Snapshot retained by execution identity, even after another run becomes active. */
+    fun traceSnapshot(executionId: String): List<ExecutionTraceEvent> = synchronized(traceLock) {
+        if (executionId.isBlank()) emptyList()
+        else traceHistory[executionId]?.toList()
+            ?: if (_status.value.executionId == executionId) traceBuffer.snapshot() else emptyList()
+    }
     // Wrapped version for collectors that want pressure detection:
     val monitoredStatus = FlowPressureMonitor.monitorFlow("ExecutionStatusBus", _status)
 
@@ -62,17 +72,23 @@ object ExecutionStatusBus {
             safeLog { Log.w(TAG, "EXEC_STATUS_REJECTED missing executionId") }
             return
         }
-        _status.value = AgentState(
-            isWorking             = true,
-            currentAction         = goalDescription.take(80),
-            totalSteps            = totalNodes,
-            activeGoalDescription = goalDescription,
-            executionId           = executionId,
-            sessionId             = sessionId,
-            nodesTotal            = totalNodes,
-            executionStage        = ExecutionStage.PLANNING
-        )
-        traceBuffer.begin(executionId, sessionId)
+        synchronized(traceLock) {
+            _status.value = AgentState(
+                isWorking             = true,
+                currentAction         = goalDescription.take(80),
+                totalSteps            = totalNodes,
+                activeGoalDescription = goalDescription,
+                executionId           = executionId,
+                sessionId             = sessionId,
+                nodesTotal            = totalNodes,
+                executionStage        = ExecutionStage.PLANNING
+            )
+            traceBuffer.begin(executionId, sessionId)
+            traceHistory[executionId] = emptyList()
+            while (traceHistory.size > MAX_TRACE_HISTORY) {
+                traceHistory.remove(traceHistory.keys.first())
+            }
+        }
         toolTraceLifecycle.begin(executionId)
         appendTrace(executionId, ExecutionTraceKind.PLANNING, "Planning task", goalDescription, machineTag = "planning")
         safeLog { Log.i(TAG, "EXEC_STATUS_PLANNING goalChars=${goalDescription.length} nodes=$totalNodes") }
@@ -342,8 +358,11 @@ object ExecutionStatusBus {
 
     /** Reset to idle (e.g. on session clear or ViewModel cleared). */
     fun reset() {
-        _status.value = AgentState()
-        traceBuffer.clear()
+        synchronized(traceLock) {
+            _status.value = AgentState()
+            traceBuffer.clear()
+            traceHistory.clear()
+        }
         toolTraceLifecycle.reset()
         _trace.value = emptyList()
     }
@@ -387,20 +406,28 @@ object ExecutionStatusBus {
         machineTag: String? = null,
     ) {
         val normalizedErrorCode = ExecutionTraceBuffer.normalizeErrorCode(errorCode)
-        val event = traceBuffer.append(
-            executionId = executionId,
-            kind = kind,
-            summary = PrivacyGuard.redactForTrace(summary),
-            detail = if (normalizedErrorCode != null || detail != null) {
-                val typed = normalizedErrorCode?.let { "code=$it; " }.orEmpty()
-                PrivacyGuard.redactForTrace(typed + detail.orEmpty())
-            } else null,
-            actionId = actionId,
-            durationMs = durationMs,
-            errorCode = normalizedErrorCode,
-            machineTag = machineTag,
-        ) ?: return
-        _trace.value = traceBuffer.snapshot()
+        val (event, snapshot) = synchronized(traceLock) {
+            val appended = traceBuffer.append(
+                executionId = executionId,
+                kind = kind,
+                summary = PrivacyGuard.redactForTrace(summary),
+                detail = if (normalizedErrorCode != null || detail != null) {
+                    val typed = normalizedErrorCode?.let { "code=$it; " }.orEmpty()
+                    PrivacyGuard.redactForTrace(typed + detail.orEmpty())
+                } else null,
+                actionId = actionId,
+                durationMs = durationMs,
+                errorCode = normalizedErrorCode,
+                machineTag = machineTag,
+            ) ?: return
+            val currentSnapshot = traceBuffer.snapshot()
+            traceHistory[executionId] = currentSnapshot
+            while (traceHistory.size > MAX_TRACE_HISTORY) {
+                traceHistory.remove(traceHistory.keys.first())
+            }
+            appended to currentSnapshot
+        }
+        if (_status.value.executionId == executionId) _trace.value = snapshot
         safeLog { Log.d(TAG, "TRACE kind=${event.kind} seq=${event.sequence} execution=${event.executionId.take(8)}") }
     }
 

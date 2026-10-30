@@ -552,6 +552,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "seq=${event.sequence} type=${event.eventType.name} outcome=${event.outcome} " +
                 "tools=${event.toolNames.joinToString(",").take(96)}"
         )
+        com.airi.assistant.ui.activity.RuntimeTraceActivityMapper.map(event)?.let { activityEvent ->
+            com.airi.assistant.ui.activity.AgentActivityBus.emit(activityEvent)
+        }
     }
     /**
      * PHASE 0 catalog snapshot. It enumerates the registry/catalog generically;
@@ -1545,6 +1548,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun observeActivityBusForContextReset() {
         viewModelScope.launch {
             AgentActivityBus.events.collect { event ->
+                runCatching { ServiceLocator.runtimeHealthMonitor.recordBusDrain() }
                 if (event.category == com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET &&
                     event.severity == com.airi.assistant.ui.activity.ActivitySeverity.WARN) {
                     val isNativeReset = event.machineTag ==
@@ -2581,6 +2585,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             var firstTokenReceived = false
             val toolOutputs = mutableListOf<AssistantToolOutput>()
             val requestStart = System.currentTimeMillis()
+            val traceExecutionId = java.util.UUID.randomUUID().toString()
             val needsResummarize = summaryPlan.shouldSummarize
             val olderToFold = summaryPlan.olderTurns
             Log.i("AIRI", "AGENT_LOOP_START inputChars=${trimmedInput.length} queryType=${queryType.name} planMode=${_isPlanModeActive.value}")
@@ -2605,9 +2610,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 id = saved.id,
                                 execOrigin = _lastExecOrigin.value,
                                 executionSource = hybridOrchestrator.lastExecutionSource,
-                                executionTraceId = ExecutionStatusBus.status.value.executionId.takeIf { it.isNotBlank() },
-                                executionTraceSnapshot = ExecutionStatusBus.trace.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId },
-                                executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId },
+                                executionTraceId = traceExecutionId,
+                                executionTraceSnapshot = ExecutionStatusBus.traceSnapshot(traceExecutionId),
+                                executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == traceExecutionId },
                                 toolOutputs = toolOutputs.toList(),
                             )
                         }
@@ -2644,6 +2649,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     attachmentParts = attachmentParts,
                     attachmentTrace = attachmentTrace,
                     platformCapabilitySnapshot = platformSnapshotBlock,
+                    requestedExecutionId = traceExecutionId,
                     onToken      = token@{ tok ->
                         if (!isCurrentGeneration(generationId) || _isCancelled.get()) return@token
                         val visibleToken = reasoningParser.consume(tok)
@@ -2923,9 +2929,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 id         = assistantMsg.id,
                                 execOrigin = _lastExecOrigin.value,
                                 executionSource = hybridOrchestrator.lastExecutionSource,
-                                executionTraceId = ExecutionStatusBus.status.value.executionId.takeIf { it.isNotBlank() },
-                                executionTraceSnapshot = ExecutionStatusBus.trace.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId },
-                                executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == ExecutionStatusBus.status.value.executionId },
+                                executionTraceId = traceExecutionId,
+                                executionTraceSnapshot = ExecutionStatusBus.traceSnapshot(traceExecutionId),
+                                executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == traceExecutionId },
                                 toolOutputs = toolOutputs.toList(),
                                 continuationHops = loopResult.completionMetadata.continuationHops,
                             )

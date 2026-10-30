@@ -1908,6 +1908,7 @@
     <string name="agent_trace_group_search">البحث</string>
     <string name="agent_trace_group_memory">الذاكرة</string>
     <string name="agent_trace_group_tasks">المهام</string>
+    <string name="agent_trace_group_model">النموذج</string>
     <string name="agent_trace_group_activity">النشاط</string>
     <!-- إغلاق الإعدادات وتخصيص الصوت للنشر -->
     <string name="settings_guest">ضيف</string>

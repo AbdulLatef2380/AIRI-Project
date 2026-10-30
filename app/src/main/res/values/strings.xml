@@ -2016,6 +2016,7 @@
     <string name="agent_trace_group_search">Search</string>
     <string name="agent_trace_group_memory">Memory</string>
     <string name="agent_trace_group_tasks">Tasks</string>
+    <string name="agent_trace_group_model">Model</string>
     <string name="agent_trace_group_activity">Activity</string>
     <!-- Settings and voice personalization release closure -->
     <string name="settings_guest">Guest</string>

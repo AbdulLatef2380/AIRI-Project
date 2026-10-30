@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,7 +57,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.airi.assistant.R
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceGroup
+import com.airi.assistant.ui.trace.UnifiedExecutionTraceEvent
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceProjection
+import com.airi.assistant.ui.trace.UnifiedExecutionTraceTaskNode
 import com.airi.assistant.ui.trace.UnifiedTraceCategory
 
 /** Compact, borderless activity surface embedded in the assistant turn. */
@@ -71,15 +74,17 @@ fun AgentLifecycleTrackerPanel(
     // execution trace supports the answer instead of competing with it.
     var expanded by rememberSaveable { mutableStateOf(false) }
     val executionId = projection.events.firstOrNull()?.executionId.orEmpty()
-    var expandedGroups by rememberSaveable(executionId) {
-        mutableStateOf<List<String>>(emptyList())
-    }
     var expandedEvents by rememberSaveable(executionId) { mutableStateOf<List<String>>(emptyList()) }
+    val traceRows = remember(projection.events, projection.taskTree) {
+        flattenTraceTree(projection.taskTree.ifEmpty {
+            projection.events.map { UnifiedExecutionTraceTaskNode(it) }
+        })
+    }
     val panelDescription = stringResource(R.string.agent_trace_panel_description)
     val lastEventKey = projection.events.lastOrNull()?.let { it.eventId to it.status }
 
     LaunchedEffect(lastEventKey, expanded) {
-        if (expanded && projection.groups.isNotEmpty() && listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 >= listState.layoutInfo.totalItemsCount - 2) {
+        if (expanded && traceRows.isNotEmpty() && listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 >= listState.layoutInfo.totalItemsCount - 2) {
             listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
         }
     }
@@ -104,7 +109,7 @@ fun AgentLifecycleTrackerPanel(
             isWorking = isWorking,
         )
         AnimatedVisibility(visible = expanded) {
-            if (projection.groups.isNotEmpty()) {
+            if (traceRows.isNotEmpty()) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -113,39 +118,22 @@ fun AgentLifecycleTrackerPanel(
                         .heightIn(max = 238.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
-                    projection.groups.forEach { group ->
-                        item(key = "group-${group.id}") {
-                            ActivityGroupHeader(
-                                group = group,
-                                expanded = group.id in expandedGroups,
-                                onToggle = {
-                                    expandedGroups = if (group.id in expandedGroups) {
-                                        expandedGroups - group.id
+                    items(traceRows, key = { "event-${it.event.eventId}" }) { row ->
+                        val event = row.event
+                        ActivityEventRow(
+                            event = event,
+                            depth = row.depth,
+                            expanded = event.eventId in expandedEvents,
+                            onToggle = {
+                                if (!event.detailLog.isNullOrBlank()) {
+                                    expandedEvents = if (event.eventId in expandedEvents) {
+                                        expandedEvents - event.eventId
                                     } else {
-                                        expandedGroups + group.id
+                                        expandedEvents + event.eventId
                                     }
-                                },
-                            )
-                        }
-                        if (group.id in expandedGroups) {
-                            items(group.events, key = { "event-${it.eventId}" }) { event ->
-                                ActivityEventRow(
-                                    event = event,
-                                    depth = 0,
-                                    hasChildren = !event.detailLog.isNullOrBlank(),
-                                    expanded = event.eventId in expandedEvents,
-                                    onToggle = {
-                                        if (!event.detailLog.isNullOrBlank()) {
-                                            expandedEvents = if (event.eventId in expandedEvents) {
-                                                expandedEvents - event.eventId
-                                            } else {
-                                                expandedEvents + event.eventId
-                                            }
-                                        }
-                                    },
-                                )
-                            }
-                        }
+                                }
+                            },
+                        )
                     }
                 }
             } else if (isWorking) {
@@ -228,6 +216,7 @@ private fun ActivitySummaryRow(
 @Composable
 private fun ActivityGroupHeader(group: UnifiedExecutionTraceGroup, expanded: Boolean, onToggle: () -> Unit) {
     val title = when (group.category) {
+        UnifiedTraceCategory.MODEL -> stringResource(R.string.agent_trace_group_model)
         UnifiedTraceCategory.FILE -> stringResource(R.string.agent_trace_group_files)
         UnifiedTraceCategory.COMMAND -> stringResource(R.string.agent_trace_group_commands)
         UnifiedTraceCategory.TOOL, UnifiedTraceCategory.CONNECTOR -> stringResource(R.string.agent_trace_group_tools)
@@ -271,11 +260,10 @@ private fun ActivityGroupHeader(group: UnifiedExecutionTraceGroup, expanded: Boo
 private fun ActivityEventRow(
     event: com.airi.assistant.ui.trace.UnifiedExecutionTraceEvent,
     depth: Int = 0,
-    hasChildren: Boolean = false,
     expanded: Boolean,
     onToggle: () -> Unit,
 ) {
-    val canExpand = hasChildren || !event.detailLog.isNullOrBlank()
+    val canExpand = !event.detailLog.isNullOrBlank()
     val accessibleStatus = statusLabel(event.status)
     val technicalEvent = event.category == UnifiedTraceCategory.TOOL ||
         event.category == UnifiedTraceCategory.CONNECTOR
@@ -391,6 +379,7 @@ private fun ActivityEventRow(
 @Composable
 private fun ActivityCategoryIcon(category: UnifiedTraceCategory, modifier: Modifier) {
     val icon = when (category) {
+        UnifiedTraceCategory.MODEL -> Icons.Outlined.Memory
         UnifiedTraceCategory.FILE -> Icons.Outlined.Description
         UnifiedTraceCategory.COMMAND -> Icons.Outlined.Terminal
         UnifiedTraceCategory.TOOL -> Icons.Outlined.Build
@@ -413,6 +402,16 @@ private fun StatusIcon(status: TaskStatus) {
         TaskStatus.FAILED -> Icon(Icons.Outlined.ErrorOutline, stringResource(R.string.agent_lifecycle_status_failed), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp))
         TaskStatus.CANCELLED -> Icon(Icons.Outlined.ErrorOutline, stringResource(R.string.agent_lifecycle_status_cancelled), tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(14.dp))
     }
+}
+
+private data class TraceDisplayRow(val event: UnifiedExecutionTraceEvent, val depth: Int)
+
+private fun flattenTraceTree(nodes: List<UnifiedExecutionTraceTaskNode>): List<TraceDisplayRow> = buildList {
+    fun append(node: UnifiedExecutionTraceTaskNode, depth: Int) {
+        add(TraceDisplayRow(node.event, depth))
+        node.children.forEach { child -> append(child, (depth + 1).coerceAtMost(6)) }
+    }
+    nodes.forEach { append(it, 0) }
 }
 
 @Composable

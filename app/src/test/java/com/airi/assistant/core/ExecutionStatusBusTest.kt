@@ -49,6 +49,22 @@ class ExecutionStatusBusTest {
     }
 
     @Test
+    fun traceSnapshotRemainsBoundToItsExecutionAfterAnotherRunStarts() {
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("First task", 1, "trace-run-1", "session-1")
+        ExecutionStatusBus.onWaveStarted(listOf("step-1"), listOf("read_file"), "trace-run-1")
+        val firstSnapshot = ExecutionStatusBus.traceSnapshot("trace-run-1")
+        assertTrue(firstSnapshot.isNotEmpty())
+
+        ExecutionStatusBus.onGraphStarted("Second task", 1, "trace-run-2", "session-1")
+
+        assertEquals(firstSnapshot, ExecutionStatusBus.traceSnapshot("trace-run-1"))
+        assertTrue(ExecutionStatusBus.trace.value.all { it.executionId == "trace-run-2" })
+        assertTrue(ExecutionStatusBus.traceSnapshot("trace-run-2").isNotEmpty())
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
     fun cancellationRequestClosesAdmissionBeforeTerminalCancellation() {
         val executionId = "cancellation-gate-test"
         ExecutionStatusBus.reset()

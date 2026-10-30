@@ -11,12 +11,22 @@ class UniversalRuntimeTraceRecorder(
     private val sink: (UniversalRuntimeTraceEvent) -> Unit = {}
 ) {
     private val lock = Any()
-    private val _events = mutableListOf<UniversalRuntimeTraceEvent>()
-    private var sequence = 0L
-    private var currentTraceId: String? = null
+    private data class TraceState(
+        val traceId: String,
+        var sequence: Long = 0L,
+        val events: MutableList<UniversalRuntimeTraceEvent> = mutableListOf(),
+    )
+
+    private val traces = linkedMapOf<String, TraceState>()
+    private var latestExecutionId: String? = null
+    private var unboundSequence = 0L
 
     val events: List<UniversalRuntimeTraceEvent>
-        get() = synchronized(lock) { _events.toList() }
+        get() = synchronized(lock) { latestExecutionId?.let { traces[it]?.events?.toList() }.orEmpty() }
+
+    fun eventsFor(executionId: String): List<UniversalRuntimeTraceEvent> = synchronized(lock) {
+        traces[executionId]?.events?.toList().orEmpty()
+    }
 
     fun begin(
         executionId: String,
@@ -31,9 +41,12 @@ class UniversalRuntimeTraceRecorder(
     ): String {
         val traceId = UUID.randomUUID().toString()
         synchronized(lock) {
-            currentTraceId = traceId
-            sequence = 0L
-            _events.clear()
+            traces.remove(executionId)
+            traces[executionId] = TraceState(traceId)
+            latestExecutionId = executionId
+            while (traces.size > MAX_RETAINED_EXECUTIONS) {
+                traces.remove(traces.keys.first())
+            }
         }
         record(
             traceId = traceId,
@@ -310,22 +323,36 @@ class UniversalRuntimeTraceRecorder(
         attributes: Map<String, String> = emptyMap(),
     ): UniversalRuntimeTraceEvent {
         val event = synchronized(lock) {
-            val resolvedTraceId = traceId ?: currentTraceId ?: "unbound"
+            val state = traces[executionId]
+            val resolvedTraceId = traceId ?: state?.traceId ?: "unbound"
             UniversalRuntimeTraceEvent(
                 traceId = resolvedTraceId,
                 executionId = executionId,
                 sessionId = sessionId.takeIf { it.isNotBlank() },
-                sequence = ++sequence,
+                sequence = state?.let { ++it.sequence } ?: ++unboundSequence,
+                timestampMs = System.currentTimeMillis(),
                 eventType = eventType,
                 component = component,
                 outcome = outcome,
                 toolNames = toolNames.map(RuntimeTraceRedaction::token),
                 capabilities = capabilities,
                 attributes = attributes.mapValues { (_, value) -> RuntimeTraceRedaction.attribute(value) },
-            ).also { _events += it }
+            ).also { event ->
+                state?.events?.let { events ->
+                    events += event
+                    if (events.size > MAX_EVENTS_PER_EXECUTION) {
+                        events.subList(0, events.size - MAX_EVENTS_PER_EXECUTION).clear()
+                    }
+                }
+            }
         }
         sink(event)
         return event
+    }
+
+    private companion object {
+        const val MAX_RETAINED_EXECUTIONS = 8
+        const val MAX_EVENTS_PER_EXECUTION = 600
     }
 }
 
@@ -387,6 +414,7 @@ data class UniversalRuntimeTraceEvent(
     val executionId: String,
     val sessionId: String?,
     val sequence: Long,
+    val timestampMs: Long = System.currentTimeMillis(),
     val eventType: UniversalTraceEventType,
     val component: String,
     val outcome: String,

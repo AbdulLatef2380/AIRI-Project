@@ -10,6 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.UUID
 
 @RunWith(AndroidJUnit4::class)
 class SkillProposalLifecycleInstrumentedTest {
@@ -20,7 +21,8 @@ class SkillProposalLifecycleInstrumentedTest {
     fun rejectedProposalIsRemovedAndNeverPersistedAsSkill() {
         val store = SkillProposalStore(context)
         val repository = CustomSkillRepository(context)
-        val proposal = store.create(sampleSkill("reject"), sampleManifest("reject"), ProposalSource.AIRI_GENERATED)
+        val suffix = "reject-${UUID.randomUUID()}"
+        val proposal = store.create(sampleSkill(suffix), sampleManifest(suffix), ProposalSource.AIRI_GENERATED)
 
         assertNotNull(store.get(proposal.id))
         assertTrue(store.pending().any { it.id == proposal.id })
@@ -37,7 +39,8 @@ class SkillProposalLifecycleInstrumentedTest {
         val store = SkillProposalStore(context)
         val repository = CustomSkillRepository(context)
         val registry = SkillRegistry(context)
-        val proposal = store.create(sampleSkill("accept"), sampleManifest("accept"), ProposalSource.AIRI_GENERATED)
+        val suffix = "accept-${UUID.randomUUID()}"
+        val proposal = store.create(sampleSkill(suffix), sampleManifest(suffix), ProposalSource.AIRI_GENERATED)
 
         assertNull(repository.getSkillById(proposal.skill.id))
         assertFalse(registry.isSkillEnabled(proposal.skill.id))

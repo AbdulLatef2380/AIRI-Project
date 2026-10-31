@@ -149,6 +149,73 @@ object ExecutionStatusBus {
         }
     }
 
+    /** Pause the owning execution until the user decides a durable side effect. */
+    fun onApprovalWaiting(
+        executionId: String,
+        actionId: String,
+        interruptId: String,
+        actionDescription: String,
+        expiresAtMs: Long? = null,
+    ) {
+        if (!belongsToActiveExecution(_status.value, executionId) || actionId.isBlank() || interruptId.isBlank()) return
+        _status.update { current ->
+            if (!belongsToActiveExecution(current, executionId)) current else current.copy(
+                isWorking = false,
+                currentAction = "Waiting for approval",
+                waitingForApproval = true,
+                approvalInterruptId = interruptId,
+                activeNodeAction = actionDescription.take(120),
+            )
+        }
+        appendTrace(
+            executionId = executionId,
+            kind = ExecutionTraceKind.WAITING_FOR_APPROVAL,
+            summary = "Approval required",
+            detail = buildString {
+                append(actionDescription.take(160))
+                expiresAtMs?.let { append("; expiresAtMs=$it") }
+            },
+            actionId = actionId,
+            machineTag = "approval_waiting",
+        )
+    }
+
+    /** Resume only the execution that owns the exact approval interrupt. */
+    fun onApprovalResumed(executionId: String, interruptId: String) {
+        _status.update { current ->
+            if (!belongsToActiveExecution(current, executionId) || current.approvalInterruptId != interruptId) current else current.copy(
+                isWorking = true,
+                currentAction = "Resuming approved action",
+                waitingForApproval = false,
+                approvalInterruptId = "",
+            )
+        }
+    }
+
+    /** Close a pending approval as a user rejection/cancellation. */
+    fun onApprovalCancelled(executionId: String, actionId: String, interruptId: String, reason: String) {
+        var accepted = false
+        _status.update { current ->
+            if (!belongsToActiveExecution(current, executionId) || current.approvalInterruptId != interruptId) current else {
+                accepted = true
+                current.copy(isWorking = false, executionStage = ExecutionStage.CANCELLED, currentAction = "Approval cancelled", waitingForApproval = false, approvalInterruptId = "")
+            }
+        }
+        if (accepted) appendTrace(executionId, ExecutionTraceKind.APPROVAL_CANCELLED, "Approval cancelled", reason.take(160), actionId = actionId, machineTag = "approval_cancelled")
+    }
+
+    /** Close a pending approval as a timeout; it is never reported as success. */
+    fun onApprovalTimedOut(executionId: String, actionId: String, interruptId: String, reason: String = "Approval expired") {
+        var accepted = false
+        _status.update { current ->
+            if (!belongsToActiveExecution(current, executionId) || current.approvalInterruptId != interruptId) current else {
+                accepted = true
+                current.copy(isWorking = false, executionStage = ExecutionStage.FAILED, currentAction = "Approval expired", waitingForApproval = false, approvalInterruptId = "")
+            }
+        }
+        if (accepted) appendTrace(executionId, ExecutionTraceKind.APPROVAL_TIMEOUT, "Approval expired", reason.take(160), actionId = actionId, errorCode = "approval_timeout", machineTag = "approval_timeout")
+    }
+
     /**
      * Adds a tool start event only when it belongs to the active execution and
      * has a fresh action identity. The dispatcher must pass the execution id it
@@ -243,11 +310,13 @@ object ExecutionStatusBus {
                 activeNodeId   = nodeId,
                 recoveryReason = reason.take(120),
                 retryCount     = retryCount,
+                waitingForApproval = false,
+                approvalInterruptId = "",
                 currentAction  = "Recovering: ${reason.take(60)}"
             )
         }
         if (belongsToActiveExecution(_status.value, executionId)) {
-            appendTrace(executionId, ExecutionTraceKind.RECOVERING, "Recovering step", reason)
+            appendTrace(executionId, ExecutionTraceKind.RECOVERING, "Recovering step", reason, actionId = nodeId, machineTag = "step_recovering")
         }
         safeLog { Log.i(TAG, "EXEC_STATUS_RECOVERING node=$nodeId attempt=$retryCount reasonChars=${reason.length}") }
     }
@@ -278,7 +347,9 @@ object ExecutionStatusBus {
                 executionStage = stage,
                 currentAction  = if (success) "Done" else "Execution failed",
                 activeNodeId   = "",
-                activeNodeAction = ""
+                activeNodeAction = "",
+                waitingForApproval = false,
+                approvalInterruptId = "",
             )
         }
         if (accepted) {
@@ -348,6 +419,8 @@ object ExecutionStatusBus {
                 activeNodeId = "",
                 activeNodeAction = "",
                 cancellationRequested = false,
+                waitingForApproval = false,
+                approvalInterruptId = "",
             )
         }
         if (accepted) {

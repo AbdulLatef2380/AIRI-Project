@@ -25,7 +25,9 @@ object GlobalAgentEventDispatcher {
 
     private fun wireExecutionStatusBus() {
         ExecutionStatusBus.status.onEach { state ->
-            val (msg, sev) = when (state.executionStage) {
+            val (msg, sev) = if (state.waitingForApproval) {
+                "Waiting for approval: ${state.activeNodeAction.take(60)}" to ActivitySeverity.WARN
+            } else when (state.executionStage) {
                 ExecutionStage.PLANNING    -> "Planning: ${state.activeGoalDescription.take(60).ifBlank { "task" }}" to ActivitySeverity.INFO
                 ExecutionStage.EXECUTING   -> "Executing: ${state.activeNodeAction.take(60).ifBlank { state.currentAction.take(60) }}" to ActivitySeverity.INFO
                 ExecutionStage.RECOVERING  -> "Recovering (attempt ${state.retryCount}): ${state.recoveryReason.take(60)}" to ActivitySeverity.WARN

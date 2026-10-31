@@ -2000,6 +2000,9 @@
     <string name="agent_trace_kind_tool_cancelled">Tool cancelled</string>
     <string name="agent_trace_kind_recovering">Recovering</string>
     <string name="agent_trace_kind_reflecting">Reviewing</string>
+    <string name="agent_trace_kind_waiting_for_approval">Waiting for approval</string>
+    <string name="agent_trace_kind_approval_cancelled">Approval cancelled</string>
+    <string name="agent_trace_kind_approval_timeout">Approval expired</string>
     <string name="agent_trace_kind_completed">Execution completed</string>
     <string name="agent_trace_live_planning_task">Planning task</string>
     <string name="agent_trace_kind_failed">Execution failed</string>

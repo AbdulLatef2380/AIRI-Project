@@ -247,6 +247,10 @@ data class AgentState(
     val executionStage:         ExecutionStage = ExecutionStage.IDLE,
     val recoveryReason:         String  = "",
     val retryCount:             Int     = 0,
+    /** True only while a durable side effect is paused for an explicit user decision. */
+    val waitingForApproval:      Boolean = false,
+    /** Stable approval/interrupt identity; never inferred from display text. */
+    val approvalInterruptId:     String  = "",
     /** True after the owner accepted a stop request and before terminal cancellation. */
     val cancellationRequested:  Boolean = false,
     // ── : Real confirmation gate ───────────────────────────────────────

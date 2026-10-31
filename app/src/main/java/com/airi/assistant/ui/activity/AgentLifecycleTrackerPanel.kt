@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.CircularProgressIndicator
@@ -78,6 +79,7 @@ fun AgentLifecycleTrackerPanel(
     var expandedEvents by rememberSaveable(executionId) { mutableStateOf<List<String>>(emptyList()) }
     val panelDescription = stringResource(R.string.agent_trace_panel_description)
     val lastEventKey = projection.events.lastOrNull()?.let { it.eventId to it.status }
+    val isWaiting = projection.events.lastOrNull()?.status == TaskStatus.WAITING
 
     LaunchedEffect(lastEventKey, expanded) {
         if (expanded && projection.groups.isNotEmpty() && listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 >= listState.layoutInfo.totalItemsCount - 2) {
@@ -103,6 +105,7 @@ fun AgentLifecycleTrackerPanel(
             expanded = expanded,
             onToggle = { expanded = !expanded },
             isWorking = isWorking,
+            isWaiting = isWaiting,
         )
         AnimatedVisibility(visible = expanded) {
             if (projection.taskTree.isNotEmpty() || projection.groups.isNotEmpty()) {
@@ -202,6 +205,7 @@ private fun ActivitySummaryRow(
     expanded: Boolean,
     onToggle: () -> Unit,
     isWorking: Boolean,
+    isWaiting: Boolean,
 ) {
     val items = buildList {
         summary.summary.filesRead.takeIf { it > 0 }?.let { add(stringResource(R.string.agent_trace_summary_files, it)) }
@@ -226,9 +230,17 @@ private fun ActivitySummaryRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = if (isWorking) Icons.Outlined.Build else Icons.Outlined.TaskAlt,
+            imageVector = when {
+                isWaiting -> Icons.Outlined.Schedule
+                isWorking -> Icons.Outlined.Build
+                else -> Icons.Outlined.TaskAlt
+            },
             contentDescription = null,
-            tint = if (isWorking) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+            tint = when {
+                isWaiting -> MaterialTheme.colorScheme.tertiary
+                isWorking -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+            },
             modifier = Modifier.size(16.dp),
         )
         Spacer(Modifier.width(8.dp))
@@ -236,7 +248,14 @@ private fun ActivitySummaryRow(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(1.dp),
         ) {
-            if (items.isEmpty()) {
+            if (isWaiting) {
+                Text(
+                    text = stringResource(R.string.agent_lifecycle_status_waiting),
+                    color = MaterialTheme.colorScheme.tertiary,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                )
+            } else if (items.isEmpty()) {
                 Text(
                     text = stringResource(R.string.agent_lifecycle_working),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),

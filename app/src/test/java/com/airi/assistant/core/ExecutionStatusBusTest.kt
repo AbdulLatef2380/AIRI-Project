@@ -90,4 +90,40 @@ class ExecutionStatusBusTest {
         assertEquals(1, ExecutionStatusBus.trace.value.count { it.kind == ExecutionTraceKind.CANCELLED })
         ExecutionStatusBus.reset()
     }
+
+    @Test
+    fun approvalWaitingIsKeyedAndResumesOnlyWithTheSameInterrupt() {
+        val executionId = "approval-wait-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Send report", 1, executionId)
+        ExecutionStatusBus.onApprovalWaiting(executionId, "tool-1", "approval-1", "Send report", 10_000L)
+
+        assertFalse(ExecutionStatusBus.status.value.isWorking)
+        assertTrue(ExecutionStatusBus.status.value.waitingForApproval)
+        assertEquals("approval-1", ExecutionStatusBus.status.value.approvalInterruptId)
+        assertEquals(ExecutionTraceKind.WAITING_FOR_APPROVAL, ExecutionStatusBus.trace.value.last().kind)
+
+        ExecutionStatusBus.onApprovalResumed(executionId, "wrong-approval")
+        assertTrue(ExecutionStatusBus.status.value.waitingForApproval)
+        ExecutionStatusBus.onApprovalResumed(executionId, "approval-1")
+        assertTrue(ExecutionStatusBus.status.value.isWorking)
+        assertFalse(ExecutionStatusBus.status.value.waitingForApproval)
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
+    fun approvalTimeoutIsTerminalAndRejectsLateCompletion() {
+        val executionId = "approval-timeout-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Publish", 1, executionId)
+        ExecutionStatusBus.onApprovalWaiting(executionId, "tool-1", "approval-1", "Publish")
+        ExecutionStatusBus.onApprovalTimedOut(executionId, "tool-1", "approval-1")
+
+        assertEquals(ExecutionStage.FAILED, ExecutionStatusBus.status.value.executionStage)
+        assertEquals(ExecutionTraceKind.APPROVAL_TIMEOUT, ExecutionStatusBus.trace.value.last().kind)
+        val traceAfterTimeout = ExecutionStatusBus.trace.value
+        ExecutionStatusBus.onGraphCompleted(success = true, executionId = executionId)
+        assertEquals(traceAfterTimeout, ExecutionStatusBus.trace.value)
+        ExecutionStatusBus.reset()
+    }
 }

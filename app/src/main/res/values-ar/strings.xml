@@ -1893,6 +1893,9 @@
     <string name="agent_trace_kind_tool_cancelled">أُلغيت الأداة</string>
     <string name="agent_trace_kind_recovering">جارٍ الاسترداد</string>
     <string name="agent_trace_kind_reflecting">جارٍ المراجعة</string>
+    <string name="agent_trace_kind_waiting_for_approval">بانتظار الموافقة</string>
+    <string name="agent_trace_kind_approval_cancelled">أُلغيت الموافقة</string>
+    <string name="agent_trace_kind_approval_timeout">انتهت مهلة الموافقة</string>
     <string name="agent_trace_kind_completed">اكتمل التنفيذ</string>
     <string name="agent_trace_live_planning_task">جارٍ التخطيط للمهمة</string>
     <string name="agent_trace_kind_failed">فشل التنفيذ</string>

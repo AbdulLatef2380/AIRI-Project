@@ -1630,6 +1630,9 @@
     <string name="agent_trace_kind_tool_cancelled">Herramienta cancelada</string>
     <string name="agent_trace_kind_recovering">Recuperando</string>
     <string name="agent_trace_kind_reflecting">Revisando</string>
+    <string name="agent_trace_kind_waiting_for_approval">Esperando aprobación</string>
+    <string name="agent_trace_kind_approval_cancelled">Aprobación cancelada</string>
+    <string name="agent_trace_kind_approval_timeout">Aprobación expirada</string>
     <string name="agent_trace_kind_completed">Ejecución completada</string>
     <string name="agent_trace_kind_failed">Ejecución fallida</string>
     <string name="agent_trace_kind_cancelled">Ejecución cancelada</string>

@@ -107,6 +107,8 @@ private fun ExecutionTraceKind.isTerminal(): Boolean = this in setOf(
     ExecutionTraceKind.COMPLETED,
     ExecutionTraceKind.FAILED,
     ExecutionTraceKind.CANCELLED,
+    ExecutionTraceKind.APPROVAL_CANCELLED,
+    ExecutionTraceKind.APPROVAL_TIMEOUT,
 )
 
 data class ExecutionTraceEvent(
@@ -143,6 +145,12 @@ enum class ExecutionTraceKind {
     TOOL_COMPLETED,
     TOOL_FAILED,
     TOOL_CANCELLED,
+    /** Execution is durably paused until the user decides a side effect. */
+    WAITING_FOR_APPROVAL,
+    /** The user rejected the pending side effect or its continuation. */
+    APPROVAL_CANCELLED,
+    /** The approval expired before a decision was received. */
+    APPROVAL_TIMEOUT,
     RECOVERING,
     REFLECTING,
     COMPLETED,

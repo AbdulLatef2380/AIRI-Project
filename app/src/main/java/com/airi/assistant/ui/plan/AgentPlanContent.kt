@@ -354,6 +354,9 @@ private fun traceKindLabel(kind: ExecutionTraceKind): String = stringResource(wh
     ExecutionTraceKind.TOOL_COMPLETED -> R.string.agent_trace_kind_tool_completed
     ExecutionTraceKind.TOOL_FAILED -> R.string.agent_trace_kind_tool_failed
     ExecutionTraceKind.TOOL_CANCELLED -> R.string.agent_trace_kind_tool_cancelled
+    ExecutionTraceKind.WAITING_FOR_APPROVAL -> R.string.agent_trace_kind_waiting_for_approval
+    ExecutionTraceKind.APPROVAL_CANCELLED -> R.string.agent_trace_kind_approval_cancelled
+    ExecutionTraceKind.APPROVAL_TIMEOUT -> R.string.agent_trace_kind_approval_timeout
     ExecutionTraceKind.RECOVERING -> R.string.agent_trace_kind_recovering
     ExecutionTraceKind.REFLECTING -> R.string.agent_trace_kind_reflecting
     ExecutionTraceKind.COMPLETED -> R.string.agent_trace_kind_completed
@@ -363,17 +366,19 @@ private fun traceKindLabel(kind: ExecutionTraceKind): String = stringResource(wh
 
 @Composable
 private fun traceKindColor(kind: ExecutionTraceKind): Color = when (kind) {
-    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED -> SemanticError
-    ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED -> AiriTheme.onSurface.copy(alpha = 0.5f)
+    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED, ExecutionTraceKind.APPROVAL_TIMEOUT -> SemanticError
+    ExecutionTraceKind.WAITING_FOR_APPROVAL -> SemanticWarn
+    ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED, ExecutionTraceKind.APPROVAL_CANCELLED -> AiriTheme.onSurface.copy(alpha = 0.5f)
     ExecutionTraceKind.RECOVERING -> SemanticWarn
     ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.COMPLETED -> SemanticSuccess
     else -> CosmicAccent
 }
 
 private fun traceKindIcon(kind: ExecutionTraceKind) = when (kind) {
-    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED -> Icons.Outlined.ErrorOutline
+    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED, ExecutionTraceKind.APPROVAL_TIMEOUT -> Icons.Outlined.ErrorOutline
+    ExecutionTraceKind.WAITING_FOR_APPROVAL -> Icons.Outlined.Schedule
     ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.COMPLETED -> Icons.Outlined.Check
-    ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED -> Icons.Outlined.Close
+    ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED, ExecutionTraceKind.APPROVAL_CANCELLED -> Icons.Outlined.Close
     else -> Icons.Outlined.PlayArrow
 }
 

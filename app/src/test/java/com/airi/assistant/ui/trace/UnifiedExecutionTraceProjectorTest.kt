@@ -600,6 +600,36 @@ class UnifiedExecutionTraceProjectorTest {
         executionCompletedLabel = "Execution completed",
     )
 
+    @Test
+    fun `approval interrupt projects as waiting and timeout as failed`() {
+        val completedAfterApproval = project(
+            "run-approval",
+            listOf(
+                trace("run-approval", 1, 1_000, ExecutionTraceKind.TOOL_STARTED, "Tool started", "tool-1"),
+                trace("run-approval", 2, 1_001, ExecutionTraceKind.WAITING_FOR_APPROVAL, "Approval required", "tool-1"),
+                trace("run-approval", 3, 1_002, ExecutionTraceKind.TOOL_COMPLETED, "Tool completed", "tool-1"),
+            ),
+            emptyList(),
+        )
+        assertEquals(1, completedAfterApproval.size)
+        assertEquals(TaskStatus.COMPLETED, completedAfterApproval.single().status)
+
+        val waiting = project(
+            "run-approval",
+            listOf(trace("run-approval", 1, 1_000, ExecutionTraceKind.WAITING_FOR_APPROVAL, "Approval required", "tool-1")),
+            emptyList(),
+        )
+        assertEquals(TaskStatus.WAITING, waiting.single().status)
+        assertEquals(UnifiedTraceCategory.TASK, waiting.single().category)
+
+        val timedOut = project(
+            "run-approval",
+            listOf(trace("run-approval", 1, 1_000, ExecutionTraceKind.APPROVAL_TIMEOUT, "Approval expired", "tool-1", errorCode = "approval_timeout")),
+            emptyList(),
+        )
+        assertEquals(TaskStatus.FAILED, timedOut.single().status)
+    }
+
     private fun trace(
         executionId: String,
         sequence: Long,

@@ -1642,6 +1642,9 @@
     <string name="agent_trace_kind_tool_cancelled">工具已取消</string>
     <string name="agent_trace_kind_recovering">正在恢复</string>
     <string name="agent_trace_kind_reflecting">正在复核</string>
+    <string name="agent_trace_kind_waiting_for_approval">等待批准</string>
+    <string name="agent_trace_kind_approval_cancelled">批准已取消</string>
+    <string name="agent_trace_kind_approval_timeout">批准已过期</string>
     <string name="agent_trace_kind_completed">执行已完成</string>
     <string name="agent_trace_kind_failed">执行失败</string>
     <string name="agent_trace_kind_cancelled">执行已取消</string>

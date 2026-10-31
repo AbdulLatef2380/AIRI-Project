@@ -29,6 +29,7 @@ object ExecutionTracePresentation {
                 ExecutionTraceKind.TOOL_STARTED,
                 ExecutionTraceKind.RECOVERING,
                 ExecutionTraceKind.REFLECTING,
+                ExecutionTraceKind.WAITING_FOR_APPROVAL,
             )
         }
 
@@ -38,8 +39,8 @@ object ExecutionTracePresentation {
     ): ExecutionTraceSummaryStatus {
         if (isWorking) return ExecutionTraceSummaryStatus.RUNNING
         return when (events.lastOrNull()?.kind) {
-            ExecutionTraceKind.FAILED, ExecutionTraceKind.TOOL_FAILED -> ExecutionTraceSummaryStatus.FAILED
-            ExecutionTraceKind.CANCELLED, ExecutionTraceKind.TOOL_CANCELLED -> ExecutionTraceSummaryStatus.CANCELLED
+            ExecutionTraceKind.FAILED, ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.APPROVAL_TIMEOUT -> ExecutionTraceSummaryStatus.FAILED
+            ExecutionTraceKind.CANCELLED, ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.APPROVAL_CANCELLED -> ExecutionTraceSummaryStatus.CANCELLED
             else -> ExecutionTraceSummaryStatus.COMPLETED
         }
     }
@@ -73,6 +74,7 @@ object ExecutionTracePresentation {
             ExecutionTraceKind.STEP_STARTED,
             ExecutionTraceKind.STEP_COMPLETED,
             ExecutionTraceKind.RECOVERING,
+            ExecutionTraceKind.WAITING_FOR_APPROVAL,
         )
         ExecutionTraceFilter.TOOLS -> kind in setOf(
             ExecutionTraceKind.TOOL_STARTED,
@@ -86,6 +88,8 @@ object ExecutionTracePresentation {
             ExecutionTraceKind.TOOL_CANCELLED,
             ExecutionTraceKind.FAILED,
             ExecutionTraceKind.CANCELLED,
+            ExecutionTraceKind.APPROVAL_CANCELLED,
+            ExecutionTraceKind.APPROVAL_TIMEOUT,
         )
     }
 }

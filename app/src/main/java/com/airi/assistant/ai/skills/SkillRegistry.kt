@@ -92,8 +92,13 @@ class SkillRegistry(private val context: Context) {
         }
     }
 
-    fun isSkillEnabled(skillName: String): Boolean =
-        disabledSkillsPrefs.getBoolean(skillName, true)
+    fun isSkillEnabled(skillName: String): Boolean {
+        // Official skills are enabled by default; an unknown/custom ID must
+        // remain disabled until explicit registration enables it. This keeps
+        // an unaccepted proposal out of the runtime surface.
+        val enabledByDefault = OfficialSkillLibrary.ALL.any { it.manifest.id == skillName }
+        return disabledSkillsPrefs.getBoolean(skillName, enabledByDefault)
+    }
 
     fun setSkillEnabled(skillName: String, enabled: Boolean) {
         disabledSkillsPrefs.edit().putBoolean(skillName, enabled).apply()

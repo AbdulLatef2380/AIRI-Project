@@ -376,7 +376,7 @@ private fun traceKindColor(kind: ExecutionTraceKind): Color = when (kind) {
 
 private fun traceKindIcon(kind: ExecutionTraceKind) = when (kind) {
     ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED, ExecutionTraceKind.APPROVAL_TIMEOUT -> Icons.Outlined.ErrorOutline
-    ExecutionTraceKind.WAITING_FOR_APPROVAL -> Icons.Outlined.Schedule
+    ExecutionTraceKind.WAITING_FOR_APPROVAL -> Icons.Outlined.HourglassEmpty
     ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.COMPLETED -> Icons.Outlined.Check
     ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED, ExecutionTraceKind.APPROVAL_CANCELLED -> Icons.Outlined.Close
     else -> Icons.Outlined.PlayArrow

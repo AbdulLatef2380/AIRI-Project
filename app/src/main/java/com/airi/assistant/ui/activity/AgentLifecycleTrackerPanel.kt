@@ -28,7 +28,7 @@ import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.CircularProgressIndicator
@@ -231,7 +231,7 @@ private fun ActivitySummaryRow(
     ) {
         Icon(
             imageVector = when {
-                isWaiting -> Icons.Outlined.Schedule
+                isWaiting -> Icons.Outlined.HourglassEmpty
                 isWorking -> Icons.Outlined.Build
                 else -> Icons.Outlined.TaskAlt
             },

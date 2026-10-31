@@ -28,11 +28,17 @@ class ContentPlatformActionsInstrumentedTest {
             actions = setOf(ContentUnitAction.COPY),
         )
 
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
         val clipReference = AtomicReference<ClipData?>()
-        InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            ContentPlatformActions.copyPlainText(context, "AIRI", target.copyPayload)
-            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipReference.set(clipboard.primaryClip)
+        instrumentation.uiAutomation.adoptShellPermissionIdentity()
+        try {
+            instrumentation.runOnMainSync {
+                ContentPlatformActions.copyPlainText(context, "AIRI", target.copyPayload)
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipReference.set(clipboard.primaryClip)
+            }
+        } finally {
+            instrumentation.uiAutomation.dropShellPermissionIdentity()
         }
 
         val clip = requireNotNull(clipReference.get())

@@ -39,6 +39,8 @@ internal object AgentLoopSideEffectPolicy {
         "calendar_create" -> "Calendar creation requires a task-owned approval session before it can run."
         "create_note" -> "Creating a note requires a task-owned approval session before it can run."
         "set_alarm" -> "Setting an alarm requires a task-owned approval session before it can run."
+        "open_app" -> "Opening an app requires a task-owned approval session before it can run."
+        "type_text" -> "Typing text into another app requires a task-owned approval session before it can run."
         "flashlight" -> "Torch control requires a task-owned approval session before it can run."
         "terminal_execute" -> "Terminal execution requires a task-owned approval session before it can run."
         else -> "This device action requires a task-owned approval session before it can run."

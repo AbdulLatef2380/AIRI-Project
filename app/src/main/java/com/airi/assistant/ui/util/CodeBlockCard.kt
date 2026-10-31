@@ -119,13 +119,15 @@ fun CodeBlockCard(
                         }
                     }
                 }
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-                    Text(
-                        text = highlightedCode,
-                        style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp, color = CodeSyntaxHighlighter.defaultColor, textDirection = TextDirection.Ltr),
-                        softWrap = false,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
-                    )
+                if (!expanded) {
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                        Text(
+                            text = highlightedCode,
+                            style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp, color = CodeSyntaxHighlighter.defaultColor, textDirection = TextDirection.Ltr),
+                            softWrap = false,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+                        )
+                    }
                 }
             }
         }

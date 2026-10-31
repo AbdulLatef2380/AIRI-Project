@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.text
 
+import android.content.ClipData
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
@@ -11,6 +12,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(AndroidJUnit4::class)
 class ContentPlatformActionsInstrumentedTest {
@@ -26,10 +28,14 @@ class ContentPlatformActionsInstrumentedTest {
             actions = setOf(ContentUnitAction.COPY),
         )
 
-        ContentPlatformActions.copyPlainText(context, "AIRI", target.copyPayload)
+        val clipReference = AtomicReference<ClipData?>()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            ContentPlatformActions.copyPlainText(context, "AIRI", target.copyPayload)
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipReference.set(clipboard.primaryClip)
+        }
 
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = requireNotNull(clipboard.primaryClip)
+        val clip = requireNotNull(clipReference.get())
         assertEquals(1, clip.itemCount)
         assertEquals("Name\tState\nAIRI\tReady", clip.getItemAt(0).coerceToText(context).toString())
     }

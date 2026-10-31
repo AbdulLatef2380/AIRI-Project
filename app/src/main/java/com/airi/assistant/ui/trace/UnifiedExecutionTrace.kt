@@ -6,7 +6,10 @@ import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.security.CommandRedactor
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.ActivityEvent
+import com.airi.assistant.ui.activity.ActivityPhase
 import com.airi.assistant.ui.activity.ActivitySeverity
+import com.airi.assistant.ui.activity.ActivityStatus
+import com.airi.assistant.ui.activity.ActivityVisibility
 import com.airi.assistant.ui.activity.TaskStatus
 import com.airi.assistant.ui.activity.sanitizeActivityEventForDisplay
 
@@ -26,6 +29,8 @@ data class UnifiedExecutionTraceEvent(
     val detailLog: String?,
     val category: UnifiedTraceCategory = UnifiedTraceCategory.SYSTEM,
     val machineTag: String? = null,
+    val phase: ActivityPhase = ActivityPhase.SYSTEM,
+    val parentId: String? = null,
 )
 
 /** Immutable execution tree node with a parent event and ordered child steps. */
@@ -106,6 +111,7 @@ internal object UnifiedExecutionTraceProjector {
         activityEvents
             .asSequence()
             .filter { it.executionId == executionId }
+            .filter { it.metadata.visibility != ActivityVisibility.INTERNAL }
             .filterNot { it.machineTag?.startsWith("execution_lifecycle_compat") == true }
             .filterNot { it.machineTag?.startsWith("tool_dispatch_compat") == true && owned.any { trace -> trace.actionId != null } }
             .map(::sanitizeActivityEventForDisplay)
@@ -204,6 +210,7 @@ internal object UnifiedExecutionTraceProjector {
                     detailLog = details?.let(::safeTraceText),
                     category = if (key.family == ActionFamily.STEP) UnifiedTraceCategory.TASK else categoryFor(title, first.kind),
                     machineTag = if (key.family == ActionFamily.STEP) "agent_step" else source.machineTag,
+                    phase = phaseForStructured(source.kind),
                 ),
                 dedupeKey = "action:${key.family.name.lowercase()}:${key.actionId}",
                 sourcePriority = 0,
@@ -258,6 +265,7 @@ internal object UnifiedExecutionTraceProjector {
             }.joinToString("\n").takeIf(String::isNotBlank),
             category = categoryFor(summary, kind),
             machineTag = machineTag,
+            phase = phaseForStructured(kind),
         ),
         dedupeKey = lifecycleDedupeKey(kind, summary),
         sourcePriority = 0,
@@ -274,22 +282,58 @@ internal object UnifiedExecutionTraceProjector {
             event = UnifiedExecutionTraceEvent(
                 executionId = executionId.orEmpty(),
                 eventId = id,
-                actionId = if (category == UnifiedTraceCategory.TOOL || category == UnifiedTraceCategory.CONNECTOR) "activity:$id" else null,
+                actionId = metadata.actionId
+                    ?: if (category == UnifiedTraceCategory.TOOL || category == UnifiedTraceCategory.CONNECTOR) "activity:$id" else null,
                 sequence = sequence,
                 timestampMs = timestampMs,
                 title = title,
-                status = when (severity) {
-                    ActivitySeverity.INFO -> if (machineTag?.contains("start", true) == true) TaskStatus.RUNNING else TaskStatus.COMPLETED
+                status = metadata.status.toTaskStatusOrNull() ?: when (severity) {
+                    // INFO has no terminal meaning. A terminal state must be
+                    // supplied explicitly by the producer or typed metadata.
+                    ActivitySeverity.INFO -> TaskStatus.RUNNING
                     ActivitySeverity.WARN -> TaskStatus.RUNNING
                     ActivitySeverity.ERROR -> TaskStatus.FAILED
                 },
                 detailLog = detail?.takeIf(String::isNotBlank),
                 category = category,
                 machineTag = machineTag,
+                phase = metadata.phase,
+                parentId = metadata.parentId,
             ),
-            dedupeKey = lifecycleDedupeKey(null, message),
+            dedupeKey = when {
+                metadata.actionId != null -> "activity-action:${metadata.actionId}:${metadata.phase.name}"
+                metadata.phase == ActivityPhase.LIFECYCLE && metadata.status != null ->
+                    "lifecycle:${metadata.status.name.lowercase()}"
+                else -> "activity-event:$id"
+            },
             sourcePriority = 1,
         )
+    }
+
+    private fun ActivityStatus?.toTaskStatusOrNull(): TaskStatus? = when (this) {
+        ActivityStatus.PENDING -> TaskStatus.PENDING
+        ActivityStatus.RUNNING -> TaskStatus.RUNNING
+        ActivityStatus.WAITING -> TaskStatus.WAITING
+        ActivityStatus.COMPLETED -> TaskStatus.COMPLETED
+        ActivityStatus.FAILED -> TaskStatus.FAILED
+        ActivityStatus.CANCELLED -> TaskStatus.CANCELLED
+        ActivityStatus.RECOVERING -> TaskStatus.RUNNING
+        null -> null
+    }
+
+    private fun phaseForStructured(kind: ExecutionTraceKind): ActivityPhase = when (kind) {
+        ExecutionTraceKind.PLANNING -> ActivityPhase.ADMISSION
+        ExecutionTraceKind.STEP_STARTED,
+        ExecutionTraceKind.STEP_COMPLETED,
+        ExecutionTraceKind.TOOL_STARTED,
+        ExecutionTraceKind.TOOL_COMPLETED,
+        ExecutionTraceKind.TOOL_FAILED,
+        ExecutionTraceKind.TOOL_CANCELLED,
+        ExecutionTraceKind.RECOVERING,
+        ExecutionTraceKind.REFLECTING -> ActivityPhase.ACTION
+        ExecutionTraceKind.COMPLETED,
+        ExecutionTraceKind.FAILED,
+        ExecutionTraceKind.CANCELLED -> ActivityPhase.LIFECYCLE
     }
 
     private fun summarize(events: List<UnifiedExecutionTraceEvent>): UnifiedExecutionTraceSummary {

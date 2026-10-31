@@ -7,89 +7,69 @@ import com.airi.assistant.core.UniversalTraceEventType
 internal object RuntimeTraceActivityMapper {
     fun map(event: UniversalRuntimeTraceEvent): ActivityEvent? {
         val presentation = when (event.eventType) {
-            UniversalTraceEventType.REQUEST_RECEIVED -> Presentation(
-                category = ActivityCategory.ORCHESTRATION,
-                tag = "runtime_request_received",
-                detail = details(event, "inputLength", "intent"),
-            )
+            // Admission evidence is diagnostic-only. It must not become a row
+            // in the user's activity feed or a fake task in the projection.
+            UniversalTraceEventType.REQUEST_RECEIVED,
+            UniversalTraceEventType.CAPABILITY_SNAPSHOT_RESOLVED,
+            UniversalTraceEventType.CAPABILITY_FILTERED,
+            UniversalTraceEventType.CAPABILITY_STAGE_RECORDED,
+            UniversalTraceEventType.TOOLS_EXPOSED,
+            UniversalTraceEventType.INTENT_STAGE_RECORDED,
+            UniversalTraceEventType.EXECUTION_PATH_RESOLVED,
+            UniversalTraceEventType.TOOL_PARSE_COMPLETED,
+            UniversalTraceEventType.MODEL_REQUEST_BUILT,
+            UniversalTraceEventType.UI_PROJECTION_COMPLETED -> null
+
             UniversalTraceEventType.MODEL_CONTEXT_RESOLVED -> Presentation(
                 category = ActivityCategory.MODEL,
                 tag = "runtime_model_context_resolved",
                 detail = details(event, "provider", "model", "executionMode"),
+                metadata = ActivityMetadata(
+                    phase = ActivityPhase.MODEL,
+                    status = ActivityStatus.COMPLETED,
+                ),
             )
-            UniversalTraceEventType.CAPABILITY_FILTERED -> Presentation(
-                category = ActivityCategory.ROUTING,
-                tag = "runtime_capability_filtered",
-                detail = event.attributes.entries
-                    .filter { it.key.startsWith("outcome.") }
-                    .take(6)
-                    .joinToString("; ") { (key, value) -> "$key=$value" }
-                    .ifBlank { null },
-            )
-            UniversalTraceEventType.TOOLS_EXPOSED -> Presentation(
-                category = ActivityCategory.ROUTING,
-                tag = "runtime_tools_exposed",
-                detail = buildString {
-                    append("count=").append(event.toolNames.size)
-                    event.toolNames.take(6).takeIf { it.isNotEmpty() }?.let {
-                        append("; tools=").append(it.joinToString(", "))
-                    }
-                },
-            )
+
             UniversalTraceEventType.MODEL_RESPONSE_RECEIVED -> Presentation(
                 category = ActivityCategory.MODEL,
                 tag = "runtime_model_response_received",
-                detail = details(
-                    event,
-                    "length",
-                    "containsToolCallCandidate",
-                    "parserInputClassification",
+                detail = details(event, "length", "containsToolCallCandidate", "parserInputClassification"),
+                metadata = ActivityMetadata(
+                    phase = ActivityPhase.MODEL,
+                    status = ActivityStatus.COMPLETED,
                 ),
             )
+
             UniversalTraceEventType.TOOL_SELECTED -> if (event.outcome == "rejected") {
                 Presentation(
                     category = ActivityCategory.TOOL,
                     tag = "runtime_tool_rejected",
                     detail = details(event, "schemaValidation"),
+                    metadata = actionMetadata(event, ActivityStatus.FAILED),
                 )
             } else null
-            UniversalTraceEventType.EXECUTION_PATH_RESOLVED -> Presentation(
-                category = ActivityCategory.ROUTING,
-                tag = "runtime_execution_path_resolved",
-                detail = details(event, "expectedPath", "actualPath")
-                    ?.plus("; classification=${event.outcome}"),
-            )
+
             UniversalTraceEventType.CONNECTOR_EXECUTION_COMPLETED -> if (event.outcome == "failure") {
                 Presentation(
                     category = ActivityCategory.CONNECTOR,
                     tag = "runtime_connector_failed",
                     severity = ActivitySeverity.ERROR,
                     detail = details(event, "durationMs", "errorCategory"),
+                    metadata = actionMetadata(event, ActivityStatus.FAILED),
                 )
             } else null
+
             UniversalTraceEventType.RESULT_RETURNED -> Presentation(
                 category = ActivityCategory.ORCHESTRATION,
                 tag = "runtime_result_returned",
                 detail = event.toolNames.take(3).takeIf { it.isNotEmpty() }
                     ?.joinToString(prefix = "tools=", separator = ", "),
+                metadata = actionMetadata(event, ActivityStatus.COMPLETED),
             )
-            UniversalTraceEventType.MODEL_CONTINUATION_COMPLETED -> Presentation(
-                category = ActivityCategory.MODEL,
-                tag = "runtime_model_continuation_completed",
-                detail = details(event, "terminalState")
-                    ?.plus("; outcome=${event.outcome}"),
-            )
-            UniversalTraceEventType.INTENT_STAGE_RECORDED -> {
-                val stage = event.attributes["stage"]
-                if (stage in VISIBLE_INTENT_STAGES) {
-                    Presentation(
-                        category = ActivityCategory.ROUTING,
-                        tag = "runtime_intent_stage",
-                        detail = listOfNotNull(stage?.let { "stage=$it" }, "outcome=${event.outcome}")
-                            .joinToString("; "),
-                    )
-                } else null
-            }
+
+            // Continuation and parser milestones are internal implementation
+            // details; the user sees the resulting action or final response.
+            UniversalTraceEventType.MODEL_CONTINUATION_COMPLETED -> null
             else -> null
         } ?: return null
 
@@ -102,8 +82,19 @@ internal object RuntimeTraceActivityMapper {
             category = presentation.category,
             severity = presentation.severity,
             machineTag = presentation.tag,
+            metadata = presentation.metadata,
         )
     }
+
+    private fun actionMetadata(
+        event: UniversalRuntimeTraceEvent,
+        status: ActivityStatus,
+    ): ActivityMetadata = ActivityMetadata(
+        phase = if (status == ActivityStatus.COMPLETED) ActivityPhase.RESULT else ActivityPhase.ACTION,
+        status = status,
+        parentId = event.attributes["parentId"],
+        actionId = event.attributes["actionId"] ?: event.toolNames.firstOrNull(),
+    )
 
     private fun details(event: UniversalRuntimeTraceEvent, vararg keys: String): String? =
         keys.mapNotNull { key ->
@@ -117,11 +108,6 @@ internal object RuntimeTraceActivityMapper {
         val tag: String,
         val severity: ActivitySeverity = ActivitySeverity.INFO,
         val detail: String? = null,
-    )
-
-    private val VISIBLE_INTENT_STAGES = setOf(
-        "INTENT_RESOLVED",
-        "CAPABILITY_REQUESTED",
-        "CATALOG_ASSEMBLED",
+        val metadata: ActivityMetadata = ActivityMetadata(),
     )
 }

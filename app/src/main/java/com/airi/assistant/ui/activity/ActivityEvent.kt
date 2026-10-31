@@ -2,6 +2,40 @@ package com.airi.assistant.ui.activity
 
 import java.util.UUID
 
+enum class ActivityPhase {
+    ADMISSION,
+    UNDERSTANDING,
+    MODEL,
+    ACTION,
+    RESULT,
+    LIFECYCLE,
+    SYSTEM,
+}
+
+enum class ActivityVisibility {
+    USER_VISIBLE,
+    INTERNAL,
+}
+
+enum class ActivityStatus {
+    PENDING,
+    RUNNING,
+    WAITING,
+    COMPLETED,
+    FAILED,
+    CANCELLED,
+    RECOVERING,
+}
+
+/** Typed presentation metadata; UI policy must not infer lifecycle from prose. */
+data class ActivityMetadata(
+    val phase: ActivityPhase = ActivityPhase.SYSTEM,
+    val visibility: ActivityVisibility = ActivityVisibility.USER_VISIBLE,
+    val status: ActivityStatus? = null,
+    val parentId: String? = null,
+    val actionId: String? = null,
+)
+
 data class ActivityEvent(
     val id: String = UUID.randomUUID().toString(),
     val timestampMs: Long = System.currentTimeMillis(),
@@ -15,6 +49,7 @@ data class ActivityEvent(
     val machineTag: String? = null,
     /** Monotonic bus-assigned ordering for events sharing a millisecond timestamp. */
     val sequenceNumber: Long? = null,
+    val metadata: ActivityMetadata = ActivityMetadata(),
 ) {
     companion object {
         const val MACHINE_TAG_NATIVE_CONTEXT_RESET = "native_context_reset"

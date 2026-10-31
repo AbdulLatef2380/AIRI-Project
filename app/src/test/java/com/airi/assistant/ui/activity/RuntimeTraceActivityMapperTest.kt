@@ -5,6 +5,7 @@ import com.airi.assistant.core.UniversalTraceEventType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RuntimeTraceActivityMapperTest {
@@ -31,5 +32,36 @@ class RuntimeTraceActivityMapperTest {
         assertEquals("runtime_model_context_resolved", activity?.machineTag)
         assertFalse(activity?.message.orEmpty().contains("private prompt"))
         assertFalse(activity?.detail.orEmpty().contains("private prompt"))
+        assertEquals(ActivityPhase.MODEL, activity?.metadata?.phase)
+        assertEquals(ActivityStatus.COMPLETED, activity?.metadata?.status)
+        assertEquals(ActivityVisibility.USER_VISIBLE, activity?.metadata?.visibility)
+    }
+
+    @Test
+    fun admissionEventsNeverBecomeUserActivityRows() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        recorder.begin(
+            executionId = "runtime-run-2",
+            sessionId = "session-2",
+            modelId = "model-2",
+            providerId = "provider-2",
+            executionMode = "local",
+            input = "safe input",
+            tools = emptyList(),
+        )
+
+        val events = recorder.eventsFor("runtime-run-2")
+        assertTrue(events.any { it.eventType == UniversalTraceEventType.CAPABILITY_FILTERED })
+        assertTrue(events.any { it.eventType == UniversalTraceEventType.TOOLS_EXPOSED })
+        assertTrue(events.any { it.eventType == UniversalTraceEventType.REQUEST_RECEIVED })
+        events.filter {
+            it.eventType in setOf(
+                UniversalTraceEventType.REQUEST_RECEIVED,
+                UniversalTraceEventType.CAPABILITY_FILTERED,
+                UniversalTraceEventType.TOOLS_EXPOSED,
+            )
+        }.forEach { event ->
+            assertEquals(null, RuntimeTraceActivityMapper.map(event))
+        }
     }
 }

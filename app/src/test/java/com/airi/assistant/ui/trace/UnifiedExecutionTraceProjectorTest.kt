@@ -4,7 +4,11 @@ import com.airi.assistant.core.ExecutionTraceEvent
 import com.airi.assistant.core.ExecutionTraceKind
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.ActivityEvent
+import com.airi.assistant.ui.activity.ActivityMetadata
+import com.airi.assistant.ui.activity.ActivityPhase
 import com.airi.assistant.ui.activity.ActivitySeverity
+import com.airi.assistant.ui.activity.ActivityStatus
+import com.airi.assistant.ui.activity.ActivityVisibility
 import com.airi.assistant.ui.activity.TaskStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -89,6 +93,54 @@ class UnifiedExecutionTraceProjectorTest {
     }
 
     @Test
+    fun `internal admission activity is excluded even with a valid execution id`() {
+        val internal = ActivityEvent(
+            id = "internal-admission",
+            message = "runtime_capability_filtered",
+            executionId = "run-1",
+            category = ActivityCategory.ROUTING,
+            metadata = ActivityMetadata(
+                phase = ActivityPhase.ADMISSION,
+                visibility = ActivityVisibility.INTERNAL,
+            ),
+        )
+        val result = project("run-1", emptyList(), listOf(internal))
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `info activity remains running unless terminal status is explicit`() {
+        val activity = ActivityEvent(
+            id = "info-milestone",
+            message = "runtime_model_context_resolved",
+            executionId = "run-1",
+            category = ActivityCategory.MODEL,
+            severity = ActivitySeverity.INFO,
+        )
+        val result = project("run-1", emptyList(), listOf(activity))
+        assertEquals(TaskStatus.RUNNING, result.single().status)
+    }
+
+    @Test
+    fun `typed completed activity uses explicit terminal status`() {
+        val activity = ActivityEvent(
+            id = "typed-complete",
+            message = "runtime_result_returned",
+            executionId = "run-1",
+            category = ActivityCategory.ORCHESTRATION,
+            severity = ActivitySeverity.INFO,
+            metadata = ActivityMetadata(
+                phase = ActivityPhase.RESULT,
+                status = ActivityStatus.COMPLETED,
+                actionId = "action-1",
+            ),
+        )
+        val result = project("run-1", emptyList(), listOf(activity))
+        assertEquals(TaskStatus.COMPLETED, result.single().status)
+        assertEquals("action-1", result.single().actionId)
+    }
+
+    @Test
     fun `failed structured event is displayed as failed`() {
         val failed = trace(
             executionId = "run-1",
@@ -134,6 +186,10 @@ class UnifiedExecutionTraceProjectorTest {
             executionId = "run-1",
             category = ActivityCategory.ORCHESTRATION,
             machineTag = "execution_lifecycle_compat",
+            metadata = ActivityMetadata(
+                phase = ActivityPhase.LIFECYCLE,
+                status = ActivityStatus.COMPLETED,
+            ),
         )
         val result = UnifiedExecutionTraceProjector.project(
             executionId = "run-1",

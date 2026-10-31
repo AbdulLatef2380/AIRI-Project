@@ -37,7 +37,7 @@ fun InlineExecutionTrace(
             executionCompletedLabel = executionCompletedLabel,
         )
     }
-    if (!isWorking && projection.events.isEmpty()) return
+    if (!isWorking && (!projection.admitted || projection.events.isEmpty())) return
 
     AgentLifecycleTrackerPanel(
         projection = projection,

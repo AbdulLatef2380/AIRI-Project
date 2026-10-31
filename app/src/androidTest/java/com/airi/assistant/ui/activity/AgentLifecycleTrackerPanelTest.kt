@@ -31,6 +31,7 @@ import com.airi.assistant.ui.trace.UnifiedExecutionTraceEvent
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceGroup
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceProjection
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceSummary
+import com.airi.assistant.ui.trace.UnifiedExecutionTraceTaskNode
 import com.airi.assistant.ui.trace.UnifiedTraceCategory
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -67,6 +68,25 @@ class AgentLifecycleTrackerPanelTest {
         assertTrue(composeRule.onAllNodesWithTag("agent-trace-list").fetchSemanticsNodes().isEmpty())
         composeRule.onNodeWithTag("agent-trace-summary").performClick()
         composeRule.onNodeWithTag("agent-trace-list").assertIsDisplayed()
+    }
+
+    @Test
+    fun rendersRealStepWithChildToolInsteadOfPlanAndTaskGroups() {
+        composeRule.setContent {
+            MaterialTheme {
+                AgentLifecycleTrackerPanel(
+                    projection = treeProjection(),
+                    isWorking = false,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        assertTrue(composeRule.onAllNodesWithContentDescription("Tasks · 1. Expand group").fetchSemanticsNodes().isEmpty())
+        composeRule.onNodeWithTag("agent-trace-summary").performClick()
+        composeRule.onNodeWithText("Read the inbox").assertIsDisplayed()
+        composeRule.onNodeWithText("Tool action").assertIsDisplayed()
+        composeRule.onNodeWithText("gmail_read", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -369,6 +389,18 @@ class AgentLifecycleTrackerPanelTest {
                 ),
             ),
             summary = UnifiedExecutionTraceSummary(toolsUsed = 1),
+        )
+    }
+
+    private fun treeProjection(): UnifiedExecutionTraceProjection {
+        val step = event("tree-step", UnifiedTraceCategory.TASK, TaskStatus.COMPLETED, "Read the inbox")
+        val tool = event("tree-tool", UnifiedTraceCategory.TOOL, TaskStatus.COMPLETED, "gmail_read")
+        return UnifiedExecutionTraceProjection(
+            events = listOf(step, tool),
+            groups = emptyList(),
+            summary = UnifiedExecutionTraceSummary(tasks = 1, toolsUsed = 1),
+            taskTree = listOf(UnifiedExecutionTraceTaskNode(step, listOf(UnifiedExecutionTraceTaskNode(tool)))),
+            admitted = true,
         )
     }
 

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -58,6 +59,7 @@ import com.airi.assistant.R
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceGroup
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceEvent
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceProjection
+import com.airi.assistant.ui.trace.UnifiedExecutionTraceTaskNode
 import com.airi.assistant.ui.trace.UnifiedTraceCategory
 
 /** Compact, borderless activity surface embedded in the assistant turn. */
@@ -103,7 +105,7 @@ fun AgentLifecycleTrackerPanel(
             isWorking = isWorking,
         )
         AnimatedVisibility(visible = expanded) {
-            if (projection.groups.isNotEmpty()) {
+            if (projection.taskTree.isNotEmpty() || projection.groups.isNotEmpty()) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -112,7 +114,24 @@ fun AgentLifecycleTrackerPanel(
                         .heightIn(max = 238.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
-                    projection.groups.forEach { group ->
+                    if (projection.taskTree.isNotEmpty()) {
+                        projection.taskTree.forEach { node ->
+                            traceNodeItems(
+                                node = node,
+                                depth = 0,
+                                expandedEvents = expandedEvents,
+                                onToggleEvent = { event ->
+                                    if (!event.detailLog.isNullOrBlank()) {
+                                        expandedEvents = if (event.eventId in expandedEvents) {
+                                            expandedEvents - event.eventId
+                                        } else {
+                                            expandedEvents + event.eventId
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    } else projection.groups.forEach { group ->
                         item(key = "group-${group.id}") {
                             ActivityGroupHeader(
                                 group = group,
@@ -155,6 +174,25 @@ fun AgentLifecycleTrackerPanel(
                 )
             }
         }
+    }
+}
+
+private fun LazyListScope.traceNodeItems(
+    node: UnifiedExecutionTraceTaskNode,
+    depth: Int,
+    expandedEvents: List<String>,
+    onToggleEvent: (UnifiedExecutionTraceEvent) -> Unit,
+) {
+    item(key = "tree-event-${node.event.eventId}") {
+        ActivityEventRow(
+            event = node.event,
+            depth = depth,
+            expanded = node.event.eventId in expandedEvents,
+            onToggle = { onToggleEvent(node.event) },
+        )
+    }
+    node.children.forEach { child ->
+        traceNodeItems(child, depth + 1, expandedEvents, onToggleEvent)
     }
 }
 

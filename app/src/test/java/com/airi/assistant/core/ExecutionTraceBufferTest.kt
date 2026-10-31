@@ -49,6 +49,23 @@ class ExecutionTraceBufferTest {
     }
 
     @Test
+    fun append_retainsParentActionForExecutionTreeProjection() {
+        val buffer = ExecutionTraceBuffer(maxEntries = 4)
+        buffer.begin("exec-tree")
+
+        val event = buffer.append(
+            executionId = "exec-tree",
+            kind = ExecutionTraceKind.TOOL_STARTED,
+            summary = "Read inbox",
+            actionId = "tool-1",
+            parentId = "step-1",
+        )!!
+
+        assertEquals("step-1", event.parentId)
+        assertEquals("step-1", buffer.snapshot().single().parentId)
+    }
+
+    @Test
     fun append_retainsTypedAuthorizationFailureCode() {
         val buffer = ExecutionTraceBuffer(maxEntries = 2)
         buffer.begin("exec-1")

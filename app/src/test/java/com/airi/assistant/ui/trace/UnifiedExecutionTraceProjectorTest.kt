@@ -19,6 +19,68 @@ import kotlin.system.measureNanoTime
 
 class UnifiedExecutionTraceProjectorTest {
     @Test
+    fun `admission planning is not a visible task or task count`() {
+        val projection = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-admission",
+            traceEntries = listOf(
+                trace("run-admission", 1, 1_000, ExecutionTraceKind.PLANNING, "Planning task"),
+                trace("run-admission", 2, 1_100, ExecutionTraceKind.TOOL_STARTED, "Read mail", "mail-1"),
+            ),
+            activityEvents = emptyList(),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertTrue(projection.admitted)
+        assertEquals(UnifiedExecutionMode.TOOL, projection.executionMode)
+        assertTrue(projection.events.none { it.category == UnifiedTraceCategory.PLAN })
+        assertEquals(0, projection.summary.tasks)
+        assertTrue(projection.groups.none { it.category == UnifiedTraceCategory.PLAN })
+    }
+
+    @Test
+    fun `direct planning-only response has no visible admission projection`() {
+        val projection = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-direct",
+            traceEntries = listOf(trace("run-direct", 1, 1_000, ExecutionTraceKind.PLANNING, "Planning task")),
+            activityEvents = emptyList(),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertFalse(projection.admitted)
+        assertEquals(UnifiedExecutionMode.DIRECT, projection.executionMode)
+        assertTrue(projection.events.isEmpty())
+        assertFalse(projection.summary.hasContent)
+    }
+
+    @Test
+    fun `task tree attaches tool to one real step and keeps action identity`() {
+        val projection = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-tree",
+            traceEntries = listOf(
+                trace("run-tree", 1, 1_000, ExecutionTraceKind.STEP_STARTED, "Read the inbox", "step-1"),
+                trace("run-tree", 2, 1_100, ExecutionTraceKind.TOOL_STARTED, "Gmail read", "tool-1")
+                    .copy(parentId = "step-1"),
+                trace("run-tree", 3, 1_200, ExecutionTraceKind.TOOL_COMPLETED, "Gmail read", "tool-1")
+                    .copy(parentId = "step-1"),
+                trace("run-tree", 4, 1_300, ExecutionTraceKind.STEP_COMPLETED, "Read the inbox", "step-1"),
+            ),
+            activityEvents = emptyList(),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        val step = projection.taskTree.single()
+        assertEquals(UnifiedTraceCategory.TASK, step.event.category)
+        assertEquals("step-1", step.event.actionId)
+        assertEquals(1, step.children.size)
+        assertEquals("tool-1", step.children.single().event.actionId)
+        assertEquals(TaskStatus.COMPLETED, step.children.single().event.status)
+        assertEquals(step.event, projection.lastCompletedStep)
+    }
+
+    @Test
     fun `structured lifecycle event wins over duplicate activity event`() {
         val trace = trace(
             executionId = "run-1",
@@ -358,7 +420,7 @@ class UnifiedExecutionTraceProjectorTest {
         )
 
         assertEquals(
-            listOf(UnifiedTraceCategory.PLAN, UnifiedTraceCategory.FILE, UnifiedTraceCategory.COMMAND),
+            listOf(UnifiedTraceCategory.FILE, UnifiedTraceCategory.COMMAND),
             result.groups.map { it.category },
         )
     }
@@ -441,10 +503,8 @@ class UnifiedExecutionTraceProjectorTest {
             executionCompletedLabel = "Execution completed",
         )
 
-        val plan = result.taskTree.single()
-        assertEquals(UnifiedTraceCategory.PLAN, plan.event.category)
-        assertEquals(1, plan.children.size)
-        val step = plan.children.single()
+        val step = result.taskTree.single()
+        assertEquals(UnifiedTraceCategory.TASK, step.event.category)
         val expectedStepTitle = if (java.util.Locale.getDefault().language == "ar") "خطوة الوكيل" else "Agent step"
         assertEquals(expectedStepTitle, step.event.title)
         assertEquals(TaskStatus.COMPLETED, step.event.status)

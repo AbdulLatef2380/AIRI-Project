@@ -18,6 +18,10 @@ enum class UnifiedTraceCategory {
     PLAN, MODEL, FILE, COMMAND, TOOL, SEARCH, MEMORY, CONNECTOR, TASK, SYSTEM
 }
 
+enum class UnifiedExecutionMode {
+    DIRECT, TOOL, PLAN,
+}
+
 data class UnifiedExecutionTraceEvent(
     val executionId: String,
     val eventId: String,
@@ -67,6 +71,11 @@ data class UnifiedExecutionTraceProjection(
     val groups: List<UnifiedExecutionTraceGroup>,
     val summary: UnifiedExecutionTraceSummary,
     val taskTree: List<UnifiedExecutionTraceTaskNode> = emptyList(),
+    val executionMode: UnifiedExecutionMode = UnifiedExecutionMode.DIRECT,
+    val admitted: Boolean = false,
+    val currentStep: UnifiedExecutionTraceEvent? = null,
+    val lastCompletedStep: UnifiedExecutionTraceEvent? = null,
+    val lastActivity: UnifiedExecutionTraceEvent? = null,
 )
 
 /**
@@ -126,7 +135,13 @@ internal object UnifiedExecutionTraceProjector {
                 }
             }
 
-        val events = projected.sortedWith(compareBy<UnifiedExecutionTraceEvent> { it.timestampMs }.thenBy { it.sequence })
+        // Admission/planning is an internal gate, not a human task. Exclude it
+        // so direct responses never render a phantom plan or task counter.
+        val events = projected
+            .asSequence()
+            .filterNot { it.category == UnifiedTraceCategory.PLAN || it.phase == ActivityPhase.ADMISSION }
+            .sortedWith(compareBy<UnifiedExecutionTraceEvent> { it.timestampMs }.thenBy { it.sequence })
+            .toList()
         val groups = events.groupBy { it.category }.map { (category, groupEvents) ->
             UnifiedExecutionTraceGroup(
                 id = category.name,
@@ -135,7 +150,32 @@ internal object UnifiedExecutionTraceProjector {
                 events = groupEvents,
             )
         }.sortedBy { groupOrder(it.category) }
-        return UnifiedExecutionTraceProjection(events, groups, summarize(events), buildTaskTree(events))
+        val summary = summarize(events)
+        val taskTree = buildTaskTree(events)
+        val admitted = events.any { it.category in setOf(
+            UnifiedTraceCategory.TASK,
+            UnifiedTraceCategory.FILE,
+            UnifiedTraceCategory.COMMAND,
+            UnifiedTraceCategory.TOOL,
+            UnifiedTraceCategory.CONNECTOR,
+            UnifiedTraceCategory.SEARCH,
+            UnifiedTraceCategory.MEMORY,
+        ) }
+        return UnifiedExecutionTraceProjection(
+            events = events,
+            groups = groups,
+            summary = summary,
+            taskTree = taskTree,
+            executionMode = when {
+                events.any { it.category == UnifiedTraceCategory.TASK } -> UnifiedExecutionMode.PLAN
+                events.any { it.category == UnifiedTraceCategory.TOOL || it.category == UnifiedTraceCategory.CONNECTOR } -> UnifiedExecutionMode.TOOL
+                else -> UnifiedExecutionMode.DIRECT
+            },
+            admitted = admitted,
+            currentStep = events.lastOrNull { it.category == UnifiedTraceCategory.TASK && it.status == TaskStatus.RUNNING },
+            lastCompletedStep = events.lastOrNull { it.category == UnifiedTraceCategory.TASK && it.status == TaskStatus.COMPLETED },
+            lastActivity = events.lastOrNull(),
+        )
     }
 
     /** Attach operational events to the nearest active plan or step. */
@@ -146,16 +186,19 @@ internal object UnifiedExecutionTraceProjector {
             val children: MutableList<MutableNode> = mutableListOf(),
         )
         val roots = mutableListOf<MutableNode>()
+        val nodesByActionId = mutableMapOf<String, MutableNode>()
         var activePlan: MutableNode? = null
         var activeStep: MutableNode? = null
         events.forEach { event ->
             val node = MutableNode(event)
             val parent = when {
+                event.parentId != null -> nodesByActionId[event.parentId]
                 event.category == UnifiedTraceCategory.PLAN -> null
                 event.category == UnifiedTraceCategory.TASK -> activePlan
                 else -> activeStep ?: activePlan
             }
             if (parent == null) roots += node else parent.children += node
+            event.actionId?.let { nodesByActionId[it] = node }
             when (event.category) {
                 UnifiedTraceCategory.PLAN -> {
                     activePlan = node
@@ -177,12 +220,13 @@ internal object UnifiedExecutionTraceProjector {
     ): List<ProjectionCandidate> {
         val result = mutableListOf<ProjectionCandidate>()
         val consumed = mutableSetOf<ExecutionTraceEvent>()
-        entries.filter { it.actionId != null }
+            entries.filter { it.actionId != null }
             .groupBy { ActionGroupKey(it.actionId!!, it.kind.actionFamily()) }
             .forEach { (key, actionEntries) ->
             val first = actionEntries.first()
             val terminal = actionEntries.lastOrNull { it.kind in key.family.terminalKinds }
             val source = terminal ?: first
+            val parentId = actionEntries.asSequence().mapNotNull { it.parentId }.firstOrNull()
             val displayTimestamp = if (first.kind == ExecutionTraceKind.STEP_STARTED || first.kind == ExecutionTraceKind.TOOL_STARTED) {
                 first.timestampMs
             } else {
@@ -211,6 +255,7 @@ internal object UnifiedExecutionTraceProjector {
                     category = if (key.family == ActionFamily.STEP) UnifiedTraceCategory.TASK else categoryFor(title, first.kind),
                     machineTag = if (key.family == ActionFamily.STEP) "agent_step" else source.machineTag,
                     phase = phaseForStructured(source.kind),
+                    parentId = parentId,
                 ),
                 dedupeKey = "action:${key.family.name.lowercase()}:${key.actionId}",
                 sourcePriority = 0,
@@ -344,7 +389,7 @@ internal object UnifiedExecutionTraceProjector {
             toolsUsed = count(UnifiedTraceCategory.TOOL) + count(UnifiedTraceCategory.CONNECTOR),
             searches = count(UnifiedTraceCategory.SEARCH),
             memoryOperations = count(UnifiedTraceCategory.MEMORY),
-            tasks = count(UnifiedTraceCategory.TASK) + count(UnifiedTraceCategory.PLAN),
+            tasks = count(UnifiedTraceCategory.TASK),
         )
     }
 

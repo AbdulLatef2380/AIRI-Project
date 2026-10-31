@@ -13,8 +13,9 @@ object ConversationIntentDetector {
         val normalized = input
             .trim()
             .lowercase()
-            .replace(Regex("^[\\s,،.!؟?؛:—-]+|[\\s,،.!؟?؛:—-]+$"), "")
+            .replace(Regex("[,،.!؟?؛:—-]+"), " ")
             .replace(Regex("\\s+"), " ")
+            .trim()
         return greetingPrefixes.any { normalized == it || normalized.startsWith("$it ") }
     }
 }

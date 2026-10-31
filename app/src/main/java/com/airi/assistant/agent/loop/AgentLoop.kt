@@ -208,6 +208,9 @@ the tool returns an actual error.
         var stepsUsed    = 0
         val executionId   = requestedExecutionId?.takeIf(String::isNotBlank) ?: UUID.randomUUID().toString()
         val requestIdentity = ChatExecutionIdentityContract.create(sessionId, executionId)
+        // Claim this request without publishing a plan. Direct answers retain
+        // ownership for cancellation while remaining invisible to the planner UI.
+        ExecutionStatusBus.prepareRequest(executionId, sessionId)
         val traceId = runtimeTrace?.begin(
             executionId = executionId,
             sessionId = sessionId,
@@ -237,19 +240,22 @@ the tool returns an actual error.
         var activeToolTrace: ActiveToolTrace? = null
         val pendingToolCalls = ArrayDeque<com.airi.assistant.ai.intent.ToolCall>()
 
+        fun admitVisiblePlan(plannedStepCount: Int) {
+            if (isPlanPublished) return
+            ExecutionStatusBus.onGraphStarted(
+                goalDescription = input.take(80),
+                plannedStepCount = plannedStepCount,
+                executionId = executionId,
+                sessionId = sessionId,
+            )
+            isPlanPublished = true
+        }
+
         val platformBlock = platformCapabilitySnapshot.trim().take(MAX_PLATFORM_SNAPSHOT_CHARS)
         val promptWithPlatformSnapshot = if (platformBlock.isBlank() || systemPrompt.contains("AIRI PLATFORM CAPABILITY SNAPSHOT")) systemPrompt else
             systemPrompt + "\n\n" + platformBlock
         val fullSystemPrompt = promptWithPlatformSnapshot + "\n\n" + toolSelection.promptBlock + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
-        // Establish the owner before any deterministic or model-selected tool.
-        ExecutionStatusBus.onGraphStarted(
-            goalDescription = input.take(80),
-            totalNodes = if (effectiveTools.isEmpty()) 1 else MAX_STEPS,
-            executionId = executionId,
-            sessionId = sessionId,
-        )
-        isPlanPublished = true
         // Device time/date is a deterministic system fact. Execute it before
         // the first model turn so a short question cannot degrade into a
         // hallucinated refusal merely because the model did not emit a tool
@@ -260,6 +266,9 @@ the tool returns an actual error.
                 com.airi.assistant.ai.CapabilityIntentDetector.Capability.CURRENT_TIME
         ) && effectiveTools.any { it.name == "current_time" }
         ) {
+            // A deterministic action is the first real admission point for this
+            // request. Direct-answer requests never create a visible plan.
+            admitVisiblePlan(1)
             val actionId = "tool_deterministic_current_time"
             val startedAtMs = System.currentTimeMillis()
             activeToolTrace = ActiveToolTrace(executionId, actionId, "current_time", startedAtMs)
@@ -474,6 +483,10 @@ the tool returns an actual error.
                     call to effectiveTools.firstOrNull { it.name == call.toolName }
                 }
                 if (batchSchemas.size > 1 && batchSchemas.all { it.second?.sideEffectPolicy == ToolSchema.SideEffectPolicy.READ_ONLY }) {
+                    // Admit the real batch before dispatching any member. The
+                    // batch size is the discovered plan size; MAX_STEPS remains
+                    // an execution ceiling only.
+                    admitVisiblePlan(batchSchemas.size)
                     val batchRequests = batchSchemas.map { (call, schema) ->
                         com.airi.assistant.agent.loop.tool.ToolCallBatchExecutor.Request(
                             id = call.id.ifBlank { "call_${call.toolName}" },
@@ -697,14 +710,8 @@ the tool returns an actual error.
 
                 Log.i(TAG, "AIRI TOOL_CALL step=$stepsUsed tool=$toolName args=${toolArgs.keys.joinToString()}")
                 if (!isPlanPublished) {
-                    ExecutionStatusBus.onGraphStarted(
-                        goalDescription = input.take(80),
-                        // Actions are discovered incrementally; the ceiling is not a plan.
-                        totalNodes = 0,
-                        executionId = executionId,
-                        sessionId = sessionId,
-                    )
-                    isPlanPublished = true
+                    // The first selected tool is the first real planned step.
+                    admitVisiblePlan(1)
                 }
                 val toolStartedAtMs = System.currentTimeMillis()
                 ExecutionStatusBus.onWaveStarted(

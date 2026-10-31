@@ -29,6 +29,36 @@ class ExecutionStatusBusTest {
     }
 
     @Test
+    fun graphStartWithoutARealPlannedStepDoesNotCreateVisiblePlanning() {
+        ExecutionStatusBus.reset()
+
+        ExecutionStatusBus.onGraphStarted(
+            goalDescription = "Direct answer",
+            plannedStepCount = 0,
+            executionId = "direct-answer",
+        )
+
+        assertFalse(ExecutionStatusBus.status.value.isWorking)
+        assertTrue(ExecutionStatusBus.trace.value.isEmpty())
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
+    fun preparingARequestReplacesTheActiveOwnerWithoutPublishingTrace() {
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Previous task", 1, "previous")
+        assertTrue(ExecutionStatusBus.trace.value.isNotEmpty())
+
+        ExecutionStatusBus.prepareRequest("direct-answer", "session-1")
+
+        assertEquals("direct-answer", ExecutionStatusBus.status.value.executionId)
+        assertEquals(ExecutionStage.IDLE, ExecutionStatusBus.status.value.executionStage)
+        assertTrue(ExecutionStatusBus.trace.value.isEmpty())
+        assertTrue(ExecutionStatusBus.traceSnapshot("previous").isNotEmpty())
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
     fun agentLoopStepLifecycleUsesOneStableActionIdAndMachineTags() {
         val executionId = "tree-integration-test"
         ExecutionStatusBus.reset()

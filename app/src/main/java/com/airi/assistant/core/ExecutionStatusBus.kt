@@ -61,10 +61,25 @@ object ExecutionStatusBus {
 
     // ── Write API (called by UCL / orchestrators) ─────────────────────────────
 
+    /** Claim a request before admission without publishing a visible plan. */
+    fun prepareRequest(executionId: String, sessionId: String = "") {
+        if (executionId.isBlank()) return
+        synchronized(traceLock) {
+            _status.value = AgentState(
+                executionId = executionId,
+                sessionId = sessionId,
+                executionStage = ExecutionStage.IDLE,
+            )
+            traceBuffer.clear()
+            _trace.value = emptyList()
+        }
+        toolTraceLifecycle.reset()
+    }
+
     /** Signal that a DAG graph execution has started. */
     fun onGraphStarted(
         goalDescription: String,
-        totalNodes: Int,
+        plannedStepCount: Int,
         executionId: String,
         sessionId: String = "",
     ) {
@@ -72,15 +87,19 @@ object ExecutionStatusBus {
             safeLog { Log.w(TAG, "EXEC_STATUS_REJECTED missing executionId") }
             return
         }
+        if (plannedStepCount <= 0) {
+            safeLog { Log.w(TAG, "EXEC_STATUS_REJECTED missing planned step count") }
+            return
+        }
         synchronized(traceLock) {
             _status.value = AgentState(
                 isWorking             = true,
                 currentAction         = goalDescription.take(80),
-                totalSteps            = totalNodes,
+                totalSteps            = plannedStepCount,
                 activeGoalDescription = goalDescription,
                 executionId           = executionId,
                 sessionId             = sessionId,
-                nodesTotal            = totalNodes,
+                nodesTotal            = plannedStepCount,
                 executionStage        = ExecutionStage.PLANNING
             )
             traceBuffer.begin(executionId, sessionId)
@@ -91,7 +110,7 @@ object ExecutionStatusBus {
         }
         toolTraceLifecycle.begin(executionId)
         appendTrace(executionId, ExecutionTraceKind.PLANNING, "Planning task", goalDescription, machineTag = "planning")
-        safeLog { Log.i(TAG, "EXEC_STATUS_PLANNING goalChars=${goalDescription.length} nodes=$totalNodes") }
+        safeLog { Log.i(TAG, "EXEC_STATUS_PLANNING goalChars=${goalDescription.length} plannedSteps=$plannedStepCount") }
     }
 
     /** Signal that a specific node wave has started executing. */

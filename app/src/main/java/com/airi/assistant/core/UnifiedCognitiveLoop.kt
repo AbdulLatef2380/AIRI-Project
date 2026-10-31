@@ -206,7 +206,6 @@ class UnifiedCognitiveLoop {
         if (qualityScore.confidence < MIN_PLAN_CONFIDENCE) {
             Log.w(TAG, "PLAN_QUALITY_GATE_REJECT confidence=${qualityScore.confidence} reason=${qualityScore.critique}")
             WorkspaceRegistry.release(graph.goalId)
-            ExecutionStatusBus.onGraphCompleted(false, executionId = graph.goalId)
             return GraphExecutionResult(
                 goalId        = graph.goalId,
                 success       = false,
@@ -222,7 +221,7 @@ class UnifiedCognitiveLoop {
         val initialSnapshot = graph.snapshot()
         ExecutionStatusBus.onGraphStarted(
             goalDescription = graph.description.ifBlank { graph.goalId },
-            totalNodes      = initialSnapshot.totalNodes,
+            plannedStepCount = initialSnapshot.totalNodes,
             executionId     = graph.goalId,
         )
 

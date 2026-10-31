@@ -127,7 +127,7 @@ class AdaptiveGraphEngine(
         AgentActivityBus.emit("Graph execution started: ${plan.intent.take(60)}", ActivityCategory.ORCHESTRATION)
         ExecutionStatusBus.onGraphStarted(
             goalDescription = plan.intent,
-            totalNodes = nodes.size,
+            plannedStepCount = nodes.size,
             executionId = executionId,
         )
 

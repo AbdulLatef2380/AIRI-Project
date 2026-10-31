@@ -14,7 +14,7 @@ class AgentActivityBusTest {
         AgentActivityBus.clearHistory()
         com.airi.assistant.core.ExecutionStatusBus.onGraphStarted(
             goalDescription = "Active task",
-            totalNodes = 1,
+            plannedStepCount = 1,
             executionId = "active-run",
         )
 

@@ -28,7 +28,6 @@ class ContentAwareMessageAccessibilityTest {
         val arabicContext = baseContext.createConfigurationContext(arabicConfiguration)
         val labels = listOf(
             arabicContext.getString(R.string.copy_code),
-            arabicContext.getString(R.string.artifact_expand),
             arabicContext.getString(R.string.artifact_share),
             arabicContext.getString(R.string.artifact_save),
         )

@@ -174,11 +174,9 @@ object AdaptiveContentPolicy {
             actions = buildSet {
                 add(ContentUnitAction.COPY)
                 if (kind == ContentUnitKind.TABLE || complete) add(ContentUnitAction.SHARE)
-                if (kind == ContentUnitKind.CODE || kind == ContentUnitKind.STRUCTURED_DATA) {
-                    add(ContentUnitAction.EXPAND)
-                }
                 if ((kind == ContentUnitKind.CODE || kind == ContentUnitKind.STRUCTURED_DATA) && complete) {
                     add(ContentUnitAction.SAVE)
+                    add(ContentUnitAction.FULLSCREEN)
                 }
             },
         )

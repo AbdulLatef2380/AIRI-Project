@@ -2738,6 +2738,7 @@ private fun AiResponseTurn(
 @Composable
 private fun rememberContentUnitActionHandler(
     onShare: (String) -> Unit,
+    onFullscreen: (String) -> Unit = {},
 ): (ContentTarget, ContentUnitAction) -> Unit {
     val context = LocalContext.current
     var pendingSaveTarget by remember { mutableStateOf<ContentTarget.Block?>(null) }
@@ -2755,7 +2756,7 @@ private fun rememberContentUnitActionHandler(
             }
         }
     }
-    return remember(context, onShare, saveLauncher) {
+    return remember(context, onShare, onFullscreen, saveLauncher) {
         { target, action ->
             if (target.canPerform(action)) {
                 when (action) {
@@ -2772,8 +2773,8 @@ private fun rememberContentUnitActionHandler(
                         }
                     }
                     ContentUnitAction.EXPAND -> Unit
+                    ContentUnitAction.FULLSCREEN -> onFullscreen(target.source)
                     ContentUnitAction.SPEAK,
-                    ContentUnitAction.FULLSCREEN,
                     ContentUnitAction.EXPORT_PDF,
                     ContentUnitAction.EXPORT_MARKDOWN -> Unit
                 }
@@ -2809,7 +2810,6 @@ fun AiBubble(
 ) {
     val context   = LocalContext.current
     val haptic    = LocalHapticFeedback.current
-    val handleContentAction = rememberContentUnitActionHandler(onShare)
     val allTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsState()
     val trace = remember(traceId, allTraces) {
         if (traceId != null) allTraces.find { it.id == traceId } else null
@@ -2818,6 +2818,14 @@ fun AiBubble(
     var showContextMenu by remember { mutableStateOf(false) }
     var isSelectingText by remember { mutableStateOf(false) }
     var showFullscreenViewer by remember { mutableStateOf(false) }
+    var fullscreenText by remember { mutableStateOf("") }
+    val handleContentAction = rememberContentUnitActionHandler(
+        onShare = onShare,
+        onFullscreen = { scopedText ->
+            fullscreenText = scopedText
+            showFullscreenViewer = scopedText.isNotBlank()
+        },
+    )
     val adaptivePlan = remember(text) { AdaptiveContentPolicy.plan(text) }
     val messageTarget = remember(messageId, text, adaptivePlan.messageActions) {
         ContentTarget.Message(messageId = messageId, source = text, actions = adaptivePlan.messageActions)
@@ -3092,9 +3100,15 @@ fun AiBubble(
         }
     if (showFullscreenViewer) {
         FullscreenResponseViewer(
-            text = text,
+            text = fullscreenText.ifBlank { text },
             onDismiss = { showFullscreenViewer = false },
-            onShare = { performMessageAction(ContentUnitAction.SHARE); showFullscreenViewer = false }
+            onCopy = {
+                ContentPlatformActions.copyPlainText(context, "AIRI", fullscreenText.ifBlank { text })
+            },
+            onShare = {
+                onShare(fullscreenText.ifBlank { text })
+                showFullscreenViewer = false
+            },
         )
     }
 }
@@ -3103,6 +3117,7 @@ fun AiBubble(
 private fun FullscreenResponseViewer(
     text: String,
     onDismiss: () -> Unit,
+    onCopy: () -> Unit,
     onShare: () -> Unit
 ) {
     val context = LocalContext.current
@@ -3128,10 +3143,7 @@ private fun FullscreenResponseViewer(
                         fontWeight = FontWeight.SemiBold
                     )
                     Row {
-                        IconButton(onClick = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", text))
-                        }) {
+                        IconButton(onClick = onCopy) {
                             Icon(Icons.Outlined.ContentCopy, stringResource(R.string.copy), tint = AiriTheme.onBackground)
                         }
                         IconButton(onClick = onShare) {

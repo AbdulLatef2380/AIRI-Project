@@ -1,14 +1,11 @@
 package com.airi.assistant.ui.text
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
@@ -172,21 +169,23 @@ private fun MarkdownTableRenderer(
             BidiAwareMarkdownRenderer(text = prose, fillWidth = false, onCopyCode = null)
         }
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-            Row(Modifier.horizontalScroll(rememberScrollState())) {
+            Column(Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     rows.forEachIndexed { index, cells ->
                         Surface(
+                            modifier = Modifier.fillMaxWidth(),
                             color = if (index == 0) AiriTheme.surfaceVariant else AiriTheme.surface,
                             shape = AIRIShapes.sm,
                         ) {
-                            Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 7.dp)) {
                                 cells.forEach { cell ->
                                     Text(
                                         text = cell,
                                         color = AiriTheme.onSurface,
                                         fontSize = if (index == 0) 12.sp else 11.sp,
                                         style = TextStyle(textDirection = TextDirection.Content),
-                                        modifier = Modifier.width(140.dp).padding(end = 8.dp),
+                                        softWrap = true,
+                                        modifier = Modifier.weight(1f).padding(end = 8.dp),
                                     )
                                 }
                             }

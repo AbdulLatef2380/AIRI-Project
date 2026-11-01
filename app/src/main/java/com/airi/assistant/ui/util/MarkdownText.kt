@@ -1,41 +1,28 @@
 package com.airi.assistant.ui.util
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.airi.assistant.R
 import com.airi.assistant.ui.text.ContentTarget
 import com.airi.assistant.ui.text.ContentUnitAction
@@ -107,9 +94,14 @@ fun MarkdownText(
                         }
                     } else {
                         codeIndex++
-                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-                            Text(block.text, color = codeFore, fontFamily = FontFamily.Monospace, fontSize = 13.sp, softWrap = false)
-                        }
+                        Text(
+                            text = block.text,
+                            color = codeFore,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 13.sp,
+                            softWrap = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
                     Spacer(Modifier.height(4.dp))
                 }

@@ -15,7 +15,7 @@ class AdaptiveContentPolicyTest {
         assertTrue(ContentUnitAction.COPY in code.actions)
         assertTrue(ContentUnitAction.SHARE in code.actions)
         assertTrue(ContentUnitAction.SAVE in code.actions)
-        assertTrue(ContentUnitAction.EXPAND in code.actions)
+        assertTrue(ContentUnitAction.FULLSCREEN in code.actions)
         assertTrue(ContentUnitAction.COPY in plan.messageActions)
         assertTrue(ContentUnitAction.SHARE in plan.messageActions)
         assertFalse(code.source.contains("شرح قبل"))
@@ -29,7 +29,7 @@ class AdaptiveContentPolicyTest {
 
         assertEquals(ContentUnitKind.CODE, code.kind)
         assertTrue(ContentUnitAction.COPY in code.actions)
-        assertTrue(ContentUnitAction.EXPAND in code.actions)
+        assertFalse(ContentUnitAction.FULLSCREEN in code.actions)
         assertFalse(ContentUnitAction.SHARE in code.actions)
         assertFalse(ContentUnitAction.SAVE in code.actions)
         assertFalse(ContentUnitAction.SHARE in plan.messageActions)

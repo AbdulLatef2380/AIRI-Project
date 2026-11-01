@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performDoubleClick
 import androidx.test.platform.app.InstrumentationRegistry
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.AiriTheme
@@ -23,30 +24,18 @@ class ContentAwareMessageRendererTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun expandedCodeCardKeepsItsUiStateWhenAnEarlierBlockArrivesDuringStreaming() {
-        var text by mutableStateOf("```kotlin\nval retained = true\n```")
+    fun codeCardDoesNotExposeAnExpandAction() {
         composeRule.setContent {
             AiriTheme {
                 ContentAwareMessageRenderer(
-                    text = text,
-                    isStreaming = true,
+                    text = "```kotlin\nval retained = true\n```",
                     messageId = "streaming-message",
                     onContentAction = { _, _ -> },
                 )
             }
         }
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-
-        composeRule.onNodeWithContentDescription(context.getString(R.string.artifact_expand)).performClick()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.close)).assertIsDisplayed()
-
-        composeRule.runOnIdle {
-            text = "```python\nprint(0)\n```\n```kotlin\nval retained = true\n```"
-        }
-
-        // The old block's session ID is retained, so its saveable dialog state
-        // survives insertion of a new block before it in the streamed response.
-        composeRule.onNodeWithContentDescription(context.getString(R.string.close)).assertIsDisplayed()
+        assertTrue(composeRule.onAllNodesWithContentDescription(context.getString(R.string.artifact_expand)).fetchSemanticsNodes().isEmpty())
         composeRule.onNodeWithText("val retained = true").assertIsDisplayed()
     }
 
@@ -76,8 +65,8 @@ class ContentAwareMessageRendererTest {
         assertEquals(ContentUnitAction.SHARE, receivedAction)
         composeRule.onNodeWithContentDescription(context.getString(R.string.artifact_save)).performClick()
         assertEquals(ContentUnitAction.SAVE, receivedAction)
-        composeRule.onNodeWithContentDescription(context.getString(R.string.artifact_expand)).performClick()
-        assertEquals(ContentUnitAction.EXPAND, receivedAction)
+        composeRule.onNodeWithText("val exact = 7").performDoubleClick()
+        assertEquals(ContentUnitAction.FULLSCREEN, receivedAction)
     }
 
     @Test

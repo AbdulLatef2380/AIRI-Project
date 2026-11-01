@@ -29,7 +29,6 @@ class ContentAwareMessageAccessibilityTest {
         val labels = listOf(
             arabicContext.getString(R.string.copy_code),
             arabicContext.getString(R.string.artifact_share),
-            arabicContext.getString(R.string.artifact_save),
         )
 
         composeRule.setContent {

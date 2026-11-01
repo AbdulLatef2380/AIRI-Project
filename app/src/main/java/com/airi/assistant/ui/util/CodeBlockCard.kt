@@ -13,7 +13,6 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -105,13 +104,6 @@ fun CodeBlockCard(
         }
     }
 
-    fun save() {
-        val scopedTarget = target ?: return
-        if (scopedTarget.canPerform(ContentUnitAction.SAVE)) {
-            onContentAction?.invoke(scopedTarget, ContentUnitAction.SAVE)
-        }
-    }
-
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Surface(
             shape = RoundedCornerShape(10.dp),
@@ -181,11 +173,6 @@ fun CodeBlockCard(
                     if (target != null && target.canPerform(ContentUnitAction.SHARE) && onContentAction != null) {
                         IconButton(onClick = ::share, modifier = Modifier.size(40.dp)) {
                             Icon(Icons.Outlined.Share, contentDescription = context.getString(R.string.artifact_share), tint = AiriTheme.onSurfaceVariant)
-                        }
-                    }
-                    if (target != null && target.canPerform(ContentUnitAction.SAVE) && onContentAction != null) {
-                        IconButton(onClick = ::save, modifier = Modifier.size(40.dp)) {
-                            Icon(Icons.Outlined.Save, contentDescription = context.getString(R.string.artifact_save), tint = AiriTheme.onSurfaceVariant)
                         }
                     }
                 }

@@ -250,7 +250,7 @@ internal object UnifiedExecutionTraceProjector {
             val details = buildList {
                 if (key.family == ActionFamily.STEP) {
                     first.detail?.takeIf(String::isNotBlank)?.let { add("Action: $it") }
-                } else {
+                } else if (eventCategory != UnifiedTraceCategory.FILE) {
                     source.detail?.takeIf(String::isNotBlank)?.let(::add)
                 }
                 source.errorCode?.let { add("Error code: ${normalizeErrorCode(it)}") }

@@ -440,7 +440,7 @@ class UnifiedExecutionTraceProjectorTest {
             executionCompletedLabel = "Execution completed",
         )
 
-        assertEquals(listOf(1L, 2L, 3L), result.events.map { it.sequence })
+        assertEquals(listOf(2L, 3L), result.events.map { it.sequence })
         assertEquals(
             result.events.map { it.eventId }.toSet(),
             result.groups.flatMap { it.events }.map { it.eventId }.toSet(),

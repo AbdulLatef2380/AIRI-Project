@@ -174,7 +174,7 @@ class AgentLifecycleTrackerPanelTest {
 
         composeRule.onNodeWithTag("agent-trace-summary").performClick()
         composeRule.onNodeWithContentDescription("Tools · 1. Expand group").performClick()
-        composeRule.onNodeWithTag("agent-trace-technical-token").assertIsDisplayed()
+        composeRule.onNodeWithTag("agent-trace-technical-token", useUnmergedTree = true).assertIsDisplayed()
         composeRule.onNodeWithText("skill_github_repository_read", substring = false).assertIsDisplayed()
     }
 

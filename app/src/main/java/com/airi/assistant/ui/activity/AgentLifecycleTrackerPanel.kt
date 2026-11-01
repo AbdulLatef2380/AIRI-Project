@@ -328,7 +328,7 @@ private fun ActivityGroupHeader(group: UnifiedExecutionTraceGroup, expanded: Boo
             .fillMaxWidth()
             .clickable(role = Role.Button, onClick = onToggle)
             .semantics {
-                contentDescription = "$title · ${group.events.size}. $toggleDescription"
+                contentDescription = "${stringResource(R.string.agent_trace_group_count, title, group.events.size)}. $toggleDescription"
             }
             .padding(start = 26.dp, end = 6.dp, top = 5.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -336,7 +336,7 @@ private fun ActivityGroupHeader(group: UnifiedExecutionTraceGroup, expanded: Boo
         ActivityCategoryIcon(group.category, Modifier.size(15.dp))
         Spacer(Modifier.width(7.dp))
         Text(
-            text = "$title · ${group.events.size}",
+            text = stringResource(R.string.agent_trace_group_count, title, group.events.size),
             modifier = Modifier.weight(1f),
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f),
             style = MaterialTheme.typography.labelMedium,
@@ -467,6 +467,9 @@ private fun ActivityEventRow(
                     Text(
                         text = event.detailLog.orEmpty(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            textDirection = if (technicalEvent) TextDirection.Ltr else TextDirection.Content,
+                        ),
                         fontSize = 10.sp,
                         lineHeight = 14.sp,
                         maxLines = 4,

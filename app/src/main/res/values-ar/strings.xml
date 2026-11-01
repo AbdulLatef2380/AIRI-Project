@@ -1912,6 +1912,7 @@
     <string name="agent_trace_summary_searches">أُجري %1$d عمليات بحث</string>
     <string name="agent_trace_summary_tasks">%1$d مهام</string>
     <string name="agent_trace_group_files">الملفات</string>
+    <string name="agent_trace_group_count">%1$s · %2$d</string>
     <string name="agent_trace_group_commands">الأوامر</string>
     <string name="agent_trace_group_tools">الأدوات</string>
     <string name="agent_trace_group_search">البحث</string>

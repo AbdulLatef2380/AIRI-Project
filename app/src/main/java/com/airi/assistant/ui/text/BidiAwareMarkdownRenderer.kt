@@ -39,6 +39,7 @@ fun BidiAwareMarkdownRenderer(
     textColor: Color = AiriTheme.onSurface.copy(alpha = 0.93f),
     fillWidth: Boolean = true,
     onCopyCode: ((String) -> Unit)? = null,
+    onCopyCodeResult: ((String) -> Boolean)? = null,
     codeTargets: List<ContentTarget.Block> = emptyList(),
     onContentAction: ((ContentTarget, ContentUnitAction) -> Unit)? = null,
 ) {
@@ -62,6 +63,7 @@ fun BidiAwareMarkdownRenderer(
             modifier = if (fillWidth) modifier.fillMaxWidth() else modifier,
             textColor = textColor,
             onCopyCode = onCopyCode,
+            onCopyCodeResult = onCopyCodeResult,
             codeTargets = codeTargets,
             onContentAction = onContentAction,
         )

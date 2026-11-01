@@ -242,20 +242,30 @@ the tool returns an actual error.
             systemPrompt + "\n\n" + platformBlock
         val fullSystemPrompt = promptWithPlatformSnapshot + "\n\n" + toolSelection.promptBlock + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
-        // Establish the owner before any deterministic or model-selected tool.
-        ExecutionStatusBus.onGraphStarted(
-            goalDescription = input.take(80),
-            totalNodes = if (effectiveTools.isEmpty()) 1 else MAX_STEPS,
-            executionId = executionId,
-            sessionId = sessionId,
+        val capabilityIntent = com.airi.assistant.ai.CapabilityIntentDetector.detect(input)
+        val admission = ExecutionAdmissionPolicy.decide(
+            input = input,
+            queryType = queryType,
+            effectiveTools = effectiveTools,
+            attachmentCount = visionParts.size + attachmentParts.size,
         )
-        isPlanPublished = true
+        // A direct response must not create a visible plan. For admitted work,
+        // publish only the real known count; 0 means "not declared" rather than
+        // a fabricated estimate based on the loop ceiling or tool catalog size.
+        if (admission.admitted) {
+            ExecutionStatusBus.onGraphStarted(
+                goalDescription = input.take(80),
+                totalNodes = admission.plannedStepCount,
+                executionId = executionId,
+                sessionId = sessionId,
+            )
+            isPlanPublished = true
+        }
         // Device time/date is a deterministic system fact. Execute it before
         // the first model turn so a short question cannot degrade into a
         // hallucinated refusal merely because the model did not emit a tool
         // call. The result is still returned through the normal conversation
         // context so the model formats the answer naturally.
-        val capabilityIntent = com.airi.assistant.ai.CapabilityIntentDetector.detect(input)
         if (capabilityIntent.requires(
                 com.airi.assistant.ai.CapabilityIntentDetector.Capability.CURRENT_TIME
         ) && effectiveTools.any { it.name == "current_time" }

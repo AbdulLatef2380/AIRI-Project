@@ -82,28 +82,19 @@ fun MarkdownText(
                 }
                 is RenderBlock.Code -> {
                     Spacer(Modifier.height(6.dp))
-                    if (block.complete) {
-                        val target = codeTargets.getOrNull(codeIndex++)
-                        key(target?.blockId ?: "code-${block.language}-${block.text.hashCode()}") {
-                            CodeBlockCard(
-                                language = block.language,
-                                code = block.text,
-                                codeBack = codeBack,
-                                codeFore = codeFore,
-                                onCopyCode = onCopyCode,
-                                target = target,
-                                onContentAction = onContentAction,
-                            )
-                        }
-                    } else {
-                        codeIndex++
-                        Text(
-                            text = block.text,
-                            color = codeFore,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 13.sp,
-                            softWrap = true,
-                            modifier = Modifier.fillMaxWidth(),
+                    // Keep the same card identity while a fence is streaming.
+                    // Incomplete blocks expose only the actions allowed by their
+                    // target (normally copy), but never fall back to plain Text.
+                    val target = codeTargets.getOrNull(codeIndex++)
+                    key(target?.blockId ?: "code-${block.language}-${block.text.hashCode()}") {
+                        CodeBlockCard(
+                            language = block.language,
+                            code = block.text,
+                            codeBack = codeBack,
+                            codeFore = codeFore,
+                            onCopyCode = onCopyCode,
+                            target = target,
+                            onContentAction = onContentAction,
                         )
                     }
                     Spacer(Modifier.height(4.dp))

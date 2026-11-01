@@ -79,12 +79,49 @@ object AdaptiveContentPolicy {
     fun tableShareText(text: String): String = parseMarkdownTable(text)
         .joinToString("\n") { row -> row.joinToString(" | ") }
 
-    fun parseMarkdownTable(text: String): List<List<String>> = text.lines()
-        .map(String::trim)
-        .filter { it.contains('|') && it.trim('|', ' ', '\t').isNotEmpty() }
-        .filterNot { it.matches(TABLE_SEPARATOR) }
-        .map { line -> line.trim('|').split('|').map(String::trim) }
-        .filter { it.isNotEmpty() }
+    fun parseMarkdownTable(text: String): List<List<String>> {
+        val rows = text.lines()
+            .mapNotNull(::parseMarkdownRow)
+            .filterNot { row -> row.any { it.isNotEmpty() } && row.all { it.isEmpty() || it.matches(TABLE_SEPARATOR_CELL) } }
+        val width = rows.maxOfOrNull(List<String>::size) ?: return emptyList()
+        return rows.map { row -> row + List(width - row.size) { "" } }
+    }
+
+    /** Splits a Markdown table row without treating escaped or code-contained pipes as delimiters. */
+    private fun parseMarkdownRow(line: String): List<String>? {
+        val candidate = line.trim()
+        if (candidate.isEmpty() || !candidate.contains('|')) return null
+
+        val cells = mutableListOf<String>()
+        val current = StringBuilder()
+        var inCode = false
+        var escaped = false
+        candidate.forEachIndexed { index, character ->
+            when {
+                escaped -> {
+                    current.append(character)
+                    escaped = false
+                }
+                character == '\\' -> escaped = true
+                character == '`' -> {
+                    inCode = !inCode
+                    current.append(character)
+                }
+                character == '|' && !inCode -> {
+                    // A leading/trailing pipe is table framing, not a cell.
+                    if (index > 0 || current.isNotEmpty()) cells += current.toString().trim()
+                    current.clear()
+                }
+                else -> current.append(character)
+            }
+        }
+        if (escaped) current.append('\\')
+        if (current.isNotEmpty() || (!candidate.endsWith('|') && cells.isNotEmpty())) {
+            cells += current.toString().trim()
+        }
+        if (cells.isEmpty()) return null
+        return cells.map { it.replace("\\|", "|") }
+    }
 
     private fun parseUnits(
         text: String,
@@ -223,4 +260,5 @@ object AdaptiveContentPolicy {
     private val TABLE_SEPARATOR = Regex(
         "^\\|?\\s*:?-{3,}:?\\s*(\\|\\s*:?-{3,}:?\\s*)+\\|?$",
     )
+    private val TABLE_SEPARATOR_CELL = Regex("^:?-{3,}:?$")
 }

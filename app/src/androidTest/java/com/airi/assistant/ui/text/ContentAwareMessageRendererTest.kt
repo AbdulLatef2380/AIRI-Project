@@ -86,6 +86,27 @@ class ContentAwareMessageRendererTest {
     }
 
     @Test
+    fun incompleteStreamingCodeUsesTheSameCardAndKeepsCopyAvailable() {
+        var receivedTarget: ContentTarget? = null
+        composeRule.setContent {
+            AiriTheme {
+                ContentAwareMessageRenderer(
+                    text = "```kotlin\nval partial = true",
+                    isStreaming = true,
+                    messageId = "streaming-card",
+                    onContentAction = { target, _ -> receivedTarget = target },
+                )
+            }
+        }
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+        composeRule.onNodeWithText("kotlin").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.copy_code)).performClick()
+        assertEquals("val partial = true", receivedTarget?.source)
+        assertTrue(receivedTarget?.complete == false)
+    }
+
+    @Test
     fun toolOutputIsSeparateAndHiddenUntilTheUserExpandsIt() {
         val toolOutput = AssistantToolOutput(
             id = "tool-message-1",

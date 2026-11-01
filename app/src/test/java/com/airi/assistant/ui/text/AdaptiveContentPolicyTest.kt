@@ -48,6 +48,36 @@ class AdaptiveContentPolicyTest {
     }
 
     @Test
+    fun tableParserPreservesEscapedAndInlineCodePipes() {
+        val table = """| Name | Command | Note |
+            | --- | --- | --- |
+            | shell | `echo a | b` | escaped a \| b |
+        """.trimIndent()
+
+        assertEquals(
+            listOf(
+                listOf("Name", "Command", "Note"),
+                listOf("shell", "`echo a | b`", "escaped a | b"),
+            ),
+            AdaptiveContentPolicy.parseMarkdownTable(table),
+        )
+    }
+
+    @Test
+    fun tableParserPadsUnevenRowsWithoutDroppingCells() {
+        val table = "| A | B | C |\n| --- | --- | --- |\n| 1 | 2 |\n| 3 | 4 | 5 | 6 |"
+
+        assertEquals(
+            listOf(
+                listOf("A", "B", "C", ""),
+                listOf("1", "2", "", ""),
+                listOf("3", "4", "5", "6"),
+            ),
+            AdaptiveContentPolicy.parseMarkdownTable(table),
+        )
+    }
+
+    @Test
     fun plainMessageKeepsOnlyMessageAndProseScope() {
         val plan = AdaptiveContentPolicy.plan("نعم، هذا ممكن.")
         assertEquals(ContentUnitKind.PROSE, plan.units.single().kind)

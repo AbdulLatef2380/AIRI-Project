@@ -602,7 +602,7 @@ class UnifiedExecutionTraceProjectorTest {
             )
         }
 
-        assertEquals(1_202, result.events.size)
+        assertEquals(1_201, result.events.size)
         assertEquals(1_200, result.summary.filesRead)
         assertTrue("projection took ${elapsedNanos / 1_000_000} ms", elapsedNanos < 2_000_000_000L)
     }

@@ -63,7 +63,12 @@ sealed interface ContentTarget {
 object ContentActionPolicy {
     fun allows(target: ContentTarget, action: ContentUnitAction): Boolean = when (target) {
         is ContentTarget.Message -> action in target.actions
-        is ContentTarget.Block -> action in target.actions
+        is ContentTarget.Block -> action in target.actions && when (action) {
+            ContentUnitAction.SHARE,
+            ContentUnitAction.SAVE,
+            ContentUnitAction.FULLSCREEN -> target.complete
+            else -> true
+        }
         is ContentTarget.ToolOutput -> action in target.actions
     }
 }

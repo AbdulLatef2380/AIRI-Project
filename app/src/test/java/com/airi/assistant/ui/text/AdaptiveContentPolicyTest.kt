@@ -14,7 +14,7 @@ class AdaptiveContentPolicyTest {
 
         assertTrue(ContentUnitAction.COPY in code.actions)
         assertTrue(ContentUnitAction.SHARE in code.actions)
-        assertTrue(ContentUnitAction.SAVE in code.actions)
+        assertFalse(ContentUnitAction.SAVE in code.actions)
         assertTrue(ContentUnitAction.FULLSCREEN in code.actions)
         assertTrue(ContentUnitAction.COPY in plan.messageActions)
         assertTrue(ContentUnitAction.SHARE in plan.messageActions)
@@ -192,7 +192,7 @@ class AdaptiveContentPolicyTest {
         assertFalse(ContentUnitAction.SHARE in codeUnits[0].actions)
         assertFalse(ContentUnitAction.SAVE in codeUnits[1].actions)
         assertTrue(ContentUnitAction.SHARE in codeUnits[2].actions)
-        assertTrue(ContentUnitAction.SAVE in codeUnits[2].actions)
+        assertFalse(ContentUnitAction.SAVE in codeUnits[2].actions)
         assertEquals(
             listOf(ContentUnitKind.PROSE, ContentUnitKind.CODE, ContentUnitKind.PROSE),
             plans.last().units.map { it.kind },

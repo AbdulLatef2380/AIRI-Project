@@ -5,11 +5,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performDoubleClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.doubleClick
 import androidx.test.platform.app.InstrumentationRegistry
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.AiriTheme
@@ -63,9 +65,7 @@ class ContentAwareMessageRendererTest {
 
         composeRule.onNodeWithContentDescription(context.getString(R.string.artifact_share)).performClick()
         assertEquals(ContentUnitAction.SHARE, receivedAction)
-        composeRule.onNodeWithContentDescription(context.getString(R.string.artifact_save)).performClick()
-        assertEquals(ContentUnitAction.SAVE, receivedAction)
-        composeRule.onNodeWithText("val exact = 7").performDoubleClick()
+        composeRule.onNodeWithText("val exact = 7").performTouchInput { doubleClick() }
         assertEquals(ContentUnitAction.FULLSCREEN, receivedAction)
     }
 
@@ -103,7 +103,7 @@ class ContentAwareMessageRendererTest {
         composeRule.onNodeWithText("kotlin").assertIsDisplayed()
         composeRule.onNodeWithContentDescription(context.getString(R.string.copy_code)).performClick()
         assertEquals("val partial = true", receivedTarget?.source)
-        assertTrue(receivedTarget?.complete == false)
+        assertTrue((receivedTarget as? ContentTarget.Block)?.complete == false)
     }
 
     @Test

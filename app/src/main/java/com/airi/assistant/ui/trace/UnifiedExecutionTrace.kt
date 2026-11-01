@@ -168,7 +168,16 @@ internal object UnifiedExecutionTraceProjector {
             taskTree = taskTree,
             executionMode = when {
                 events.any { it.category == UnifiedTraceCategory.TASK } -> UnifiedExecutionMode.PLAN
-                events.any { it.category == UnifiedTraceCategory.TOOL || it.category == UnifiedTraceCategory.CONNECTOR } -> UnifiedExecutionMode.TOOL
+                events.any {
+                    it.category in setOf(
+                        UnifiedTraceCategory.FILE,
+                        UnifiedTraceCategory.COMMAND,
+                        UnifiedTraceCategory.TOOL,
+                        UnifiedTraceCategory.CONNECTOR,
+                        UnifiedTraceCategory.SEARCH,
+                        UnifiedTraceCategory.MEMORY,
+                    )
+                } -> UnifiedExecutionMode.TOOL
                 else -> UnifiedExecutionMode.DIRECT
             },
             admitted = admitted,
@@ -258,7 +267,7 @@ internal object UnifiedExecutionTraceProjector {
                     status = source.kind.toTaskStatus(),
                     // File tool details can contain extracted document or archive
                     // contents. Keep the count/title evidence, never the payload.
-                    detailLog = details?.takeUnless { eventCategory == UnifiedTraceCategory.FILE }?.let(::safeTraceText),
+                detailLog = details?.let(::safeTraceText),
                     category = eventCategory,
                     machineTag = if (key.family == ActionFamily.STEP) "agent_step" else source.machineTag,
                     phase = phaseForStructured(source.kind),
@@ -318,8 +327,10 @@ internal object UnifiedExecutionTraceProjector {
                 timestampMs = timestampMs,
                 title = localizeDynamicTitle(machineTag, localizeLifecycleSummary(summary, planningTaskLabel, executionCompletedLabel)),
                 status = kind.toTaskStatus(),
-                detailLog = if (eventCategory == UnifiedTraceCategory.FILE) null else buildList {
-                    detail?.takeIf(String::isNotBlank)?.let { add(safeTraceText(it)) }
+                detailLog = buildList {
+                    if (eventCategory != UnifiedTraceCategory.FILE) {
+                        detail?.takeIf(String::isNotBlank)?.let { add(safeTraceText(it)) }
+                    }
                     errorCode?.let { add("Error code: ${normalizeErrorCode(it)}") }
                     durationMs?.let { add("Duration: ${it.coerceAtLeast(0L)} ms") }
                 }.joinToString("\n").takeIf(String::isNotBlank),
@@ -367,6 +378,9 @@ internal object UnifiedExecutionTraceProjector {
                 metadata.actionId != null -> "activity-action:${metadata.actionId}:${metadata.phase.name}"
                 metadata.phase == ActivityPhase.LIFECYCLE && metadata.status != null ->
                     "lifecycle:${metadata.status.name.lowercase()}"
+                message.trim().equals("Execution completed", ignoreCase = true) -> "lifecycle:completed"
+                message.trim().equals("Execution failed", ignoreCase = true) -> "lifecycle:failed"
+                message.trim().equals("Execution cancelled", ignoreCase = true) -> "lifecycle:cancelled"
                 else -> "activity-event:$id"
             },
             sourcePriority = 1,

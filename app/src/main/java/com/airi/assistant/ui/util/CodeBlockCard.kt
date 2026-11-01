@@ -8,7 +8,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
@@ -16,7 +19,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,6 +42,7 @@ import com.airi.assistant.ui.text.ContentTarget
 import com.airi.assistant.ui.text.ContentUnitAction
 import com.airi.assistant.ui.text.canPerform
 import com.airi.assistant.ui.theme.AiriTheme
+import kotlinx.coroutines.delay
 
 @Composable
 fun CodeBlockCard(
@@ -50,15 +59,30 @@ fun CodeBlockCard(
     val highlightedCode = remember(code, language, syntaxPalette) {
         CodeSyntaxHighlighter.highlight(code, language, syntaxPalette)
     }
+    val lineCount = remember(code) { code.count { it == '\n' } + 1 }
+    val canCollapse = lineCount > 14
+    var expanded by remember { mutableStateOf(false) }
+    var copied by remember { mutableStateOf(false) }
+
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1_500)
+            copied = false
+        }
+    }
 
     fun copy() {
         val scopedTarget = target
         if (scopedTarget != null) {
             if (scopedTarget.canPerform(ContentUnitAction.COPY)) {
                 onContentAction?.invoke(scopedTarget, ContentUnitAction.COPY)
+                copied = true
             }
         } else {
-            onCopyCode?.invoke(code)
+            if (onCopyCode != null) {
+                onCopyCode(code)
+                copied = true
+            }
         }
     }
 
@@ -101,9 +125,35 @@ fun CodeBlockCard(
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.weight(1f),
                     )
+                    Text(
+                        text = context.resources.getQuantityString(R.plurals.code_line_count, lineCount, lineCount),
+                        color = AiriTheme.onSurfaceVariant,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                    if (canCollapse) {
+                        IconButton(
+                            onClick = { expanded = !expanded },
+                            modifier = Modifier.size(40.dp),
+                        ) {
+                            Icon(
+                                imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                                contentDescription = context.getString(
+                                    if (expanded) R.string.collapse_code else R.string.expand_code,
+                                ),
+                                tint = AiriTheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                     if ((target?.canPerform(ContentUnitAction.COPY) == true && onContentAction != null) || (target == null && onCopyCode != null)) {
                         IconButton(onClick = ::copy, modifier = Modifier.size(40.dp)) {
-                            Icon(Icons.Outlined.ContentCopy, contentDescription = context.getString(R.string.copy_code), tint = AiriTheme.onSurfaceVariant)
+                            Icon(
+                                imageVector = if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
+                                contentDescription = context.getString(
+                                    if (copied) R.string.code_copied else R.string.copy_code,
+                                ),
+                                tint = if (copied) AiriTheme.primary else AiriTheme.onSurfaceVariant,
+                            )
                         }
                     }
                     if (target != null && target.canPerform(ContentUnitAction.SHARE) && onContentAction != null) {
@@ -127,6 +177,8 @@ fun CodeBlockCard(
                         textDirection = TextDirection.Ltr,
                     ),
                     softWrap = true,
+                    maxLines = if (canCollapse && !expanded) 14 else Int.MAX_VALUE,
+                    overflow = TextOverflow.Clip,
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp),
                 )
             }

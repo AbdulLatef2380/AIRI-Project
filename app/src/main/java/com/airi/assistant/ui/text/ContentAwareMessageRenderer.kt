@@ -47,6 +47,7 @@ fun ContentAwareMessageRenderer(
     messageId: String = "",
     toolOutputs: List<AssistantToolOutput> = emptyList(),
     onContentAction: (ContentTarget, ContentUnitAction) -> Unit,
+    onCopyResult: ((String) -> Boolean)? = null,
 ) {
     val resolvedMessageId = messageId.ifBlank {
         remember { "message-${text.hashCode().toUInt().toString(16)}" }
@@ -71,6 +72,7 @@ fun ContentAwareMessageRenderer(
                         modifier = Modifier.fillMaxWidth(),
                         isStreaming = isStreaming,
                         codeTargets = listOf(target),
+                        onCopyCodeResult = onCopyResult,
                         onContentAction = onContentAction,
                     )
                     ContentUnitKind.TABLE -> MarkdownTableRenderer(

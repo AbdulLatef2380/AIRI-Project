@@ -78,6 +78,19 @@ class AdaptiveContentPolicyTest {
     }
 
     @Test
+    fun tableParserKeepsEmptyCellsAndNonPipeEscapes() {
+        val table = "| A || C |\n| --- | --- | --- |\n| x \\* y | \\_z\\_ | end |"
+
+        assertEquals(
+            listOf(
+                listOf("A", "", "C"),
+                listOf("x \\* y", "\\_z\\_", "end"),
+            ),
+            AdaptiveContentPolicy.parseMarkdownTable(table),
+        )
+    }
+
+    @Test
     fun plainMessageKeepsOnlyMessageAndProseScope() {
         val plan = AdaptiveContentPolicy.plan("نعم، هذا ممكن.")
         assertEquals(ContentUnitKind.PROSE, plan.units.single().kind)

@@ -11,21 +11,27 @@ import java.util.concurrent.TimeUnit
 
 /** Android platform effects used by adaptive assistant-content actions. */
 object ContentPlatformActions {
-    fun copyPlainText(context: Context, label: String, text: String) {
+    /** Writes to Clipboard and reports the actual platform outcome. */
+    fun copyPlainText(context: Context, label: String, text: String): Boolean {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val write = { clipboard.setPrimaryClip(ClipData.newPlainText(label, text)) }
         if (Looper.myLooper() == Looper.getMainLooper()) {
-            write()
+            return runCatching { write(); true }.getOrDefault(false)
         } else {
             val completed = CountDownLatch(1)
+            var succeeded = false
             Handler(Looper.getMainLooper()).post {
                 try {
                     write()
+                    succeeded = true
+                } catch (_: RuntimeException) {
+                    succeeded = false
                 } finally {
                     completed.countDown()
                 }
             }
-            completed.await(2, TimeUnit.SECONDS)
+            val finished = runCatching { completed.await(2, TimeUnit.SECONDS) }.getOrDefault(false)
+            return finished && succeeded
         }
     }
 

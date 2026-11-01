@@ -53,6 +53,7 @@ fun MarkdownText(
     baseFontSp  : Float    = 15f,
     lineHeightSp: Float    = 23f,
     onCopyCode  : ((String) -> Unit)? = null,
+    onCopyCodeResult: ((String) -> Boolean)? = null,
     codeTargets : List<ContentTarget.Block> = emptyList(),
     onContentAction: ((ContentTarget, ContentUnitAction) -> Unit)? = null,
 ) {
@@ -93,6 +94,7 @@ fun MarkdownText(
                             codeBack = codeBack,
                             codeFore = codeFore,
                             onCopyCode = onCopyCode,
+                            onCopyCodeResult = onCopyCodeResult,
                             target = target,
                             onContentAction = onContentAction,
                         )

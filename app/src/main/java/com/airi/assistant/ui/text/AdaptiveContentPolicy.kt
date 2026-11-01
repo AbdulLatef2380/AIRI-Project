@@ -96,10 +96,14 @@ object AdaptiveContentPolicy {
         val current = StringBuilder()
         var inCode = false
         var escaped = false
-        candidate.forEachIndexed { index, character ->
+        candidate.forEach { character ->
             when {
                 escaped -> {
-                    current.append(character)
+                    // Only an escaped pipe changes table structure. Keep the
+                    // escape for every other character so Markdown semantics
+                    // are not silently destroyed in clipboard output.
+                    if (character == '|') current.append('|')
+                    else current.append('\\').append(character)
                     escaped = false
                 }
                 character == '\\' -> escaped = true
@@ -108,19 +112,18 @@ object AdaptiveContentPolicy {
                     current.append(character)
                 }
                 character == '|' && !inCode -> {
-                    // A leading/trailing pipe is table framing, not a cell.
-                    if (index > 0 || current.isNotEmpty()) cells += current.toString().trim()
+                    cells += current.toString().trim()
                     current.clear()
                 }
                 else -> current.append(character)
             }
         }
         if (escaped) current.append('\\')
-        if (current.isNotEmpty() || (!candidate.endsWith('|') && cells.isNotEmpty())) {
-            cells += current.toString().trim()
-        }
+        cells += current.toString().trim()
+        if (candidate.startsWith('|') && cells.isNotEmpty()) cells.removeAt(0)
+        if (candidate.endsWith('|') && !candidate.endsWith("\\|") && cells.isNotEmpty()) cells.removeAt(cells.lastIndex)
         if (cells.isEmpty()) return null
-        return cells.map { it.replace("\\|", "|") }
+        return cells
     }
 
     private fun parseUnits(

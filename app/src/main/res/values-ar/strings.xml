@@ -2248,6 +2248,10 @@
     <string name="agent_lifecycle_status_waiting">قيد الانتظار</string>
     <string name="agent_lifecycle_status_cancelled">أُلغي</string>
     <string name="artifact_copied">تم نسخ المحتوى القابل لإعادة الاستخدام</string>
+    <string name="code_copied">تم نسخ الكود</string>
+    <string name="expand_code">توسيع الكود</string>
+    <string name="collapse_code">طي الكود</string>
+    <string name="artifact_copy_failed">تعذر نسخ المحتوى</string>
     <string name="table_copied">تم نسخ الجدول</string>
     <string name="artifact_expand">فتح المحتوى كاملاً</string>
     <string name="artifact_share">مشاركة المحتوى</string>

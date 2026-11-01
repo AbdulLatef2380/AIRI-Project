@@ -2356,6 +2356,7 @@
     <string name="agent_lifecycle_status_waiting">Waiting</string>
     <string name="agent_lifecycle_status_cancelled">Cancelled</string>
     <string name="artifact_copied">Copied reusable content</string>
+    <string name="artifact_copy_failed">Could not copy content</string>
     <string name="table_copied">Copied table</string>
     <string name="artifact_expand">Open full content</string>
     <string name="artifact_share">Share content</string>

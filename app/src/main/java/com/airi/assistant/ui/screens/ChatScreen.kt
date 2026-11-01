@@ -2761,8 +2761,12 @@ private fun rememberContentUnitActionHandler(
             if (target.canPerform(action)) {
                 when (action) {
                     ContentUnitAction.COPY -> {
-                        ContentPlatformActions.copyPlainText(context, "AIRI", target.copyPayload)
-                        android.widget.Toast.makeText(context, R.string.artifact_copied, android.widget.Toast.LENGTH_SHORT).show()
+                        val copied = ContentPlatformActions.copyPlainText(context, "AIRI", target.copyPayload)
+                        android.widget.Toast.makeText(
+                            context,
+                            if (copied) R.string.artifact_copied else R.string.artifact_copy_failed,
+                            android.widget.Toast.LENGTH_SHORT,
+                        ).show()
                     }
                     ContentUnitAction.SHARE -> onShare(target.sharePayload)
                     ContentUnitAction.SAVE -> {
@@ -2946,6 +2950,15 @@ fun AiBubble(
                                     messageId = messageId,
                                     toolOutputs = toolOutputs,
                                     onContentAction = handleContentAction,
+                                    onCopyResult = { payload ->
+                                        val copied = ContentPlatformActions.copyPlainText(context, "AIRI", payload)
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            if (copied) R.string.artifact_copied else R.string.artifact_copy_failed,
+                                            android.widget.Toast.LENGTH_SHORT,
+                                        ).show()
+                                        copied
+                                    },
                                 )
                             }
                             if (isSelectingText) SelectionContainer { renderContent() } else renderContent()

@@ -48,10 +48,12 @@ internal object CodeSyntaxHighlighter {
         "var", "void", "when", "while", "with", "yield"
     )
     private val sqlKeywords = setOf("select", "where", "from", "join", "left", "right", "inner", "outer", "on", "group", "by", "order", "having", "insert", "into", "values", "update", "set", "delete", "create", "table", "null", "as")
-    private val identifier = Regex("[A-Za-z_][A-Za-z0-9_]*")
-    private val operators = Regex("[{}()\\[\\].,:;<>+\\-*/%=!&|?]+")
     private val declarationWords = setOf("class", "interface", "object", "type", "enum")
     private val functionWords = setOf("fun", "def", "function")
+    private val operatorCharacters = setOf(
+        '{', '}', '(', ')', '[', ']', '.', ',', ':', ';', '<', '>', '+', '-',
+        '*', '/', '%', '=', '!', '&', '|', '?',
+    )
 
     fun palette(background: Color): Palette =
         if (background.luminance() < 0.5f) darkPalette else lightPalette
@@ -78,7 +80,7 @@ internal object CodeSyntaxHighlighter {
                         SpanStyle(color = palette.string)
                     token.firstOrNull()?.isDigit() == true -> SpanStyle(color = palette.number)
                     token.lowercase(Locale.ROOT) in languageKeywords -> SpanStyle(color = palette.keyword)
-                    operators.matches(token) -> SpanStyle(color = palette.operator)
+                    isOperatorToken(token) -> SpanStyle(color = palette.operator)
                     nextNonSpace == '(' || previousIdentifier in functionWords ->
                         SpanStyle(color = palette.function)
                     token.firstOrNull()?.isUpperCase() == true || previousIdentifier in declarationWords ->
@@ -86,7 +88,7 @@ internal object CodeSyntaxHighlighter {
                     else -> null
                 }
                 if (style == null) append(token) else withStyle(style) { append(token) }
-                if (identifier.matches(token)) previousIdentifier = token
+                if (isIdentifierToken(token)) previousIdentifier = token
                 else if (!token.firstOrNull()?.isWhitespace().orFalse() && !token.startsWith(".")) previousIdentifier = ""
                 cursor = match.range.last + 1
             }
@@ -95,4 +97,14 @@ internal object CodeSyntaxHighlighter {
     }
 
     private fun Boolean?.orFalse(): Boolean = this == true
+
+    private fun isIdentifierToken(token: String): Boolean {
+        if (token.isEmpty()) return false
+        val first = token[0]
+        if (!(first == '_' || first in 'A'..'Z' || first in 'a'..'z')) return false
+        return token.drop(1).all { it == '_' || it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' }
+    }
+
+    private fun isOperatorToken(token: String): Boolean =
+        token.isNotEmpty() && token.all(operatorCharacters::contains)
 }

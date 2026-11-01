@@ -30,10 +30,10 @@ class ContentPlatformActionsInstrumentedTest {
 
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val clipReference = AtomicReference<ClipData?>()
-        instrumentation.uiAutomation.adoptShellPermissionIdentity()
+            instrumentation.uiAutomation.adoptShellPermissionIdentity()
         try {
             instrumentation.runOnMainSync {
-                ContentPlatformActions.copyPlainText(context, "AIRI", target.copyPayload)
+                assertEquals(true, ContentPlatformActions.copyPlainText(context, "AIRI", target.copyPayload))
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipReference.set(clipboard.primaryClip)
             }

@@ -2253,6 +2253,14 @@
     <string name="agent_lifecycle_status_cancelled">أُلغي</string>
     <string name="artifact_copied">تم نسخ المحتوى القابل لإعادة الاستخدام</string>
     <string name="code_copied">تم نسخ الكود</string>
+    <plurals name="code_line_count">
+        <item quantity="zero">%1$d سطر</item>
+        <item quantity="one">سطر واحد</item>
+        <item quantity="two">سطران</item>
+        <item quantity="few">%1$d أسطر</item>
+        <item quantity="many">%1$d سطرًا</item>
+        <item quantity="other">%1$d سطر</item>
+    </plurals>
     <string name="expand_code">توسيع الكود</string>
     <string name="collapse_code">طي الكود</string>
     <string name="artifact_copy_failed">تعذر نسخ المحتوى</string>

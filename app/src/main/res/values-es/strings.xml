@@ -2020,6 +2020,10 @@
 
     <string name="artifact_copied">Contenido reutilizable copiado</string>
     <string name="code_copied">Código copiado</string>
+    <plurals name="code_line_count">
+        <item quantity="one">%1$d línea</item>
+        <item quantity="other">%1$d líneas</item>
+    </plurals>
     <string name="expand_code">Expandir código</string>
     <string name="collapse_code">Contraer código</string>
     <string name="artifact_copy_failed">No se pudo copiar el contenido</string>

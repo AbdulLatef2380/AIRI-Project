@@ -2020,6 +2020,9 @@
 
     <string name="artifact_copied">已复制可复用内容</string>
     <string name="code_copied">代码已复制</string>
+    <plurals name="code_line_count">
+        <item quantity="other">%1$d 行</item>
+    </plurals>
     <string name="expand_code">展开代码</string>
     <string name="collapse_code">收起代码</string>
     <string name="artifact_copy_failed">无法复制内容</string>

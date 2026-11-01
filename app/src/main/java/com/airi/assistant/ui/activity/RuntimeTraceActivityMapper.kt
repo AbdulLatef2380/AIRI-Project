@@ -30,15 +30,10 @@ internal object RuntimeTraceActivityMapper {
                 ),
             )
 
-            UniversalTraceEventType.MODEL_RESPONSE_RECEIVED -> Presentation(
-                category = ActivityCategory.MODEL,
-                tag = "runtime_model_response_received",
-                detail = details(event, "length", "containsToolCallCandidate", "parserInputClassification"),
-                metadata = ActivityMetadata(
-                    phase = ActivityPhase.MODEL,
-                    status = ActivityStatus.COMPLETED,
-                ),
-            )
+            // Individual model responses include intermediate tool-call
+            // candidates and parser diagnostics. The final, human-safe
+            // response-ready milestone comes from execution completion.
+            UniversalTraceEventType.MODEL_RESPONSE_RECEIVED -> null
 
             UniversalTraceEventType.TOOL_SELECTED -> if (event.outcome == "rejected") {
                 Presentation(

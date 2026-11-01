@@ -27,12 +27,15 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.material3.MaterialTheme
 import androidx.test.platform.app.InstrumentationRegistry
 import com.airi.assistant.R
+import com.airi.assistant.core.ExecutionTraceEvent
+import com.airi.assistant.core.ExecutionTraceKind
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceEvent
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceGroup
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceProjection
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceSummary
 import com.airi.assistant.ui.trace.UnifiedExecutionTraceTaskNode
 import com.airi.assistant.ui.trace.UnifiedTraceCategory
+import com.airi.assistant.ui.trace.InlineExecutionTrace
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -116,7 +119,8 @@ class AgentLifecycleTrackerPanelTest {
         composeRule.onNodeWithTag("agent-trace-summary").performClick()
         composeRule.onNodeWithContentDescription("Tools · 1. Expand group").performClick()
         composeRule.onNodeWithText("Tool action").assertIsDisplayed()
-        composeRule.onNodeWithText("skill_github_repository_read", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Technical name").assertIsDisplayed()
+        composeRule.onNodeWithText("skill_github_repository_read", substring = false).assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Tool action. skill_github_repository_read. Failed. Show event details")
             .performClick()
         composeRule.onNodeWithText("Details").assertIsDisplayed()
@@ -152,6 +156,26 @@ class AgentLifecycleTrackerPanelTest {
 
         composeRule.onNodeWithTag("agent-trace-summary").performClick()
         assertGroupVisible("Files · 1. Expand group", index = 0)
+    }
+
+    @Test
+    fun rtlLayoutKeepsTechnicalIdentifierInSeparateLtrTextNode() {
+        composeRule.setContent {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                MaterialTheme {
+                    AgentLifecycleTrackerPanel(
+                        projection = technicalToolProjection(),
+                        isWorking = false,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithTag("agent-trace-summary").performClick()
+        composeRule.onNodeWithContentDescription("Tools · 1. Expand group").performClick()
+        composeRule.onNodeWithTag("agent-trace-technical-token").assertIsDisplayed()
+        composeRule.onNodeWithText("skill_github_repository_read", substring = false).assertIsDisplayed()
     }
 
     @Test
@@ -247,6 +271,168 @@ class AgentLifecycleTrackerPanelTest {
         }
         composeRule.onNodeWithContentDescription("Files · 2. Collapse group").assertIsDisplayed()
         composeRule.onNodeWithText("Read streamed file").assertIsDisplayed()
+    }
+
+    @Test
+    fun admittedExecutionShowsHumanProgressSummary() {
+        val step = event(
+            id = "admitted-step",
+            category = UnifiedTraceCategory.TOOL,
+            status = TaskStatus.RUNNING,
+            title = "calendar_list",
+        )
+        composeRule.setContent {
+            MaterialTheme {
+                AgentLifecycleTrackerPanel(
+                    projection = fixtureProjection().copy(admitted = true, lastActivity = step),
+                    isWorking = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        val message = InstrumentationRegistry.getInstrumentation().targetContext
+            .getString(R.string.agent_lifecycle_understood)
+        composeRule.onNodeWithText(message).assertIsDisplayed()
+    }
+
+    @Test
+    fun runningFileActivityUsesHumanAttachmentMessage() {
+        val fileEvent = event(
+            id = "attachment-reading",
+            category = UnifiedTraceCategory.FILE,
+            status = TaskStatus.RUNNING,
+            title = "report.pdf",
+        )
+        composeRule.setContent {
+            MaterialTheme {
+                AgentLifecycleTrackerPanel(
+                    projection = fixtureProjection().copy(admitted = true, lastActivity = fileEvent),
+                    isWorking = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        val message = InstrumentationRegistry.getInstrumentation().targetContext
+            .getString(R.string.agent_lifecycle_reading_attachments)
+        composeRule.onNodeWithText(message).assertIsDisplayed()
+    }
+
+    @Test
+    fun completedExecutionShowsResponseReadyMilestoneWithoutResponseContent() {
+        val executionId = "response-ready-run"
+        val entries = listOf(
+            ExecutionTraceEvent(
+                executionId = executionId,
+                sequence = 1,
+                timestampMs = 1_000L,
+                kind = ExecutionTraceKind.TOOL_COMPLETED,
+                summary = "Tool call completed: gmail_read",
+                actionId = "gmail-read-action",
+                machineTag = "tool_call",
+            ),
+            ExecutionTraceEvent(
+                executionId = executionId,
+                sequence = 2,
+                timestampMs = 2_000L,
+                kind = ExecutionTraceKind.COMPLETED,
+                summary = "Execution completed",
+                machineTag = "execution_completed",
+            ),
+        )
+        composeRule.setContent {
+            MaterialTheme {
+                InlineExecutionTrace(
+                    executionId = executionId,
+                    entries = entries,
+                    isWorking = false,
+                )
+            }
+        }
+
+        val message = InstrumentationRegistry.getInstrumentation().targetContext
+            .getString(R.string.agent_lifecycle_response_ready)
+        composeRule.onNodeWithText(message).assertIsDisplayed()
+        composeRule.onAllNodesWithText("Execution completed").assertCountEquals(0)
+    }
+
+    @Test
+    fun directResponseDoesNotShowTracePanelBeforeAnyActivityIsAdmitted() {
+        composeRule.setContent {
+            MaterialTheme {
+                InlineExecutionTrace(
+                    executionId = "direct-response-run",
+                    entries = emptyList(),
+                    isWorking = true,
+                )
+            }
+        }
+
+        assertTrue(composeRule.onAllNodesWithTag("agent-trace-summary").fetchSemanticsNodes().isEmpty())
+        assertTrue(composeRule.onAllNodesWithTag("agent-trace-list").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun admissionPlanningAloneDoesNotShowExecutionPanel() {
+        val executionId = "planning-only-run"
+        composeRule.setContent {
+            MaterialTheme {
+                InlineExecutionTrace(
+                    executionId = executionId,
+                    entries = listOf(
+                        ExecutionTraceEvent(
+                            executionId = executionId,
+                            sequence = 1,
+                            timestampMs = 1_000L,
+                            kind = ExecutionTraceKind.PLANNING,
+                            summary = "Planning task",
+                            machineTag = "planning",
+                        ),
+                    ),
+                    isWorking = true,
+                )
+            }
+        }
+
+        assertTrue(composeRule.onAllNodesWithTag("agent-trace-summary").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun repeatedHeartbeatKeepsExpandedEventAndDoesNotDuplicateItsIdentity() {
+        var updateProjection: ((UnifiedExecutionTraceProjection) -> Unit)? = null
+        composeRule.setContent {
+            var projection by remember { mutableStateOf(treeProjection()) }
+            updateProjection = { projection = it }
+            MaterialTheme {
+                AgentLifecycleTrackerPanel(
+                    projection = projection,
+                    isWorking = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        composeRule.onNodeWithTag("agent-trace-summary").performClick()
+        composeRule.onNodeWithText("gmail_read", substring = true).assertIsDisplayed()
+
+        composeRule.runOnIdle {
+            val original = treeProjection()
+            repeat(3) { heartbeat ->
+                val root = original.taskTree.single()
+                val oldTool = root.children.single()
+                val updatedTool = oldTool.event.copy(timestampMs = oldTool.event.timestampMs + heartbeat + 1)
+                val updatedRoot = root.copy(children = listOf(oldTool.copy(event = updatedTool)))
+                updateProjection?.invoke(
+                    original.copy(
+                        events = listOf(root.event, updatedTool),
+                        taskTree = listOf(updatedRoot),
+                    ),
+                )
+            }
+        }
+
+        composeRule.onAllNodesWithText("gmail_read", substring = true).assertCountEquals(1)
+        composeRule.onNodeWithTag("agent-trace-list").assertIsDisplayed()
     }
 
     private fun setPanel(isWorking: Boolean) {

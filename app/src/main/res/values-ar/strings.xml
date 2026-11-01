@@ -987,6 +987,12 @@
     <string name="agent_lifecycle_status_running">قيد التنفيذ</string>
     <string name="agent_lifecycle_status_completed">مكتمل</string>
     <string name="agent_lifecycle_status_failed">فشل</string>
+    <string name="agent_lifecycle_understood">فهمت طلبك، وسأبدأ الآن.</string>
+    <string name="agent_lifecycle_reading_attachments">جارٍ قراءة المرفقات</string>
+    <string name="agent_lifecycle_files_read">الملفات المقروءة: %1$d</string>
+    <string name="agent_lifecycle_waiting_approval">بانتظار موافقتك</string>
+    <string name="agent_lifecycle_tool_failed">تعذّر إكمال تنفيذ الأداة</string>
+    <string name="agent_lifecycle_response_ready">أصبح ردك جاهزًا</string>
     <string name="agent_lifecycle_show_details">عرض تفاصيل التنفيذ</string>
     <string name="agent_lifecycle_hide_details">إخفاء تفاصيل التنفيذ</string>
     <string name="agent_plan_initialising">جارٍ تهيئة الخطة…</string>

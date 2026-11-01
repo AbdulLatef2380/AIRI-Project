@@ -995,6 +995,12 @@
     <string name="agent_lifecycle_status_running">In progress</string>
     <string name="agent_lifecycle_status_completed">Completed</string>
     <string name="agent_lifecycle_status_failed">Failed</string>
+    <string name="agent_lifecycle_understood">I understood your request. I&#39;ll start now.</string>
+    <string name="agent_lifecycle_reading_attachments">Reading attachments</string>
+    <string name="agent_lifecycle_files_read">Files read: %1$d</string>
+    <string name="agent_lifecycle_waiting_approval">Waiting for your approval</string>
+    <string name="agent_lifecycle_tool_failed">The tool could not be completed</string>
+    <string name="agent_lifecycle_response_ready">Your response is ready</string>
     <string name="agent_lifecycle_show_details">Show execution details</string>
     <string name="agent_lifecycle_hide_details">Hide execution details</string>
 

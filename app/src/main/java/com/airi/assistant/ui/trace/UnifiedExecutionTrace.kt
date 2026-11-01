@@ -227,12 +227,17 @@ internal object UnifiedExecutionTraceProjector {
             val terminal = actionEntries.lastOrNull { it.kind in key.family.terminalKinds }
             val source = terminal ?: first
             val parentId = actionEntries.asSequence().mapNotNull { it.parentId }.firstOrNull()
+            val title = if (key.family == ActionFamily.STEP) "Agent step" else toolTitle(first.summary, source.summary)
+            val eventCategory = if (key.family == ActionFamily.STEP) {
+                UnifiedTraceCategory.TASK
+            } else {
+                categoryFor(title, first.kind)
+            }
             val displayTimestamp = if (first.kind == ExecutionTraceKind.STEP_STARTED || first.kind == ExecutionTraceKind.TOOL_STARTED) {
                 first.timestampMs
             } else {
                 source.timestampMs
             }
-            val title = if (key.family == ActionFamily.STEP) "Agent step" else toolTitle(first.summary, source.summary)
             val details = buildList {
                 if (key.family == ActionFamily.STEP) {
                     first.detail?.takeIf(String::isNotBlank)?.let { add("Action: $it") }
@@ -251,8 +256,10 @@ internal object UnifiedExecutionTraceProjector {
                     timestampMs = displayTimestamp,
                     title = safeTraceText(localizeDynamicTitle(if (key.family == ActionFamily.STEP) "agent_step" else source.machineTag, title)),
                     status = source.kind.toTaskStatus(),
-                    detailLog = details?.let(::safeTraceText),
-                    category = if (key.family == ActionFamily.STEP) UnifiedTraceCategory.TASK else categoryFor(title, first.kind),
+                    // File tool details can contain extracted document or archive
+                    // contents. Keep the count/title evidence, never the payload.
+                    detailLog = details?.takeUnless { eventCategory == UnifiedTraceCategory.FILE }?.let(::safeTraceText),
+                    category = eventCategory,
                     machineTag = if (key.family == ActionFamily.STEP) "agent_step" else source.machineTag,
                     phase = phaseForStructured(source.kind),
                     parentId = parentId,
@@ -300,27 +307,30 @@ internal object UnifiedExecutionTraceProjector {
     private fun ExecutionTraceEvent.toProjectionCandidate(
         planningTaskLabel: String,
         executionCompletedLabel: String,
-    ): ProjectionCandidate = ProjectionCandidate(
-        event = UnifiedExecutionTraceEvent(
-            executionId = executionId,
-            eventId = eventId,
-            actionId = actionId,
-            sequence = sequence,
-            timestampMs = timestampMs,
-            title = localizeDynamicTitle(machineTag, localizeLifecycleSummary(summary, planningTaskLabel, executionCompletedLabel)),
-            status = kind.toTaskStatus(),
-            detailLog = buildList {
-                detail?.takeIf(String::isNotBlank)?.let { add(safeTraceText(it)) }
-                errorCode?.let { add("Error code: ${normalizeErrorCode(it)}") }
-                durationMs?.let { add("Duration: ${it.coerceAtLeast(0L)} ms") }
-            }.joinToString("\n").takeIf(String::isNotBlank),
-            category = categoryFor(summary, kind),
-            machineTag = machineTag,
-            phase = phaseForStructured(kind),
-        ),
-        dedupeKey = lifecycleDedupeKey(kind, summary),
-        sourcePriority = 0,
-    )
+    ): ProjectionCandidate {
+        val eventCategory = categoryFor(summary, kind)
+        return ProjectionCandidate(
+            event = UnifiedExecutionTraceEvent(
+                executionId = executionId,
+                eventId = eventId,
+                actionId = actionId,
+                sequence = sequence,
+                timestampMs = timestampMs,
+                title = localizeDynamicTitle(machineTag, localizeLifecycleSummary(summary, planningTaskLabel, executionCompletedLabel)),
+                status = kind.toTaskStatus(),
+                detailLog = if (eventCategory == UnifiedTraceCategory.FILE) null else buildList {
+                    detail?.takeIf(String::isNotBlank)?.let { add(safeTraceText(it)) }
+                    errorCode?.let { add("Error code: ${normalizeErrorCode(it)}") }
+                    durationMs?.let { add("Duration: ${it.coerceAtLeast(0L)} ms") }
+                }.joinToString("\n").takeIf(String::isNotBlank),
+                category = eventCategory,
+                machineTag = machineTag,
+                phase = phaseForStructured(kind),
+            ),
+            dedupeKey = lifecycleDedupeKey(kind, summary),
+            sourcePriority = 0,
+        )
+    }
 
     private fun ActivityEvent.toProjectionCandidate(
         sequence: Long,
@@ -345,7 +355,9 @@ internal object UnifiedExecutionTraceProjector {
                     ActivitySeverity.WARN -> TaskStatus.RUNNING
                     ActivitySeverity.ERROR -> TaskStatus.FAILED
                 },
-                detailLog = detail?.takeIf(String::isNotBlank),
+                // File activity details can contain extracted attachment text;
+                // the user-facing evidence is the localized file count/title.
+                detailLog = event.detail?.takeIf { category != UnifiedTraceCategory.FILE && it.isNotBlank() },
                 category = category,
                 machineTag = machineTag,
                 phase = metadata.phase,

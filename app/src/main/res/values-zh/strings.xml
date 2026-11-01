@@ -818,6 +818,12 @@
     <string name="agent_lifecycle_status_running">进行中</string>
     <string name="agent_lifecycle_status_completed">已完成</string>
     <string name="agent_lifecycle_status_failed">失败</string>
+    <string name="agent_lifecycle_understood">我已理解你的请求，现在开始处理。</string>
+    <string name="agent_lifecycle_reading_attachments">正在读取附件</string>
+    <string name="agent_lifecycle_files_read">已读取文件：%1$d</string>
+    <string name="agent_lifecycle_waiting_approval">等待你的批准</string>
+    <string name="agent_lifecycle_tool_failed">工具未能完成</string>
+    <string name="agent_lifecycle_response_ready">你的回复已准备就绪</string>
     <string name="agent_lifecycle_show_details">显示执行详情</string>
     <string name="agent_lifecycle_hide_details">隐藏执行详情</string>
     <string name="agent_plan_initialising">正在初始化计划…</string>

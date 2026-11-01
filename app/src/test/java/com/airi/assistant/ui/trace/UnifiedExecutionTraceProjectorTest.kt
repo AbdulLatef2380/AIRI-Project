@@ -12,6 +12,7 @@ import com.airi.assistant.ui.activity.ActivityVisibility
 import com.airi.assistant.ui.activity.TaskStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.random.Random
@@ -467,6 +468,49 @@ class UnifiedExecutionTraceProjectorTest {
         val detail = result.events.single().detailLog.orEmpty()
         assertFalse(detail.contains("top-secret-token"))
         assertFalse(detail.contains("Authorization: Bearer"))
+    }
+
+    @Test
+    fun `file and attachment details never expose extracted content`() {
+        val privateArchiveOutput = "RAW_ARCHIVE_CONTENT must never appear in the trace"
+        val result = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-file-payload",
+            traceEntries = listOf(
+                trace(
+                    executionId = "run-file-payload",
+                    sequence = 1,
+                    timestampMs = 1_000,
+                    kind = ExecutionTraceKind.TOOL_COMPLETED,
+                    summary = "Tool call completed: read_file",
+                    actionId = "read-file-action",
+                    detail = privateArchiveOutput,
+                ),
+                trace(
+                    executionId = "run-file-payload",
+                    sequence = 2,
+                    timestampMs = 1_500,
+                    kind = ExecutionTraceKind.TOOL_COMPLETED,
+                    summary = "Read file fallback",
+                    detail = privateArchiveOutput,
+                ),
+            ),
+            activityEvents = listOf(
+                ActivityEvent(
+                    id = "attachment-output",
+                    message = "Read file attachment.zip",
+                    detail = privateArchiveOutput,
+                    executionId = "run-file-payload",
+                    category = ActivityCategory.SANDBOX,
+                ),
+            ),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        val fileEvents = result.events.filter { it.category == UnifiedTraceCategory.FILE }
+        assertEquals(3, fileEvents.size)
+        assertTrue(fileEvents.all { it.detailLog == null })
+        assertTrue(result.events.none { it.title.contains("RAW_ARCHIVE_CONTENT") })
     }
 
     @Test

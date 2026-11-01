@@ -818,6 +818,12 @@
     <string name="agent_lifecycle_status_running">En curso</string>
     <string name="agent_lifecycle_status_completed">Completado</string>
     <string name="agent_lifecycle_status_failed">Fallido</string>
+    <string name="agent_lifecycle_understood">Entendí tu solicitud. Empezaré ahora.</string>
+    <string name="agent_lifecycle_reading_attachments">Leyendo los archivos adjuntos</string>
+    <string name="agent_lifecycle_files_read">Archivos leídos: %1$d</string>
+    <string name="agent_lifecycle_waiting_approval">Esperando tu aprobación</string>
+    <string name="agent_lifecycle_tool_failed">No se pudo completar la herramienta</string>
+    <string name="agent_lifecycle_response_ready">Tu respuesta está lista</string>
     <string name="agent_lifecycle_show_details">Mostrar detalles de ejecución</string>
     <string name="agent_lifecycle_hide_details">Ocultar detalles de ejecución</string>
     <string name="agent_plan_initialising">Inicializando plan…</string>

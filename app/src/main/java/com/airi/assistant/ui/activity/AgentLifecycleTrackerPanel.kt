@@ -215,6 +215,22 @@ private fun ActivitySummaryRow(
         summary.summary.memoryOperations.takeIf { it > 0 }?.let { add(stringResource(R.string.agent_trace_summary_memory, it)) }
         summary.summary.tasks.takeIf { it > 0 }?.let { add(stringResource(R.string.agent_trace_summary_tasks, it)) }
     }
+    val lastActivity = summary.lastActivity ?: summary.events.lastOrNull()
+    val progressMessage = when {
+        !summary.admitted -> null
+        isWaiting -> R.string.agent_lifecycle_waiting_approval
+        lastActivity != null && lastActivity.machineTag == "execution_completed" &&
+            lastActivity.status == TaskStatus.COMPLETED -> R.string.agent_lifecycle_response_ready
+        lastActivity != null && lastActivity.category == UnifiedTraceCategory.FILE &&
+            lastActivity.status == TaskStatus.RUNNING -> R.string.agent_lifecycle_reading_attachments
+        lastActivity != null && lastActivity.category == UnifiedTraceCategory.FILE &&
+            lastActivity.status == TaskStatus.COMPLETED -> R.string.agent_lifecycle_files_read
+        lastActivity != null &&
+            (lastActivity.category == UnifiedTraceCategory.TOOL || lastActivity.category == UnifiedTraceCategory.CONNECTOR) &&
+            lastActivity.status == TaskStatus.FAILED -> R.string.agent_lifecycle_tool_failed
+        isWorking -> R.string.agent_lifecycle_understood
+        else -> null
+    }
     val toggleDescription = stringResource(
         if (expanded) R.string.agent_trace_collapse_panel else R.string.agent_trace_expand_panel,
     )
@@ -269,6 +285,18 @@ private fun ActivitySummaryRow(
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
+            }
+            progressMessage?.let { messageRes ->
+                Text(
+                    text = if (messageRes == R.string.agent_lifecycle_files_read) {
+                        stringResource(messageRes, summary.summary.filesRead)
+                    } else {
+                        stringResource(messageRes)
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.testTag("agent-trace-human-progress"),
+                )
             }
         }
         Icon(
@@ -386,7 +414,14 @@ private fun ActivityEventRow(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = "${stringResource(R.string.agent_trace_event_technical_name)}: ${event.title}",
+                        text = stringResource(R.string.agent_trace_event_technical_name),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = event.title,
+                        modifier = Modifier.testTag("agent-trace-technical-token"),
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontFamily = FontFamily.Monospace,

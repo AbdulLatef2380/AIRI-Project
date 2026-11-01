@@ -37,7 +37,10 @@ fun InlineExecutionTrace(
             executionCompletedLabel = executionCompletedLabel,
         )
     }
-    if (!isWorking && (!projection.admitted || projection.events.isEmpty())) return
+    // Never render an empty or admission-only panel for a direct response.
+    // Once a user-visible activity is admitted, the same surface remains
+    // visible through its terminal milestone.
+    if (!projection.admitted || projection.events.isEmpty()) return
 
     AgentLifecycleTrackerPanel(
         projection = projection,

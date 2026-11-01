@@ -5,6 +5,7 @@ import com.airi.assistant.core.UniversalTraceEventType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -63,5 +64,20 @@ class RuntimeTraceActivityMapperTest {
         }.forEach { event ->
             assertEquals(null, RuntimeTraceActivityMapper.map(event))
         }
+    }
+
+    @Test
+    fun modelResponseAndParserDiagnosticsNeverBecomeUserActivityRows() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        val response = recorder.modelResponse(
+            executionId = "runtime-private-response",
+            sessionId = "session-private-response",
+            response = "private model text must never enter the user activity feed",
+            containsToolCallCandidate = true,
+            parserInputClassification = "tool_call_candidate",
+        )
+
+        assertEquals(UniversalTraceEventType.MODEL_RESPONSE_RECEIVED, response.eventType)
+        assertNull(RuntimeTraceActivityMapper.map(response))
     }
 }

@@ -229,55 +229,55 @@ internal object UnifiedExecutionTraceProjector {
     ): List<ProjectionCandidate> {
         val result = mutableListOf<ProjectionCandidate>()
         val consumed = mutableSetOf<ExecutionTraceEvent>()
-            entries.filter { it.actionId != null }
+        entries.filter { it.actionId != null }
             .groupBy { ActionGroupKey(it.actionId!!, it.kind.actionFamily()) }
             .forEach { (key, actionEntries) ->
-            val first = actionEntries.first()
-            val terminal = actionEntries.lastOrNull { it.kind in key.family.terminalKinds }
-            val source = terminal ?: first
-            val parentId = actionEntries.asSequence().mapNotNull { it.parentId }.firstOrNull()
-            val title = if (key.family == ActionFamily.STEP) "Agent step" else toolTitle(first.summary, source.summary)
-            val eventCategory = if (key.family == ActionFamily.STEP) {
-                UnifiedTraceCategory.TASK
-            } else {
-                categoryFor(title, first.kind)
-            }
-            val displayTimestamp = if (first.kind == ExecutionTraceKind.STEP_STARTED || first.kind == ExecutionTraceKind.TOOL_STARTED) {
-                first.timestampMs
-            } else {
-                source.timestampMs
-            }
-            val details = buildList {
-                if (key.family == ActionFamily.STEP) {
-                    first.detail?.takeIf(String::isNotBlank)?.let { add("Action: $it") }
-                } else if (eventCategory != UnifiedTraceCategory.FILE) {
-                    source.detail?.takeIf(String::isNotBlank)?.let(::add)
+                val first = actionEntries.first()
+                val terminal = actionEntries.lastOrNull { it.kind in key.family.terminalKinds }
+                val source = terminal ?: first
+                val parentId = actionEntries.asSequence().mapNotNull { it.parentId }.firstOrNull()
+                val title = if (key.family == ActionFamily.STEP) "Agent step" else toolTitle(first.summary, source.summary)
+                val eventCategory = if (key.family == ActionFamily.STEP) {
+                    UnifiedTraceCategory.TASK
+                } else {
+                    categoryFor(title, first.kind)
                 }
-                source.errorCode?.let { add("Error code: ${normalizeErrorCode(it)}") }
-                source.durationMs?.let { add("${it.coerceAtLeast(0L)} ms") }
-            }.joinToString("\n").takeIf(String::isNotBlank)
-            result += ProjectionCandidate(
-                event = UnifiedExecutionTraceEvent(
-                    executionId = first.executionId,
-                    eventId = first.eventId,
-                    actionId = key.actionId,
-                    sequence = first.sequence,
-                    timestampMs = displayTimestamp,
-                    title = safeTraceText(localizeDynamicTitle(if (key.family == ActionFamily.STEP) "agent_step" else source.machineTag, title)),
-                    status = source.kind.toTaskStatus(),
-                    // File tool details can contain extracted document or archive
-                    // contents. Keep the count/title evidence, never the payload.
-                detailLog = details?.let(::safeTraceText),
-                    category = eventCategory,
-                    machineTag = if (key.family == ActionFamily.STEP) "agent_step" else source.machineTag,
-                    phase = phaseForStructured(source.kind),
-                    parentId = parentId,
-                ),
-                dedupeKey = "action:${key.family.name.lowercase()}:${key.actionId}",
-                sourcePriority = 0,
-            )
-            consumed += actionEntries
-        }
+                val displayTimestamp = if (first.kind == ExecutionTraceKind.STEP_STARTED || first.kind == ExecutionTraceKind.TOOL_STARTED) {
+                    first.timestampMs
+                } else {
+                    source.timestampMs
+                }
+                val details = buildList {
+                    if (key.family == ActionFamily.STEP) {
+                        first.detail?.takeIf(String::isNotBlank)?.let { add("Action: $it") }
+                    } else if (eventCategory != UnifiedTraceCategory.FILE) {
+                        source.detail?.takeIf(String::isNotBlank)?.let(::add)
+                    }
+                    source.errorCode?.let { add("Error code: ${normalizeErrorCode(it)}") }
+                    source.durationMs?.let { add("${it.coerceAtLeast(0L)} ms") }
+                }.joinToString("\n").takeIf(String::isNotBlank)
+                result += ProjectionCandidate(
+                    event = UnifiedExecutionTraceEvent(
+                        executionId = first.executionId,
+                        eventId = first.eventId,
+                        actionId = key.actionId,
+                        sequence = first.sequence,
+                        timestampMs = displayTimestamp,
+                        title = safeTraceText(localizeDynamicTitle(if (key.family == ActionFamily.STEP) "agent_step" else source.machineTag, title)),
+                        status = source.kind.toTaskStatus(),
+                        // File tool details can contain extracted document or archive
+                        // contents. Keep the count/title evidence, never the payload.
+                        detailLog = details?.let(::safeTraceText),
+                        category = eventCategory,
+                        machineTag = if (key.family == ActionFamily.STEP) "agent_step" else source.machineTag,
+                        phase = phaseForStructured(source.kind),
+                        parentId = parentId,
+                    ),
+                    dedupeKey = "action:${key.family.name.lowercase()}:${key.actionId}",
+                    sourcePriority = 0,
+                )
+                consumed += actionEntries
+            }
         entries.filterNot { it in consumed }.forEach { entry -> result += entry.toProjectionCandidate(planningTaskLabel, executionCompletedLabel) }
         return result
     }

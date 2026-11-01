@@ -81,6 +81,16 @@ jobs:
           -Pandroid.native.buildOutput=verbose \
           --stacktrace
 
+    - name: Verify debug APK output
+      run: test -n "$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -size +0c -print -quit)"
+
+    - name: Upload debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: AIRI-Android-Debug-APK
+        path: app/build/outputs/apk/debug/*.apk
+        if-no-files-found: error
+
     - name: Run unit tests and Android lint
       run: ./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace
 
@@ -207,16 +217,17 @@ jobs:
         # API 35's hosted system image does not reach sys.boot_completed on
         # the current GitHub runner. Keep a stable legacy baseline and the
         # latest stable image that boots reliably in this matrix.
-        # Arabic and API 34 runs exercise a heavier RTL/GMS path and have
-        # repeatedly shown Binder/package-manager pressure at the 2 GiB
-        # default guest budget. Keep the English API 29 baseline unchanged,
-        # and size only the affected matrix entries explicitly.
+        # API 29 google_apis jobs repeatedly timed out in ddmlib's device
+        # property fetch (reported as "Unknown API Level") before test
+        # discovery. The instrumentation sources have no direct Play Services
+        # dependency, so use the default image for this legacy API baseline.
+        # API 34 uses aosp_atd, which completed both locales in the latest run.
         include:
           - api-level: 29
             locale: en-US
             memory: 4096
             cores: 4
-            target: google_apis
+            target: default
             job_timeout_minutes: 55
             step_timeout_minutes: 45
             test_timeout_seconds: 900
@@ -224,7 +235,7 @@ jobs:
             locale: ar-SA
             memory: 4096
             cores: 4
-            target: google_apis
+            target: default
             job_timeout_minutes: 55
             step_timeout_minutes: 45
             test_timeout_seconds: 900

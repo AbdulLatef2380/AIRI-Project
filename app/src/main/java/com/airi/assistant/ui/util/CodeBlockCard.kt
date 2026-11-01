@@ -1,6 +1,7 @@
 package com.airi.assistant.ui.util
 
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,7 +13,6 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,7 +62,7 @@ fun CodeBlockCard(
     }
     val lineCount = remember(code) { code.count { it == '\n' } + 1 }
     val canCollapse = lineCount > 14
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable(target?.blockId ?: "code-${code.hashCode()}") { mutableStateOf(false) }
     var copied by remember { mutableStateOf(false) }
 
     LaunchedEffect(copied) {
@@ -90,13 +91,6 @@ fun CodeBlockCard(
         val scopedTarget = target ?: return
         if (scopedTarget.canPerform(ContentUnitAction.SHARE)) {
             onContentAction?.invoke(scopedTarget, ContentUnitAction.SHARE)
-        }
-    }
-
-    fun save() {
-        val block = target ?: return
-        if (block.canPerform(ContentUnitAction.SAVE)) {
-            onContentAction?.invoke(block, ContentUnitAction.SAVE)
         }
     }
 
@@ -161,26 +155,23 @@ fun CodeBlockCard(
                             Icon(Icons.Outlined.Share, contentDescription = context.getString(R.string.artifact_share), tint = AiriTheme.onSurfaceVariant)
                         }
                     }
-                    if (target != null && target.canPerform(ContentUnitAction.SAVE) && onContentAction != null) {
-                        IconButton(onClick = ::save, modifier = Modifier.size(40.dp)) {
-                            Icon(Icons.Outlined.FileDownload, contentDescription = context.getString(R.string.artifact_save), tint = AiriTheme.onSurfaceVariant)
-                        }
-                    }
                 }
-                Text(
-                    text = highlightedCode,
-                    style = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp,
-                        lineHeight = 20.sp,
-                        color = codeFore,
-                        textDirection = TextDirection.Ltr,
-                    ),
-                    softWrap = true,
-                    maxLines = if (canCollapse && !expanded) 14 else Int.MAX_VALUE,
-                    overflow = TextOverflow.Clip,
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp),
-                )
+                SelectionContainer {
+                    Text(
+                        text = highlightedCode,
+                        style = TextStyle(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 13.sp,
+                            lineHeight = 20.sp,
+                            color = codeFore,
+                            textDirection = TextDirection.Ltr,
+                        ),
+                        softWrap = true,
+                        maxLines = if (canCollapse && !expanded) 14 else Int.MAX_VALUE,
+                        overflow = TextOverflow.Clip,
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp),
+                    )
+                }
             }
         }
     }

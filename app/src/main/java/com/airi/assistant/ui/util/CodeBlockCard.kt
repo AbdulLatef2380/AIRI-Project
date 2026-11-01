@@ -46,8 +46,9 @@ fun CodeBlockCard(
     onContentAction: ((ContentTarget, ContentUnitAction) -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    val highlightedCode = remember(code, language) {
-        CodeSyntaxHighlighter.highlight(code, language)
+    val syntaxPalette = remember(codeBack) { CodeSyntaxHighlighter.palette(codeBack) }
+    val highlightedCode = remember(code, language, syntaxPalette) {
+        CodeSyntaxHighlighter.highlight(code, language, syntaxPalette)
     }
 
     fun copy() {
@@ -122,7 +123,7 @@ fun CodeBlockCard(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp,
                         lineHeight = 20.sp,
-                        color = CodeSyntaxHighlighter.defaultColor,
+                        color = codeFore,
                         textDirection = TextDirection.Ltr,
                     ),
                     softWrap = true,

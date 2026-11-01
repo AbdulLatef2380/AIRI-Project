@@ -56,8 +56,11 @@ fun MarkdownText(
     codeTargets : List<ContentTarget.Block> = emptyList(),
     onContentAction: ((ContentTarget, ContentUnitAction) -> Unit)? = null,
 ) {
-    val codeBack  = Color(0xFF0D1118)
-    val codeFore  = Color(0xFF79C0FF)
+    // Theme roles keep the card readable in dark, light, and AMOLED modes.
+    // The parent chat remains the only scrolling surface; this card never adds
+    // horizontal or vertical scrolling of its own.
+    val codeBack  = AiriTheme.surfaceVariant
+    val codeFore  = AiriTheme.onSurface
     val ruleColor = textColor.copy(alpha = 0.12f)
 
     val blocks = remember(rawText) {

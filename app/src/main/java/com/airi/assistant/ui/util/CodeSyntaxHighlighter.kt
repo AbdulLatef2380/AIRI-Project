@@ -1,6 +1,7 @@
 package com.airi.assistant.ui.util
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -10,15 +11,32 @@ import java.util.Locale
 /** Display-only token colouring. The returned text is byte-for-byte equivalent at the String level. */
 internal object CodeSyntaxHighlighter {
     val defaultColor = Color(0xFFE6EDF3)
-    private val keywordColor = Color(0xFFFF7B72)
-    private val stringColor = Color(0xFFA5D6FF)
-    private val commentColor = Color(0xFF8B949E)
-    private val numberColor = Color(0xFFD2A8FF)
+    data class Palette(
+        val keyword: Color,
+        val string: Color,
+        val comment: Color,
+        val number: Color,
+        val function: Color,
+        val type: Color,
+        val operator: Color,
+    )
+
+    private val darkPalette = Palette(
+        keyword = Color(0xFFFF7B72), string = Color(0xFFA5D6FF), comment = Color(0xFF8B949E),
+        number = Color(0xFFD2A8FF), function = Color(0xFFD2A8FF), type = Color(0xFFFFA657),
+        operator = Color(0xFFFFA657),
+    )
+    private val lightPalette = Palette(
+        keyword = Color(0xFFB42318), string = Color(0xFF075985), comment = Color(0xFF667085),
+        number = Color(0xFF6941C6), function = Color(0xFF6941C6), type = Color(0xFFB54708),
+        operator = Color(0xFFB54708),
+    )
 
     private val tokens = Regex(
         "\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|`[^`\\n]*`|" +
             "//[^\\n]*|#[^\\n]*|--[^\\n]*|/\\*[\\s\\S]*?\\*/|" +
-            "\\b[A-Za-z_][A-Za-z0-9_]*\\b|\\b\\d+(?:\\.\\d+)?\\b"
+            "\\b[A-Za-z_][A-Za-z0-9_]*\\b|\\b\\d+(?:\\.\\d+)?\\b|" +
+            "[{}()\\[\\].,:;<>+\\-*/%=!&|?]+"
     )
 
     private val commonKeywords = setOf(
@@ -31,7 +49,10 @@ internal object CodeSyntaxHighlighter {
     )
     private val sqlKeywords = setOf("select", "where", "from", "join", "left", "right", "inner", "outer", "on", "group", "by", "order", "having", "insert", "into", "values", "update", "set", "delete", "create", "table", "null", "as")
 
-    fun highlight(code: String, language: String): AnnotatedString {
+    fun palette(background: Color): Palette =
+        if (background.luminance() < 0.5f) darkPalette else lightPalette
+
+    fun highlight(code: String, language: String, palette: Palette = darkPalette): AnnotatedString {
         val languageKeywords = if (language.equals("sql", ignoreCase = true)) {
             commonKeywords + sqlKeywords
         } else {
@@ -42,13 +63,21 @@ internal object CodeSyntaxHighlighter {
             for (match in tokens.findAll(code)) {
                 if (match.range.first > cursor) append(code.substring(cursor, match.range.first))
                 val token = match.value
+                val previous = code.substring(0, match.range.first).trimEnd()
+                val previousWord = Regex("[A-Za-z_][A-Za-z0-9_]*$").find(previous)?.value.orEmpty()
+                val nextNonSpace = code.substring(match.range.last + 1).firstOrNull { !it.isWhitespace() }
                 val style = when {
                     token.startsWith("//") || token.startsWith("#") || token.startsWith("--") || token.startsWith("/*") ->
-                        SpanStyle(color = commentColor)
+                        SpanStyle(color = palette.comment)
                     token.startsWith("\"") || token.startsWith("'") || token.startsWith("`") ->
-                        SpanStyle(color = stringColor)
-                    token.firstOrNull()?.isDigit() == true -> SpanStyle(color = numberColor)
-                    token.lowercase(Locale.ROOT) in languageKeywords -> SpanStyle(color = keywordColor)
+                        SpanStyle(color = palette.string)
+                    token.firstOrNull()?.isDigit() == true -> SpanStyle(color = palette.number)
+                    token.lowercase(Locale.ROOT) in languageKeywords -> SpanStyle(color = palette.keyword)
+                    token.matches(Regex("[{}()\\[\\].,:;<>+\\-*/%=!&|?]+")) -> SpanStyle(color = palette.operator)
+                    nextNonSpace == '(' || previousWord in setOf("fun", "def", "function") ->
+                        SpanStyle(color = palette.function)
+                    token.firstOrNull()?.isUpperCase() == true || previousWord in setOf("class", "interface", "object", "type", "enum") ->
+                        SpanStyle(color = palette.type)
                     else -> null
                 }
                 if (style == null) append(token) else withStyle(style) { append(token) }

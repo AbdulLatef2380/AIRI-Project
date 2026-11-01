@@ -170,23 +170,63 @@ private fun MarkdownTableRenderer(
         }
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
             Column(Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    rows.forEachIndexed { index, cells ->
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = if (index == 0) AiriTheme.surfaceVariant else AiriTheme.surface,
-                            shape = AIRIShapes.sm,
-                        ) {
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 7.dp)) {
-                                cells.forEach { cell ->
-                                    Text(
-                                        text = cell,
-                                        color = AiriTheme.onSurface,
-                                        fontSize = if (index == 0) 12.sp else 11.sp,
-                                        style = TextStyle(textDirection = TextDirection.Content),
-                                        softWrap = true,
-                                        modifier = Modifier.weight(1f).padding(end = 8.dp),
-                                    )
+                val columnCount = rows.maxOfOrNull { it.size } ?: 0
+                val stackedRows = columnCount > 3
+                if (stackedRows && rows.size > 1) {
+                    val headers = rows.first()
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        rows.drop(1).forEach { cells ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = AiriTheme.surface,
+                                shape = AIRIShapes.sm,
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                                ) {
+                                    cells.forEachIndexed { cellIndex, cell ->
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text(
+                                                text = headers.getOrNull(cellIndex).orEmpty(),
+                                                color = AiriTheme.onSurfaceVariant,
+                                                fontSize = 11.sp,
+                                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                                modifier = Modifier.weight(0.38f),
+                                            )
+                                            Text(
+                                                text = cell,
+                                                color = AiriTheme.onSurface,
+                                                fontSize = 12.sp,
+                                                style = TextStyle(textDirection = TextDirection.Content),
+                                                softWrap = true,
+                                                modifier = Modifier.weight(0.62f),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        rows.forEachIndexed { index, cells ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = if (index == 0) AiriTheme.surfaceVariant else AiriTheme.surface,
+                                shape = AIRIShapes.sm,
+                            ) {
+                                Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 7.dp)) {
+                                    cells.forEach { cell ->
+                                        Text(
+                                            text = cell,
+                                            color = AiriTheme.onSurface,
+                                            fontSize = if (index == 0) 12.sp else 11.sp,
+                                            style = TextStyle(textDirection = TextDirection.Content),
+                                            softWrap = true,
+                                            modifier = Modifier.weight(1f).padding(end = 8.dp),
+                                        )
+                                    }
                                 }
                             }
                         }

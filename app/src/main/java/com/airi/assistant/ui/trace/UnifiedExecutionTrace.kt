@@ -357,7 +357,7 @@ internal object UnifiedExecutionTraceProjector {
                 },
                 // File activity details can contain extracted attachment text;
                 // the user-facing evidence is the localized file count/title.
-                detailLog = event.detail?.takeIf { category != UnifiedTraceCategory.FILE && it.isNotBlank() },
+                detailLog = detail?.takeIf { category != UnifiedTraceCategory.FILE && it.isNotBlank() },
                 category = category,
                 machineTag = machineTag,
                 phase = metadata.phase,

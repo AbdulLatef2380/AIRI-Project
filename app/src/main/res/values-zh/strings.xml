@@ -565,6 +565,9 @@
     <string name="chat_context_edit">编辑</string>
     <string name="chat_context_select_text">选择文本</string>
     <string name="chat_context_share">分享</string>
+    <string name="chat_message_actions">消息操作</string>
+    <string name="chat_message_delete_title">删除此消息？</string>
+    <string name="chat_message_delete_body">此消息将从当前对话中移除，且无法撤销。</string>
     <string name="onboarding_tagline">默认私密，强大设计。</string>
     <string name="email">电子邮件</string>
     <string name="password">密码</string>

@@ -565,6 +565,9 @@
     <string name="chat_context_edit">Editar</string>
     <string name="chat_context_select_text">Seleccionar texto</string>
     <string name="chat_context_share">Compartir</string>
+    <string name="chat_message_actions">Acciones del mensaje</string>
+    <string name="chat_message_delete_title">¿Eliminar este mensaje?</string>
+    <string name="chat_message_delete_body">Este mensaje se eliminará de la conversación. Esta acción no se puede deshacer.</string>
     <string name="onboarding_tagline">Privado por defecto. Potente por diseño.</string>
     <string name="email">Correo electrónico</string>
     <string name="password">Contraseña</string>

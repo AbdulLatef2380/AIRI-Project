@@ -137,7 +137,7 @@ internal fun HistorySessionItem(session: ChatSessionSummary, icon: ImageVector, 
     }
 }
 
-private fun historySessionIcon(key: String): ImageVector = when (key) {
+fun historySessionIcon(key: String): ImageVector = when (key) {
     "greeting" -> Icons.Outlined.ChatBubbleOutline
     "image" -> Icons.Outlined.Image
     "code" -> Icons.Outlined.Code

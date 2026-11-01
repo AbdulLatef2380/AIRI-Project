@@ -320,6 +320,7 @@ private fun ActivityGroupHeader(group: UnifiedExecutionTraceGroup, expanded: Boo
         UnifiedTraceCategory.PLAN, UnifiedTraceCategory.TASK -> stringResource(R.string.agent_trace_group_tasks)
         UnifiedTraceCategory.SYSTEM -> stringResource(R.string.agent_trace_group_activity)
     }
+    val groupLabel = stringResource(R.string.agent_trace_group_count, title, group.events.size)
     val toggleDescription = stringResource(
         if (expanded) R.string.agent_trace_collapse_group else R.string.agent_trace_expand_group,
     )
@@ -328,7 +329,7 @@ private fun ActivityGroupHeader(group: UnifiedExecutionTraceGroup, expanded: Boo
             .fillMaxWidth()
             .clickable(role = Role.Button, onClick = onToggle)
             .semantics {
-                contentDescription = "${stringResource(R.string.agent_trace_group_count, title, group.events.size)}. $toggleDescription"
+                contentDescription = "$groupLabel. $toggleDescription"
             }
             .padding(start = 26.dp, end = 6.dp, top = 5.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -336,7 +337,7 @@ private fun ActivityGroupHeader(group: UnifiedExecutionTraceGroup, expanded: Boo
         ActivityCategoryIcon(group.category, Modifier.size(15.dp))
         Spacer(Modifier.width(7.dp))
         Text(
-            text = stringResource(R.string.agent_trace_group_count, title, group.events.size),
+            text = groupLabel,
             modifier = Modifier.weight(1f),
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f),
             style = MaterialTheme.typography.labelMedium,

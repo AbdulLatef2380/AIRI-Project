@@ -653,6 +653,9 @@
     <string name="chat_context_edit">تعديل</string>
     <string name="chat_context_select_text">تحديد نص</string>
     <string name="chat_context_share">مشاركة</string>
+    <string name="chat_message_actions">إجراءات الرسالة</string>
+    <string name="chat_message_delete_title">حذف هذه الرسالة؟</string>
+    <string name="chat_message_delete_body">ستتم إزالة هذه الرسالة من المحادثة. لا يمكن التراجع عن هذا الإجراء.</string>
 
     <!-- Onboarding / Welcome -->
     <string name="onboarding_tagline">خصوصية افتراضية. قوة بالتصميم.</string>

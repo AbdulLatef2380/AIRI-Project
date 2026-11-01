@@ -13,6 +13,7 @@ import com.airi.assistant.domain.intent.ConversationIntentDetector
 object ConversationTitlePolicy {
     private const val MAX_CHARS = 60
     private const val MAX_WORDS = 9
+    private const val MIN_MEANINGFUL_CHARS = 12
 
     private val urls = Regex("https?://\\S+|www\\.\\S+", RegexOption.IGNORE_CASE)
     private val markdown = Regex("[*_`#>~]+")
@@ -62,6 +63,21 @@ object ConversationTitlePolicy {
             else -> null
         }
         return limit(taskTitle ?: removeRequestPrefix(cleaned))
+    }
+
+    /**
+     * Greetings and acknowledgements do not contain enough intent to make a
+     * useful history label. Keep the default title until a later turn gives us
+     * an actual request.
+     */
+    fun isMeaningfulTitleSource(input: String): Boolean {
+        val cleaned = normalize(input)
+        if (cleaned.length < MIN_MEANINGFUL_CHARS) return false
+        if (ConversationIntentDetector.isGreeting(cleaned)) return false
+        return cleaned.lowercase() !in setOf(
+            "ok", "okay", "yes", "no", "thanks", "thank you",
+            "نعم", "لا", "شكرا", "شكرًا", "تمام", "حسنا", "حسنًا", "موافق"
+        )
     }
 
     /** Stable semantic key for the small monochrome history icon. */

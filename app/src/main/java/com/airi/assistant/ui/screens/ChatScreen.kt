@@ -134,6 +134,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.window.Dialog
@@ -213,6 +214,7 @@ fun ChatScreen(
     val messages      by viewModel.messages.collectAsState()
     val streamingText by viewModel.streamingText.collectAsState()
     val agentState    by viewModel.agentState.collectAsState()
+    val generationStoppedNotice by viewModel.generationStoppedNotice.collectAsState()
     val agentActivityEvents by AgentActivityBus.recentEvents.collectAsState()
     val lastExecutionError by viewModel.lastExecutionError.collectAsState()
     val modelState    by viewModel.modelState.collectAsState()
@@ -990,7 +992,24 @@ fun ChatScreen(
                             onAccepted()
                         }
                     },
-                    onCancel      = { viewModel.cancelGeneration() },
+                    onCancel      = {
+                        // The stop button is a hard user interrupt: stop model,
+                        // tool/terminal work, STT, VAD and any active TTS output.
+                        viewModel.cancelGeneration()
+                        voiceManager.stopVadIfRunning()
+                        stopInAppStt()
+                        voiceManager.stopSpeaking()
+                        if (ttsStreamingActive) {
+                            voiceManager.ttsStreamFlush()
+                            ttsStreamingActive = false
+                        }
+                        speakNextResponse = false
+                        lastTtsStreamLen = 0
+                        isVadInterrupting.value = false
+                        voiceStateRef.value = VoiceSessionState.IDLE
+                        voiceState = VoiceSessionState.IDLE
+                        liveChatActiveRef.value = false
+                    },
                     onSmartReply  = { reply -> viewModel.clearSmartReplies(); viewModel.sendMessage(reply) },
                     onPickImage   = { imagePicker.launch("image/*") },
                     onPickVideo   = { videoPicker.launch("video/*") },
@@ -1164,6 +1183,7 @@ fun ChatScreen(
                 messages      = filteredChatMessages,
                 streamingText = if (chatSearchQuery.isBlank()) visibleStreamingText else "",
                 isGenerating  = generationBelongsToCurrentSession,
+                generationStoppedNotice = generationStoppedNotice,
                 planLabel      = if (isProPlan) "Pro" else "Free",
                 executionError = visibleExecutionError,
                 inlineTraceExecutionId = agentState.executionId,
@@ -2120,7 +2140,7 @@ private fun AiriHistoryPanel(
                                 isFavorite = session.id in favoriteSessionIds,
                                 onFavorite = { viewModel.setSessionFavorite(session.id, session.id !in favoriteSessionIds) },
                                 onArchive = { viewModel.archiveSession(session.id) },
-                                icon = Icons.Outlined.ChatBubbleOutline,
+                                icon = historySessionIcon(viewModel.sessionIconKey(session)),
                                 onShare = { shareSession(context, session) }
                             )
                     }
@@ -2160,6 +2180,7 @@ fun ChatMessageList(
     messages: List<ChatMessage>,
     streamingText: String,
     isGenerating: Boolean,
+    generationStoppedNotice: Boolean = false,
     planLabel: String = "Free",
     executionError: ExecutionErrorProjection? = null,
     inlineTraceExecutionId: String = "",
@@ -2259,7 +2280,7 @@ fun ChatMessageList(
                 }
             }
         }
-    } else if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && executionError == null) {
+    } else if (messages.isEmpty() && streamingText.isEmpty() && !isGenerating && executionError == null && !generationStoppedNotice) {
         // Premium empty state — cosmic orb + greeting + suggestion chips
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Column(
@@ -2333,6 +2354,11 @@ fun ChatMessageList(
                 contentPadding      = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                if (generationStoppedNotice) {
+                    item(key = "generation-stopped", contentType = "generation-stopped") {
+                        GenerationStoppedBubble()
+                    }
+                }
                 executionError?.let { failure ->
                     item(key = "execution-error-${failure.executionId}", contentType = "execution-error") {
                         ExecutionErrorBubble(failure)
@@ -2426,6 +2452,42 @@ fun ChatMessageList(
                 visible  = !isPinnedToBottom,
                 onClick  = { scope.launch { listState.scrollToItem(0) } },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun GenerationStoppedBubble() {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 10.dp, vertical = 2.dp),
+        shape = AIRIShapes.xl,
+        color = Color(0xFF3A2E17),
+        border = BorderStroke(1.dp, Color(0xFFE0A83B).copy(alpha = 0.55f)),
+        tonalElevation = 0.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.PauseCircleOutline,
+                contentDescription = null,
+                tint = Color(0xFFFFC857),
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                text = stringResource(R.string.exec_generation_cancelled),
+                color = Color(0xFFFFD98A),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Start,
+                modifier = Modifier.weight(1f),
             )
         }
     }
@@ -2529,7 +2591,7 @@ fun Modifier.verticalScrollbar(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun UserBubble(
     text: String,
@@ -2548,6 +2610,7 @@ fun UserBubble(
     val haptic  = LocalHapticFeedback.current
 
     var showContextMenu by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
     var previewAttachment by remember { mutableStateOf<ChatAttachment?>(null) }
     var isSelectingText by remember { mutableStateOf(false) }
     var isExpanded by rememberSaveable(text, imageUri) { mutableStateOf(false) }
@@ -2663,45 +2726,139 @@ fun UserBubble(
                     }
                 }
 
-                // Contextual menu (long-press)
-                DropdownMenu(
-                    expanded         = showContextMenu,
-                    onDismissRequest = { showContextMenu = false },
-                    modifier         = Modifier.background(AiriTheme.surfaceVariant)
-                ) {
-                    DropdownMenuItem(
-                        text         = { Text(stringResource(R.string.copy), color = AiriTheme.onBackground, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.ContentCopy, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                        onClick      = {
-                            showContextMenu = false
-                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", displayText))
+                // A bottom sheet keeps the actions reachable on small screens,
+                // avoids edge clipping in RTL, and gives destructive actions a
+                // separate visual and confirmation boundary.
+                if (showContextMenu) {
+                    ModalBottomSheet(
+                        onDismissRequest = { showContextMenu = false },
+                        containerColor = AiriTheme.surface,
+                        contentColor = AiriTheme.onBackground,
+                        tonalElevation = 8.dp,
+                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                        dragHandle = {
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = 12.dp, bottom = 4.dp)
+                                    .size(width = 36.dp, height = 4.dp)
+                                    .clip(CircleShape)
+                                    .background(AiriTheme.onSurfaceVariant.copy(alpha = 0.45f))
+                            )
+                        },
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .navigationBarsPadding()
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.chat_message_actions),
+                                color = AiriTheme.onBackground,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp, bottom = 2.dp)
+                                    .semantics { heading() },
+                            )
+                            if (displayText.isNotBlank()) {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = AIRIShapes.md,
+                                    color = AiriTheme.surfaceVariant,
+                                    border = BorderStroke(1.dp, AiriTheme.outline.copy(alpha = 0.35f)),
+                                ) {
+                                    Text(
+                                        text = displayText,
+                                        color = AiriTheme.onSurfaceVariant,
+                                        fontSize = 13.sp,
+                                        lineHeight = 19.sp,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 11.dp),
+                                    )
+                                }
+                                Surface(
+                                    onClick = {
+                                        showContextMenu = false
+                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", displayText))
+                                    },
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                                    shape = AIRIShapes.md,
+                                    color = Color.Transparent,
+                                ) {
+                                    ListItem(
+                                        headlineContent = { Text(stringResource(R.string.copy), fontSize = 15.sp) },
+                                        leadingContent = { Icon(Icons.Outlined.ContentCopy, contentDescription = null) },
+                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                    )
+                                }
+                                Surface(
+                                    onClick = { showContextMenu = false; onEdit() },
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                                    shape = AIRIShapes.md,
+                                    color = Color.Transparent,
+                                ) {
+                                    ListItem(
+                                        headlineContent = { Text(stringResource(R.string.edit), fontSize = 15.sp) },
+                                        leadingContent = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                    )
+                                }
+                                Surface(
+                                    onClick = { showContextMenu = false; isSelectingText = true },
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                                    shape = AIRIShapes.md,
+                                    color = Color.Transparent,
+                                ) {
+                                    ListItem(
+                                        headlineContent = { Text(stringResource(R.string.select_text), fontSize = 15.sp) },
+                                        leadingContent = { Icon(Icons.Outlined.TextFields, contentDescription = null) },
+                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                    )
+                                }
+                                Surface(
+                                    onClick = { showContextMenu = false; shareAiResponse(context, displayText) },
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                                    shape = AIRIShapes.md,
+                                    color = Color.Transparent,
+                                ) {
+                                    ListItem(
+                                        headlineContent = { Text(stringResource(R.string.share), fontSize = 15.sp) },
+                                        leadingContent = { Icon(Icons.Outlined.Share, contentDescription = null) },
+                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                    )
+                                }
+                            }
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 4.dp),
+                                color = AiriTheme.outline.copy(alpha = 0.35f),
+                            )
+                            Surface(
+                                onClick = {
+                                    showContextMenu = false
+                                    showDeleteConfirmation = true
+                                },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                                shape = AIRIShapes.md,
+                                color = SemanticError.copy(alpha = 0.08f),
+                            ) {
+                                ListItem(
+                                    headlineContent = {
+                                        Text(stringResource(R.string.delete), color = SemanticError, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                                    },
+                                    leadingContent = { Icon(Icons.Outlined.Delete, contentDescription = null, tint = SemanticError) },
+                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
                         }
-                    )
-                    DropdownMenuItem(
-                        text         = { Text(stringResource(R.string.edit), color = AiriTheme.onBackground, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.Edit, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                        onClick      = { showContextMenu = false; onEdit() }
-                    )
-                    DropdownMenuItem(
-                        text         = { Text(stringResource(R.string.select_text), color = AiriTheme.onBackground, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.TextFields, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                        onClick      = {
-                            showContextMenu = false
-                            isSelectingText = true
-                        }
-                    )
-                    DropdownMenuItem(
-                        text         = { Text(stringResource(R.string.share), color = AiriTheme.onBackground, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.Share, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                        onClick      = { showContextMenu = false; shareAiResponse(context, displayText) }
-                    )
-                    Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
-                    DropdownMenuItem(
-                        text         = { Text(stringResource(R.string.delete), color = SemanticError, fontSize = 14.sp) },
-                        leadingIcon  = { Icon(Icons.Outlined.Delete, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp)) },
-                        onClick      = { showContextMenu = false; onDelete() }
-                    )
+                    }
                 }
             }
         }
@@ -2709,6 +2866,32 @@ fun UserBubble(
             AttachmentPreviewDialog(
                 attachment = attachment,
                 onDismiss = { previewAttachment = null },
+            )
+        }
+        if (showDeleteConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirmation = false },
+                containerColor = AiriTheme.surface,
+                shape = AIRIShapes.xl,
+                icon = {
+                    Icon(Icons.Outlined.Delete, contentDescription = null, tint = SemanticError)
+                },
+                title = {
+                    Text(stringResource(R.string.chat_message_delete_title), color = AiriTheme.onBackground)
+                },
+                text = {
+                    Text(stringResource(R.string.chat_message_delete_body), color = AiriTheme.onSurfaceVariant)
+                },
+                confirmButton = {
+                    TextButton(onClick = { showDeleteConfirmation = false; onDelete() }) {
+                        Text(stringResource(R.string.delete), color = SemanticError, fontWeight = FontWeight.SemiBold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirmation = false }) {
+                        Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
+                    }
+                },
             )
         }
 }

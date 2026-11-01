@@ -661,6 +661,9 @@
     <string name="chat_context_edit">Edit</string>
     <string name="chat_context_select_text">Select Text</string>
     <string name="chat_context_share">Share</string>
+    <string name="chat_message_actions">Message actions</string>
+    <string name="chat_message_delete_title">Delete this message?</string>
+    <string name="chat_message_delete_body">This message will be removed from this conversation. This action cannot be undone.</string>
 
     <!-- Onboarding / Welcome -->
     <string name="onboarding_tagline">Private by default. Powerful by design.</string>

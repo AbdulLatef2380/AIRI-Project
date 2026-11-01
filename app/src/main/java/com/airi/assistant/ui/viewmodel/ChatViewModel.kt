@@ -674,6 +674,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
 
     /**
+     * User-visible terminal state for an explicit stop. This is intentionally
+     * separate from [isGenerating]: it must remain visible after cleanup until
+     * the user submits the next message.
+     */
+    private val _generationStoppedNotice = MutableStateFlow(false)
+    val generationStoppedNotice: StateFlow<Boolean> = _generationStoppedNotice.asStateFlow()
+
+    /**
      * Live total tokens used today across all providers.
      * Derived from [TokenAccountant.stats] — updates every time a cloud
      * generation completes. Used by the chat top bar to show a real counter
@@ -1252,14 +1260,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun cancelGeneration() {
+    fun cancelGeneration(clearQueuedRequest: Boolean = true) {
         val generationId = activeGenerationId
-        if (generationId != 0L && cancellationRequested.compareAndSet(false, true)) {
+        if (generationBusy() && cancellationRequested.compareAndSet(false, true)) {
+            // An explicit stop must never turn into an automatic continuation.
+            if (clearQueuedRequest) queuedComposerRequest = null
             _isCancelled.set(true)
+            _generationStoppedNotice.value = true
             val executionId = ExecutionStatusBus.status.value.executionId
             if (executionId.isNotBlank()) {
                 ExecutionStatusBus.onGraphCancellationRequested(executionId)
             }
+            // Stop user-owned agent/tool work as well as the active model stream.
+            // This closes the gap where the UI became idle while a tool, terminal
+            // command, or durable execution continued in the background.
+            runCatching { ServiceLocator.activeWorkStopController.stopActiveUserWork() }
+                .onFailure { error -> Log.w("AIRI", "ACTIVE_WORK_STOP_FAILED: ${error.message}") }
             hybridOrchestrator.cancel()
             // Vision runs directly through LlamaManager and therefore must receive
             // the same stop request as text generation.
@@ -1279,6 +1295,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 tokensStreamed = 0
             )
             activeGenerationJob?.cancel(CancellationException("Generation cancelled by user"))
+            // Defensive cleanup for the tiny admission window where the UI has
+            // observed isWorking=true but the owned generation id is not yet
+            // published. Without this, the stop button could appear inert.
+            if (generationId == 0L) {
+                _agentState.value = AgentState()
+                _generationPhase.value = GenerationPhase.IDLE
+                _isGenerating.value = false
+                cancellationRequested.set(false)
+            }
         }
     }
 
@@ -1851,9 +1876,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Generate the title as soon as the first user message is durable. */
-    private suspend fun autoTitleAfterFirstUserMessage(sessionId: String, firstUserText: String) {
-        if (sessionId.isBlank() || firstUserText.isBlank()) return
+    /**
+     * Generate one stable title from the first meaningful user turn. A
+     * greeting-only opening is intentionally deferred until a later turn.
+     */
+    private suspend fun autoTitleAfterFirstUserMessage(sessionId: String, latestUserText: String) {
+        if (sessionId.isBlank() || latestUserText.isBlank()) return
         val done = preferences.getStringSet(KEY_AUTO_TITLE_SESSIONS, emptySet()).orEmpty()
         val manuallyNamed = preferences.getStringSet(KEY_MANUAL_TITLE_SESSIONS, emptySet()).orEmpty()
         if (sessionId in done || sessionId in manuallyNamed) return
@@ -1861,18 +1889,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val session = memoryManager.getAllSessions().firstOrNull { it.id == sessionId } ?: return
             val defaultTitles = setOf("New Chat", "New chat", "Chat", "محادثة جديدة")
             if (session.title !in defaultTitles) return
-            val title = ConversationTitlePolicy.generate(firstUserText)
+            val titleSource = memoryManager.loadSession(sessionId)
+                .asSequence()
+                .filter { it.role.equals("user", ignoreCase = true) }
+                .map { it.content }
+                .firstOrNull(ConversationTitlePolicy::isMeaningfulTitleSource)
+                ?: return
+            val title = ConversationTitlePolicy.generate(titleSource)
             if (title.isBlank() || title in defaultTitles) return
             memoryManager.renameSession(sessionId, title)
             val iconKeys = preferences.getStringSet(KEY_SESSION_ICON_KEYS, emptySet()).orEmpty().toMutableSet()
             iconKeys.removeAll { it.startsWith("$sessionId=") }
-            iconKeys += "$sessionId=${ConversationTitlePolicy.iconKey(firstUserText)}"
+            iconKeys += "$sessionId=${ConversationTitlePolicy.iconKey(titleSource)}"
             preferences.edit()
                 .putStringSet(KEY_AUTO_TITLE_SESSIONS, done + sessionId)
                 .putStringSet(KEY_SESSION_ICON_KEYS, iconKeys)
                 .apply()
             refreshSessions()
-            Log.i("AIRI_HISTORY", "AUTO_TITLE_CREATED session=$sessionId")
+            Log.i("AIRI_HISTORY", "AUTO_TITLE_CREATED session=$sessionId source=meaningful_user_turn")
         }.onFailure { error ->
             Log.w("AIRI_HISTORY", "AUTO_TITLE_FAILED session=$sessionId type=${error.javaClass.simpleName}")
         }
@@ -1987,7 +2021,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 input = input,
                 cloudAttachmentConsent = cloudAttachmentConsent,
             )
-            cancelGeneration()
+            cancelGeneration(clearQueuedRequest = false)
             return true
         }
         return sendMessageInternal(
@@ -2019,6 +2053,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val directives = parseInputDirectives(input)
         val trimmedInput = directives.userText.trim()
         if (trimmedInput.isEmpty() || _modelState.value.isModelLoading) return false
+        _generationStoppedNotice.value = false
         // The composer stays disabled while an execution owns the stream. This
         // guard also protects programmatic callers from queuing a second request.
         if (activeGenerationId != 0L || _agentState.value.isWorking) return false
@@ -2190,7 +2225,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 attachmentJson = attachmentJson,
                 projectId = activeProjectId
             )
-            if (wasEmpty) autoTitleAfterFirstUserMessage(sessionId, trimmedInput)
+            // Re-check after every accepted user turn: the first turn may be
+            // only a greeting, so title generation can legitimately happen on
+            // the second or third turn.
+            autoTitleAfterFirstUserMessage(sessionId, trimmedInput)
             if (stagedForSession && pendingAttachmentSessionId == sessionId) {
                 pendingAttachmentSessionId = null
                 pendingImageUriForNextSend = null
@@ -4032,7 +4070,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 cloudAttachmentConsent = cloudAttachmentConsent,
             )
             onAccepted()
-            cancelGeneration()
+            cancelGeneration(clearQueuedRequest = false)
             return
         }
         if (attachments.any {
@@ -4048,6 +4086,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        _generationStoppedNotice.value = false
         val localAllowed = execModePrefs.effectiveMode != ExecutionMode.CLOUD_ONLY
         val cloudAllowed = execModePrefs.effectiveMode != ExecutionMode.LOCAL_ONLY
         val cloudCanReceiveAttachments = cloudAllowed && _modelState.value.isCloudReady &&
@@ -4907,12 +4946,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 attachmentJson = attachmentJson,
                 projectId = activeProjectId
             )
-            if (wasEmpty) {
-                autoTitleAfterFirstUserMessage(
-                    sessionId,
-                    trimmedInput.ifBlank { "تحليل صورة" },
-                )
-            }
+            autoTitleAfterFirstUserMessage(
+                sessionId,
+                trimmedInput.ifBlank { "تحليل صورة" },
+            )
             acceptedUserMessageId = userMsg.id
             if (pendingAttachmentSessionId == sessionId) {
                 pendingAttachmentSessionId = null

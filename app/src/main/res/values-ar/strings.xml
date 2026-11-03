@@ -2281,4 +2281,10 @@
     <string name="artifact_share_failed">تعذر فتح المشاركة</string>
     <string name="chat_auto_continued">تمت المتابعة تلقائياً · %1$d جولة إضافية</string>
     <string name="err_model_still_loading">لا يزال النموذج قيد التحميل. انتظر لحظة ثم أعد إرسال رسالتك.</string>
+    <string name="jina_reader_title">قارئ الصفحات (Jina) — معطّل افتراضياً</string>
+    <string name="jina_reader_desc">عند التفعيل تُرسل الروابط التي يقرأها المساعد إلى Jina (r.jina.ai) ليقرأ الصفحة، بما في الرابط من رموز أو معرّفات. عند الإيقاف تُقرأ الصفحات مباشرة على جهازك.</string>
+    <string name="marketplace_confirm_title">تثبيت هذه المهارة؟</string>
+    <string name="marketplace_confirm_body">ستُرسل المهارة \"%1$s\" ما تكتبه إلى %2$s. مستوى الثقة: %3$s (%4$d/100). تابع فقط إن كنت تثق بهذه الخدمة.</string>
+    <string name="marketplace_confirm_install">تثبيت</string>
+    <string name="marketplace_confirm_cancel">إلغاء</string>
 </resources>

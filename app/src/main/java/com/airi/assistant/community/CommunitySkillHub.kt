@@ -42,18 +42,6 @@ class CommunitySkillHub(private val context: Context) {
         private const val TAG        = "CommunitySkillHub"
         private const val PREFS_NAME = "airi_community_skills"
         private const val KEY_SKILLS = "community_skills_v1"
-
-        // Dangerous patterns that auto-fail security scan
-        private val DANGEROUS_PATTERNS = listOf(
-            Regex("""exec\s*\("""),
-            Regex("""eval\s*\("""),
-            Regex("""Runtime\.getRuntime"""),
-            Regex("""ProcessBuilder"""),
-            Regex("""file:///"""),
-            Regex("""content://"""),
-            Regex("""http://"""),  // non-HTTPS
-            Regex("""password|secret|private_key""", RegexOption.IGNORE_CASE)
-        )
     }
 
     private val prefs  = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -232,7 +220,7 @@ class CommunitySkillHub(private val context: Context) {
     // ── Security scan ─────────────────────────────────────────────────────────
 
     private fun securityScan(jsonString: String): List<String> =
-        DANGEROUS_PATTERNS.filter { it.containsMatchIn(jsonString) }.map { it.pattern }
+        SkillSecurityScanner.scan(jsonString)
 
     // ── Persistence ───────────────────────────────────────────────────────────
 

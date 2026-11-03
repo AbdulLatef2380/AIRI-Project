@@ -2,7 +2,10 @@ package com.airi.assistant.marketplace
 
 import android.content.Context
 import android.util.Log
+import com.airi.assistant.agent.browser.HostAddressPolicy
 import com.airi.assistant.ai.skills.SkillManifest
+import com.airi.assistant.community.SkillSecurityScanner
+import com.airi.assistant.community.TrustScoringEngine
 import com.airi.assistant.ai.skills.SkillRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,11 +64,32 @@ class MarketplaceRepository(
         data class Success(val skills: List<MarketplaceSkill>)           : MarketplaceResult()
         data class InstallSuccess(val skill: MarketplaceSkill)           : MarketplaceResult()
         data class PublishSuccess(val submissionId: String)              : MarketplaceResult()
+        /** The user must see where their input will be sent before this skill is registered. */
+        data class ConfirmationRequired(val preview: InstallPreview)    : MarketplaceResult()
         data class Error(val message: String, val retryable: Boolean = true) : MarketplaceResult()
     }
 
+    /** What the user is shown before install: where input goes, how much the skill is trusted. */
+    data class InstallPreview(
+        val skillId:      String,
+        val skillName:    String,
+        val endpoint:     String,
+        val endpointHost: String,
+        val trustScore:   Int,
+        val trustTier:    String
+    )
+
     private val prefs  = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val client = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    // Skill definitions come from catalog-supplied URLs: no automatic redirects, public hosts only.
+    private val definitionClient = OkHttpClient.Builder()
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .dns(HostAddressPolicy.PublicOnlyDns)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
@@ -163,34 +187,77 @@ class MarketplaceRepository(
 
     // ── Install ───────────────────────────────────────────────────────────────
 
-    suspend fun install(skill: MarketplaceSkill): MarketplaceResult = withContext(Dispatchers.IO) {
+    /**
+     * Installs a marketplace skill.
+     *
+     * Report 3, M1: the definition URL is validated (HTTPS, public host) and every
+     * redirect hop re-checked; the definition is size-limited and run through the
+     * static security scan; the trust score is computed; and the skill is only
+     * registered once the user has confirmed the exact endpoint that will receive
+     * their input. Without [confirmedEndpoint] the call returns
+     * [MarketplaceResult.ConfirmationRequired] and registers nothing.
+     */
+    suspend fun install(
+        skill: MarketplaceSkill,
+        confirmedEndpoint: String? = null
+    ): MarketplaceResult = withContext(Dispatchers.IO) {
         _isLoading.value = true
         try {
-            // 1. Fetch the skill definition JSON
-            val defRequest = Request.Builder().url(skill.skillJsonUrl).get().build()
-            val defResponse = client.newCall(defRequest).execute()
-            if (!defResponse.isSuccessful) {
-                return@withContext MarketplaceResult.Error("Failed to download skill definition (HTTP ${defResponse.code})")
+            // 1. Download the skill definition through the guarded fetch.
+            val defJson = when (val fetched = downloadDefinition(skill.skillJsonUrl)) {
+                is DefinitionFetch.Ok -> fetched.json
+                is DefinitionFetch.Failed -> return@withContext MarketplaceResult.Error(fetched.reason, retryable = false)
             }
-            val defJson = defResponse.body?.string() ?: return@withContext MarketplaceResult.Error("Empty skill definition")
 
-            // 2. Validate manifest
+            // 2. Static security scan before anything is parsed into a registration.
+            val findings = SkillSecurityScanner.scan(defJson)
+            if (findings.isNotEmpty()) {
+                Log.w(TAG, "Install blocked by security scan skill=${skill.id} findings=${findings.size}")
+                return@withContext MarketplaceResult.Error(
+                    "Skill blocked by the security scan (${findings.size} finding(s))", retryable = false
+                )
+            }
+
+            // 3. Validate manifest
             val validation = SkillPublisher.validateManifest(defJson)
             if (!validation.isValid) {
                 return@withContext MarketplaceResult.Error("Invalid skill manifest: ${validation.errors.joinToString("; ")}")
             }
 
-            // 3. Register the executable skill before recording the marketplace install.
             val manifest = runCatching { SkillManifest.fromJson(JSONObject(defJson)) }
                 .getOrElse { return@withContext MarketplaceResult.Error("Skill manifest could not be parsed") }
             val endpoint = manifest.endpoint
                 ?: return@withContext MarketplaceResult.Error("Skill manifest does not declare an executable endpoint")
+            val endpointCheck = MarketplaceInstallPolicy.checkHttpsPublicUrl(endpoint)
+            if (endpointCheck !is MarketplaceInstallPolicy.UrlDecision.Allowed) {
+                return@withContext MarketplaceResult.Error(
+                    "Skill endpoint rejected: ${(endpointCheck as MarketplaceInstallPolicy.UrlDecision.Rejected).reason}",
+                    retryable = false
+                )
+            }
+
+            // 4. Trust score and user confirmation of the exact endpoint.
+            val trust = TrustScoringEngine.score(skill)
+            if (confirmedEndpoint == null || confirmedEndpoint != endpoint) {
+                return@withContext MarketplaceResult.ConfirmationRequired(
+                    InstallPreview(
+                        skillId      = skill.id,
+                        skillName    = skill.name,
+                        endpoint     = endpoint,
+                        endpointHost = endpointCheck.host,
+                        trustScore   = trust.totalScore,
+                        trustTier    = trust.tier.label
+                    )
+                )
+            }
+
+            // 5. Register the executable skill before recording the marketplace install.
             val registered = skillRegistry.registerDynamicFromManifest(manifest, endpoint)
             if (!registered) {
                 return@withContext MarketplaceResult.Error("Skill manifest or endpoint could not be registered")
             }
 
-            // 4. Record install
+            // 6. Record install
             val installList = loadInstalledSkills().toMutableList()
             val updatedSkill = skill.copy(
                 isInstalled      = true,
@@ -202,12 +269,12 @@ class MarketplaceRepository(
             saveInstalledSkills(installList)
             _installed.value = installList
 
-            // 4. Update catalog to show installed state
+            // 7. Update catalog to show installed state
             _catalog.value = _catalog.value.map {
                 if (it.id == skill.id) it.copy(isInstalled = true, installedVersion = skill.version) else it
             }
 
-            // 5. Track install on server (best-effort)
+            // 8. Track install on server (best-effort)
             runCatching { apiPost("/skills/${skill.id}/install", JSONObject()) }
 
             Log.d(TAG, "Installed skill: ${skill.name} v${skill.version}")
@@ -218,6 +285,56 @@ class MarketplaceRepository(
         } finally {
             _isLoading.value = false
         }
+    }
+
+    private sealed class DefinitionFetch {
+        data class Ok(val json: String) : DefinitionFetch()
+        data class Failed(val reason: String) : DefinitionFetch()
+    }
+
+    private fun downloadDefinition(startUrl: String): DefinitionFetch {
+        var current = startUrl
+        for (hop in 0..MarketplaceInstallPolicy.MAX_REDIRECTS) {
+            val allowed = when (val decision = MarketplaceInstallPolicy.checkHttpsPublicUrl(current)) {
+                is MarketplaceInstallPolicy.UrlDecision.Allowed -> decision.normalizedUrl
+                is MarketplaceInstallPolicy.UrlDecision.Rejected ->
+                    return DefinitionFetch.Failed("Skill definition URL rejected: ${decision.reason}")
+            }
+            val response = definitionClient.newCall(Request.Builder().url(allowed).get().build()).execute()
+            var redirectTo: String? = null
+            var outcome: DefinitionFetch? = null
+            try {
+                if (response.isRedirect) {
+                    val location = response.header("Location")
+                    val next = if (location.isNullOrBlank()) null else response.request.url.resolve(location)
+                    if (next == null) {
+                        outcome = DefinitionFetch.Failed("Invalid redirect while downloading the skill definition")
+                    } else {
+                        redirectTo = next.toString()
+                    }
+                } else if (!response.isSuccessful) {
+                    outcome = DefinitionFetch.Failed("Failed to download skill definition (HTTP ${response.code})")
+                } else {
+                    outcome = readBoundedDefinition(response)
+                }
+            } finally {
+                response.close()
+            }
+            if (outcome != null) return outcome
+            current = redirectTo ?: return DefinitionFetch.Failed("Redirect without a target")
+        }
+        return DefinitionFetch.Failed("Too many redirects while downloading the skill definition")
+    }
+
+    private fun readBoundedDefinition(response: okhttp3.Response): DefinitionFetch {
+        val body = response.body ?: return DefinitionFetch.Failed("Empty skill definition")
+        val limit = MarketplaceInstallPolicy.MAX_DEFINITION_BYTES
+        if (body.contentLength() > limit) return DefinitionFetch.Failed("Skill definition is too large")
+        val source = body.source()
+        source.request(limit + 1)
+        if (source.buffer.size > limit) return DefinitionFetch.Failed("Skill definition is too large")
+        val text = source.buffer.readUtf8()
+        return if (text.isBlank()) DefinitionFetch.Failed("Empty skill definition") else DefinitionFetch.Ok(text)
     }
 
     suspend fun uninstall(skillId: String): Boolean = withContext(Dispatchers.IO) {

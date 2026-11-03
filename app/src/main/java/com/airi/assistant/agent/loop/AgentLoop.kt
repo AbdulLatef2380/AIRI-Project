@@ -8,6 +8,7 @@ import com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy
 import com.airi.assistant.agent.loop.tool.ToolDispatcher
 import com.airi.assistant.agent.loop.tool.ToolSchema
 import com.airi.assistant.agent.loop.tool.ToolSpecAdapter
+import com.airi.assistant.accessibility.security.AccessibilityPolicyGuard
 import com.airi.assistant.ai.OutputBudgetPolicy
 import com.airi.assistant.ai.QueryType
 import com.airi.assistant.ai.ResponseDepth
@@ -216,6 +217,8 @@ the tool returns an actual error.
             )
         }
         val toolsInvoked = mutableListOf<String>()
+        // Report 3, S8: set once third-party content has entered this loop's context.
+        var untrustedContentSeen = false
         var completionMetadata = CompletionMetadata()
         val history      = priorConversation.mapNotNull { turn ->
             when (turn.role.lowercase()) {
@@ -551,7 +554,18 @@ the tool returns an actual error.
                                 stepsUsed,
                             )
                         )
-                        history.add(ConversationTurn.ToolResult(outcome.request.toolName, resultText, outcome.request.id))
+                        if (result is ToolDispatcher.ToolResult.Success &&
+                            AccessibilityPolicyGuard.isExternalContentTool(outcome.request.toolName)
+                        ) {
+                            untrustedContentSeen = true
+                        }
+                        history.add(
+                            ConversationTurn.ToolResult(
+                                outcome.request.toolName,
+                                untrustedAwareToolText(outcome.request.toolName, resultText, result is ToolDispatcher.ToolResult.Success),
+                                outcome.request.id,
+                            )
+                        )
                         runtimeTrace?.dispatched(executionId, sessionId, outcome.request.toolName, "parallel_read_batch")
                         runtimeTrace?.executionCompleted(
                             executionId, sessionId, outcome.request.toolName,
@@ -789,6 +803,18 @@ the tool returns an actual error.
                         "Duplicate tool call blocked for this execution step.",
                         code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.DUPLICATE_CALL,
                     )
+                } else if (
+                    untrustedContentSeen &&
+                    (toolName == "terminal_execute" || toolName == "write_file")
+                ) {
+                    // Report 3, S8: a write/exec tool must not run in the same loop that has
+                    // just ingested web or third-party content; the user has to ask for it directly.
+                    Log.w(TAG, "AIRI TOOL_BLOCKED_AFTER_UNTRUSTED_CONTENT tool=$toolName")
+                    ToolDispatcher.ToolResult.Error(
+                        "Blocked: $toolName cannot run after external web or connector content was read in this request. " +
+                            "Ask the user to confirm and request it in a separate message.",
+                        code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
+                    )
                 } else when (sideEffectDecision) {
                     AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED -> {
                         Log.w(TAG, "AIRI TOOL_BLOCKED_NO_DURABLE_CONTEXT tool=$toolName")
@@ -976,7 +1002,18 @@ the tool returns an actual error.
                 // sees what it asked for and what it got back.
                 val nativeToolCallId = nativeToolCallId(rawResponse)
                 history.add(ConversationTurn.Assistant(rawResponse, nativeToolCallId))
-                history.add(ConversationTurn.ToolResult(toolName, effectiveResult, nativeToolCallId))
+                if (toolResult is ToolDispatcher.ToolResult.Success &&
+                    AccessibilityPolicyGuard.isExternalContentTool(toolName)
+                ) {
+                    untrustedContentSeen = true
+                }
+                history.add(
+                    ConversationTurn.ToolResult(
+                        toolName,
+                        untrustedAwareToolText(toolName, effectiveResult, toolResult is ToolDispatcher.ToolResult.Success),
+                        nativeToolCallId,
+                    )
+                )
                 runtimeTrace?.resultReturned(executionId, sessionId, toolName)
                 runtimeTrace?.capabilityStage(
                     executionId, sessionId, toolName,
@@ -1329,6 +1366,17 @@ the tool returns an actual error.
         val toolName: String,
         val startedAtMs: Long,
     )
+
+    /**
+     * Report 3, S8: successful output of tools that return third-party content is
+     * wrapped in an untrusted-data boundary before it enters the model context.
+     */
+    private fun untrustedAwareToolText(toolName: String, text: String, success: Boolean): String =
+        if (success && AccessibilityPolicyGuard.isExternalContentTool(toolName)) {
+            AccessibilityPolicyGuard.wrapUntrustedToolOutput(toolName, text)
+        } else {
+            text
+        }
 
     private fun nativeToolCallId(rawResponse: String): String = runCatching {
         org.json.JSONObject(rawResponse.trim())

@@ -12,6 +12,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -97,6 +98,50 @@ fun MarketplaceScreen(
     val tabImport    = stringResource(R.string.marketplace_tab_import)
     val tabLabels    = listOf(tabExplore, tabInstalled, tabUpdates, tabImport, tabPublish)
 
+    // Report 3, M1: installing (or updating) a skill needs an explicit confirmation of
+    // the endpoint that will receive the user's input.
+    var pendingInstall by remember {
+        mutableStateOf<Pair<MarketplaceSkill, MarketplaceRepository.InstallPreview>?>(null)
+    }
+    val runInstall: (MarketplaceSkill, String?) -> Unit = { target, confirmedEndpoint ->
+        scope.launch {
+            when (val r = repository.install(target, confirmedEndpoint)) {
+                is MarketplaceRepository.MarketplaceResult.InstallSuccess ->
+                    snackMessage = context.getString(R.string.marketplace_install_success, target.name)
+                is MarketplaceRepository.MarketplaceResult.ConfirmationRequired ->
+                    pendingInstall = target to r.preview
+                else -> snackMessage = context.getString(R.string.marketplace_install_failed)
+            }
+        }
+    }
+    pendingInstall?.let { (target, preview) ->
+        AlertDialog(
+            onDismissRequest = { pendingInstall = null },
+            containerColor   = AiriTheme.surface,
+            title = { Text(stringResource(R.string.marketplace_confirm_title), color = AiriTheme.onBackground) },
+            text  = {
+                Text(
+                    stringResource(
+                        R.string.marketplace_confirm_body,
+                        preview.skillName, preview.endpointHost, preview.trustTier, preview.trustScore
+                    ),
+                    color = AiriTheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingInstall = null
+                    runInstall(target, preview.endpoint)
+                }) { Text(stringResource(R.string.marketplace_confirm_install), color = CosmicAccent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingInstall = null }) {
+                    Text(stringResource(R.string.marketplace_confirm_cancel), color = AiriTheme.onSurfaceVariant)
+                }
+            }
+        )
+    }
+
     LaunchedEffect(Unit) { repository.fetchFeatured() }
 
     LaunchedEffect(snackMessage) {
@@ -143,14 +188,7 @@ fun MarketplaceScreen(
                     onSearch         = { scope.launch { repository.search(searchQuery, selectedCategory) } },
                     selectedCategory = selectedCategory,
                     onCategorySelect = { selectedCategory = if (selectedCategory == it) null else it },
-                    onInstall        = { skill ->
-                        scope.launch {
-                            val r = repository.install(skill)
-                            snackMessage = if (r is MarketplaceRepository.MarketplaceResult.InstallSuccess)
-                                context.getString(R.string.marketplace_install_success, skill.name)
-                            else context.getString(R.string.marketplace_install_failed)
-                        }
-                    }
+                    onInstall        = { skill -> runInstall(skill, null) }
                 )
                 1 -> InstalledTab(
                     installed  = installed,
@@ -160,21 +198,11 @@ fun MarketplaceScreen(
                             snackMessage = context.getString(R.string.marketplace_removed, skill.name)
                         }
                     },
-                    onUpdate   = { skill ->
-                        scope.launch {
-                            repository.update(skill)
-                            snackMessage = context.getString(R.string.marketplace_updated, skill.name, skill.version)
-                        }
-                    }
+                    onUpdate   = { skill -> runInstall(skill, null) }
                 )
                 2 -> UpdatesTab(
                     updates  = pendingUpdates,
-                    onUpdate = { skill ->
-                        scope.launch {
-                            repository.update(skill)
-                            snackMessage = context.getString(R.string.marketplace_updated, skill.name, skill.version)
-                        }
-                    }
+                    onUpdate = { skill -> runInstall(skill, null) }
                 )
                 3 -> GitHubImportTab(
                     onImported = { skillName ->

@@ -2378,4 +2378,10 @@
     <string name="artifact_share_failed">Could not open sharing</string>
     <string name="chat_auto_continued">Continued automatically · %1$d more turn(s)</string>
     <string name="err_model_still_loading">We\'re still loading the model. Wait a moment, then send your message again.</string>
+    <string name="jina_reader_title">Page reader (Jina) — off by default</string>
+    <string name="jina_reader_desc">When on, links you open with fetch_url are sent to Jina (r.jina.ai) so it can read the page. This includes anything inside the link, such as tokens. When off, pages are read directly on your device.</string>
+    <string name="marketplace_confirm_title">Install this skill?</string>
+    <string name="marketplace_confirm_body">\"%1$s\" will send what you type to %2$s. Trust level: %3$s (%4$d/100). Only continue if you trust this service.</string>
+    <string name="marketplace_confirm_install">Install</string>
+    <string name="marketplace_confirm_cancel">Cancel</string>
 </resources>

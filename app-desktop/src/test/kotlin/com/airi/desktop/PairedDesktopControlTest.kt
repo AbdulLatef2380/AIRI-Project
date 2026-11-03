@@ -13,11 +13,13 @@ class PairedDesktopControlTest {
         var draftStarted = false
         var submittedText: String? = null
         var cancellable = false
+        var approveText = true
 
         override fun status(): String = "Desktop is ready."
         override fun startNewDraft() { draftStarted = true }
         override fun submitTextRequest(text: String) { submittedText = text }
         override fun cancelOwnedRequest(): Boolean = cancellable
+        override fun confirmRemoteTextRequest(text: String): Boolean = approveText
     }
 
     private fun session() = RemoteControlSession(
@@ -66,5 +68,32 @@ class PairedDesktopControlTest {
         control.revoke()
 
         assertIs<DesktopRemoteControlResult.Rejected>(control.receive(command(RemoteControlCommandType.REQUEST_STATUS, 1)))
+    }
+
+    @Test
+    fun `remote text is not delivered without local approval`() {
+        val target = Target().apply { approveText = false }
+        val control = PairedDesktopControl(session(), target) { 2_000 }
+
+        assertIs<DesktopRemoteControlResult.Rejected>(
+            control.receive(command(RemoteControlCommandType.SUBMIT_TEXT_REQUEST, 1, "run something"))
+        )
+        assertEquals(null, target.submittedText)
+    }
+
+    @Test
+    fun `targets that do not implement approval deny remote text by default`() {
+        val bare = object : DesktopRemoteControlTarget {
+            var submitted = false
+            override fun status() = "ok"
+            override fun startNewDraft() {}
+            override fun submitTextRequest(text: String) { submitted = true }
+            override fun cancelOwnedRequest() = false
+        }
+        val control = PairedDesktopControl(session(), bare) { 2_000 }
+        assertIs<DesktopRemoteControlResult.Rejected>(
+            control.receive(command(RemoteControlCommandType.SUBMIT_TEXT_REQUEST, 1, "x"))
+        )
+        assertEquals(false, bare.submitted)
     }
 }

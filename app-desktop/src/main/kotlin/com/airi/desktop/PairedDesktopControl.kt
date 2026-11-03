@@ -11,6 +11,15 @@ interface DesktopRemoteControlTarget {
     fun startNewDraft()
     fun submitTextRequest(text: String)
     fun cancelOwnedRequest(): Boolean
+
+    /**
+     * Report 3, S4/D1: text arriving from a paired phone must be approved by the person
+     * at the desktop before any agent acts on it, so a leaked phone session cannot become
+     * remote execution. Implementations show the text and return true only after an explicit
+     * local approval. The default is deny: a target that does not implement this receives
+     * no remote text requests.
+     */
+    fun confirmRemoteTextRequest(text: String): Boolean = false
 }
 
 sealed interface DesktopRemoteControlResult {
@@ -38,8 +47,13 @@ class PairedDesktopControl(
                         DesktopRemoteControlResult.Executed("A new AIRI Desktop draft is ready.")
                     }
                     RemoteControlCommandType.SUBMIT_TEXT_REQUEST -> {
-                        target.submitTextRequest(requireNotNull(command.text).trim())
-                        DesktopRemoteControlResult.Executed("The request was delivered to AIRI Desktop.")
+                        val text = requireNotNull(command.text).trim()
+                        if (!target.confirmRemoteTextRequest(text)) {
+                            DesktopRemoteControlResult.Rejected("The request needs approval on AIRI Desktop.")
+                        } else {
+                            target.submitTextRequest(text)
+                            DesktopRemoteControlResult.Executed("The request was delivered to AIRI Desktop.")
+                        }
                     }
                     RemoteControlCommandType.CANCEL_OWNED_REQUEST -> {
                         if (target.cancelOwnedRequest()) {

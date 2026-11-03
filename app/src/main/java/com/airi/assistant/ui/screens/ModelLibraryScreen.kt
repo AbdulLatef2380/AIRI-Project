@@ -211,6 +211,9 @@ fun ModelLibraryScreen(
                 )
             }
             item {
+                JinaReaderCard(context = context)
+            }
+            item {
                 Spacer(Modifier.height(4.dp))
                 SectionHeader(
                     icon  = Icons.Outlined.AutoAwesome,
@@ -348,6 +351,45 @@ private fun BraveSearchApiCard(
             TextButton(onClick = onEnterKey) {
                 Text(stringResource(if (hasBraveKey) R.string.model_update else R.string.model_add_key), color = CosmicAccent, fontSize = 12.sp)
             }
+        }
+    }
+}
+
+/** Report 3, S7: explicit, reversible opt-in for sending page URLs to the Jina reader. */
+@Composable
+private fun JinaReaderCard(context: Context) {
+    var enabled by remember {
+        mutableStateOf(com.airi.assistant.tools.execution.ExternalReaderPreferences.isJinaReaderEnabled(context))
+    }
+    Surface(
+        shape    = AIRIShapes.md,
+        color    = AiriTheme.surface,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 4.dp)
+    ) {
+        Row(
+            modifier              = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment     = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.jina_reader_title),
+                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground
+                )
+                Text(
+                    stringResource(R.string.jina_reader_desc),
+                    fontSize = 11.sp, lineHeight = 14.sp, color = AiriTheme.outline
+                )
+            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = { value ->
+                    enabled = value
+                    com.airi.assistant.tools.execution.ExternalReaderPreferences.setJinaReaderEnabled(context, value)
+                }
+            )
         }
     }
 }

@@ -2044,4 +2044,10 @@
     <string name="err_incomplete_response">响应在收到完整的可复用内容块之前结束。请查看已保存的部分响应，或重试。</string>
     <string name="chat_auto_continued">已自动继续 · 另外 %1$d 轮</string>
     <string name="err_model_still_loading">模型仍在加载中。请稍候，然后重新发送您的消息。</string>
+    <string name="jina_reader_title">网页阅读器 (Jina) — 默认关闭</string>
+    <string name="jina_reader_desc">开启后，助手读取的链接（包括其中的令牌或标识符）会发送给 Jina (r.jina.ai)。关闭时，网页将直接在你的设备上读取。</string>
+    <string name="marketplace_confirm_title">安装此技能？</string>
+    <string name="marketplace_confirm_body">\"%1$s\" 会将你输入的内容发送到 %2$s。信任等级：%3$s（%4$d/100）。仅在你信任该服务时继续。</string>
+    <string name="marketplace_confirm_install">安装</string>
+    <string name="marketplace_confirm_cancel">取消</string>
 </resources>

@@ -2045,4 +2045,10 @@
     <string name="err_incomplete_response">La respuesta terminó antes de que se recibiera un bloque reutilizable completo. Revisa la respuesta parcial guardada o inténtalo de nuevo.</string>
     <string name="chat_auto_continued">Continuado automáticamente · %1$d turno(s) más</string>
     <string name="err_model_still_loading">El modelo aún se está cargando. Espera un momento y vuelve a enviar tu mensaje.</string>
+    <string name="jina_reader_title">Lector de páginas (Jina) — desactivado por defecto</string>
+    <string name="jina_reader_desc">Si lo activas, los enlaces que lee el asistente se envían a Jina (r.jina.ai), incluido cualquier token que contengan. Si está desactivado, las páginas se leen directamente en tu dispositivo.</string>
+    <string name="marketplace_confirm_title">¿Instalar esta habilidad?</string>
+    <string name="marketplace_confirm_body">\"%1$s\" enviará lo que escribas a %2$s. Nivel de confianza: %3$s (%4$d/100). Continúa solo si confías en este servicio.</string>
+    <string name="marketplace_confirm_install">Instalar</string>
+    <string name="marketplace_confirm_cancel">Cancelar</string>
 </resources>

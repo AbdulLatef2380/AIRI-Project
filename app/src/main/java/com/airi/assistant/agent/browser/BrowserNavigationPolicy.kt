@@ -63,14 +63,8 @@ object BrowserNavigationPolicy {
         return uri.normalize().toString()
     }
 
-    private fun isPrivateHost(host: String): Boolean {
-        if (host == "localhost" || host.endsWith(".local") || host.endsWith(".internal")) return true
-        if (host == "0.0.0.0" || host == "::1" || host == "[::1]") return true
-        if (host.startsWith("127.") || host.startsWith("10.") || host.startsWith("192.168.")) return true
-        if (host.matches(Regex("172\\.(1[6-9]|2[0-9]|3[0-1])\\..*"))) return true
-        if (host.startsWith("169.254.")) return true
-        return false
-    }
+    /** Delegates to [HostAddressPolicy] (numeric IPv4 spellings, IPv6 ranges, reserved blocks). */
+    private fun isPrivateHost(host: String): Boolean = HostAddressPolicy.isBlockedHost(host)
 
     private val LOGIN_TERMS = listOf("login", "log in", "sign in", "authenticate", "password", "otp")
     private val PAYMENT_TERMS = listOf("buy", "purchase", "pay", "checkout", "payment", "order")

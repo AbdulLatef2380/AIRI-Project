@@ -442,7 +442,9 @@ class SkillRegistry(private val context: Context) {
         val uri = URI(value)
         uri.scheme.equals("https", ignoreCase = true) &&
             !uri.host.isNullOrBlank() &&
-            uri.userInfo.isNullOrBlank()
+            uri.userInfo.isNullOrBlank() &&
+            // Report 3, M1: a skill endpoint must be a public host, never loopback/LAN.
+            !com.airi.assistant.agent.browser.HostAddressPolicy.isBlockedHost(uri.host)
     }.getOrDefault(false)
 
     /** Result of [installSkillWithVersion]. */

@@ -134,8 +134,35 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Report 3, S3: owner-only, and writes are limited to the exact fields the app
+    // sends, with bounded types and sizes (no arbitrary documents under this path).
+    function optString(data, key, maxLen) {
+      return !(key in data) || data[key] == null
+        || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function validContinuity(userId, taskId) {
+      let d = request.resource.data;
+      return ownsUser(userId)
+        && d.keys().hasOnly(['schemaVersion', 'taskId', 'projectId', 'status', 'updatedAtMs',
+                             'currentRunId', 'currentStepId', 'progressPercent', 'plan'])
+        && d.keys().hasAll(['taskId', 'status', 'updatedAtMs'])
+        && d.taskId == taskId
+        && taskId.size() <= 128
+        && d.status is string && d.status.size() <= 40
+        && d.updatedAtMs is int
+        && (!('schemaVersion' in d) || d.schemaVersion is int)
+        && (!('progressPercent' in d) || d.progressPercent is int)
+        && optString(d, 'projectId', 128)
+        && optString(d, 'currentRunId', 128)
+        && optString(d, 'currentStepId', 128)
+        && (!('plan' in d) || (d.plan is list && d.plan.size() <= 100));
+    }
+
     match /users/{userId}/task_continuity/{taskId} {
-      allow read, write: if ownsUser(userId);
+      allow read: if ownsUser(userId);
+      allow create, update: if validContinuity(userId, taskId);
+      allow delete: if ownsUser(userId);
     }
 
     match /users/{userId}/devices/{deviceId} {

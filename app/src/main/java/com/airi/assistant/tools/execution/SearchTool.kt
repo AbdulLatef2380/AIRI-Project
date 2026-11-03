@@ -6,8 +6,10 @@ import android.net.Uri
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.airi.assistant.agent.browser.HostAddressPolicy
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
@@ -43,8 +45,15 @@ class SearchTool(
     private val braveApiKey: String? = null   // injected from SecureApiKeyStore
 ) {
     private val TAG = "SearchTool"
+    private val MAX_REDIRECTS = 5
 
+    // Report 3, S5/S6: redirects are never followed automatically (each hop is
+    // re-checked by SearchSourcePolicy in [executeWithCheckedRedirects]) and
+    // names must resolve to public addresses only.
     private val httpClient = OkHttpClient.Builder()
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .dns(HostAddressPolicy.PublicOnlyDns)
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .addInterceptor { chain ->
@@ -168,21 +177,28 @@ class SearchTool(
             is SearchSourcePolicy.Decision.Blocked -> return@withContext FetchResult(false, url, "Fetch blocked: ${decision.reason}")
             else -> return@withContext FetchResult(false, url, "Fetch blocked by source policy")
         }
+        if (!ExternalReaderPreferences.isJinaReaderEnabled(context)) {
+            return@withContext FetchResult(false, url, "Jina Reader is disabled; third-party page reading is off")
+        }
         Log.d(TAG, "JINA_FETCH urlChars=${allowedUrl.length}")
         return@withContext try {
             val jinaUrl = "https://r.jina.ai/${allowedUrl}"
-            val response = httpClient.newCall(
-                Request.Builder()
-                    .url(jinaUrl)
+            val outcome = executeWithCheckedRedirects(jinaUrl) { builder ->
+                builder
                     .header("Accept", "text/markdown, text/plain")
                     .header("X-Return-Format", "markdown")
                     .header("X-Remove-Selector", "nav, header, footer, .ads, #sidebar")
-                    .build()
-            ).execute()
+            }
+            val response = when (outcome) {
+                is CheckedFetch.Ok -> outcome.response
+                is CheckedFetch.Blocked -> return@withContext FetchResult(false, url, "Fetch blocked: ${outcome.reason}")
+            }
 
             if (!response.isSuccessful) {
+                val code = response.code
+                response.close()
                 return@withContext FetchResult(success = false, url = url,
-                    content = "Jina fetch HTTP ${response.code}")
+                    content = "Jina fetch HTTP $code")
             }
 
             val raw = response.body?.string()?.trim() ?: ""
@@ -285,8 +301,15 @@ class SearchTool(
             else -> return@withContext FetchResult(false, url, "Fetch blocked by source policy")
         }
         return@withContext try {
-            val response = httpClient.newCall(Request.Builder().url(allowedUrl).build()).execute()
-            if (!response.isSuccessful) return@withContext FetchResult(false, url, "HTTP ${response.code}")
+            val response = when (val outcome = executeWithCheckedRedirects(allowedUrl)) {
+                is CheckedFetch.Ok -> outcome.response
+                is CheckedFetch.Blocked -> return@withContext FetchResult(false, url, "Fetch blocked: ${outcome.reason}")
+            }
+            if (!response.isSuccessful) {
+                val code = response.code
+                response.close()
+                return@withContext FetchResult(false, url, "HTTP $code")
+            }
             val raw  = response.body?.string() ?: ""
             val text = raw
                 .replace(Regex("""<script[^>]*>.*?</script>""", RegexOption.DOT_MATCHES_ALL), "")
@@ -299,6 +322,46 @@ class SearchTool(
         } catch (e: Exception) {
             FetchResult(false, url, "Fetch error: ${e.message}")
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Redirect-safe execution (Report 3, S5)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private sealed class CheckedFetch {
+        data class Ok(val response: Response) : CheckedFetch()
+        data class Blocked(val reason: String) : CheckedFetch()
+    }
+
+    /**
+     * Executes a GET and follows redirects by hand, running every hop through
+     * [SearchSourcePolicy.evaluateRead] before the next request is made. A public
+     * URL that redirects to a private or loopback address is therefore refused.
+     * The caller owns (and must close) the response of an [CheckedFetch.Ok].
+     */
+    private fun executeWithCheckedRedirects(
+        initialUrl: String,
+        configure: (Request.Builder) -> Request.Builder = { it }
+    ): CheckedFetch {
+        var current = initialUrl
+        for (hop in 0..MAX_REDIRECTS) {
+            val allowed = when (val decision = SearchSourcePolicy.evaluateRead(current)) {
+                is SearchSourcePolicy.Decision.ReadAllowed -> decision.normalizedUrl
+                is SearchSourcePolicy.Decision.Blocked ->
+                    return CheckedFetch.Blocked(if (hop == 0) decision.reason else "redirect target rejected: ${decision.reason}")
+                else -> return CheckedFetch.Blocked("not permitted by source policy")
+            }
+            val response = httpClient.newCall(configure(Request.Builder().url(allowed)).build()).execute()
+            if (!response.isRedirect) return CheckedFetch.Ok(response)
+
+            val location = response.header("Location")
+            val base = response.request.url
+            response.close()
+            if (location.isNullOrBlank()) return CheckedFetch.Blocked("redirect without Location header")
+            val next = base.resolve(location) ?: return CheckedFetch.Blocked("invalid redirect target")
+            current = next.toString()
+        }
+        return CheckedFetch.Blocked("too many redirects")
     }
 
     // ──────────────────────────────────────────────────────────────────────────

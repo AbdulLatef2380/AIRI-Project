@@ -190,9 +190,9 @@ object AccessibilityPolicyGuard {
         for (pattern in patterns) {
             result = result.replace(pattern, "[CONTENT REMOVED BY SECURITY POLICY]")
         }
-        if (result != content) {
-            Log.w(TAG, "AIRI INJECTION_STRIPPED originalLen=${content.length} strippedLen=${result.length}")
-        }
+        // Keep this transformation pure: it is also executed by JVM unit tests and
+        // must not depend on Android's unmocked Log implementation. Callers that
+        // need telemetry can log the returned decision at their platform boundary.
         return result
     }
 

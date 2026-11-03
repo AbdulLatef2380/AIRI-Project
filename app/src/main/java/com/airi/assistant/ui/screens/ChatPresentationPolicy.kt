@@ -35,7 +35,12 @@ internal object ChatPresentationPolicy {
         val normalized = rawId.lowercase()
         return when {
             isLocal -> "Local Llama"
-            normalized.contains("gemini") -> "Gemini Flash"
+            // Report 1, item 38 (stage 28): name the model that is actually configured
+            // instead of showing "Gemini Flash" for every Gemini id.
+            normalized.contains("gemini") && normalized.contains("flash") && normalized.contains("lite") -> "Gemini Flash Lite"
+            normalized.contains("gemini") && normalized.contains("flash") -> "Gemini Flash"
+            normalized.contains("gemini") && normalized.contains("pro") -> "Gemini Pro"
+            normalized.contains("gemini") -> "Gemini"
             normalized.contains("claude") -> "Claude"
             normalized.contains("llama") -> "Local Llama"
             normalized.contains("openai") || normalized.contains("gpt") -> "OpenAI"

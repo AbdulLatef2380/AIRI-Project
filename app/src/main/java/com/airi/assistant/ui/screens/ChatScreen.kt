@@ -337,7 +337,7 @@ fun ChatScreen(
             }
         }
         // In debug builds only: show a brief non-intrusive snackbar so devs can still see it
-        if (com.airi.assistant.BuildConfig.DEBUG || viewModel.isDebugModeEnabled()) {
+        if (DebugOverlayPolicy.shouldShowDiagnostics(com.airi.assistant.BuildConfig.DEBUG, viewModel.isDebugModeEnabled())) {
             snackbarHost.showSnackbar(
                 message  = "Context compressed (debug)",
                 duration = androidx.compose.material3.SnackbarDuration.Short
@@ -1261,11 +1261,11 @@ fun ChatScreen(
                         .fillMaxWidth()
                 )
             }
-            // : Gate DebugOverlay — only visible in debug builds OR when developer
-            // debug mode is explicitly enabled via AgentControlScreen toggle.
-            // Production builds with debugMode = false show nothing here.
-            val isDebugVisible = com.airi.assistant.BuildConfig.DEBUG ||
-                viewModel.isDebugModeEnabled()
+            // Release builds suppress diagnostics regardless of stored preferences.
+            val isDebugVisible = DebugOverlayPolicy.shouldShowDiagnostics(
+                com.airi.assistant.BuildConfig.DEBUG,
+                viewModel.isDebugModeEnabled(),
+            )
             if (isDebugVisible) {
                 Box(modifier = Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp)) {
                     com.airi.assistant.ui.debug.DebugOverlay()
@@ -1321,7 +1321,10 @@ fun ChatScreen(
 
             // Context Reset Warning Banner — only shown in debug/developer mode.
             // In production builds this is an implementation detail logged to audit log only.
-            val showContextResetBanner = (com.airi.assistant.BuildConfig.DEBUG || viewModel.isDebugModeEnabled()) &&
+            val showContextResetBanner = DebugOverlayPolicy.shouldShowDiagnostics(
+                com.airi.assistant.BuildConfig.DEBUG,
+                viewModel.isDebugModeEnabled(),
+            ) &&
                 contextResetWarning != null
             val topOffset = when {
                 systemIntegrityFailed && !isOnline -> 96.dp

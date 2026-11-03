@@ -46,4 +46,29 @@ class ResponseDepthPolicyTest {
             ),
         )
     }
+
+    @Test
+    fun shortQuestionIsNotForcedIntoBriefAnswer() {
+        assertEquals(
+            ResponseDepth.DETAILED,
+            ResponseDepthPolicy.resolve("ماذا تعرف عن الذكاء الاصطناعي", QueryType.SIMPLE),
+        )
+        assertEquals(
+            ResponseDepth.STANDARD,
+            ResponseDepthPolicy.resolve("ما عاصمة السودان؟", QueryType.SIMPLE),
+        )
+    }
+
+    @Test
+    fun shortChatterWithoutQuestionStaysBrief() {
+        assertEquals(ResponseDepth.BRIEF, ResponseDepthPolicy.resolve("شكرا جزيلا", QueryType.SIMPLE))
+    }
+
+    @Test
+    fun codeDeliverableIsDetailedSoItIsNotCutAtTheStandardCeiling() {
+        assertEquals(
+            ResponseDepth.DETAILED,
+            ResponseDepthPolicy.resolve("اكتب لي برنامج لإدارة المهام", QueryType.SIMPLE),
+        )
+    }
 }

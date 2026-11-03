@@ -24,7 +24,7 @@ class AgentLoopTaskRuntime(
 ) : AgentLoopExecutionContextFactory {
 
     override fun createFor(toolName: String): AgentLoopExecutionContext? {
-        if (toolName != CALENDAR_CREATE && toolName != TERMINAL_EXECUTE) return null
+        if (toolName != CALENDAR_CREATE && toolName != TERMINAL_EXECUTE && toolName != WRITE_FILE) return null
         val resolvedProjectId = projectId?.trim()?.takeIf { it.isNotEmpty() }
         if (!sourceSessionId.matches(SAFE_IDENTIFIER) ||
             (resolvedProjectId != null && !resolvedProjectId.matches(SAFE_IDENTIFIER))) {
@@ -49,17 +49,17 @@ class AgentLoopTaskRuntime(
                 id = taskId,
                 missionId = taskId,
                 projectId = resolvedProjectId,
-                title = if (toolName == TERMINAL_EXECUTE) "Agent terminal session" else "Calendar event approval",
-                description = if (toolName == TERMINAL_EXECUTE) "Execute one governed terminal action for the source session" else "Create one reviewed calendar event for the active project",
+                title = when (toolName) { TERMINAL_EXECUTE -> "Agent terminal session"; WRITE_FILE -> "Agent file write"; else -> "Calendar event approval" },
+                description = when (toolName) { TERMINAL_EXECUTE -> "Execute one governed terminal action for the source session"; WRITE_FILE -> "Write one text file into the private agent files folder"; else -> "Create one reviewed calendar event for the active project" },
                 agentId = AgentLoopExecutionContext.AGENT_LOOP_PRINCIPAL,
                 input = "",
                 showNotification = false,
-                memoryScope = if (toolName == TERMINAL_EXECUTE) TaskScope.SESSION else TaskScope.PROJECT,
+                memoryScope = if (toolName == TERMINAL_EXECUTE || toolName == WRITE_FILE) TaskScope.SESSION else TaskScope.PROJECT,
                 knowledgeScope = TaskScope.PROJECT,
                 plan = listOf(
                     TaskPlanStep(
                         id = toolName,
-                        title = if (toolName == TERMINAL_EXECUTE) "Execute governed terminal action" else "Create approved calendar event",
+                        title = when (toolName) { TERMINAL_EXECUTE -> "Execute governed terminal action"; WRITE_FILE -> "Write agent file"; else -> "Create approved calendar event" },
                         toolSummary = toolName
                     )
                 )
@@ -97,6 +97,7 @@ class AgentLoopTaskRuntime(
     companion object {
         const val CALENDAR_CREATE = "calendar_create"
         const val TERMINAL_EXECUTE = "terminal_execute"
+        const val WRITE_FILE = "write_file"
         private val SAFE_IDENTIFIER = Regex("^[A-Za-z0-9._-]{1,128}$")
     }
 }

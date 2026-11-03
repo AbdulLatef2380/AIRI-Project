@@ -2,9 +2,11 @@ package com.airi.assistant.ai.remote
 
 import android.util.Log
 import com.airi.assistant.execution.cloud.LocalEndpointPolicy
+import com.airi.assistant.execution.cloud.watchConnectionForCancellation
 import com.airi.assistant.domain.logging.LoggingService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -20,8 +22,10 @@ import java.net.URL
  * Production-hardened over the original implementation:
  *  - [cancelCurrentRequest] disconnects the active [HttpURLConnection] from
  *    any thread, immediately unblocking the blocked IO read.
- *  - [ensureActive] checked in the stream loop — coroutine cancellation is
- *    honoured within one token's processing time.
+ *  - Coroutine cancellation (timeout or caller cancel) disconnects the socket through
+ *    [watchConnectionForCancellation], which unblocks a blocked read immediately. A blocked
+ *    `readLine()` ignores coroutine cancellation on its own, so this watcher is required.
+ *  - [ensureActive] is also checked in the stream loop once a line has been read.
  *  - Connection stored in [@Volatile] field so [cancelCurrentRequest] sees
  *    the current connection without synchronization overhead.
  *  - Proper `finally { conn.disconnect() }` on every code path.
@@ -39,6 +43,19 @@ class RemoteModelExecutor {
         private const val READ_TIMEOUT     = 90_000
         private const val MAX_RETRIES      = 2
         private const val RETRY_DELAY_MS   = 1_500L
+
+        /**
+         * Only transient failures that happened before any token was delivered are retried:
+         * network errors, HTTP 429 and 5xx. Timeouts, 4xx and policy rejections are final.
+         */
+        fun shouldRetryStream(error: String, tokensDelivered: Boolean): Boolean {
+            if (tokensDelivered) return false
+            val e = error.lowercase()
+            if (e.contains("timed out after") || e.contains("rejected by local security")) return false
+            val http = Regex("""^http (\d{3})""").find(e)?.groupValues?.get(1)?.toIntOrNull()
+            if (http != null) return http == 429 || http in 500..599
+            return true
+        }
     }
 
     /** Current in-flight connection. Volatile for cross-thread visibility. */
@@ -82,6 +99,7 @@ class RemoteModelExecutor {
                     executeRequest(model, prompt, systemPrompt, maxTokens, temperature)
                 }.getOrElse { e ->
                     if (e is CancellationException) throw e
+                    currentCoroutineContext().ensureActive()
                     lastError = e.javaClass.simpleName
                     null
                 }
@@ -112,19 +130,37 @@ class RemoteModelExecutor {
             return@withContext RemoteResult.Failure("Endpoint rejected by local security policy")
         }
         val startMs = System.currentTimeMillis()
-        val result = withTimeoutOrNull(TIMEOUT_MS) {
-            runCatching {
-                executeStreamingRequest(model, prompt, systemPrompt, maxTokens, temperature, onToken)
-            }.getOrElse { e ->
-                if (e is CancellationException) throw e
-                RemoteResult.Failure(e.message ?: "Remote streaming failed")
-            }
-        } ?: RemoteResult.Failure("Remote model timed out after ${TIMEOUT_MS / 1000}s")
+        var result: RemoteResult = RemoteResult.Failure("Remote streaming failed")
+        // Report 1, item 14 (stage 27): retry the stream like generate() does, but only
+        // while nothing has reached the caller. After the first token a retry would
+        // duplicate text, so a mid-stream failure is returned as-is.
+        for (attempt in 0..MAX_RETRIES) {
+            ensureActive()
+            var tokensDelivered = false
+            result = withTimeoutOrNull(TIMEOUT_MS) {
+                runCatching {
+                    executeStreamingRequest(model, prompt, systemPrompt, maxTokens, temperature) { token ->
+                        tokensDelivered = true
+                        onToken(token)
+                    }
+                }.getOrElse { e ->
+                    if (e is CancellationException) throw e
+                    // A watcher-triggered disconnect after the timeout fired surfaces as an IOException.
+                    currentCoroutineContext().ensureActive()
+                    RemoteResult.Failure(e.message ?: "Remote streaming failed")
+                }
+            } ?: RemoteResult.Failure("Remote model timed out after ${TIMEOUT_MS / 1000}s")
+            val failure = result as? RemoteResult.Failure ?: break
+            if (!shouldRetryStream(failure.error, tokensDelivered) || attempt >= MAX_RETRIES) break
+            Log.w(TAG, "Remote stream attempt ${attempt + 1} failed before first token; retrying in ${RETRY_DELAY_MS}ms")
+            delay(RETRY_DELAY_MS)
+        }
         if (result is RemoteResult.Success) {
             LoggingService.debug(TAG, "Remote stream completed in ${System.currentTimeMillis() - startMs}ms")
         }
-        result
+        return@withContext result
     }
+
 
     suspend fun testConnection(model: RemoteModel, timeoutMs: Long = 10_000L): Boolean = withContext(Dispatchers.IO) {
         if (!LocalEndpointPolicy.isAllowed(model.serverUrl)) return@withContext false
@@ -150,7 +186,7 @@ class RemoteModelExecutor {
         } ?: false
     }
 
-    private fun executeRequest(
+    private suspend fun executeRequest(
         model: RemoteModel,
         prompt: String,
         systemPrompt: String,
@@ -160,6 +196,7 @@ class RemoteModelExecutor {
         val conn = (URL("${normalizeUrl(model.serverUrl)}/v1/chat/completions")
             .openConnection() as HttpURLConnection)
         activeConnection = conn
+        val watcher = watchConnectionForCancellation(conn)
         try {
             conn.requestMethod = "POST"
             conn.connectTimeout = CONNECT_TIMEOUT
@@ -182,6 +219,7 @@ class RemoteModelExecutor {
 
             return parseCompletionText(conn.inputStream.bufferedReader().readText())
         } finally {
+            watcher.cancel()
             activeConnection = null
             conn.disconnect()
         }
@@ -199,6 +237,7 @@ class RemoteModelExecutor {
         val conn     = (URL("${normalizeUrl(model.serverUrl)}/v1/chat/completions")
             .openConnection() as HttpURLConnection)
         activeConnection = conn
+        val watcher = watchConnectionForCancellation(conn)
         val fullResponse = StringBuilder()
         try {
             conn.requestMethod = "POST"
@@ -224,6 +263,7 @@ class RemoteModelExecutor {
             BufferedReader(InputStreamReader(conn.inputStream)).use { reader ->
                 while (true) {
                     val raw = reader.readLine() ?: break
+                    currentCoroutineContext().ensureActive()
                     val line = raw.trim()
                     if (!line.startsWith("data:")) continue
                     val payload = line.removePrefix("data:").trim()
@@ -237,6 +277,7 @@ class RemoteModelExecutor {
             }
             return RemoteResult.Success(fullResponse.toString(), System.currentTimeMillis() - startMs)
         } finally {
+            watcher.cancel()
             activeConnection = null
             try { conn.disconnect() } catch (_: Exception) {}
         }

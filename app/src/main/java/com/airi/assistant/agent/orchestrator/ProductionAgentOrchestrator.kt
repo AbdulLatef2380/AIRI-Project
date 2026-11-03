@@ -93,7 +93,7 @@ private object Log {
  * INTEGRATION WITH EXISTING ARCHITECTURE
  * ─────────────────────────────────────────────────────────────────────────
  *
- *   The orchestrator sits ABOVE [AgentController] (the existing skill→plan→LLM
+ *   The orchestrator sits ABOVE the removed AgentController (the existing skill→plan→LLM
  *   pipeline) and ABOVE [AgentService]. For simple single-agent tasks, use
  *   [AgentService] directly. For multi-step or parallel tasks, use this class.
  *

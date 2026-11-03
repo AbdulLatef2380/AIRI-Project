@@ -27,7 +27,7 @@ data class AgentPermissionProfile(
         if (!allowReadTools) return false
         if (tool.dangerous && !(
                 (allowApprovedProposals && tool.name == "calendar_create") ||
-                    (allowTerminalExecute && tool.name == "terminal_execute")
+                    (allowTerminalExecute && (tool.name == "terminal_execute" || tool.name == "write_file"))
             )) return false
         if (tool.name.startsWith("skill_") && !allowSkills) return false
         if (tool.name.startsWith("connector_") && !allowConnectorRead) return false

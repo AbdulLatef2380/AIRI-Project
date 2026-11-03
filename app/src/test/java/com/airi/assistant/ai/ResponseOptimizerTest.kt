@@ -4,6 +4,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import com.airi.assistant.memory.entity.ChatMessage
 import org.junit.Test
 
 class ResponseOptimizerTest {
@@ -137,5 +138,49 @@ class ResponseOptimizerTest {
         )
         assertEquals(3, suggestions.size)
         assertTrue(suggestions.all { it.contains("ذلك") || it.contains("المخاطر") || it.contains("الحياة") })
+    }
+
+    @Test
+    fun smartTrimKeepsDistinctRepliesThatShareAnOpeningLine() {
+        // Report item 22: the old key was the first 60 chars of content.
+        val opening = "Here is the updated code for your request, as promised:\n"
+        val first = ChatMessage(role = "assistant", content = opening + "fun a() = 1")
+        val second = ChatMessage(role = "assistant", content = opening + "fun b() = 2")
+        val trimmed = ResponseOptimizer.smartTrim(
+            listOf(ChatMessage(role = "user", content = "one"), first, ChatMessage(role = "user", content = "two"), second,
+                ChatMessage(role = "user", content = "three")),
+        )
+        assertTrue(trimmed.any { it.content.endsWith("fun a() = 1") })
+        assertTrue(trimmed.any { it.content.endsWith("fun b() = 2") })
+    }
+
+    @Test
+    fun smartTrimStillRemovesExactDuplicates() {
+        val dup = ChatMessage(role = "user", content = "same text")
+        val trimmed = ResponseOptimizer.smartTrim(listOf(dup, dup.copy(id = 2), ChatMessage(role = "assistant", content = "ok")))
+        assertEquals(2, trimmed.size)
+    }
+
+    @Test
+    fun smartTrimDoesNotTruncatePreviousCodeReply() {
+        // Report item 23: "edit the previous code" must not receive truncated code.
+        val code = "```kotlin\n" + "val x = 1\n".repeat(400) + "```"
+        assertTrue(code.length > 2000)
+        val trimmed = ResponseOptimizer.smartTrim(
+            listOf(ChatMessage(role = "user", content = "write it"), ChatMessage(role = "assistant", content = code),
+                ChatMessage(role = "user", content = "edit the previous code")),
+            isAgentMode = true,
+        )
+        assertEquals(code, trimmed.first { it.role == "assistant" }.content)
+    }
+
+    @Test
+    fun smartTrimStillTruncatesOldLongProse() {
+        val prose = "word ".repeat(400)
+        val trimmed = ResponseOptimizer.smartTrim(
+            listOf(ChatMessage(role = "assistant", content = prose), ChatMessage(role = "user", content = "next"),
+                ChatMessage(role = "assistant", content = "short reply"), ChatMessage(role = "user", content = "last")),
+        )
+        assertTrue(trimmed.first().content.endsWith("[…]"))
     }
 }

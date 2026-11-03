@@ -67,4 +67,16 @@ class AgentLoopSideEffectPolicyTest {
             ),
         )
     }
+
+    @Test
+    fun writeFileIsAdmittedOnlyWithADurableContext() {
+        assertEquals(
+            AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED,
+            AgentLoopSideEffectPolicy.decide("write_file", hasDurableExecutionContext = false)
+        )
+        assertEquals(
+            AgentLoopSideEffectPolicy.Decision.ALLOW_TYPED_FILE_WRITE,
+            AgentLoopSideEffectPolicy.decide("write_file", hasDurableExecutionContext = true)
+        )
+    }
 }

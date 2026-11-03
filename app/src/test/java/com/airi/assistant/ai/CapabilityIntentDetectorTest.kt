@@ -196,4 +196,97 @@ class CapabilityIntentDetectorTest {
         assertTrue(intent.capabilities.isEmpty())
         assertEquals(QueryType.SIMPLE, QueryClassifier.classifyQuery("ماذا عن terminal؟"))
     }
+
+    // Report 1, stage 13: phrase lists are normalized like the input.
+    @Test
+    fun hamzaSpellingsInPhraseListsStillMatch() {
+        val web = CapabilityIntentDetector.Capability.WEB_SEARCH
+        assertTrue(CapabilityIntentDetector.detect("ابحث على الإنترنت عن سعر الذهب").requires(web))
+        assertTrue(CapabilityIntentDetector.detect("ابحث على الانترنت عن سعر الذهب").requires(web))
+        assertTrue(CapabilityIntentDetector.detect("أعطني آخر الأخبار").requires(web))
+        assertTrue(CapabilityIntentDetector.detect("اعطني اخر الاخبار").requires(web))
+    }
+
+    @Test
+    fun deviceActionMatchesWithAndWithoutHamza() {
+        val action = CapabilityIntentDetector.Capability.DEVICE_ACTION
+        assertTrue(CapabilityIntentDetector.detect("أطفئ الفلاش").requires(action))
+        assertTrue(CapabilityIntentDetector.detect("اطفئ الفلاش").requires(action))
+        assertTrue(CapabilityIntentDetector.detect("قم بإيقاف البلوتوث").requires(action))
+        assertTrue(CapabilityIntentDetector.detect("قم بايقاف البلوتوث").requires(action))
+    }
+
+    @Test
+    fun capabilityDiscoveryMatchesWithoutHamza() {
+        assertTrue(CapabilityIntentDetector.isCapabilityDiscovery("ما هي الأدوات المتاحة"))
+        assertTrue(CapabilityIntentDetector.isCapabilityDiscovery("ما هي الادوات المتاحة"))
+    }
+
+    // Report 1, stage 14: short terms must stand alone.
+    @Test
+    fun shortTermsDoNotMatchInsideOtherWords() {
+        val terminal = CapabilityIntentDetector.Capability.TERMINAL_EXECUTE
+        assertFalse(CapabilityIntentDetector.detect("explain the shell and locate the file").requires(terminal))
+        assertTrue(CapabilityIntentDetector.detect("run ls in the terminal").requires(terminal))
+        assertFalse(CapabilityIntentDetector.detect("هذا الموقع يفعل ذلك")
+            .requires(CapabilityIntentDetector.Capability.DEVICE_ACTION))
+    }
+
+    // Report 1, item 8 (stage 24): a command can be requested without naming the terminal.
+    @Test
+    fun commandRequestsReachTheTerminalWithoutNamingIt() {
+        val terminal = CapabilityIntentDetector.Capability.TERMINAL_EXECUTE
+        listOf(
+            "run `ls -la`",
+            "execute the command git status",
+            "run ls",
+            "نفذ الأمر pwd",
+            "شغل الأمر التالي: git log",
+        ).forEach { input ->
+            assertTrue(input, CapabilityIntentDetector.detect(input).requires(terminal))
+        }
+    }
+
+    @Test
+    fun everydayUseOfRunAndExecuteDoesNotReachTheTerminal() {
+        val terminal = CapabilityIntentDetector.Capability.TERMINAL_EXECUTE
+        listOf(
+            "how do I run faster",
+            "execute the plan carefully",
+            "نفذ المهمة غدا",
+            "شغل الاغنية",
+            "ماذا تعرف عن ls في لينكس",
+            "show me `ls` output format",
+        ).forEach { input ->
+            assertFalse(input, CapabilityIntentDetector.detect(input).requires(terminal))
+        }
+    }
+
+    @Test
+    fun impliedPersonalDataRequestsReachConnectorsForReadOnly() {
+        val read = CapabilityIntentDetector.Capability.CONNECTOR_READ
+        val write = CapabilityIntentDetector.Capability.CONNECTOR_WRITE
+        val mail = CapabilityIntentDetector.detect("what is new in my inbox")
+        assertTrue(mail.requires(read))
+        assertFalse(mail.requires(write))
+        assertTrue(mail.connectorIds.contains("google"))
+        val repos = CapabilityIntentDetector.detect("لخص مستودعاتي")
+        assertTrue(repos.connectorIds.contains("github"))
+        assertFalse(repos.requires(write))
+    }
+
+    @Test
+    fun impliedTargetsNeverAddWriteAccess() {
+        val write = CapabilityIntentDetector.Capability.CONNECTOR_WRITE
+        assertFalse(CapabilityIntentDetector.detect("ارسل بريدي للجميع").requires(write))
+    }
+
+    @Test
+    fun fileCreationRequestsOfferTheWriteFileTool() {
+        val fileWrite = CapabilityIntentDetector.Capability.FILE_WRITE
+        listOf("اكتب ملف يحتوي الكود", "save it as a file", "انشئ ملف README", "احفظه في ملف")
+            .forEach { assertTrue(it, CapabilityIntentDetector.detect(it).requires(fileWrite)) }
+        listOf("ما هو الملف الشخصي", "how do I open a file", "explain files in linux")
+            .forEach { assertFalse(it, CapabilityIntentDetector.detect(it).requires(fileWrite)) }
+    }
 }

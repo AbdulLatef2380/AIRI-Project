@@ -810,6 +810,10 @@
     <string name="trace_user_input_label">用户输入</string>
     <string name="trace_execution_steps">执行步骤</string>
     <string name="trace_final_result">最终结果</string>
+    <string name="trace_metadata_model">模型</string>
+    <string name="trace_metadata_provider">提供方</string>
+    <string name="trace_metadata_estimated_output_tokens">估算可见输出令牌数：约 %1$d</string>
+    <string name="trace_metadata_first_visible_token">首个可见令牌耗时：%1$d 毫秒</string>
     <string name="trace_input_badge">输入</string>
     <string name="activity_feed_title">活动</string>
     <string name="activity_feed_more">+%1$d 条更多 — 点击展开</string>
@@ -1364,7 +1368,8 @@
     <string name="voice_vosk_stt_models">Vosk STT 模型</string>
     <string name="welcome_greeting">你好，我是 AIRI</string>
     <string name="err_generation_failed">无法生成回复。请重试。</string>
-    <string name="err_agent_loop_timeout">AIRI 在回复完成前已达到处理时限；部分输出不会被当作完整答案。</string>
+    <string name="err_credit_denied">你今天的额度已用完（%1$d/%2$d）。升级可获得更多额度，或明天再试。</string>
+    <string name="err_agent_loop_timeout">AIRI 长时间没有收到模型的进展，已结束该请求；部分输出不会被当作完整答案。</string>
     <string name="err_cloud_credentials_invalid">此提供商保存的 API 密钥无效。请检查设置后重试。</string>
     <string name="err_cloud_model_unavailable">此提供商无法使用所选模型。请选择其他模型或检查提供商设置。</string>
     <string name="err_cloud_quota_exhausted">提供商的可用额度已用尽。请检查提供商账户或选择其他提供商。</string>
@@ -2038,4 +2043,5 @@
     <string name="artifact_share_failed">无法打开分享界面</string>
     <string name="err_incomplete_response">响应在收到完整的可复用内容块之前结束。请查看已保存的部分响应，或重试。</string>
     <string name="chat_auto_continued">已自动继续 · 另外 %1$d 轮</string>
+    <string name="err_model_still_loading">模型仍在加载中。请稍候，然后重新发送您的消息。</string>
 </resources>

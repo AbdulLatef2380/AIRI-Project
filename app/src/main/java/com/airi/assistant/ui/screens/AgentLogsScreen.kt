@@ -184,6 +184,14 @@ private fun TraceListItem(
                         color = CosmicAccent.copy(alpha = 0.7f),
                         fontSize = 11.sp
                     )
+                    if (trace.truncated) {
+                        Text("•", color = AiriTheme.outline.copy(alpha = 0.6f), fontSize = 10.sp)
+                        Text(
+                            text = "+${trace.droppedSteps} hidden",
+                            color = Color(0xFFFFB300).copy(alpha = 0.85f),
+                            fontSize = 11.sp
+                        )
+                    }
                     if (trace.hasErrors) {
                         Text("•", color = AiriTheme.outline.copy(alpha = 0.6f), fontSize = 10.sp)
                         Text(

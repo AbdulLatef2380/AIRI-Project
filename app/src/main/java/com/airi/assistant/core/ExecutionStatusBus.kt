@@ -34,7 +34,8 @@ import kotlinx.coroutines.flow.update
 object ExecutionStatusBus {
 
     private const val TAG = "ExecutionStatusBus"
-    private const val MAX_TRACE_HISTORY = 8
+    /** Executions whose trace is retained; set through [TraceRetention]. */
+    @Volatile internal var maxTraceHistory = 32
 
     private val _status = MutableStateFlow(AgentState())
     private val traceBuffer = ExecutionTraceBuffer()
@@ -85,7 +86,7 @@ object ExecutionStatusBus {
             )
             traceBuffer.begin(executionId, sessionId)
             traceHistory[executionId] = emptyList()
-            while (traceHistory.size > MAX_TRACE_HISTORY) {
+            while (traceHistory.size > maxTraceHistory) {
                 traceHistory.remove(traceHistory.keys.first())
             }
         }
@@ -495,7 +496,7 @@ object ExecutionStatusBus {
             ) ?: return
             val currentSnapshot = traceBuffer.snapshot()
             traceHistory[executionId] = currentSnapshot
-            while (traceHistory.size > MAX_TRACE_HISTORY) {
+            while (traceHistory.size > maxTraceHistory) {
                 traceHistory.remove(traceHistory.keys.first())
             }
             appended to currentSnapshot

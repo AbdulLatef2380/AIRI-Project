@@ -82,6 +82,7 @@ class AnthropicAdapter(
             request.inlineDataParts.forEach { trace?.markPayloadContainsContent(it.attachmentId, it.base64Data.length.toLong()) }
         }
         var conn: HttpURLConnection? = null
+        var connWatcher: kotlinx.coroutines.Job? = null
         val fullText       = StringBuilder()
         val nativeCalls    = linkedMapOf<String, NativeToolCallWire.Call>()
         var promptTokens   = 0
@@ -99,7 +100,7 @@ class AnthropicAdapter(
                 setRequestProperty("x-api-key",          apiKey)
                 setRequestProperty("anthropic-version",  ANTHROPIC_VERSION)
             }
-            currentCoroutineContext()[Job]?.invokeOnCompletion { conn?.disconnect() }
+            connWatcher = watchConnectionForCancellation(requireNotNull(conn))
 
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             trace?.mark(AttachmentDeliveryStage.HTTP_REQUEST_DISPATCHED, attachmentIds)
@@ -241,6 +242,8 @@ class AnthropicAdapter(
             Log.i(TAG, "Cancelled after ${fullText.length} chars")
             throw e
         } catch (e: java.net.SocketTimeoutException) {
+            // A watcher-triggered disconnect surfaces here; report cancellation, not a provider error.
+            currentCoroutineContext().ensureActive()
             trace?.markProviderResponse(false, attachmentIds)
             val mapped = CloudErrorMapper.map(-1, e.message ?: "timeout")
             CloudProviderAdapter.AdapterResult.Failure(
@@ -248,6 +251,8 @@ class AnthropicAdapter(
                 retryable = mapped.retryable, httpCode = -1
             )
         } catch (e: java.io.IOException) {
+            // A watcher-triggered disconnect surfaces here; report cancellation, not a provider error.
+            currentCoroutineContext().ensureActive()
             trace?.markProviderResponse(false, attachmentIds)
             val code = if (fullText.isNotEmpty()) -2 else -1
             val mapped = CloudErrorMapper.map(code, e.message ?: "io error")
@@ -257,6 +262,7 @@ class AnthropicAdapter(
                 retryable = mapped.retryable, httpCode = code
             )
         } finally {
+            connWatcher?.cancel()
             try { conn?.disconnect() } catch (_: Exception) {}
         }
     }

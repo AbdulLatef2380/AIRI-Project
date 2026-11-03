@@ -42,7 +42,7 @@ class ExecutionAdmissionTest {
     }
 
     @Test
-    fun attachmentIsAdmittedEvenWhenTextNeedsNoLiveCapability() {
+    fun attachmentAloneDoesNotCreateAVisiblePlan() {
         val decision = ExecutionAdmissionPolicy.decide(
             input = "لخص هذا الملف",
             queryType = QueryType.SIMPLE,
@@ -50,8 +50,21 @@ class ExecutionAdmissionTest {
             attachmentCount = 1,
         )
 
-        assertTrue(decision.admitted)
+        assertFalse(decision.admitted)
         assertEquals(0, decision.plannedStepCount)
-        assertEquals("attachment_requires_processing", decision.reason)
+        assertEquals("direct_response_with_attachment", decision.reason)
+    }
+
+    @Test
+    fun attachmentWithAnExplicitCapabilityIsStillAdmittedByTheCapability() {
+        val decision = ExecutionAdmissionPolicy.decide(
+            input = "اعرض مستودعاتي في GitHub",
+            queryType = QueryType.ACTION,
+            effectiveTools = catalog,
+            attachmentCount = 2,
+        )
+
+        assertTrue(decision.admitted)
+        assertEquals("explicit_capability_intent", decision.reason)
     }
 }

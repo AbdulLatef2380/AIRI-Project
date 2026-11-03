@@ -41,4 +41,14 @@ class LongTextAttachmentPolicyTest {
     @Test fun byteSizeUsesUtf8NotCharacterCount() {
         assertTrue(LongTextAttachmentPolicy.utf8SizeBytes("ع" ) > "ع".length)
     }
+
+    @Test
+    fun attachmentSummaryShowsSizeAndFirstLinesNotJustTwoHundredChars() {
+        val text = (1..100).joinToString("\n") { "line $it of the pasted code" }
+        val summary = LongTextAttachmentPolicy.attachmentSummary("pasted.txt", text)
+        org.junit.Assert.assertTrue(summary.contains("100 lines"))
+        org.junit.Assert.assertTrue(summary.contains("line 15 of the pasted code"))
+        org.junit.Assert.assertFalse(summary.contains("line 16 of the pasted code"))
+        org.junit.Assert.assertTrue(summary.endsWith("…"))
+    }
 }

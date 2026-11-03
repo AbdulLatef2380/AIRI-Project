@@ -460,3 +460,8 @@ summary: 12/12 checks passed
 - session load success rate.
 
 لكن لا توجد بيانات runtime فعلية في sandbox لحساب معدلات إنتاجية. لذلك تبقى الحسابات الفعلية `NEEDS MEASUREMENT` إلى أن يتم تشغيل التطبيق مع consent مفعّل وbackend telemetry مراقب، مع عدم اعتبار وجود instrumentation وحده دليلاً على معدل فعلي.
+
+
+## Addendum — report 1 (cancellation status)
+
+The "FIXED" status for cloud cancellation in this report was premature: the earlier `invokeOnCompletion { disconnect() }` only ran after the blocked read ended. Report 1 batch 1 replaced it with `watchConnectionForCancellation`, and batch 2 added a stall watchdog in `AgentLoop`. None of this has been run on a device or against a live provider; treat it as "fixed in source, needs runtime test".

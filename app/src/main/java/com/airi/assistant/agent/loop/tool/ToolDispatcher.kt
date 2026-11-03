@@ -375,6 +375,33 @@ class ToolDispatcher(
                 }
             }
 
+            // ── Bounded file writer ───────────────────────────────────────────
+            // AgentLoop admits this only with a task-owned durable context; the
+            // governance layer is consulted here and the writer validates every field.
+            "write_file" -> {
+                val filename = args["filename"].orEmpty()
+                val content = args["content"].orEmpty()
+                val overwrite = args["overwrite"]?.toBooleanStrictOrNull() ?: false
+                val decision = runCatching {
+                    com.airi.assistant.core.ServiceLocator.permissionGovernanceLayer.evaluate(
+                        actionType = "file_write",
+                        actionDesc = "Write file (${filename.length} chars name, ${content.length} chars)",
+                        agentId = agentId,
+                        payload = filename,
+                    )
+                }.getOrElse { return ToolResult.Error("File write governance failed closed", code = ToolErrorCodes.PERMISSION_DENIED) }
+                if (!decision.allowed) return ToolResult.Error(decision.reason, code = ToolErrorCodes.PERMISSION_DENIED)
+                val directory = java.io.File(context.filesDir, AgentFileWriter.DIRECTORY_NAME)
+                when (val written = AgentFileWriter.write(directory, filename, content, overwrite)) {
+                    is AgentFileWriter.Result.Written -> {
+                        Log.i(TAG, "FILE_WRITTEN chars=${written.chars}")
+                        ToolResult.Success("Saved ${written.file.name} (${written.chars} characters) in AIRI files.")
+                    }
+                    is AgentFileWriter.Result.Rejected ->
+                        ToolResult.Error(written.reason, code = ToolErrorCodes.INVALID_ARGUMENT)
+                }
+            }
+
             // ── Confirmation request (LLM asks user) ──────────────────────────
             // This tool does NOT execute an action — it signals AgentLoop that
             // the LLM wants to pause for user confirmation before continuing.

@@ -3,10 +3,17 @@ package com.airi.assistant.ui.viewmodel
 /**
  * Incrementally separates provider reasoning blocks from the answer stream.
  * Delimiters may be split across transport chunks.
+ *
+ * An opening tag that is never closed (a reply cut off by a length/time limit, or a literal
+ * "<think>" used inside prose or code) must not erase the rest of the reply. While streaming the
+ * unclosed block stays hidden, but it is retained and released by [finish] as plain text, so a
+ * persisted answer is never silently truncated at the tag (report item 17).
  */
 class ReasoningStreamParser {
     private val pending = StringBuilder()
     private var inReasoning = false
+    /** Opening tag plus everything consumed since, kept only until the block closes. */
+    private val heldReasoning = StringBuilder()
 
     fun consume(chunk: String): String {
         if (chunk.isEmpty()) return ""
@@ -22,11 +29,16 @@ class ReasoningStreamParser {
             if (inReasoning) {
                 val close = findTag(pending, CLOSE_TAGS)
                 if (close == null) {
-                    if (flush) pending.clear()
-                    else retainTailForSplitTag()
+                    if (flush) {
+                        heldReasoning.append(pending)
+                        pending.clear()
+                    } else {
+                        retainTailForSplitTag()
+                    }
                     break
                 }
                 pending.delete(0, close.end)
+                heldReasoning.clear()
                 inReasoning = false
                 continue
             }
@@ -34,6 +46,8 @@ class ReasoningStreamParser {
             val open = findTag(pending, OPEN_TAGS)
             if (open != null) {
                 visible.append(pending.substring(0, open.start))
+                heldReasoning.clear()
+                heldReasoning.append(pending, open.start, open.end)
                 pending.delete(0, open.end)
                 inReasoning = true
                 continue
@@ -49,15 +63,21 @@ class ReasoningStreamParser {
                 pending.delete(0, safeLength)
             }
         }
+        if (flush && inReasoning) {
+            // Unclosed block at end of stream: release it instead of dropping it (item 17).
+            visible.append(heldReasoning)
+            heldReasoning.clear()
+            inReasoning = false
+        }
         return visible.toString()
     }
 
     private fun retainTailForSplitTag() {
         val keep = maxTagPrefixLength(pending, CLOSE_TAGS)
-        if (keep == 0) {
-            pending.clear()
-        } else if (pending.length > keep) {
-            pending.delete(0, pending.length - keep)
+        val moved = pending.length - keep
+        if (moved > 0) {
+            heldReasoning.append(pending, 0, moved)
+            pending.delete(0, moved)
         }
     }
 

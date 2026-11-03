@@ -75,6 +75,7 @@ class GeminiAdapter(
             "history=${request.conversationHistory.size} prompt_chars=${request.prompt.length}")
 
         var conn: HttpURLConnection? = null
+        var connWatcher: kotlinx.coroutines.Job? = null
         val fullText       = StringBuilder()
         val nativeCalls    = mutableListOf<NativeToolCallWire.Call>()
         var lastPayload    = ""
@@ -95,7 +96,7 @@ class GeminiAdapter(
             }
             // readLine() blocks independently of coroutine cancellation; close
             // this request's connection when its owning job is cancelled.
-            currentCoroutineContext()[Job]?.invokeOnCompletion { conn?.disconnect() }
+            connWatcher = watchConnectionForCancellation(requireNotNull(conn))
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             trace?.mark(AttachmentDeliveryStage.HTTP_REQUEST_DISPATCHED, attachmentIds)
 
@@ -215,12 +216,17 @@ class GeminiAdapter(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: java.net.SocketTimeoutException) {
+            // A watcher-triggered disconnect surfaces here; report cancellation, not a provider error.
+            currentCoroutineContext().ensureActive()
             val m = CloudErrorMapper.map(-1, e.message ?: "timeout")
             CloudProviderAdapter.AdapterResult.Failure(m.message, m.type, m.retryable, -1)
         } catch (e: java.io.IOException) {
+            // A watcher-triggered disconnect surfaces here; report cancellation, not a provider error.
+            currentCoroutineContext().ensureActive()
             val m = CloudErrorMapper.map(-2, e.message ?: "io error")
             CloudProviderAdapter.AdapterResult.Failure(m.message, m.type, m.retryable, -2)
         } finally {
+            connWatcher?.cancel()
             try { conn?.disconnect() } catch (_: Exception) {}
         }
     }

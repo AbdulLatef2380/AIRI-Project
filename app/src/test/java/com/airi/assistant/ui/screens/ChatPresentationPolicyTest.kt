@@ -48,6 +48,8 @@ class ChatPresentationPolicyTest {
 
     @Test fun rawProviderIdsGetHumanLabels() {
         assertEquals("Gemini Flash", ChatPresentationPolicy.humanModelLabel("gemini-3.8-flash", false, true))
+        assertEquals("Gemini Flash Lite", ChatPresentationPolicy.humanModelLabel("gemini-3.5-flash-lite", false, true))
+        assertEquals("Gemini Pro", ChatPresentationPolicy.humanModelLabel("gemini-3.5-pro", false, true))
         assertEquals("Local", ChatPresentationPolicy.humanModelLabel("", true, false))
         assertEquals("Auto", ChatPresentationPolicy.humanModelLabel("", false, false))
     }

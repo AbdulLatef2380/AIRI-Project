@@ -36,6 +36,7 @@ fun AgentControlScreen(
     val skillInfos  = remember { viewModel.getSkillInfos().toMutableStateList() }
     val toolList    = remember { viewModel.getToolList() }
     val debugMode   by viewModel.debugMode.collectAsState()
+    val retention   by viewModel.retention.collectAsState()
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -192,42 +193,63 @@ fun AgentControlScreen(
                 }
             }
             AgentControlCard {
-                AgentSectionHeader(icon = Icons.Outlined.BugReport, title = "Debug Mode")
+                AgentSectionHeader(icon = Icons.Outlined.Timeline, title = "Trace History")
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text  = "Shows raw tool JSON and reasoning steps in the chat trace.",
+                    text  = "How many past runs and events are kept for the agent log and the chat trace.",
                     fontSize = 11.sp,
                     color = AiriTheme.outline,
                     modifier = Modifier.padding(bottom = 10.dp)
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Enable Debug Mode",
-                            color = AiriTheme.onBackground.copy(alpha = 0.9f),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = if (debugMode) "Debug info visible in traces" else "Only results shown",
-                            color = if (debugMode) CosmicAccent.copy(alpha = 0.65f)
-                                    else AiriTheme.onSurface.copy(alpha = 0.35f),
-                            fontSize = 11.sp
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.airi.assistant.core.TraceRetention.Level.values().forEach { level ->
+                        FilterChip(
+                            selected = retention == level,
+                            onClick = { viewModel.setRetention(level) },
+                            label = { Text(level.label, fontSize = 12.sp) }
                         )
                     }
-                    Switch(
-                        checked = debugMode,
-                        onCheckedChange = { viewModel.setDebugMode(it) },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor   = CosmicAccent,
-                            checkedTrackColor   = CosmicAccent.copy(alpha = 0.3f),
-                            uncheckedThumbColor = AiriTheme.onSurface.copy(alpha = 0.4f),
-                            uncheckedTrackColor = AiriTheme.onSurface.copy(alpha = 0.1f)
-                        )
+                }
+            }
+            if (com.airi.assistant.BuildConfig.DEBUG) {
+                AgentControlCard {
+                    AgentSectionHeader(icon = Icons.Outlined.BugReport, title = "Debug Mode")
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text  = "Shows the debug overlay and diagnostic banners in the chat screen. Execution traces are always recorded and are not affected by this switch. Exposes internal details; use only for troubleshooting.",
+                        fontSize = 11.sp,
+                        color = AiriTheme.outline,
+                        modifier = Modifier.padding(bottom = 10.dp)
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Enable Debug Mode",
+                                color = AiriTheme.onBackground.copy(alpha = 0.9f),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = if (debugMode) "Debug overlay visible in chat" else "Debug overlay hidden",
+                                color = if (debugMode) CosmicAccent.copy(alpha = 0.65f)
+                                        else AiriTheme.onSurface.copy(alpha = 0.35f),
+                                fontSize = 11.sp
+                            )
+                        }
+                        Switch(
+                            checked = debugMode,
+                            onCheckedChange = { viewModel.setDebugMode(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor   = CosmicAccent,
+                                checkedTrackColor   = CosmicAccent.copy(alpha = 0.3f),
+                                uncheckedThumbColor = AiriTheme.onSurface.copy(alpha = 0.4f),
+                                uncheckedTrackColor = AiriTheme.onSurface.copy(alpha = 0.1f)
+                            )
+                        )
+                    }
                 }
             }
         }

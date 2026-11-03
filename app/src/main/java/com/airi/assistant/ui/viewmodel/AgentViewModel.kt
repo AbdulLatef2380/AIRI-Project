@@ -36,6 +36,9 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedTrace = MutableStateFlow<AgentTrace?>(null)
     val selectedTrace: StateFlow<AgentTrace?> = _selectedTrace.asStateFlow()
 
+    private val _retention = MutableStateFlow(com.airi.assistant.core.TraceRetention.levelFrom(appContext))
+    val retention: StateFlow<com.airi.assistant.core.TraceRetention.Level> = _retention.asStateFlow()
+
     val backgroundAgentEnabled: Boolean
         get() = preferences.getBoolean("background_agent_enabled", false)
 
@@ -58,6 +61,11 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
         _debugMode.value = enabled
         preferences.edit().putBoolean("agent_debug_mode", enabled).apply()
         LoggingService.debug("AgentViewModel", "Debug mode set to $enabled")
+    }
+
+    fun setRetention(level: com.airi.assistant.core.TraceRetention.Level) {
+        _retention.value = level
+        com.airi.assistant.core.TraceRetention.save(appContext, level)
     }
 
     fun selectTrace(trace: AgentTrace?) {

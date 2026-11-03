@@ -92,4 +92,22 @@ class TextToolCallProtocolTest {
         val result = TextToolCallProtocol.parse(TextToolCallProtocol.encode(calls))
         assertEquals(TextToolCallProtocol.ParseResult.Calls(calls), result)
     }
+
+    @Test
+    fun envelopeShownInsideACodeBlockIsNotExecuted() {
+        val reply = "Here is how the protocol looks:\n```kotlin\nval s = \"\"\"{\"tool_call\":{\"name\":\"web_search\",\"args\":{}}}\"\"\"\n```\nThat is all."
+        assertEquals(TextToolCallProtocol.ParseResult.NotAToolCall, TextToolCallProtocol.parse(reply))
+    }
+
+    @Test
+    fun jsonBlockWithOtherContentFirstIsNotExecuted() {
+        val reply = "```json\n{\"example\": true, \"note\": {\"tool_call\":{\"name\":\"x\"}}}\n```"
+        assertEquals(TextToolCallProtocol.ParseResult.NotAToolCall, TextToolCallProtocol.parse(reply))
+    }
+
+    @Test
+    fun untaggedFenceAroundTheEnvelopeStillParses() {
+        val result = TextToolCallProtocol.parse("```\n{\"tool_call\":{\"name\":\"current_time\",\"args\":{}}}\n```")
+        assertTrue(result is TextToolCallProtocol.ParseResult.Call)
+    }
 }

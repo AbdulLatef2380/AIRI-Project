@@ -72,4 +72,11 @@ class GenerationResponsePolicyTest {
             GenerationResponsePolicy.classify(AgentLoop.TerminalState.SUCCESS, answer),
         )
     }
+
+    @Test
+    fun interruptedReplyIsKeptOnlyWhenANewMessageInterruptedIt() {
+        assertTrue(GenerationResponsePolicy.shouldPersistInterruptedReply(true, "نص جزئي"))
+        assertFalse(GenerationResponsePolicy.shouldPersistInterruptedReply(true, "   "))
+        assertFalse(GenerationResponsePolicy.shouldPersistInterruptedReply(false, "نص جزئي"))
+    }
 }

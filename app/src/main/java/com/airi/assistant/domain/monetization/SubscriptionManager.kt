@@ -77,6 +77,21 @@ class SubscriptionManager(context: Context) {
         prefs.edit().putInt(KEY_MESSAGES, prefs.getInt(KEY_MESSAGES, 0) + 1).apply()
     }
 
+    /**
+     * Gives back one message recorded by [recordMessage] when the request ended
+     * without any answer for the user (timeout, provider failure, empty reply).
+     * Never goes below zero and never crosses a day boundary: if the day rolled
+     * over in between, the new day's counter is left alone.
+     */
+    fun refundMessage() {
+        val dayBefore = prefs.getString(KEY_DATE, null)
+        resetIfNewDay()
+        val count = prefs.getInt(KEY_MESSAGES, 0)
+        if (count > 0 && dayBefore == prefs.getString(KEY_DATE, null)) {
+            prefs.edit().putInt(KEY_MESSAGES, count - 1).apply()
+        }
+    }
+
     // ── Agent quota ───────────────────────────────────────────────────────────
 
     fun canExecuteAgent(): Boolean {

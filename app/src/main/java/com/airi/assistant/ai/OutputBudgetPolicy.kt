@@ -6,7 +6,7 @@ import com.airi.assistant.ai.context.ContextBudget
 object OutputBudgetPolicy {
     fun requestedTokens(input: String, queryType: QueryType): Int = when (ResponseDepthPolicy.resolve(input, queryType)) {
         ResponseDepth.BRIEF -> 384
-        ResponseDepth.STANDARD -> 1_024
+        ResponseDepth.STANDARD -> 2_048
         ResponseDepth.DETAILED -> when (queryType) {
             QueryType.ANALYTICAL -> 8_192
             QueryType.CREATIVE -> 6_144

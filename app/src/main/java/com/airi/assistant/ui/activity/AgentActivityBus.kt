@@ -14,12 +14,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.ArrayDeque
 
 object AgentActivityBus {
-    private const val MAX_SNAPSHOT = 150
+    /** Events retained for the live snapshot; set through TraceRetention. */
+    @Volatile var maxSnapshot = 400
     private val lock = Any()
     private var nextSequenceNumber = 0L
 
     // Replay reduced from 200 → 50.
-    // Historical events live in snapshotList (150 cap) which collectors read
+    // Historical events live in snapshotList (maxSnapshot cap) which collectors read
     // via recentEvents StateFlow. replay=200 was holding 200 ActivityEvent
     // objects in the SharedFlow cache permanently — growing heap in long
     // sessions. No subscriber needs >50 events on re-subscription since
@@ -47,7 +48,7 @@ object AgentActivityBus {
         synchronized(lock) {
             val orderedEvent = safeEvent.copy(sequenceNumber = ++nextSequenceNumber)
             snapshotList.addFirst(orderedEvent)
-            while (snapshotList.size > MAX_SNAPSHOT) snapshotList.removeLast()
+            while (snapshotList.size > maxSnapshot) snapshotList.removeLast()
             _recent.value = snapshotList.toList()
             // Feed emit counter before the actual emit. DROP_OLDEST keeps the
             // bounded SharedFlow non-blocking for runtime producers.

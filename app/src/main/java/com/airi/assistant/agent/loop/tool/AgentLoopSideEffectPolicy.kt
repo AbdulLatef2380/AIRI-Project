@@ -12,6 +12,7 @@ internal object AgentLoopSideEffectPolicy {
         ALLOW_READ,
         ALLOW_TYPED_CALENDAR_CREATE,
         ALLOW_TYPED_TERMINAL,
+        ALLOW_TYPED_FILE_WRITE,
         DURABLE_CONTEXT_REQUIRED
     }
 
@@ -22,6 +23,8 @@ internal object AgentLoopSideEffectPolicy {
             schema.name == "calendar_create" && hasDurableExecutionContext -> Decision.ALLOW_TYPED_CALENDAR_CREATE
         schema.sideEffectPolicy == ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT &&
             schema.name == "terminal_execute" && hasDurableExecutionContext -> Decision.ALLOW_TYPED_TERMINAL
+        schema.sideEffectPolicy == ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT &&
+            schema.name == "write_file" && hasDurableExecutionContext -> Decision.ALLOW_TYPED_FILE_WRITE
         schema.sideEffectPolicy != ToolSchema.SideEffectPolicy.READ_ONLY ->
             Decision.DURABLE_CONTEXT_REQUIRED
         else -> Decision.ALLOW_READ
@@ -42,6 +45,7 @@ internal object AgentLoopSideEffectPolicy {
         "open_app" -> "Opening an app requires a task-owned approval session before it can run."
         "type_text" -> "Typing text into another app requires a task-owned approval session before it can run."
         "flashlight" -> "Torch control requires a task-owned approval session before it can run."
+        "write_file" -> "Writing a file requires a task-owned approval session before it can run."
         "terminal_execute" -> "Terminal execution requires a task-owned approval session before it can run."
         else -> "This device action requires a task-owned approval session before it can run."
     }
@@ -50,7 +54,7 @@ internal object AgentLoopSideEffectPolicy {
      * AgentLoop durable-context filter and the gateway's bounded command policy. */
     fun blockedToolOverrides(): Map<String, RuntimeToolCatalog.StatusOverride> =
         BuiltinTools.ALL
-            .filter { it.sideEffectPolicy != ToolSchema.SideEffectPolicy.READ_ONLY && it.name != "terminal_execute" }
+            .filter { it.sideEffectPolicy != ToolSchema.SideEffectPolicy.READ_ONLY && it.name != "terminal_execute" && it.name != "write_file" }
             .associate { tool ->
                 tool.name to
                 RuntimeToolCatalog.StatusOverride(

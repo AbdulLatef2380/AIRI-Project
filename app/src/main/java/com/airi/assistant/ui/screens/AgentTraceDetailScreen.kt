@@ -131,6 +131,46 @@ fun AgentTraceDetailScreen(
                     )
                 }
             }
+            if (t.truncated) {
+                item {
+                    Text(
+                        text = "${t.droppedSteps} more step${if (t.droppedSteps != 1) "s" else ""} ran but " +
+                            "${if (t.droppedSteps != 1) "are" else "is"} not shown (step limit reached).",
+                        color = Color(0xFFFFB300).copy(alpha = 0.9f),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+            if (t.model?.isNotBlank() == true || t.provider?.isNotBlank() == true ||
+                t.estimatedOutputTokens != null || t.firstVisibleTokenLatencyMs != null
+            ) {
+                item {
+                    TraceDetailCard {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            t.model?.takeIf { it.isNotBlank() }?.let {
+                                TraceMetadataRow(stringResource(R.string.trace_metadata_model), it)
+                            }
+                            t.provider?.takeIf { it.isNotBlank() }?.let {
+                                TraceMetadataRow(stringResource(R.string.trace_metadata_provider), it)
+                            }
+                            t.estimatedOutputTokens?.let {
+                                Text(
+                                    stringResource(R.string.trace_metadata_estimated_output_tokens, it),
+                                    color = AiriTheme.onSurfaceVariant,
+                                    fontSize = 11.sp,
+                                )
+                            }
+                            t.firstVisibleTokenLatencyMs?.let {
+                                Text(
+                                    stringResource(R.string.trace_metadata_first_visible_token, it),
+                                    color = AiriTheme.onSurfaceVariant,
+                                    fontSize = 11.sp,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             if (t.steps.isNotEmpty()) {
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
@@ -274,6 +314,18 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TraceMetadataRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
+        Text(value, color = AiriTheme.onBackground, fontSize = 11.sp, fontWeight = FontWeight.Medium)
     }
 }
 

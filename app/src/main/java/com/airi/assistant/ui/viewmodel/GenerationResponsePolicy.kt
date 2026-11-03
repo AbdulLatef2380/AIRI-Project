@@ -66,4 +66,13 @@ object GenerationResponsePolicy {
     /** Preserve useful streamed content on failure/timeout without treating it as a completed answer. */
     fun shouldPersistIncompleteResponse(status: GenerationResponseStatus, content: String): Boolean =
         content.isNotBlank() && (status == GenerationResponseStatus.INCOMPLETE || status == GenerationResponseStatus.FAILURE || status == GenerationResponseStatus.TIMEOUT)
+
+    /**
+     * Report 1, item 28 (stage 25). Sending a new message while a reply is streaming
+     * still interrupts it, but the text already shown is kept instead of vanishing.
+     * An explicit Stop keeps its existing behaviour (nothing is saved), because it
+     * carries no queued message.
+     */
+    fun shouldPersistInterruptedReply(interruptedByNewMessage: Boolean, content: String): Boolean =
+        interruptedByNewMessage && content.isNotBlank()
 }

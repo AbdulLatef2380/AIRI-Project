@@ -12,7 +12,10 @@ data class AgentStep(
     val name: String,
     val inputParams: Map<String, String> = emptyMap(),
     val outputSummary: String = "",
-    val success: Boolean = false,
+    // Default is true: a writer that records only an error (error != null) is
+    // still reported as failed by AgentTrace.hasErrors, while a writer that
+    // forgets to set this flag no longer shows a healthy step as failed.
+    val success: Boolean = true,
     val error: String? = null,
     val durationMs: Long = 0L
 ) {

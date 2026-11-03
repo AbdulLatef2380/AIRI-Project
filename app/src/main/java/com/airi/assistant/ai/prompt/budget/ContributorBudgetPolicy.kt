@@ -164,4 +164,37 @@ object ContributorBudgetPolicy {
     fun toolCharsCap(availableForContent: Int): Int =
         (availableForContent * TOOL_FRACTION * CHARS_PER_TOKEN).toInt()
             .coerceAtLeast(TOOL_CHARS_MIN)
+
+    // ── Provider-aware tool budget (report 1, stage 6) ────────────────────────
+
+    /**
+     * Context window assumed for remote providers when sizing the tool block.
+     * The on-device [ContextBudget] describes the local llama.cpp window (1 536
+     * tokens when no model is loaded), which says nothing about a cloud model.
+     * Using it for cloud requests left roughly 1 000 chars for every tool and
+     * skill schema. 32K is a deliberately conservative floor for current
+     * hosted chat models.
+     */
+    const val CLOUD_NOMINAL_CONTEXT_TOKENS: Int = 32_768
+
+    /** Upper bound for the tool block on remote providers (≈ 4 000 tokens). */
+    const val CLOUD_TOOL_CHARS_MAX: Int = 16_000
+
+    /** True when [providerId] names the on-device runtime (blank means local). */
+    fun isLocalProvider(providerId: String): Boolean =
+        providerId.isBlank() || providerId.equals("local", ignoreCase = true)
+
+    /**
+     * Tool-block character cap for the provider that will actually run the
+     * request. Local requests keep the live on-device window; remote requests
+     * use [CLOUD_NOMINAL_CONTEXT_TOKENS], never going below what the local
+     * window would have granted and never above [CLOUD_TOOL_CHARS_MAX].
+     */
+    fun toolCharsCapFor(providerId: String, localAvailableForContent: Int): Int {
+        val local = toolCharsCap(localAvailableForContent)
+        if (isLocalProvider(providerId)) return local
+        val cloudAvailable = (CLOUD_NOMINAL_CONTEXT_TOKENS - TOTAL_FIXED_OVERHEAD).coerceAtLeast(256)
+        val cloud = toolCharsCap(cloudAvailable).coerceAtMost(CLOUD_TOOL_CHARS_MAX)
+        return maxOf(local, cloud)
+    }
 }

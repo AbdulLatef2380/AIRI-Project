@@ -141,6 +141,9 @@ import com.airi.assistant.product.AiriIdentityProfile
 import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.ui.activity.ActivityEvent
 import com.airi.assistant.core.ExecutionTraceEvent
+import com.airi.assistant.core.ExecutionTraceArchive
+import com.airi.assistant.ai.agent.trace.ChatExecutionTraceMapper
+import com.airi.assistant.ai.agent.trace.AgentTraceManager
 import com.airi.assistant.ui.text.AssistantOutputPresentation
 import com.airi.assistant.ui.text.AssistantToolOutput
 
@@ -1735,6 +1738,41 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Saves this turn's execution trace twice: durably with the message (so the
+     * inline trace survives a restart) and into the agent-log store (so the logs
+     * screen shows real chat runs). Never throws into the chat path.
+     */
+    private fun persistExecutionTrace(
+        messageId: Long,
+        sessionId: String,
+        executionId: String,
+        userInput: String,
+        answer: String,
+        model: String?,
+        provider: String?,
+        estimatedOutputTokens: Int?,
+        firstVisibleTokenLatencyMs: Long?,
+    ) {
+        runCatching {
+            val events = ExecutionStatusBus.traceSnapshot(executionId)
+            if (events.isEmpty()) return
+            ExecutionTraceArchive.put(messageId, events)
+            ChatExecutionTraceMapper.toAgentTrace(
+                executionId = executionId,
+                sessionId = sessionId,
+                messageId = messageId,
+                userInput = userInput,
+                events = events,
+                answerText = answer,
+                model = model,
+                provider = provider,
+                estimatedOutputTokens = estimatedOutputTokens,
+                firstVisibleTokenLatencyMs = firstVisibleTokenLatencyMs,
+            )?.let { AgentTraceManager.instance.recordChatExecution(it) }
+        }.onFailure { Log.w("AIRI_TRACE", "Could not persist execution trace type=${it.javaClass.simpleName}") }
+    }
+
     fun loadSession(sessionId: String) {
         if (sessionId.isBlank()) {
             _sessionLoadState.value = SessionLoadState.Failed("Session id is blank")
@@ -1782,14 +1820,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (previousId != sessionId) rejectSummary()
             _currentSessionId.value = sessionId
             preferences.edit().putString(KEY_SESSION_ID, sessionId).apply()
+            // Restore execution traces saved with earlier assistant turns.
+            val archivedTraces = withContext(Dispatchers.IO) {
+                runCatching {
+                    ExecutionTraceArchive.getAll(history.filter { it.role != "user" }.map { it.id })
+                }.getOrDefault(emptyMap())
+            }
             _messages.value = history.map { msg ->
                 val messageAttachments = attachmentPreviews(msg.attachmentJson)
+                val archived = archivedTraces[msg.id].orEmpty()
                 ChatMessage(
                     text = attachmentBubbleText(msg.content, messageAttachments),
                     isUser = msg.role == "user",
                     id = msg.id,
                     imageUri = attachmentPreviewUri(msg.attachmentJson),
                     attachments = messageAttachments,
+                    executionTraceId = archived.firstOrNull()?.executionId,
+                    executionTraceSnapshot = archived,
                 )
             }
             _streamingText.value = if (activeGenerationSessionId == sessionId) streamAccumulator.toString() else ""
@@ -2034,6 +2081,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun generationBusy(): Boolean =
         activeGenerationId != 0L || _agentState.value.isWorking
 
+    /**
+     * The message quota is charged when a request is accepted. If it then ends
+     * without any answer reaching the user (timeout, provider error, empty
+     * reply) the charge is returned so a failure does not cost the free user a
+     * message. A saved partial answer counts as delivered. Report 1, item 26.
+     */
+    private fun refundMessageIfNothingDelivered(partialSaved: Boolean, reason: String) {
+        if (partialSaved) return
+        runCatching { subscriptionManager.refundMessage() }
+        Log.i("AIRI", "MESSAGE_QUOTA_REFUNDED reason=$reason")
+    }
+
+    /**
+     * `sendMessageInternal` used to return `false` without any trace. The
+     * silent cases (busy, stale session, empty text) are caller-side guards
+     * that need no banner, but the reason is now always logged so a "message
+     * did nothing" report can be diagnosed. Visible failures (model loading,
+     * cloud blocked, quota) keep their own user-facing error. Report 1, stage 16.
+     */
+    private fun rejectSend(reason: String): Boolean {
+        Log.w("AIRI", "SEND_REJECTED reason=$reason")
+        return false
+    }
+
     fun requiresLongTextCloudConsent(input: String): Boolean =
         requiresCloudAttachmentConsent() && LongTextAttachmentPolicy.shouldAutoConvert(input)
 
@@ -2047,16 +2118,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         onAccepted: () -> Unit = {},
         cloudAttachmentConsent: Boolean = false,
     ): Boolean {
-        if (activeGenerationId != 0L || _agentState.value.isWorking) return false
+        if (activeGenerationId != 0L || _agentState.value.isWorking) return rejectSend("generation_in_progress")
         val generationSessionId = expectedSessionId ?: _currentSessionId.value
-        if (generationSessionId.isBlank() || _currentSessionId.value != generationSessionId) return false
+        if (generationSessionId.isBlank() || _currentSessionId.value != generationSessionId) {
+            return rejectSend("session_mismatch")
+        }
         val directives = parseInputDirectives(input)
         val trimmedInput = directives.userText.trim()
-        if (trimmedInput.isEmpty() || _modelState.value.isModelLoading) return false
+        if (trimmedInput.isEmpty()) return rejectSend("empty_input")
+        if (_modelState.value.isModelLoading) {
+            // Previously a silent `false`: the user's text looked ignored. Say why (report 1, item 28 / section 2.d).
+            _lastExecutionError.value = ExecutionErrorProjection(
+                executionId = "generation-model-loading",
+                message = appContext.getString(R.string.err_model_still_loading),
+                messageResId = R.string.err_model_still_loading,
+                stage = ExecutionFailureStage.PREPARATION,
+                sessionId = generationSessionId,
+            )
+            return false
+        }
         _generationStoppedNotice.value = false
         // The composer stays disabled while an execution owns the stream. This
         // guard also protects programmatic callers from queuing a second request.
-        if (activeGenerationId != 0L || _agentState.value.isWorking) return false
+        if (activeGenerationId != 0L || _agentState.value.isWorking) return rejectSend("generation_in_progress")
         _lastExecutionError.value = null
         // ── Long-text-to-file conversion (3000+ chars or 40+ lines) ───────────
         // When the user pastes/sends very long text (e.g. code, articles, logs),
@@ -2076,7 +2160,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 return false
             }
             Log.i("AIRI", "LONG_TEXT_CONVERSION chars=${trimmedInput.length} -> file=$fileName")
-            val summary = "[Attached file: $fileName]\n\n${trimmedInput.take(200)}..."
+            val summary = LongTextAttachmentPolicy.attachmentSummary(fileName, trimmedInput)
             sendMessageWithAttachments(
                 input = summary,
                 cloudAttachmentConsent = cloudAttachmentConsent,
@@ -2157,16 +2241,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // If the daily credit budget is exhausted for the tier, block with a clear
         // message (different from the SubscriptionManager quota which gates messages
         // by count; this gates by weighted credit cost across all action types).
-        runCatching {
-            val meter  = ServiceLocator.creditMeteringEngine
-            val result = meter.consume(com.airi.assistant.domain.monetization.ActionType.MESSAGE)
-            if (result is com.airi.assistant.domain.monetization.ConsumeResult.Denied) {
-                Log.w("AIRI_CREDIT", "Credit denied: ${result.userMessage}")
-                // Only hard-block if the subscription gate also denies — credit
-                // metering alone uses a soft warning so the existing quota gate
-                // remains the primary enforcement path.
-                Log.d("AIRI_CREDIT", "daily_total=${result.dailyTotal}/${result.budget}")
+        // Report 1, item 27 (stage 31): a denied credit used to be logged and ignored, so the
+        // request ran anyway. It now stops here with the same paywall path as the quota gate.
+        // A metering failure (exception) still lets the request through: the quota gate above
+        // remains the enforcement path in that case.
+        val creditDenied = runCatching {
+            ServiceLocator.creditMeteringEngine
+                .consume(com.airi.assistant.domain.monetization.ActionType.MESSAGE)
+                as? com.airi.assistant.domain.monetization.ConsumeResult.Denied
+        }.getOrNull()
+        if (creditDenied != null) {
+            Log.w("AIRI_CREDIT", "Credit denied daily_total=${creditDenied.dailyTotal}/${creditDenied.budget}")
+            _messages.update {
+                it + ChatMessage(
+                    appContext.getString(R.string.err_credit_denied, creditDenied.dailyTotal, creditDenied.budget),
+                    isUser = false,
+                )
             }
+            refreshPowerLevel()
+            _paywallTrigger.value = true
+            return false
         }
 
         // LOCAL_ONLY mode: treat remote as unavailable even if one is configured.
@@ -2194,6 +2288,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _generationPhase.value = GenerationPhase.PREFILL
             _isGenerating.value = true
             generationStartMs = System.currentTimeMillis()
+            // Report 1, item 24 (stage 19): per-stage timings and per-contributor sizes
+            // for the work done before the first token. Logged once at first token.
+            val preTimeline = com.airi.assistant.ai.prompt.budget.PreFirstTokenTimeline()
             val perfMode = _performanceMode.value
             val sessionId = generationSessionId
             val activeProjectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
@@ -2218,6 +2315,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
             val history    = ResponseOptimizer.smartTrim(rawHistory, isAgentMode = true)
             Log.d("AIRI_TRIM", "before=${rawHistory.size} after=${history.size}")
+            preTimeline.mark("history_load")
             val userMessage = memoryManager.recordChatMessage(
                 sessionId = sessionId,
                 role = "user",
@@ -2261,7 +2359,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            // ──  & 5 — Soft limit: degrade quality + add delay for free users ──
+            // ── Soft limit: free users get a short delay only. The token factors are
+            // reported to analytics but are NOT applied to the output budget (report 1, item 15/34). ──
             val softPhase = subscriptionManager.getSoftLimitPhase()
             if (softPhase >= 1 && !subscriptionManager.isPremium()) {
                 val delayMs = PricingConfig.SOFT_LIMIT_DELAY_MS
@@ -2376,6 +2475,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }.getOrNull()
             }
+            preTimeline.mark("rag_knowledge")
             val availableSkillIds = skillService.getAllSkillInfos()
                 .filter { it.isEnabled && it.isConnected }
                 .map { it.id }
@@ -2408,6 +2508,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } + com.airi.assistant.ai.prompt.CodeGenerationGuidancePolicy
                     .systemPromptSuffix(trimmedInput)
+            preTimeline.mark("base_prompt")
             // SPRINT 2 / Phase A4: Notify LlamaManager of the actual system prompt token
             // count so trimHistoryByTokens() can compensate for skill/tool expansion
             // beyond the base systemOverhead reserve.  Without this, skills injected by
@@ -2519,9 +2620,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // may use the no-tools fast path.
             val candidateTools = if (!capabilityIntent.requiresTools &&
                 (queryType == QueryType.SIMPLE || queryType == QueryType.CREATIVE)) {
-                emptyList()
+                // Report 1 / stage 10: plain questions on remote providers keep a few
+                // read-only lookup tools; everything else keeps the no-tool fast path.
+                com.airi.assistant.agent.loop.tool.QuestionToolExposurePolicy.select(
+                    kind = chatIntent.kind,
+                    queryType = queryType,
+                    providerId = requestedProviderIdAtDispatch,
+                    availableTools = allActiveTools,
+                    localAvailableTokens = llamaManager.contextBudget.availableForContent,
+                )
             } else {
-                allActiveTools
+                // Report 1, item 4 (stage 23): an unclassified request with no capability and
+                // no user-picked skill no longer carries every tool; null means "not narrowed".
+                com.airi.assistant.agent.loop.tool.QuestionToolExposurePolicy.selectUnclassified(
+                    queryType = queryType,
+                    capabilityRequiresTools = capabilityIntent.requiresTools,
+                    userSelectedSkills = selectedSkillIds.isNotEmpty(),
+                    providerId = requestedProviderIdAtDispatch,
+                    availableTools = allActiveTools,
+                    localAvailableTokens = llamaManager.contextBudget.availableForContent,
+                ) ?: allActiveTools
             }
             val requestPermissionProfile = com.airi.assistant.core.AgentPermissionProfile.resolve(
                 queryType = queryType,
@@ -2531,13 +2649,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
             val permissionFilteredTools = requestPermissionProfile.filterTools(candidateTools)
             val toolPromptBudget = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
-                .toolCharsCap(llamaManager.contextBudget.availableForContent)
+                .toolCharsCapFor(requestedProviderIdAtDispatch, llamaManager.contextBudget.availableForContent)
             val toolSelection = com.airi.assistant.agent.loop.tool.ToolSchemaPromptBudget.select(
                 permissionFilteredTools,
                 toolPromptBudget,
                 requiredToolNames = catalog.requiredToolNames,
             )
             val activeTools = toolSelection.tools
+            preTimeline.mark("tool_catalog")
             val omittedRequiredTools = toolSelection.requiredButOmittedToolNames
             if (omittedRequiredTools.isNotEmpty()) {
                 _messages.update { current ->
@@ -2621,13 +2740,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
             llamaManager.systemPromptTokenEstimate =
                 com.airi.assistant.ai.prompt.budget.PromptBudgetLedger.estimateTokens(fullSystemPrompt)
+            preTimeline.mark("capability_snapshot")
+            // Counted rows are disjoint: the base prompt already contains the RAG block and
+            // the summary (shown in brackets), and the tool block is sent separately by
+            // AgentLoop. full_system = base + inventory + decisions + snapshot.
+            val promptSizeReport = com.airi.assistant.ai.prompt.budget.PromptSizeReport()
+                .add("system_prompt", fullSystemPrompt)
+                .addIncluded("rag", ragContext)
+                .addIncluded("summary", summaryPlan.previousSummary)
+                .add("tool_block", toolSelection.promptBlock)
+                .addChars("history", history.sumOf { it.content.length })
             Log.i("AIRI", "TOOL_LIST_SIZE builtins=${com.airi.assistant.agent.loop.tool.BuiltinTools.ALL.size} skills=${liveSkillSchemas.size} connectors=$connectorSchemaCount selected=${activeTools.size} queryType=${queryType.name} capabilities=${capabilityIntent.capabilities} candidates=${catalog.candidates.size} exposed=${catalog.exposed.size} filtered=${catalog.filtered.map { it.toolName + ":" + it.reason.name }}")
 
-            var tokenCount = 0
-            var firstTokenReceived = false
-            val toolOutputs = mutableListOf<AssistantToolOutput>()
-            val requestStart = System.currentTimeMillis()
-            val traceExecutionId = java.util.UUID.randomUUID().toString()
+	            var tokenCount = 0
+	            var firstTokenReceived = false
+	            var firstVisibleTokenLatencyMs: Long? = null
+	            val toolOutputs = mutableListOf<AssistantToolOutput>()
+	            val requestStart = System.currentTimeMillis()
+	            val traceExecutionId = java.util.UUID.randomUUID().toString()
             val needsResummarize = summaryPlan.shouldSummarize
             val olderToFold = summaryPlan.olderTurns
             Log.i("AIRI", "AGENT_LOOP_START inputChars=${trimmedInput.length} queryType=${queryType.name} planMode=${_isPlanModeActive.value}")
@@ -2642,6 +2772,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         role = "assistant",
                         content = safeContent,
                         projectId = activeProjectId
+                    )
+                    persistExecutionTrace(
+                        messageId = saved.id,
+                        sessionId = sessionId,
+                        executionId = traceExecutionId,
+                        userInput = trimmedInput,
+                        answer = safeContent,
+                        model = requestedModelIdAtDispatch.takeIf { it.isNotBlank() },
+                        provider = requestedProviderIdAtDispatch.takeIf { it.isNotBlank() },
+                        estimatedOutputTokens = tokenCount.takeIf { it > 0 },
+                        firstVisibleTokenLatencyMs = firstVisibleTokenLatencyMs,
                     )
                     if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
                         _messages.update { current ->
@@ -2702,8 +2843,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             _generationPhase.value = GenerationPhase.GENERATE
                             generationStartMs = System.currentTimeMillis()
                             val ftMs = System.currentTimeMillis() - requestStart
+                            firstVisibleTokenLatencyMs = ftMs
                             _debugState.update { it.copy(lastFirstTokenMs = ftMs) }
-                            if (com.airi.assistant.BuildConfig.DEBUG) Log.d("AIRI_SPEED", "LOOP first_token=${ftMs}ms")
+                            Log.i("AIRI_SPEED", "LOOP first_token=${ftMs}ms")
+                            // Report 1, item 24: the pre-first-token breakdown.
+                            Log.i("AIRI_PREFILL", "stages=${preTimeline.toLogLine()} sizes=${promptSizeReport.toLogLine()}")
                         }
                         streamAccumulator.append(visibleToken)
                         if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
@@ -2837,6 +2981,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         val partialSaved = if (GenerationResponsePolicy.shouldPersistIncompleteResponse(responseStatus, streamedAnswer)) {
                             persistAssistantResponse(streamedAnswer)
                         } else false
+                        refundMessageIfNothingDelivered(partialSaved, "timeout")
                         _generationPhase.value = GenerationPhase.CLEANUP
                         _lastExecutionError.value = ExecutionErrorProjection(
                             executionId = "generation-$generationId",
@@ -2868,6 +3013,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         val partialSaved = if (GenerationResponsePolicy.shouldPersistIncompleteResponse(responseStatus, streamedAnswer)) {
                             persistAssistantResponse(streamedAnswer)
                         } else false
+                        refundMessageIfNothingDelivered(partialSaved, "failure")
                         _generationPhase.value = GenerationPhase.CLEANUP
                         val classification = ExecutionFailurePolicy.classify(
                             rawMessage = loopResult.failureMessage,
@@ -2898,6 +3044,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         return@launch
                     }
                     GenerationResponseStatus.EMPTY_RESPONSE -> {
+                        refundMessageIfNothingDelivered(false, "empty_response")
                         _generationPhase.value = GenerationPhase.CLEANUP
                         _lastExecutionError.value = ExecutionErrorProjection(
                             executionId = "generation-$generationId",
@@ -2963,6 +3110,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         content = normalizedAnswer,
                         projectId = activeProjectId
                     )
+                    persistExecutionTrace(
+                        messageId = assistantMsg.id,
+                        sessionId = sessionId,
+                        executionId = traceExecutionId,
+                        userInput = trimmedInput,
+                        answer = normalizedAnswer,
+                        model = requestedModelIdAtDispatch.takeIf { it.isNotBlank() },
+                        provider = requestedProviderIdAtDispatch.takeIf { it.isNotBlank() },
+                        estimatedOutputTokens = tokenCount.takeIf { it > 0 },
+                        firstVisibleTokenLatencyMs = firstVisibleTokenLatencyMs,
+                    )
                     if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
                         _messages.update {
                             it + ChatMessage(
@@ -3027,6 +3185,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     val partialSaved = if (GenerationResponsePolicy.shouldPersistIncompleteResponse(GenerationResponseStatus.TIMEOUT, partial)) {
                         persistAssistantResponse(partial)
                     } else false
+                    refundMessageIfNothingDelivered(partialSaved, "timeout_exception")
                     _lastExecutionError.value = ExecutionErrorProjection(
                         executionId = "generation-$generationId",
                         message = appContext.getString(R.string.err_agent_loop_timeout),
@@ -3040,6 +3199,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (_: CancellationException) {
                 if (isCurrentGeneration(generationId)) {
+                    // Report 1, item 28: a reply interrupted by a newly sent message keeps the
+                    // text already streamed. sendMessage() queues the new request before it
+                    // cancels, so a queued request here means "interrupted", not "stopped".
+                    val partial = (streamAccumulator.toString() + reasoningParser.finish()).trim()
+                    if (GenerationResponsePolicy.shouldPersistInterruptedReply(
+                            interruptedByNewMessage = queuedComposerRequest != null,
+                            content = partial,
+                        )
+                    ) {
+                        withContext(kotlinx.coroutines.NonCancellable) {
+                            persistAssistantResponse(partial)
+                        }
+                    }
                     _generationPhase.value = GenerationPhase.CANCELLED
                 }
             } catch (e: Exception) {
@@ -3049,6 +3221,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         persistAssistantResponse(partial)
                     } else false
                     Log.e("AIRI_LOOP", "AgentLoop failed type=${e.javaClass.simpleName}", e)
+                    refundMessageIfNothingDelivered(partialSaved, "exception")
                     val classification = ExecutionFailurePolicy.classify(
                         rawMessage = e.message,
                         responseStarted = firstTokenReceived
@@ -4431,12 +4604,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 context to extractedChars
             }
-        }.getOrElse {
+        }.getOrElse { error ->
             if (pendingAttachmentSessionId == sessionAtDispatch) {
                 pendingAttachmentSessionId = null
                 pendingAttachmentJsonForNextSend = null
             }
-            onRejected(AttachmentDispatchFailure.TEXT_EXTRACTION_FAILED)
+            // Report 1, item 31 (stage 34): over the 512,000-character limit is rejected with
+            // its own message instead of "could not read the file".
+            onRejected(
+                if (error is TextAttachmentLimitException) AttachmentDispatchFailure.TEXT_ATTACHMENT_TOO_LARGE
+                else AttachmentDispatchFailure.TEXT_EXTRACTION_FAILED
+            )
             return@launch
         }
         val (textAttachmentContext, extractedCharsByAttachment) = textContextResult
@@ -4652,7 +4830,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         val context = StringBuilder()
         textualAttachments.forEach { attachment ->
-            if (remainingChars <= 0) throw IllegalStateException("Text attachments exceed the extraction limit.")
+            if (remainingChars <= 0) throw TextAttachmentLimitException()
             val maxRead = remainingChars + 1
             val rawContent = runCatching {
                 val file = File(requireNotNull(attachment.persistedPath))
@@ -4675,7 +4853,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }.getOrElse { throw IllegalStateException("Text attachment could not be read.", it) }
             if (rawContent.length > remainingChars) {
-                throw IllegalStateException("Text attachments exceed the extraction limit.")
+                throw TextAttachmentLimitException()
             }
             val content = rawContent.replace("\u0000", "").trim()
             if (content.isBlank()) throw IllegalStateException("Text attachment is empty or unreadable.")
@@ -4699,7 +4877,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     append("\nEND UNTRUSTED TEXT ATTACHMENT\n\n")
                 }
                 if (renderedChunk.length > remainingChars) {
-                    throw IllegalStateException("Combined text attachments exceed the extraction limit.")
+                    throw TextAttachmentLimitException()
                 }
                 context.append(renderedChunk)
                 remainingChars -= renderedChunk.length
@@ -5746,3 +5924,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val KNOWLEDGE_DIRECTIVE = Regex("""^@knowledge:([A-Za-z0-9-]+)\s*""")
     }
 }
+
+/** Thrown when the combined text attachments exceed [AttachmentPolicy.MAX_TEXT_CONTENT_CHARS]. */
+private class TextAttachmentLimitException :
+    IllegalStateException("Text attachments exceed the extraction limit.")

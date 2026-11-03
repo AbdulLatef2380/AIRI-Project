@@ -55,6 +55,16 @@ class AIRIApplication : Application() {
             ServiceLocator.context = applicationContext
             LoggingService.info(TAG, " ServiceLocator initialized")
 
+            // Durable agent-log traces and per-message execution traces (file-backed,
+            // loaded lazily off the main thread; failures never affect startup).
+            runCatching {
+                com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.attachStore(
+                    com.airi.assistant.ai.agent.trace.AgentTraceStore(File(filesDir, "agent_traces.json"))
+                )
+                com.airi.assistant.core.ExecutionTraceArchive.attach(File(filesDir, "execution_trace_archive.json"))
+                com.airi.assistant.core.TraceRetention.apply(com.airi.assistant.core.TraceRetention.levelFrom(applicationContext))
+            }
+
             // ── Crash recovery — must be FIRST after ServiceLocator.context ────
             // Installs the UncaughtExceptionHandler that writes a crash timestamp
             // on process death, and logs any prior crash that the app is recovering

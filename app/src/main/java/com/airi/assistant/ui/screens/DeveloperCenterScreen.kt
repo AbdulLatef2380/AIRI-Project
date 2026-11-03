@@ -545,7 +545,7 @@ private fun DevRow(label: String, value: String) {
         Text(value, fontSize = 11.sp, color = AiriTheme.onBackground.copy(alpha = 0.85f), fontFamily = FontFamily.Monospace)
     }
 }
-// : Renders RuntimeProfiler data gated behind BuildConfig.DEBUG || debugMode.
+// Renders RuntimeProfiler data on the developer diagnostics tab.
 @Composable
 private fun ProfilerTab() {
     val report by ServiceLocator.runtimeProfiler.reportFlow.collectAsStateWithLifecycle()

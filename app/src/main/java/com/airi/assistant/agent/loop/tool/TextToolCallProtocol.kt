@@ -30,13 +30,32 @@ object TextToolCallProtocol {
         EMPTY_TOOL_CALLS,
     }
 
-    fun parse(response: String): ParseResult {
-        val cleaned = response
-            .replace(Regex("```(?:json)?\\s*", RegexOption.IGNORE_CASE), "")
-            .replace("```", "")
-            .trim()
+    private val markerRegex = Regex("\\{\\s*\\\"(?:tool_call|tool_calls)\\\"\\s*:")
+    private val fenceRegex = Regex("```([A-Za-z0-9_+\\-]*)[ \\t]*\\r?\\n?(.*?)```", RegexOption.DOT_MATCHES_ALL)
 
-        val marker = Regex("\\{\\s*\\\"(?:tool_call|tool_calls)\\\"\\s*:").find(cleaned)
+    /**
+     * A reply that merely *shows* a tool-call envelope (an example inside a
+     * ```kotlin / ```python block, a doc snippet, a JSON block with other
+     * content) must not be executed or sent into a repair loop. Fenced blocks
+     * are therefore kept only when they are a json/untagged block that begins
+     * with the envelope itself; every other fenced block is masked out.
+     */
+    private fun stripNonEnvelopeFences(response: String): String {
+        val withoutFences = fenceRegex.replace(response) { match ->
+            val lang = match.groupValues[1].lowercase()
+            val body = match.groupValues[2].trim()
+            val isEnvelopeBlock = (lang.isEmpty() || lang == "json") &&
+                markerRegex.find(body)?.range?.first == 0
+            if (isEnvelopeBlock) "\n$body\n" else " "
+        }
+        // Any stray, unmatched fence markers are just noise.
+        return withoutFences.replace("```", "").trim()
+    }
+
+    fun parse(response: String): ParseResult {
+        val cleaned = stripNonEnvelopeFences(response)
+
+        val marker = markerRegex.find(cleaned)
             ?: return ParseResult.NotAToolCall
         val start = marker.range.first
         val end = matchingObjectEnd(cleaned, start)

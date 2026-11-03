@@ -92,6 +92,7 @@ open class OpenAIAdapter(
         val body     = buildRequestBody(request)
 
         var conn: HttpURLConnection? = null
+        var connWatcher: kotlinx.coroutines.Job? = null
         val fullText       = StringBuilder()
         val nativeCalls    = linkedMapOf<Int, NativeToolCallWire.Call>()
         var promptTokens   = 0
@@ -112,7 +113,7 @@ open class OpenAIAdapter(
             }
             // HttpURLConnection.readLine() is blocking; coroutine cancellation
             // alone does not interrupt it. Close this exact attempt's socket.
-            currentCoroutineContext()[Job]?.invokeOnCompletion { conn?.disconnect() }
+            connWatcher = watchConnectionForCancellation(requireNotNull(conn))
 
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
@@ -238,12 +239,16 @@ open class OpenAIAdapter(
             Log.i(TAG, "[$providerId] stream cancelled after ${fullText.length} chars")
             throw e
         } catch (e: java.net.SocketTimeoutException) {
+            // A watcher-triggered disconnect surfaces here; report cancellation, not a provider error.
+            currentCoroutineContext().ensureActive()
             val mapped = CloudErrorMapper.map(-1, e.message ?: "timeout")
             CloudProviderAdapter.AdapterResult.Failure(
                 error = mapped.message, errorType = mapped.type,
                 retryable = mapped.retryable, httpCode = -1
             )
         } catch (e: java.io.IOException) {
+            // A watcher-triggered disconnect surfaces here; report cancellation, not a provider error.
+            currentCoroutineContext().ensureActive()
             val code = if (fullText.isNotEmpty()) -2 else -1
             val mapped = CloudErrorMapper.map(code, e.message ?: "io error")
             Log.w(TAG, "[$providerId] IOException code=$code: ${e.message}")
@@ -252,6 +257,7 @@ open class OpenAIAdapter(
                 retryable = mapped.retryable, httpCode = code
             )
         } finally {
+            connWatcher?.cancel()
             try { conn?.disconnect() } catch (_: Exception) {}
         }
     }
@@ -280,6 +286,7 @@ open class OpenAIAdapter(
         request.inlineDataParts.forEach { trace?.markPayloadContainsContent(it.attachmentId, it.base64Data.length.toLong()) }
 
         var conn: HttpURLConnection? = null
+        var connWatcher: kotlinx.coroutines.Job? = null
         val fullText = StringBuilder()
         var promptTokens = 0
         var completeTokens = 0
@@ -296,7 +303,7 @@ open class OpenAIAdapter(
                 setRequestProperty("Accept", "text/event-stream")
                 setRequestProperty("Authorization", "Bearer $apiKey")
             }
-            currentCoroutineContext()[Job]?.invokeOnCompletion { conn?.disconnect() }
+            connWatcher = watchConnectionForCancellation(requireNotNull(conn))
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             trace?.mark(AttachmentDeliveryStage.HTTP_REQUEST_DISPATCHED, attachmentIds)
             val httpCode = conn.responseCode
@@ -382,14 +389,19 @@ open class OpenAIAdapter(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: java.net.SocketTimeoutException) {
+            // A watcher-triggered disconnect surfaces here; report cancellation, not a provider error.
+            currentCoroutineContext().ensureActive()
             trace?.markProviderResponse(false, attachmentIds)
             val mapped = CloudErrorMapper.map(-1, e.message ?: "timeout")
             CloudProviderAdapter.AdapterResult.Failure(mapped.message, mapped.type, mapped.retryable, -1)
         } catch (e: java.io.IOException) {
+            // A watcher-triggered disconnect surfaces here; report cancellation, not a provider error.
+            currentCoroutineContext().ensureActive()
             trace?.markProviderResponse(false, attachmentIds)
             val mapped = CloudErrorMapper.map(-1, e.message ?: "io error")
             CloudProviderAdapter.AdapterResult.Failure(mapped.message, mapped.type, mapped.retryable, -1)
         } finally {
+            connWatcher?.cancel()
             try { conn?.disconnect() } catch (_: Exception) {}
         }
     }

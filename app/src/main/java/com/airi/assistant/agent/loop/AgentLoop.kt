@@ -32,7 +32,13 @@ import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import java.util.UUID
 import kotlinx.coroutines.isActive
 import kotlin.coroutines.coroutineContext
@@ -87,7 +93,15 @@ class AgentLoop(
         // Timeout increased from 60s to 120s. Agent loops with tool calls
         // (file ops, web search, code execution) can easily exceed 60s on
         // local inference, especially with retries and multi-step reasoning.
+        //
+        // Report 1 / stage 8: this is now a *stall* timeout, not a wall-clock
+        // limit on the whole answer. It is measured from the last sign of
+        // progress (a streamed token, or a finished tool call), so a long but
+        // healthy answer is no longer cut at 120s. Time to the first token is
+        // allowed twice this long because on-device prefill is slow.
         private const val TIMEOUT_MS       = 120_000L
+        /** Absolute ceiling for one request, however much progress it makes. */
+        private const val HARD_CAP_MS      = 15 * 60_000L
         private const val MAX_PLATFORM_SNAPSHOT_CHARS = 12_000
         /**
          * : Stable principal registered in [ScopedPermissionRegistry] for the
@@ -123,6 +137,10 @@ the tool returns an actual error.
     )
 
     enum class TerminalState { SUCCESS, FAILURE, TIMEOUT, CANCELLED, NO_RESPONSE }
+
+    /** Raised inside a model call that produced no progress for too long. */
+    private class StallTimeoutException(stallMs: Long) :
+        CancellationException("No progress for ${stallMs}ms")
 
     /**
      * Run the agent loop for a user [input].
@@ -162,6 +180,8 @@ the tool returns an actual error.
         requestedExecutionId: String? = null,
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
+        // Last sign of progress; see TIMEOUT_MS. Streaming tokens and finished tool calls bump it.
+        val progressMs   = AtomicLong(startMs)
         val permissionProfile = com.airi.assistant.core.AgentPermissionProfile.resolve(
             queryType = queryType,
             modelId = modelId,
@@ -171,7 +191,7 @@ the tool returns an actual error.
         val permissionFilteredTools = permissionProfile.filterTools(tools).filter { schema ->
             val typedContextAvailable = when (schema.name) {
                 "calendar_create" -> executionContextFactory != null && calendarCreateRuntime != null
-                "terminal_execute" -> executionContextFactory != null
+                "terminal_execute", "write_file" -> executionContextFactory != null
                 else -> false
             }
             val sideEffectAllowed = com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy
@@ -182,7 +202,7 @@ the tool returns an actual error.
             sideEffectAllowed && terminalEnabled
         }
         val toolPromptBudget = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
-            .toolCharsCap(contextBudgetProvider().availableForContent)
+            .toolCharsCapFor(providerId, contextBudgetProvider().availableForContent)
         val toolSelection = com.airi.assistant.agent.loop.tool.ToolSchemaPromptBudget.select(
             permissionFilteredTools,
             toolPromptBudget,
@@ -371,7 +391,7 @@ the tool returns an actual error.
             Log.i(TAG, "AIRI DETERMINISTIC_TOOL tool=current_time success=${timeResult is ToolDispatcher.ToolResult.Success}")
         }
         try {
-            return withTimeout(timeoutMs.coerceAtLeast(1L)) {
+            return withTimeout(maxOf(timeoutMs, HARD_CAP_MS)) {
             // If no tools provided, single-pass inference.
             if (effectiveTools.isEmpty()) {
                 val response = callLLM(
@@ -389,6 +409,8 @@ the tool returns an actual error.
                     identity = requestIdentity,
                     localHistoryStartIndex = priorHistoryCount,
                     onCompletionMetadata = { completionMetadata = it },
+                    progress = progressMs,
+                    stallMs = timeoutMs,
                 )
                 runtimeTrace?.modelResponse(
                     executionId = executionId,
@@ -408,8 +430,8 @@ the tool returns an actual error.
             }
 
             while (stepsUsed < MAX_STEPS && coroutineContext.isActive) {
-                if (System.currentTimeMillis() - startMs >= timeoutMs) {
-                    Log.w(TAG, "AgentLoop timed out after ${stepsUsed} steps")
+                if (System.currentTimeMillis() - progressMs.get() >= timeoutMs) {
+                    Log.w(TAG, "AgentLoop stalled after ${stepsUsed} steps")
                     ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
                     return@withTimeout LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.TIMEOUT)
                 }
@@ -438,6 +460,8 @@ the tool returns an actual error.
                     identity      = requestIdentity,
                     localHistoryStartIndex = priorHistoryCount,
                     onCompletionMetadata = { completionMetadata = it },
+                    progress = progressMs,
+                    stallMs = timeoutMs,
                 )
 
                 Log.d(TAG, "Agent step completed: step=$stepsUsed responseChars=${rawResponse.length}")
@@ -538,6 +562,7 @@ the tool returns an actual error.
                         )
                         runtimeTrace?.resultReturned(executionId, sessionId, outcome.request.toolName)
                     }
+                    progressMs.set(System.currentTimeMillis())
                     runtimeTrace?.continuation(executionId, sessionId, continued = stepsUsed < MAX_STEPS, terminalState = "PARALLEL_READ_BATCH")
                     continue
                 }
@@ -590,6 +615,8 @@ the tool returns an actual error.
                             identity       = requestIdentity,
                             localHistoryStartIndex = priorHistoryCount,
                             onCompletionMetadata = { completionMetadata = it },
+                            progress       = progressMs,
+                            stallMs        = timeoutMs,
                         )
                     } catch (e: CancellationException) {
                         throw e
@@ -740,7 +767,7 @@ the tool returns an actual error.
                 // mutation is a typed calendar proposal, and it is admitted only
                 // after a foreground task owner has created an exact task/run/step.
                 if (
-                    (toolName == "calendar_create" || toolName == "terminal_execute") &&
+                    (toolName == "calendar_create" || toolName == "terminal_execute" || toolName == "write_file") &&
                     durableExecutionContext == null &&
                     executionContextFactory != null
                 ) {
@@ -818,6 +845,25 @@ the tool returns an actual error.
                         Log.w(TAG, "Terminal tool failed type=${e.javaClass.simpleName}")
                         ToolDispatcher.ToolResult.Error(
                             "Terminal execution failed: ${e.message}",
+                            code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.EXECUTION_FAILED,
+                        )
+                    }
+                    AgentLoopSideEffectPolicy.Decision.ALLOW_TYPED_FILE_WRITE -> try {
+                        runtimeTrace?.dispatched(executionId, sessionId, toolName, "agent_sandbox_file_write")
+                        if (agentSandbox != null) {
+                            agentSandbox.execute(agentId = SANDBOX_AGENT_ID, goalId = durableExecutionContext?.taskId.orEmpty()) { ctx ->
+                                ctx.guardTool(toolName)
+                                dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID)
+                            }
+                        } else {
+                            dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID)
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "File write tool failed type=${e.javaClass.simpleName}")
+                        ToolDispatcher.ToolResult.Error(
+                            "File write failed: ${e.message}",
                             code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.EXECUTION_FAILED,
                         )
                     }
@@ -937,6 +983,7 @@ the tool returns an actual error.
                     com.airi.assistant.core.CapabilityRuntimeStage.RESULT_RETURNED,
                     "returned_to_model_context",
                 )
+                progressMs.set(System.currentTimeMillis())
                 runtimeTrace?.continuation(executionId, sessionId, continued = stepsUsed < MAX_STEPS, terminalState = "TOOL_RESULT_RETURNED")
                 runtimeTrace?.capabilityStage(
                     executionId, sessionId, toolName,
@@ -990,6 +1037,8 @@ the tool returns an actual error.
                 onToken = onToken,
                 identity = requestIdentity,
                 localHistoryStartIndex = priorHistoryCount,
+                progress = progressMs,
+                stallMs = timeoutMs,
             )
             if (summary.isBlank()) {
                 ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
@@ -999,6 +1048,26 @@ the tool returns an actual error.
             return@withTimeout LoopResult(summary, stepsUsed, toolsInvoked, terminalState = TerminalState.SUCCESS, completionMetadata = completionMetadata)
             }
 
+        } catch (e: StallTimeoutException) {
+            activeToolTrace?.let { active ->
+                ExecutionStatusBus.onToolCancelled(
+                    executionId = active.executionId,
+                    actionId = active.actionId,
+                    toolName = active.toolName,
+                    durationMs = System.currentTimeMillis() - active.startedAtMs,
+                    detail = "Agent execution stalled.",
+                )
+            }
+            ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
+            Log.w(TAG, "AgentLoop stalled: no progress for ${timeoutMs}ms")
+            return LoopResult(
+                finalAnswer = "",
+                stepsUsed = stepsUsed,
+                toolsInvoked = toolsInvoked,
+                terminalState = TerminalState.TIMEOUT,
+                failureMessage = "Agent execution timed out.",
+                completionMetadata = completionMetadata,
+            )
         } catch (e: TimeoutCancellationException) {
             activeToolTrace?.let { active ->
                 ExecutionStatusBus.onToolCancelled(
@@ -1062,6 +1131,9 @@ the tool returns an actual error.
         identity:      ExecutionIdentity,
         localHistoryStartIndex: Int = 0,
         onCompletionMetadata: (CompletionMetadata) -> Unit = {},
+        /** Shared progress clock; when set, a stalled model call is cancelled (see TIMEOUT_MS). */
+        progress: AtomicLong? = null,
+        stallMs: Long = 0L,
     ): String {
         val requestTurns = history.map { turn ->
             when (turn) {
@@ -1108,10 +1180,12 @@ the tool returns an actual error.
         val buf = StringBuilder()
         var error: String? = null
 
-        // Stop generation immediately if the model emits the start of a tool_call block —
-        // we don't need to stream it token-by-token to the user.
-        var inToolCall = false
+        // Hide a tool_call block from the live stream. The gate does constant work per token and
+        // hands held-back text back if the finished reply turns out not to be a tool call.
+        val streamGate = com.airi.assistant.agent.loop.tool.ToolCallStreamGate()
 
+        val sawToken = AtomicBoolean(false)
+        val runStream: suspend () -> Unit = {
         orchestrator.executeStream(
             request    = ExecutionRequest(
                 prompt                = requestProjection.prompt,
@@ -1160,15 +1234,11 @@ the tool returns an actual error.
             ),
             context    = appContext,
             onToken    = { tok ->
+                sawToken.set(true)
+                progress?.set(System.currentTimeMillis())
                 buf.append(tok)
-                // Only stream to UI if we're not in the middle of a tool_call JSON block
-                if (!inToolCall) {
-                    if (buf.contains("{\"tool_call\"")) {
-                        inToolCall = true
-                    } else {
-                        onToken(tok)
-                    }
-                }
+                val visible = streamGate.accept(tok)
+                if (visible.isNotEmpty()) onToken(visible)
             },
             onComplete = { text, _, _, metadata ->
                 onCompletionMetadata(metadata)
@@ -1176,9 +1246,51 @@ the tool returns an actual error.
             },
             onError    = { msg, _ -> error = msg }
         )
+        }
+        if (progress != null && stallMs > 0L) {
+            progress.set(System.currentTimeMillis())
+            withStallGuard(stallMs, progress, sawToken) { runStream() }
+        } else {
+            runStream()
+        }
 
         if (error != null) throw RuntimeException(error)
-        return buf.toString().trim()
+        val finalText = buf.toString().trim()
+        // A literal marker in prose/code must not leave the stream frozen: show what was held back.
+        val released = streamGate.releaseIfNotToolCall(finalText)
+        if (released.isNotEmpty()) onToken(released)
+        return finalText
+    }
+
+    /**
+     * Runs [block] and cancels it when [progress] has not moved for too long.
+     * Before the first token the allowance is doubled (on-device prefill);
+     * afterwards it is [stallMs]. Works for local and cloud alike because it
+     * cancels the coroutine instead of relying on the transport to notice.
+     */
+    private suspend fun <T> withStallGuard(
+        stallMs: Long,
+        progress: AtomicLong,
+        sawToken: AtomicBoolean,
+        block: suspend () -> T,
+    ): T = coroutineScope {
+        val work = async { block() }
+        val watchdog = launch {
+            val pollMs = (stallMs / 4).coerceIn(10L, 1_000L)
+            while (true) {
+                delay(pollMs)
+                val allowed = if (sawToken.get()) stallMs else stallMs * 2
+                if (System.currentTimeMillis() - progress.get() >= allowed) {
+                    work.cancel(StallTimeoutException(allowed))
+                    return@launch
+                }
+            }
+        }
+        try {
+            work.await()
+        } finally {
+            watchdog.cancel()
+        }
     }
 
     /**

@@ -35,4 +35,25 @@ object LongTextAttachmentPolicy {
 
     fun utf8SizeBytes(text: String): Long =
         text.toByteArray(Charsets.UTF_8).size.toLong()
+
+    /** Upper bound for the preview kept in the chat bubble of a converted paste. */
+    const val SUMMARY_PREVIEW_CHAR_LIMIT = 1_200
+
+    /**
+     * Report 1, item 30 (stage 32): the bubble for a pasted text that became a file used to
+     * show only its first 200 characters. It now names the size and shows the first
+     * [INLINE_VISIBLE_LINE_LIMIT] lines (at most [SUMMARY_PREVIEW_CHAR_LIMIT] characters),
+     * so the user can recognise what they pasted. The full text still travels as the attachment.
+     */
+    fun attachmentSummary(fileName: String, text: String): String {
+        val lines = logicalLineCount(text)
+        val head = collapsedPreview(text).take(SUMMARY_PREVIEW_CHAR_LIMIT).trimEnd()
+        val truncated = head.length < text.trimEnd().length
+        return buildString {
+            append("[Attached file: ").append(fileName).append(" · ")
+                .append(lines).append(" lines, ").append(text.length).append(" chars]\n\n")
+            append(head)
+            if (truncated) append("\n…")
+        }
+    }
 }

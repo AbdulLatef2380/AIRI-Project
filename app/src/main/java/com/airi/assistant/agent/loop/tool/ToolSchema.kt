@@ -175,6 +175,24 @@ object BuiltinTools {
         sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
     )
 
+    /**
+     * Report 1, item 5 (stage 33): writes one text file into AIRI's private "agent files"
+     * folder. Admitted exactly like terminal_execute: only with a task-owned durable
+     * context, under governance, with a flat sanitized file name and a size cap.
+     */
+    val WRITE_FILE = ToolSchema(
+        name        = "write_file",
+        description = "Save text content as a file in AIRI's private files folder (code, notes, CSV, Markdown, JSON). Use a plain file name with an extension; it cannot write outside that folder or overwrite an existing file unless overwrite is true.",
+        parameters  = mapOf(
+            "filename"  to ToolSchema.Param("string", "Plain file name with extension, e.g. 'report.md' or 'script.py'", minLength = 1, maxLength = 96),
+            "content"   to ToolSchema.Param("string", "Full text content of the file", minLength = 1, maxLength = 200_000),
+            "overwrite" to ToolSchema.Param("boolean", "Replace the file if it already exists", required = false),
+        ),
+        category    = ToolSchema.Category.PRODUCTIVITY,
+        dangerous   = true,
+        sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
+    )
+
     val ASK_CONFIRMATION = ToolSchema(
         name        = "ask_confirmation",
         description = "Ask the user to confirm before proceeding with a sensitive action.",
@@ -220,13 +238,13 @@ object BuiltinTools {
     val ALL: List<ToolSchema> = listOf(
         READ_SCREEN, OPEN_APP, TAP, TYPE_TEXT, SCROLL_DOWN, GO_BACK,
         WEB_SEARCH, FETCH_URL, MEMORY_RECALL,
-        CALENDAR_READ, CURRENT_TIME, FLASHLIGHT, CALENDAR_CREATE, SET_ALARM, CREATE_NOTE, TERMINAL_EXECUTE,
+        CALENDAR_READ, CURRENT_TIME, FLASHLIGHT, CALENDAR_CREATE, SET_ALARM, CREATE_NOTE, TERMINAL_EXECUTE, WRITE_FILE,
         ASK_CONFIRMATION, CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL
     )
 
     /** Minimal set for plain chat (no accessibility, no calendar write). */
     val CHAT_ONLY: List<ToolSchema> = listOf(
-        WEB_SEARCH, FETCH_URL, MEMORY_RECALL, CALENDAR_READ, CURRENT_TIME, CREATE_NOTE, TERMINAL_EXECUTE,
+        WEB_SEARCH, FETCH_URL, MEMORY_RECALL, CALENDAR_READ, CURRENT_TIME, CREATE_NOTE, TERMINAL_EXECUTE, WRITE_FILE,
         CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL
     )
 }

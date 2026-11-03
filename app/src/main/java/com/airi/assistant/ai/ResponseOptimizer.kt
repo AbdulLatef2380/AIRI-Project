@@ -257,6 +257,10 @@ object ResponseOptimizer {
         return requestedMaxTokens.coerceAtLeast(1).coerceAtMost(remaining.coerceAtLeast(1))
     }
 
+    /**
+     * Diagnostics only: called from DiagnosticsRunner and never from the live
+     * generation path, so it cannot shorten a real answer (report 1, item 16).
+     */
     fun shouldSemanticCut(
         partialText: String,
         elapsedMs: Long,
@@ -302,8 +306,9 @@ object ResponseOptimizer {
      * Intelligent context window trimmer:
      *  - Always keeps the system prompt (role == "system")
      *  - Keeps the last [keepLast] non-system messages
-     *  - Removes exact-content duplicates
-     *  - Truncates oversized non-recent messages (>600 chars assistant, >400 user)
+     *  - Removes exact (role + full content) duplicates only
+     *  - Truncates oversized non-recent prose messages (>600 chars assistant, >400 user);
+     *    the latest assistant reply and any message containing a code fence keep up to 16,000 chars
      *  - Preserves the very last message intact (user's current input)
      *
      * In agent mode (isAgentMode=true), preserves more context for multi-step
@@ -320,19 +325,32 @@ object ResponseOptimizer {
         val effectiveKeep = if (isAgentMode) keepLast.coerceAtLeast(12) else keepLast
         val recent = nonSystem.takeLast(effectiveKeep)
 
-        val seen    = mutableSetOf<String>()
-        val deduped = recent.filter { msg -> seen.add(msg.content.take(60)) }
+        // Report item 22: dedupe on the FULL (role, content) pair. The previous key was the first
+        // 60 characters of content, so distinct code replies that share an opening line
+        // ("Here is the code:" ...) were silently dropped from the context.
+        val seen    = mutableSetOf<Pair<String, String>>()
+        val deduped = recent.filter { msg -> seen.add(msg.role to msg.content) }
 
         val lastIdx = deduped.lastIndex
+        val lastAssistantIdx = deduped.indexOfLast { it.role == "assistant" }
         // Relax truncation limits for agent mode
         val assistantMaxLen = if (isAgentMode) 2000 else 600
         val userMaxLen      = if (isAgentMode) 800 else 400
         val trimmed = deduped.mapIndexed { i, msg ->
             when {
                 i == lastIdx -> msg
+                // Report item 23: a follow-up such as "edit the previous code" must reach the model
+                // with the code intact. The latest assistant reply and any reply that contains code
+                // get a much larger ceiling instead of the 600/2000-char prose limit.
+                msg.role == "assistant" && (i == lastAssistantIdx || containsCode(msg.content)) ->
+                    if (msg.content.length > CODE_REPLY_MAX_LEN)
+                        msg.copy(content = msg.content.take(CODE_REPLY_MAX_LEN) + " […]")
+                    else msg
                 msg.role == "assistant" && msg.content.length > assistantMaxLen ->
                     msg.copy(content = msg.content.take(assistantMaxLen) + " […]")
-                msg.role == "user" && msg.content.length > userMaxLen ->
+                msg.role == "user" && containsCode(msg.content) && msg.content.length > CODE_REPLY_MAX_LEN ->
+                    msg.copy(content = msg.content.take(CODE_REPLY_MAX_LEN) + " […]")
+                msg.role == "user" && !containsCode(msg.content) && msg.content.length > userMaxLen ->
                     msg.copy(content = msg.content.take(userMaxLen) + " […]")
                 else -> msg
             }
@@ -340,6 +358,11 @@ object ResponseOptimizer {
 
         return if (systemMsg != null) listOf(systemMsg) + trimmed else trimmed
     }
+
+    /** Ceiling for assistant/user messages that carry code, and for the latest assistant reply. */
+    private const val CODE_REPLY_MAX_LEN = 16_000
+
+    private fun containsCode(content: String): Boolean = content.contains("```")
 
     // ── Smart reply suggestions ───────────────────────────────────────────────
 

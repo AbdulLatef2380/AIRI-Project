@@ -171,7 +171,7 @@ The example demonstrates structure and conversational continuity, not text to co
                 else                    -> Unit
             }
             when (ResponseDepthPolicy.resolve(input, queryType)) {
-                ResponseDepth.BRIEF -> append("\nThis is a brief request: answer directly in a few sentences.")
+                ResponseDepth.BRIEF -> append("\nThe user wants this short or it is simple chatter: answer directly and warmly, but do not drop anything needed to be correct or useful.")
                 ResponseDepth.STANDARD -> append("\nGive a complete answer at the natural length needed; do not compress away useful context.")
                 ResponseDepth.DETAILED -> append("\nThis request needs depth: explain the reasoning, relevant context, and examples when useful. Stop only when complete.")
             }

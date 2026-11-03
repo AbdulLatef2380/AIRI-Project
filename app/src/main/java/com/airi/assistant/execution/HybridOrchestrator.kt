@@ -16,8 +16,6 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /**
  * Top-level entry point for the Hybrid Execution layer — production-hardened.
@@ -63,10 +61,10 @@ class HybridOrchestrator(
     // ── Execution ownership ───────────────────────────────────────────────────
 
     /**
-     * Mutex that serializes [executeStream] calls.
+     * Lock that serializes [executeStream] calls (a Mutex with a bounded wait; item 29).
      * ONE active execution owner at a time — no concurrent streams.
      */
-    private val executionLock = Mutex()
+    private val executionLock = BoundedExecutionLock()
 
     /** Owns the active generation and rejects stale or cancelled callbacks. */
     private val generationGate = ExecutionGenerationGate()
@@ -138,7 +136,21 @@ class HybridOrchestrator(
         onToken:    suspend (String) -> Unit,
         onComplete: suspend (String, Long, ExecOrigin, CompletionMetadata) -> Unit,
         onError:    suspend (String, ExecOrigin)       -> Unit
-    ) = executionLock.withLock {
+    ) = executionLock.withLock<Unit>(
+        waitLimitMs = BoundedExecutionLock.DEFAULT_WAIT_LIMIT_MS,
+        onWaited = { waitedMs, acquired ->
+            Log.w(TAG, "EXEC_LOCK_WAIT waitedMs=$waitedMs acquired=$acquired")
+            RuntimeEventLog.post("ORCHESTRATOR",
+                if (acquired) EventSeverity.WARN else EventSeverity.ERROR,
+                "Execution lock waited ${waitedMs}ms acquired=$acquired")
+        },
+        onBusy = {
+            onError(
+                "Another request is still running. Wait for it to finish or cancel it, then try again.",
+                ExecOrigin.NONE,
+            )
+        },
+    ) {
         val genId = generationGate.beginGeneration()
         val terminalGuard = TerminalDeliveryGuard()
         val ownedRequest = request.withResolvedIdentity()

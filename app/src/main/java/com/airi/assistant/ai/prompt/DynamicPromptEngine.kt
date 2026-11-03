@@ -183,7 +183,7 @@ object DynamicPromptEngine {
         }
 
         when (responseDepth) {
-            ResponseDepth.BRIEF -> sb.append("\nThis is a brief request: answer directly in a few sentences.")
+            ResponseDepth.BRIEF -> sb.append("\nThe user wants this short or it is simple chatter: answer directly and warmly, but do not drop anything needed to be correct or useful.")
             ResponseDepth.STANDARD -> sb.append("\nGive a complete answer at the natural length needed; do not compress away useful context.")
             ResponseDepth.DETAILED -> sb.append("\nThis request needs depth: explain the reasoning, relevant context, and examples when useful. Stop only when complete.")
         }

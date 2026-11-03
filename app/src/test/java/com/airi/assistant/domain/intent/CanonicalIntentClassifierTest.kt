@@ -88,6 +88,23 @@ class CanonicalIntentClassifierTest {
     }
 
     @Test
+    fun hamzaAndBareArabicImperativesAreActions() {
+        // Report item 1: verbs spelled with or without hamza must classify identically.
+        listOf("أرسل رسالة إلى سارة", "ارسل رسالة إلى سارة", "أنشئ ملفا جديدا", "انشئ ملفا جديدا", "إفتح الإعدادات")
+            .forEach { phrase ->
+                val intent = CanonicalIntentClassifier.classify(phrase)
+                assertEquals(phrase, ChatIntent.Kind.POSSIBLE_ACTION, intent.kind)
+                assertEquals(phrase, QueryType.ACTION, intent.queryType)
+            }
+    }
+
+    @Test
+    fun arabicQuestionMarkersStillMatchAfterNormalization() {
+        assertEquals(ChatIntent.Kind.QUESTION, CanonicalIntentClassifier.classify("ماذا تعرف عن الذكاء الاصطناعي").kind)
+        assertEquals(ChatIntent.Kind.QUESTION, CanonicalIntentClassifier.classify("كيف يعمل المحرك").kind)
+    }
+
+    @Test
     fun normalizerPreservesOriginalAndNormalizesArabicForms() {
         val normalized = InputNormalizer.normalize("  أَهْلًا   بِك  ")
         assertEquals("  أَهْلًا   بِك  ", normalized.original)

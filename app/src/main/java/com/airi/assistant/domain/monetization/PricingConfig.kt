@@ -7,6 +7,11 @@ object PricingConfig {
     const val FREE_DAILY_SKILL_USES = 5
     const val FREE_SOFT_LIMIT_START = 22
     const val FREE_NEAR_LIMIT = 27
+    /**
+     * Reference output-length factors for the soft-limit phases. They are only
+     * reported to analytics (AnalyticsService.softLimitApplied); the generation
+     * path does NOT scale maxTokens by them. Only SOFT_LIMIT_DELAY_MS is applied.
+     */
     const val SOFT_LIMIT_TOKEN_FACTOR = 0.65f
     const val SOFT_LIMIT_DELAY_MS = 200L
     const val NEAR_LIMIT_TOKEN_FACTOR = 0.45f

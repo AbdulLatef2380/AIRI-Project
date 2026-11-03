@@ -12,19 +12,35 @@ import com.airi.assistant.agent.execution.validation.TemporalValidator
 object AccessibilityCommandBridge {
 
     /** Must be called before obtaining or traversing the active node tree. */
-    private fun gate(action: String, target: String = ""): CommandResult? {
+    private fun gate(action: String, target: String = "", userApproved: Boolean = false): CommandResult? {
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
         val pkg = try { service.rootInActiveWindow?.packageName?.toString().orEmpty() }
         catch (_: Exception) { "" }
-        return gatePackage(pkg, action, target)
+        return gatePackage(pkg, action, target, userApproved)
     }
 
-    private fun gatePackage(packageName: String, action: String, target: String = ""): CommandResult? =
+    /**
+     * [userApproved] is a ONE-SHOT approval for exactly this call: it lifts only the
+     * "needs confirmation" decision. Denied packages / unknown packages stay refused.
+     */
+    private fun gatePackage(
+        packageName: String,
+        action: String,
+        target: String = "",
+        userApproved: Boolean = false
+    ): CommandResult? =
         when (val decision = AccessibilityActionGateway.authorize(packageName, action, target)) {
             AccessibilityActionGateway.Decision.Allowed -> null
             is AccessibilityActionGateway.Decision.Denied -> CommandResult(false, decision.reason)
-            is AccessibilityActionGateway.Decision.NeedsConfirmation -> CommandResult(false, decision.reason)
+            is AccessibilityActionGateway.Decision.NeedsConfirmation ->
+                if (userApproved) null
+                else CommandResult(
+                    success = false,
+                    message = decision.reason,
+                    needsConfirmation = true,
+                    confirmationLabel = target.ifBlank { action }
+                )
         }
 
     fun launchApp(appName: String): CommandResult {
@@ -77,14 +93,18 @@ object AccessibilityCommandBridge {
         }
     }
 
-    suspend fun click(target: String): CommandResult {
-        gate("click", target)?.let { return it }
+    /**
+     * [userApproved]: set ONLY by a caller that has just obtained explicit user approval for
+     * this exact click (see AccessibilityExecutionEngine.actionApprover). Default is fail-closed.
+     */
+    suspend fun click(target: String, userApproved: Boolean = false): CommandResult {
+        gate("click", target, userApproved)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
         val root = service.rootInActiveWindow
             ?: return CommandResult(false, "No active window")
-        gatePackage(root.packageName?.toString().orEmpty(), "click", target)?.let { return it }
+        gatePackage(root.packageName?.toString().orEmpty(), "click", target, userApproved)?.let { return it }
 
         val nodes = NodeScanner.collectAllNodes(root)
 
@@ -92,6 +112,24 @@ object AccessibilityCommandBridge {
             val text = node.text?.toString()?.lowercase() ?: ""
             val desc = node.contentDescription?.toString()?.lowercase() ?: ""
             text.contains(target.lowercase()) || desc.contains(target.lowercase())
+        }
+
+        // V1: judge the element that will ACTUALLY be clicked (its own text / description /
+        // view id), not only the planner's target string or the user's wording.
+        if (targetNode != null && !userApproved) {
+            val label = listOfNotNull(
+                targetNode.text?.toString(),
+                targetNode.contentDescription?.toString(),
+                targetNode.viewIdResourceName
+            ).joinToString(" ")
+            if (AccessibilityActionGateway.labelRequiresConfirmation(label)) {
+                return CommandResult(
+                    success = false,
+                    message = "Explicit, request-bound user approval is required for this action.",
+                    needsConfirmation = true,
+                    confirmationLabel = label.take(80)
+                )
+            }
         }
 
         return if (targetNode != null) {

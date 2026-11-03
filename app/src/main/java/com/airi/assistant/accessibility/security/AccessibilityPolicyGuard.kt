@@ -104,16 +104,40 @@ object AccessibilityPolicyGuard {
         "confirm", "approve", "authorize", "accept",
         "grant", "allow", "enable permanent",
         "sign", "sign in", "sign up", "register",
-        "reset", "factory reset"
+        "reset", "factory reset",
+        // V1: verbs that were previously uncovered
+        "reply", "unsubscribe", "format", "pay now", "place order", "subscribe",
+        "withdraw", "donate", "install", "block", "logout", "log out", "sign out",
+        "cancel subscription", "deactivate", "disable account",
+        "payment", "payments", "transaction", "withdrawal", "donation"
     )
+
+    private val WORD_SPLIT = Regex("[^\\p{L}\\p{N}]+")
 
     /**
      * Returns true if the [actionDescription] contains any high-risk verb
      * that requires explicit user confirmation before execution.
      */
     fun requiresConfirmation(actionDescription: String): Boolean {
-        val lower = actionDescription.lowercase()
-        return CONFIRMATION_KEYWORDS.any { keyword -> lower.contains(keyword) }
+        // Whole-word matching: "prototype" no longer matches "type", "sender" no longer matches "send".
+        // A keyword also matches its common inflections (send → sends/sending; delete → deleted).
+        val tokens = actionDescription.lowercase().split(WORD_SPLIT).filter { it.isNotBlank() }
+        if (tokens.isEmpty()) return false
+        val padded = " " + tokens.joinToString(" ") + " "
+        return CONFIRMATION_KEYWORDS.any { keyword ->
+            if (keyword.contains(' ')) {
+                padded.contains(" $keyword ")
+            } else {
+                tokens.any { t -> t == keyword || isInflection(t, keyword) }
+            }
+        }
+    }
+
+    private fun isInflection(token: String, keyword: String): Boolean {
+        val stem = keyword.removeSuffix("e")
+        return token == keyword + "s" || token == keyword + "es" || token == keyword + "ed" ||
+            token == keyword + "ing" || token == stem + "ing" || token == stem + "ed" ||
+            token == keyword + keyword.last() + "ing" || token == keyword + keyword.last() + "ed"
     }
 
     // ── RAG / retrieved content isolation ────────────────────────────────────

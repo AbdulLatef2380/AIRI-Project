@@ -14,7 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 
 class BillingManager(
     private val context: Context,
-    private val subscriptionManager: SubscriptionManager
+    private val subscriptionManager: SubscriptionManager,
+    private val verifier: PlayPurchaseVerifier = PlayPurchaseVerifier()
 ) : PurchasesUpdatedListener {
 
     companion object {
@@ -175,13 +176,7 @@ class BillingManager(
             return
         }
         when (purchase.purchaseState) {
-            Purchase.PurchaseState.PURCHASED -> {
-                if (!purchase.isAcknowledged) {
-                    scope.launch { acknowledgePurchase(purchase) }
-                } else {
-                    grantPremium()
-                }
-            }
+            Purchase.PurchaseState.PURCHASED -> scope.launch { verifyThenGrant(purchase) }
             Purchase.PurchaseState.PENDING -> {
                 _billingState.value = BillingState.PurchasePending(
                     "Payment is pending. Premium will activate once payment is confirmed."
@@ -193,26 +188,59 @@ class BillingManager(
         }
     }
 
-    private suspend fun acknowledgePurchase(purchase: Purchase) {
+    /**
+     * B2: Premium is granted only after the SERVER verified the purchaseToken with Google Play.
+     * Acknowledgement happens after verification, so a rejected/forged purchase is never
+     * confirmed. If verification is merely unavailable (offline, signed out) nothing is granted
+     * and nothing is acknowledged; restorePurchases() retries on the next launch (Google gives
+     * 3 days before an unacknowledged purchase is refunded).
+     */
+    private suspend fun verifyThenGrant(purchase: Purchase): Boolean {
+        val productId = purchase.products.first { it == PRODUCT_PREMIUM_MONTHLY || it == PRODUCT_PRO_ANNUAL }
+        return when (val v = verifier.verify(context.packageName, productId, purchase.purchaseToken)) {
+            is PlayPurchaseVerifier.Result.Verified -> {
+                if (!purchase.isAcknowledged && !acknowledgePurchase(purchase)) return false
+                AnalyticsService.purchaseSuccess(productId)
+                grantPremium(v.expiresAtMillis, v.verifiedAtMillis)
+                true
+            }
+            is PlayPurchaseVerifier.Result.Rejected -> {
+                Log.w(TAG, "Purchase rejected by server")
+                AnalyticsService.purchaseFailed("server_rejected")
+                if (subscriptionManager.isPremium()) subscriptionManager.setTier(SubscriptionTier.FREE)
+                _billingState.value = BillingState.Error("This purchase could not be verified: ${v.reason}")
+                false
+            }
+            is PlayPurchaseVerifier.Result.Unavailable -> {
+                Log.w(TAG, "Verification unavailable: ${v.reason}")
+                _billingState.value = BillingState.Error(
+                    "${v.reason} Premium will activate as soon as the purchase is verified."
+                )
+                false
+            }
+        }
+    }
+
+    private suspend fun acknowledgePurchase(purchase: Purchase): Boolean {
         val params = AcknowledgePurchaseParams.newBuilder()
             .setPurchaseToken(purchase.purchaseToken)
             .build()
         val result = billingClient.acknowledgePurchase(params)
-        if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+        return if (result.responseCode == BillingClient.BillingResponseCode.OK) {
             Log.d(TAG, "Purchase acknowledged")
-            AnalyticsService.purchaseSuccess(PRODUCT_PREMIUM_MONTHLY)
-            grantPremium()
+            true
         } else {
             Log.w(TAG, "Acknowledge failed: ${result.debugMessage}")
             AnalyticsService.purchaseFailed("ack_failed: ${result.debugMessage}")
             _billingState.value = BillingState.Error("Purchase acknowledgement failed. Try restoring purchases.")
+            false
         }
     }
 
-    private fun grantPremium() {
-        subscriptionManager.setTier(SubscriptionTier.PREMIUM)
+    private fun grantPremium(serverExpiresAtMillis: Long, verifiedAtMillis: Long) {
+        subscriptionManager.applyVerifiedEntitlement(SubscriptionTier.PREMIUM, serverExpiresAtMillis, verifiedAtMillis)
         _billingState.value = BillingState.PurchaseSuccess(SubscriptionTier.PREMIUM)
-        Log.d(TAG, "Premium granted")
+        Log.d(TAG, "Premium granted (server-verified)")
     }
 
     // ── Restore purchases ─────────────────────────────────────────────────────
@@ -234,13 +262,10 @@ class BillingManager(
         }
 
         if (activePurchase != null) {
-            if (!activePurchase.isAcknowledged) {
-                acknowledgePurchase(activePurchase)
-            } else {
-                grantPremium()
-                AnalyticsService.restorePurchase(true)
-            }
-            Log.d(TAG, "Purchase restored successfully")
+            // Restoring also goes through the server: it refreshes the signed entitlement.
+            val granted = verifyThenGrant(activePurchase)
+            AnalyticsService.restorePurchase(granted)
+            Log.d(TAG, "Purchase restore finished granted=$granted")
         } else {
             // No active subscription — ensure tier is free
             AnalyticsService.restorePurchase(false)

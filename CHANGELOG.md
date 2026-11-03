@@ -1,5 +1,34 @@
 # AIRI — Changelog
 
+## Unreleased — Report 5, batch 2
+
+Static verification only (no Android SDK / Kotlin compiler available). Item covered: C3. **P3 (Room encryption) is deliberately not done** — see below.
+
+- **C3 — custom-skill endpoints:** `CustomSkillSecurity.isValidEndpoint` now also rejects non-public hosts (`HostAddressPolicy.isBlockedHost`: private/loopback/link-local/internal names and any IP spelling). `CustomSkillExecutor` uses `HostAddressPolicy.PublicOnlyDns` (names that resolve to private addresses fail) and a network interceptor that re-checks every hop, so a redirect to an IP literal is refused too. A blocked address is reported as a network error and may be retried a few times before the skill fails.
+- **P3 — not implemented:** encrypting `AiriDatabase` / `ExperienceStore` needs a new native dependency (SQLCipher), a passphrase held in the Keystore, and a one-time migration of existing plaintext databases (an interrupted or failed migration loses users' chats and memory). It cannot be verified without a build, so it needs a decision and a device test first.
+
+## Unreleased — Report 5 (privacy, deletion, scheduled tasks), batch 1
+
+Source: AIRI report 5. Static verification only: no Android SDK / Kotlin compiler was available, so nothing below was compiled or run. Items covered: P1, P2, P4, P5, A1. Not yet done: P3 (Room encryption), C3 (private-address check for custom-skill endpoints).
+
+- **P1 — account deletion:** new `FirestoreAccountDataDeletion` replaces the "unavailable" default. The device files a request in `accountDeletionRequests`; the new `processAccountDeletionRequest` Cloud Function deletes `users/{uid}` and every subcollection with the Admin SDK and writes the verdict. "Deleted" is returned only on a server `completed`; a timeout or error is a failure and leaves the Firebase account and local data untouched for a retry. **Needs `firebase deploy --only functions,firestore:rules`.**
+- **P2 — cloud memory:** the same function handles `kind: memory` (deletes `users/{uid}/memory/**` and `sync_meta/memory`); client API `ServiceLocator.cloudDataDeletion.deleteCloudMemory(uid)`. No screen calls it yet.
+- **P4 — screen reading:** `read_screen` now needs per-read approval (`ScreenReadConsent`, wired to the chat confirmation card; refused when no UI is available). Password fields are skipped in `read_screen`, the execution engine's observe step and `ScreenContextHolder`. Not verified on a device whether Android returns text for password fields.
+- **P5 — crash reports:** `FirebaseCrashReporter.setUserId` now sends `anon-<sha256 prefix>` instead of the raw uid; `clearUserData()` (blank id + `deleteUnsentReports`) runs on sign-out during account/local deletion. No caller of `setUserId` exists in this repository. `CrashPseudonymTest` added.
+- **A1 — scheduled "confirm / skip":** `ScheduledApprovalPolicy` + `ScheduledAgentWorker`: under CONFIRM an automatic run whose target would change data (or cannot be classified) is held — outcome stays PENDING and the user gets "needs your approval"; "Run now" approves it. SKIP behaves as before. `ScheduledApprovalPolicyTest` added.
+
+## Unreleased — Report 4 (voice, billing, API keys), batch 1
+
+Source: AIRI report 4. Static verification only: no Android SDK / Kotlin compiler was available, so nothing below was compiled or run. Items covered: V1, V2, B1, B2, B3, B4, K1.
+
+- **V1 — confirmation bound to the target element:** `AccessibilityExecutionEngine.actionApprover` asks for approval at the moment a consequential element is about to be clicked; without a UI gate the action is blocked (fail-closed). `AccessibilityPolicyGuard.requiresConfirmation` matches whole words and inflections ("prototype" no longer matches "type") and covers pay/buy/submit/confirm/publish/reply/unsubscribe/clear/erase/uninstall/reset/format. `ConfirmationMatchingTest` added.
+- **V2 — voice path side-effect gate:** `VoiceAgentRouter` now asks for on-screen approval before any sub-agent that implements `WriteApprovalRequired` changes data (`ProductivityAgent`: calendar/notes/tasks/alarms/timers; `MemoryAgent`: deleting memories). No gate available ⇒ falls back to the chat pipeline, which enforces `AgentLoopSideEffectPolicy`. A declined request is answered "Okay, I won't do that." `AndroidAgent` is covered by V1 per element.
+- **B1 — entitlement:** premium is stored with a Keystore-backed signature and a server expiry (`EntitlementSigner`, `SubscriptionManager.applyVerifiedEntitlement`); a bare `setTier(PREMIUM)` is refused.
+- **B2 — Google Play:** `PlayPurchaseVerifier` writes a purchase claim; the `verifyPlayPurchaseClaim` Cloud Function verifies it with the Play Developer API and binds the token to one account before premium is granted.
+- **B3 — Stripe:** tier and product come from the server response, not the deep link; each payment is granted once (payment-intent idempotency key). Needs the backend `/validate-session` contract documented in `StripeManager`; that backend is not in this repository.
+- **B4:** `ChatViewModel.upgradeToPremium()` / `downgradeToFree()` removed.
+- **K1:** Gemini keys go in the `x-goog-api-key` header (REST and Live WebSocket); error text is redacted with `SecretRedactor`. `SecretRedactorTest` added.
+
 ## Unreleased — Report 1 fixes, batch 7 (stage 34)
 
 34. **Text attachment limit (item 31, decision: reject):** over `MAX_TEXT_CONTENT_CHARS` (512,000) the send is still rejected, never truncated, but now with `TEXT_ATTACHMENT_TOO_LARGE` ("Text attachments must be 512 KB or smaller") instead of the misleading "could not read the file". Static only, not compiled.

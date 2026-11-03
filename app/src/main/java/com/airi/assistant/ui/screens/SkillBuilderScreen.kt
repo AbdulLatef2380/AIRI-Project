@@ -171,7 +171,7 @@ fun SkillBuilderScreen(
         if (name.isBlank()) { show("Skill name is required"); return null }
         if (description.trim().length < 10) { show("Description must contain at least 10 characters"); return null }
         if (!endpoint.trim().startsWith("https://") || !CustomSkillSecurity.isValidEndpoint(endpoint)) {
-            show("Endpoint must be a valid HTTPS URL")
+            show("Endpoint must be a valid HTTPS URL on a public host (no local or private addresses)")
             return null
         }
         if (bodyTemplate.isBlank()) { show("Body template cannot be empty"); return null }

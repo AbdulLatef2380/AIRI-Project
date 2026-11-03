@@ -29,9 +29,9 @@ import kotlinx.coroutines.flow.flow
  *
  *   4. Kill switch is always available via AccessibilityExecutionEngine.killSwitch().
  *
- *   5. Destructive actions (send message, post to social) require
- *      [requiresConfirmation] — surfaced as a Progress event to the UI
- *      for a confirmation gate.
+ *   5. Consequential actions (send, pay, delete, confirm, unsubscribe, …) require
+ *      explicit user approval, decided from the TARGET ELEMENT at click time
+ *      (see AccessibilityExecutionEngine.actionApprover), not from the request wording.
  */
 class AndroidAgent(
     internal val engine: AccessibilityExecutionEngine
@@ -100,30 +100,21 @@ class AndroidAgent(
         }
 
         val actionType = detectAction(input.lowercase())
-        Log.i(TAG, "ANDROID_AGENT action=${actionType.name} needsConfirmation=${actionType.requiresConfirmation} inputChars=${input.length}")
+        Log.i(TAG, "ANDROID_AGENT action=${actionType.name} inputChars=${input.length}")
 
-        // ── : Real blocking confirmation gate ───────────────────────────
-        // Previously: emitted Progress(" Confirmation required… Proceeding…") and
-        // immediately continued — no actual user gate.
-        // Now: suspends until the UI resolves the confirmation dialog.
-        // If no gate is wired (background context), BLOCK the action — fail-safe.
-        if (actionType.requiresConfirmation) {
-            val gate = confirmationGate
-            val approved = if (gate != null) {
-                gate(actionType.displayName, "This will ${actionType.displayName.lowercase()} on your device.")
-            } else {
-                Log.w(TAG, "AIRI_AUDIT BLOCKED destructive action '${actionType.name}' — " +
-                    "no confirmation gate wired (background context). Blocking.")
-                false
+        // ── V1: confirmation is bound to the ELEMENT being acted on ──────────────
+        // The old gate matched words in the user's text ("send", "delete", …) and so missed
+        // e.g. "press the green button" → "Pay now". Approval is now requested by the engine,
+        // at the moment a consequential element is about to be clicked. If no UI gate is wired
+        // (background context) the engine blocks the action — fail-safe.
+        val uiGate = confirmationGate
+        engine.actionApprover = if (uiGate != null) {
+            val approver: suspend (String) -> Boolean = { description ->
+                uiGate("Confirm action", "AIRI is about to: $description")
             }
-            if (!approved) {
-                emit(AgentEvent.Failed(
-                    reason     = "Action '${actionType.displayName}' cancelled by user.",
-                    recoverable = false
-                ))
-                return@flow
-            }
-            Log.i(TAG, "AIRI_AUDIT CONFIRMED action='${actionType.name}' by user gate")
+            approver
+        } else {
+            null
         }
 
         emit(AgentEvent.ToolCall(
@@ -141,57 +132,61 @@ class AndroidAgent(
         var errorReason: String? = null
 
         // Collect the real execution flow from AccessibilityExecutionEngine
-        engine.executeTask(input).collect { event ->
-            when (event) {
-                is AccessibilityExecutionEngine.ExecutionEvent.PhaseChanged -> {
-                    val pct = when (event.phase) {
-                        AccessibilityExecutionEngine.ExecutionPhase.OBSERVE  -> 35
-                        AccessibilityExecutionEngine.ExecutionPhase.PLAN     -> 45
-                        AccessibilityExecutionEngine.ExecutionPhase.EXECUTE  -> 60
-                        AccessibilityExecutionEngine.ExecutionPhase.VERIFY   -> 75
-                        AccessibilityExecutionEngine.ExecutionPhase.RECOVER  -> 65
+        try {
+            engine.executeTask(input).collect { event ->
+                when (event) {
+                    is AccessibilityExecutionEngine.ExecutionEvent.PhaseChanged -> {
+                        val pct = when (event.phase) {
+                            AccessibilityExecutionEngine.ExecutionPhase.OBSERVE  -> 35
+                            AccessibilityExecutionEngine.ExecutionPhase.PLAN     -> 45
+                            AccessibilityExecutionEngine.ExecutionPhase.EXECUTE  -> 60
+                            AccessibilityExecutionEngine.ExecutionPhase.VERIFY   -> 75
+                            AccessibilityExecutionEngine.ExecutionPhase.RECOVER  -> 65
+                        }
+                        emit(AgentEvent.Progress("[${event.phase.name}] ${event.details}", pct, event.phase.name.lowercase()))
                     }
-                    emit(AgentEvent.Progress("[${event.phase.name}] ${event.details}", pct, event.phase.name.lowercase()))
-                }
-                is AccessibilityExecutionEngine.ExecutionEvent.ScreenObserved -> {
-                    emit(AgentEvent.Progress(
-                        "Screen: ${event.context.packageName} (${event.context.nodeCount} nodes)",
-                        38, "screen_observed"
-                    ))
-                }
-                is AccessibilityExecutionEngine.ExecutionEvent.PlanReady -> {
-                    emit(AgentEvent.Progress(
-                        "Plan ready: ${event.actions.size} action(s)",
-                        48, "plan_ready"
-                    ))
-                }
-                is AccessibilityExecutionEngine.ExecutionEvent.ActionExecuted -> {
-                    emit(AgentEvent.Progress(
-                        "${if (event.success) "" else ""} ${event.action}: ${event.result}",
-                        65, "action"
-                    ))
-                }
-                is AccessibilityExecutionEngine.ExecutionEvent.StepVerified -> {
-                    emit(AgentEvent.Progress(
-                        "Verify: ${if (event.passed) "passed" else "failed"} — ${event.details}",
-                        78, "verify"
-                    ))
-                }
-                is AccessibilityExecutionEngine.ExecutionEvent.RecoveryAttempt -> {
-                    emit(AgentEvent.Progress(
-                        "Recovery attempt ${event.attempt}: ${event.description}",
-                        65, "recover"
-                    ))
-                }
-                is AccessibilityExecutionEngine.ExecutionEvent.Complete -> {
-                    finalSuccess = event.success
-                    finalSummary = event.summary
-                    if (!event.success) errorReason = event.summary
-                }
-                is AccessibilityExecutionEngine.ExecutionEvent.Cancelled -> {
-                    errorReason = "Task cancelled: ${event.reason}"
+                    is AccessibilityExecutionEngine.ExecutionEvent.ScreenObserved -> {
+                        emit(AgentEvent.Progress(
+                            "Screen: ${event.context.packageName} (${event.context.nodeCount} nodes)",
+                            38, "screen_observed"
+                        ))
+                    }
+                    is AccessibilityExecutionEngine.ExecutionEvent.PlanReady -> {
+                        emit(AgentEvent.Progress(
+                            "Plan ready: ${event.actions.size} action(s)",
+                            48, "plan_ready"
+                        ))
+                    }
+                    is AccessibilityExecutionEngine.ExecutionEvent.ActionExecuted -> {
+                        emit(AgentEvent.Progress(
+                            "${if (event.success) "" else ""} ${event.action}: ${event.result}",
+                            65, "action"
+                        ))
+                    }
+                    is AccessibilityExecutionEngine.ExecutionEvent.StepVerified -> {
+                        emit(AgentEvent.Progress(
+                            "Verify: ${if (event.passed) "passed" else "failed"} — ${event.details}",
+                            78, "verify"
+                        ))
+                    }
+                    is AccessibilityExecutionEngine.ExecutionEvent.RecoveryAttempt -> {
+                        emit(AgentEvent.Progress(
+                            "Recovery attempt ${event.attempt}: ${event.description}",
+                            65, "recover"
+                        ))
+                    }
+                    is AccessibilityExecutionEngine.ExecutionEvent.Complete -> {
+                        finalSuccess = event.success
+                        finalSummary = event.summary
+                        if (!event.success) errorReason = event.summary
+                    }
+                    is AccessibilityExecutionEngine.ExecutionEvent.Cancelled -> {
+                        errorReason = "Task cancelled: ${event.reason}"
+                    }
                 }
             }
+        } finally {
+            engine.actionApprover = null   // approval never outlives its task
         }
 
         val durationMs = System.currentTimeMillis() - start
@@ -209,7 +204,8 @@ class AndroidAgent(
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Action classification (for audit log and confirmation gate)
+    // Action classification (AUDIT LOG ONLY — V1: it no longer decides confirmation;
+    // confirmation is decided per target element by AccessibilityExecutionEngine)
     // ─────────────────────────────────────────────────────────────────────────
 
     private data class AndroidAction(
@@ -220,9 +216,9 @@ class AndroidAgent(
 
     private fun detectAction(lower: String): AndroidAction = when {
         lower.contains("send") || lower.contains("post") || lower.contains("share") ->
-            AndroidAction("SEND_OR_POST", "Send/Post", requiresConfirmation = true)
+            AndroidAction("SEND_OR_POST", "Send/Post")
         lower.contains("delete") || lower.contains("remove") ->
-            AndroidAction("DELETE", "Delete", requiresConfirmation = true)
+            AndroidAction("DELETE", "Delete")
         lower.contains("open") || lower.contains("launch") ->
             AndroidAction("OPEN_APP", "Open App")
         lower.contains("navigate") || lower.contains("go to") ->

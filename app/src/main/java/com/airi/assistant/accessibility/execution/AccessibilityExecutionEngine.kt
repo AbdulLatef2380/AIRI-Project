@@ -115,6 +115,20 @@ class AccessibilityExecutionEngine {
     var llmPlanner: (suspend (prompt: String) -> String)? = null
 
     /**
+     * V1 — action-bound confirmation gate.
+     *
+     * Called when the element about to be acted on is judged consequential (send, pay,
+     * delete, confirm, unsubscribe, …) based on the TARGET ELEMENT, not on the user's wording.
+     * The lambda receives a human-readable description of the exact action/element and must
+     * suspend until the user approves (true) or declines (false).
+     *
+     * When null (background / no UI), such actions are BLOCKED — fail-safe.
+     * An approval applies to this single action only; the next sensitive action asks again.
+     */
+    @Volatile
+    var actionApprover: (suspend (description: String) -> Boolean)? = null
+
+    /**
      * Execute an autonomous accessibility task using the LLM-driven
      * OBSERVE → PLAN(LLM) → EXECUTE → VERIFY loop.
      *
@@ -192,7 +206,32 @@ class AccessibilityExecutionEngine {
                         emit(ExecutionEvent.RecoveryAttempt(retries, action.description))
                         delay(500L * retries)
                     }
-                    val result = executeAction(service, action)
+                    var result = executeAction(service, action)
+
+                    // V1: the bridge refused only because the target element needs approval.
+                    if (result.needsConfirmation) {
+                        val label = result.confirmationLabel ?: action.description
+                        val approver = actionApprover
+                        val approved = if (approver != null) {
+                            approver("${action.description} (\"$label\")")
+                        } else {
+                            Log.w(TAG, "AIRI_AUDIT BLOCKED sensitive action '$label' — no approver wired")
+                            false
+                        }
+                        if (!approved) {
+                            log(ExecutionPhase.EXECUTE, "User approval ${if (approver == null) "unavailable" else "declined"}: $label", false)
+                            emit(ExecutionEvent.Complete(
+                                success = false,
+                                summary = if (approver == null)
+                                    "Blocked: '$label' needs your approval, but no confirmation screen is available."
+                                else
+                                    "Cancelled: you declined '$label'."
+                            ))
+                            return@flow
+                        }
+                        Log.i(TAG, "AIRI_AUDIT APPROVED sensitive action '$label' by user")
+                        result = executeAction(service, action, userApproved = true)
+                    }
                     actionCount++
                     log(ExecutionPhase.EXECUTE, "${action.description}: ${result.message}", result.success)
                     emit(ExecutionEvent.ActionExecuted(action.description, result.message, result.success))
@@ -375,9 +414,7 @@ No explanation. No markdown. Just the JSON.
         val pkg = root.packageName?.toString().orEmpty()
         if (AccessibilityActionGateway.authorize(pkg, "read_screen") !is AccessibilityActionGateway.Decision.Allowed) return null
         val nodes = NodeScanner.collectAllNodes(root)
-        val textSummary = nodes
-            .mapNotNull { it.text?.toString()?.trim() }
-            .filter { it.isNotBlank() }
+        val textSummary = NodeScanner.readableTexts(nodes)   // P4: skips password fields
             .distinct()
             .take(20)
             .joinToString(" | ")
@@ -396,7 +433,8 @@ No explanation. No markdown. Just the JSON.
 
     private suspend fun executeAction(
         service: AiriAccessibilityService,
-        action: ExecutionAction
+        action: ExecutionAction,
+        userApproved: Boolean = false
     ): ActionResult {
         // AccessibilityService API calls (performAction, performGlobalAction, etc.) require
         // the main thread. executeTask flow now runs on Dispatchers.Default for CPU work;
@@ -410,8 +448,8 @@ No explanation. No markdown. Just the JSON.
                             ActionResult(r.success, r.message ?: "")
                         }
                         is ExecutionAction.Click      -> {
-                            val r = AccessibilityCommandBridge.click(action.target)
-                            ActionResult(r.success, r.message ?: "")
+                            val r = AccessibilityCommandBridge.click(action.target, userApproved)
+                            ActionResult(r.success, r.message ?: "", r.needsConfirmation, r.confirmationLabel)
                         }
                         is ExecutionAction.TypeText   -> {
                             val r = AccessibilityCommandBridge.typeText(action.text)
@@ -568,7 +606,12 @@ No explanation. No markdown. Just the JSON.
         val hasScroll:    Boolean
     )
 
-    data class ActionResult(val success: Boolean, val message: String)
+    data class ActionResult(
+        val success: Boolean,
+        val message: String,
+        val needsConfirmation: Boolean = false,
+        val confirmationLabel: String? = null
+    )
 
     data class VerifyResult(val passed: Boolean, val details: String)
 

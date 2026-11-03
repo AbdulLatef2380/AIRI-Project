@@ -168,7 +168,8 @@ class LiveVoiceService : Service() {
         voiceManager = VoiceManager(applicationContext, buildVoiceListener())
         voiceAgentRouter = VoiceAgentRouter(
             appContext = applicationContext,
-            orchestrator = ServiceLocator.productionOrchestrator
+            orchestrator = ServiceLocator.productionOrchestrator,
+            confirmationGateProvider = { ServiceLocator.voiceConfirmationGate }
         )
         Log.i(TAG, "AIRI VOICE_AGENT_ROUTER_INIT")
 

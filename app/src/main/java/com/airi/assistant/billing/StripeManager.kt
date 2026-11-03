@@ -9,6 +9,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
@@ -71,6 +73,9 @@ class StripeManager(
         data class Failed(val message: String)           : PaymentState()
         data class Pending(val message: String)          : PaymentState()
     }
+
+    /** B3: serialises validate→dedupe→grant so a re-delivered deep link cannot double-grant. */
+    private val grantMutex = Mutex()
 
     private val _paymentState = MutableStateFlow<PaymentState>(PaymentState.PaymentIdle)
     val paymentState: StateFlow<PaymentState> = _paymentState.asStateFlow()
@@ -175,12 +180,29 @@ class StripeManager(
     /**
      * Validate a completed Stripe Checkout Session.
      * Called from the deep-link handler after `airi://stripe/success?session_id=...`
+     *
+     * B3 — the deep link is UNTRUSTED: any app on the device can fire `airi://stripe/success`.
+     * Therefore only [sessionId] is taken from it. What was bought (type, product, plan,
+     * period end, owner) comes from the SERVER's answer for that session, and the same session
+     * can be granted only once. [type] and [productId] are accepted for source compatibility
+     * but are ignored (only logged when they disagree with the server).
+     *
+     * Required backend contract for GET /validate-session?session_id=… (paid sessions):
+     *   payment_status, amount_total, payment_intent, customer_id,
+     *   mode ("payment" | "subscription"), product_id (credit packs),
+     *   annual (subscriptions), current_period_end (subscriptions, epoch SECONDS).
+     * Missing fields ⇒ nothing is granted (fail closed).
      */
+    @Suppress("UNUSED_PARAMETER")
     suspend fun validateCheckoutSession(
         sessionId: String,
         type:      String,
         productId: String? = null
     ): Boolean = withContext(Dispatchers.IO) {
+        if (sessionId.isBlank() || sessionId.length > 255 || !sessionId.all { it.isLetterOrDigit() || it == '_' || it == '-' }) {
+            _paymentState.value = PaymentState.Failed("Invalid payment reference.")
+            return@withContext false
+        }
         _paymentState.value = PaymentState.Processing
         try {
             val request = Request.Builder()
@@ -188,28 +210,11 @@ class StripeManager(
                 .get()
                 .build()
 
-            val response = client.newCall(request).execute()
-            val json     = JSONObject(response.body?.string() ?: "{}")
-            val status   = json.optString("payment_status")
-            val amount   = json.optInt("amount_total", 0)
-            val piId     = json.optString("payment_intent")
+            val json = client.newCall(request).execute().use { JSONObject(it.body?.string() ?: "{}") }
+            val status = json.optString("payment_status")
 
             return@withContext when (status) {
-                "paid" -> {
-                    when (type) {
-                        "credits" -> {
-                            val pack = productId?.let { CreditPackage.fromProductId(it) }
-                            if (pack != null) {
-                                grantCredits(pack, amount, piId)
-                            }
-                        }
-                        "subscription" -> {
-                            grantSubscription(amount, piId, json.optBoolean("annual", false))
-                        }
-                    }
-                    Log.d(TAG, "Payment validated: type=$type sessionId=$sessionId")
-                    true
-                }
+                "paid"   -> grantMutex.withLock { grantPaidSession(sessionId, json, type, productId) }
                 "unpaid" -> {
                     _paymentState.value = PaymentState.Pending("Payment is being processed. Credits will appear shortly.")
                     false
@@ -223,6 +228,67 @@ class StripeManager(
             Log.e(TAG, "validateCheckoutSession failed: ${e.message}")
             _paymentState.value = PaymentState.Failed("Validation error: ${e.message}")
             false
+        }
+    }
+
+    /** Runs under [grantMutex]. Returns true when the session is (now or already) granted. */
+    private suspend fun grantPaidSession(sessionId: String, json: JSONObject, claimedType: String, claimedProduct: String?): Boolean {
+        val amount = json.optInt("amount_total", 0)
+        val piId   = json.optString("payment_intent")
+        // Idempotency key: the payment intent, or the session id when the server sends none.
+        val paymentKey = piId.ifBlank { sessionId }
+
+        // 1) Same session already granted → report success, grant nothing again.
+        if (billingHistory.getAll().any { it.isSuccess && it.stripePaymentId == paymentKey }) {
+            Log.i(TAG, "Session already granted — ignoring duplicate delivery")
+            return true
+        }
+
+        // 2) The session must belong to THIS user's Stripe customer.
+        val myCustomer = authManager.getCredential("stripe", CUSTOMER_ID_KEY)
+        val sessionCustomer = json.optString("customer_id")
+        if (myCustomer.isNullOrBlank() || sessionCustomer.isBlank() || myCustomer != sessionCustomer) {
+            _paymentState.value = PaymentState.Failed("This payment does not belong to this account.")
+            return false
+        }
+
+        // 3) What was bought is decided by the server's record, never by the link.
+        val serverMode = json.optString("mode")
+        return when (serverMode) {
+            "payment" -> {
+                val pack = CreditPackage.fromProductId(json.optString("product_id"))
+                if (pack == null) {
+                    _paymentState.value = PaymentState.Failed("Payment could not be matched to a product.")
+                    return false
+                }
+                if (amount < pack.priceUsdCents) {
+                    Log.w(TAG, "Paid amount below pack price — refusing grant")
+                    _paymentState.value = PaymentState.Failed("Paid amount does not match the selected pack.")
+                    return false
+                }
+                if (claimedProduct != null && claimedProduct != pack.stripeProductId) {
+                    Log.w(TAG, "Deep link product disagreed with server — using server value")
+                }
+                grantCredits(pack, amount, paymentKey)
+                true
+            }
+            "subscription" -> {
+                val periodEndSec = json.optLong("current_period_end", 0L)
+                val expiresAtMs = periodEndSec * 1000L
+                if (periodEndSec <= 0L || expiresAtMs <= System.currentTimeMillis()) {
+                    _paymentState.value = PaymentState.Failed("Subscription period could not be confirmed.")
+                    return false
+                }
+                if (claimedType != "subscription") {
+                    Log.w(TAG, "Deep link type disagreed with server — using server value")
+                }
+                grantSubscription(amount, paymentKey, json.optBoolean("annual", false), expiresAtMs)
+                true
+            }
+            else -> {
+                _paymentState.value = PaymentState.Failed("Payment type could not be confirmed.")
+                false
+            }
         }
     }
 
@@ -246,7 +312,7 @@ class StripeManager(
         Log.d(TAG, "Granted ${pack.totalCredits} credits via ${pack.displayName}")
     }
 
-    private fun grantSubscription(amountCents: Int, stripeId: String, annual: Boolean) {
+    private fun grantSubscription(amountCents: Int, stripeId: String, annual: Boolean, serverExpiresAtMillis: Long) {
         val record = billingHistory.record(
             type            = BillingRecord.RecordType.SUBSCRIPTION_START,
             productId       = if (annual) CreditPackage.STRIPE_PRODUCT_PREMIUM_ANNUAL
@@ -257,7 +323,7 @@ class StripeManager(
             status          = BillingRecord.Status.SUCCEEDED,
             stripePaymentId = stripeId
         )
-        subscriptionManager.setTier(SubscriptionTier.PREMIUM)
+        subscriptionManager.applyVerifiedEntitlement(SubscriptionTier.PREMIUM, serverExpiresAtMillis)
         _paymentState.value = PaymentState.Success(record)
         Log.d(TAG, "Premium subscription activated (annual=$annual)")
     }

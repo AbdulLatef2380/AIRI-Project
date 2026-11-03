@@ -309,6 +309,7 @@ class DataDeletionCoordinator(
         // Step 8 — Local sign-out: clear in-process Firebase state last so the
         // audit repository stays writable throughout steps 3–7.
         runStep(Step.LOCAL_SIGN_OUT, failures, completed) {
+            com.airi.assistant.crash.FirebaseCrashReporter.clearUserData()   // P5
             authService.signOut()
         }
 
@@ -366,7 +367,10 @@ class DataDeletionCoordinator(
                 context.cacheDir.mkdirs()
             }
         }
-        runStep(Step.LOCAL_SIGN_OUT, failures, completed) { authService.signOut() }
+        runStep(Step.LOCAL_SIGN_OUT, failures, completed) {
+            com.airi.assistant.crash.FirebaseCrashReporter.clearUserData()   // P5
+            authService.signOut()
+        }
 
         return if (failures.isEmpty()) {
             auditRepository.log("GDPR", "LOCAL_DATA_ERASE_SUCCESS", AuditLogEntity.Level.WARN)

@@ -27,6 +27,18 @@ object NodeScanner {
         }
     }
 
+    /**
+     * P4: text that may be READ and passed to a model. Password fields are never readable:
+     * their text is dropped even if the platform returns it.
+     */
+    fun readableText(node: AccessibilityNodeInfo): String? {
+        if (node.isPassword) return null
+        return node.text?.toString()?.trim()?.takeIf { it.isNotBlank() }
+    }
+
+    fun readableTexts(nodes: List<AccessibilityNodeInfo>): List<String> =
+        nodes.mapNotNull { readableText(it) }
+
     fun findNodeByText(root: AccessibilityNodeInfo, text: String): AccessibilityNodeInfo? {
         val lower = text.lowercase()
         return collectAllNodes(root).find { node ->

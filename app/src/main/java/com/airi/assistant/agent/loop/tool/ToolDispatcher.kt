@@ -110,13 +110,19 @@ class ToolDispatcher(
                         is AccessibilityActionGateway.Decision.NeedsConfirmation -> return ToolResult.Error(gate.reason, code = ToolErrorCodes.UNSUPPORTED)
                         AccessibilityActionGateway.Decision.Allowed -> Unit
                     }
+                    // P4: explicit, per-read approval (fail-closed without a UI to ask on).
+                    if (!com.airi.assistant.accessibility.security.ScreenReadConsent.request(activePackage)) {
+                        return ToolResult.Error(
+                            "Reading the screen needs your approval and it was not given.",
+                            code = ToolErrorCodes.UNSUPPORTED,
+                        )
+                    }
                     val root = service.rootInActiveWindow
                     if (root == null) {
                         ToolResult.Error("No active window available", code = ToolErrorCodes.UNSUPPORTED)
                     } else {
                         val nodes = NodeScanner.collectAllNodes(root)
-                        val texts = nodes.mapNotNull { it.text?.toString()?.trim() }
-                            .filter { it.isNotBlank() }
+                        val texts = NodeScanner.readableTexts(nodes)
                             .distinct()
                             .take(40)
                         val pkg   = service.rootInActiveWindow?.packageName?.toString() ?: "unknown"

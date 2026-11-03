@@ -8,13 +8,24 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class SubscriptionManager(context: Context) {
+class SubscriptionManager(
+    context: Context,
+    private val signer: EntitlementSigner = KeystoreEntitlementSigner(),
+    private val clock: () -> Long = System::currentTimeMillis
+) {
 
     private val prefs = context.getSharedPreferences("airi_subscription", Context.MODE_PRIVATE)
 
     companion object {
         private const val TAG                      = "SubscriptionManager"
         private const val KEY_TIER                 = "subscription_tier"
+        // B1: server-verified entitlement. PREMIUM is honoured only with a valid signature
+        // and an unexpired server-provided expiry.
+        private const val KEY_ENT_EXPIRES          = "entitlement_expires_at"
+        private const val KEY_ENT_VERIFIED_AT      = "entitlement_verified_at"
+        private const val KEY_ENT_SIG              = "entitlement_sig"
+        /** Even if the store says "valid for a year", re-verify with the server at least this often. */
+        const val MAX_OFFLINE_ENTITLEMENT_MS       = 3L * 24 * 60 * 60 * 1000
         private const val KEY_MESSAGES             = "daily_messages"
         private const val KEY_AGENTS               = "daily_agents"
         private const val KEY_SKILLS               = "daily_skills"
@@ -25,15 +36,60 @@ class SubscriptionManager(context: Context) {
 
     // ── Tier management ───────────────────────────────────────────────────────
 
+    /**
+     * Effective tier. PREMIUM requires a signed, unexpired, server-verified entitlement;
+     * anything else (legacy unsigned value, tampered prefs, expired, Keystore failure) is FREE.
+     */
     fun getCurrentTier(): SubscriptionTier {
         val saved = prefs.getString(KEY_TIER, SubscriptionTier.FREE.name) ?: SubscriptionTier.FREE.name
-        return runCatching { SubscriptionTier.valueOf(saved) }.getOrDefault(SubscriptionTier.FREE)
+        val tier = runCatching { SubscriptionTier.valueOf(saved) }.getOrDefault(SubscriptionTier.FREE)
+        if (tier == SubscriptionTier.FREE) return SubscriptionTier.FREE
+
+        val expiresAt  = prefs.getLong(KEY_ENT_EXPIRES, 0L)
+        val verifiedAt = prefs.getLong(KEY_ENT_VERIFIED_AT, 0L)
+        val sig        = prefs.getString(KEY_ENT_SIG, null)
+        val now        = clock()
+        val valid = sig != null &&
+            expiresAt > now &&
+            verifiedAt in 1..now + 5 * 60_000L &&               // not from the future (clock skew tolerance)
+            now - verifiedAt <= MAX_OFFLINE_ENTITLEMENT_MS &&   // must have been re-verified recently
+            signer.verify(payload(tier, expiresAt, verifiedAt), sig)
+        return if (valid) tier else SubscriptionTier.FREE
     }
 
-    fun setTier(tier: SubscriptionTier) {
-        prefs.edit().putString(KEY_TIER, tier.name).apply()
-        LoggingService.info(TAG, "Subscription set to: ${tier.displayName}")
+    /**
+     * ONLY entry point that can grant a paid tier. Call it exclusively with values returned
+     * by the server after it verified the purchase (see PlayPurchaseVerifier / StripeManager).
+     */
+    fun applyVerifiedEntitlement(tier: SubscriptionTier, serverExpiresAtMillis: Long, verifiedAtMillis: Long = clock()) {
+        if (tier == SubscriptionTier.FREE) { setTier(SubscriptionTier.FREE); return }
+        prefs.edit()
+            .putString(KEY_TIER, tier.name)
+            .putLong(KEY_ENT_EXPIRES, serverExpiresAtMillis)
+            .putLong(KEY_ENT_VERIFIED_AT, verifiedAtMillis)
+            .putString(KEY_ENT_SIG, signer.sign(payload(tier, serverExpiresAtMillis, verifiedAtMillis)))
+            .apply()
+        LoggingService.info(TAG, "Verified entitlement applied: ${tier.displayName}")
     }
+
+    /**
+     * Downgrade only. Granting a paid tier through this method is refused: it would bypass
+     * server verification (B1/B4).
+     */
+    fun setTier(tier: SubscriptionTier) {
+        if (tier != SubscriptionTier.FREE) {
+            LoggingService.info(TAG, "setTier(${tier.displayName}) refused — use applyVerifiedEntitlement")
+            return
+        }
+        prefs.edit()
+            .putString(KEY_TIER, SubscriptionTier.FREE.name)
+            .remove(KEY_ENT_EXPIRES).remove(KEY_ENT_VERIFIED_AT).remove(KEY_ENT_SIG)
+            .apply()
+        LoggingService.info(TAG, "Subscription set to: ${SubscriptionTier.FREE.displayName}")
+    }
+
+    private fun payload(tier: SubscriptionTier, expiresAt: Long, verifiedAt: Long) =
+        "v1|${tier.name}|$expiresAt|$verifiedAt"
 
     fun isPremium(): Boolean = getCurrentTier() == SubscriptionTier.PREMIUM
 

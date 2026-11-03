@@ -64,16 +64,41 @@ object FirebaseCrashReporter {
     // ── Identity & enrichment ─────────────────────────────────────────────────
 
     /**
-     * Set an anonymous user identifier for crash grouping.
-     * MUST be an opaque UID — never PII (name, email, phone).
+     * Set a pseudonymous identifier for crash grouping.
+     *
+     * P5: the account uid is never sent as-is. Callers may pass any stable string (including the
+     * account uid); it is hashed first, so crash reports cannot be looked up by account and are
+     * not directly personal data. The hash is still stable per account, so crashes of one user
+     * group together — disclose crash reporting in the privacy notice. Pass blank to clear.
      */
     fun setUserId(uid: String) {
         if (!collectionEnabled) return
         runCatching {
-            FirebaseCrashlytics.getInstance().setUserId(uid)
+            FirebaseCrashlytics.getInstance().setUserId(pseudonymize(uid))
         }.onFailure { e ->
             Log.w(TAG, "Crashlytics setUserId failed: ${e.message}")
         }
+    }
+
+    /**
+     * Forget the identifier and drop reports that were queued but not yet uploaded.
+     * Called on sign-out and account deletion so nothing about the old account is sent later.
+     */
+    fun clearUserData() {
+        runCatching {
+            val crashlytics = FirebaseCrashlytics.getInstance()
+            crashlytics.setUserId("")
+            crashlytics.deleteUnsentReports()
+        }.onFailure { e ->
+            Log.w(TAG, "Crashlytics clearUserData failed: ${e.message}")
+        }
+    }
+
+    /** "anon-" + first 16 hex chars of SHA-256(uid); blank stays blank. Visible for tests. */
+    internal fun pseudonymize(uid: String): String {
+        if (uid.isBlank()) return ""
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(uid.toByteArray(Charsets.UTF_8))
+        return "anon-" + digest.take(8).joinToString("") { "%02x".format(it) }
     }
 
     /**

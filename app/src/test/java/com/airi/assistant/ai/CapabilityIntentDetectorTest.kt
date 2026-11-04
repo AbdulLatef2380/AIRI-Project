@@ -222,6 +222,20 @@ class CapabilityIntentDetectorTest {
         assertTrue(CapabilityIntentDetector.isCapabilityDiscovery("ما هي الادوات المتاحة"))
     }
 
+    @Test
+    fun freeFormCapabilityInventoryQuestionsAreNotMissed() {
+        listOf(
+            "ما عندك من أدوات ومهارات وموصلات؟",
+            "كم خدمة خارجية متاحة عندك؟",
+            "what capabilities and integrations do you have",
+        ).forEach { input ->
+            val intent = CapabilityIntentDetector.detect(input)
+            assertTrue(input, intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+            assertTrue(input, intent.connectorIds.contains("*"))
+            assertTrue(input, CapabilityIntentDetector.isCapabilityDiscovery(input))
+        }
+    }
+
     // Report 1, stage 14: short terms must stand alone.
     @Test
     fun shortTermsDoNotMatchInsideOtherWords() {

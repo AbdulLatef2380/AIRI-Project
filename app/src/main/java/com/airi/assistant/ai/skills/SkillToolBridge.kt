@@ -101,7 +101,9 @@ class SkillToolBridge(
     )
 
     private fun toolDefToSchema(skill: AiriSkill, toolDef: SkillToolDefinition, status: String? = null): ToolSchema = ToolSchema(
-        name        = "$PREFIX${toolDef.name}",
+        // Namespace definitions by skill. The old name made duplicate actions
+        // resolve to whichever skill happened to be registered first.
+        name        = "$PREFIX${skill.skillId}_${toolDef.name}",
         description = "[${skill.name}] ${toolDef.description}${status.orEmpty()}",
         parameters  = toolDef.parameters.mapValues { (_, p) ->
             ToolSchema.Param(type = p.type, description = p.description, required = p.required)
@@ -115,7 +117,8 @@ class SkillToolBridge(
     /**
      * Invoke a skill by the tool name the agent emitted.
      *
-     * @param toolName  The raw tool name (e.g. "skill_web_search" or "skill_translate_text").
+     * @param toolName  The raw tool name (e.g. "skill_web_search_search" or
+     *                  "skill_translate_translate_text").
      * @param args      Arguments the agent provided.
      * @return          The verified, structured skill result for the agent loop.
      */
@@ -267,6 +270,15 @@ class SkillToolBridge(
         // 2. Tool definition name match (e.g. "code_assist" → CodeAssistantSkill.toolDefinitions[0])
         skills.firstOrNull { skill ->
             skill.toolDefinitions.any { it.name == strippedName }
+        }?.let { return it }
+
+        // Canonical names are skillId_toolName. Keep the legacy lookup above
+        // so persisted conversations using the old name remain replayable.
+        skills.firstOrNull { skill ->
+            strippedName.startsWith("${skill.skillId}_") &&
+                skill.toolDefinitions.any {
+                    it.name == strippedName.removePrefix("${skill.skillId}_")
+                }
         }?.let { return it }
 
         return null

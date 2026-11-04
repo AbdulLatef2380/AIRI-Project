@@ -28,7 +28,26 @@ data class RuntimeToolContract(
 
     companion object {
         fun builtin(schema: ToolSchema) = RuntimeToolContract(schema, Readiness.AVAILABLE, Source.BUILTIN)
-        fun skill(schema: ToolSchema) = RuntimeToolContract(schema, Readiness.AVAILABLE, Source.SKILL)
+        /** Preserve SkillToolBridge readiness markers at the execution boundary. */
+        fun skill(schema: ToolSchema): RuntimeToolContract {
+            val marker = Regex("\\[READINESS=requires_([^:]]+):\\s*(.*?)]")
+                .find(schema.description)
+            if (marker == null) return RuntimeToolContract(schema, Readiness.AVAILABLE, Source.SKILL)
+            val readiness = when (marker.groupValues[1].lowercase()) {
+                "missing_permission" -> Readiness.PERMISSION_REQUIRED
+                "connector_unhealthy" -> Readiness.REQUIRES_AUTH
+                "skill_disabled", "not_registered", "dependency_missing",
+                "model_unavailable", "model_access_denied" -> Readiness.NOT_READY
+                else -> Readiness.NOT_READY
+            }
+            return RuntimeToolContract(
+                schema = schema,
+                readiness = readiness,
+                source = Source.SKILL,
+                reason = marker.groupValues[2].trim().ifBlank { "Skill is not ready" },
+                capabilityId = schema.name.removePrefix("skill_").substringBefore('_').ifBlank { null },
+            )
+        }
         fun connector(schema: ToolSchema, available: Boolean, capabilityId: String? = null) = RuntimeToolContract(
             schema = schema,
             readiness = if (available) Readiness.AVAILABLE else Readiness.NOT_READY,

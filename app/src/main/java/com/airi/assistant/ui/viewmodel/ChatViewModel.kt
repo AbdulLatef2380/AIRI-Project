@@ -3513,10 +3513,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 else -> com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Availability.READY
             }
             val manifest = com.airi.assistant.ai.skills.OfficialSkillLibrary.manifestFor(info.id)
-            val manifestToolNames = manifest?.tools?.map { "skill_${it.name}" }.orEmpty()
+            val manifestToolNames = manifest?.tools?.map { "skill_${info.id}_${it.name}" }.orEmpty()
             val toolNames = when {
                 runtimeSkill != null && runtimeSkill.toolDefinitions.isNotEmpty() ->
-                    runtimeSkill.toolDefinitions.map { "skill_${it.name}" }
+                    runtimeSkill.toolDefinitions.map { "skill_${runtimeSkill.skillId}_${it.name}" }
                 manifestToolNames.isNotEmpty() -> manifestToolNames
                 else -> listOf("skill_${info.id}")
             }

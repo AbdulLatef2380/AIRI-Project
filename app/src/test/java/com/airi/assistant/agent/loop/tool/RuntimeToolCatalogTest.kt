@@ -138,6 +138,24 @@ class RuntimeToolCatalogTest {
     }
 
     @Test
+    fun skillReadinessMarkerIsAdmissionStateNotJustPromptText() {
+        val unavailable = ToolSchema(
+            name = "skill_google_gmail",
+            description = "[Skill] Gmail [READINESS=requires_connector_unhealthy: Google authorization required]",
+        )
+        val result = RuntimeToolCatalog.assemble(
+            builtins = emptyList(),
+            skills = listOf(unavailable),
+            connectors = emptyList(),
+            intent = CapabilityIntentDetector.Intent(),
+        )
+
+        assertTrue(result.schemas.isEmpty())
+        assertEquals(RuntimeToolContract.Readiness.REQUIRES_AUTH, result.candidates.single().readiness)
+        assertEquals(RuntimeToolCatalog.Reason.NOT_READY, result.filtered.single().reason)
+    }
+
+    @Test
     fun inventorySeparatesRegistrationIntentSelectionExposureAndDispatchAdmission() {
         val intent = CapabilityIntentDetector.Intent(
             capabilities = setOf(CapabilityIntentDetector.Capability.CONNECTOR_READ),

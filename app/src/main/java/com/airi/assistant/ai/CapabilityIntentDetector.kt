@@ -122,6 +122,19 @@ object CapabilityIntentDetector {
         "ما الذي يمكنك فعله", "ما يمكنك فعله", "اعطني قائمة الادوات", "أعطني قائمة الأدوات",
     )
 
+    // Do not require one exact phrase for a harmless inventory question. Small
+    // models and Arabic users vary word order and use colloquial wording.
+    private val capabilityInventoryNouns = normalizedTerms(
+        "tool", "tools", "skill", "skills", "connector", "connectors", "capability",
+        "اداة", "ادوات", "مهارة", "مهارات", "موصل", "موصلات", "قدرات",
+        "خدمات", "خدمة", "integrations", "تكاملات", "الموصلات الخارجية",
+    )
+
+    private val capabilityInventoryQuestionWords = normalizedTerms(
+        "what", "which", "how many", "list", "show", "available", "enabled",
+        "ما", "ماذا", "اي", "أي", "كم", "عدد", "اذكر", "اعرض", "اعطني",
+    )
+
     private val deviceActionVerbs = normalizedTerms(
         "turn on", "turn off", "switch on", "switch off", "enable", "disable", "toggle",
         "activate", "deactivate", "قم بتشغيل", "قم بايقاف", "قم بإيقاف", "شغل", "شغّل",
@@ -222,7 +235,8 @@ object CapabilityIntentDetector {
                 .containsMatchIn(text)
         val githubRepositoryIntent = githubRepositoryTerms.any(text::contains) &&
             (text.contains("github") || text.contains("جيت هب"))
-        val capabilityDiscovery = capabilityDiscoveryPatterns.any { containsTerm(text, it) }
+        val capabilityDiscovery = capabilityDiscoveryPatterns.any { containsTerm(text, it) } ||
+            isLooseCapabilityInventoryQuestion(text)
         // Ownership wording is an explicit read intent too: "my GitHub repos"
         // and "مستودعاتي في GitHub" previously fell through to a hallucinated
         // answer because they did not contain one of the narrow action verbs.
@@ -278,7 +292,8 @@ object CapabilityIntentDetector {
 
     /** True when the user asks for a capability inventory, not an action. */
     fun isCapabilityDiscovery(input: String): Boolean =
-        capabilityDiscoveryPatterns.any(normalize(input)::contains)
+        capabilityDiscoveryPatterns.any(normalize(input)::contains) ||
+            isLooseCapabilityInventoryQuestion(normalize(input))
 
     /** Normalizes Arabic orthography and diacritics before matching phrases. */
     fun normalize(input: String): String = input
@@ -295,5 +310,11 @@ object CapabilityIntentDetector {
         val escaped = Regex.escape(normalize(term))
         return Regex("(^|[^\\p{L}\\p{N}])$escaped($|[^\\p{L}\\p{N}])")
             .containsMatchIn(text)
+    }
+
+    private fun isLooseCapabilityInventoryQuestion(normalizedText: String): Boolean {
+        val hasQuestionWord = capabilityInventoryQuestionWords.any { containsTerm(normalizedText, it) }
+        val nounCount = capabilityInventoryNouns.count { containsTerm(normalizedText, it) }
+        return hasQuestionWord && nounCount > 0
     }
 }

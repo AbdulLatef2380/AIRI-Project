@@ -407,7 +407,10 @@ the tool returns an actual error.
             Log.i(TAG, "AIRI DETERMINISTIC_TOOL tool=current_time success=${timeResult is ToolDispatcher.ToolResult.Success}")
         }
         try {
-            return withTimeout(maxOf(timeoutMs, HARD_CAP_MS)) {
+            // Stall timeout is checked against progressMs inside the loop;
+            // this outer timeout is the absolute request ceiling. maxOf()
+            // would let a caller bypass the hard cap with a larger timeout.
+            return withTimeout(HARD_CAP_MS) {
             // If no tools provided, single-pass inference.
             if (effectiveTools.isEmpty()) {
                 val response = callLLM(

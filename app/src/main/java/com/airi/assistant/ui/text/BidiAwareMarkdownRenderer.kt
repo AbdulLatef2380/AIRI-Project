@@ -52,7 +52,7 @@ fun BidiAwareMarkdownRenderer(
     val processedText = remember(text) {
         when (direction) {
             LanguageRuntimeManager.DominantDirection.RTL,
-            LanguageRuntimeManager.DominantDirection.MIXED  -> LanguageRuntimeManager.isolateLatinRuns(text)
+            LanguageRuntimeManager.DominantDirection.MIXED  -> isolateProseOutsideFences(text)
             else                                             -> text
         }
     }
@@ -68,6 +68,23 @@ fun BidiAwareMarkdownRenderer(
             onContentAction = onContentAction,
         )
     }
+}
+
+/** Directional marks are presentation-only and must not enter code payloads. */
+private fun isolateProseOutsideFences(text: String): String {
+    val ranges = AssistantContentClassifier.fencedCodeRanges(text)
+    if (ranges.isEmpty()) return LanguageRuntimeManager.isolateLatinRuns(text)
+    val output = StringBuilder(text.length + 16)
+    var cursor = 0
+    ranges.forEach { range ->
+        if (range.start > cursor) {
+            output.append(LanguageRuntimeManager.isolateLatinRuns(text.substring(cursor, range.start)))
+        }
+        output.append(text.substring(range.start, range.end))
+        cursor = range.end
+    }
+    if (cursor < text.length) output.append(LanguageRuntimeManager.isolateLatinRuns(text.substring(cursor)))
+    return output.toString()
 }
 
 /**

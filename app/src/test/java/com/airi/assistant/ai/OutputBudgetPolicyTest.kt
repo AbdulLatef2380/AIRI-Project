@@ -7,12 +7,12 @@ import org.junit.Test
 
 class OutputBudgetPolicyTest {
     @Test fun analyticalRequestsReceiveTheLargestBudget() {
-        assertEquals(8192, OutputBudgetPolicy.requestedTokens("analyze this in detail", QueryType.ANALYTICAL))
+        assertEquals(12288, OutputBudgetPolicy.requestedTokens("analyze this in detail", QueryType.ANALYTICAL))
     }
 
     @Test fun detailedSimpleConversationDoesNotUseSimpleReplyBudget() {
         assertEquals(
-            4096,
+            8192,
             OutputBudgetPolicy.requestedTokens("حدثني عن الذكاء الاصطناعي في عصرنا الحالي", QueryType.SIMPLE),
         )
     }
@@ -25,6 +25,6 @@ class OutputBudgetPolicyTest {
     }
 
     @Test fun cloudBudgetKeepsRequestedPolicy() {
-        assertEquals(8192, OutputBudgetPolicy.effectiveTokens("analyze this in detail", QueryType.ANALYTICAL, 9000, "openai", ContextBudget.UNLOADED))
+        assertEquals(12288, OutputBudgetPolicy.effectiveTokens("analyze this in detail", QueryType.ANALYTICAL, 9000, "openai", ContextBudget.UNLOADED))
     }
 }

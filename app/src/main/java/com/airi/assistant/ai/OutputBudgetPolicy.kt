@@ -8,11 +8,13 @@ object OutputBudgetPolicy {
         ResponseDepth.BRIEF -> 384
         ResponseDepth.STANDARD -> 2_048
         ResponseDepth.DETAILED -> when (queryType) {
-            QueryType.ANALYTICAL -> 8_192
-            QueryType.CREATIVE -> 6_144
+            // Long-form answers and source files commonly span hundreds of
+            // lines. Providers may still enforce a lower model-specific cap.
+            QueryType.ANALYTICAL -> 12_288
+            QueryType.CREATIVE -> 10_240
             // Routing describes tool/side-effect needs, not answer length.
             // Open-ended explanations can still be routed as SIMPLE.
-            else -> 4_096
+            else -> 8_192
         }
     }
 

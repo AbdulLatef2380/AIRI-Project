@@ -1,7 +1,7 @@
 package com.airi.assistant.ui.util
 
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Fullscreen
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -23,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -108,17 +110,7 @@ fun CodeBlockCard(
         Surface(
             shape = RoundedCornerShape(10.dp),
             color = codeBack,
-            modifier = Modifier
-                .fillMaxWidth()
-                .combinedClickable(
-                    onClick = {},
-                    onDoubleClick = {
-                        if (target?.canPerform(ContentUnitAction.FULLSCREEN) == true) {
-                            onContentAction?.invoke(target, ContentUnitAction.FULLSCREEN)
-                        }
-                    },
-                    onLongClick = {},
-                ),
+            modifier = Modifier.fillMaxWidth(),
         ) {
             Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -145,6 +137,18 @@ fun CodeBlockCard(
                                 contentDescription = context.getString(
                                     if (expanded) R.string.collapse_code else R.string.expand_code,
                                 ),
+                                tint = AiriTheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    if (target?.canPerform(ContentUnitAction.FULLSCREEN) == true && onContentAction != null) {
+                        IconButton(
+                            onClick = { onContentAction(target, ContentUnitAction.FULLSCREEN) },
+                            modifier = Modifier.size(40.dp),
+                        ) {
+                            Icon(
+                                Icons.Outlined.Fullscreen,
+                                contentDescription = context.getString(R.string.expand_code),
                                 tint = AiriTheme.onSurfaceVariant,
                             )
                         }
@@ -186,10 +190,13 @@ fun CodeBlockCard(
                             color = codeFore,
                             textDirection = TextDirection.Ltr,
                         ),
-                        softWrap = true,
+                        softWrap = false,
                         maxLines = if (canCollapse && !expanded) 14 else Int.MAX_VALUE,
                         overflow = TextOverflow.Clip,
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(top = 4.dp, bottom = 4.dp),
                     )
                 }
             }

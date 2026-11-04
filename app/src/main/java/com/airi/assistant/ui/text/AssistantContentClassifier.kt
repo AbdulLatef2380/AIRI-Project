@@ -81,15 +81,43 @@ object AssistantContentClassifier {
     }
 
     fun fencedCodeRanges(text: String): List<AssistantCodeRange> {
-        return FENCED_CODE_REGEX.findAll(text).map { match ->
-            AssistantCodeRange(
-                start = match.range.first,
-                end = match.range.last + 1,
-                language = match.groupValues[1].ifBlank { "text" },
-                code = match.groupValues[2].trimEnd(),
-                isComplete = match.value.trimEnd().endsWith("```"),
+        val ranges = mutableListOf<AssistantCodeRange>()
+        var cursor = 0
+        while (cursor < text.length) {
+            val lineEnd = text.indexOf('\n', cursor).let { if (it < 0) text.length else it }
+            val line = text.substring(cursor, lineEnd).removeSuffix("\r")
+            val opening = FENCE_OPEN.find(line)
+            if (opening == null) {
+                cursor = if (lineEnd < text.length) lineEnd + 1 else text.length
+                continue
+            }
+            val fenceLength = opening.groupValues[1].length
+            val language = opening.groupValues[2].trim().split(Regex("\\s+")).firstOrNull().orEmpty().ifBlank { "text" }
+            val codeStart = if (lineEnd < text.length) lineEnd + 1 else text.length
+            var scan = codeStart
+            var closingStart = -1
+            var closingEnd = text.length
+            while (scan < text.length) {
+                val candidateEnd = text.indexOf('\n', scan).let { if (it < 0) text.length else it }
+                val candidate = text.substring(scan, candidateEnd).removeSuffix("\r")
+                if (FENCE_CLOSE.matches(candidate) && candidate.count { it == '`' } >= fenceLength) {
+                    closingStart = scan
+                    closingEnd = if (candidateEnd < text.length) candidateEnd + 1 else candidateEnd
+                    break
+                }
+                scan = if (candidateEnd < text.length) candidateEnd + 1 else text.length
+            }
+            val codeEnd = if (closingStart >= 0) closingStart else text.length
+            ranges += AssistantCodeRange(
+                start = cursor,
+                end = closingEnd,
+                language = language,
+                code = text.substring(codeStart, codeEnd).trimEnd('\r', '\n'),
+                isComplete = closingStart >= 0,
             )
-        }.toList()
+            cursor = closingEnd
+        }
+        return ranges
     }
 
     fun isMarkdownTable(text: String): Boolean {
@@ -121,8 +149,6 @@ object AssistantContentClassifier {
     private val ORDERED_LINE = Regex("^[0-9٠-٩۰-۹]+[.)]\\s+.+")
     private val HORIZONTAL_RULE = Regex("^[-*_]{3,}\\s*$")
 
-    private val FENCED_CODE_REGEX = Regex(
-        "^[ \\t]*```([A-Za-z0-9_+#.-]*)[ \\t]*(?:\\r?\\n|\\z)([\\s\\S]*?)(?:^[ \\t]*```[ \\t]*(?=\\r?\\n|\\z)|\\z)",
-        setOf(RegexOption.MULTILINE),
-    )
+    private val FENCE_OPEN = Regex("^[ \\t]*(`{3,})([^`]*)$")
+    private val FENCE_CLOSE = Regex("^[ \\t]*`{3,}[ \\t]*$")
 }

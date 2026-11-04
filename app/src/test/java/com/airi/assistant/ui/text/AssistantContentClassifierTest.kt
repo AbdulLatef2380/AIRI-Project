@@ -20,6 +20,15 @@ class AssistantContentClassifierTest {
         assertTrue(result.codeBlocks.single().code.contains("val airi"))
     }
 
+    @Test fun longerFenceDoesNotCloseOnShorterLiteralFence() {
+        val result = AssistantContentClassifier.analyse(
+            "````kotlin\nval marker = \"```\"\n````\nبعد الكود"
+        )
+        assertEquals(1, result.codeBlocks.size)
+        assertTrue(result.codeBlocks.single().isComplete)
+        assertTrue(result.codeBlocks.single().code.contains("val marker"))
+    }
+
     @Test fun inlineAndTildeFencesAreNotExtractedAsArpeCodeBlocks() {
         val text = "Inline ```kotlin val x = 1```\n~~~kotlin\nval y = 2\n~~~"
         val analysis = AssistantContentClassifier.analyse(text)

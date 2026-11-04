@@ -3025,8 +3025,12 @@ fun AiBubble(
         when (action) {
             ContentUnitAction.COPY -> {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AIRI", messageTarget.copyPayload))
+                val copied = ContentPlatformActions.copyPlainText(context, "AIRI", messageTarget.copyPayload)
+                android.widget.Toast.makeText(
+                    context,
+                    if (copied) R.string.artifact_copied else R.string.artifact_copy_failed,
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
             }
             ContentUnitAction.SHARE -> onShare(messageTarget.sharePayload)
             ContentUnitAction.SPEAK -> onSpeak(messageTarget.source)
@@ -3302,7 +3306,12 @@ fun AiBubble(
             text = fullscreenText.ifBlank { text },
             onDismiss = { showFullscreenViewer = false },
             onCopy = {
-                ContentPlatformActions.copyPlainText(context, "AIRI", fullscreenText.ifBlank { text })
+                val copied = ContentPlatformActions.copyPlainText(context, "AIRI", fullscreenText.ifBlank { text })
+                android.widget.Toast.makeText(
+                    context,
+                    if (copied) R.string.artifact_copied else R.string.artifact_copy_failed,
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
             },
             onShare = {
                 onShare(fullscreenText.ifBlank { text })

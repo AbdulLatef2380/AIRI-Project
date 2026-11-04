@@ -268,16 +268,21 @@ private fun findTableBounds(text: String): TableBounds {
     val lines = text.lines()
     val separator = lines.indexOfFirst { it.trim().matches(TABLE_SEPARATOR) }
     if (separator <= 0) return TableBounds("", text, "")
+    val headerWidth = rowWidth(lines[separator - 1])
+    if (headerWidth < 2) return TableBounds("", text, "")
     var start = separator - 1
-    while (start > 0 && lines[start - 1].contains('|')) start--
+    while (start > 0 && rowWidth(lines[start - 1]) == headerWidth) start--
     var end = separator
-    while (end + 1 < lines.size && lines[end + 1].contains('|')) end++
+    while (end + 1 < lines.size && rowWidth(lines[end + 1]) == headerWidth) end++
     return TableBounds(
         before = lines.subList(0, start).joinToString("\n"),
         table = lines.subList(start, end + 1).joinToString("\n"),
         after = lines.subList(end + 1, lines.size).joinToString("\n"),
     )
 }
+
+private fun rowWidth(line: String): Int =
+    AdaptiveContentPolicy.parseMarkdownTable(line).firstOrNull()?.size ?: 0
 
 private val TABLE_SEPARATOR = Regex(
     "^\\|?\\s*:?-{3,}:?\\s*(\\|\\s*:?-{3,}:?\\s*)+\\|?$",

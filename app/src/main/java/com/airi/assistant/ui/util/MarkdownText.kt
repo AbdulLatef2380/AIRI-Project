@@ -128,6 +128,8 @@ private sealed class RenderBlock {
 }
 
 private val FENCE_LANGUAGE_SEPARATOR = Regex("\\s+")
+private val FENCE_OPEN = Regex("^[ \\t]*(`{3,})([^`]*)$")
+private val FENCE_CLOSE = Regex("^[ \\t]*(`{3,})[ \\t]*$")
 private val HORIZONTAL_RULE = Regex("^[-*_]{3,}\\s*$")
 private val HEADING_LINE = Regex("^(#{1,6})\\s+(.+)")
 private val BULLET_LINE = Regex("^(\\s*)[-*+•◦▪]\\s+(.+)")
@@ -145,14 +147,19 @@ private fun buildRenderBlocks(
 
     while (i < lines.size) {
         val line    = lines[i]
-        val trimmed = line.trimStart()
 
-        // Fenced code block — consume until closing ``` or EOF (streaming-safe)
-        if (trimmed.startsWith("```")) {
-            val language = trimmed.removePrefix("```").trim().split(FENCE_LANGUAGE_SEPARATOR).firstOrNull().orEmpty().ifBlank { "text" }
+        // Fenced code block — a closing fence must be at least as long as the
+        // opening fence, so literal triple-backticks inside a four-backtick
+        // block cannot truncate the user's code.
+        val opening = FENCE_OPEN.find(line)
+        if (opening != null) {
+            val fenceLength = opening.groupValues[1].length
+            val language = opening.groupValues[2].trim().split(FENCE_LANGUAGE_SEPARATOR).firstOrNull().orEmpty().ifBlank { "text" }
             val codeLines = mutableListOf<String>()
             i++
-            while (i < lines.size && !lines[i].trimStart().startsWith("```")) {
+            while (i < lines.size) {
+                val closing = FENCE_CLOSE.find(lines[i])
+                if (closing != null && closing.groupValues[1].length >= fenceLength) break
                 codeLines.add(lines[i]); i++
             }
             val complete = i < lines.size

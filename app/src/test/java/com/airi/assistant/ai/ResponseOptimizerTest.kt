@@ -99,15 +99,15 @@ class ResponseOptimizerTest {
     }
 
     @Test
-    fun analyticalAndActionTurnsDoNotShowCasualSmartReplies() {
+    fun analyticalTurnsKeepRelatedQuestionsButActionTurnsDoNot() {
         val response = "تتضمن المقارنة عدة محاور مهمة، مثل الأداء والتكلفة والخصوصية، ولكل خيار نقاط قوة وضعف مختلفة."
-        assertTrue(
-            ResponseOptimizer.generateSuggestions(
-                userInput = "قارن بين الخيارين بالتفصيل",
-                response = response,
-                queryType = QueryType.ANALYTICAL,
-            ).isEmpty()
+        val analyticalSuggestions = ResponseOptimizer.generateSuggestions(
+            userInput = "قارن بين الخيارين بالتفصيل",
+            response = response,
+            queryType = QueryType.ANALYTICAL,
         )
+        assertEquals(3, analyticalSuggestions.size)
+        assertTrue(analyticalSuggestions.first().contains("الأداء"))
         assertTrue(
             ResponseOptimizer.generateSuggestions(
                 userInput = "أرسل هذه الرسالة إلى البريد",

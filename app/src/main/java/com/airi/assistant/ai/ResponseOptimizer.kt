@@ -382,8 +382,9 @@ object ResponseOptimizer {
      * Smart replies are deliberately conservative. The official Smart Reply
      * pattern uses recent conversation context, confidence filtering, and no
      * suggestions for unsupported/sensitive contexts. AIRI mirrors that
-     * contract locally: no user message means no chips, action/analysis turns
-     * are not casual reply conversations, and there is no length-only fallback.
+     * contract locally: no user message means no chips, side-effecting action
+     * turns are excluded, and the remaining suggestions are derived from the
+     * user's request plus the assistant's answer.
      */
     fun generateSuggestions(
         userInput: String,
@@ -395,9 +396,10 @@ object ResponseOptimizer {
         val input = userInput.trim()
         val answer = response.trim()
         if (input.length < 3 || answer.length < 50) return emptyList()
-        // Smart replies are for casual conversational turns, not tool/action
-        // execution or analytical/creative deliverables.
-        if (queryType != QueryType.SIMPLE) return emptyList()
+        // Never offer a one-tap continuation for a side-effecting request.
+        // Analytical and creative answers still need contextual follow-ups;
+        // the previous SIMPLE-only gate hid Related Questions for those turns.
+        if (queryType == QueryType.ACTION) return emptyList()
 
         val inputLower = input.lowercase(Locale.ROOT)
         val answerLower = answer.lowercase(Locale.ROOT)

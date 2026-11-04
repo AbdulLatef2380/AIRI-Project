@@ -38,18 +38,7 @@ internal object ToolDefinitionJson {
         append(",\"properties\":{")
         definition.parameters.forEachIndexed { index, parameter ->
             if (index > 0) append(",")
-            append(q(parameter.name)).append(":{\"type\":")
-            append(q(if (uppercaseType) parameter.type.uppercase() else parameter.type.lowercase()))
-            if (parameter.description.isNotBlank()) append(",\"description\":").append(q(parameter.description))
-            if (parameter.enumValues.isNotEmpty()) {
-                append(",\"enum\":[")
-                parameter.enumValues.forEachIndexed { enumIndex, value ->
-                    if (enumIndex > 0) append(",")
-                    append(q(value))
-                }
-                append("]")
-            }
-            append("}")
+            append(q(parameter.name)).append(":").append(parameterSchema(parameter, uppercaseType))
         }
         append("}")
         val required = definition.parameters.filter { it.required }.map { it.name }
@@ -60,6 +49,49 @@ internal object ToolDefinitionJson {
                 append(q(name))
             }
             append("]")
+        }
+        append("}")
+    }
+
+    private fun parameterSchema(parameter: ExecutionRequest.ToolParameter, uppercaseType: Boolean): String = buildString {
+        append("{\"type\":").append(q(if (uppercaseType) {
+            SchemaTypeNormalizer.geminiType(parameter.type)
+        } else {
+            SchemaTypeNormalizer.jsonSchemaType(parameter.type)
+        }))
+        if (parameter.description.isNotBlank()) append(",\"description\":").append(q(parameter.description))
+        if (parameter.enumValues.isNotEmpty()) {
+            append(",\"enum\":[")
+            parameter.enumValues.forEachIndexed { index, value ->
+                if (index > 0) append(",")
+                append(q(value))
+            }
+            append("]")
+        }
+        val normalizedType = SchemaTypeNormalizer.jsonSchemaType(parameter.type)
+        if (normalizedType == "array") {
+            append(",\"items\":")
+            append(parameter.items?.let { parameterSchema(it, uppercaseType) } ?: parameterSchema(
+                ExecutionRequest.ToolParameter(name = "item", type = "string"),
+                uppercaseType,
+            ))
+        }
+        if (normalizedType == "object") {
+            append(",\"properties\":{")
+            parameter.properties.entries.forEachIndexed { index, (name, property) ->
+                if (index > 0) append(",")
+                append(q(name)).append(":").append(parameterSchema(property, uppercaseType))
+            }
+            append("}")
+            val required = parameter.properties.filter { it.value.required }.map { it.key }
+            if (required.isNotEmpty()) {
+                append(",\"required\":[")
+                required.forEachIndexed { index, name ->
+                    if (index > 0) append(",")
+                    append(q(name))
+                }
+                append("]")
+            }
         }
         append("}")
     }

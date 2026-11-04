@@ -63,6 +63,10 @@ data class ExecutionRequest(
         val description: String = "",
         val required: Boolean = true,
         val enumValues: List<String> = emptyList(),
+        /** Schema for each array element, when [type] is array. */
+        val items: ToolParameter? = null,
+        /** Named child properties, when [type] is object. */
+        val properties: List<ToolParameter> = emptyList(),
     )
 
     data class ConversationTurn(

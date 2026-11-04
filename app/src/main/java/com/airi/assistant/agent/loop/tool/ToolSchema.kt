@@ -31,6 +31,10 @@ data class ToolSchema(
         val maxNumber:   Double? = null,
         val allowedValues: Set<String> = emptySet(),
         val allowedSchemes: Set<String> = emptySet(),
+        /** Schema for each array element, when [type] is array. */
+        val items:        Param? = null,
+        /** Named child properties, when [type] is object. */
+        val properties:   Map<String, Param> = emptyMap(),
     )
 
     enum class Category {

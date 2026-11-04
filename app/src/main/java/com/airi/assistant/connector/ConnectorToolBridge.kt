@@ -115,18 +115,7 @@ class ConnectorToolBridge(
         return ToolSchema(
             name = toolName,
             description = "[$connectorId] ${action.description}",
-            parameters = action.parameters.mapValues { (_, parameter) ->
-                ToolSchema.Param(
-                    type = parameter.type,
-                    description = parameter.description,
-                    required = parameter.required,
-                    maxLength = parameter.maxLength,
-                    minInt = parameter.minInt,
-                    maxInt = parameter.maxInt,
-                    minNumber = parameter.minNumber,
-                    maxNumber = parameter.maxNumber,
-                )
-            },
+            parameters = action.parameters.mapValues { (_, parameter) -> parameter.toToolSchemaParam() },
             category = ToolSchema.Category.EXTERNAL,
             sideEffectPolicy = when {
                 action.permission == ConnectorPermissionLevel.READ ->
@@ -138,4 +127,17 @@ class ConnectorToolBridge(
             },
         )
     }
+
+    private fun ConnectorAgentParameter.toToolSchemaParam(): ToolSchema.Param = ToolSchema.Param(
+        type = type,
+        description = description,
+        required = required,
+        maxLength = maxLength,
+        minInt = minInt,
+        maxInt = maxInt,
+        minNumber = minNumber,
+        maxNumber = maxNumber,
+        items = items?.toToolSchemaParam(),
+        properties = properties.mapValues { (_, property) -> property.toToolSchemaParam() },
+    )
 }

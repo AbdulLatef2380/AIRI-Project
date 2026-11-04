@@ -581,6 +581,7 @@ class CloudBackend(
             CloudErrorType.CANCELLED        -> "Request cancelled."
             CloudErrorType.SERVER_ERROR     -> "${provider.displayName} is experiencing issues (server error). Try again."
             CloudErrorType.INVALID_REQUEST  -> "The cloud provider rejected this request. Review the model settings and try again."
+            CloudErrorType.TOOL_SCHEMA_INVALID -> "${provider.displayName} rejected AIRI's tool schema. Update AIRI or disable tools for this request."
             CloudErrorType.UNKNOWN          -> "The cloud provider returned an unexpected error. Please try again."
         }
 

@@ -128,6 +128,19 @@ the tool returns an actual error.
 """
     }
 
+    private fun ToolSchema.Param.toExecutionParameter(name: String): ExecutionRequest.ToolParameter =
+        ExecutionRequest.ToolParameter(
+            name = name,
+            type = type,
+            description = description,
+            required = required,
+            enumValues = allowedValues.toList(),
+            items = items?.toExecutionParameter(name = "item"),
+            properties = properties.map { (propertyName, property) ->
+                property.toExecutionParameter(propertyName)
+            },
+        )
+
     data class LoopResult(
         val finalAnswer:  String,
         val stepsUsed:    Int,
@@ -1255,13 +1268,7 @@ the tool returns an actual error.
                         name = schema.name,
                         description = schema.description,
                         parameters = schema.parameters.map { (name, param) ->
-                            ExecutionRequest.ToolParameter(
-                                name = name,
-                                type = param.type,
-                                description = param.description,
-                                required = param.required,
-                                enumValues = param.allowedValues.toList(),
-                            )
+                            param.toExecutionParameter(name)
                         },
                     )
                 },

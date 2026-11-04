@@ -34,6 +34,11 @@ object CloudErrorMapper {
         httpCode >= 500                         -> MappedError(CloudErrorType.SERVER_ERROR,     true,  "Provider server error (HTTP $httpCode)")
         httpCode == 400 && body.hasContextErr   -> MappedError(CloudErrorType.CONTEXT_LENGTH,  false, "Prompt exceeds model context window")
         httpCode == 400 && body.hasSafetyErr    -> MappedError(CloudErrorType.CONTENT_FILTERED, false, "Content policy violation")
+        httpCode == 400 && body.hasToolSchemaErr -> MappedError(
+            CloudErrorType.TOOL_SCHEMA_INVALID,
+            false,
+            "Provider rejected AIRI's tool schema; no tool was executed",
+        )
         httpCode == 400                         -> MappedError(CloudErrorType.INVALID_REQUEST,  false, "Provider rejected the request (HTTP 400)")
         httpCode in 200..299 && body.hasContextErr -> MappedError(CloudErrorType.CONTEXT_LENGTH, false, "Prompt exceeds model context window")
         httpCode in 200..299 && body.hasSafetyErr -> MappedError(CloudErrorType.CONTENT_FILTERED, false, "Content policy violation")
@@ -94,6 +99,13 @@ object CloudErrorMapper {
             "content_filter", "content_policy_violation", "safety",
             "harmful", "HARM_CATEGORY", "SAFETY",        // Gemini
             "flagged", "violates our usage", "content management policy"
+        )
+
+    private val String.hasToolSchemaErr: Boolean
+        get() = containsAny(
+            "invalid_function_parameters", "function parameters", "function declaration",
+            "function_declaration", "tool schema", "tool_schema", "input_schema",
+            "invalid schema", "schema.type", "schema type", "unknown enum value",
         )
 
     private fun String.containsAny(vararg needles: String): Boolean =

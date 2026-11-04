@@ -30,6 +30,7 @@ enum class CloudErrorType {
     CONNECTION_LOST,    // Mid-stream TCP disconnect (httpCode = -2)
     CONTENT_FILTERED,   // Provider refused generation (safety policy)
     INVALID_REQUEST,    // 400 — malformed request body
+    TOOL_SCHEMA_INVALID, // 400 — provider rejected a serialized tool schema
     CONTEXT_LENGTH,     // 400 — prompt exceeds the model's context window
     CANCELLED,          // Coroutine was cancelled before / during the request
     UNKNOWN             // Unrecognized error — treat as non-retryable

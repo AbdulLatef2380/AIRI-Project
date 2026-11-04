@@ -35,6 +35,20 @@ class CloudErrorMapperTest {
     }
 
     @Test
+    fun toolSchemaRejectionIsActionableButDoesNotExposeProviderBody() {
+        val mapped = CloudErrorMapper.map(
+            400,
+            "Invalid function parameters: property count has unknown type INT; api_key=secret",
+        )
+
+        assertEquals(CloudErrorType.TOOL_SCHEMA_INVALID, mapped.type)
+        assertFalse(mapped.retryable)
+        assertTrue(mapped.message.contains("tool schema"))
+        assertFalse(mapped.message.contains("INT"))
+        assertFalse(mapped.message.contains("secret"))
+    }
+
+    @Test
     fun permanentClientErrorsAreNotRetryable() {
         assertEquals(CloudErrorType.INVALID_REQUEST, CloudErrorMapper.map(400, "bad syntax").type)
         assertEquals(CloudErrorType.UNAUTHORIZED, CloudErrorMapper.map(401, "invalid key").type)

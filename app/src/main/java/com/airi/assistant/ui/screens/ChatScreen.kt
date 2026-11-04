@@ -3238,6 +3238,21 @@ fun AiBubble(
                             Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.copy), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
                         }
                     }
+                    // Keep the common full-response actions discoverable. Code
+                    // and table cards still expose their own scoped share action.
+                    if (messageTarget.canPerform(ContentUnitAction.SHARE)) {
+                        IconButton(
+                            onClick = { performMessageAction(ContentUnitAction.SHARE) },
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(
+                                Icons.Outlined.Share,
+                                contentDescription = stringResource(R.string.share),
+                                tint = AiriTheme.onSurfaceVariant,
+                                modifier = Modifier.size(21.dp),
+                            )
+                        }
+                    }
                 }
 
                 // Agent trace card
@@ -4523,8 +4538,19 @@ fun AiriChatInputBar(
             val attachmentDescription = stringResource(R.string.attach)
             val voiceInputDescription = stringResource(R.string.voice_input)
             val connectorsDescription = stringResource(R.string.connectors_title)
-            val mainActionDescription = stringResource(if (showSend) R.string.send else R.string.voice_input)
-            val mainScale = if (showSend || isGenerating || isDispatchingAttachment) 1f else 0.95f
+            val mainActionDescription = stringResource(
+                when (mainAction) {
+                    ChatMainAction.SEND -> R.string.send
+                    ChatMainAction.CANCEL -> R.string.cancel
+                    ChatMainAction.VOICE -> R.string.voice_input
+                    ChatMainAction.NONE -> if (isDispatchingAttachment || isLongTextConversionInFlight) {
+                        R.string.send
+                    } else {
+                        R.string.voice_input
+                    }
+                }
+            )
+            val mainScale = if (mainAction != ChatMainAction.NONE || isDispatchingAttachment) 1f else 0.95f
             CompositionLocalProvider(LocalLayoutDirection provides LocalLayoutDirection.current) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 6.dp, bottom = 4.dp),
@@ -4637,10 +4663,29 @@ fun AiriChatInputBar(
                             contentAlignment = Alignment.Center
                         ) {
                             when {
-                                isGenerating -> Icon(Icons.Default.Stop, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
-                                isDispatchingAttachment -> CircularProgressIndicator(modifier = Modifier.size(18.dp), color = AiriTheme.onBackground, strokeWidth = 2.dp)
-                                showSend -> Icon(Icons.Default.ArrowUpward, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
-                                else -> Icon(Icons.Default.GraphicEq, mainActionDescription, tint = AiriTheme.onBackground, modifier = Modifier.size(20.dp))
+                                isDispatchingAttachment || isLongTextConversionInFlight -> CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = AiriTheme.onBackground,
+                                    strokeWidth = 2.dp,
+                                )
+                                mainAction == ChatMainAction.SEND -> Icon(
+                                    Icons.Default.ArrowUpward,
+                                    mainActionDescription,
+                                    tint = AiriTheme.onBackground,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                mainAction == ChatMainAction.CANCEL -> Icon(
+                                    Icons.Default.Stop,
+                                    mainActionDescription,
+                                    tint = AiriTheme.onBackground,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                else -> Icon(
+                                    Icons.Default.GraphicEq,
+                                    mainActionDescription,
+                                    tint = AiriTheme.onBackground,
+                                    modifier = Modifier.size(20.dp),
+                                )
                             }
                         }
                     }

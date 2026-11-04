@@ -34,4 +34,23 @@ class ToolDefinitionJsonTest {
         assertTrue(json.contains("\"type\":\"OBJECT\""))
         assertTrue(json.contains("\"type\":\"STRING\""))
     }
+
+    @Test
+    fun geminiNormalizesConnectorTypeAliasesToOfficialSchemaTypes() {
+        val connectorDefinition = definition.copy(
+            parameters = listOf(
+                ExecutionRequest.ToolParameter("limit", "int"),
+                ExecutionRequest.ToolParameter("enabled", "bool"),
+                ExecutionRequest.ToolParameter("score", "double"),
+                ExecutionRequest.ToolParameter("labels", "list"),
+            ),
+        )
+        val json = ToolDefinitionJson.geminiDeclaration(connectorDefinition)
+        assertTrue(json.contains("\"limit\":{\"type\":\"INTEGER\"}"))
+        assertTrue(json.contains("\"enabled\":{\"type\":\"BOOLEAN\"}"))
+        assertTrue(json.contains("\"score\":{\"type\":\"NUMBER\"}"))
+        assertTrue(json.contains("\"labels\":{\"type\":\"ARRAY\"}"))
+        assertTrue(!json.contains("\"type\":\"INT\""))
+        assertTrue(!json.contains("\"type\":\"BOOL\""))
+    }
 }

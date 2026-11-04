@@ -39,7 +39,7 @@ internal object ToolDefinitionJson {
         definition.parameters.forEachIndexed { index, parameter ->
             if (index > 0) append(",")
             append(q(parameter.name)).append(":{\"type\":")
-            append(q(if (uppercaseType) parameter.type.uppercase() else parameter.type.lowercase()))
+            append(q(wireType(parameter.type, uppercaseType)))
             if (parameter.description.isNotBlank()) append(",\"description\":").append(q(parameter.description))
             if (parameter.enumValues.isNotEmpty()) {
                 append(",\"enum\":[")
@@ -62,6 +62,19 @@ internal object ToolDefinitionJson {
             append("]")
         }
         append("}")
+    }
+
+    /** Normalize AIRI aliases at the provider protocol boundary. */
+    private fun wireType(raw: String, uppercase: Boolean): String {
+        val normalized = when (raw.trim().lowercase()) {
+            "int" -> "integer"
+            "bool" -> "boolean"
+            "float", "double" -> "number"
+            "list" -> "array"
+            "map", "dict" -> "object"
+            else -> raw.trim().lowercase()
+        }
+        return if (uppercase) normalized.uppercase() else normalized
     }
 
     fun q(value: String): String = buildString {

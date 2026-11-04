@@ -78,12 +78,12 @@ internal object ToolDefinitionJson {
         }
         if (normalizedType == "object") {
             append(",\"properties\":{")
-            parameter.properties.entries.forEachIndexed { index, (name, property) ->
+            parameter.properties.forEachIndexed { index, property ->
                 if (index > 0) append(",")
-                append(q(name)).append(":").append(parameterSchema(property, uppercaseType))
+                append(q(property.name)).append(":").append(parameterSchema(property, uppercaseType))
             }
             append("}")
-            val required = parameter.properties.filter { it.value.required }.map { it.key }
+            val required = parameter.properties.filter { it.required }.map { it.name }
             if (required.isNotEmpty()) {
                 append(",\"required\":[")
                 required.forEachIndexed { index, name ->

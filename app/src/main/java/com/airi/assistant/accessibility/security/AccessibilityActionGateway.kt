@@ -42,6 +42,18 @@ object AccessibilityActionGateway {
         }
     }
 
+    /**
+     * True when a concrete UI element label (visible text / content description / view id)
+     * names a consequential action. Used on the node that will ACTUALLY be clicked, so the
+     * decision does not depend on how the user phrased the request.
+     */
+    fun labelRequiresConfirmation(label: String): Boolean {
+        if (label.isBlank()) return false
+        val lower = label.lowercase()
+        return AccessibilityPolicyGuard.requiresConfirmation(lower) ||
+            ARABIC_CONFIRMATION_TERMS.any(lower::contains)
+    }
+
     private val READ_DENIED_PACKAGES = setOf(
         "com.android.systemui", "com.android.launcher3", "com.google.android.apps.nexuslauncher",
         "com.sec.android.app.launcher", "com.miui.home", "com.huawei.android.launcher",
@@ -68,6 +80,9 @@ object AccessibilityActionGateway {
         "com.natwest", "com.santander", "com.revolut", "com.monzo", "com.starlingbank",
         "com.n26", "com.bunq", "com.alrajhibank", "com.ncb", "com.riyadbank",
     )
-    private val CONFIRMATION_ACTIONS = setOf("send", "delete", "publish", "post", "submit", "upload", "transfer", "purchase", "payment")
-    private val ARABIC_CONFIRMATION_TERMS = setOf("أرسل", "احذف", "انشر", "أرسل", "ادفع", "اشتر", "حوّل", "امسح")
+    private val CONFIRMATION_ACTIONS = setOf("send", "delete", "publish", "post", "submit", "upload", "transfer", "purchase", "payment", "reply", "unsubscribe")
+    private val ARABIC_CONFIRMATION_TERMS = setOf(
+        "أرسل", "ارسل", "احذف", "انشر", "ادفع", "اشتر", "حوّل", "امسح",
+        "تأكيد", "أكد", "اشترك", "إلغاء الاشتراك", "أزل", "ازل", "إعادة ضبط", "تثبيت", "تسجيل الخروج"
+    )
 }

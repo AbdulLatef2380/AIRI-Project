@@ -6,6 +6,7 @@ import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgent
 import com.airi.assistant.agent.subagent.SubAgentCapability
 import com.airi.assistant.agent.subagent.SubAgentContext
+import com.airi.assistant.agent.subagent.WriteApprovalRequired
 import com.airi.assistant.tools.execution.AlarmTool
 import com.airi.assistant.tools.execution.CalendarTool
 import com.airi.assistant.tools.execution.NotesTool
@@ -33,7 +34,7 @@ class ProductivityAgent(
     private val calendarTool: CalendarTool,
     private val alarmTool:    AlarmTool,
     private val notesTool:    NotesTool
-) : SubAgent {
+) : SubAgent, WriteApprovalRequired {
 
     override val capability = SubAgentCapability(
         agentId      = "productivity_agent",
@@ -270,6 +271,14 @@ class ProductivityAgent(
     // ─────────────────────────────────────────────────────────────────────────
     // Parse helpers
     // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * V2: true when [input] would CHANGE user data (calendar event, note, task, alarm, timer).
+     * Callers without a task-owned approval context (e.g. the voice path) must obtain explicit
+     * user approval first, or refuse — the chat path blocks these same writes.
+     */
+    override fun requiresWriteApproval(input: String): Boolean =
+        detectType(input.lowercase()) != ProductivityType.CALENDAR_READ
 
     private fun detectType(lower: String): ProductivityType = when {
         lower.contains("timer")                                    -> ProductivityType.TIMER

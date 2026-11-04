@@ -1333,13 +1333,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun isPremium(): Boolean = subscriptionManager.isPremium()
 
-    fun upgradeToPremium() {
-        subscriptionManager.setTier(com.airi.assistant.domain.monetization.SubscriptionTier.PREMIUM)
-    }
-
-    fun downgradeToFree() {
-        subscriptionManager.setTier(com.airi.assistant.domain.monetization.SubscriptionTier.FREE)
-    }
+    // B4: upgradeToPremium()/downgradeToFree() were removed. Premium is granted only by
+    // SubscriptionManager.applyVerifiedEntitlement after server verification (BillingManager /
+    // StripeManager); a public "set tier" on the ViewModel invited granting it without payment.
 
     private val downloadCompleteReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -1418,6 +1414,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 awaitAccessibilityConfirmation(actionName, description)
             }
             Log.i("AIRI_SECURITY", "AndroidAgent.confirmationGate wired to ChatViewModel")
+            // V2: the voice path reuses the same on-screen confirmation for data-changing work.
+            ServiceLocator.voiceConfirmationGate = { actionName, description ->
+                awaitAccessibilityConfirmation(actionName, description)
+            }
+            // P4: per-read approval for the read_screen tool.
+            com.airi.assistant.accessibility.security.ScreenReadConsent.approver = { pkg ->
+                awaitAccessibilityConfirmation(
+                    "Read your screen",
+                    "AIRI wants to read the text on your screen (app: $pkg). If you are using a cloud model, " +
+                        "this text is sent to the AI provider. Password fields are never read."
+                )
+            }
 
             // ── : Wire real LLM planner into AccessibilityExecutionEngine ──
             // The AEE's llmPlanner receives the OBSERVE prompt and returns ONE action
@@ -1646,6 +1654,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         VoskModelManager.installed.value.isNotEmpty()
 
     override fun onCleared() {
+        ServiceLocator.voiceConfirmationGate = null   // V2: do not keep a dead ViewModel reachable
+        com.airi.assistant.accessibility.security.ScreenReadConsent.approver = null   // P4
         _isCancelled.set(true)
         hybridOrchestrator.cancel()
         llamaManager.cancelStream()

@@ -1,6 +1,7 @@
 package com.airi.assistant.domain.customskill
 
 import android.net.Uri
+import com.airi.assistant.agent.browser.HostAddressPolicy
 
 object CustomSkillSecurity {
     private val sensitiveNames = listOf("authorization", "token", "secret", "api-key", "apikey", "x-api-key", "key", "password")
@@ -8,7 +9,12 @@ object CustomSkillSecurity {
     fun isValidEndpoint(endpoint: String): Boolean {
         val uri = runCatching { Uri.parse(endpoint.trim()) }.getOrNull() ?: return false
         val scheme = uri.scheme?.lowercase() ?: return false
-        return scheme == "https" && !uri.host.isNullOrBlank()
+        val host = uri.host
+        // C3: a custom skill may only call a PUBLIC host. Private, loopback, link-local and
+        // internal names/addresses (in any spelling) are refused, so an imported skill cannot make
+        // the phone reach into the local network. The request path re-checks every resolved
+        // address and every redirect hop (see CustomSkillExecutor).
+        return scheme == "https" && !host.isNullOrBlank() && !HostAddressPolicy.isBlockedHost(host)
     }
 
     fun sanitizeUrl(endpoint: String): String {

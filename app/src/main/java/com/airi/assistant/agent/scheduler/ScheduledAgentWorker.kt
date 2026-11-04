@@ -6,6 +6,8 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
 import com.airi.assistant.agent.subagent.SubAgentContext
+import com.airi.assistant.agent.subagent.SubAgentRegistry
+import com.airi.assistant.agent.subagent.WriteApprovalRequired
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
@@ -167,6 +169,22 @@ class ScheduledAgentWorker(
             allowedTools = emptyList(),
             timeoutMs = 120_000L
         )
+
+        // A1: honour the task's "confirm / skip" choice. Under CONFIRM an automatic run that would
+        // change data is held and the user is told; running the task manually approves it.
+        val target = SubAgentRegistry.getAll().firstOrNull { it.capability.agentId == agentId }
+            ?: runCatching { SubAgentRegistry.route(payload, ctx) }.getOrNull()
+        val requiresWrite: Boolean? = (target as? WriteApprovalRequired)?.requiresWriteApproval(payload)
+            ?: if (target == null) null else false
+        if (ScheduledApprovalPolicy.shouldHold(approvalMode, manualRunRequestId != null, requiresWrite)) {
+            ScheduledJobOrchestrator(applicationContext).recordRunResult(
+                jobId = jobId,
+                outcome = ScheduledJobOutcome.PENDING,
+            )
+            LoggingService.info(TAG, "AIRI SCHEDULED_JOB_HELD_FOR_APPROVAL id=$jobId agent=$agentId")
+            EventBus.emitSync(AppEvent.GenericInfo("Scheduled task needs your approval — open it and tap Run now: $label"))
+            return Result.success()
+        }
 
         val result = runCatching {
             val orchestrator = ServiceLocator.productionOrchestrator

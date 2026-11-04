@@ -31,6 +31,16 @@ class CustomSkillExecutor(private val context: Context) {
         .readTimeout(20, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
         .callTimeout(20, TimeUnit.SECONDS)
+        // C3: refuse names that resolve to non-public addresses (internal A records, DNS rebinding)...
+        .dns(com.airi.assistant.agent.browser.HostAddressPolicy.PublicOnlyDns)
+        // ...and re-check every hop, including redirects to IP literals (which skip DNS).
+        .addNetworkInterceptor { chain ->
+            val host = chain.request().url.host
+            if (com.airi.assistant.agent.browser.HostAddressPolicy.isBlockedHost(host)) {
+                throw IOException("Blocked non-public host")
+            }
+            chain.proceed(chain.request())
+        }
         .build()
 
     suspend fun execute(skill: CustomSkill, input: Map<String, Any>): SkillResult = withContext(Dispatchers.IO) {
@@ -41,7 +51,7 @@ class CustomSkillExecutor(private val context: Context) {
 
         // ── Guard: endpoint validation ────────────────────────────────────────
         if (!CustomSkillSecurity.isValidEndpoint(skill.config.endpoint)) {
-            val error = AppError.PolicyViolation("INVALID_CUSTOM_SKILL_URL", "Custom skill endpoint must be a valid http or https URL.")
+            val error = AppError.PolicyViolation("INVALID_CUSTOM_SKILL_URL", "Custom skill endpoint must be a valid HTTPS URL on a public host.")
             AppErrorHandler.log(error)
             AnalyticsService.skillFailed(skill.name, "invalid_url")
             return@withContext SkillResult(false, "", AppErrorHandler.toUserMessage(error), skill.name)

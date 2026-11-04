@@ -22,7 +22,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
-import java.net.URLEncoder
 
 /**
  * Gemini Live API provider over the bidirectional WebSocket protocol.
@@ -61,7 +60,7 @@ class GeminiLiveProvider(
     override val responseTextFlow: Flow<String> = responseTextChannel.receiveAsFlow()
 
     override val name: String = "Gemini Live ($model)"
-    override val endpointDescription: String = "$endpoint?key=***"
+    override val endpointDescription: String = endpoint
     override val supportsBidirectionalStreaming: Boolean = true
     override val expectedLatencyMs: IntRange = 300..600
     override val isConnected: Boolean get() = connected.get()
@@ -102,8 +101,11 @@ class GeminiLiveProvider(
         val ready = CompletableDeferred<SetupResult>()
         setupResult = ready
 
-        val encodedKey = URLEncoder.encode(this.apiKey, Charsets.UTF_8.name())
-        val request = Request.Builder().url("$endpoint?key=$encodedKey").build()
+        // K1: key goes in the handshake header, not in the URL.
+        val request = Request.Builder()
+            .url(endpoint)
+            .header("x-goog-api-key", this.apiKey)
+            .build()
         val socket = httpClient.newWebSocket(request, GeminiWebSocketListener(systemPrompt, voiceId))
         webSocket = socket
 
@@ -207,8 +209,11 @@ class GeminiLiveProvider(
         override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
             if (webSocket !== ws) return
             val code = response?.code ?: -1
-            val reason = response?.let { "HTTP ${it.code}: ${it.message}" }
-                ?: (t.message ?: "Gemini Live WebSocket failure")
+            val reason = com.airi.assistant.connector.api.SecretRedactor.redact(
+                response?.let { "HTTP ${it.code}: ${it.message}" }
+                    ?: (t.message ?: "Gemini Live WebSocket failure"),
+                apiKey
+            )
             Log.e(tag, "GEMINI_LIVE_FAILURE code=$code reason=$reason")
             connected.set(false)
             phaseState.value = GeminiPhase.ERROR

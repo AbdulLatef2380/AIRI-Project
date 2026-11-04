@@ -10,17 +10,16 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
-import java.net.URLEncoder
 
 /**
  * Google Gemini (Generative Language API) provider.
  *
  * Endpoint:
- *   `https://generativelanguage.googleapis.com/v1beta/models/<model>:generateContent?key=<key>`
+ *   `https://generativelanguage.googleapis.com/v1beta/models/<model>:generateContent`
  *
- * The key is passed as a query string parameter (Google's convention),
- * NOT as a header. We URL-encode it defensively in case it ever contains
- * `+` or `/` (it shouldn't but the cost of encoding a clean key is zero).
+ * The key is sent in the `x-goog-api-key` header, NOT in the query string (K1): URLs end up in
+ * proxy logs, OkHttp logs and exception messages; headers do not. Error bodies are passed
+ * through [SecretRedactor] before they are thrown.
  *
  * Configuration:
  *   - `apiKey`  required
@@ -90,19 +89,21 @@ class GeminiProvider(
                 })
             }.toString()
 
-            val url = "${baseUrl.trimEnd('/')}/models/${model}:generateContent" +
-                "?key=${URLEncoder.encode(key, Charsets.UTF_8.name())}"
+            // K1: the key travels in a header, never in the URL, so it cannot leak through
+            // proxy logs, OkHttp logging or exception messages that embed the request URL.
+            val url = "${baseUrl.trimEnd('/')}/models/${model}:generateContent"
 
             val req = Request.Builder()
                 .url(url)
                 .header("Content-Type", "application/json")
+                .header("x-goog-api-key", key)
                 .post(body.toRequestBody(JSON))
                 .build()
 
             httpClient.newCall(req).execute().use { resp ->
                 val text = resp.body?.string().orEmpty()
                 if (!resp.isSuccessful) {
-                    throw IOException("gemini http ${resp.code}: ${text.take(400)}")
+                    throw IOException("gemini http ${resp.code}: ${SecretRedactor.redact(text, key).take(400)}")
                 }
                 extractContent(text)
             }

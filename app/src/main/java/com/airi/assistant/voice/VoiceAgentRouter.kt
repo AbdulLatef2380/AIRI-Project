@@ -8,6 +8,7 @@ import androidx.core.content.ContextCompat
 import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
 import com.airi.assistant.agent.subagent.SubAgentContext
 import com.airi.assistant.agent.subagent.SubAgentRegistry
+import com.airi.assistant.agent.subagent.WriteApprovalRequired
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -47,7 +48,12 @@ import kotlinx.coroutines.withContext
  */
 class VoiceAgentRouter(
     private val appContext: Context,
-    private val orchestrator: ProductionAgentOrchestrator
+    private val orchestrator: ProductionAgentOrchestrator,
+    /**
+     * V2: supplies the UI confirmation gate (title, description) → approved. Resolved on every
+     * request so a gate registered after construction is honoured. Null = no UI available.
+     */
+    private val confirmationGateProvider: () -> (suspend (String, String) -> Boolean)? = { null }
 ) {
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -98,6 +104,30 @@ class VoiceAgentRouter(
         }
 
         Log.i(TAG, "AIRI VOICE_ROUTE_MATCH agent=${agent.capability.agentId}")
+
+        // ── V2: side-effect admission ─────────────────────────────────────────
+        // Chat blocks data-changing tools unless a task-owned approval exists
+        // (AgentLoopSideEffectPolicy). This path reaches sub-agents directly, so it needs
+        // its own gate: writes either get explicit approval or fall back to the chat
+        // pipeline, which enforces the policy. Never executes silently.
+        if (agent is WriteApprovalRequired && agent.requiresWriteApproval(trimmed)) {
+            val gate = confirmationGateProvider()
+            if (gate == null) {
+                Log.w(TAG, "AIRI VOICE_ROUTE_WRITE_BLOCKED agent=${agent.capability.agentId} reason=no_confirmation_gate")
+                return VoiceRouteResult.Fallback
+            }
+            val approved = try {
+                gate("Confirm action", agent.describeWrite(trimmed))
+            } catch (e: Exception) {
+                Log.w(TAG, "AIRI VOICE_ROUTE_CONFIRM_ERROR ${e.javaClass.simpleName}")
+                false
+            }
+            if (!approved) {
+                Log.i(TAG, "AIRI VOICE_ROUTE_WRITE_DECLINED agent=${agent.capability.agentId}")
+                return VoiceRouteResult.Handled("Okay, I won't do that.", agent.capability.agentId)
+            }
+            Log.i(TAG, "AIRI VOICE_ROUTE_WRITE_APPROVED agent=${agent.capability.agentId}")
+        }
 
         // ── Execute via orchestrator ───────────────────────────────────────────
         return try {

@@ -489,6 +489,11 @@ object ServiceLocator {
      * coordinator rather than calling AuthService.deleteAccount() directly.
      * Direct calls skip 7 of the 8 deletion steps.
      */
+    /** P1/P2: server-confirmed cloud deletion (account data, or synced memory only). */
+    val cloudDataDeletion: com.airi.assistant.domain.auth.FirestoreAccountDataDeletion by lazy {
+        com.airi.assistant.domain.auth.FirestoreAccountDataDeletion()
+    }
+
     val dataDeletionCoordinator: DataDeletionCoordinator by lazy {
         DataDeletionCoordinator(
             context               = requireContext(),
@@ -500,6 +505,7 @@ object ServiceLocator {
             preferenceCoordinator = preferenceCoordinator,
             secureStorage         = secureStorage,
             auditRepository       = auditRepository,
+            remoteAccountDataDeletion = cloudDataDeletion,
             connectorAccessProfileStore = connectorAccessProfileStore,
         )
     }
@@ -803,9 +809,16 @@ object ServiceLocator {
     val voiceAgentRouter: com.airi.assistant.voice.VoiceAgentRouter by lazy {
         com.airi.assistant.voice.VoiceAgentRouter(
             appContext = requireContext(),
-            orchestrator = productionOrchestrator
+            orchestrator = productionOrchestrator,
+            confirmationGateProvider = { voiceConfirmationGate }
         )
     }
+
+    /**
+     * V2: UI confirmation gate used by the voice path before data-changing sub-agent work.
+     * Set by ChatViewModel (same gate as AndroidAgent); null when no UI is attached.
+     */
+    @Volatile var voiceConfirmationGate: (suspend (title: String, description: String) -> Boolean)? = null
 
     /** Set by [initSubAgentSystem]; consumed by ChatViewModel to inject the real confirmation gate. */
     @Volatile var _androidAgent: AndroidAgent? = null

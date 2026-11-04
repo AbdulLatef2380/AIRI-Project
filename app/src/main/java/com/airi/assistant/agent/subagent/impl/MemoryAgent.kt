@@ -5,6 +5,7 @@ import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgent
 import com.airi.assistant.agent.subagent.SubAgentCapability
 import com.airi.assistant.agent.subagent.SubAgentContext
+import com.airi.assistant.agent.subagent.WriteApprovalRequired
 import com.airi.assistant.memory.repository.MemoryManager
 import com.airi.assistant.memory.repository.MemoryScope
 import kotlinx.coroutines.flow.Flow
@@ -30,7 +31,7 @@ import kotlinx.coroutines.flow.flow
  */
 class MemoryAgent(
     private val memoryManager: MemoryManager
-) : SubAgent {
+) : SubAgent, WriteApprovalRequired {
 
     override val capability = SubAgentCapability(
         agentId      = "memory_agent",
@@ -309,6 +310,13 @@ Do NOT fabricate memories. Only reference what is listed above."""
             .ifBlank { input }
 
     private enum class MemoryOperation { STORE, RECALL, DELETE, LIST }
+
+    /** V2: only deletion is destructive; store/recall/list stay frictionless by voice. */
+    override fun requiresWriteApproval(input: String): Boolean =
+        detectOperation(input.lowercase()) == MemoryOperation.DELETE
+
+    override fun describeWrite(input: String): String =
+        "AIRI wants to delete saved memories from this conversation: \"${input.trim().take(120)}\""
 
     private fun detectOperation(lower: String): MemoryOperation = when {
         lower.contains("forget") || lower.contains("delete") ||

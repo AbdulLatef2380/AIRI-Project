@@ -28,6 +28,7 @@ object ScreenContextHolder {
 
     private fun extractText(node: android.view.accessibility.AccessibilityNodeInfo?, sb: StringBuilder) {
         if (node == null) return
+        if (node.isPassword) return   // P4: never read password fields
         node.text?.let { sb.append(it).append(" ") }
         node.contentDescription?.let { sb.append(it).append(" ") }
         for (i in 0 until node.childCount) {

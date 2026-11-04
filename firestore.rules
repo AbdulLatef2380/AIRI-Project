@@ -116,6 +116,38 @@ service cloud.firestore {
         && request.resource.data.lastSyncMs is int;
     }
 
+    // P1/P2: deletion requests. A signed-in user may FILE a request for their OWN data and read
+    // their own requests; only the processAccountDeletionRequest Cloud Function (Admin SDK) can
+    // change `status`, so a "completed" verdict cannot be forged from the device.
+    match /accountDeletionRequests/{requestId} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid', 'kind', 'status', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.kind in ['account', 'memory']
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt is timestamp;
+      allow update, delete: if false;
+    }
+
+    // B2: purchase claims. A client may FILE a claim (status must be 'pending') and read its
+    // own claims; only the verifyPlayPurchaseClaim Cloud Function (Admin SDK) can change
+    // `status`, so the verdict cannot be forged from the device.
+    match /users/{userId}/purchaseClaims/{claimId} {
+      allow read: if ownsUser(userId);
+      allow create: if ownsUser(userId)
+        && request.resource.data.keys().hasOnly(['packageName', 'productId', 'purchaseToken', 'status', 'createdAt'])
+        && request.resource.data.status == 'pending'
+        && request.resource.data.packageName is string
+        && request.resource.data.packageName.size() <= 128
+        && request.resource.data.productId in ['premium_monthly', 'pro_annual']
+        && request.resource.data.purchaseToken is string
+        && request.resource.data.purchaseToken.size() > 0
+        && request.resource.data.purchaseToken.size() <= 4096
+        && request.resource.data.createdAt is timestamp;
+      allow update, delete: if false;
+    }
+
     match /users/{userId}/profile/{profileId} {
       allow read, write: if ownsUser(userId) && profileId == 'preferences';
     }

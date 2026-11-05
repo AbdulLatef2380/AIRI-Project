@@ -1763,11 +1763,36 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         provider: String?,
         estimatedOutputTokens: Int?,
         firstVisibleTokenLatencyMs: Long?,
+        terminalKind: ExecutionTraceKind? = null,
+        terminalSummary: String = "",
     ) {
         runCatching {
-            val events = ExecutionStatusBus.traceSnapshot(executionId)
+            val currentEvents = ExecutionStatusBus.traceSnapshot(executionId)
+            val events = if (terminalKind != null &&
+                currentEvents.lastOrNull { event ->
+                    event.kind in setOf(
+                        ExecutionTraceKind.COMPLETED,
+                        ExecutionTraceKind.FAILED,
+                        ExecutionTraceKind.CANCELLED,
+                        ExecutionTraceKind.APPROVAL_CANCELLED,
+                        ExecutionTraceKind.APPROVAL_TIMEOUT,
+                    )
+                }?.kind != terminalKind
+            ) {
+                currentEvents + ExecutionTraceEvent(
+                    executionId = executionId,
+                    sequence = (currentEvents.maxOfOrNull { it.sequence } ?: 0L) + 1L,
+                    timestampMs = System.currentTimeMillis(),
+                    kind = terminalKind,
+                    summary = terminalSummary.ifBlank { terminalKind.name.lowercase() },
+                    detail = terminalSummary.takeIf { it.isNotBlank() },
+                    machineTag = "execution_${terminalKind.name.lowercase()}",
+                )
+            } else {
+                currentEvents
+            }
             if (events.isEmpty()) return
-            ExecutionTraceArchive.put(messageId, events)
+            if (messageId > 0L) ExecutionTraceArchive.put(messageId, events)
             ChatExecutionTraceMapper.toAgentTrace(
                 executionId = executionId,
                 sessionId = sessionId,
@@ -2774,6 +2799,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val olderToFold = summaryPlan.olderTurns
             Log.i("AIRI", "AGENT_LOOP_START inputChars=${trimmedInput.length} queryType=${queryType.name} planMode=${_isPlanModeActive.value}")
             val reasoningParser = ReasoningStreamParser()
+            var lastPersistedAssistantMessageId: Long? = null
 
             suspend fun persistAssistantResponse(content: String): Boolean {
                 val safeContent = ReasoningStreamParser.extractAnswer(content).ifBlank { content }.trim()
@@ -2785,6 +2811,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         content = safeContent,
                         projectId = activeProjectId
                     )
+                    lastPersistedAssistantMessageId = saved.id
                     persistExecutionTrace(
                         messageId = saved.id,
                         sessionId = sessionId,
@@ -2819,6 +2846,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     Log.w("AIRI_LOOP", "Could not persist partial response type=${error.javaClass.simpleName}")
                     false
                 }
+            }
+
+            fun persistExecutionOutcome(
+                kind: ExecutionTraceKind,
+                summary: String,
+                answer: String = "",
+            ) {
+                persistExecutionTrace(
+                    messageId = lastPersistedAssistantMessageId ?: userMessage.id,
+                    sessionId = sessionId,
+                    executionId = traceExecutionId,
+                    userInput = trimmedInput,
+                    answer = answer,
+                    model = requestedModelIdAtDispatch.takeIf { it.isNotBlank() },
+                    provider = requestedProviderIdAtDispatch.takeIf { it.isNotBlank() },
+                    estimatedOutputTokens = tokenCount.takeIf { it > 0 },
+                    firstVisibleTokenLatencyMs = firstVisibleTokenLatencyMs,
+                    terminalKind = kind,
+                    terminalSummary = summary,
+                )
             }
 
             try {
@@ -2976,6 +3023,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (loopResult.terminalState == com.airi.assistant.agent.loop.AgentLoop.TerminalState.CANCELLED ||
                     _isCancelled.get() || !isCurrentGeneration(generationId)
                 ) {
+                    persistExecutionOutcome(
+                        kind = ExecutionTraceKind.CANCELLED,
+                        summary = "Agent execution cancelled",
+                    )
                     _generationPhase.value = GenerationPhase.CANCELLED
                     return@launch
                 }
@@ -2986,6 +3037,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 } else streamedAnswer
                 when (responseStatus) {
                     GenerationResponseStatus.CANCELLED -> {
+                        persistExecutionOutcome(
+                            kind = ExecutionTraceKind.CANCELLED,
+                            summary = "Agent execution cancelled",
+                            answer = streamedAnswer,
+                        )
                         _generationPhase.value = GenerationPhase.CANCELLED
                         return@launch
                     }
@@ -3004,6 +3060,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             replyToMessageId = userMessage.id,
                             partialResponseSaved = partialSaved
                         )
+                        persistExecutionOutcome(
+                            kind = ExecutionTraceKind.FAILED,
+                            summary = "Agent execution timed out",
+                            answer = streamedAnswer,
+                        )
                         return@launch
                     }
                     GenerationResponseStatus.INCOMPLETE -> {
@@ -3018,6 +3079,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             sessionId = sessionId,
                             replyToMessageId = userMessage.id,
                             partialResponseSaved = partialSaved,
+                        )
+                        persistExecutionOutcome(
+                            kind = ExecutionTraceKind.FAILED,
+                            summary = "Agent response was incomplete",
+                            answer = streamedAnswer,
                         )
                         return@launch
                     }
@@ -3053,6 +3119,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             replyToMessageId = userMessage.id,
                             partialResponseSaved = partialSaved
                         )
+                        persistExecutionOutcome(
+                            kind = ExecutionTraceKind.FAILED,
+                            summary = loopResult.failureMessage.ifBlank { "Agent execution failed" },
+                            answer = streamedAnswer,
+                        )
                         return@launch
                     }
                     GenerationResponseStatus.EMPTY_RESPONSE -> {
@@ -3067,6 +3138,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             replyToMessageId = userMessage.id
                         )
                         Log.e("AIRI_LOOP", "EMPTY_RESPONSE generation=$generationId model=$requestedModelIdAtDispatch provider=$requestedProviderIdAtDispatch")
+                        persistExecutionOutcome(
+                            kind = ExecutionTraceKind.FAILED,
+                            summary = "Agent returned an empty response",
+                        )
                         return@launch
                     }
                     GenerationResponseStatus.SUCCESS -> {
@@ -3087,6 +3162,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         stage = ExecutionFailureStage.ATTACHMENT,
                         sessionId = sessionId,
                         replyToMessageId = userMessage.id,
+                    )
+                    persistExecutionOutcome(
+                        kind = ExecutionTraceKind.FAILED,
+                        summary = "Attachment delivery was not confirmed",
+                        answer = normalizedAnswer,
                     )
                     _generationPhase.value = GenerationPhase.CLEANUP
                     return@launch
@@ -3207,6 +3287,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         replyToMessageId = userMessage.id,
                         partialResponseSaved = partialSaved
                     )
+                    persistExecutionOutcome(
+                        kind = ExecutionTraceKind.FAILED,
+                        summary = "Agent execution timed out",
+                        answer = partial,
+                    )
                     _generationPhase.value = GenerationPhase.CLEANUP
                 }
             } catch (_: CancellationException) {
@@ -3222,6 +3307,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     ) {
                         withContext(kotlinx.coroutines.NonCancellable) {
                             persistAssistantResponse(partial)
+                            persistExecutionOutcome(
+                                kind = ExecutionTraceKind.CANCELLED,
+                                summary = "Agent execution cancelled",
+                                answer = partial,
+                            )
+                        }
+                    } else {
+                        withContext(kotlinx.coroutines.NonCancellable) {
+                            persistExecutionOutcome(
+                                kind = ExecutionTraceKind.CANCELLED,
+                                summary = "Agent execution cancelled",
+                                answer = partial,
+                            )
                         }
                     }
                     _generationPhase.value = GenerationPhase.CANCELLED
@@ -3259,6 +3357,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         sessionId = sessionId,
                         replyToMessageId = userMessage.id,
                         partialResponseSaved = partialSaved
+                    )
+                    persistExecutionOutcome(
+                        kind = ExecutionTraceKind.FAILED,
+                        summary = e.message?.take(240).orEmpty().ifBlank { "Agent execution failed" },
+                        answer = partial,
                     )
                 }
             } finally {

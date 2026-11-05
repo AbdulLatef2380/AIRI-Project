@@ -66,4 +66,28 @@ class ChatExecutionTracePrivacyTest {
         assertEquals("gpt-4.1", trace.model)
         assertEquals("openai", trace.provider)
     }
+
+    @Test
+    fun traceWithoutTerminalEvidenceIsNeverReportedAsSuccessful() {
+        val executionId = "exec-incomplete"
+        val mapped = ChatExecutionTraceMapper.toAgentTrace(
+            executionId = executionId,
+            sessionId = "session-incomplete",
+            messageId = 92L,
+            userInput = "run task",
+            events = listOf(
+                ExecutionTraceEvent(
+                    executionId = executionId,
+                    sequence = 1,
+                    timestampMs = 2_001L,
+                    kind = ExecutionTraceKind.TOOL_STARTED,
+                    summary = "Running tool",
+                    actionId = "tool-1",
+                ),
+            ),
+            answerText = "partial",
+        )
+
+        assertFalse(requireNotNull(mapped).success)
+    }
 }

@@ -30,8 +30,9 @@ object ChatExecutionTraceMapper {
                 it.kind == ExecutionTraceKind.FAILED ||
                 it.kind == ExecutionTraceKind.CANCELLED
         }
-        val success = terminal?.kind == ExecutionTraceKind.COMPLETED ||
-            (terminal == null && ordered.none { it.kind == ExecutionTraceKind.FAILED })
+        // A trace without a terminal event is incomplete, never successful.
+        // Success must be proven by an explicit COMPLETED event.
+        val success = terminal?.kind == ExecutionTraceKind.COMPLETED
 
         val allSteps = ordered.mapNotNull(::stepFor)
         val kept = allSteps.take(AgentTraceManager.MAX_STEPS)

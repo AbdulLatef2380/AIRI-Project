@@ -25,6 +25,7 @@ class AgentTraceManagerLifecycleTest {
         assertEquals(AgentTraceManager.MAX_STEPS, trace.steps.size)
         assertTrue(trace.truncated)
         assertEquals(3, trace.droppedSteps)
+        assertEquals("tool_${AgentTraceManager.MAX_STEPS + 2}", trace.steps.last().name)
     }
 
     @Test

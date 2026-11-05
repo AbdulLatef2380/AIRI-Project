@@ -92,6 +92,27 @@ class ExecutionStatusBusTest {
     }
 
     @Test
+    fun startedToolStillPublishesCancellationAfterStopRequest() {
+        val executionId = "tool-cancel-after-stop-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Long tool", 1, executionId)
+        ExecutionStatusBus.onToolStarted(executionId, "active-tool", "active_tool")
+        ExecutionStatusBus.onGraphCancellationRequested(executionId)
+
+        ExecutionStatusBus.onToolCancelled(
+            executionId = executionId,
+            actionId = "active-tool",
+            toolName = "active_tool",
+            durationMs = 25L,
+        )
+
+        assertEquals(1, ExecutionStatusBus.trace.value.count { it.kind == ExecutionTraceKind.TOOL_CANCELLED })
+        assertEquals("active-tool", ExecutionStatusBus.trace.value.last().actionId)
+        ExecutionStatusBus.onGraphCancelled(executionId)
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
     fun approvalWaitingIsKeyedAndResumesOnlyWithTheSameInterrupt() {
         val executionId = "approval-wait-test"
         ExecutionStatusBus.reset()

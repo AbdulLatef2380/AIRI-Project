@@ -83,7 +83,13 @@ class AgentTraceManager internal constructor() {
         val builder = activeBuilders[traceId] ?: return
         val redacted = redactStep(step)
         synchronized(builder) {
-            if (builder.steps.size < MAX_STEPS) builder.steps.add(redacted) else builder.dropped++
+            if (builder.steps.size >= MAX_STEPS) {
+                // Keep newest evidence: terminal failures and the final
+                // recovery/completion step are more useful than old plan entries.
+                builder.steps.removeAt(0)
+                builder.dropped++
+            }
+            builder.steps.add(redacted)
         }
     }
 

@@ -35,7 +35,13 @@ object ChatExecutionTraceMapper {
         val success = terminal?.kind == ExecutionTraceKind.COMPLETED
 
         val allSteps = ordered.mapNotNull(::stepFor)
-        val kept = allSteps.take(AgentTraceManager.MAX_STEPS)
+        val kept = if (allSteps.size <= AgentTraceManager.MAX_STEPS) {
+            allSteps
+        } else {
+            // Preserve context and the newest evidence where terminal failures,
+            // recovery, and completion steps are recorded.
+            listOf(allSteps.first()) + allSteps.takeLast(AgentTraceManager.MAX_STEPS - 1)
+        }
         val steps = kept.mapIndexed { index, step -> step.copy(stepIndex = index) }
 
         return AgentTrace(

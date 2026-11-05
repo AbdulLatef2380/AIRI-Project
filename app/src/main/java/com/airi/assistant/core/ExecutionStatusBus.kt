@@ -451,7 +451,7 @@ object ExecutionStatusBus {
         detail: String?,
         errorCode: String? = null,
     ) {
-        if (!belongsToActiveExecution(_status.value, executionId) ||
+        if (!belongsToToolTerminalExecution(_status.value, executionId) ||
             !toolTraceLifecycle.admitTerminal(executionId, actionId)
         ) {
             safeLog { Log.w(TAG, "TRACE_TOOL_TERMINAL_REJECTED owner=${executionId.take(8)}") }
@@ -521,6 +521,14 @@ object ExecutionStatusBus {
         acceptsEvent(current.executionId, executionId) &&
             current.executionStage !in TERMINAL_STAGES &&
             !current.cancellationRequested
+
+    /**
+     * A stop request blocks new work, but an already-started tool must still
+     * publish its terminal cancellation so the trace cannot contain a dangling
+     * TOOL_STARTED event forever.
+     */
+    private fun belongsToToolTerminalExecution(current: AgentState, executionId: String): Boolean =
+        acceptsEvent(current.executionId, executionId) && current.executionStage !in TERMINAL_STAGES
 
     private val TERMINAL_STAGES = setOf(
         ExecutionStage.COMPLETED,

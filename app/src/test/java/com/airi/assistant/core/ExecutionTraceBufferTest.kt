@@ -135,6 +135,25 @@ class ExecutionTraceBufferTest {
     }
 
     @Test
+    fun append_preservesRecoveryAndTerminalEvidenceWhenActiveNoiseOverflows() {
+        val buffer = ExecutionTraceBuffer(maxEntries = 4)
+        buffer.begin("exec-recovery")
+        buffer.append("exec-recovery", ExecutionTraceKind.PLANNING, "Planning")
+        val recovery = buffer.append(
+            "exec-recovery",
+            ExecutionTraceKind.RECOVERING,
+            "Recovering step",
+            actionId = "step-1",
+        )!!
+        val completed = buffer.append("exec-recovery", ExecutionTraceKind.COMPLETED, "Completed")!!
+        buffer.append("exec-recovery", ExecutionTraceKind.REFLECTING, "Noise 1")
+        buffer.append("exec-recovery", ExecutionTraceKind.REFLECTING, "Noise 2")
+
+        assertTrue(buffer.snapshot().contains(recovery))
+        assertTrue(buffer.snapshot().contains(completed))
+    }
+
+    @Test
     fun buffer_bindsEventsToExplicitSessionAndRejectsStaleExecution() {
         val buffer = ExecutionTraceBuffer(maxEntries = 2)
         buffer.begin(executionId = "exec-current", sessionId = "session-current")

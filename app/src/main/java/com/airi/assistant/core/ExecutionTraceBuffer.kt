@@ -77,7 +77,10 @@ class ExecutionTraceBuffer(
         )
         entries.addLast(event)
         while (entries.size > maxEntries) {
-            val evictable = entries.indexOfFirst { !it.kind.isTerminal() }
+            // Keep the beginning plus the evidence that explains the outcome.
+            // In particular, recovery events must not disappear before the
+            // terminal result when a tool-heavy run exceeds the ring limit.
+            val evictable = entries.indexOfFirst { !it.kind.isOutcomeEvidence() }
             if (evictable >= 0) {
                 entries.removeAt(evictable)
             } else {
@@ -102,10 +105,11 @@ class ExecutionTraceBuffer(
     }
 }
 
-private fun ExecutionTraceKind.isTerminal(): Boolean = this in setOf(
+private fun ExecutionTraceKind.isOutcomeEvidence(): Boolean = this in setOf(
     ExecutionTraceKind.TOOL_COMPLETED,
     ExecutionTraceKind.TOOL_FAILED,
     ExecutionTraceKind.TOOL_CANCELLED,
+    ExecutionTraceKind.RECOVERING,
     ExecutionTraceKind.COMPLETED,
     ExecutionTraceKind.FAILED,
     ExecutionTraceKind.CANCELLED,

@@ -5,6 +5,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class ExecutionStatusBusTest {
 
@@ -84,6 +87,42 @@ class ExecutionStatusBusTest {
         assertTrue(second.all { it.executionId == "parallel-2" })
         assertEquals(ExecutionTraceKind.COMPLETED, first.last().kind)
         assertEquals(ExecutionTraceKind.FAILED, second.last().kind)
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
+    fun interleavedExecutionCallbacksKeepToolLifecyclesAndTraceOwnershipIsolated() {
+        ExecutionStatusBus.reset()
+        val firstId = "interleaved-1"
+        val secondId = "interleaved-2"
+        ExecutionStatusBus.onGraphStarted("First task", 100, firstId, "session-1")
+        ExecutionStatusBus.onGraphStarted("Second task", 100, secondId, "session-1")
+
+        val startGate = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+        listOf(firstId, secondId).forEach { executionId ->
+            executor.submit {
+                startGate.await()
+                repeat(100) { index ->
+                    val actionId = "$executionId-tool-$index"
+                    ExecutionStatusBus.onToolStarted(executionId, actionId, "read_file")
+                    ExecutionStatusBus.onToolCompleted(executionId, actionId, "read_file", 1L)
+                }
+                ExecutionStatusBus.onGraphCompleted(true, executionId)
+            }
+        }
+        startGate.countDown()
+        executor.shutdown()
+
+        assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS))
+        val first = ExecutionStatusBus.traceSnapshot(firstId)
+        val second = ExecutionStatusBus.traceSnapshot(secondId)
+        assertTrue(first.all { it.executionId == firstId })
+        assertTrue(second.all { it.executionId == secondId })
+        assertEquals(100, first.count { it.kind == ExecutionTraceKind.TOOL_COMPLETED })
+        assertEquals(100, second.count { it.kind == ExecutionTraceKind.TOOL_COMPLETED })
+        assertEquals(ExecutionTraceKind.COMPLETED, first.last().kind)
+        assertEquals(ExecutionTraceKind.COMPLETED, second.last().kind)
         ExecutionStatusBus.reset()
     }
 

@@ -35,6 +35,14 @@ class ChatExecutionTracePrivacyTest {
                     executionId = executionId,
                     sequence = 2,
                     timestampMs = 1_002L,
+                    kind = ExecutionTraceKind.RECOVERING,
+                    summary = "Recovering step",
+                    actionId = "file_read",
+                ),
+                ExecutionTraceEvent(
+                    executionId = executionId,
+                    sequence = 3,
+                    timestampMs = 1_003L,
                     kind = ExecutionTraceKind.COMPLETED,
                     summary = "done",
                 ),
@@ -62,7 +70,7 @@ class ChatExecutionTracePrivacyTest {
         assertFalse(flattened.contains(apiKey))
         assertFalse(flattened.contains(privatePath))
         assertTrue(trace.success)
-        assertTrue(trace.steps.single().error != null)
+        assertTrue(trace.steps.any { it.error != null })
         assertEquals("gpt-4.1", trace.model)
         assertEquals("openai", trace.provider)
     }
@@ -86,6 +94,37 @@ class ChatExecutionTracePrivacyTest {
                 ),
             ),
             answerText = "partial",
+        )
+
+        assertFalse(requireNotNull(mapped).success)
+    }
+
+    @Test
+    fun completedTerminalDoesNotMaskAnUnrecoveredFailure() {
+        val executionId = "exec-unrecovered"
+        val mapped = ChatExecutionTraceMapper.toAgentTrace(
+            executionId = executionId,
+            sessionId = "session-unrecovered",
+            messageId = 93L,
+            userInput = "run task",
+            events = listOf(
+                ExecutionTraceEvent(
+                    executionId = executionId,
+                    sequence = 1,
+                    timestampMs = 3_001L,
+                    kind = ExecutionTraceKind.TOOL_FAILED,
+                    summary = "Tool failed",
+                    actionId = "tool-1",
+                ),
+                ExecutionTraceEvent(
+                    executionId = executionId,
+                    sequence = 2,
+                    timestampMs = 3_002L,
+                    kind = ExecutionTraceKind.COMPLETED,
+                    summary = "done",
+                ),
+            ),
+            answerText = "done",
         )
 
         assertFalse(requireNotNull(mapped).success)

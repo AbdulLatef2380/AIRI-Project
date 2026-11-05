@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * ExecutionStatusBus — decoupled live execution status channel.
@@ -42,7 +43,10 @@ object ExecutionStatusBus {
     private val traceLock = Any()
     private val traceHistory = linkedMapOf<String, List<ExecutionTraceEvent>>()
     private val traceBuffers = linkedMapOf<String, ExecutionTraceBuffer>()
-    private val toolTraceLifecycles = linkedMapOf<String, ExecutionToolTraceLifecycle>()
+    // Tool admission is queried both inside and outside traceLock by terminal
+    // callbacks. A concurrent map prevents two executions from racing on the
+    // registry while each lifecycle remains synchronized internally.
+    private val toolTraceLifecycles = ConcurrentHashMap<String, ExecutionToolTraceLifecycle>()
     private val terminalExecutions = mutableSetOf<String>()
     /** Live-only approval correlation; durable records remain free of runtime/UI state. */
     private val approvalOwners = mutableMapOf<String, String>()

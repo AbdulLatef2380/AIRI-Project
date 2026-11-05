@@ -33,7 +33,10 @@ object ChatExecutionTraceMapper {
         }
         // A trace without a terminal event is incomplete, never successful.
         // Success must be proven by an explicit COMPLETED event.
-        val success = terminal?.kind == ExecutionTraceKind.COMPLETED
+        // Every failed tool/step must also have a later recovery success. This
+        // prevents a final COMPLETED event from masking an unrecovered failure.
+        val success = terminal?.kind == ExecutionTraceKind.COMPLETED &&
+            hasRecoveredFailures(ordered, terminal.sequence)
 
         val allSteps = ordered.mapNotNull(::stepFor)
         val kept = if (allSteps.size <= AgentTraceManager.MAX_STEPS) {
@@ -67,6 +70,36 @@ object ChatExecutionTraceMapper {
             truncated = allSteps.size > kept.size,
             droppedSteps = allSteps.size - kept.size,
         )
+    }
+
+    private fun hasRecoveredFailures(
+        events: List<ExecutionTraceEvent>,
+        terminalSequence: Long,
+    ): Boolean {
+        var pendingFailures = 0
+        var recoveryStarted = false
+        events.filter { it.sequence <= terminalSequence }.forEach { event ->
+            when (event.kind) {
+                ExecutionTraceKind.TOOL_FAILED,
+                ExecutionTraceKind.TOOL_CANCELLED,
+                ExecutionTraceKind.APPROVAL_CANCELLED,
+                ExecutionTraceKind.APPROVAL_TIMEOUT -> {
+                    pendingFailures++
+                    recoveryStarted = false
+                }
+                ExecutionTraceKind.RECOVERING -> recoveryStarted = true
+                ExecutionTraceKind.TOOL_COMPLETED,
+                ExecutionTraceKind.STEP_COMPLETED -> {
+                    if (pendingFailures > 0 && recoveryStarted) pendingFailures--
+                    recoveryStarted = false
+                }
+                ExecutionTraceKind.COMPLETED -> {
+                    if (pendingFailures > 0 && recoveryStarted) pendingFailures--
+                }
+                else -> Unit
+            }
+        }
+        return pendingFailures == 0
     }
 
     /** Only events that mark a finished unit of work become steps. */

@@ -259,7 +259,7 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
                         tint = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(16.dp)
                     )
-                )
+                }
             }
 
             if (stepTime != null || step.durationMs > 0L) {

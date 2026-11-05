@@ -49,6 +49,7 @@ class ExecutionTraceBuffer(
         errorCode: String? = null,
         machineTag: String? = null,
         parentId: String? = null,
+        inputParams: Map<String, String> = emptyMap(),
         timestampMs: Long = System.currentTimeMillis(),
     ): ExecutionTraceEvent? {
         if (executionId.isBlank() || executionId != activeExecutionId || summary.isBlank()) return null
@@ -72,6 +73,7 @@ class ExecutionTraceBuffer(
             sessionId = activeSessionId,
             machineTag = machineTag?.takeIf { it.isNotBlank() },
             parentId = parentId?.takeIf { it.isNotBlank() },
+            inputParams = inputParams,
         )
         entries.addLast(event)
         while (entries.size > maxEntries) {
@@ -130,6 +132,8 @@ data class ExecutionTraceEvent(
     val machineTag: String? = null,
     /** Optional parent action used to render a step/tool execution tree. */
     val parentId: String? = null,
+    /** Redacted tool arguments; never contains raw secrets or provider payloads. */
+    val inputParams: Map<String, String> = emptyMap(),
 ) {
     /** Stable correlation key for this ordered event within one execution. */
     val eventId: String get() = "$executionId:event:$sequence"

@@ -90,6 +90,9 @@ object ChatExecutionTraceMapper {
                 AgentTraceManager.STEP_OUTPUT_CHARS,
             ),
             durationMs = event.durationMs ?: 0L,
+            parentId = event.parentId,
+            timestampMs = event.timestampMs,
+            inputParams = event.inputParams,
         )
     }
 }

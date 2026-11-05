@@ -104,6 +104,8 @@ class AgentTraceStore(private val file: File) {
             put("success", step.success)
             step.error?.let { put("error", it) }
             put("durationMs", step.durationMs)
+            step.parentId?.let { put("parentId", it) }
+            put("timestampMs", step.timestampMs)
         }
 
         private fun stepFromJson(json: JSONObject): AgentStep {
@@ -118,6 +120,8 @@ class AgentTraceStore(private val file: File) {
                 success = json.optBoolean("success", true),
                 error = if (json.has("error")) json.getString("error") else null,
                 durationMs = json.optLong("durationMs", 0L),
+                parentId = if (json.has("parentId")) json.getString("parentId") else null,
+                timestampMs = json.optLong("timestampMs", 0L),
             )
         }
     }

@@ -233,6 +233,7 @@ object ExecutionStatusBus {
         actionId: String,
         toolName: String,
         detail: String? = null,
+        inputParams: Map<String, String> = emptyMap(),
     ) {
         if (!isOpenExecution(executionId) ||
             (_status.value.executionId == executionId && _status.value.cancellationRequested) ||
@@ -248,6 +249,7 @@ object ExecutionStatusBus {
             detail = detail,
             actionId = actionId,
             machineTag = "tool_call",
+            inputParams = inputParams.mapValues { (key, value) -> PrivacyGuard.redactTraceField(key, value) },
         )
     }
 

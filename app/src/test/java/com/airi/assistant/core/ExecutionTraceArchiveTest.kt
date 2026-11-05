@@ -22,6 +22,7 @@ class ExecutionTraceArchiveTest {
             sessionId = "s1",
             machineTag = "tool_call",
             parentId = "p1",
+            inputParams = mapOf("query" to "safe value"),
         )
         assertEquals(event, ExecutionTraceArchive.eventFromJson(ExecutionTraceArchive.eventToJson(event)))
     }

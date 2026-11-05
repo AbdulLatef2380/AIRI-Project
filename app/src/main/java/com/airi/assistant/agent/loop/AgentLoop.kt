@@ -314,6 +314,7 @@ the tool returns an actual error.
                 actionId = actionId,
                 toolName = "current_time",
                 detail = "Reading the device clock.",
+                inputParams = emptyMap(),
             )
             val timeSchema = effectiveTools.first { it.name == "current_time" }
             val timeValidation = StrictArgumentValidator.validate(
@@ -785,6 +786,7 @@ the tool returns an actual error.
                     actionId = toolStepId,
                     toolName = toolName,
                     detail = "Agent step $stepsUsed",
+                    inputParams = toolArgs,
                 )
                 activeToolTrace = ActiveToolTrace(
                     executionId = executionId,

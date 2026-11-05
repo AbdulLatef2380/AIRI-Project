@@ -125,6 +125,7 @@ object ExecutionTraceArchive {
         put("sessionId", event.sessionId)
         event.machineTag?.let { put("machineTag", it) }
         event.parentId?.let { put("parentId", it) }
+        put("inputParams", JSONObject().also { params -> event.inputParams.forEach { (key, value) -> params.put(key, value) } })
     }
 
     internal fun eventFromJson(json: JSONObject): ExecutionTraceEvent = ExecutionTraceEvent(
@@ -140,5 +141,8 @@ object ExecutionTraceArchive {
         sessionId = json.optString("sessionId"),
         machineTag = if (json.has("machineTag")) json.getString("machineTag") else null,
         parentId = if (json.has("parentId")) json.getString("parentId") else null,
+        inputParams = json.optJSONObject("inputParams")?.let { params ->
+            params.keys().asSequence().associateWith { key -> params.optString(key) }
+        }.orEmpty(),
     )
 }

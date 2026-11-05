@@ -117,7 +117,7 @@ class AgentTraceManagerLifecycleTest {
     @Test
     fun mapper_buildsChatTraceFromTerminalEvents() {
         fun event(seq: Long, kind: ExecutionTraceKind, summary: String = "", detail: String? = null) =
-            ExecutionTraceEvent("exec-9", seq, 1_000L + seq, kind, summary, detail = detail, actionId = if (kind == ExecutionTraceKind.TOOL_COMPLETED || kind == ExecutionTraceKind.TOOL_FAILED) "a$seq" else null, durationMs = 5L)
+            ExecutionTraceEvent("exec-9", seq, 1_000L + seq, kind, summary, detail = detail, actionId = if (kind == ExecutionTraceKind.TOOL_COMPLETED || kind == ExecutionTraceKind.TOOL_FAILED) "a$seq" else null, durationMs = 5L, parentId = "step-parent", inputParams = mapOf("query" to "safe"))
 
         val trace = ChatExecutionTraceMapper.toAgentTrace(
             executionId = "exec-9",
@@ -152,6 +152,9 @@ class AgentTraceManagerLifecycleTest {
         assertTrue(trace.steps[0].success)
         assertFalse(trace.steps[1].success)
         assertEquals(listOf(0, 1), trace.steps.map { it.stepIndex })
+        assertEquals("step-parent", trace.steps[0].parentId)
+        assertEquals(1_003L, trace.steps[0].timestampMs)
+        assertEquals(mapOf("query" to "safe"), trace.steps[0].inputParams)
         assertEquals("Here are your files", trace.finalResult)
     }
 

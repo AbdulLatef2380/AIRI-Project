@@ -17,7 +17,11 @@ data class AgentStep(
     // forgets to set this flag no longer shows a healthy step as failed.
     val success: Boolean = true,
     val error: String? = null,
-    val durationMs: Long = 0L
+    val durationMs: Long = 0L,
+    /** Parent execution action used to render nested tool/task steps. */
+    val parentId: String? = null,
+    /** Original event timestamp; zero is retained for legacy traces. */
+    val timestampMs: Long = 0L,
 ) {
     val displayName: String get() = name.replace("_", " ")
         .split(" ").joinToString(" ") { it.replaceFirstChar(Char::titlecase) }

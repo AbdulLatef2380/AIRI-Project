@@ -38,6 +38,8 @@ data class RuntimeCapabilityInventory(
         /** Readiness plus exposure; final runtime/OS/provider gates still run at invocation. */
         val admittedToDispatcher: Boolean,
         val detail: String? = null,
+        /** Canonical execution route used after catalog admission. */
+        val dispatcherRoute: String? = null,
     )
 
     data class ConnectorReadinessFacts(
@@ -177,9 +179,18 @@ data class RuntimeCapabilityInventory(
                         contract.readiness == RuntimeToolContract.Readiness.AVAILABLE -> Availability.UNKNOWN
                         else -> Availability.NOT_READY
                     }
-                    // SkillToolBridge emits enabled skills whose declared connector
-                    // dependencies are present; invocation still rechecks permissions.
-                    RuntimeToolContract.Source.SKILL -> Availability.READY
+                    RuntimeToolContract.Source.SKILL -> when (contract.readiness) {
+                        RuntimeToolContract.Readiness.AVAILABLE -> Availability.READY
+                        RuntimeToolContract.Readiness.NOT_READY -> Availability.NOT_READY
+                        RuntimeToolContract.Readiness.REQUIRES_AUTH -> Availability.AUTH_REQUIRED
+                        RuntimeToolContract.Readiness.PERMISSION_REQUIRED -> Availability.PERMISSION_REQUIRED
+                        RuntimeToolContract.Readiness.CONFIGURATION_REQUIRED -> Availability.CONFIGURATION_REQUIRED
+                        RuntimeToolContract.Readiness.DEPENDENCY_MISSING -> Availability.DEPENDENCY_MISSING
+                        RuntimeToolContract.Readiness.DISCONNECTED -> Availability.DISCONNECTED
+                        RuntimeToolContract.Readiness.ERROR -> Availability.ERROR
+                        RuntimeToolContract.Readiness.UNSUPPORTED -> Availability.UNSUPPORTED
+                        RuntimeToolContract.Readiness.BLOCKED -> Availability.BLOCKED
+                    }
                     RuntimeToolContract.Source.CONNECTOR -> when (contract.readiness) {
                         RuntimeToolContract.Readiness.AVAILABLE -> Availability.READY
                         RuntimeToolContract.Readiness.NOT_READY -> Availability.NOT_READY
@@ -210,6 +221,11 @@ data class RuntimeCapabilityInventory(
                     } else contract.reason ?: if (
                         contract.source == RuntimeToolContract.Source.BUILTIN && availability == Availability.UNKNOWN
                     ) "Registered handler; actual device/session/policy readiness is checked at invocation." else null,
+                    dispatcherRoute = when (contract.source) {
+                        RuntimeToolContract.Source.BUILTIN -> "ToolDispatcher"
+                        RuntimeToolContract.Source.SKILL -> "SkillToolBridge"
+                        RuntimeToolContract.Source.CONNECTOR -> "ConnectorToolBridge"
+                    },
                 )
             }
             return RuntimeCapabilityInventory((entries + additionalEntries).distinctBy { it.family to it.id })

@@ -57,7 +57,13 @@ object RuntimeToolCatalog {
                 contract.copy(readiness = override.readiness, reason = override.reason)
             } ?: contract
         }
-        val candidates = builtinContracts + skills.map { RuntimeToolContract.skill(it) } + connectorContracts
+        val skillContracts = skills.map { schema ->
+            val contract = RuntimeToolContract.skill(schema)
+            effectiveOverrides[schema.name]?.let { override ->
+                contract.copy(readiness = override.readiness, reason = override.reason)
+            } ?: contract
+        }
+        val candidates = builtinContracts + skillContracts + connectorContracts
         val requestedConnectorIds = intent.connectorIds
         val exposed = mutableListOf<RuntimeToolContract>()
         val filtered = mutableListOf<FilteredTool>()

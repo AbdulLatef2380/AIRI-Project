@@ -156,6 +156,34 @@ class RuntimeToolCatalogTest {
     }
 
     @Test
+    fun skillStatusOverrideSurvivesCatalogAndInventoryProjection() {
+        val skill = ToolSchema(
+            name = "skill_github_reader",
+            description = "Read repository files",
+        )
+        val result = RuntimeToolCatalog.assemble(
+            builtins = emptyList(),
+            skills = listOf(skill),
+            connectors = emptyList(),
+            intent = CapabilityIntentDetector.Intent(),
+            statusOverrides = mapOf(
+                skill.name to RuntimeToolCatalog.StatusOverride(
+                    RuntimeToolContract.Readiness.REQUIRES_AUTH,
+                    "GitHub authorization required",
+                ),
+            ),
+        )
+
+        assertTrue(result.schemas.isEmpty())
+        assertEquals(RuntimeToolContract.Readiness.REQUIRES_AUTH, result.candidates.single().readiness)
+        val inventory = RuntimeCapabilityInventory.from(result, emptySet())
+        val entry = inventory.entries.single()
+        assertEquals(RuntimeCapabilityInventory.Availability.AUTH_REQUIRED, entry.availability)
+        assertFalse(entry.admittedToDispatcher)
+        assertEquals("SkillToolBridge", entry.dispatcherRoute)
+    }
+
+    @Test
     fun inventorySeparatesRegistrationIntentSelectionExposureAndDispatchAdmission() {
         val intent = CapabilityIntentDetector.Intent(
             capabilities = setOf(CapabilityIntentDetector.Capability.CONNECTOR_READ),
@@ -184,6 +212,8 @@ class RuntimeToolCatalogTest {
         assertFalse(connector.exposedToAgent)
         assertFalse(connector.admittedToDispatcher)
         assertTrue(inventory.promptBlock("Tell me about Gmail").contains("not proof that a provider"))
+        assertEquals("ToolDispatcher", builtin.dispatcherRoute)
+        assertEquals("ConnectorToolBridge", connector.dispatcherRoute)
     }
 
     @Test

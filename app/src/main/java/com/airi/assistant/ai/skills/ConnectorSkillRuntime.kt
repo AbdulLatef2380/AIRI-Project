@@ -36,7 +36,7 @@ object ConnectorSkillRuntime {
                 error = output.message,
                 metadata = mapOf(
                     "execution_path" to "connector_runtime",
-                    "failure_code" to output.code,
+                    "error_code" to output.code,
                     "retryable" to output.retryable.toString(),
                 ),
             )
@@ -46,7 +46,7 @@ object ConnectorSkillRuntime {
                 error = output.message,
                 metadata = mapOf(
                     "execution_path" to "connector_runtime",
-                    "failure_code" to "approval_required",
+                    "error_code" to "approval_required",
                     "approval_id" to output.approvalId,
                 ),
             )
@@ -56,7 +56,7 @@ object ConnectorSkillRuntime {
                 error = "Streaming connector output is not supported by this skill.",
                 metadata = mapOf(
                     "execution_path" to "connector_runtime",
-                    "failure_code" to "streaming_unsupported",
+                    "error_code" to "streaming_unsupported",
                 ),
             )
         }

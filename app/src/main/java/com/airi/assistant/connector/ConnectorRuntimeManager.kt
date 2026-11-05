@@ -102,7 +102,11 @@ class ConnectorRuntimeManager(
         val key = "${connectorId}::${input.action}#$operationId"
         trackStart(key, InflightAction(connectorId, input.action))
         setOperationState(operationId, ConnectorOperationState.Running(operationId, connectorId, input.action))
-        AgentActivityBus.emit("Executing '$connectorId' → ${input.action}", ActivityCategory.CONNECTOR)
+        AgentActivityBus.emit(
+            message = "Executing '$connectorId' → ${input.action}",
+            category = ActivityCategory.CONNECTOR,
+            executionId = input.executionId,
+        )
         return try {
             withTimeout(timeoutMs) {
                 if (!ensureHealthy(connector, governedAction)) {
@@ -146,7 +150,12 @@ class ConnectorRuntimeManager(
                 })
             }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            AgentActivityBus.emit("'$connectorId' timed out after ${timeoutMs}ms", ActivityCategory.CONNECTOR, ActivitySeverity.WARN)
+            AgentActivityBus.emit(
+                message = "'$connectorId' timed out after ${timeoutMs}ms",
+                category = ActivityCategory.CONNECTOR,
+                severity = ActivitySeverity.WARN,
+                executionId = input.executionId,
+            )
             // A timeout has an unknown outcome. Retrying blindly can duplicate a
             // mutation, so callers must opt into a contract-specific retry.
             setOperationState(operationId, ConnectorOperationState.TimedOut(operationId, timeoutMs))

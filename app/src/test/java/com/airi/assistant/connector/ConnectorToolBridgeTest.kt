@@ -31,9 +31,14 @@ class ConnectorToolBridgeTest {
         val connector = TestConnector("github", connected = true, healthy = true)
         registry.register(connector)
         val profiles = InMemoryConnectorAccessProfileStore().apply { set("github", ConnectorAccessProfile.READ_ONLY) }
-        val result = bridge(registry, profiles).invoke("connector_github_list_repos", emptyMap())
+        val result = bridge(registry, profiles).invoke(
+            "connector_github_list_repos",
+            emptyMap(),
+            executionId = "agent-execution-1",
+        )
         assertEquals(ConnectorOutput.Success("github:list_repos"), result)
         assertEquals("list_repos", connector.lastAction)
+        assertEquals("agent-execution-1", connector.lastExecutionId)
     }
 
     @Test
@@ -226,6 +231,7 @@ class ConnectorToolBridgeTest {
         override val type = ConnectorType.APP
         private val stateFlow = MutableStateFlow(ConnectorState(connected, healthy))
         var lastAction: String? = null
+        var lastExecutionId: String? = null
         override fun meta() = ConnectorMeta(id, name, description, type)
         override fun state() = stateFlow
         override suspend fun connect() = stateFlow.value
@@ -249,6 +255,7 @@ class ConnectorToolBridgeTest {
         }
         override suspend fun execute(input: ConnectorInput): ConnectorOutput {
             lastAction = input.action
+            lastExecutionId = input.executionId
             return ConnectorOutput.Success("$id:${input.action}")
         }
     }

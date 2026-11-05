@@ -519,7 +519,7 @@ class ToolDispatcher(
                     }
                 } else if (connectorToolBridge != null && connectorToolBridge.handles(toolName)) {
                     Log.i(TAG, "AIRI CONNECTOR_TOOL_DISPATCH tool=$toolName path=ConnectorRuntimeManager")
-                    when (val result = connectorToolBridge.invoke(toolName, args)) {
+                    when (val result = connectorToolBridge.invoke(toolName, args, executionId = executionId)) {
                         is com.airi.assistant.connector.ConnectorOutput.Success ->
                             ToolResult.Success(result.text, provenance = ToolProvenance.CONNECTOR)
                         is com.airi.assistant.connector.ConnectorOutput.Streaming -> ToolResult.Error(

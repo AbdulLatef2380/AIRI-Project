@@ -9,6 +9,8 @@ class ToolResultContractTest {
     fun connectorCodesNormalizeToStableAgentCodes() {
         assertEquals(ToolErrorCodes.AUTH_REQUIRED, ToolErrorCodes.fromConnector("unauthorized"))
         assertEquals(ToolErrorCodes.AUTH_REQUIRED, ToolErrorCodes.fromConnector("authorization_required"))
+        assertEquals(ToolErrorCodes.PERMISSION_DENIED, ToolErrorCodes.fromConnector("provider_permission_denied"))
+        assertEquals(ToolErrorCodes.PERMISSION_DENIED, ToolErrorCodes.fromConnector("forbidden"))
         assertEquals(ToolErrorCodes.INVALID_ARGUMENT, ToolErrorCodes.fromConnector("missing_param"))
         assertEquals(ToolErrorCodes.CONNECTOR_FAILED, ToolErrorCodes.fromConnector("api_error"))
         assertEquals(ToolErrorCodes.TOOL_NOT_FOUND, ToolErrorCodes.fromConnector("not_found"))
@@ -46,6 +48,24 @@ class ToolResultContractTest {
         assertEquals(
             ToolErrorCodes.SKILL_FAILED,
             ToolErrorCodes.fromSkillFailure(emptyMap(), "skill failed"),
+        )
+    }
+
+    @Test
+    fun connectorSkillFailureUsesTheSharedErrorCodeKey() {
+        assertEquals(
+            ToolErrorCodes.PERMISSION_DENIED,
+            ToolErrorCodes.fromSkillFailure(
+                mapOf("execution_path" to "connector_runtime", "error_code" to "permission_denied"),
+                "Provider denied this capability",
+            ),
+        )
+        assertEquals(
+            ToolErrorCodes.AUTH_REQUIRED,
+            ToolErrorCodes.fromSkillFailure(
+                mapOf("execution_path" to "connector_runtime", "error_code" to "auth_required"),
+                "Authorization is required",
+            ),
         )
     }
 

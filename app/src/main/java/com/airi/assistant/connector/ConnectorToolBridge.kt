@@ -51,7 +51,11 @@ class ConnectorToolBridge(
     fun actionForTool(toolName: String): ConnectorAgentAction? =
         bindings(onlyExecutable = false, onlyGranted = false)[resolveToolName(toolName)]?.action
 
-    suspend fun invoke(toolName: String, args: Map<String, String>): ConnectorOutput {
+    suspend fun invoke(
+        toolName: String,
+        args: Map<String, String>,
+        executionId: String? = null,
+    ): ConnectorOutput {
         val canonicalToolName = resolveToolName(toolName)
         val binding = bindings(onlyExecutable = false, onlyGranted = false)[canonicalToolName]
             ?: return ConnectorOutput.Failure("unknown_tool", "Unknown connector tool: $toolName")
@@ -77,6 +81,7 @@ class ConnectorToolBridge(
                 action = binding.action.runtimeAction,
                 text = text,
                 params = args.filterKeys { it != "text" || it in binding.action.parameters } + binding.action.fixedParams,
+                executionId = executionId?.takeIf(String::isNotBlank),
                 authorizationActionId = binding.action.id,
             )
         )

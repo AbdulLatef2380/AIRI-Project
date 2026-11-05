@@ -407,6 +407,28 @@ class UnifiedExecutionTraceProjectorTest {
     }
 
     @Test
+    fun `memory activity contributes to memory operations summary`() {
+        val result = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-memory",
+            traceEntries = emptyList(),
+            activityEvents = listOf(
+                ActivityEvent(
+                    id = "memory-read",
+                    message = "Memory recalled",
+                    executionId = "run-memory",
+                    category = ActivityCategory.MEMORY,
+                    machineTag = "memory_read",
+                ),
+            ),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertEquals(1, result.summary.memoryOperations)
+        assertEquals(UnifiedTraceCategory.MEMORY, result.groups.single().category)
+    }
+
+    @Test
     fun `groups follow stable visual order regardless of event arrival order`() {
         val result = UnifiedExecutionTraceProjector.projectProjection(
             executionId = "run-1",
@@ -532,6 +554,45 @@ class UnifiedExecutionTraceProjectorTest {
     }
 
     @Test
+    fun `tool activity with the same stable action id is projected once`() {
+        val activity = ActivityEvent(
+            id = "activity-tool-1",
+            message = "Tool dispatched: connector_github",
+            executionId = "run-1",
+            category = ActivityCategory.TOOL,
+            machineTag = "tool_dispatch_compat:tool_executed",
+            metadata = ActivityMetadata(
+                phase = ActivityPhase.ACTION,
+                actionId = "tool-1",
+            ),
+        )
+        val result = project(
+            "run-1",
+            listOf(trace("run-1", 1, 1_000, ExecutionTraceKind.TOOL_STARTED, "Running tool: connector_github", "tool-1")),
+            listOf(activity),
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("tool-1", result.single().actionId)
+    }
+
+    @Test
+    fun `tool activity without metadata receives a stable invocation action id`() {
+        val result = project(
+            "run-1",
+            emptyList(),
+            listOf(ActivityEvent(
+                id = "activity-tool-1",
+                message = "Tool dispatched: connector_github",
+                executionId = "run-1",
+                category = ActivityCategory.TOOL,
+            )),
+        )
+
+        assertEquals("activity:activity-tool-1", result.single().actionId)
+    }
+
+    @Test
     fun `projection builds a parent child task tree`() {
         val result = UnifiedExecutionTraceProjector.projectProjection(
             executionId = "run-1",
@@ -549,8 +610,7 @@ class UnifiedExecutionTraceProjectorTest {
 
         val step = result.taskTree.single()
         assertEquals(UnifiedTraceCategory.TASK, step.event.category)
-        val expectedStepTitle = if (java.util.Locale.getDefault().language == "ar") "خطوة الوكيل" else "Agent step"
-        assertEquals(expectedStepTitle, step.event.title)
+        assertEquals("Agent step", step.event.title)
         assertEquals(TaskStatus.COMPLETED, step.event.status)
         assertTrue(step.event.detailLog.orEmpty().contains("Review repository"))
         assertEquals(1, step.children.size)
@@ -559,7 +619,7 @@ class UnifiedExecutionTraceProjectorTest {
     }
 
     @Test
-    fun `machine tags provide a stable localized title instead of raw activity text`() {
+    fun `machine tags remain stable while the UI resolver supplies localized titles`() {
         val result = project(
             "run-1",
             emptyList(),
@@ -572,9 +632,24 @@ class UnifiedExecutionTraceProjectorTest {
             )),
         )
 
-        val expectedTitle = if (java.util.Locale.getDefault().language == "ar") "إنشاء ملف" else "Create file"
-        assertEquals(expectedTitle, result.single().title)
+        assertTrue(result.single().title.contains("file_created"))
         assertEquals("file_created", result.single().machineTag)
+
+        val localized = UnifiedExecutionTraceProjector.project(
+            executionId = "run-1",
+            traceEntries = emptyList(),
+            activityEvents = listOf(ActivityEvent(
+                id = "file-activity",
+                message = "file_created: /private/path/report.txt",
+                executionId = "run-1",
+                category = ActivityCategory.SANDBOX,
+                machineTag = "file_created",
+            )),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+            titleResolver = { tag, fallback -> if (tag == "file_created") "Create file" else fallback },
+        )
+        assertEquals("Create file", localized.single().title)
     }
 
     @Test

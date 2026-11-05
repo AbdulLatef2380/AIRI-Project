@@ -79,7 +79,9 @@ fun AgentLifecycleTrackerPanel(
     var expandedEvents by rememberSaveable(executionId) { mutableStateOf<List<String>>(emptyList()) }
     val panelDescription = stringResource(R.string.agent_trace_panel_description)
     val lastEventKey = projection.events.lastOrNull()?.let { it.eventId to it.status }
-    val isWaiting = projection.events.lastOrNull()?.status == TaskStatus.WAITING
+    val latestStatus = projection.lastActivity?.status ?: projection.events.lastOrNull()?.status
+    val isWaiting = latestStatus == TaskStatus.WAITING
+    val isTerminal = latestStatus == TaskStatus.COMPLETED || latestStatus == TaskStatus.FAILED || latestStatus == TaskStatus.CANCELLED
 
     LaunchedEffect(lastEventKey, expanded) {
         if (expanded && projection.groups.isNotEmpty() && listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 >= listState.layoutInfo.totalItemsCount - 2) {
@@ -106,9 +108,10 @@ fun AgentLifecycleTrackerPanel(
             onToggle = { expanded = !expanded },
             isWorking = isWorking,
             isWaiting = isWaiting,
+            isTerminal = isTerminal,
         )
         AnimatedVisibility(visible = expanded) {
-            if (projection.taskTree.isNotEmpty() || projection.groups.isNotEmpty()) {
+            if (projection.groups.isNotEmpty()) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -117,24 +120,7 @@ fun AgentLifecycleTrackerPanel(
                         .heightIn(max = 238.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
-                    if (projection.taskTree.isNotEmpty()) {
-                        projection.taskTree.forEach { node ->
-                            traceNodeItems(
-                                node = node,
-                                depth = 0,
-                                expandedEvents = expandedEvents,
-                                onToggleEvent = { event ->
-                                    if (!event.detailLog.isNullOrBlank()) {
-                                        expandedEvents = if (event.eventId in expandedEvents) {
-                                            expandedEvents - event.eventId
-                                        } else {
-                                            expandedEvents + event.eventId
-                                        }
-                                    }
-                                },
-                            )
-                        }
-                    } else projection.groups.forEach { group ->
+                    projection.groups.forEach { group ->
                         item(key = "group-${group.id}") {
                             ActivityGroupHeader(
                                 group = group,
@@ -206,7 +192,9 @@ private fun ActivitySummaryRow(
     onToggle: () -> Unit,
     isWorking: Boolean,
     isWaiting: Boolean,
+    isTerminal: Boolean,
 ) {
+    val latestStatus = summary.lastActivity?.status ?: summary.events.lastOrNull()?.status
     val items = buildList {
         summary.summary.filesRead.takeIf { it > 0 }?.let { add(stringResource(R.string.agent_trace_summary_files, it)) }
         summary.summary.commandsExecuted.takeIf { it > 0 }?.let { add(stringResource(R.string.agent_trace_summary_commands, it)) }
@@ -248,13 +236,18 @@ private fun ActivitySummaryRow(
         Icon(
             imageVector = when {
                 isWaiting -> Icons.Outlined.HourglassEmpty
-                isWorking -> Icons.Outlined.Build
+                latestStatus == TaskStatus.FAILED -> Icons.Outlined.ErrorOutline
+                latestStatus == TaskStatus.CANCELLED -> Icons.Outlined.ErrorOutline
+                isWorking && !isTerminal -> Icons.Outlined.Build
+                isTerminal -> Icons.Outlined.TaskAlt
                 else -> Icons.Outlined.TaskAlt
             },
             contentDescription = null,
             tint = when {
                 isWaiting -> MaterialTheme.colorScheme.tertiary
-                isWorking -> MaterialTheme.colorScheme.primary
+                latestStatus == TaskStatus.FAILED -> MaterialTheme.colorScheme.error
+                latestStatus == TaskStatus.CANCELLED -> MaterialTheme.colorScheme.outline
+                isWorking && !isTerminal -> MaterialTheme.colorScheme.primary
                 else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
             },
             modifier = Modifier.size(16.dp),
@@ -268,6 +261,23 @@ private fun ActivitySummaryRow(
                 Text(
                     text = stringResource(R.string.agent_lifecycle_status_waiting),
                     color = MaterialTheme.colorScheme.tertiary,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                )
+            } else if (latestStatus == TaskStatus.FAILED || latestStatus == TaskStatus.CANCELLED) {
+                Text(
+                    text = stringResource(
+                        if (latestStatus == TaskStatus.FAILED) {
+                            R.string.agent_lifecycle_status_failed
+                        } else {
+                            R.string.agent_lifecycle_status_cancelled
+                        },
+                    ),
+                    color = if (latestStatus == TaskStatus.FAILED) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f)
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
                 )

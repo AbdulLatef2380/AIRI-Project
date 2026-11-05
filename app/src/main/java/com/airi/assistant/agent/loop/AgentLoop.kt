@@ -344,7 +344,7 @@ the tool returns an actual error.
                     toolName = "current_time",
                     path = "intent_gated_deterministic_builtin",
                 )
-                dispatcher.execute("current_time", timeValidation.arguments!!.canonical, appContext, executionId)
+                dispatcher.execute("current_time", timeValidation.arguments!!.canonical, appContext, executionId, actionId = actionId)
             } catch (cancelled: CancellationException) {
                 ExecutionStatusBus.onToolCancelled(
                     executionId = executionId,
@@ -551,10 +551,10 @@ the tool returns an actual error.
                         } else if (agentSandbox != null) {
                             agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
                                 ctx.guardTool(request.toolName)
-                                dispatcher.execute(request.toolName, validation.arguments?.canonical ?: request.arguments, appContext, executionId)
+                                dispatcher.execute(request.toolName, validation.arguments?.canonical ?: request.arguments, appContext, executionId, actionId = "tool_batch_${request.id}")
                             }
                         } else {
-                            dispatcher.execute(request.toolName, validation.arguments?.canonical ?: request.arguments, appContext, executionId)
+                            dispatcher.execute(request.toolName, validation.arguments?.canonical ?: request.arguments, appContext, executionId, actionId = "tool_batch_${request.id}")
                         }
                     }
                     history.add(ConversationTurn.Assistant(rawResponse))
@@ -889,10 +889,10 @@ the tool returns an actual error.
                         if (agentSandbox != null) {
                             agentSandbox.execute(agentId = SANDBOX_AGENT_ID, goalId = durableExecutionContext?.taskId.orEmpty()) { ctx ->
                                 ctx.guardTool(toolName)
-                                dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID)
+                                dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId)
                             }
                         } else {
-                            dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID)
+                            dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId)
                         }
                     } catch (e: CancellationException) {
                         throw e
@@ -908,10 +908,10 @@ the tool returns an actual error.
                         if (agentSandbox != null) {
                             agentSandbox.execute(agentId = SANDBOX_AGENT_ID, goalId = durableExecutionContext?.taskId.orEmpty()) { ctx ->
                                 ctx.guardTool(toolName)
-                                dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID)
+                                dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId)
                             }
                         } else {
-                            dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID)
+                            dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId)
                         }
                     } catch (e: CancellationException) {
                         throw e
@@ -934,10 +934,10 @@ the tool returns an actual error.
                         if (agentSandbox != null) {
                             agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
                                 ctx.guardTool(toolName)
-                                dispatcher.execute(toolName, toolArgs, appContext, executionId)
+                                dispatcher.execute(toolName, toolArgs, appContext, executionId, actionId = toolStepId)
                             }
                         } else {
-                            dispatcher.execute(toolName, toolArgs, appContext, executionId)
+                            dispatcher.execute(toolName, toolArgs, appContext, executionId, actionId = toolStepId)
                         }
                     } catch (e: CancellationException) {
                         throw e

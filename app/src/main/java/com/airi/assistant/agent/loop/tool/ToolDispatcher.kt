@@ -24,6 +24,8 @@ import com.airi.assistant.marketplace.GitHubSkillImporter
 import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.ActivityEvent
+import com.airi.assistant.ui.activity.ActivityMetadata
+import com.airi.assistant.ui.activity.ActivityPhase
 import com.airi.assistant.ui.activity.AgentActivityBus
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -77,6 +79,8 @@ class ToolDispatcher(
         /** Explicit owner supplied by the runtime; never inferred from UI state. */
         executionId: String? = null,
         agentId: String = "terminal",
+        /** Stable identity shared by the status trace and compatibility activity feed. */
+        actionId: String? = null,
     ): ToolResult {
         Log.i(TAG, "TOOL_DISPATCH tool=$toolName argCount=${args.size}")
         AgentActivityBus.emit(
@@ -84,6 +88,10 @@ class ToolDispatcher(
                 message = PrivacyGuard.redactForTrace("Tool dispatched: $toolName"),
                 executionId = executionId?.takeIf { it.isNotBlank() },
                 category = ActivityCategory.TOOL,
+                metadata = ActivityMetadata(
+                    phase = ActivityPhase.ACTION,
+                    actionId = actionId?.takeIf { it.isNotBlank() },
+                ),
                 machineTag = "tool_dispatch_compat:${when (toolName) {
                     "read_screen", "web_search", "fetch_url" -> "page_viewed"
                     "terminal_execute" -> "command_executed"

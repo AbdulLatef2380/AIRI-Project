@@ -90,12 +90,14 @@ internal object UnifiedExecutionTraceProjector {
         activityEvents: List<ActivityEvent>,
         planningTaskLabel: String,
         executionCompletedLabel: String,
+        titleResolver: (machineTag: String?, fallback: String) -> String = { _, fallback -> fallback },
     ): List<UnifiedExecutionTraceEvent> = projectProjection(
         executionId,
         traceEntries,
         activityEvents,
         planningTaskLabel,
         executionCompletedLabel,
+        titleResolver,
     ).events
 
     fun projectProjection(
@@ -104,6 +106,7 @@ internal object UnifiedExecutionTraceProjector {
         activityEvents: List<ActivityEvent>,
         planningTaskLabel: String,
         executionCompletedLabel: String,
+        titleResolver: (machineTag: String?, fallback: String) -> String = { _, fallback -> fallback },
     ): UnifiedExecutionTraceProjection {
         if (executionId.isBlank()) return UnifiedExecutionTraceProjection(emptyList(), emptyList(), UnifiedExecutionTraceSummary())
 
@@ -113,7 +116,7 @@ internal object UnifiedExecutionTraceProjector {
             .filter { it.summary.isNotBlank() }
             .sortedBy { it.sequence }
             .toList()
-        val structured = collapseStructuredActions(owned, planningTaskLabel, executionCompletedLabel)
+        val structured = collapseStructuredActions(owned, planningTaskLabel, executionCompletedLabel, titleResolver)
         val structuredKeys = structured.mapNotNull { it.dedupeKey }.toMutableSet()
         val projected = structured.map { it.event }.toMutableList()
 
@@ -122,10 +125,14 @@ internal object UnifiedExecutionTraceProjector {
             .filter { it.executionId == executionId }
             .filter { it.metadata.visibility != ActivityVisibility.INTERNAL }
             .filterNot { it.machineTag?.startsWith("execution_lifecycle_compat") == true }
-            .filterNot { it.machineTag?.startsWith("tool_dispatch_compat") == true && owned.any { trace -> trace.actionId != null } }
+            .filterNot {
+                it.machineTag?.startsWith("tool_dispatch_compat") == true &&
+                    it.metadata.actionId.isNullOrBlank() &&
+                    owned.any { trace -> trace.actionId != null }
+            }
             .map(::sanitizeActivityEventForDisplay)
             .sortedWith(compareBy<ActivityEvent> { it.timestampMs }.thenBy { it.sequenceNumber ?: 0L })
-            .mapIndexed { index, event -> event.toProjectionCandidate(event.sequenceNumber ?: index.toLong(), planningTaskLabel, executionCompletedLabel) }
+            .mapIndexed { index, event -> event.toProjectionCandidate(event.sequenceNumber ?: index.toLong(), planningTaskLabel, executionCompletedLabel, titleResolver) }
             .sortedWith(compareBy<ProjectionCandidate> { it.event.timestampMs }.thenBy { it.event.sequence })
             .forEach { candidate ->
                 val duplicate = candidate.dedupeKey != null && candidate.dedupeKey in structuredKeys
@@ -226,6 +233,7 @@ internal object UnifiedExecutionTraceProjector {
         entries: List<ExecutionTraceEvent>,
         planningTaskLabel: String,
         executionCompletedLabel: String,
+        titleResolver: (machineTag: String?, fallback: String) -> String,
     ): List<ProjectionCandidate> {
         val result = mutableListOf<ProjectionCandidate>()
         val consumed = mutableSetOf<ExecutionTraceEvent>()
@@ -263,7 +271,7 @@ internal object UnifiedExecutionTraceProjector {
                         actionId = key.actionId,
                         sequence = first.sequence,
                         timestampMs = displayTimestamp,
-                        title = safeTraceText(localizeDynamicTitle(if (key.family == ActionFamily.STEP) "agent_step" else source.machineTag, title)),
+                        title = safeTraceText(titleResolver(if (key.family == ActionFamily.STEP) "agent_step" else source.machineTag, title)),
                         status = source.kind.toTaskStatus(),
                         // File tool details can contain extracted document or archive
                         // contents. Keep the count/title evidence, never the payload.
@@ -278,7 +286,7 @@ internal object UnifiedExecutionTraceProjector {
                 )
                 consumed += actionEntries
             }
-        entries.filterNot { it in consumed }.forEach { entry -> result += entry.toProjectionCandidate(planningTaskLabel, executionCompletedLabel) }
+        entries.filterNot { it in consumed }.forEach { entry -> result += entry.toProjectionCandidate(planningTaskLabel, executionCompletedLabel, titleResolver) }
         return result
     }
 
@@ -316,6 +324,7 @@ internal object UnifiedExecutionTraceProjector {
     private fun ExecutionTraceEvent.toProjectionCandidate(
         planningTaskLabel: String,
         executionCompletedLabel: String,
+        titleResolver: (machineTag: String?, fallback: String) -> String,
     ): ProjectionCandidate {
         val eventCategory = categoryFor(summary, kind)
         return ProjectionCandidate(
@@ -325,7 +334,7 @@ internal object UnifiedExecutionTraceProjector {
                 actionId = actionId,
                 sequence = sequence,
                 timestampMs = timestampMs,
-                title = localizeDynamicTitle(machineTag, localizeLifecycleSummary(summary, planningTaskLabel, executionCompletedLabel)),
+                title = titleResolver(machineTag, localizeLifecycleSummary(summary, planningTaskLabel, executionCompletedLabel)),
                 status = kind.toTaskStatus(),
                 detailLog = buildList {
                     if (eventCategory != UnifiedTraceCategory.FILE) {
@@ -347,8 +356,9 @@ internal object UnifiedExecutionTraceProjector {
         sequence: Long,
         planningTaskLabel: String,
         executionCompletedLabel: String,
+        titleResolver: (machineTag: String?, fallback: String) -> String,
     ): ProjectionCandidate {
-        val title = localizeDynamicTitle(machineTag, localizeLifecycleSummary(message, planningTaskLabel, executionCompletedLabel))
+        val title = titleResolver(machineTag, localizeLifecycleSummary(message, planningTaskLabel, executionCompletedLabel))
         val category = categoryForActivity(category, title)
         return ProjectionCandidate(
             event = UnifiedExecutionTraceEvent(
@@ -375,7 +385,9 @@ internal object UnifiedExecutionTraceProjector {
                 parentId = metadata.parentId,
             ),
             dedupeKey = when {
-                metadata.actionId != null -> "activity-action:${metadata.actionId}:${metadata.phase.name}"
+                metadata.actionId != null && category in setOf(UnifiedTraceCategory.TOOL, UnifiedTraceCategory.CONNECTOR) ->
+                    "action:tool:${metadata.actionId}"
+                metadata.actionId != null -> "action:${metadata.phase.name.lowercase()}:${metadata.actionId}"
                 metadata.phase == ActivityPhase.LIFECYCLE && metadata.status != null ->
                     "lifecycle:${metadata.status.name.lowercase()}"
                 message.trim().equals("Execution completed", ignoreCase = true) -> "lifecycle:completed"
@@ -515,64 +527,9 @@ internal object UnifiedExecutionTraceProjector {
         else -> safeTraceText(value)
     }
 
-    private fun localizeDynamicTitle(machineTag: String?, fallback: String): String {
-        val tag = machineTag?.substringBefore(':')?.trim()?.lowercase().orEmpty()
-        val arabic = java.util.Locale.getDefault().language == "ar"
-        val localized = if (arabic) {
-            mapOf(
-                "file_created" to "إنشاء ملف",
-                "file_read" to "قراءة ملف",
-                "command_executed" to "تنفيذ أمر",
-                "tool_call" to "استدعاء أداة",
-                "search_started" to "بدء البحث",
-                "search_completed" to "اكتمال البحث",
-                "memory_read" to "قراءة الذاكرة",
-                "memory_write" to "تحديث الذاكرة",
-                "planning" to "التخطيط للمهمة",
-                "execution_completed" to "اكتمل التنفيذ",
-                "agent_step" to "خطوة الوكيل",
-                "runtime_request_received" to "استلام الطلب",
-                "runtime_model_context_resolved" to "تجهيز سياق النموذج",
-                "runtime_capability_filtered" to "تصفية القدرات والأدوات",
-                "runtime_tools_exposed" to "إتاحة الأدوات للنموذج",
-                "runtime_model_response_received" to "استلام رد النموذج",
-                "runtime_tool_rejected" to "رفض تنفيذ الأداة",
-                "runtime_execution_path_resolved" to "تحديد مسار التنفيذ",
-                "runtime_connector_failed" to "فشل تنفيذ الموصل",
-                "runtime_result_returned" to "عودة نتيجة التنفيذ",
-                "runtime_model_continuation_completed" to "اكتمال متابعة النموذج",
-                "runtime_intent_stage" to "مرحلة فهم الطلب",
-            )[tag]
-        } else {
-            mapOf(
-                "file_created" to "Create file",
-                "file_read" to "Read file",
-                "command_executed" to "Run command",
-                "tool_call" to "Invoke tool",
-                "search_started" to "Start search",
-                "search_completed" to "Search completed",
-                "memory_read" to "Read memory",
-                "memory_write" to "Update memory",
-                "planning" to "Plan task",
-                "execution_completed" to "Execution completed",
-                "agent_step" to "Agent step",
-                "runtime_request_received" to "Request received",
-                "runtime_model_context_resolved" to "Resolve model context",
-                "runtime_capability_filtered" to "Filter capabilities",
-                "runtime_tools_exposed" to "Expose tools to model",
-                "runtime_model_response_received" to "Receive model response",
-                "runtime_tool_rejected" to "Tool dispatch rejected",
-                "runtime_execution_path_resolved" to "Resolve execution path",
-                "runtime_connector_failed" to "Connector execution failed",
-                "runtime_result_returned" to "Return execution result",
-                "runtime_model_continuation_completed" to "Model continuation completed",
-                "runtime_intent_stage" to "Request intent stage",
-            )[tag]
-        }
-        return localized ?: fallback
-    }
 
-    private fun safeTraceText(value: String): String = PrivacyGuard.redactForTrace(CommandRedactor.redact(value), maximumChars = 1_000)
+    private fun safeTraceText(value: String): String =
+        PrivacyGuard.redactForTrace(CommandRedactor.redact(value), maximumChars = 1_000)
 
     private fun normalizeErrorCode(value: String): String = value.trim().lowercase().take(64)
 

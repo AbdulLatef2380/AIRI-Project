@@ -88,7 +88,9 @@ internal object RuntimeTraceActivityMapper {
         phase = if (status == ActivityStatus.COMPLETED) ActivityPhase.RESULT else ActivityPhase.ACTION,
         status = status,
         parentId = event.attributes["parentId"],
-        actionId = event.attributes["actionId"] ?: event.toolNames.firstOrNull(),
+        actionId = event.attributes["actionId"]
+            ?.takeIf(String::isNotBlank)
+            ?: "runtime:${event.executionId}:${event.traceId}",
     )
 
     private fun details(event: UniversalRuntimeTraceEvent, vararg keys: String): String? =

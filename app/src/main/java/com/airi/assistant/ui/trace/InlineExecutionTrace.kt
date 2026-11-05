@@ -3,6 +3,8 @@ package com.airi.assistant.ui.trace
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
 import com.airi.assistant.core.ExecutionTraceEvent
@@ -20,6 +22,7 @@ fun InlineExecutionTrace(
 ) {
     if (executionId.isBlank()) return
 
+    val context = LocalContext.current
     val planningTaskLabel = stringResource(R.string.agent_trace_live_planning_task)
     val executionCompletedLabel = stringResource(R.string.agent_trace_kind_completed)
     val projection = remember(
@@ -35,6 +38,9 @@ fun InlineExecutionTrace(
             activityEvents = activityEvents,
             planningTaskLabel = planningTaskLabel,
             executionCompletedLabel = executionCompletedLabel,
+            titleResolver = { machineTag, fallback ->
+                localizedTraceTitle(context, machineTag, fallback)
+            },
         )
     }
     // Never render an empty or admission-only panel for a direct response.
@@ -47,4 +53,16 @@ fun InlineExecutionTrace(
         isWorking = isWorking,
         modifier = modifier,
     )
+}
+
+
+private fun localizedTraceTitle(context: Context, machineTag: String?, fallback: String): String {
+    val tag = machineTag?.substringBefore(':')?.trim()?.lowercase()?.takeIf { it.matches(Regex("[a-z0-9_]+")) }
+        ?: return fallback
+    val resourceId = context.resources.getIdentifier(
+        "agent_trace_title_$tag",
+        "string",
+        context.packageName,
+    )
+    return resourceId.takeIf { it != 0 }?.let { id -> context.getString(id) } ?: fallback
 }

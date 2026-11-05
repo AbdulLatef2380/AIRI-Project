@@ -46,4 +46,28 @@ class AgentTraceStoreTest {
         assertTrue(persisted.getJSONObject(0).getString("id").startsWith("trace-"))
         assertEquals(1, store.load().size)
     }
+
+    @Test
+    fun targetIdentityRoundTripsThroughPersistentStore() {
+        val file = File.createTempFile("agent-traces-target", ".json").apply { deleteOnExit() }
+        val store = AgentTraceStore(file)
+        store.save(listOf(
+            trace("target-trace").copy(
+                model = "requested-model",
+                provider = "requested-provider",
+                requestedModel = "requested-model",
+                requestedProvider = "requested-provider",
+                resolvedModel = "local-model",
+                resolvedProvider = "local",
+                fallbackReason = "cloud unavailable",
+            ),
+        ))
+
+        val restored = store.load().single()
+        assertEquals("requested-model", restored.requestedModel)
+        assertEquals("requested-provider", restored.requestedProvider)
+        assertEquals("local-model", restored.resolvedModel)
+        assertEquals("local", restored.resolvedProvider)
+        assertEquals("cloud unavailable", restored.fallbackReason)
+    }
 }

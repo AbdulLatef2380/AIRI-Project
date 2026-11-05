@@ -188,6 +188,8 @@ class UniversalRuntimeTraceRecorder(
         attributes = mapOf(
             "model" to RuntimeTraceRedaction.token(modelId),
             "provider" to RuntimeTraceRedaction.token(providerId),
+            "requestedModel" to RuntimeTraceRedaction.token(modelId),
+            "requestedProvider" to RuntimeTraceRedaction.token(providerId),
             "promptTokens" to promptTokens.coerceAtLeast(0).toString(),
             "historyTurns" to historyTurns.coerceAtLeast(0).toString(),
             "toolCount" to toolCount.coerceAtLeast(0).toString(),

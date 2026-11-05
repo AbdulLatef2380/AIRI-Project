@@ -289,7 +289,18 @@ class CloudBackend(
                     RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.INFO,
                         "${provider.displayName} OK: ${result.latencyMs}ms tokens=${promptTok}p+${compTok}c")
                     _totalLatencyMs.addAndGet(System.currentTimeMillis() - requestStart); _globalTotalLatencyMs.addAndGet(System.currentTimeMillis() - requestStart)
-                    onComplete(result.fullText, result.latencyMs, result.completion)
+                    onComplete(
+                        result.fullText,
+                        result.latencyMs,
+                        result.completion.copy(
+                            providerId = provider.name.lowercase(),
+                            requestedModelId = request.requestedModelId,
+                            requestedProviderId = request.requestedProviderId,
+                            resolvedModelId = executedModel,
+                            resolvedProviderId = provider.name.lowercase(),
+                            fallbackReason = if (isFallback) lastError.take(160) else null,
+                        ),
+                    )
                     return   // Success — do NOT continue to next provider
                 }
                 is CloudProviderAdapter.AdapterResult.Failure -> {

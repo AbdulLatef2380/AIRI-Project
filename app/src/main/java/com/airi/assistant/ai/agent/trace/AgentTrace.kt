@@ -23,6 +23,14 @@ data class AgentTrace(
     val model: String? = null,
     /** Provider selected at dispatch; a runtime fallback may have served another provider. */
     val provider: String? = null,
+    /** Model/provider requested before routing or fallback. */
+    val requestedModel: String? = null,
+    val requestedProvider: String? = null,
+    /** Model/provider that actually served the response. */
+    val resolvedModel: String? = null,
+    val resolvedProvider: String? = null,
+    /** Redacted reason for changing the requested target, when applicable. */
+    val fallbackReason: String? = null,
     /** Approximate visible-output token count; this is not provider-reported usage. */
     val estimatedOutputTokens: Int? = null,
     /** Measured from request dispatch to the first non-blank visible token chunk. */

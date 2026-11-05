@@ -174,4 +174,41 @@ class ChatExecutionTracePrivacyTest {
         assertEquals(mapOf("path" to "/safe/README.md"), step.inputParams)
         assertEquals("step-1", step.parentId)
     }
+
+    @Test
+    fun traceSeparatesRequestedAndResolvedExecutionTargets() {
+        val executionId = "exec-fallback"
+        val mapped = ChatExecutionTraceMapper.toAgentTrace(
+            executionId = executionId,
+            sessionId = "session-fallback",
+            messageId = 95L,
+            userInput = "summarize",
+            events = listOf(
+                ExecutionTraceEvent(
+                    executionId = executionId,
+                    sequence = 1,
+                    timestampMs = 5_001L,
+                    kind = ExecutionTraceKind.COMPLETED,
+                    summary = "completed after fallback",
+                ),
+            ),
+            answerText = "done",
+            model = "requested-model",
+            provider = "requested-provider",
+            requestedModel = "requested-model",
+            requestedProvider = "requested-provider",
+            resolvedModel = "local-model",
+            resolvedProvider = "local",
+            fallbackReason = "cloud provider unavailable",
+        )
+
+        val trace = requireNotNull(mapped)
+        assertEquals("requested-model", trace.requestedModel)
+        assertEquals("requested-provider", trace.requestedProvider)
+        assertEquals("local-model", trace.resolvedModel)
+        assertEquals("local", trace.resolvedProvider)
+        assertEquals("cloud provider unavailable", trace.fallbackReason)
+        assertEquals("requested-model", trace.model)
+        assertEquals("requested-provider", trace.provider)
+    }
 }

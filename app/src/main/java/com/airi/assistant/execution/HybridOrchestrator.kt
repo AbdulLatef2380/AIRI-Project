@@ -329,7 +329,15 @@ class HybridOrchestrator(
                             onToken(committedText.substring(streamedText.length))
                         }
                         move(ExecutionLifecycleState.COMPLETED)
-                        onComplete(committedText, latencyMs, backend.origin, completionMetadata)
+                        val resolvedMetadata = completionMetadata.copy(
+                            requestedModelId = completionMetadata.requestedModelId.ifBlank { ownedRequest.requestedModelId },
+                            requestedProviderId = completionMetadata.requestedProviderId.ifBlank { ownedRequest.requestedProviderId },
+                            resolvedModelId = completionMetadata.resolvedModelId.ifBlank { targetRequest.resolvedModelId },
+                            resolvedProviderId = completionMetadata.resolvedProviderId.ifBlank { targetRequest.resolvedProviderId },
+                            fallbackReason = completionMetadata.fallbackReason
+                                ?: lastError.takeIf { isFallback }?.take(160),
+                        )
+                        onComplete(committedText, latencyMs, backend.origin, resolvedMetadata)
                     }
                 },
                 onError    = { error ->

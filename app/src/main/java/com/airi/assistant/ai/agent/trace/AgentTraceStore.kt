@@ -88,6 +88,11 @@ class AgentTraceStore(private val file: File) {
             put("source", trace.source)
             trace.model?.let { put("model", it) }
             trace.provider?.let { put("provider", it) }
+            trace.requestedModel?.let { put("requestedModel", it) }
+            trace.requestedProvider?.let { put("requestedProvider", it) }
+            trace.resolvedModel?.let { put("resolvedModel", it) }
+            trace.resolvedProvider?.let { put("resolvedProvider", it) }
+            trace.fallbackReason?.let { put("fallbackReason", it) }
             trace.estimatedOutputTokens?.let { put("estimatedOutputTokens", it) }
             trace.firstVisibleTokenLatencyMs?.let { put("firstVisibleTokenLatencyMs", it) }
             put("truncated", trace.truncated)
@@ -111,6 +116,11 @@ class AgentTraceStore(private val file: File) {
                 source = json.optString("source", AgentTrace.SOURCE_SKILL),
                 model = if (json.has("model")) json.getString("model") else null,
                 provider = if (json.has("provider")) json.getString("provider") else null,
+                requestedModel = if (json.has("requestedModel")) json.getString("requestedModel") else null,
+                requestedProvider = if (json.has("requestedProvider")) json.getString("requestedProvider") else null,
+                resolvedModel = if (json.has("resolvedModel")) json.getString("resolvedModel") else null,
+                resolvedProvider = if (json.has("resolvedProvider")) json.getString("resolvedProvider") else null,
+                fallbackReason = if (json.has("fallbackReason")) json.getString("fallbackReason") else null,
                 estimatedOutputTokens = if (json.has("estimatedOutputTokens")) json.getInt("estimatedOutputTokens") else null,
                 firstVisibleTokenLatencyMs = if (json.has("firstVisibleTokenLatencyMs")) json.getLong("firstVisibleTokenLatencyMs") else null,
                 truncated = json.optBoolean("truncated", false),

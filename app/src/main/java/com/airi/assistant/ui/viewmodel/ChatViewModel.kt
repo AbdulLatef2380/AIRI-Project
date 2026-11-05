@@ -1764,6 +1764,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         answer: String,
         model: String?,
         provider: String?,
+        requestedModel: String? = null,
+        requestedProvider: String? = null,
+        resolvedModel: String? = null,
+        resolvedProvider: String? = null,
+        fallbackReason: String? = null,
         estimatedOutputTokens: Int?,
         firstVisibleTokenLatencyMs: Long?,
         terminalKind: ExecutionTraceKind? = null,
@@ -1807,6 +1812,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 answerText = answer,
                 model = model,
                 provider = provider,
+                requestedModel = requestedModel,
+                requestedProvider = requestedProvider,
+                resolvedModel = resolvedModel,
+                resolvedProvider = resolvedProvider,
+                fallbackReason = fallbackReason,
                 estimatedOutputTokens = estimatedOutputTokens,
                 firstVisibleTokenLatencyMs = firstVisibleTokenLatencyMs,
             )?.let { AgentTraceManager.instance.recordChatExecution(it) }
@@ -2828,6 +2838,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         answer = safeContent,
                         model = requestedModelIdAtDispatch.takeIf { it.isNotBlank() },
                         provider = requestedProviderIdAtDispatch.takeIf { it.isNotBlank() },
+                        requestedModel = completionMetadata.requestedModelId.takeIf { it.isNotBlank() }
+                            ?: requestedModelIdAtDispatch.takeIf { it.isNotBlank() },
+                        requestedProvider = completionMetadata.requestedProviderId.takeIf { it.isNotBlank() }
+                            ?: requestedProviderIdAtDispatch.takeIf { it.isNotBlank() },
+                        resolvedModel = completionMetadata.resolvedModelId.takeIf { it.isNotBlank() },
+                        resolvedProvider = completionMetadata.resolvedProviderId.takeIf { it.isNotBlank() }
+                            ?: completionMetadata.providerId.takeIf { it.isNotBlank() },
+                        fallbackReason = completionMetadata.fallbackReason,
                         estimatedOutputTokens = tokenCount.takeIf { it > 0 },
                         firstVisibleTokenLatencyMs = firstVisibleTokenLatencyMs,
                     )
@@ -2870,6 +2888,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     answer = answer,
                     model = requestedModelIdAtDispatch.takeIf { it.isNotBlank() },
                     provider = requestedProviderIdAtDispatch.takeIf { it.isNotBlank() },
+                    requestedModel = completionMetadata.requestedModelId.takeIf { it.isNotBlank() }
+                        ?: requestedModelIdAtDispatch.takeIf { it.isNotBlank() },
+                    requestedProvider = completionMetadata.requestedProviderId.takeIf { it.isNotBlank() }
+                        ?: requestedProviderIdAtDispatch.takeIf { it.isNotBlank() },
+                    resolvedModel = completionMetadata.resolvedModelId.takeIf { it.isNotBlank() },
+                    resolvedProvider = completionMetadata.resolvedProviderId.takeIf { it.isNotBlank() }
+                        ?: completionMetadata.providerId.takeIf { it.isNotBlank() },
+                    fallbackReason = completionMetadata.fallbackReason,
                     estimatedOutputTokens = tokenCount.takeIf { it > 0 },
                     firstVisibleTokenLatencyMs = firstVisibleTokenLatencyMs,
                     terminalKind = kind,
@@ -3219,6 +3245,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         answer = normalizedAnswer,
                         model = requestedModelIdAtDispatch.takeIf { it.isNotBlank() },
                         provider = requestedProviderIdAtDispatch.takeIf { it.isNotBlank() },
+                        requestedModel = completionMetadata.requestedModelId.takeIf { it.isNotBlank() }
+                            ?: requestedModelIdAtDispatch.takeIf { it.isNotBlank() },
+                        requestedProvider = completionMetadata.requestedProviderId.takeIf { it.isNotBlank() }
+                            ?: requestedProviderIdAtDispatch.takeIf { it.isNotBlank() },
+                        resolvedModel = completionMetadata.resolvedModelId.takeIf { it.isNotBlank() },
+                        resolvedProvider = completionMetadata.resolvedProviderId.takeIf { it.isNotBlank() }
+                            ?: completionMetadata.providerId.takeIf { it.isNotBlank() },
+                        fallbackReason = completionMetadata.fallbackReason,
                         estimatedOutputTokens = tokenCount.takeIf { it > 0 },
                         firstVisibleTokenLatencyMs = firstVisibleTokenLatencyMs,
                     )

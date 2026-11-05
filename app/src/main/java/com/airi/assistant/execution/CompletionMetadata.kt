@@ -26,6 +26,14 @@ data class CompletionMetadata(
     val terminal: Boolean = true,
     /** Number of additional provider requests used to finish this response. */
     val continuationHops: Int = 0,
+    /** Model/provider requested by the caller before routing or fallback. */
+    val requestedModelId: String = "",
+    val requestedProviderId: String = "",
+    /** Model/provider that actually served the successful response. */
+    val resolvedModelId: String = "",
+    val resolvedProviderId: String = "",
+    /** Redacted, bounded reason for changing the requested execution target. */
+    val fallbackReason: String? = null,
 ) {
     companion object {
         fun fromProvider(providerId: String, rawReason: String?): CompletionMetadata {

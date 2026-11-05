@@ -56,7 +56,7 @@ import kotlinx.coroutines.flow.asStateFlow
 class HybridOrchestrator(
     private val router: RuntimeRouter,
     private val prefs:  ExecModePreferences
-) {
+) : AgentOrchestrator {
 
     // ── Execution ownership ───────────────────────────────────────────────────
 
@@ -130,7 +130,7 @@ class HybridOrchestrator(
      * @param onComplete  Called exactly once on success: (fullText, latencyMs, origin, metadata).
      * @param onError     Called exactly once when ALL backends fail: (message, origin).
      */
-    suspend fun executeStream(
+    override suspend fun executeStream(
         request:    ExecutionRequest,
         context:    Context,
         onToken:    suspend (String) -> Unit,

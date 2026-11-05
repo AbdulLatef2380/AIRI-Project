@@ -1,0 +1,294 @@
+package com.airi.assistant.agent.loop
+
+import android.content.Context
+import android.content.ContextWrapper
+import com.airi.assistant.ai.QueryType
+import com.airi.assistant.agent.loop.tool.ToolDispatcher
+import com.airi.assistant.agent.loop.tool.ToolSchema
+import com.airi.assistant.connector.Connector
+import com.airi.assistant.connector.ConnectorAgentAction
+import com.airi.assistant.connector.ConnectorMeta
+import com.airi.assistant.connector.ConnectorOutput
+import com.airi.assistant.connector.ConnectorPermissionLevel
+import com.airi.assistant.connector.ConnectorRegistry
+import com.airi.assistant.connector.ConnectorRuntimeManager
+import com.airi.assistant.connector.ConnectorState
+import com.airi.assistant.connector.ConnectorType
+import com.airi.assistant.connector.ConnectorInput
+import com.airi.assistant.connector.ConnectorToolBridge
+import com.airi.assistant.connector.ConnectorAccessProfile
+import com.airi.assistant.connector.InMemoryConnectorAccessProfileStore
+import com.airi.assistant.core.ExecutionStatusBus
+import com.airi.assistant.core.ExecutionTraceKind
+import com.airi.assistant.execution.AgentOrchestrator
+import com.airi.assistant.execution.CompletionMetadata
+import com.airi.assistant.execution.ExecOrigin
+import com.airi.assistant.execution.ExecutionRequest
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.util.ArrayDeque
+
+/**
+ * End-to-end JVM coverage for the real AgentLoop -> ToolDispatcher ->
+ * ConnectorToolBridge -> ConnectorRuntimeManager path.
+ */
+class AgentLoopVerticalIntegrationTest {
+    private val testContext: Context = ContextWrapper(null)
+
+    @Test
+    fun connectorToolCallReturnsNormalizedResultAndPreservesAllIdentityCoordinates() = runBlocking {
+        val connector = RecordingConnector()
+        val fixture = fixture(connector)
+        val orchestrator = ScriptedOrchestrator(
+            "{\"tool_call\":{\"name\":\"connector_vertical_read\",\"args\":{}}}",
+            "The connector result was received.",
+        )
+        val result = fixture.loop(orchestrator).run(
+            input = "Read the connected source",
+            systemPrompt = "You are AIRI.",
+            tools = listOf(fixture.readSchema),
+            queryType = QueryType.UNKNOWN,
+            sessionId = "session-vertical",
+            requestedExecutionId = "execution-vertical",
+            messageId = "message-vertical",
+            onToken = {},
+        )
+
+        assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
+        assertEquals("The connector result was received.", result.finalAnswer)
+        assertEquals(listOf("connector_vertical_read"), result.toolsInvoked)
+        assertEquals(1, connector.executeCalls)
+        assertEquals("execution-vertical", connector.lastInput?.executionId)
+        assertEquals("trace-execution-vertical", connector.lastInput?.traceId)
+        assertEquals("session-vertical", connector.lastInput?.sessionId)
+        assertEquals("message-vertical", connector.lastInput?.messageId)
+        assertTrue(connector.lastInput?.actionId?.startsWith("tool_") == true)
+        assertEquals(2, orchestrator.requests.size)
+        assertTrue(orchestrator.requests[1].conversationHistory.any { it.kind == "tool_result" })
+    }
+
+    @Test
+    fun invalidArgumentsStopBeforeConnectorRuntimeAndReturnStructuredErrorToNextTurn() = runBlocking {
+        val connector = RecordingConnector()
+        val fixture = fixture(connector)
+        val schema = fixture.readSchema.copy(
+            parameters = mapOf(
+                "query" to ToolSchema.Param(type = "string", required = true),
+            ),
+        )
+        val orchestrator = ScriptedOrchestrator(
+            "{\"tool_call\":{\"name\":\"connector_vertical_read\",\"args\":{}}}",
+            "I could not call the tool with those arguments.",
+        )
+
+        val result = fixture.loop(orchestrator).run(
+            input = "Read the source",
+            systemPrompt = "You are AIRI.",
+            tools = listOf(schema),
+            onToken = {},
+        )
+
+        assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
+        assertEquals(0, connector.executeCalls)
+        assertTrue(orchestrator.requests[1].conversationHistory.any {
+            it.kind == "tool_result" && it.content.contains("invalid_argument")
+        })
+    }
+
+    @Test
+    fun unknownToolNeverReachesDispatcherAndIsReturnedAsToolNotFound() = runBlocking {
+        val connector = RecordingConnector()
+        val fixture = fixture(connector)
+        val orchestrator = ScriptedOrchestrator(
+            "{\"tool_call\":{\"name\":\"connector_missing_action\",\"args\":{}}}",
+            "The requested action is unavailable.",
+        )
+
+        val result = fixture.loop(orchestrator).run(
+            input = "Use the missing action",
+            systemPrompt = "You are AIRI.",
+            tools = listOf(fixture.readSchema),
+            onToken = {},
+        )
+
+        assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
+        assertEquals(0, connector.executeCalls)
+        assertTrue(orchestrator.requests[1].conversationHistory.any {
+            it.kind == "tool_result" && it.content.contains("tool_not_found")
+        })
+    }
+
+    @Test
+    fun duplicateReadCallsInOneBatchDispatchOnlyOnce() = runBlocking {
+        val connector = RecordingConnector()
+        val fixture = fixture(connector)
+        val orchestrator = ScriptedOrchestrator(
+            "{\"tool_calls\":[" +
+                "{\"id\":\"first\",\"name\":\"connector_vertical_read\",\"args\":{}} ," +
+                "{\"id\":\"second\",\"name\":\"connector_vertical_read\",\"args\":{}}]}",
+            "Duplicate work was suppressed.",
+        )
+
+        val result = fixture.loop(orchestrator).run(
+            input = "Read the source once",
+            systemPrompt = "You are AIRI.",
+            tools = listOf(fixture.readSchema),
+            onToken = {},
+        )
+
+        assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
+        assertEquals(1, connector.executeCalls)
+        assertEquals(2, orchestrator.requests.size)
+        assertTrue(orchestrator.requests[1].conversationHistory.count { it.kind == "tool_result" } == 2)
+    }
+
+    @Test
+    fun connectorApprovalIsNormalizedAndRecordedAsWaitingTrace() = runBlocking {
+        val connector = RecordingConnector().apply {
+            output = ConnectorOutput.ApprovalRequired(
+                approvalId = "approval-vertical",
+                taskId = "task-vertical",
+                runId = "run-vertical",
+                stepId = "step-vertical",
+                expiresAtMs = 123L,
+                message = "Approval is required",
+            )
+        }
+        val fixture = fixture(connector)
+        val orchestrator = ScriptedOrchestrator(
+            "{\"tool_call\":{\"name\":\"connector_vertical_read\",\"args\":{}}}",
+            "Waiting state was recorded.",
+        )
+
+        val result = fixture.loop(orchestrator).run(
+            input = "Read the screen with the approval-gated action",
+            systemPrompt = "You are AIRI.",
+            tools = listOf(fixture.readSchema),
+            sessionId = "session-approval",
+            requestedExecutionId = "execution-approval",
+            onToken = {},
+        )
+
+        assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
+        assertEquals(1, connector.executeCalls)
+        assertTrue(ExecutionStatusBus.traceSnapshot("execution-approval").any {
+            it.kind == ExecutionTraceKind.WAITING_FOR_APPROVAL && it.actionId.isNotBlank()
+        })
+    }
+
+    @Test
+    fun unauthenticatedConnectorIsRejectedBeforeProviderInvocation() = runBlocking {
+        val connector = RecordingConnector()
+        val fixture = fixture(connector, granted = false)
+        val orchestrator = ScriptedOrchestrator(
+            "{\"tool_call\":{\"name\":\"connector_vertical_read\",\"args\":{}}}",
+            "The connector was not authenticated.",
+        )
+
+        val result = fixture.loop(orchestrator).run(
+            input = "Read the connected source",
+            systemPrompt = "You are AIRI.",
+            tools = listOf(fixture.readSchema),
+            onToken = {},
+        )
+
+        assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
+        assertEquals(0, connector.executeCalls)
+        assertTrue(orchestrator.requests[1].conversationHistory.any {
+            it.kind == "tool_result" && it.content.contains("permission_denied")
+        })
+    }
+
+    @Test
+    fun cancellationAtModelBoundaryProducesCancelledTerminalState() = runBlocking {
+        val fixture = fixture(RecordingConnector())
+        val result = fixture.loop(CancellingOrchestrator()).run(
+            input = "Answer this request",
+            systemPrompt = "You are AIRI.",
+            tools = emptyList(),
+            onToken = {},
+        )
+
+        assertEquals(AgentLoop.TerminalState.CANCELLED, result.terminalState)
+    }
+
+    private fun fixture(connector: RecordingConnector, granted: Boolean = true): Fixture {
+        val registry = ConnectorRegistry().apply { register(connector) }
+        val profiles = InMemoryConnectorAccessProfileStore().apply {
+            if (granted) set("vertical", ConnectorAccessProfile.READ_ONLY)
+        }
+        val bridge = ConnectorToolBridge(registry, ConnectorRuntimeManager(registry, profiles), profiles)
+        return Fixture(
+            dispatcher = ToolDispatcher(connectorToolBridge = bridge),
+            readSchema = bridge.asToolSchemas().singleOrNull()
+                ?: ToolSchema("connector_vertical_read", "Read vertical fixture"),
+        )
+    }
+
+    private data class Fixture(
+        val dispatcher: ToolDispatcher,
+        val readSchema: ToolSchema,
+    ) {
+        fun loop(orchestrator: AgentOrchestrator) = AgentLoop(
+            orchestrator = orchestrator,
+            dispatcher = dispatcher,
+            appContext = ContextWrapper(null),
+        )
+    }
+
+    private class ScriptedOrchestrator(vararg responses: String) : AgentOrchestrator {
+        private val responses = ArrayDeque(responses.toList())
+        val requests = mutableListOf<ExecutionRequest>()
+
+        override suspend fun executeStream(
+            request: ExecutionRequest,
+            context: Context,
+            onToken: suspend (String) -> Unit,
+            onComplete: suspend (String, Long, ExecOrigin, CompletionMetadata) -> Unit,
+            onError: suspend (String, ExecOrigin) -> Unit,
+        ) {
+            requests += request
+            onComplete(responses.removeFirst(), 1L, ExecOrigin.LOCAL, CompletionMetadata())
+        }
+    }
+
+    private class CancellingOrchestrator : AgentOrchestrator {
+        override suspend fun executeStream(
+            request: ExecutionRequest,
+            context: Context,
+            onToken: suspend (String) -> Unit,
+            onComplete: suspend (String, Long, ExecOrigin, CompletionMetadata) -> Unit,
+            onError: suspend (String, ExecOrigin) -> Unit,
+        ) {
+            throw CancellationException("test cancellation")
+        }
+    }
+
+    private class RecordingConnector : Connector {
+        override val id = "vertical"
+        override val name = "Vertical fixture"
+        override val description = "Vertical integration fixture"
+        override val type = ConnectorType.APP
+        private val state = MutableStateFlow(ConnectorState(connected = true, healthy = true))
+        var executeCalls = 0
+        var lastInput: ConnectorInput? = null
+        var output: ConnectorOutput = ConnectorOutput.Success("vertical-result")
+
+        override fun meta() = ConnectorMeta(id, name, description, type)
+        override fun state() = state
+        override suspend fun connect() = state.value
+        override suspend fun disconnect() { state.value = ConnectorState(false, false) }
+        override fun agentActions() = listOf(
+            ConnectorAgentAction("read", "Read vertical fixture", ConnectorPermissionLevel.READ),
+        )
+        override suspend fun execute(input: ConnectorInput): ConnectorOutput {
+            executeCalls++
+            lastInput = input
+            return output
+        }
+    }
+}

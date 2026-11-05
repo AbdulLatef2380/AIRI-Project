@@ -27,7 +27,7 @@ import com.airi.assistant.execution.ToolCallFingerprint
 import com.airi.assistant.execution.ToolCallLedger
 import com.airi.assistant.execution.stableArgumentsHash
 import com.airi.assistant.execution.ExecOrigin
-import com.airi.assistant.execution.HybridOrchestrator
+import com.airi.assistant.execution.AgentOrchestrator
 import com.airi.assistant.domain.tool.StrictArgumentValidator
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.ExecutionStage
@@ -68,7 +68,7 @@ import kotlin.coroutines.coroutineContext
  * that don't pass a provider behave conservatively rather than breaking.
  */
 class AgentLoop(
-    private val orchestrator:          HybridOrchestrator,
+    private val orchestrator:          AgentOrchestrator,
     private val dispatcher:            ToolDispatcher,
     private val appContext:            Context,
     private val contextBudgetProvider: () -> ContextBudget = { ContextBudget.UNLOADED },
@@ -845,7 +845,11 @@ the tool returns an actual error.
                     Log.w(TAG, "AIRI TOOL_REJECTED_INVALID_SCHEMA tool=$toolName")
                     ToolDispatcher.ToolResult.Error(
                         toolValidationError,
-                        code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.INVALID_ARGUMENT,
+                        code = if (selectedToolSchema == null) {
+                            com.airi.assistant.agent.loop.tool.ToolErrorCodes.TOOL_NOT_FOUND
+                        } else {
+                            com.airi.assistant.agent.loop.tool.ToolErrorCodes.INVALID_ARGUMENT
+                        },
                     )
                 } else if (duplicateToolCall) {
                     Log.w(TAG, "AIRI TOOL_DUPLICATE_BLOCKED execution=$executionId tool=$toolName step=$toolStepId")

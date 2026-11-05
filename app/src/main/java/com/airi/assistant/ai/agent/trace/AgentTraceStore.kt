@@ -16,21 +16,33 @@ import java.nio.file.StandardCopyOption
  */
 class AgentTraceStore(private val file: File) {
 
-    fun load(): List<AgentTrace> = runCatching {
-        if (!file.exists()) return emptyList()
-        val array = JSONArray(file.readText())
-        (0 until array.length()).mapNotNull { index ->
-            runCatching { traceFromJson(array.getJSONObject(index)) }.getOrNull()
-        }
-    }.onFailure { Log.e("AIRI_TRACE", "Agent trace store read failed", it) }
-        .getOrDefault(emptyList())
+    private val lock = Any()
 
-    fun save(traces: List<AgentTrace>) {
+    fun load(): List<AgentTrace> = synchronized(lock) {
+        loadOrNull() ?: emptyList()
+    }
+
+    fun save(traces: List<AgentTrace>) = synchronized(lock) {
+        write(traces)
+    }
+
+    private fun loadOrNull(): List<AgentTrace>? = runCatching {
+        if (!file.exists()) return@runCatching emptyList()
+        val array = JSONArray(file.readText())
+        (0 until array.length()).map { index ->
+            traceFromJson(array.getJSONObject(index))
+        }
+    }.onFailure { Log.e("AIRI_TRACE", "Agent trace store read failed; preserving existing file", it) }
+        .getOrNull()
+
+    private fun write(traces: List<AgentTrace>) {
         runCatching {
             val array = JSONArray()
             traces.forEach { array.put(traceToJson(it)) }
             file.parentFile?.mkdirs()
-            val tmp = File(file.parentFile, file.name + ".tmp")
+            // A unique temp file prevents concurrent writers from sharing and
+            // corrupting one fixed .tmp path.
+            val tmp = File(file.parentFile, ".${file.name}.${Thread.currentThread().id}.tmp")
             tmp.writeText(array.toString())
             try {
                 Files.move(
@@ -45,15 +57,19 @@ class AgentTraceStore(private val file: File) {
                 // snapshot before the replacement is known to be available.
                 if (!tmp.renameTo(file)) throw atomicFailure
             }
-        }.onFailure { Log.e("AIRI_TRACE", "Agent trace store write failed", it) }
+        }.onFailure { error ->
+            Log.e("AIRI_TRACE", "Agent trace store write failed; previous snapshot was retained", error)
+        }
     }
 
-    fun deleteMatching(predicate: (AgentTrace) -> Boolean) {
-        val remaining = load().filterNot(predicate)
-        save(remaining)
+    fun deleteMatching(predicate: (AgentTrace) -> Boolean) = synchronized(lock) {
+        // A corrupt file must never be interpreted as an empty valid store and
+        // then overwritten by a delete operation.
+        val existing = loadOrNull() ?: return@synchronized
+        write(existing.filterNot(predicate))
     }
 
-    fun clear() {
+    fun clear() = synchronized(lock) {
         runCatching { file.delete() }
             .onFailure { Log.e("AIRI_TRACE", "Agent trace store clear failed", it) }
     }

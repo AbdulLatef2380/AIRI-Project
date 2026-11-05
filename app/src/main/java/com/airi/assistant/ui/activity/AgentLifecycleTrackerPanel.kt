@@ -369,7 +369,8 @@ private fun ActivityEventRow(
     expanded: Boolean,
     onToggle: () -> Unit,
 ) {
-    val canExpand = !event.detailLog.isNullOrBlank()
+    val canExpand = !event.detailLog.isNullOrBlank() || event.inputParams.isNotEmpty() ||
+        event.durationMs != null || event.errorCode != null
     val accessibleStatus = statusLabel(event.status)
     val technicalEvent = event.category == UnifiedTraceCategory.TOOL ||
         event.category == UnifiedTraceCategory.CONNECTOR
@@ -383,21 +384,26 @@ private fun ActivityEventRow(
     val detailToggleDescription = stringResource(
         if (expanded) R.string.agent_trace_collapse_event else R.string.agent_trace_expand_event,
     )
+    val detailDescription = buildList {
+        if (event.inputParams.isNotEmpty()) add("${event.inputParams.size} input parameters")
+        event.durationMs?.let { add("${it.coerceAtLeast(0L)} ms") }
+        event.errorCode?.let(::add)
+    }.joinToString(". ")
     val color = when (event.status) {
         TaskStatus.RUNNING -> MaterialTheme.colorScheme.onSurface
         TaskStatus.FAILED -> MaterialTheme.colorScheme.error
         TaskStatus.WAITING, TaskStatus.PENDING, TaskStatus.COMPLETED, TaskStatus.CANCELLED -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f)
     }
-    Column(Modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxWidth().testTag("agent-trace-event-${event.eventId}")) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (canExpand) Modifier.clickable(role = Role.Button, onClick = onToggle) else Modifier)
             .then(if (canExpand) Modifier.semantics(mergeDescendants = true) {
                     contentDescription = if (technicalEvent) {
-                        "$humanTitle. ${event.title}. $accessibleStatus. $detailToggleDescription"
+                        "$humanTitle. ${event.title}. $accessibleStatus. $detailDescription. $detailToggleDescription"
                     } else {
-                        "${event.title}. $accessibleStatus. $detailToggleDescription"
+                        "${event.title}. $accessibleStatus. $detailDescription. $detailToggleDescription"
                     }
                 } else Modifier.semantics(mergeDescendants = true) {
                     contentDescription = if (technicalEvent) {
@@ -485,6 +491,38 @@ private fun ActivityEventRow(
                         lineHeight = 14.sp,
                         maxLines = 4,
                         overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (event.inputParams.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.agent_trace_event_inputs),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                    event.inputParams.entries.take(8).forEach { (key, value) ->
+                        Text(
+                            text = "$key: $value",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            style = MaterialTheme.typography.labelSmall.copy(textDirection = TextDirection.Ltr),
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                event.durationMs?.let { durationMs ->
+                    Text(
+                        text = stringResource(R.string.agent_trace_event_duration, durationMs.coerceAtLeast(0L)),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+                event.errorCode?.let { errorCode ->
+                    Text(
+                        text = stringResource(R.string.agent_trace_event_reason, errorCode),
+                        color = if (event.status == TaskStatus.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.semantics { contentDescription = errorCode },
                     )
                 }
             }

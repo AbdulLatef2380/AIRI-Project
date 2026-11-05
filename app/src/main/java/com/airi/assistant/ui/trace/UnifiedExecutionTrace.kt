@@ -35,6 +35,12 @@ data class UnifiedExecutionTraceEvent(
     val machineTag: String? = null,
     val phase: ActivityPhase = ActivityPhase.SYSTEM,
     val parentId: String? = null,
+    /** Redacted arguments retained only for on-demand user-visible evidence. */
+    val inputParams: Map<String, String> = emptyMap(),
+    /** Typed duration; the UI must not parse it from provider text. */
+    val durationMs: Long? = null,
+    /** Stable machine-readable failure/approval code, never a raw provider error. */
+    val errorCode: String? = null,
 )
 
 /** Immutable execution tree node with a parent event and ordered child steps. */
@@ -280,6 +286,9 @@ internal object UnifiedExecutionTraceProjector {
                         machineTag = if (key.family == ActionFamily.STEP) "agent_step" else source.machineTag,
                         phase = phaseForStructured(source.kind),
                         parentId = parentId,
+                        inputParams = first.inputParams.ifEmpty { source.inputParams },
+                        durationMs = source.durationMs,
+                        errorCode = source.errorCode,
                     ),
                     dedupeKey = "action:${key.family.name.lowercase()}:${key.actionId}",
                     sourcePriority = 0,
@@ -346,6 +355,9 @@ internal object UnifiedExecutionTraceProjector {
                 category = eventCategory,
                 machineTag = machineTag,
                 phase = phaseForStructured(kind),
+                inputParams = inputParams,
+                durationMs = durationMs,
+                errorCode = errorCode,
             ),
             dedupeKey = lifecycleDedupeKey(kind, summary),
             sourcePriority = 0,

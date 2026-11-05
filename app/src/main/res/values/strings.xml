@@ -2386,6 +2386,9 @@
     <string name="agent_trace_event_connection_action">Connection action</string>
     <string name="agent_trace_event_technical_name">Technical name</string>
     <string name="agent_trace_event_details">Details</string>
+    <string name="agent_trace_event_inputs">Redacted inputs</string>
+    <string name="agent_trace_event_duration">Duration: %1$d ms</string>
+    <string name="agent_trace_event_reason">Reason: %1$s</string>
     <string name="agent_lifecycle_status_waiting">Waiting</string>
     <string name="agent_lifecycle_status_cancelled">Cancelled</string>
     <string name="artifact_copied">Copied reusable content</string>

@@ -2012,6 +2012,9 @@
     <string name="agent_trace_event_connection_action">Acción de conexión</string>
     <string name="agent_trace_event_technical_name">Nombre técnico</string>
     <string name="agent_trace_event_details">Detalles</string>
+    <string name="agent_trace_event_inputs">Entradas redactadas</string>
+    <string name="agent_trace_event_duration">Duración: %1$d ms</string>
+    <string name="agent_trace_event_reason">Motivo: %1$s</string>
     <string name="agent_lifecycle_status_waiting">En espera</string>
     <string name="agent_lifecycle_status_cancelled">Cancelado</string>
     <string name="github_project_status_runtime_unavailable">GitHub OAuth está autorizado, pero las acciones no están disponibles hasta configurar el runtime del Broker.</string>

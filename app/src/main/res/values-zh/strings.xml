@@ -2012,6 +2012,9 @@
     <string name="agent_trace_event_connection_action">连接操作</string>
     <string name="agent_trace_event_technical_name">技术名称</string>
     <string name="agent_trace_event_details">详细信息</string>
+    <string name="agent_trace_event_inputs">已脱敏输入</string>
+    <string name="agent_trace_event_duration">耗时：%1$d 毫秒</string>
+    <string name="agent_trace_event_reason">原因：%1$s</string>
     <string name="agent_lifecycle_status_waiting">等待中</string>
     <string name="agent_lifecycle_status_cancelled">已取消</string>
     <string name="github_project_status_runtime_unavailable">GitHub OAuth 已授权，但在配置 Broker 运行时之前无法执行操作。</string>

@@ -168,6 +168,29 @@ class UniversalRuntimeTraceRecorder(
         )
     )
 
+    fun modelRequestBuilt(
+        executionId: String,
+        sessionId: String,
+        promptTokens: Int,
+        historyTurns: Int,
+        toolCount: Int,
+        requiresToolCalling: Boolean,
+        requiresLongContext: Boolean,
+    ) = record(
+        eventType = UniversalTraceEventType.MODEL_REQUEST_BUILT,
+        executionId = executionId,
+        sessionId = sessionId,
+        component = "AgentLoop",
+        outcome = "built",
+        attributes = mapOf(
+            "promptTokens" to promptTokens.coerceAtLeast(0).toString(),
+            "historyTurns" to historyTurns.coerceAtLeast(0).toString(),
+            "toolCount" to toolCount.coerceAtLeast(0).toString(),
+            "requiresToolCalling" to requiresToolCalling.toString(),
+            "requiresLongContext" to requiresLongContext.toString(),
+        ),
+    )
+
     fun parser(
         executionId: String,
         sessionId: String,

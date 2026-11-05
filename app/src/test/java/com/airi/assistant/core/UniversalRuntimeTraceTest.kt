@@ -77,6 +77,28 @@ class UniversalRuntimeTraceTest {
     }
 
     @Test
+    fun modelRequestBuiltStoresOnlyBoundedRequestMetadata() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        recorder.begin("exec-1", "session-1", "model", "provider", "cloud", "private input", emptyList())
+        recorder.modelRequestBuilt(
+            executionId = "exec-1",
+            sessionId = "session-1",
+            promptTokens = 120,
+            historyTurns = 4,
+            toolCount = 3,
+            requiresToolCalling = true,
+            requiresLongContext = false,
+        )
+
+        val event = recorder.events.last { it.eventType == UniversalTraceEventType.MODEL_REQUEST_BUILT }
+        assertEquals("120", event.attributes["promptTokens"])
+        assertEquals("4", event.attributes["historyTurns"])
+        assertEquals("3", event.attributes["toolCount"])
+        assertEquals("true", event.attributes["requiresToolCalling"])
+        assertFalse(event.attributes.values.any { it.contains("private input") })
+    }
+
+    @Test
     fun toolSchemaHashIsStableAndDoesNotContainDescriptionOrArguments() {
         val tool = ToolSchema(
             name = "safe_read",

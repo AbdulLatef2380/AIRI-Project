@@ -1239,6 +1239,15 @@ the tool returns an actual error.
 
         val sawToken = AtomicBoolean(false)
         val runStream: suspend () -> Unit = {
+        runtimeTrace?.modelRequestBuilt(
+            executionId = identity.executionId,
+            sessionId = identity.sessionId,
+            promptTokens = estimatedTokens,
+            historyTurns = requestProjection.conversationHistory.size,
+            toolCount = tools.size,
+            requiresToolCalling = tools.isNotEmpty(),
+            requiresLongContext = estimatedTokens > longContextThreshold,
+        )
         orchestrator.executeStream(
             request    = ExecutionRequest(
                 prompt                = requestProjection.prompt,

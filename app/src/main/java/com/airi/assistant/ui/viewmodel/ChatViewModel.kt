@@ -51,6 +51,7 @@ import com.airi.assistant.ai.remote.RemoteModel
 import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.core.ExecutionStatusBus
+import com.airi.assistant.core.ExecutionTraceKind
 // AgentService import removed — no longer used in sendMessage after agent-first migration
 import com.airi.core.attachments.AttachmentPolicy
 import com.airi.assistant.domain.ChatAttachment
@@ -1784,9 +1785,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     sequence = (currentEvents.maxOfOrNull { it.sequence } ?: 0L) + 1L,
                     timestampMs = System.currentTimeMillis(),
                     kind = terminalKind,
-                    summary = terminalSummary.ifBlank { terminalKind.name.lowercase() },
+                    summary = terminalSummary.ifBlank { terminalKind?.name?.lowercase().orEmpty() },
                     detail = terminalSummary.takeIf { it.isNotBlank() },
-                    machineTag = "execution_${terminalKind.name.lowercase()}",
+                    machineTag = "execution_${terminalKind?.name?.lowercase().orEmpty()}",
                 )
             } else {
                 currentEvents
@@ -3121,7 +3122,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         )
                         persistExecutionOutcome(
                             kind = ExecutionTraceKind.FAILED,
-                            summary = loopResult.failureMessage.ifBlank { "Agent execution failed" },
+                            summary = loopResult.failureMessage.orEmpty().ifBlank { "Agent execution failed" },
                             answer = streamedAnswer,
                         )
                         return@launch

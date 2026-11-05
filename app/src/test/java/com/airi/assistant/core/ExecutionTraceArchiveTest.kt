@@ -55,4 +55,16 @@ class ExecutionTraceArchiveTest {
         assertEquals(mapOf(42L to listOf(event)), ExecutionTraceArchive.getAll(listOf(42L)))
         assertEquals(emptyMap<Long, List<ExecutionTraceEvent>>(), ExecutionTraceArchive.getAll(listOf(99L)))
     }
+
+    @Test
+    fun corruptArchiveDoesNotPublishPartiallyParsedEntries() {
+        val file = File.createTempFile("execution_trace_archive_corrupt", ".json").apply {
+            writeText("[{\"messageId\":1,\"events\":[]},{\"messageId\":2")
+            deleteOnExit()
+        }
+
+        ExecutionTraceArchive.attach(file)
+
+        assertEquals(emptyMap<Long, List<ExecutionTraceEvent>>(), ExecutionTraceArchive.getAll(listOf(1L, 2L)))
+    }
 }

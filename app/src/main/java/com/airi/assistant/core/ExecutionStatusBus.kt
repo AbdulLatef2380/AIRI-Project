@@ -38,11 +38,12 @@ object ExecutionStatusBus {
     @Volatile internal var maxTraceHistory = 32
 
     private val _status = MutableStateFlow(AgentState())
-    private val traceBuffer = ExecutionTraceBuffer()
-    private val toolTraceLifecycle = ExecutionToolTraceLifecycle()
     private val _trace = MutableStateFlow<List<ExecutionTraceEvent>>(emptyList())
     private val traceLock = Any()
     private val traceHistory = linkedMapOf<String, List<ExecutionTraceEvent>>()
+    private val traceBuffers = linkedMapOf<String, ExecutionTraceBuffer>()
+    private val toolTraceLifecycles = linkedMapOf<String, ExecutionToolTraceLifecycle>()
+    private val terminalExecutions = mutableSetOf<String>()
 
     // : Wrap status with FlowPressureMonitor to detect slow collectors.
     // monitorFlow wraps the Flow at the read-side; _status remains a MutableStateFlow
@@ -55,7 +56,7 @@ object ExecutionStatusBus {
     fun traceSnapshot(executionId: String): List<ExecutionTraceEvent> = synchronized(traceLock) {
         if (executionId.isBlank()) emptyList()
         else traceHistory[executionId]?.toList()
-            ?: if (_status.value.executionId == executionId) traceBuffer.snapshot() else emptyList()
+            ?: traceBuffers[executionId]?.snapshot().orEmpty()
     }
     // Wrapped version for collectors that want pressure detection:
     val monitoredStatus = FlowPressureMonitor.monitorFlow("ExecutionStatusBus", _status)
@@ -84,13 +85,18 @@ object ExecutionStatusBus {
                 nodesTotal            = totalNodes,
                 executionStage        = ExecutionStage.PLANNING
             )
-            traceBuffer.begin(executionId, sessionId)
+            traceBuffers[executionId] = ExecutionTraceBuffer().also { it.begin(executionId, sessionId) }
+            toolTraceLifecycles[executionId] = ExecutionToolTraceLifecycle().also { it.begin(executionId) }
+            terminalExecutions.remove(executionId)
             traceHistory[executionId] = emptyList()
             while (traceHistory.size > maxTraceHistory) {
-                traceHistory.remove(traceHistory.keys.first())
+                val evicted = traceHistory.keys.first()
+                traceHistory.remove(evicted)
+                traceBuffers.remove(evicted)
+                toolTraceLifecycles.remove(evicted)
+                terminalExecutions.remove(evicted)
             }
         }
-        toolTraceLifecycle.begin(executionId)
         appendTrace(executionId, ExecutionTraceKind.PLANNING, "Planning task", goalDescription, machineTag = "planning")
         safeLog { Log.i(TAG, "EXEC_STATUS_PLANNING goalChars=${goalDescription.length} nodes=$totalNodes") }
     }
@@ -110,7 +116,7 @@ object ExecutionStatusBus {
                 currentAction   = nodeActions.joinToString(", ").take(80)
             )
         }
-        if (belongsToActiveExecution(_status.value, executionId)) {
+        if (isOpenExecution(executionId)) {
             nodeIds.forEachIndexed { index, nodeId ->
                 appendTrace(
                     executionId,
@@ -138,7 +144,7 @@ object ExecutionStatusBus {
                 activeNodeId   = nodeId
             )
         }
-        if (belongsToActiveExecution(_status.value, executionId)) {
+        if (isOpenExecution(executionId)) {
             appendTrace(
                 executionId,
                 ExecutionTraceKind.STEP_COMPLETED,
@@ -228,8 +234,9 @@ object ExecutionStatusBus {
         toolName: String,
         detail: String? = null,
     ) {
-        if (!belongsToActiveExecution(_status.value, executionId) ||
-            !toolTraceLifecycle.admitStart(executionId, actionId)
+        if (!isOpenExecution(executionId) ||
+            (_status.value.executionId == executionId && _status.value.cancellationRequested) ||
+            toolTraceLifecycles[executionId]?.admitStart(executionId, actionId) != true
         ) {
             safeLog { Log.w(TAG, "TRACE_TOOL_START_REJECTED owner=${executionId.take(8)}") }
             return
@@ -316,7 +323,7 @@ object ExecutionStatusBus {
                 currentAction  = "Recovering: ${reason.take(60)}"
             )
         }
-        if (belongsToActiveExecution(_status.value, executionId)) {
+        if (isOpenExecution(executionId)) {
             appendTrace(executionId, ExecutionTraceKind.RECOVERING, "Recovering step", reason, actionId = nodeId, machineTag = "step_recovering")
         }
         safeLog { Log.i(TAG, "EXEC_STATUS_RECOVERING node=$nodeId attempt=$retryCount reasonChars=${reason.length}") }
@@ -328,7 +335,7 @@ object ExecutionStatusBus {
             if (!belongsToActiveExecution(current, executionId)) current
             else current.copy(executionStage = ExecutionStage.REFLECTING, currentAction = "Analysing results...")
         }
-        if (belongsToActiveExecution(_status.value, executionId)) {
+        if (isOpenExecution(executionId)) {
             appendTrace(executionId, ExecutionTraceKind.REFLECTING, "Reviewing execution result")
         }
     }
@@ -353,13 +360,14 @@ object ExecutionStatusBus {
                 approvalInterruptId = "",
             )
         }
-        if (accepted) {
+        if (accepted || isOpenExecution(executionId)) {
             appendTrace(
                 executionId,
                 if (success) ExecutionTraceKind.COMPLETED else ExecutionTraceKind.FAILED,
                 if (success) "Execution completed" else "Execution failed",
                 machineTag = if (success) "execution_completed" else "execution_failed",
             )
+            synchronized(traceLock) { terminalExecutions += executionId }
         }
         safeLog { Log.i(TAG, "EXEC_STATUS ${stage.name}") }
     }
@@ -424,8 +432,9 @@ object ExecutionStatusBus {
                 approvalInterruptId = "",
             )
         }
-        if (accepted) {
+        if (accepted || isOpenExecution(executionId)) {
             appendTrace(executionId, ExecutionTraceKind.CANCELLED, "Execution cancelled", machineTag = "execution_cancelled")
+            synchronized(traceLock) { terminalExecutions += executionId }
         }
         safeLog { Log.i(TAG, "EXEC_STATUS_CANCELLED") }
     }
@@ -434,10 +443,11 @@ object ExecutionStatusBus {
     fun reset() {
         synchronized(traceLock) {
             _status.value = AgentState()
-            traceBuffer.clear()
             traceHistory.clear()
+            traceBuffers.clear()
+            toolTraceLifecycles.clear()
+            terminalExecutions.clear()
         }
-        toolTraceLifecycle.reset()
         _trace.value = emptyList()
     }
 
@@ -452,7 +462,8 @@ object ExecutionStatusBus {
         errorCode: String? = null,
     ) {
         if (!belongsToToolTerminalExecution(_status.value, executionId) ||
-            !toolTraceLifecycle.admitTerminal(executionId, actionId)
+            !isOpenExecution(executionId) ||
+            toolTraceLifecycles[executionId]?.admitTerminal(executionId, actionId) != true
         ) {
             safeLog { Log.w(TAG, "TRACE_TOOL_TERMINAL_REJECTED owner=${executionId.take(8)}") }
             return
@@ -481,7 +492,9 @@ object ExecutionStatusBus {
     ) {
         val normalizedErrorCode = ExecutionTraceBuffer.normalizeErrorCode(errorCode)
         val event = synchronized(traceLock) {
-            val appended = traceBuffer.append(
+            val buffer = traceBuffers[executionId] ?: return
+            if (executionId in terminalExecutions) return
+            val appended = buffer.append(
                 executionId = executionId,
                 kind = kind,
                 summary = PrivacyGuard.redactForTrace(summary),
@@ -494,7 +507,7 @@ object ExecutionStatusBus {
                 errorCode = normalizedErrorCode,
                 machineTag = machineTag,
             ) ?: return
-            val currentSnapshot = traceBuffer.snapshot()
+            val currentSnapshot = buffer.snapshot()
             traceHistory[executionId] = currentSnapshot
             while (traceHistory.size > maxTraceHistory) {
                 traceHistory.remove(traceHistory.keys.first())
@@ -528,7 +541,11 @@ object ExecutionStatusBus {
      * TOOL_STARTED event forever.
      */
     private fun belongsToToolTerminalExecution(current: AgentState, executionId: String): Boolean =
-        acceptsEvent(current.executionId, executionId) && current.executionStage !in TERMINAL_STAGES
+        executionId.isNotBlank() && current.executionStage !in TERMINAL_STAGES
+
+    private fun isOpenExecution(executionId: String): Boolean = synchronized(traceLock) {
+        executionId.isNotBlank() && executionId in traceBuffers && executionId !in terminalExecutions
+    }
 
     private val TERMINAL_STAGES = setOf(
         ExecutionStage.COMPLETED,

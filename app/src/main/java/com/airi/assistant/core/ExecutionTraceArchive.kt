@@ -72,11 +72,16 @@ object ExecutionTraceArchive {
                 return@runCatching true
             }
             val array = JSONArray(target.readText())
+            val loadedEntries = LinkedHashMap<Long, List<ExecutionTraceEvent>>()
             for (i in 0 until array.length()) {
                 val item = array.getJSONObject(i)
                 val events = item.getJSONArray("events")
-                entries[item.getLong("messageId")] = (0 until events.length()).map { eventFromJson(events.getJSONObject(it)) }
+                loadedEntries[item.getLong("messageId")] = (0 until events.length()).map {
+                    eventFromJson(events.getJSONObject(it))
+                }
             }
+            entries.clear()
+            entries.putAll(loadedEntries)
             loaded = true
             true
         }.onFailure { Log.e("AIRI_TRACE", "Execution trace archive read failed", it) }

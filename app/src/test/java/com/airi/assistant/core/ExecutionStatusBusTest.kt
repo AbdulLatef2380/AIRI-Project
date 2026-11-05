@@ -65,6 +65,29 @@ class ExecutionStatusBusTest {
     }
 
     @Test
+    fun concurrentExecutionsKeepTheirOwnEventsAndTerminalState() {
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("First task", 1, "parallel-1", "session-1")
+        ExecutionStatusBus.onGraphStarted("Second task", 1, "parallel-2", "session-1")
+
+        ExecutionStatusBus.onWaveStarted(listOf("step-1"), listOf("read_first"), "parallel-1")
+        ExecutionStatusBus.onToolStarted("parallel-1", "tool-1", "read_first")
+        ExecutionStatusBus.onToolCompleted("parallel-1", "tool-1", "read_first", 4L)
+        ExecutionStatusBus.onGraphCompleted(success = true, executionId = "parallel-1")
+
+        ExecutionStatusBus.onWaveStarted(listOf("step-2"), listOf("read_second"), "parallel-2")
+        ExecutionStatusBus.onGraphCompleted(success = false, executionId = "parallel-2")
+
+        val first = ExecutionStatusBus.traceSnapshot("parallel-1")
+        val second = ExecutionStatusBus.traceSnapshot("parallel-2")
+        assertTrue(first.all { it.executionId == "parallel-1" })
+        assertTrue(second.all { it.executionId == "parallel-2" })
+        assertEquals(ExecutionTraceKind.COMPLETED, first.last().kind)
+        assertEquals(ExecutionTraceKind.FAILED, second.last().kind)
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
     fun cancellationRequestClosesAdmissionBeforeTerminalCancellation() {
         val executionId = "cancellation-gate-test"
         ExecutionStatusBus.reset()

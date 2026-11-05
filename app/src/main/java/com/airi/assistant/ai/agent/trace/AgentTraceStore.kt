@@ -4,6 +4,8 @@ import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /**
  * File-backed persistence for already-redacted [AgentTrace]s.
@@ -30,9 +32,18 @@ class AgentTraceStore(private val file: File) {
             file.parentFile?.mkdirs()
             val tmp = File(file.parentFile, file.name + ".tmp")
             tmp.writeText(array.toString())
-            if (!tmp.renameTo(file)) {
-                file.delete()
-                tmp.renameTo(file)
+            try {
+                Files.move(
+                    tmp.toPath(),
+                    file.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            } catch (atomicFailure: Exception) {
+                // Some Android filesystems do not support ATOMIC_MOVE. A
+                // fallback replacement must never delete the last known-good
+                // snapshot before the replacement is known to be available.
+                if (!tmp.renameTo(file)) throw atomicFailure
             }
         }.onFailure { Log.e("AIRI_TRACE", "Agent trace store write failed", it) }
     }

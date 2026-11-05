@@ -2640,16 +2640,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     localAvailableTokens = llamaManager.contextBudget.availableForContent,
                 )
             } else {
-                // Report 1, item 4 (stage 23): an unclassified request with no capability and
-                // no user-picked skill no longer carries every tool; null means "not narrowed".
-                com.airi.assistant.agent.loop.tool.QuestionToolExposurePolicy.selectUnclassified(
-                    queryType = queryType,
-                    capabilityRequiresTools = capabilityIntent.requiresTools,
-                    userSelectedSkills = selectedSkillIds.isNotEmpty(),
-                    providerId = requestedProviderIdAtDispatch,
-                    availableTools = allActiveTools,
-                    localAvailableTokens = llamaManager.contextBudget.availableForContent,
-                ) ?: allActiveTools
+                allActiveTools.let { availableTools ->
+                    // Report 1, item 4 (stage 23): an unclassified request with no capability and
+                    // no user-picked skill no longer carries every tool; null means "not narrowed".
+                    com.airi.assistant.agent.loop.tool.QuestionToolExposurePolicy.selectUnclassified(
+                        queryType = queryType,
+                        capabilityRequiresTools = capabilityIntent.requiresTools,
+                        userSelectedSkills = selectedSkillIds.isNotEmpty(),
+                        providerId = requestedProviderIdAtDispatch,
+                        availableTools = availableTools,
+                        localAvailableTokens = llamaManager.contextBudget.availableForContent,
+                    ) ?: availableTools
+                }
             }
             val requestPermissionProfile = com.airi.assistant.core.AgentPermissionProfile.resolve(
                 queryType = queryType,

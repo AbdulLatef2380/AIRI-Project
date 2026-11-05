@@ -10,7 +10,12 @@ import java.nio.file.Files
  */
 internal class SensitiveLocalFileCleaner(private val filesDir: File) {
     fun clear(): Set<String> {
-        val targets = setOf("attachments", "profile")
+        val targets = setOf(
+            "attachments",
+            "profile",
+            "agent_traces.json",
+            "execution_trace_archive.json",
+        )
         targets.forEach { name ->
             val child = File(filesDir, name)
             if (!deleteNoFollow(child)) throw IOException("Unable to remove private user data directory: $name")

@@ -1,5 +1,6 @@
 package com.airi.assistant.ai.agent.trace
 
+import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -19,7 +20,8 @@ class AgentTraceStore(private val file: File) {
         (0 until array.length()).mapNotNull { index ->
             runCatching { traceFromJson(array.getJSONObject(index)) }.getOrNull()
         }
-    }.getOrDefault(emptyList())
+    }.onFailure { Log.e("AIRI_TRACE", "Agent trace store read failed", it) }
+        .getOrDefault(emptyList())
 
     fun save(traces: List<AgentTrace>) {
         runCatching {
@@ -32,11 +34,12 @@ class AgentTraceStore(private val file: File) {
                 file.delete()
                 tmp.renameTo(file)
             }
-        }
+        }.onFailure { Log.e("AIRI_TRACE", "Agent trace store write failed", it) }
     }
 
     fun clear() {
         runCatching { file.delete() }
+            .onFailure { Log.e("AIRI_TRACE", "Agent trace store clear failed", it) }
     }
 
     internal companion object {

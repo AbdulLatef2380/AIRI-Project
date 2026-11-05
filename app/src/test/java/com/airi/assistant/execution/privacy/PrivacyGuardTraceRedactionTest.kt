@@ -37,4 +37,18 @@ class PrivacyGuardTraceRedactionTest {
         assertTrue(redacted.length <= 70)
         assertTrue(redacted.contains("truncated by PrivacyGuard"))
     }
+
+    @Test
+    fun redactForTrace_removesShortBearerPiiPaymentCardsAndWindowsPaths() {
+        val raw = "Bearer abc123 email=user@example.com phone=+1 202-555-0199 " +
+            "card=4111 1111 1111 1111 file=C:\\Users\\Alice\\secret.txt"
+
+        val redacted = PrivacyGuard.redactForTrace(raw)
+
+        assertFalse(redacted.contains("abc123"))
+        assertFalse(redacted.contains("user@example.com"))
+        assertFalse(redacted.contains("202-555-0199"))
+        assertFalse(redacted.contains("4111 1111 1111 1111"))
+        assertFalse(redacted.contains("C:\\Users\\Alice\\secret.txt"))
+    }
 }

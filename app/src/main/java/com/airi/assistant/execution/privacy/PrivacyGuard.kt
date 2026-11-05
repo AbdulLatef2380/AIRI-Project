@@ -117,6 +117,10 @@ object PrivacyGuard {
         sanitized = sanitized.replaceTracked(PATH_REGEX, "[PATH_REDACTED]", "path", stripped)
         sanitized = sanitized.replaceTracked(CONTENT_URI_REGEX, "[URI_REDACTED]", "uri", stripped)
         sanitized = sanitized.replaceTracked(API_KEY_REGEX, "[KEY_REDACTED]", "credential", stripped)
+        sanitized = sanitized.replaceTracked(EMAIL_REGEX, "[EMAIL_REDACTED]", "email", stripped)
+        sanitized = sanitized.replaceTracked(PHONE_REGEX, "[PHONE_REDACTED]", "phone", stripped)
+        sanitized = sanitized.replaceTracked(CARD_REGEX, "[CARD_REDACTED]", "payment_card", stripped)
+        sanitized = sanitized.replaceTracked(PASSWORD_ASSIGNMENT_REGEX, "[SECRET_REDACTED]", "credential", stripped)
         sanitized = sanitized.replaceTracked(PRIVATE_IP_REGEX, "[IP_REDACTED]", "private_ip", stripped)
         sanitized = sanitized.replaceTracked(GPS_REGEX, "[GPS_REDACTED]", "gps", stripped)
         sanitized = sanitized.replaceTracked(DEVICE_IDENTIFIER_REGEX, "[DEVICE_ID_REDACTED]", "device_id", stripped)
@@ -150,7 +154,7 @@ object PrivacyGuard {
     }
 
     private val PATH_REGEX = Regex(
-        """(?:file://)?(?:/data/|/sdcard/|/storage/emulated/|/cache/|/files/)[^\s'"]{0,120}"""
+        """(?:file://)?(?:/data/|/sdcard/|/storage/emulated/|/cache/|/files/|/home/|/Users/|[A-Za-z]:\\)[^\s'\"]{0,160}"""
     )
 
     private val CONTENT_URI_REGEX = Regex(
@@ -158,8 +162,15 @@ object PrivacyGuard {
     )
 
     private val API_KEY_REGEX = Regex(
-        """(?:sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z\-_]{35}|ghp_[A-Za-z0-9]{36}|Bearer\s+[A-Za-z0-9\-._~+/]{20,}|api[_\-]?key\s*[:=]\s*['"]?[A-Za-z0-9\-_]{16,})""",
+        """(?:sk-(?:proj-)?[A-Za-z0-9_-]{8,}|sk-ant-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z\-_]{20,}|ghp_[A-Za-z0-9]{12,}|xox[baprs]-[A-Za-z0-9-]{8,}|AKIA[0-9A-Z]{16}|Bearer\s+[A-Za-z0-9\-._~+/]{6,}|api[_\-]?key\s*[:=]\s*['"]?[A-Za-z0-9\-_]{6,})""",
         setOf(RegexOption.IGNORE_CASE)
+    )
+
+    private val EMAIL_REGEX = Regex("""[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}""")
+    private val PHONE_REGEX = Regex("""(?<!\d)(?:\+?\d[\d ()-]{7,}\d)(?!\d)""")
+    private val CARD_REGEX = Regex("""(?<!\d)(?:\d[ -]?){13,19}(?!\d)""")
+    private val PASSWORD_ASSIGNMENT_REGEX = Regex(
+        """(?i)\b(?:password|passwd|passcode|pwd)\s*(?:is|[:=])\s*[^\s,;]{3,}"""
     )
 
     private val TRACE_SECRET_FIELD_REGEX = Regex(

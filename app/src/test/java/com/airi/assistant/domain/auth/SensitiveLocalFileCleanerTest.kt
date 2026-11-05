@@ -13,12 +13,16 @@ class SensitiveLocalFileCleanerTest {
         try {
             File(root, "attachments/message.txt").apply { parentFile!!.mkdirs(); writeText("private attachment") }
             File(root, "profile/account/avatar.jpg").apply { parentFile!!.mkdirs(); writeText("private profile photo") }
+            File(root, "agent_traces.json").writeText("private trace")
+            File(root, "execution_trace_archive.json").writeText("private archive")
             val retainedModel = File(root, "models/local.gguf").apply { parentFile!!.mkdirs(); writeText("model") }
 
             SensitiveLocalFileCleaner(root).clear()
 
             assertFalse(File(root, "attachments").exists())
             assertFalse(File(root, "profile").exists())
+            assertFalse(File(root, "agent_traces.json").exists())
+            assertFalse(File(root, "execution_trace_archive.json").exists())
             assertTrue(retainedModel.isFile)
         } finally {
             root.deleteRecursively()

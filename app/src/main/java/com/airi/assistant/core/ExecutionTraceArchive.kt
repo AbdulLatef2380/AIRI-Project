@@ -1,5 +1,6 @@
 package com.airi.assistant.core
 
+import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -37,7 +38,7 @@ object ExecutionTraceArchive {
         if (events.isEmpty()) return
         val snapshot = synchronized(lock) {
             val target = file ?: return
-            ensureLoaded(target)
+            if (!ensureLoaded(target)) return
             entries.remove(messageId)
             entries[messageId] = events
             while (entries.size > maxMessages) entries.remove(entries.keys.first())
@@ -49,22 +50,37 @@ object ExecutionTraceArchive {
     /** Returns stored traces for the given message ids. Call off the main thread. */
     fun getAll(messageIds: Collection<Long>): Map<Long, List<ExecutionTraceEvent>> = synchronized(lock) {
         val target = file ?: return emptyMap()
-        ensureLoaded(target)
+        if (!ensureLoaded(target)) return emptyMap()
         messageIds.mapNotNull { id -> entries[id]?.let { id to it } }.toMap()
     }
 
-    private fun ensureLoaded(target: File) {
-        if (loaded) return
+    /** Removes all archived traces as part of account deletion. */
+    fun clear() = synchronized(lock) {
+        entries.clear()
         loaded = true
-        runCatching {
-            if (!target.exists()) return@runCatching
+        file?.let { target ->
+            runCatching { target.delete() }
+                .onFailure { Log.e("AIRI_TRACE", "Execution trace archive clear failed", it) }
+        }
+    }
+
+    private fun ensureLoaded(target: File): Boolean {
+        if (loaded) return true
+        return runCatching {
+            if (!target.exists()) {
+                loaded = true
+                return@runCatching true
+            }
             val array = JSONArray(target.readText())
             for (i in 0 until array.length()) {
                 val item = array.getJSONObject(i)
                 val events = item.getJSONArray("events")
                 entries[item.getLong("messageId")] = (0 until events.length()).map { eventFromJson(events.getJSONObject(it)) }
             }
-        }
+            loaded = true
+            true
+        }.onFailure { Log.e("AIRI_TRACE", "Execution trace archive read failed", it) }
+            .getOrDefault(false)
     }
 
     private fun write(snapshot: Map<Long, List<ExecutionTraceEvent>>) {

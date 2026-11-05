@@ -996,6 +996,8 @@
     <string name="trace_metadata_provider">Provider</string>
     <string name="trace_metadata_estimated_output_tokens">Estimated visible output tokens: ~%1$d</string>
     <string name="trace_metadata_first_visible_token">Time to first visible token: %1$d ms</string>
+    <string name="trace_metadata_step_time">Started: %1$s</string>
+    <string name="trace_metadata_step_duration">Duration: %1$d ms</string>
     <string name="trace_input_badge">INPUT</string>
 
     <!-- Activity Feed -->

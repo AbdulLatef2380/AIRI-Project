@@ -1255,6 +1255,8 @@ the tool returns an actual error.
         runtimeTrace?.modelRequestBuilt(
             executionId = identity.executionId,
             sessionId = identity.sessionId,
+            modelId = modelId,
+            providerId = providerId,
             promptTokens = estimatedTokens,
             historyTurns = requestProjection.conversationHistory.size,
             toolCount = tools.size,

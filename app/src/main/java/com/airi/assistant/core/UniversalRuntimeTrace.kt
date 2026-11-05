@@ -172,6 +172,8 @@ class UniversalRuntimeTraceRecorder(
     fun modelRequestBuilt(
         executionId: String,
         sessionId: String,
+        modelId: String = "",
+        providerId: String = "",
         promptTokens: Int,
         historyTurns: Int,
         toolCount: Int,
@@ -184,6 +186,8 @@ class UniversalRuntimeTraceRecorder(
         component = "AgentLoop",
         outcome = "built",
         attributes = mapOf(
+            "model" to RuntimeTraceRedaction.token(modelId),
+            "provider" to RuntimeTraceRedaction.token(providerId),
             "promptTokens" to promptTokens.coerceAtLeast(0).toString(),
             "historyTurns" to historyTurns.coerceAtLeast(0).toString(),
             "toolCount" to toolCount.coerceAtLeast(0).toString(),

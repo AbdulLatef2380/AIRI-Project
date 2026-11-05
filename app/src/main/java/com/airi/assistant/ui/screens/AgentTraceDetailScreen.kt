@@ -212,6 +212,11 @@ fun AgentTraceDetailScreen(
 @Composable
 private fun AgentStepCard(index: Int, step: AgentStep) {
     val successColor = if (step.success) Color(0xFF00C853) else Color(0xFFFF5252)
+    val stepTime = remember(step.timestampMs) {
+        step.timestampMs.takeIf { it > 0L }?.let {
+            SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()).format(Date(it))
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -254,6 +259,26 @@ private fun AgentStepCard(index: Int, step: AgentStep) {
                         tint = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(16.dp)
                     )
+                )
+            }
+
+            if (stepTime != null || step.durationMs > 0L) {
+                Spacer(Modifier.height(5.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    stepTime?.let {
+                        Text(
+                            stringResource(R.string.trace_metadata_step_time, it),
+                            color = AiriTheme.onSurfaceVariant,
+                            fontSize = 10.sp,
+                        )
+                    }
+                    if (step.durationMs > 0L) {
+                        Text(
+                            stringResource(R.string.trace_metadata_step_duration, step.durationMs),
+                            color = AiriTheme.onSurfaceVariant,
+                            fontSize = 10.sp,
+                        )
+                    }
                 }
             }
 

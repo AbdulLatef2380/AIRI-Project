@@ -76,6 +76,7 @@ class GithubGuardianSkill(private val context: Context) : AiriSkill {
                     connectorId = "github",
                     action = "list_repos",
                     params = mapOf("limit" to limit.toString()),
+                    executionId = context?.executionId,
                 )
             }
             "get_file" -> {
@@ -90,12 +91,14 @@ class GithubGuardianSkill(private val context: Context) : AiriSkill {
                     connectorId = "github",
                     action = "get_file",
                     params = mapOf("repo" to repo, "path" to path),
+                    executionId = context?.executionId,
                 )
             }
             else -> {
                 ConnectorSkillRuntime.execute(
                     connectorId = "github",
                     action = "get_user",
+                    executionId = context?.executionId,
                 )
             }
         }

@@ -55,6 +55,7 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
             connectorId = "google",
             action = "gmail_list",
             params = mapOf("max_results" to max.toString(), "query" to resolveQuery(input)),
+            executionId = context?.executionId,
         )
         if (!list.success) return list
 
@@ -76,6 +77,7 @@ class GmailAssistantSkill(private val context: Context) : AiriSkill {
                 connectorId = "google",
                 action = "gmail_read",
                 params = mapOf("message_id" to messageId),
+                executionId = context?.executionId,
             )
             if (!read.success) return read
             messages += "Message ${index + 1} ($messageId):\n${read.data}"

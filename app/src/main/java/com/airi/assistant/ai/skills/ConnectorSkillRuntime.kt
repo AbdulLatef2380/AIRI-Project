@@ -14,12 +14,14 @@ object ConnectorSkillRuntime {
         connectorId: String,
         action: String,
         params: Map<String, String> = emptyMap(),
+        executionId: String? = null,
     ): SkillResult {
         val output = ServiceLocator.connectorRuntimeManager.execute(
             connectorId = connectorId,
             input = ConnectorInput(
                 action = action,
                 params = params,
+                executionId = executionId?.takeIf(String::isNotBlank),
                 authorizationActionId = action,
             ),
         )

@@ -505,7 +505,7 @@ class ToolDispatcher(
                 val bridge = skillToolBridge
                 if (bridge != null && bridge.handles(toolName)) {
                     Log.i(TAG, "AIRI SKILL_TOOL_DISPATCH tool=$toolName")
-                    val result = bridge.invoke(toolName, args)
+                    val result = bridge.invoke(toolName, args, executionId = executionId)
                     val output = com.airi.assistant.ai.skills.SkillToolResultFormatter.format(result)
                     if (result.success) {
                         ToolResult.Success(output, provenance = ToolProvenance.SKILL)

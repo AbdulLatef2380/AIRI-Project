@@ -51,6 +51,7 @@ class DriveSearchSkill(private val context: Context) : AiriSkill {
             connectorId = "google",
             action = "drive_search",
             params = mapOf("query" to query),
+            executionId = context?.executionId,
         )
     }
 

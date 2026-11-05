@@ -122,7 +122,11 @@ class SkillToolBridge(
      * @param args      Arguments the agent provided.
      * @return          The verified, structured skill result for the agent loop.
      */
-    suspend fun invoke(toolName: String, args: Map<String, String>): SkillResult {
+    suspend fun invoke(
+        toolName: String,
+        args: Map<String, String>,
+        executionId: String? = null,
+    ): SkillResult {
         val invokeStart  = System.currentTimeMillis()
         val strippedName = toolName.removePrefix(PREFIX)
 
@@ -140,7 +144,10 @@ class SkillToolBridge(
         }
 
         val providedContext = skillCtx()
-        val requestedContext = providedContext.copy(modelBridge = modelBridge ?: providedContext.modelBridge)
+        val requestedContext = providedContext.copy(
+            modelBridge = modelBridge ?: providedContext.modelBridge,
+            executionId = executionId?.takeIf(String::isNotBlank) ?: providedContext.executionId,
+        )
         val accessDecision = SkillInvocationAccessPolicy.authorize(
             skill = skill,
             context = requestedContext,

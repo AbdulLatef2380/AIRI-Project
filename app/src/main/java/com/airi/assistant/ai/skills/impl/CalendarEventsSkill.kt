@@ -53,6 +53,7 @@ class CalendarEventsSkill(private val context: Context) : AiriSkill {
             connectorId = "google",
             action = "calendar_list",
             params = mapOf("max_results" to count.toString()),
+            executionId = context?.executionId,
         )
     }
 

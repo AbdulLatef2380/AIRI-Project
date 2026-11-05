@@ -17,5 +17,7 @@ data class SkillContext(
     val memoryManager:         MemoryManager?     = null,
     val modelBridge:           SkillModelBridge?  = null,
     val sessionId:             String             = "",
+    /** Internal AgentLoop owner used only for runtime trace correlation. */
+    val executionId:           String             = "",
     val configValues:          Map<String, String> = emptyMap()
 )

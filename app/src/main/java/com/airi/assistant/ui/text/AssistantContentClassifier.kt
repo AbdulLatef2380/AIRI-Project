@@ -108,9 +108,14 @@ object AssistantContentClassifier {
                 scan = if (candidateEnd < text.length) candidateEnd + 1 else text.length
             }
             val codeEnd = if (closingStart >= 0) closingStart else text.length
+            // Keep the line break after a closed fence in the following prose
+            // unit so mixed-content boundaries preserve the original text.
+            val rangeEnd = if (closingEnd > closingStart && closingEnd <= text.length &&
+                text.getOrNull(closingEnd - 1) == '\n'
+            ) closingEnd - 1 else closingEnd
             ranges += AssistantCodeRange(
                 start = cursor,
-                end = closingEnd,
+                end = rangeEnd,
                 language = language,
                 code = text.substring(codeStart, codeEnd).trimEnd('\r', '\n'),
                 isComplete = closingStart >= 0,

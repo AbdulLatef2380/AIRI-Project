@@ -1,6 +1,8 @@
 package com.airi.assistant.ui.util
 
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -47,6 +49,7 @@ import com.airi.assistant.ui.text.canPerform
 import com.airi.assistant.ui.theme.AiriTheme
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CodeBlockCard(
     language: String,
@@ -196,6 +199,16 @@ fun CodeBlockCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState())
+                            .combinedClickable(
+                                onClick = {},
+                                onDoubleClick = {
+                                    if (target?.canPerform(ContentUnitAction.FULLSCREEN) == true &&
+                                        onContentAction != null
+                                    ) {
+                                        onContentAction(target, ContentUnitAction.FULLSCREEN)
+                                    }
+                                },
+                            )
                             .padding(top = 4.dp, bottom = 4.dp),
                     )
                 }

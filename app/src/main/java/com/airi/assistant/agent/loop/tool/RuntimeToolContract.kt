@@ -30,7 +30,7 @@ data class RuntimeToolContract(
         fun builtin(schema: ToolSchema) = RuntimeToolContract(schema, Readiness.AVAILABLE, Source.BUILTIN)
         /** Preserve SkillToolBridge readiness markers at the execution boundary. */
         fun skill(schema: ToolSchema): RuntimeToolContract {
-            val marker = Regex("\\[READINESS=requires_([^:]]+):\\s*(.*?)]")
+            val marker = Regex("""\[READINESS=requires_([^:\]]+):\s*(.*?)]""")
                 .find(schema.description)
             if (marker == null) return RuntimeToolContract(schema, Readiness.AVAILABLE, Source.SKILL)
             val readiness = when (marker.groupValues[1].lowercase()) {

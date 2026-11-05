@@ -97,9 +97,13 @@ object ExecutionTraceArchive {
             val tmp = File(target.parentFile, target.name + ".tmp")
             tmp.writeText(array.toString())
             if (!tmp.renameTo(target)) {
-                target.delete()
-                tmp.renameTo(target)
+                // Never delete the last known-good archive just because the
+                // replacement could not be published.
+                tmp.delete()
+                error("Could not atomically publish execution trace archive")
             }
+        }.onFailure { error ->
+            Log.e("AIRI_TRACE", "Execution trace archive write failed", error)
         }
     }
 

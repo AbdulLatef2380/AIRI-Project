@@ -131,6 +131,21 @@ class AgentTraceManager internal constructor() {
     fun getTrace(traceId: String): AgentTrace? =
         _traces.value.find { it.id == traceId }
 
+    /** Removes finished traces owned by one persisted chat message. */
+    fun deleteForMessage(messageId: Long) {
+        if (messageId <= 0L) return
+        _traces.update { current -> current.filterNot { it.messageId == messageId } }
+        store?.let { target -> persistExecutor.execute { target.deleteMatching { it.messageId == messageId } } }
+    }
+
+    /** Removes finished traces owned by one chat session. */
+    fun deleteForSession(sessionId: String) {
+        val normalized = sessionId.trim()
+        if (normalized.isBlank()) return
+        _traces.update { current -> current.filterNot { it.sessionId == normalized } }
+        store?.let { target -> persistExecutor.execute { target.deleteMatching { it.sessionId == normalized } } }
+    }
+
     /**
      * Clears finished traces only. Traces still running keep their builders, so
      * pressing "clear" mid-execution does not silently lose the active one.

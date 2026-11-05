@@ -117,6 +117,7 @@ object PrivacyGuard {
         sanitized = sanitized.replaceTracked(PATH_REGEX, "[PATH_REDACTED]", "path", stripped)
         sanitized = sanitized.replaceTracked(CONTENT_URI_REGEX, "[URI_REDACTED]", "uri", stripped)
         sanitized = sanitized.replaceTracked(API_KEY_REGEX, "[KEY_REDACTED]", "credential", stripped)
+        sanitized = sanitized.replaceTracked(SECRET_ASSIGNMENT_REGEX, "[SECRET_REDACTED]", "credential", stripped)
         sanitized = sanitized.replaceTracked(EMAIL_REGEX, "[EMAIL_REDACTED]", "email", stripped)
         sanitized = sanitized.replaceTracked(PHONE_REGEX, "[PHONE_REDACTED]", "phone", stripped)
         sanitized = sanitized.replaceTracked(CARD_REGEX, "[CARD_REDACTED]", "payment_card", stripped)
@@ -162,8 +163,12 @@ object PrivacyGuard {
     )
 
     private val API_KEY_REGEX = Regex(
-        """(?:sk-(?:proj-)?[A-Za-z0-9_-]{8,}|sk-ant-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z\-_]{20,}|ghp_[A-Za-z0-9]{12,}|xox[baprs]-[A-Za-z0-9-]{8,}|AKIA[0-9A-Z]{16}|Bearer\s+[A-Za-z0-9\-._~+/]{6,}|api[_\-]?key\s*[:=]\s*['"]?[A-Za-z0-9\-_]{6,})""",
+        """(?:sk-(?:proj-)?[A-Za-z0-9_-]{8,}|sk-ant-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z\-_]{20,}|ghp_[A-Za-z0-9]{12,}|xox[baprs]-[A-Za-z0-9-]{8,}|AKIA[0-9A-Z]{16}|(?:Bearer|Basic)\s+[A-Za-z0-9\-._~+/=]{6,}|api[_\-]?key\s*[:=]\s*['"]?[A-Za-z0-9\-_]{6,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)""",
         setOf(RegexOption.IGNORE_CASE)
+    )
+
+    private val SECRET_ASSIGNMENT_REGEX = Regex(
+        """(?i)\b(?:token|access[_-]?token|refresh[_-]?token|client[_-]?secret|secret|webhook[_-]?key)\s*[:=]\s*['"]?[^\s,;'"]{3,}['"]?"""
     )
 
     private val EMAIL_REGEX = Regex("""[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}""")
@@ -178,7 +183,7 @@ object PrivacyGuard {
     )
 
     private val TRACE_SECRET_REGEX = Regex(
-        """(?i)(?:authorization|proxy-authorization|cookie|set-cookie|password|passwd|secret|token)\s*[:=]\s*[^\s,;]{1,240}"""
+        """(?i)(?:authorization|proxy-authorization|cookie|set-cookie|password|passwd|secret|token|access[_-]?token|refresh[_-]?token|client[_-]?secret)\s*[:=]\s*[^\s,;]{1,240}"""
     )
 
     private val PRIVATE_IP_REGEX = Regex(

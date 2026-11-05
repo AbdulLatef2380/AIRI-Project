@@ -1732,6 +1732,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return try {
             memoryManager.deleteSession(sessionId)
             com.airi.assistant.ai.prompt.MemoryStore.clear(appContext, sessionId)
+            AgentTraceManager.instance.deleteForSession(sessionId)
+            ExecutionTraceArchive.deleteSession(sessionId)
             rejectSummary()
             removeComposerDraft(sessionId)
             val replacement = memoryManager.createSession()
@@ -1919,6 +1921,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             com.airi.assistant.ai.prompt.MemoryStore.clear(appContext, sessionId)
+            AgentTraceManager.instance.deleteForSession(sessionId)
+            ExecutionTraceArchive.deleteSession(sessionId)
             if (pendingSummarySessionId == sessionId) rejectSummary()
 
             if (SessionDeletionPolicy.shouldRemoveDraft(deleteSucceeded = true)) {
@@ -3372,6 +3376,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } finally {
                 if (!isCurrentGeneration(generationId)) return@launch
+                // Safety net for setup/provider failures that bypass a normal
+                // response-status branch: every started execution must leave a
+                // terminal, user-safe trace rather than disappearing silently.
+                val hasTerminalTrace = ExecutionStatusBus.traceSnapshot(traceExecutionId).any {
+                    it.kind in setOf(
+                        ExecutionTraceKind.COMPLETED,
+                        ExecutionTraceKind.FAILED,
+                        ExecutionTraceKind.CANCELLED,
+                        ExecutionTraceKind.APPROVAL_CANCELLED,
+                        ExecutionTraceKind.APPROVAL_TIMEOUT,
+                    )
+                }
+                if (!hasTerminalTrace) {
+                    persistExecutionOutcome(
+                        kind = ExecutionTraceKind.FAILED,
+                        summary = "Execution ended without a terminal result",
+                        answer = streamAccumulator.toString().take(MAX_TOOL_OUTPUT_PRESENTATION_CHARS),
+                    )
+                }
                 finishGeneration(generationId)
                 // Clear activity feed history after execution completes.
                 // Cancel any pending clear from a previous run to avoid
@@ -5530,6 +5553,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (!memoryManager.deleteMessage(message.id)) {
             Result.failure(IllegalStateException("The stored message could not be found."))
         } else {
+            AgentTraceManager.instance.deleteForMessage(message.id)
+            ExecutionTraceArchive.deleteMessage(message.id)
             _messages.value = _messages.value.filter { it.uid != message.uid }
             Result.success(Unit)
         }

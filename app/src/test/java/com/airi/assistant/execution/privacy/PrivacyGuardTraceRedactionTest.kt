@@ -51,4 +51,17 @@ class PrivacyGuardTraceRedactionTest {
         assertFalse(redacted.contains("4111 1111 1111 1111"))
         assertFalse(redacted.contains("C:\\Users\\Alice\\secret.txt"))
     }
+
+    @Test
+    fun redactForTrace_removesJwtAndGenericTokenAssignments() {
+        val jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature-value"
+        val raw = "token=short-token-value access_token=access-value client_secret=client-value jwt=$jwt"
+
+        val redacted = PrivacyGuard.redactForTrace(raw)
+
+        assertFalse(redacted.contains("short-token-value"))
+        assertFalse(redacted.contains("access-value"))
+        assertFalse(redacted.contains("client-value"))
+        assertFalse(redacted.contains(jwt))
+    }
 }

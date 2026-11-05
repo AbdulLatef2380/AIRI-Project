@@ -22,6 +22,7 @@ object ExecutionTraceArchive {
     private val lock = Any()
     private var file: File? = null
     private var loaded = false
+    private var writeGeneration = 0L
     private val entries = LinkedHashMap<Long, List<ExecutionTraceEvent>>()
     private val writer by lazy {
         Executors.newSingleThreadExecutor { r -> Thread(r, "execution-trace-archive").apply { isDaemon = true } }
@@ -30,6 +31,7 @@ object ExecutionTraceArchive {
     fun attach(target: File) = synchronized(lock) {
         file = target
         loaded = false
+        writeGeneration += 1
         entries.clear()
     }
 
@@ -42,9 +44,10 @@ object ExecutionTraceArchive {
             entries.remove(messageId)
             entries[messageId] = events
             while (entries.size > maxMessages) entries.remove(entries.keys.first())
-            entries.toMap()
+            writeGeneration += 1
+            writeGeneration to entries.toMap()
         }
-        writer.execute { write(snapshot) }
+        writer.execute { write(snapshot.second, snapshot.first) }
     }
 
     /** Returns stored traces for the given message ids. Call off the main thread. */
@@ -54,14 +57,41 @@ object ExecutionTraceArchive {
         messageIds.mapNotNull { id -> entries[id]?.let { id to it } }.toMap()
     }
 
+    /** Deletes the durable trace belonging to one chat message. */
+    fun deleteMessage(messageId: Long) {
+        if (messageId <= 0L) return
+        removeEntries { it == messageId }
+    }
+
+    /** Deletes every durable trace whose events belong to the given chat session. */
+    fun deleteSession(sessionId: String) {
+        val normalized = sessionId.trim()
+        if (normalized.isBlank()) return
+        removeEntries { id -> entries[id].orEmpty().any { it.sessionId == normalized } }
+    }
+
     /** Removes all archived traces as part of account deletion. */
     fun clear() = synchronized(lock) {
         entries.clear()
         loaded = true
+        writeGeneration += 1
         file?.let { target ->
             runCatching { target.delete() }
                 .onFailure { Log.e("AIRI_TRACE", "Execution trace archive clear failed", it) }
         }
+    }
+
+    private fun removeEntries(predicate: (Long) -> Boolean) {
+        val snapshot = synchronized(lock) {
+            val target = file ?: return
+            if (!ensureLoaded(target)) return
+            val removed = entries.keys.filter(predicate)
+            if (removed.isEmpty()) return
+            removed.forEach(entries::remove)
+            writeGeneration += 1
+            writeGeneration to entries.toMap()
+        }
+        writer.execute { write(snapshot.second, snapshot.first) }
     }
 
     private fun ensureLoaded(target: File): Boolean {
@@ -88,8 +118,11 @@ object ExecutionTraceArchive {
             .getOrDefault(false)
     }
 
-    private fun write(snapshot: Map<Long, List<ExecutionTraceEvent>>) {
-        val target = synchronized(lock) { file } ?: return
+    private fun write(snapshot: Map<Long, List<ExecutionTraceEvent>>, generation: Long) {
+        val target = synchronized(lock) {
+            if (generation != writeGeneration) return
+            file
+        } ?: return
         runCatching {
             val array = JSONArray()
             snapshot.forEach { (messageId, events) ->

@@ -12,6 +12,8 @@ import com.airi.assistant.workspace.ArtifactManager
 import com.airi.assistant.workspace.ProjectFileManager
 import com.airi.assistant.knowledge.ProjectKnowledgeManager
 import com.airi.assistant.connector.ConnectorAccessProfileStore
+import com.airi.assistant.ai.agent.trace.AgentTraceManager
+import com.airi.assistant.core.ExecutionTraceArchive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -262,6 +264,8 @@ class DataDeletionCoordinator(
         //   c) Active multimodal projection model symlink / copy.
         runStep(Step.FILESYSTEM_WIPE, failures, completed) {
             withContext(Dispatchers.IO) {
+                AgentTraceManager.instance.clearTraces()
+                ExecutionTraceArchive.clear()
                 artifactManager.deleteAll()
                 projectFileManager.deleteAll()
                 projectKnowledgeManager.deleteAll()
@@ -344,6 +348,8 @@ class DataDeletionCoordinator(
         runStep(Step.ROOM_DATA_WIPE, failures, completed) { storageRepository.deleteAllData() }
         runStep(Step.FILESYSTEM_WIPE, failures, completed) {
             withContext(Dispatchers.IO) {
+                AgentTraceManager.instance.clearTraces()
+                ExecutionTraceArchive.clear()
                 artifactManager.deleteAll()
                 projectFileManager.deleteAll()
                 projectKnowledgeManager.deleteAll()

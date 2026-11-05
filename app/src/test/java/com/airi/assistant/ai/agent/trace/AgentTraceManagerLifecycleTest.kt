@@ -81,6 +81,19 @@ class AgentTraceManagerLifecycleTest {
     }
 
     @Test
+    fun deleteForMessageAndSession_removeOnlyOwnedFinishedTraces() {
+        val manager = AgentTraceManager()
+        manager.recordChatExecution(AgentTrace(id = "m1", originalInput = "a", messageId = 1L, sessionId = "s1"))
+        manager.recordChatExecution(AgentTrace(id = "m2", originalInput = "b", messageId = 2L, sessionId = "s2"))
+        manager.recordChatExecution(AgentTrace(id = "m3", originalInput = "c", messageId = 3L, sessionId = "s1"))
+
+        manager.deleteForMessage(2L)
+        manager.deleteForSession("s1")
+
+        assertTrue(manager.traces.value.isEmpty())
+    }
+
+    @Test
     fun store_roundTripsTraceFields() {
         val file = File.createTempFile("agent_traces", ".json").apply { deleteOnExit() }
         val store = AgentTraceStore(file)

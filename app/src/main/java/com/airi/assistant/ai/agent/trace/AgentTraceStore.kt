@@ -48,6 +48,11 @@ class AgentTraceStore(private val file: File) {
         }.onFailure { Log.e("AIRI_TRACE", "Agent trace store write failed", it) }
     }
 
+    fun deleteMatching(predicate: (AgentTrace) -> Boolean) {
+        val remaining = load().filterNot(predicate)
+        save(remaining)
+    }
+
     fun clear() {
         runCatching { file.delete() }
             .onFailure { Log.e("AIRI_TRACE", "Agent trace store clear failed", it) }

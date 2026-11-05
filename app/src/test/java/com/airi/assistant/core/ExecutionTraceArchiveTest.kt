@@ -68,4 +68,21 @@ class ExecutionTraceArchiveTest {
 
         assertEquals(emptyMap<Long, List<ExecutionTraceEvent>>(), ExecutionTraceArchive.getAll(listOf(1L, 2L)))
     }
+
+    @Test
+    fun deleteMessageAndSession_removeOnlyOwnedTraces() {
+        val file = File.createTempFile("execution_trace_archive_delete", ".json").apply { deleteOnExit() }
+        val first = ExecutionTraceEvent("exec-1", 1, 1L, ExecutionTraceKind.COMPLETED, "one", sessionId = "session-a")
+        val second = ExecutionTraceEvent("exec-2", 1, 2L, ExecutionTraceKind.COMPLETED, "two", sessionId = "session-b")
+        val third = ExecutionTraceEvent("exec-3", 1, 3L, ExecutionTraceKind.COMPLETED, "three", sessionId = "session-a")
+
+        ExecutionTraceArchive.attach(file)
+        ExecutionTraceArchive.put(1L, listOf(first))
+        ExecutionTraceArchive.put(2L, listOf(second))
+        ExecutionTraceArchive.put(3L, listOf(third))
+        ExecutionTraceArchive.deleteMessage(2L)
+        ExecutionTraceArchive.deleteSession("session-a")
+
+        assertEquals(emptyMap<Long, List<ExecutionTraceEvent>>(), ExecutionTraceArchive.getAll(listOf(1L, 2L, 3L)))
+    }
 }

@@ -71,4 +71,15 @@ class ToolCallBatchExecutorTest {
         }
         assertEquals(listOf("first", "second"), order)
     }
+
+    @Test
+    fun duplicateCallIdsFailClosedAndCannotRunConcurrently() {
+        val schema = ToolSchema("read", "read")
+        val requests = listOf(
+            ToolCallBatchExecutor.Request("same", "read_a", emptyMap(), schema),
+            ToolCallBatchExecutor.Request("same", "read_b", emptyMap(), schema),
+        )
+
+        assertTrue(!ToolCallBatchExecutor.canRunConcurrently(requests))
+    }
 }

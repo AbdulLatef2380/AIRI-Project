@@ -206,6 +206,11 @@ data class ConnectorInput(
     val execution: ConnectorExecutionContext? = null,
     /** Stable owner of the current AgentLoop turn for live trace correlation. */
     val executionId: String? = null,
+    /** Full vertical-slice correlation coordinates; optional for legacy callers. */
+    val traceId: String? = null,
+    val sessionId: String? = null,
+    val messageId: String? = null,
+    val actionId: String? = null,
     /** Internal bridge identity used to re-check the declared action's user grant at runtime. */
     val authorizationActionId: String? = null,
 ) {
@@ -220,6 +225,10 @@ data class ConnectorInput(
         if (params != other.params) return false
         if (execution != other.execution) return false
         if (executionId != other.executionId) return false
+        if (traceId != other.traceId) return false
+        if (sessionId != other.sessionId) return false
+        if (messageId != other.messageId) return false
+        if (actionId != other.actionId) return false
         if (authorizationActionId != other.authorizationActionId) return false
         if (binary == null) return other.binary == null
         if (other.binary == null) return false
@@ -231,6 +240,10 @@ data class ConnectorInput(
         r = 31 * r + params.hashCode()
         r = 31 * r + (execution?.hashCode() ?: 0)
         r = 31 * r + (executionId?.hashCode() ?: 0)
+        r = 31 * r + (traceId?.hashCode() ?: 0)
+        r = 31 * r + (sessionId?.hashCode() ?: 0)
+        r = 31 * r + (messageId?.hashCode() ?: 0)
+        r = 31 * r + (actionId?.hashCode() ?: 0)
         r = 31 * r + (authorizationActionId?.hashCode() ?: 0)
         r = 31 * r + (binary?.contentHashCode() ?: 0)
         return r

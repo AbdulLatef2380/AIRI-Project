@@ -69,6 +69,7 @@ class ToolDispatcher(
             val code: String = ToolErrorCodes.EXECUTION_FAILED,
             val retryable: Boolean = false,
             val provenance: ToolProvenance = ToolProvenance.BUILTIN,
+            val approval: ToolApprovalContext? = null,
         ) : ToolResult()
     }
 
@@ -81,6 +82,9 @@ class ToolDispatcher(
         agentId: String = "terminal",
         /** Stable identity shared by the status trace and compatibility activity feed. */
         actionId: String? = null,
+        traceId: String? = null,
+        sessionId: String? = null,
+        messageId: String? = null,
     ): ToolResult {
         Log.i(TAG, "TOOL_DISPATCH tool=$toolName argCount=${args.size}")
         AgentActivityBus.emit(
@@ -519,7 +523,15 @@ class ToolDispatcher(
                     }
                 } else if (connectorToolBridge != null && connectorToolBridge.handles(toolName)) {
                     Log.i(TAG, "AIRI CONNECTOR_TOOL_DISPATCH tool=$toolName path=ConnectorRuntimeManager")
-                    when (val result = connectorToolBridge.invoke(toolName, args, executionId = executionId)) {
+                    when (val result = connectorToolBridge.invoke(
+                        toolName,
+                        args,
+                        executionId = executionId,
+                        traceId = traceId,
+                        sessionId = sessionId,
+                        messageId = messageId,
+                        actionId = actionId,
+                    )) {
                         is com.airi.assistant.connector.ConnectorOutput.Success ->
                             ToolResult.Success(result.text, provenance = ToolProvenance.CONNECTOR)
                         is com.airi.assistant.connector.ConnectorOutput.Streaming -> ToolResult.Error(
@@ -531,6 +543,13 @@ class ToolDispatcher(
                             result.message,
                             code = ToolErrorCodes.APPROVAL_REQUIRED,
                             provenance = ToolProvenance.CONNECTOR,
+                            approval = ToolApprovalContext(
+                                approvalId = result.approvalId,
+                                taskId = result.taskId,
+                                runId = result.runId,
+                                stepId = result.stepId,
+                                expiresAtMs = result.expiresAtMs,
+                            ),
                         )
                         is com.airi.assistant.connector.ConnectorOutput.Failure -> ToolResult.Error(
                             result.message,

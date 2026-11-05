@@ -114,12 +114,21 @@ data class ToolCallFingerprint(
 /** Allows legitimate calls with changed arguments/steps while blocking exact repeats. */
 class ToolCallLedger {
     private val completed = ConcurrentHashMap.newKeySet<ToolCallFingerprint>()
+    private val claimed = ConcurrentHashMap.newKeySet<ToolCallFingerprint>()
 
     fun shouldExecute(call: ToolCallFingerprint): Boolean = !completed.contains(call)
+    /** Atomically reserves a call before dispatch; required for parallel batches. */
+    fun tryClaim(call: ToolCallFingerprint): Boolean =
+        !completed.contains(call) && claimed.add(call)
     fun markCompleted(call: ToolCallFingerprint): Boolean = completed.add(call)
+        .also { claimed.remove(call) }
+    fun release(call: ToolCallFingerprint) {
+        claimed.remove(call)
+    }
     fun wasCompleted(call: ToolCallFingerprint): Boolean = completed.contains(call)
     fun clearExecution(executionId: String) {
         completed.removeIf { it.executionId == executionId }
+        claimed.removeIf { it.executionId == executionId }
     }
 }
 

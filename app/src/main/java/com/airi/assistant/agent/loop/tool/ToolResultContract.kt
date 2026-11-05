@@ -42,6 +42,15 @@ object ToolErrorCodes {
         }
 }
 
+/** Stable approval coordinates preserved from a connector to the AgentLoop. */
+data class ToolApprovalContext(
+    val approvalId: String,
+    val taskId: String = "",
+    val runId: String = "",
+    val stepId: String = "",
+    val expiresAtMs: Long = 0L,
+)
+
 enum class ToolProvenance {
     BUILTIN,
     SKILL,

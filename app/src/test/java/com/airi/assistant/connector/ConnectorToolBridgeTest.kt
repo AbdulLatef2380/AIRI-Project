@@ -35,10 +35,18 @@ class ConnectorToolBridgeTest {
             "connector_github_list_repos",
             emptyMap(),
             executionId = "agent-execution-1",
+            traceId = "trace-1",
+            sessionId = "session-1",
+            messageId = "message-1",
+            actionId = "action-1",
         )
         assertEquals(ConnectorOutput.Success("github:list_repos"), result)
         assertEquals("list_repos", connector.lastAction)
         assertEquals("agent-execution-1", connector.lastExecutionId)
+        assertEquals("trace-1", connector.lastTraceId)
+        assertEquals("session-1", connector.lastSessionId)
+        assertEquals("message-1", connector.lastMessageId)
+        assertEquals("action-1", connector.lastActionId)
     }
 
     @Test
@@ -232,6 +240,10 @@ class ConnectorToolBridgeTest {
         private val stateFlow = MutableStateFlow(ConnectorState(connected, healthy))
         var lastAction: String? = null
         var lastExecutionId: String? = null
+        var lastTraceId: String? = null
+        var lastSessionId: String? = null
+        var lastMessageId: String? = null
+        var lastActionId: String? = null
         override fun meta() = ConnectorMeta(id, name, description, type)
         override fun state() = stateFlow
         override suspend fun connect() = stateFlow.value
@@ -256,6 +268,10 @@ class ConnectorToolBridgeTest {
         override suspend fun execute(input: ConnectorInput): ConnectorOutput {
             lastAction = input.action
             lastExecutionId = input.executionId
+            lastTraceId = input.traceId
+            lastSessionId = input.sessionId
+            lastMessageId = input.messageId
+            lastActionId = input.actionId
             return ConnectorOutput.Success("$id:${input.action}")
         }
     }

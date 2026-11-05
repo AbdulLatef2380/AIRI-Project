@@ -192,6 +192,8 @@ the tool returns an actual error.
         platformCapabilitySnapshot: String = "",
         /** Stable caller-owned identity used to join agent, runtime, and UI traces. */
         requestedExecutionId: String? = null,
+        /** Optional message coordinate used by connector and artifact runtimes. */
+        messageId: String = "",
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
         // Last sign of progress; see TIMEOUT_MS. Streaming tokens and finished tool calls bump it.
@@ -344,7 +346,7 @@ the tool returns an actual error.
                     toolName = "current_time",
                     path = "intent_gated_deterministic_builtin",
                 )
-                dispatcher.execute("current_time", timeValidation.arguments!!.canonical, appContext, executionId, actionId = actionId)
+                dispatcher.execute("current_time", timeValidation.arguments!!.canonical, appContext, executionId, actionId = actionId, traceId = traceId, sessionId = sessionId, messageId = messageId)
             } catch (cancelled: CancellationException) {
                 ExecutionStatusBus.onToolCancelled(
                     executionId = executionId,
@@ -538,6 +540,16 @@ the tool returns an actual error.
                             schema = schema!!,
                         )
                     }
+                    val batchFingerprints = batchRequests.associate { request ->
+                        request.id to ToolCallFingerprint(
+                            executionId = executionId,
+                            toolName = request.toolName,
+                            argumentsHash = stableArgumentsHash(
+                                request.arguments.toSortedMap().entries.joinToString("&") { "${it.key}=${it.value}" }
+                            ),
+                            parentStepId = "step_$stepsUsed",
+                        )
+                    }
                     val batchResults = com.airi.assistant.agent.loop.tool.ToolCallBatchExecutor.execute(batchRequests) { request ->
                         val validation = StrictArgumentValidator.validate(
                             spec = ToolSpecAdapter.fromSchema(request.schema),
@@ -548,13 +560,18 @@ the tool returns an actual error.
                                 validation.failure?.message ?: "Invalid tool arguments.",
                                 code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.INVALID_ARGUMENT,
                             )
+                        } else if (batchFingerprints[request.id]?.let { !toolLedger.tryClaim(it) } == true) {
+                            ToolDispatcher.ToolResult.Error(
+                                "Duplicate tool call blocked for this execution step.",
+                                code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.DUPLICATE_CALL,
+                            )
                         } else if (agentSandbox != null) {
                             agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
                                 ctx.guardTool(request.toolName)
-                                dispatcher.execute(request.toolName, validation.arguments?.canonical ?: request.arguments, appContext, executionId, actionId = "tool_batch_${request.id}")
+                                dispatcher.execute(request.toolName, validation.arguments?.canonical ?: request.arguments, appContext, executionId, actionId = "tool_batch_${request.id}", traceId = traceId, sessionId = sessionId, messageId = messageId)
                             }
                         } else {
-                            dispatcher.execute(request.toolName, validation.arguments?.canonical ?: request.arguments, appContext, executionId, actionId = "tool_batch_${request.id}")
+                            dispatcher.execute(request.toolName, validation.arguments?.canonical ?: request.arguments, appContext, executionId, actionId = "tool_batch_${request.id}", traceId = traceId, sessionId = sessionId, messageId = messageId)
                         }
                     }
                     history.add(ConversationTurn.Assistant(rawResponse))
@@ -565,6 +582,13 @@ the tool returns an actual error.
                             is ToolDispatcher.ToolResult.Error -> "Error [${result.code}]: ${result.message}"
                         }
                         toolsInvoked += outcome.request.toolName
+                        batchFingerprints[outcome.request.id]?.let { fingerprint ->
+                            if (result is ToolDispatcher.ToolResult.Success) {
+                                toolLedger.markCompleted(fingerprint)
+                            } else {
+                                toolLedger.release(fingerprint)
+                            }
+                        }
                         onStepComplete(
                             StepEvent.ToolExecuted(
                                 outcome.request.toolName,
@@ -764,7 +788,11 @@ the tool returns an actual error.
                     ),
                     parentStepId = stepId,
                 )
-                val duplicateToolCall = !toolLedger.shouldExecute(toolFingerprint)
+                val duplicateToolCall = if (toolValidationError == null) {
+                    !toolLedger.tryClaim(toolFingerprint)
+                } else {
+                    false
+                }
 
                 Log.i(TAG, "AIRI TOOL_CALL step=$stepsUsed tool=$toolName args=${toolArgs.keys.joinToString()}")
                 if (!isPlanPublished) {
@@ -889,10 +917,10 @@ the tool returns an actual error.
                         if (agentSandbox != null) {
                             agentSandbox.execute(agentId = SANDBOX_AGENT_ID, goalId = durableExecutionContext?.taskId.orEmpty()) { ctx ->
                                 ctx.guardTool(toolName)
-                                dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId)
+                                dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId, traceId = traceId, sessionId = sessionId, messageId = messageId)
                             }
                         } else {
-                            dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId)
+                            dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId, traceId = traceId, sessionId = sessionId, messageId = messageId)
                         }
                     } catch (e: CancellationException) {
                         throw e
@@ -908,10 +936,10 @@ the tool returns an actual error.
                         if (agentSandbox != null) {
                             agentSandbox.execute(agentId = SANDBOX_AGENT_ID, goalId = durableExecutionContext?.taskId.orEmpty()) { ctx ->
                                 ctx.guardTool(toolName)
-                                dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId)
+                                dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId, traceId = traceId, sessionId = sessionId, messageId = messageId)
                             }
                         } else {
-                            dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId)
+                            dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId, traceId = traceId, sessionId = sessionId, messageId = messageId)
                         }
                     } catch (e: CancellationException) {
                         throw e
@@ -934,10 +962,10 @@ the tool returns an actual error.
                         if (agentSandbox != null) {
                             agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
                                 ctx.guardTool(toolName)
-                                dispatcher.execute(toolName, toolArgs, appContext, executionId, actionId = toolStepId)
+                                dispatcher.execute(toolName, toolArgs, appContext, executionId, actionId = toolStepId, traceId = traceId, sessionId = sessionId, messageId = messageId)
                             }
                         } else {
-                            dispatcher.execute(toolName, toolArgs, appContext, executionId, actionId = toolStepId)
+                            dispatcher.execute(toolName, toolArgs, appContext, executionId, actionId = toolStepId, traceId = traceId, sessionId = sessionId, messageId = messageId)
                         }
                     } catch (e: CancellationException) {
                         throw e
@@ -961,6 +989,15 @@ the tool returns an actual error.
                     is ToolDispatcher.ToolResult.Success -> toolResult.output
                     is ToolDispatcher.ToolResult.Error ->
                         "Error [${toolResult.code}${if (toolResult.retryable) ", retryable" else ""}]: ${toolResult.message}"
+                }
+
+                (toolResult as? ToolDispatcher.ToolResult.Error)?.approval?.let { approval ->
+                    ExecutionStatusBus.onApprovalWaiting(
+                        executionId = executionId,
+                        actionId = toolStepId,
+                        interruptId = approval.approvalId,
+                        actionDescription = toolResult.message,
+                    )
                 }
 
                 val toolDurationMs = System.currentTimeMillis() - toolStartedAtMs
@@ -1008,6 +1045,8 @@ the tool returns an actual error.
 
                 if (toolResult is ToolDispatcher.ToolResult.Success) {
                     toolLedger.markCompleted(toolFingerprint)
+                } else {
+                    toolLedger.release(toolFingerprint)
                 }
                 activeToolTrace = null
                 val resultCode = (toolResult as? ToolDispatcher.ToolResult.Error)?.code ?: "ok"

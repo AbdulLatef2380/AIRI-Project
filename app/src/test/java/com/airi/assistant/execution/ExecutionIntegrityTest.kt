@@ -139,4 +139,17 @@ class ExecutionIntegrityTest {
         ledger.clearExecution("exec-1")
         assertTrue(ledger.shouldExecute(first))
     }
+
+    @Test
+    fun toolLedgerClaimsExactlyOnceAndReleaseAllowsRetryAfterFailure() {
+        val ledger = ToolCallLedger()
+        val call = ToolCallFingerprint("exec-claim", "read", "hash", "step-1")
+
+        assertTrue(ledger.tryClaim(call))
+        assertFalse(ledger.tryClaim(call))
+        ledger.release(call)
+        assertTrue(ledger.tryClaim(call))
+        assertTrue(ledger.markCompleted(call))
+        assertFalse(ledger.tryClaim(call))
+    }
 }

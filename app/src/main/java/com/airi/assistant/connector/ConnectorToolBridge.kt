@@ -55,6 +55,10 @@ class ConnectorToolBridge(
         toolName: String,
         args: Map<String, String>,
         executionId: String? = null,
+        traceId: String? = null,
+        sessionId: String? = null,
+        messageId: String? = null,
+        actionId: String? = null,
     ): ConnectorOutput {
         val canonicalToolName = resolveToolName(toolName)
         val binding = bindings(onlyExecutable = false, onlyGranted = false)[canonicalToolName]
@@ -82,6 +86,10 @@ class ConnectorToolBridge(
                 text = text,
                 params = args.filterKeys { it != "text" || it in binding.action.parameters } + binding.action.fixedParams,
                 executionId = executionId?.takeIf(String::isNotBlank),
+                traceId = traceId?.takeIf(String::isNotBlank),
+                sessionId = sessionId?.takeIf(String::isNotBlank),
+                messageId = messageId?.takeIf(String::isNotBlank),
+                actionId = actionId?.takeIf(String::isNotBlank),
                 authorizationActionId = binding.action.id,
             )
         )

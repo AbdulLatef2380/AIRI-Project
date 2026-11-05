@@ -491,6 +491,7 @@ object ExecutionStatusBus {
         durationMs: Long? = null,
         errorCode: String? = null,
         machineTag: String? = null,
+        inputParams: Map<String, String> = emptyMap(),
     ) {
         val normalizedErrorCode = ExecutionTraceBuffer.normalizeErrorCode(errorCode)
         val event = synchronized(traceLock) {
@@ -508,6 +509,7 @@ object ExecutionStatusBus {
                 durationMs = durationMs,
                 errorCode = normalizedErrorCode,
                 machineTag = machineTag,
+                inputParams = inputParams,
             ) ?: return
             val currentSnapshot = buffer.snapshot()
             traceHistory[executionId] = currentSnapshot

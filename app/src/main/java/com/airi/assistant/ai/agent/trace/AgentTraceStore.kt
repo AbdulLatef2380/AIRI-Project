@@ -56,6 +56,7 @@ class AgentTraceStore(private val file: File) {
     internal companion object {
         fun traceToJson(trace: AgentTrace): JSONObject = JSONObject().apply {
             put("id", trace.id)
+            put("traceId", trace.traceId)
             put("originalInput", trace.originalInput)
             put("finalResult", trace.finalResult)
             put("success", trace.success)
@@ -77,6 +78,7 @@ class AgentTraceStore(private val file: File) {
             val stepsJson = json.optJSONArray("steps") ?: JSONArray()
             return AgentTrace(
                 id = json.getString("id"),
+                traceId = json.optString("traceId", json.optString("id")),
                 originalInput = json.optString("originalInput"),
                 steps = (0 until stepsJson.length()).map { stepFromJson(stepsJson.getJSONObject(it)) },
                 finalResult = json.optString("finalResult"),

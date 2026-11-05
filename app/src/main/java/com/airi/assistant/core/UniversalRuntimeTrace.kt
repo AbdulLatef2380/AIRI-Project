@@ -38,8 +38,9 @@ class UniversalRuntimeTraceRecorder(
         tools: List<com.airi.assistant.agent.loop.tool.ToolSchema>,
         additionalCapabilities: List<CapabilitySnapshotEntry> = emptyList(),
         permissionProfile: AgentPermissionProfile? = null,
+        requestedTraceId: String? = null,
     ): String {
-        val traceId = UUID.randomUUID().toString()
+        val traceId = requestedTraceId?.trim()?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString()
         synchronized(lock) {
             traces.remove(executionId)
             traces[executionId] = TraceState(traceId)

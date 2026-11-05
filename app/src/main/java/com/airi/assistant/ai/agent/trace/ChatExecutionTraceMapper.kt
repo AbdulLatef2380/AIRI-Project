@@ -21,6 +21,7 @@ object ChatExecutionTraceMapper {
         provider: String? = null,
         estimatedOutputTokens: Int? = null,
         firstVisibleTokenLatencyMs: Long? = null,
+        traceId: String? = null,
     ): AgentTrace? {
         if (executionId.isBlank() || events.isEmpty()) return null
 
@@ -45,7 +46,8 @@ object ChatExecutionTraceMapper {
         val steps = kept.mapIndexed { index, step -> step.copy(stepIndex = index) }
 
         return AgentTrace(
-            id = executionId,
+            id = traceId?.takeIf { it.isNotBlank() } ?: executionId,
+            traceId = traceId?.takeIf { it.isNotBlank() } ?: executionId,
             originalInput = PrivacyGuard.redactForTrace(userInput, AgentTraceManager.INPUT_CHARS),
             steps = steps,
             finalResult = PrivacyGuard.redactForTrace(

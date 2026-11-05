@@ -86,6 +86,7 @@ class AgentTraceManagerLifecycleTest {
         val store = AgentTraceStore(file)
         val original = AgentTrace(
             id = "exec-7",
+            traceId = "trace-7",
             originalInput = "hello",
             steps = listOf(AgentStep(0, AgentStepType.TOOL, "search", mapOf("q" to "x"), "ok", true, null, 12L)),
             finalResult = "done",
@@ -141,7 +142,9 @@ class AgentTraceManagerLifecycleTest {
         assertNotNull(trace)
         trace!!
         assertEquals("exec-9", trace.id)
+        assertEquals("exec-9", trace.traceId)
         assertEquals(7L, trace.messageId)
+        assertEquals("traceId=exec-9|executionId=exec-9|messageId=7|sessionId=s1", trace.correlationKey)
         assertEquals(AgentTrace.SOURCE_CHAT, trace.source)
         assertEquals("gpt-4.1", trace.model)
         assertEquals("openai", trace.provider)
@@ -167,6 +170,20 @@ class AgentTraceManagerLifecycleTest {
         )
         assertFalse(requireNotNull(failed).success)
         assertEquals("boom", failed.finalResult)
+
+        val correlated = ChatExecutionTraceMapper.toAgentTrace(
+            executionId = "exec-10",
+            sessionId = "session-10",
+            messageId = 22L,
+            userInput = "q",
+            events = listOf(ExecutionTraceEvent("exec-10", 1, 1L, ExecutionTraceKind.COMPLETED, "done")),
+            answerText = "done",
+            traceId = "trace-10",
+        )
+        assertEquals("trace-10", correlated?.id)
+        assertEquals("trace-10", correlated?.traceId)
+        assertEquals("exec-10", correlated?.executionId)
+        assertEquals("traceId=trace-10|executionId=exec-10|messageId=22|sessionId=session-10", correlated?.correlationKey)
 
         assertNull(ChatExecutionTraceMapper.toAgentTrace("", "s", 1L, "q", emptyList(), ""))
         assertNull(ChatExecutionTraceMapper.toAgentTrace("e", "s", 1L, "q", emptyList(), ""))

@@ -57,6 +57,26 @@ class UniversalRuntimeTraceTest {
     }
 
     @Test
+    fun beginPreservesCallerTraceIdForCrossLayerCorrelation() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        val traceId = recorder.begin(
+            executionId = "exec-correlated",
+            sessionId = "session-correlated",
+            modelId = "model",
+            providerId = "provider",
+            executionMode = "test",
+            input = "hello",
+            tools = emptyList(),
+            requestedTraceId = "trace-correlated",
+        )
+
+        assertEquals("trace-correlated", traceId)
+        assertTrue(recorder.events.all { it.traceId == "trace-correlated" })
+        assertTrue(recorder.events.all { it.executionId == "exec-correlated" })
+        assertTrue(recorder.events.all { it.sessionId == "session-correlated" })
+    }
+
+    @Test
     fun modelResponseStoresMetadataAndRedactsSecrets() {
         val recorder = UniversalRuntimeTraceRecorder()
         recorder.begin("exec-1", "", "model", "provider", "cloud", "input", emptyList())

@@ -243,8 +243,9 @@ the tool returns an actual error.
         val priorHistoryCount = history.size
         var stepsUsed    = 0
         val executionId   = requestedExecutionId?.takeIf(String::isNotBlank) ?: UUID.randomUUID().toString()
+        val traceId = "trace-$executionId"
         val requestIdentity = ChatExecutionIdentityContract.create(sessionId, executionId)
-        val traceId = runtimeTrace?.begin(
+        runtimeTrace?.begin(
             executionId = executionId,
             sessionId = sessionId,
             modelId = modelId,
@@ -256,6 +257,7 @@ the tool returns an actual error.
                 runCatching { capabilitySnapshotProvider() }.getOrDefault(emptyList())
             },
             permissionProfile = permissionProfile,
+            requestedTraceId = traceId,
         )
         runtimeTrace?.intentStage(executionId, sessionId, "INTENT_RAW", "received")
         runtimeTrace?.intentStage(executionId, sessionId, "INTENT_NORMALIZED", "normalized")

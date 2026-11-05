@@ -1766,6 +1766,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         firstVisibleTokenLatencyMs: Long?,
         terminalKind: ExecutionTraceKind? = null,
         terminalSummary: String = "",
+        traceId: String = "trace-$executionId",
     ) {
         runCatching {
             val currentEvents = ExecutionStatusBus.traceSnapshot(executionId)
@@ -1798,6 +1799,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 executionId = executionId,
                 sessionId = sessionId,
                 messageId = messageId,
+                traceId = traceId,
                 userInput = userInput,
                 events = events,
                 answerText = answer,
@@ -1872,6 +1874,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     imageUri = attachmentPreviewUri(msg.attachmentJson),
                     attachments = messageAttachments,
                     executionTraceId = archived.firstOrNull()?.executionId,
+                    traceId = archived.firstOrNull()?.executionId?.let { "trace-$it" },
                     executionTraceSnapshot = archived,
                 )
             }
@@ -2831,6 +2834,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 text = safeContent,
                                 isUser = false,
                                 id = saved.id,
+                                traceId = "trace-$traceExecutionId",
                                 execOrigin = _lastExecOrigin.value,
                                 executionSource = hybridOrchestrator.lastExecutionSource,
                                 executionTraceId = traceExecutionId,
@@ -3220,6 +3224,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 text       = normalizedAnswer,
                                 isUser     = false,
                                 id         = assistantMsg.id,
+                                traceId    = "trace-$traceExecutionId",
                                 execOrigin = _lastExecOrigin.value,
                                 executionSource = hybridOrchestrator.lastExecutionSource,
                                 executionTraceId = traceExecutionId,

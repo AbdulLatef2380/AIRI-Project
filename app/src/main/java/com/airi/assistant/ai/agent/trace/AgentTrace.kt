@@ -4,6 +4,8 @@ import java.util.UUID
 
 data class AgentTrace(
     val id: String = UUID.randomUUID().toString(),
+    /** Stable log identity. Legacy traces use [id] as their trace identity. */
+    val traceId: String = id,
     val originalInput: String,
     val steps: List<AgentStep> = emptyList(),
     val finalResult: String = "",
@@ -30,6 +32,11 @@ data class AgentTrace(
     /** Number of steps dropped because of the cap. */
     val droppedSteps: Int = 0,
 ) {
+    /** Explicit correlation tuple used when navigating from a log to chat. */
+    val correlationKey: String
+        get() = listOf(traceId, executionId, messageId?.toString().orEmpty(), sessionId)
+            .joinToString("|")
+
     val stepCount: Int get() = steps.size
     val successCount: Int get() = steps.count { it.success }
     val hasErrors: Boolean get() = steps.any { !it.success || it.error != null }

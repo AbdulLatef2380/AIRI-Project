@@ -480,7 +480,7 @@ object ExecutionStatusBus {
         machineTag: String? = null,
     ) {
         val normalizedErrorCode = ExecutionTraceBuffer.normalizeErrorCode(errorCode)
-        val (event, snapshot) = synchronized(traceLock) {
+        val event = synchronized(traceLock) {
             val appended = traceBuffer.append(
                 executionId = executionId,
                 kind = kind,
@@ -499,9 +499,11 @@ object ExecutionStatusBus {
             while (traceHistory.size > maxTraceHistory) {
                 traceHistory.remove(traceHistory.keys.first())
             }
-            appended to currentSnapshot
+            if (_status.value.executionId == executionId) {
+                _trace.value = currentSnapshot
+            }
+            appended
         }
-        if (_status.value.executionId == executionId) _trace.value = snapshot
         safeLog { Log.d(TAG, "TRACE kind=${event.kind} seq=${event.sequence} execution=${event.executionId.take(8)}") }
     }
 
@@ -525,10 +527,6 @@ object ExecutionStatusBus {
         ExecutionStage.FAILED,
         ExecutionStage.CANCELLED,
     )
-
-    private fun MutableStateFlow<AgentState>.update(transform: (AgentState) -> AgentState) {
-        value = transform(value)
-    }
 
     /** Observability must never break execution, including local JVM tests. */
     private inline fun safeLog(block: () -> Int) {

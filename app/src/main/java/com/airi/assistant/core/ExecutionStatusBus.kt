@@ -77,16 +77,18 @@ object ExecutionStatusBus {
             return
         }
         synchronized(traceLock) {
-            _status.value = AgentState(
-                isWorking             = true,
-                currentAction         = goalDescription.take(80),
-                totalSteps            = totalNodes,
-                activeGoalDescription = goalDescription,
-                executionId           = executionId,
-                sessionId             = sessionId,
-                nodesTotal            = totalNodes,
-                executionStage        = ExecutionStage.PLANNING
-            )
+            _status.update {
+                AgentState(
+                    isWorking             = true,
+                    currentAction         = goalDescription.take(80),
+                    totalSteps            = totalNodes,
+                    activeGoalDescription = goalDescription,
+                    executionId           = executionId,
+                    sessionId             = sessionId,
+                    nodesTotal            = totalNodes,
+                    executionStage        = ExecutionStage.PLANNING
+                )
+            }
             traceBuffers[executionId] = ExecutionTraceBuffer().also { it.begin(executionId, sessionId) }
             toolTraceLifecycles[executionId] = ExecutionToolTraceLifecycle().also { it.begin(executionId) }
             terminalExecutions.remove(executionId)
@@ -109,8 +111,8 @@ object ExecutionStatusBus {
         nodeActions: List<String>,
         executionId: String = "",
     ) {
-        _status.update { current ->
-            if (!belongsToActiveExecution(current, executionId)) return@update current
+        statusUpdate { current ->
+            if (!belongsToActiveExecution(current, executionId)) return@statusUpdate current
             current.copy(
                 executionStage  = ExecutionStage.EXECUTING,
                 activeNodeId    = nodeIds.firstOrNull() ?: "",
@@ -138,8 +140,8 @@ object ExecutionStatusBus {
         nodesCompleted: Int,
         executionId: String = "",
     ) {
-        _status.update { current ->
-            if (!belongsToActiveExecution(current, executionId)) return@update current
+        statusUpdate { current ->
+            if (!belongsToActiveExecution(current, executionId)) return@statusUpdate current
             current.copy(
                 nodesCompleted = nodesCompleted,
                 currentStep    = nodesCompleted,
@@ -168,7 +170,7 @@ object ExecutionStatusBus {
     ) {
         if (!belongsToActiveExecution(_status.value, executionId) || actionId.isBlank() || interruptId.isBlank()) return
         synchronized(traceLock) { approvalOwners[interruptId] = executionId }
-        _status.update { current ->
+        statusUpdate { current ->
             if (!belongsToActiveExecution(current, executionId)) current else current.copy(
                 isWorking = false,
                 currentAction = "Waiting for approval",
@@ -192,7 +194,7 @@ object ExecutionStatusBus {
 
     /** Resume only the execution that owns the exact approval interrupt. */
     fun onApprovalResumed(executionId: String, interruptId: String) {
-        _status.update { current ->
+        statusUpdate { current ->
             if (!belongsToActiveExecution(current, executionId) || current.approvalInterruptId != interruptId) current else current.copy(
                 isWorking = true,
                 currentAction = "Resuming approved action",
@@ -212,7 +214,7 @@ object ExecutionStatusBus {
     /** Close a pending approval as a user rejection/cancellation. */
     fun onApprovalCancelled(executionId: String, actionId: String, interruptId: String, reason: String) {
         var accepted = false
-        _status.update { current ->
+        statusUpdate { current ->
             if (!belongsToActiveExecution(current, executionId) || current.approvalInterruptId != interruptId) current else {
                 accepted = true
                 current.copy(isWorking = false, executionStage = ExecutionStage.CANCELLED, currentAction = "Approval cancelled", waitingForApproval = false, approvalInterruptId = "")
@@ -233,7 +235,7 @@ object ExecutionStatusBus {
     /** Close a pending approval as a timeout; it is never reported as success. */
     fun onApprovalTimedOut(executionId: String, actionId: String, interruptId: String, reason: String = "Approval expired") {
         var accepted = false
-        _status.update { current ->
+        statusUpdate { current ->
             if (!belongsToActiveExecution(current, executionId) || current.approvalInterruptId != interruptId) current else {
                 accepted = true
                 current.copy(isWorking = false, executionStage = ExecutionStage.FAILED, currentAction = "Approval expired", waitingForApproval = false, approvalInterruptId = "")
@@ -341,8 +343,8 @@ object ExecutionStatusBus {
         retryCount: Int,
         executionId: String = "",
     ) {
-        _status.update { current ->
-            if (!belongsToActiveExecution(current, executionId)) return@update current
+        statusUpdate { current ->
+            if (!belongsToActiveExecution(current, executionId)) return@statusUpdate current
             current.copy(
                 executionStage = ExecutionStage.RECOVERING,
                 activeNodeId   = nodeId,
@@ -361,7 +363,7 @@ object ExecutionStatusBus {
 
     /** Signal that reflection is running post-graph. */
     fun onReflecting(executionId: String = "") {
-        _status.update { current ->
+        statusUpdate { current ->
             if (!belongsToActiveExecution(current, executionId)) current
             else current.copy(executionStage = ExecutionStage.REFLECTING, currentAction = "Analysing results...")
         }
@@ -378,11 +380,11 @@ object ExecutionStatusBus {
         val stage = if (success) ExecutionStage.COMPLETED else ExecutionStage.FAILED
         var accepted = false
         var blockedByApproval = false
-        _status.update { current ->
-            if (!belongsToActiveExecution(current, executionId)) return@update current
+        statusUpdate { current ->
+            if (!belongsToActiveExecution(current, executionId)) return@statusUpdate current
             if (current.waitingForApproval) {
                 blockedByApproval = true
-                return@update current
+                return@statusUpdate current
             }
             accepted = true
             current.copy(
@@ -413,7 +415,7 @@ object ExecutionStatusBus {
      * same execution are rejected until [onGraphCancelled] closes the owner.
      */
     fun onGraphCancellationRequested(executionId: String) {
-        _status.update { current ->
+        statusUpdate { current ->
             if (!acceptsEvent(current.executionId, executionId) ||
                 !current.isWorking ||
                 current.cancellationRequested
@@ -436,8 +438,8 @@ object ExecutionStatusBus {
         details: List<String> = emptyList(),
         executionId: String = ""
     ) {
-        _status.update { current ->
-            if (!belongsToActiveExecution(current, executionId)) return@update current
+        statusUpdate { current ->
+            if (!belongsToActiveExecution(current, executionId)) return@statusUpdate current
             current.copy(
                 finalAnswerVerification = FinalAnswerUiState(
                     verified = verified,
@@ -451,10 +453,10 @@ object ExecutionStatusBus {
     /** Signal explicit user or lifecycle cancellation of the active graph. */
     fun onGraphCancelled(executionId: String) {
         var accepted = false
-        _status.update { current ->
+        statusUpdate { current ->
             if (!acceptsEvent(current.executionId, executionId) ||
                 current.executionStage in TERMINAL_STAGES
-            ) return@update current
+            ) return@statusUpdate current
             accepted = true
             current.copy(
                 isWorking = false,
@@ -477,14 +479,14 @@ object ExecutionStatusBus {
     /** Reset to idle (e.g. on session clear or ViewModel cleared). */
     fun reset() {
         synchronized(traceLock) {
-            _status.value = AgentState()
+            _status.update { AgentState() }
             traceHistory.clear()
             traceBuffers.clear()
             toolTraceLifecycles.clear()
             terminalExecutions.clear()
             approvalOwners.clear()
         }
-        _trace.value = emptyList()
+        _trace.update { emptyList() }
     }
 
     private fun onToolTerminal(
@@ -551,11 +553,16 @@ object ExecutionStatusBus {
                 traceHistory.remove(traceHistory.keys.first())
             }
             if (_status.value.executionId == executionId) {
-                _trace.value = currentSnapshot
+                _trace.update { currentSnapshot }
             }
             appended
         }
         safeLog { Log.d(TAG, "TRACE kind=${event.kind} seq=${event.sequence} execution=${event.executionId.take(8)}") }
+    }
+
+    /** Serialize status transitions with trace ownership updates. */
+    private inline fun statusUpdate(crossinline transform: (AgentState) -> AgentState) {
+        synchronized(traceLock) { _status.update(transform) }
     }
 
     // ── Internal helper ───────────────────────────────────────────────────────

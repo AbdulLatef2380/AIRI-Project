@@ -184,4 +184,18 @@ class ExecutionStatusBusTest {
         assertEquals(ExecutionTraceKind.APPROVAL_CANCELLED, ExecutionStatusBus.trace.value.last().kind)
         ExecutionStatusBus.reset()
     }
+
+    @Test
+    fun graphCompletionCannotOverwriteApprovalWaitingState() {
+        val executionId = "approval-completion-race-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Create event", 1, executionId)
+        ExecutionStatusBus.onApprovalWaiting(executionId, "tool-1", "approval-1", "Create event")
+
+        ExecutionStatusBus.onGraphCompleted(success = true, executionId = executionId)
+
+        assertTrue(ExecutionStatusBus.status.value.waitingForApproval)
+        assertEquals(ExecutionTraceKind.WAITING_FOR_APPROVAL, ExecutionStatusBus.trace.value.last().kind)
+        ExecutionStatusBus.reset()
+    }
 }

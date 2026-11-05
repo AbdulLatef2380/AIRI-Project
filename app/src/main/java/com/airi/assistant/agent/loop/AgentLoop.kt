@@ -861,10 +861,17 @@ the tool returns an actual error.
                                 is CalendarCreateRuntime.ProposalResult.Created -> when (
                                     val pending = runtime.requestApproval(created.proposal.id)
                                 ) {
-                                    is CalendarCreateRuntime.ProposalResult.ApprovalPending ->
+                                    is CalendarCreateRuntime.ProposalResult.ApprovalPending -> {
+                                        ExecutionStatusBus.onApprovalWaiting(
+                                            executionId = executionId,
+                                            actionId = toolStepId,
+                                            interruptId = pending.proposal.approvalId.orEmpty(),
+                                            actionDescription = "Calendar creation requires explicit approval",
+                                        )
                                         ToolDispatcher.ToolResult.Success(
                                             "Calendar proposal is awaiting explicit review and approval in Trust Center. Do not retry the operation."
                                         )
+                                    }
                                     is CalendarCreateRuntime.ProposalResult.Rejected -> ToolDispatcher.ToolResult.Error(pending.reason)
                                     is CalendarCreateRuntime.ProposalResult.Failed -> ToolDispatcher.ToolResult.Error(pending.reason)
                                     else -> ToolDispatcher.ToolResult.Error("Calendar proposal could not enter approval")

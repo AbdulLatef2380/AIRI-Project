@@ -9,6 +9,7 @@ import com.airi.assistant.agent.durable.ResumableCalendarCreate
 import com.airi.assistant.agent.durable.TaskApprovalStatus
 import com.airi.assistant.agent.durable.TaskStepStatus
 import com.airi.assistant.agent.loop.AgentLoopExecutionContext
+import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.tools.execution.CalendarTool
 import com.airi.assistant.workspace.ArtifactManager
 import com.airi.assistant.workspace.ArtifactProvenance
@@ -243,6 +244,7 @@ class CalendarCreateRuntime(
             return@withContext null
         }
         val continuation = durableTaskManager.claimApprovedContinuation(approvalId) ?: return@withContext null
+        ExecutionStatusBus.onApprovalResumed(approvalId)
         val calendar = continuation.calendarCreate ?: return@withContext null
         val proposal = proposals[calendar.proposalId]
         if (proposal == null || !matchesContinuation(proposal, continuation, calendar)) {
@@ -357,6 +359,11 @@ class CalendarCreateRuntime(
             TaskApprovalStatus.DENIED -> ProposalStatus.REJECTED
             TaskApprovalStatus.EXPIRED -> ProposalStatus.EXPIRED
             else -> return false
+        }
+        if (terminal == ProposalStatus.EXPIRED) {
+            ExecutionStatusBus.onApprovalTimedOut(approvalId, proposal.stepId, "Calendar approval expired")
+        } else {
+            ExecutionStatusBus.onApprovalCancelled(approvalId, proposal.stepId, "Calendar approval denied")
         }
         proposals[proposal.id] = proposal.copy(
             status = terminal,

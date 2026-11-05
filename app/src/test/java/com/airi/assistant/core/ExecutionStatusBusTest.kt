@@ -170,4 +170,18 @@ class ExecutionStatusBusTest {
         assertEquals(traceAfterTimeout, ExecutionStatusBus.trace.value)
         ExecutionStatusBus.reset()
     }
+
+    @Test
+    fun approvalCancelByInterruptIdPublishesTerminalTrace() {
+        val executionId = "approval-cancel-live-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Write file", 1, executionId)
+        ExecutionStatusBus.onApprovalWaiting(executionId, "tool-1", "approval-1", "Write file")
+
+        ExecutionStatusBus.onApprovalCancelled("approval-1", "tool-1", "Denied by user")
+
+        assertEquals(ExecutionStage.CANCELLED, ExecutionStatusBus.status.value.executionStage)
+        assertEquals(ExecutionTraceKind.APPROVAL_CANCELLED, ExecutionStatusBus.trace.value.last().kind)
+        ExecutionStatusBus.reset()
+    }
 }

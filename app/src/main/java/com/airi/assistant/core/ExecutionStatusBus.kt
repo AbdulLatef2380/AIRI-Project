@@ -44,6 +44,8 @@ object ExecutionStatusBus {
     private val traceBuffers = linkedMapOf<String, ExecutionTraceBuffer>()
     private val toolTraceLifecycles = linkedMapOf<String, ExecutionToolTraceLifecycle>()
     private val terminalExecutions = mutableSetOf<String>()
+    /** Live-only approval correlation; durable records remain free of runtime/UI state. */
+    private val approvalOwners = mutableMapOf<String, String>()
 
     // : Wrap status with FlowPressureMonitor to detect slow collectors.
     // monitorFlow wraps the Flow at the read-side; _status remains a MutableStateFlow
@@ -165,6 +167,7 @@ object ExecutionStatusBus {
         expiresAtMs: Long? = null,
     ) {
         if (!belongsToActiveExecution(_status.value, executionId) || actionId.isBlank() || interruptId.isBlank()) return
+        synchronized(traceLock) { approvalOwners[interruptId] = executionId }
         _status.update { current ->
             if (!belongsToActiveExecution(current, executionId)) current else current.copy(
                 isWorking = false,
@@ -197,6 +200,13 @@ object ExecutionStatusBus {
                 approvalInterruptId = "",
             )
         }
+        synchronized(traceLock) { approvalOwners.remove(interruptId) }
+    }
+
+    /** Resume a live approval using only its durable approval identifier. */
+    fun onApprovalResumed(interruptId: String) {
+        val executionId = synchronized(traceLock) { approvalOwners[interruptId] } ?: return
+        onApprovalResumed(executionId, interruptId)
     }
 
     /** Close a pending approval as a user rejection/cancellation. */
@@ -208,7 +218,16 @@ object ExecutionStatusBus {
                 current.copy(isWorking = false, executionStage = ExecutionStage.CANCELLED, currentAction = "Approval cancelled", waitingForApproval = false, approvalInterruptId = "")
             }
         }
-        if (accepted) appendTrace(executionId, ExecutionTraceKind.APPROVAL_CANCELLED, "Approval cancelled", reason.take(160), actionId = actionId, machineTag = "approval_cancelled")
+        if (accepted) {
+            synchronized(traceLock) { approvalOwners.remove(interruptId) }
+            appendTrace(executionId, ExecutionTraceKind.APPROVAL_CANCELLED, "Approval cancelled", reason.take(160), actionId = actionId, machineTag = "approval_cancelled")
+        }
+    }
+
+    /** Cancel a live approval using only its durable approval identifier. */
+    fun onApprovalCancelled(interruptId: String, actionId: String, reason: String) {
+        val executionId = synchronized(traceLock) { approvalOwners[interruptId] } ?: return
+        onApprovalCancelled(executionId, actionId, interruptId, reason)
     }
 
     /** Close a pending approval as a timeout; it is never reported as success. */
@@ -220,7 +239,16 @@ object ExecutionStatusBus {
                 current.copy(isWorking = false, executionStage = ExecutionStage.FAILED, currentAction = "Approval expired", waitingForApproval = false, approvalInterruptId = "")
             }
         }
-        if (accepted) appendTrace(executionId, ExecutionTraceKind.APPROVAL_TIMEOUT, "Approval expired", reason.take(160), actionId = actionId, errorCode = "approval_timeout", machineTag = "approval_timeout")
+        if (accepted) {
+            synchronized(traceLock) { approvalOwners.remove(interruptId) }
+            appendTrace(executionId, ExecutionTraceKind.APPROVAL_TIMEOUT, "Approval expired", reason.take(160), actionId = actionId, errorCode = "approval_timeout", machineTag = "approval_timeout")
+        }
+    }
+
+    /** Timeout a live approval using only its durable approval identifier. */
+    fun onApprovalTimedOut(interruptId: String, actionId: String, reason: String = "Approval expired") {
+        val executionId = synchronized(traceLock) { approvalOwners[interruptId] } ?: return
+        onApprovalTimedOut(executionId, actionId, interruptId, reason)
     }
 
     /**
@@ -349,8 +377,13 @@ object ExecutionStatusBus {
     ) {
         val stage = if (success) ExecutionStage.COMPLETED else ExecutionStage.FAILED
         var accepted = false
+        var blockedByApproval = false
         _status.update { current ->
             if (!belongsToActiveExecution(current, executionId)) return@update current
+            if (current.waitingForApproval) {
+                blockedByApproval = true
+                return@update current
+            }
             accepted = true
             current.copy(
                 isWorking      = false,
@@ -362,7 +395,7 @@ object ExecutionStatusBus {
                 approvalInterruptId = "",
             )
         }
-        if (accepted || isOpenExecution(executionId)) {
+        if (!blockedByApproval && (accepted || isOpenExecution(executionId))) {
             appendTrace(
                 executionId,
                 if (success) ExecutionTraceKind.COMPLETED else ExecutionTraceKind.FAILED,
@@ -449,6 +482,7 @@ object ExecutionStatusBus {
             traceBuffers.clear()
             toolTraceLifecycles.clear()
             terminalExecutions.clear()
+            approvalOwners.clear()
         }
         _trace.value = emptyList()
     }

@@ -754,6 +754,7 @@ the tool returns an actual error.
                     )
                 }
                 toolsInvoked.add(toolName)
+                val stepId = "step_$stepsUsed"
                 val toolStepId = "tool_${stepsUsed}_$toolName"
                 val toolFingerprint = ToolCallFingerprint(
                     executionId = executionId,
@@ -761,7 +762,7 @@ the tool returns an actual error.
                     argumentsHash = stableArgumentsHash(
                         toolArgs.toSortedMap().entries.joinToString("&") { "${it.key}=${it.value}" }
                     ),
-                    parentStepId = toolStepId,
+                    parentStepId = stepId,
                 )
                 val duplicateToolCall = !toolLedger.shouldExecute(toolFingerprint)
 
@@ -778,7 +779,7 @@ the tool returns an actual error.
                 }
                 val toolStartedAtMs = System.currentTimeMillis()
                 ExecutionStatusBus.onWaveStarted(
-                    nodeIds = listOf(toolStepId),
+                    nodeIds = listOf(stepId),
                     nodeActions = listOf(toolName),
                     executionId = executionId,
                 )
@@ -789,6 +790,7 @@ the tool returns an actual error.
                     toolName = toolName,
                     detail = "Agent step $stepsUsed",
                     inputParams = toolArgs,
+                    parentId = stepId,
                 )
                 activeToolTrace = ActiveToolTrace(
                     executionId = executionId,
@@ -1016,7 +1018,7 @@ the tool returns an actual error.
                 Log.i(TAG, "AIRI TOOL_RESULT tool=$toolName success=${toolResult is ToolDispatcher.ToolResult.Success} code=$resultCode provenance=$resultProvenance len=${resultText.length}")
 
                 ExecutionStatusBus.onNodeCompleted(
-                    toolStepId,
+                    stepId,
                     stepsUsed,
                     executionId = executionId,
                 )

@@ -52,6 +52,27 @@ class ExecutionStatusBusTest {
     }
 
     @Test
+    fun terminalToolEventCarriesStartedInputAndParent() {
+        val executionId = "trace-input-parent-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Inspect repository", 1, executionId)
+        ExecutionStatusBus.onWaveStarted(listOf("step-1"), listOf("read_file"), executionId)
+        ExecutionStatusBus.onToolStarted(
+            executionId = executionId,
+            actionId = "tool-1",
+            toolName = "read_file",
+            inputParams = mapOf("path" to "/safe/README.md"),
+            parentId = "step-1",
+        )
+        ExecutionStatusBus.onToolCompleted(executionId, "tool-1", "read_file", 12L)
+
+        val completed = ExecutionStatusBus.trace.value.single { it.kind == ExecutionTraceKind.TOOL_COMPLETED }
+        assertEquals(mapOf("path" to "/safe/README.md"), completed.inputParams)
+        assertEquals("step-1", completed.parentId)
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
     fun traceSnapshotRemainsBoundToItsExecutionAfterAnotherRunStarts() {
         ExecutionStatusBus.reset()
         ExecutionStatusBus.onGraphStarted("First task", 1, "trace-run-1", "session-1")

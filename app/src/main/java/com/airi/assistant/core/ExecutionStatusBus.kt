@@ -48,6 +48,8 @@ object ExecutionStatusBus {
     // registry while each lifecycle remains synchronized internally.
     private val toolTraceLifecycles = ConcurrentHashMap<String, ExecutionToolTraceLifecycle>()
     private val terminalExecutions = mutableSetOf<String>()
+    /** Started-tool metadata carried forward to its terminal event. */
+    private val toolTraceContexts = mutableMapOf<String, MutableMap<String, ToolTraceContext>>()
     /** Live-only approval correlation; durable records remain free of runtime/UI state. */
     private val approvalOwners = mutableMapOf<String, String>()
 
@@ -95,6 +97,7 @@ object ExecutionStatusBus {
             }
             traceBuffers[executionId] = ExecutionTraceBuffer().also { it.begin(executionId, sessionId) }
             toolTraceLifecycles[executionId] = ExecutionToolTraceLifecycle().also { it.begin(executionId) }
+            toolTraceContexts[executionId] = mutableMapOf()
             terminalExecutions.remove(executionId)
             traceHistory[executionId] = emptyList()
             while (traceHistory.size > maxTraceHistory) {
@@ -102,6 +105,7 @@ object ExecutionStatusBus {
                 traceHistory.remove(evicted)
                 traceBuffers.remove(evicted)
                 toolTraceLifecycles.remove(evicted)
+                toolTraceContexts.remove(evicted)
                 terminalExecutions.remove(evicted)
             }
         }
@@ -268,6 +272,7 @@ object ExecutionStatusBus {
         toolName: String,
         detail: String? = null,
         inputParams: Map<String, String> = emptyMap(),
+        parentId: String? = null,
     ) {
         if (!isOpenExecution(executionId) ||
             (_status.value.executionId == executionId && _status.value.cancellationRequested) ||
@@ -276,6 +281,13 @@ object ExecutionStatusBus {
             safeLog { Log.w(TAG, "TRACE_TOOL_START_REJECTED owner=${executionId.take(8)}") }
             return
         }
+        val redactedParams = inputParams.mapValues { (key, value) -> PrivacyGuard.redactTraceField(key, value) }
+        synchronized(traceLock) {
+            toolTraceContexts[executionId]?.set(
+                actionId,
+                ToolTraceContext(redactedParams, parentId?.takeIf { it.isNotBlank() })
+            )
+        }
         appendTrace(
             executionId = executionId,
             kind = ExecutionTraceKind.TOOL_STARTED,
@@ -283,7 +295,8 @@ object ExecutionStatusBus {
             detail = detail,
             actionId = actionId,
             machineTag = "tool_call",
-            inputParams = inputParams.mapValues { (key, value) -> PrivacyGuard.redactTraceField(key, value) },
+            parentId = parentId,
+            inputParams = redactedParams,
         )
     }
 
@@ -487,6 +500,7 @@ object ExecutionStatusBus {
             traceHistory.clear()
             traceBuffers.clear()
             toolTraceLifecycles.clear()
+            toolTraceContexts.clear()
             terminalExecutions.clear()
             approvalOwners.clear()
         }
@@ -510,6 +524,9 @@ object ExecutionStatusBus {
             safeLog { Log.w(TAG, "TRACE_TOOL_TERMINAL_REJECTED owner=${executionId.take(8)}") }
             return
         }
+        val context = synchronized(traceLock) {
+            toolTraceContexts[executionId]?.remove(actionId)
+        }
         appendTrace(
             executionId = executionId,
             kind = kind,
@@ -519,6 +536,8 @@ object ExecutionStatusBus {
             durationMs = durationMs,
             errorCode = errorCode,
             machineTag = "tool_call",
+            parentId = context?.parentId,
+            inputParams = context?.inputParams.orEmpty(),
         )
     }
 
@@ -531,6 +550,7 @@ object ExecutionStatusBus {
         durationMs: Long? = null,
         errorCode: String? = null,
         machineTag: String? = null,
+        parentId: String? = null,
         inputParams: Map<String, String> = emptyMap(),
     ) {
         val normalizedErrorCode = ExecutionTraceBuffer.normalizeErrorCode(errorCode)
@@ -549,6 +569,7 @@ object ExecutionStatusBus {
                 durationMs = durationMs,
                 errorCode = normalizedErrorCode,
                 machineTag = machineTag,
+                parentId = parentId,
                 inputParams = inputParams,
             ) ?: return
             val currentSnapshot = buffer.snapshot()
@@ -595,6 +616,11 @@ object ExecutionStatusBus {
     private fun isOpenExecution(executionId: String): Boolean = synchronized(traceLock) {
         executionId.isNotBlank() && executionId in traceBuffers && executionId !in terminalExecutions
     }
+
+    private data class ToolTraceContext(
+        val inputParams: Map<String, String>,
+        val parentId: String?,
+    )
 
     private val TERMINAL_STAGES = setOf(
         ExecutionStage.COMPLETED,

@@ -129,4 +129,49 @@ class ChatExecutionTracePrivacyTest {
 
         assertFalse(requireNotNull(mapped).success)
     }
+
+    @Test
+    fun terminalToolStepRetainsInputParamsAndParentId() {
+        val executionId = "exec-structured-step"
+        val mapped = ChatExecutionTraceMapper.toAgentTrace(
+            executionId = executionId,
+            sessionId = "session-structured-step",
+            messageId = 94L,
+            userInput = "read the file",
+            events = listOf(
+                ExecutionTraceEvent(
+                    executionId = executionId,
+                    sequence = 1,
+                    timestampMs = 4_001L,
+                    kind = ExecutionTraceKind.TOOL_STARTED,
+                    summary = "Running tool",
+                    actionId = "tool-1",
+                    parentId = "step-1",
+                    inputParams = mapOf("path" to "/safe/README.md"),
+                ),
+                ExecutionTraceEvent(
+                    executionId = executionId,
+                    sequence = 2,
+                    timestampMs = 4_002L,
+                    kind = ExecutionTraceKind.TOOL_COMPLETED,
+                    summary = "Tool completed",
+                    actionId = "tool-1",
+                    parentId = "step-1",
+                    inputParams = mapOf("path" to "/safe/README.md"),
+                ),
+                ExecutionTraceEvent(
+                    executionId = executionId,
+                    sequence = 3,
+                    timestampMs = 4_003L,
+                    kind = ExecutionTraceKind.COMPLETED,
+                    summary = "done",
+                ),
+            ),
+            answerText = "done",
+        )
+
+        val step = requireNotNull(mapped).steps.single()
+        assertEquals(mapOf("path" to "/safe/README.md"), step.inputParams)
+        assertEquals("step-1", step.parentId)
+    }
 }

@@ -18,7 +18,7 @@ class DocumentGenerationSkill(private val context: Context) : AiriSkill {
     override val skillId = "document_generator"
     override val name = skillId
     override val displayName = "Document Generator"
-    override val description = "Generate downloadable ODT, ODS, ODP, EPUB, Markdown, CSV, JSON, HTML, or text files"
+    override val description = "Generate downloadable DOCX, XLSX, ODT, ODS, ODP, EPUB, Markdown, CSV, JSON, HTML, or text files"
     override val version = "1.0.0"
     override val author = "AIRI Official"
     override val category = "DOCUMENTS"
@@ -36,7 +36,7 @@ class DocumentGenerationSkill(private val context: Context) : AiriSkill {
             name = "generate_document",
             description = "Create a real downloadable document artifact",
             parameters = mapOf(
-                "fileName" to SkillParamDef("string", "Output name: report.odt, book.epub, data.ods, etc."),
+                "fileName" to SkillParamDef("string", "Output name: report.docx, data.xlsx, report.odt, book.epub, etc."),
                 "content" to SkillParamDef("string", "Content to put in the document"),
                 "sessionId" to SkillParamDef("string", "Workspace session", required = false),
             ),
@@ -45,7 +45,7 @@ class DocumentGenerationSkill(private val context: Context) : AiriSkill {
 
     override fun score(input: String, context: SkillContext): Int {
         val lower = input.lowercase()
-        val format = listOf(".odt", ".ods", ".odp", ".epub", "markdown file", "csv file", "generate a document")
+        val format = listOf(".docx", ".xlsx", ".odt", ".ods", ".odp", ".epub", "markdown file", "csv file", "generate a document")
         return (format.count(lower::contains) * 35).coerceAtMost(100)
     }
 

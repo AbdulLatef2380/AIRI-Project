@@ -31,6 +31,8 @@ class GeneratedArtifactService(private val artifactManager: ArtifactManager) {
             "ods" -> ArtifactManager.ArtifactType.ODS
             "odp" -> ArtifactManager.ArtifactType.ODP
             "epub" -> ArtifactManager.ArtifactType.EPUB
+            "docx" -> ArtifactManager.ArtifactType.DOCX
+            "xlsx" -> ArtifactManager.ArtifactType.XLSX
             else -> throw IllegalArgumentException("This service is intended for packaged document outputs")
         }
         val artifact = artifactManager.createBinaryArtifact(
@@ -48,6 +50,28 @@ class GeneratedArtifactService(private val artifactManager: ArtifactManager) {
             mimeType = generated.mimeType,
             link = artifactManager.internalLink(artifact.id),
             downloadUri = artifactManager.downloadUri(artifact.id)?.toString(),
+        )
+    }
+
+    /** Regenerates the existing packaged document and records a binary revision. */
+    suspend fun updateDocument(
+        artifactId: String,
+        content: String,
+    ): GeneratedArtifactLink {
+        val existing = artifactManager.getArtifact(artifactId)
+            ?: throw IllegalArgumentException("Artifact not found: $artifactId")
+        require(existing.type in setOf(ArtifactManager.ArtifactType.DOCX, ArtifactManager.ArtifactType.XLSX, ArtifactManager.ArtifactType.ODT, ArtifactManager.ArtifactType.ODS, ArtifactManager.ArtifactType.ODP, ArtifactManager.ArtifactType.EPUB)) {
+            "Artifact is not a packaged document"
+        }
+        val generated = DocumentGenerator.generate(existing.name, content)
+        val updated = artifactManager.updateBinaryArtifact(existing.id, generated.bytes)
+            ?: throw IllegalStateException("Artifact could not be updated")
+        return GeneratedArtifactLink(
+            artifactId = updated.id,
+            fileName = updated.name,
+            mimeType = generated.mimeType,
+            link = artifactManager.internalLink(updated.id),
+            downloadUri = artifactManager.downloadUri(updated.id)?.toString(),
         )
     }
 }

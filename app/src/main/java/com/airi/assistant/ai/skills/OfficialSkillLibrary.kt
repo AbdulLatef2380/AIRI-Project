@@ -14,6 +14,7 @@ import com.airi.assistant.ai.skills.impl.FileManagerSkill
 import com.airi.assistant.ai.skills.impl.GithubGuardianSkill
 import com.airi.assistant.ai.skills.impl.GmailAssistantSkill
 import com.airi.assistant.ai.skills.impl.MemoryManagerSkill
+import com.airi.assistant.ai.skills.impl.MediaProcessingSkill
 import com.airi.assistant.ai.skills.impl.ModelUtilitySkill
 import com.airi.assistant.ai.skills.impl.ResearchAgentSkill
 import com.airi.assistant.ai.skills.impl.ReminderPlanningSkill
@@ -244,7 +245,7 @@ object OfficialSkillLibrary {
             manifest = SkillManifest(
                 id           = "document_generator",
                 name         = "Document Generator",
-                description  = "Generate real downloadable ODF, EPUB, Markdown, CSV, JSON, HTML, and text artifacts",
+                description  = "Generate real downloadable DOCX, XLSX, ODF, EPUB, Markdown, CSV, JSON, HTML, and text artifacts",
                 version      = "1.0.0",
                 author       = "AIRI Official",
                 category     = "DOCUMENTS",
@@ -252,7 +253,7 @@ object OfficialSkillLibrary {
                 iconEmoji    = "",
                 memoryAccess = SkillMemoryAccess.NONE,
                 modelAccess  = SkillModelAccess.NONE,
-                tags         = listOf("document", "generate", "odf", "epub", "export"),
+                tags         = listOf("document", "generate", "docx", "xlsx", "odf", "epub", "export"),
                 tools        = listOf(
                     SkillManifest.ToolDef(
                         "generate_document",
@@ -291,6 +292,28 @@ object OfficialSkillLibrary {
             ),
             tier    = Tier.SYSTEM,
             factory = ::FileManagerSkill
+        ),
+
+        OfficialEntry(
+            manifest = SkillManifest(
+                id           = "media_processor",
+                name         = "Media Processor",
+                description  = "Resize and compress images or trim audio locally into downloadable AIRI artifacts",
+                version      = "1.0.0",
+                author       = "AIRI Official",
+                category     = "MEDIA",
+                isOfficial   = true,
+                iconEmoji    = "",
+                memoryAccess = SkillMemoryAccess.NONE,
+                modelAccess  = SkillModelAccess.NONE,
+                tags         = listOf("media", "image", "audio", "resize", "compress", "trim"),
+                tools        = listOf(
+                    SkillManifest.ToolDef("process_image", "Resize and compress an image", mapOf("uri" to SkillManifest.ParamDef("string", "Content URI"), "sessionId" to SkillManifest.ParamDef("string", "Workspace session"))),
+                    SkillManifest.ToolDef("process_audio", "Trim an audio file", mapOf("uri" to SkillManifest.ParamDef("string", "Content URI"), "sessionId" to SkillManifest.ParamDef("string", "Workspace session"))),
+                ),
+            ),
+            tier    = Tier.SYSTEM,
+            factory = ::MediaProcessingSkill,
         ),
 
         // ── Connectors ────────────────────────────────────────────────────────

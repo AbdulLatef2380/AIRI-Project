@@ -66,6 +66,8 @@ class ArtifactManager(
         ODS           ("ods",  ""),
         ODP           ("odp",  ""),
         EPUB          ("epub", ""),
+        DOCX          ("docx", ""),
+        XLSX          ("xlsx", ""),
         IMAGE         ("bin",  ""),
         AUDIO         ("bin",  ""),
         UNKNOWN       ("bin",  "")
@@ -172,7 +174,7 @@ class ArtifactManager(
         provenance: ArtifactProvenance = ArtifactProvenance(projectId = sessionId),
     ): Artifact = withContext(Dispatchers.IO) {
         require(bytes.size <= MAX_BINARY_ARTIFACT_BYTES) { "Artifact exceeds the 25MB safety limit" }
-        require(type in setOf(ArtifactType.ODT, ArtifactType.ODS, ArtifactType.ODP, ArtifactType.EPUB, ArtifactType.IMAGE, ArtifactType.AUDIO)) {
+        require(type in setOf(ArtifactType.ODT, ArtifactType.ODS, ArtifactType.ODP, ArtifactType.EPUB, ArtifactType.DOCX, ArtifactType.XLSX, ArtifactType.IMAGE, ArtifactType.AUDIO)) {
             "Binary artifact type is not permitted"
         }
         val validatedProvenance = validateProvenance(sessionId, provenance)
@@ -228,6 +230,29 @@ class ArtifactManager(
             ActivityCategory.SANDBOX,
             machineTag = "file_created",
         )
+        updated
+    }
+
+    /** Updates a packaged artifact without decoding OOXML/ODF/media bytes as UTF-8. */
+    suspend fun updateBinaryArtifact(id: String, bytes: ByteArray): Artifact? = withContext(Dispatchers.IO) {
+        require(bytes.size <= MAX_BINARY_ARTIFACT_BYTES) { "Artifact exceeds the 25MB safety limit" }
+        val existing = artifacts[id] ?: return@withContext null
+        val file = File(existing.filePath)
+        if (!file.exists()) return@withContext null
+        val history = historyFile(existing, existing.version).also { it.parentFile?.mkdirs() }
+        file.copyTo(history, overwrite = true)
+        file.writeBytes(bytes)
+        val updated = existing.copy(
+            sizeBytes = file.length(),
+            updatedAtMs = System.currentTimeMillis(),
+            version = existing.version + 1,
+            contentHash = sha256(bytes),
+            previewSnippet = null,
+        )
+        artifacts[id] = updated
+        publishAll()
+        artifactDao?.update(updated.toEntity())
+        AgentActivityBus.emit("Artifact updated: ${updated.name}", ActivityCategory.SANDBOX, machineTag = "file_created")
         updated
     }
 
@@ -441,7 +466,7 @@ class ArtifactManager(
         previewSnippet = previewSnippet
     )
 
-    private companion object {
+    companion object {
         const val MAX_ARTIFACT_NAME_CHARS = 80
         const val MAX_BINARY_ARTIFACT_BYTES = 25L * 1024L * 1024L
         val VERSION_PATTERN = Regex("version-(\\d+)\\.[A-Za-z0-9]+")

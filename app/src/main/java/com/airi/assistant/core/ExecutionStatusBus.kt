@@ -286,9 +286,12 @@ object ExecutionStatusBus {
         inputParams: Map<String, String> = emptyMap(),
         parentId: String? = null,
     ) {
+        val admitted = synchronized(traceLock) {
+            toolTraceLifecycles[executionId]?.admitStart(executionId, actionId) == true
+        }
         if (!isOpenExecution(executionId) ||
             (_status.value.executionId == executionId && _status.value.cancellationRequested) ||
-            toolTraceLifecycles[executionId]?.admitStart(executionId, actionId) != true
+            !admitted
         ) {
             safeLog { Log.w(TAG, "TRACE_TOOL_START_REJECTED owner=${executionId.take(8)}") }
             return
@@ -584,9 +587,12 @@ object ExecutionStatusBus {
         detail: String?,
         errorCode: String? = null,
     ) {
+        val admitted = synchronized(traceLock) {
+            toolTraceLifecycles[executionId]?.admitTerminal(executionId, actionId) == true
+        }
         if (!belongsToToolTerminalExecution(_status.value, executionId) ||
             !isOpenExecution(executionId) ||
-            toolTraceLifecycles[executionId]?.admitTerminal(executionId, actionId) != true
+            !admitted
         ) {
             safeLog { Log.w(TAG, "TRACE_TOOL_TERMINAL_REJECTED owner=${executionId.take(8)}") }
             return

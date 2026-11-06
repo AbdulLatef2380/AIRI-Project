@@ -147,10 +147,16 @@ object ExecutionTraceArchive {
                 runCatching {
                     Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
                 }.onFailure {
-                    if (!tmp.renameTo(target)) {
-                        tmp.delete()
-                        throw atomicFailure
-                    }
+                    // Some Android/JVM filesystems reject both atomic moves
+                    // and rename-over-existing. Preserve the snapshot by
+                    // falling back to a direct replacement before reporting
+                    // a genuine write failure.
+                    runCatching { target.writeText(array.toString()) }
+                        .onFailure { fallbackFailure ->
+                            tmp.delete()
+                            throw fallbackFailure
+                        }
+                    tmp.delete()
                 }
             }
         }.onFailure { error ->

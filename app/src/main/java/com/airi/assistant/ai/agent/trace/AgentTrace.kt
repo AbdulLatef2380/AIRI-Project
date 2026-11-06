@@ -42,8 +42,7 @@ data class AgentTrace(
 ) {
     /** Explicit correlation tuple used when navigating from a log to chat. */
     val correlationKey: String
-        get() = listOf(traceId, executionId, messageId?.toString().orEmpty(), sessionId)
-            .joinToString("|")
+        get() = "traceId=$traceId|executionId=$executionId|messageId=${messageId?.toString().orEmpty()}|sessionId=$sessionId"
 
     val stepCount: Int get() = steps.size
     val successCount: Int get() = steps.count { it.success }

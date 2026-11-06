@@ -1,6 +1,6 @@
 package com.airi.assistant.core
 
-import android.util.Log
+import com.airi.assistant.domain.logging.LoggingService
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -77,7 +77,7 @@ object ExecutionTraceArchive {
         writeGeneration += 1
         file?.let { target ->
             runCatching { target.delete() }
-                .onFailure { Log.e("AIRI_TRACE", "Execution trace archive clear failed", it) }
+                .onFailure { LoggingService.error("AIRI_TRACE", "Execution trace archive clear failed", it) }
         }
     }
 
@@ -114,7 +114,7 @@ object ExecutionTraceArchive {
             entries.putAll(loadedEntries)
             loaded = true
             true
-        }.onFailure { Log.e("AIRI_TRACE", "Execution trace archive read failed", it) }
+        }.onFailure { LoggingService.error("AIRI_TRACE", "Execution trace archive read failed", it) }
             .getOrDefault(false)
     }
 
@@ -141,7 +141,7 @@ object ExecutionTraceArchive {
                 error("Could not atomically publish execution trace archive")
             }
         }.onFailure { error ->
-            Log.e("AIRI_TRACE", "Execution trace archive write failed", error)
+            LoggingService.error("AIRI_TRACE", "Execution trace archive write failed", error)
         }
     }
 

@@ -118,13 +118,15 @@ object PrivacyGuard {
         sanitized = sanitized.replaceTracked(CONTENT_URI_REGEX, "[URI_REDACTED]", "uri", stripped)
         sanitized = sanitized.replaceTracked(API_KEY_REGEX, "[KEY_REDACTED]", "credential", stripped)
         sanitized = sanitized.replaceTracked(SECRET_ASSIGNMENT_REGEX, "[SECRET_REDACTED]", "credential", stripped)
+        // Match labelled device identifiers before generic phone/card patterns;
+        // otherwise a numeric IMEI is double-classified as a phone number.
+        sanitized = sanitized.replaceTracked(DEVICE_IDENTIFIER_REGEX, "[DEVICE_ID_REDACTED]", "device_id", stripped)
         sanitized = sanitized.replaceTracked(EMAIL_REGEX, "[EMAIL_REDACTED]", "email", stripped)
         sanitized = sanitized.replaceTracked(PHONE_REGEX, "[PHONE_REDACTED]", "phone", stripped)
         sanitized = sanitized.replaceTracked(CARD_REGEX, "[CARD_REDACTED]", "payment_card", stripped)
         sanitized = sanitized.replaceTracked(PASSWORD_ASSIGNMENT_REGEX, "[SECRET_REDACTED]", "credential", stripped)
         sanitized = sanitized.replaceTracked(PRIVATE_IP_REGEX, "[IP_REDACTED]", "private_ip", stripped)
         sanitized = sanitized.replaceTracked(GPS_REGEX, "[GPS_REDACTED]", "gps", stripped)
-        sanitized = sanitized.replaceTracked(DEVICE_IDENTIFIER_REGEX, "[DEVICE_ID_REDACTED]", "device_id", stripped)
         return sanitized.replaceTracked(
             ACCESSIBILITY_BLOCK_REGEX,
             "[A11Y_REDACTED]",

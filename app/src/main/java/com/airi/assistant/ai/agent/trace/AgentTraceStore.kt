@@ -1,6 +1,6 @@
 package com.airi.assistant.ai.agent.trace
 
-import android.util.Log
+import com.airi.assistant.domain.logging.LoggingService
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -32,7 +32,7 @@ class AgentTraceStore(private val file: File) {
         (0 until array.length()).map { index ->
             traceFromJson(array.getJSONObject(index))
         }
-    }.onFailure { Log.e("AIRI_TRACE", "Agent trace store read failed; preserving existing file", it) }
+    }.onFailure { LoggingService.error("AIRI_TRACE", "Agent trace store read failed; preserving existing file", it) }
         .getOrNull()
 
     private fun write(traces: List<AgentTrace>) {
@@ -58,7 +58,7 @@ class AgentTraceStore(private val file: File) {
                 if (!tmp.renameTo(file)) throw atomicFailure
             }
         }.onFailure { error ->
-            Log.e("AIRI_TRACE", "Agent trace store write failed; previous snapshot was retained", error)
+            LoggingService.error("AIRI_TRACE", "Agent trace store write failed; previous snapshot was retained", error)
         }
     }
 
@@ -71,7 +71,7 @@ class AgentTraceStore(private val file: File) {
 
     fun clear() = synchronized(lock) {
         runCatching { file.delete() }
-            .onFailure { Log.e("AIRI_TRACE", "Agent trace store clear failed", it) }
+            .onFailure { LoggingService.error("AIRI_TRACE", "Agent trace store clear failed", it) }
     }
 
     internal companion object {

@@ -1,7 +1,7 @@
 package com.airi.assistant.agent.loop.tool
 
 import android.content.Context
-import android.util.Log
+import com.airi.assistant.domain.logging.LoggingService
 import com.airi.assistant.agent.execution.command.AccessibilityCommandBridge
 import com.airi.assistant.agent.execution.node.NodeScanner
 import com.airi.assistant.accessibility.service.ScreenContextHolder
@@ -86,7 +86,7 @@ class ToolDispatcher(
         sessionId: String? = null,
         messageId: String? = null,
     ): ToolResult {
-        Log.i(TAG, "TOOL_DISPATCH tool=$toolName argCount=${args.size}")
+        LoggingService.info(TAG, "TOOL_DISPATCH tool=$toolName argCount=${args.size}")
         AgentActivityBus.emit(
             ActivityEvent(
                 message = PrivacyGuard.redactForTrace("Tool dispatched: $toolName"),
@@ -139,7 +139,7 @@ class ToolDispatcher(
                             .take(40)
                         val pkg   = service.rootInActiveWindow?.packageName?.toString() ?: "unknown"
                         val summary = "App: $pkg\nVisible text:\n${texts.joinToString("\n").take(800)}"
-                        Log.i(TAG, "AIRI READ_SCREEN pkg=$pkg nodes=${nodes.size} textItems=${texts.size}")
+                        LoggingService.info(TAG, "AIRI READ_SCREEN pkg=$pkg nodes=${nodes.size} textItems=${texts.size}")
                         ToolResult.Success(summary)
                     }
                 }
@@ -188,21 +188,21 @@ class ToolDispatcher(
                 if (!braveKey.isNullOrBlank()) {
                     val brave = searchTool.searchBrave(query, count = 5, enrich = true)
                     if (brave.success) {
-                        Log.i(TAG, "WEB_SEARCH_COMPLETE provider=brave queryChars=${query.length} results=${brave.results.size} hasContent=${brave.topContent != null}")
+                        LoggingService.info(TAG, "WEB_SEARCH_COMPLETE provider=brave queryChars=${query.length} results=${brave.results.size} hasContent=${brave.topContent != null}")
                         return ToolResult.Success(brave.toAgentString())
                     }
-                    Log.w(TAG, "WEB_SEARCH_FALLBACK from=brave to=duckduckgo")
+                    LoggingService.warn(TAG, "WEB_SEARCH_FALLBACK from=brave to=duckduckgo")
                 }
 
                 // Fallback: DDG Instant Answers (~30% coverage but always free)
                 val ddg = searchTool.searchDuckDuckGo(query)
                 if (ddg.success) {
-                    Log.i(TAG, "WEB_SEARCH_COMPLETE provider=duckduckgo queryChars=${query.length} resultChars=${ddg.summary.length}")
+                    LoggingService.info(TAG, "WEB_SEARCH_COMPLETE provider=duckduckgo queryChars=${query.length} resultChars=${ddg.summary.length}")
                     return ToolResult.Success(ddg.summary)
                 }
 
                 // Last resort: open browser (no content returned, but user can see it)
-                Log.w(TAG, "WEB_SEARCH_FALLBACK from=duckduckgo to=browser queryChars=${query.length}")
+                LoggingService.warn(TAG, "WEB_SEARCH_FALLBACK from=duckduckgo to=browser queryChars=${query.length}")
                 searchTool.searchViaIntent(query)
                 ToolResult.Error(
                     "Search opened in browser for: $query. No result was returned to AIRI. " +
@@ -218,12 +218,12 @@ class ToolDispatcher(
                     return ToolResult.Error("Invalid URL — must start with http:// or https://", code = ToolErrorCodes.INVALID_ARGUMENT)
                 }
                 val searchTool = SearchTool(context, braveApiKey = braveApiKeyProvider?.invoke())
-                Log.i(TAG, "FETCH_URL urlChars=${url.length}")
+                LoggingService.info(TAG, "FETCH_URL urlChars=${url.length}")
 
                 // Try Jina Reader first (clean markdown, handles JS-rendered pages)
                 val jina = searchTool.fetchViaJina(url, maxChars = 4000)
                 if (jina.success && jina.content.isNotBlank()) {
-                    Log.i(TAG, "AIRI FETCH_URL_JINA_OK chars=${jina.content.length}")
+                    LoggingService.info(TAG, "AIRI FETCH_URL_JINA_OK chars=${jina.content.length}")
                     return ToolResult.Success(
                         "Content from ${url}:\n\n${jina.content}"
                     )
@@ -232,7 +232,7 @@ class ToolDispatcher(
                 // Fallback: direct HTTP fetch with HTML stripping
                 val direct = searchTool.fetchPageContent(url)
                 if (direct.success && direct.content.isNotBlank()) {
-                    Log.i(TAG, "AIRI FETCH_URL_DIRECT_OK chars=${direct.content.length}")
+                    LoggingService.info(TAG, "AIRI FETCH_URL_DIRECT_OK chars=${direct.content.length}")
                     return ToolResult.Success("Content from ${url}:\n\n${direct.content}")
                 }
 
@@ -258,7 +258,7 @@ class ToolDispatcher(
                     val sessionId = sessionIdProvider?.invoke().orEmpty()
                     if (manager.isSemanticMemoryReady() && sessionId.isNotEmpty()) {
                         val ranked = manager.semanticSearch(sessionId, query, k = 5)
-                        Log.i(TAG, "MEMORY_RECALL mode=semantic queryChars=${query.length} hits=${ranked.size}")
+                        LoggingService.info(TAG, "MEMORY_RECALL mode=semantic queryChars=${query.length} hits=${ranked.size}")
                         if (ranked.isEmpty()) {
                             ToolResult.Success("No memories found for: $query")
                         } else {
@@ -271,14 +271,14 @@ class ToolDispatcher(
                         // Never fall back to a database-wide recent query. A
                         // missing session identity is an authorization failure,
                         // not permission to read another conversation.
-                        Log.w(TAG, "MEMORY_RECALL_BLOCKED reason=missing_session_scope")
+                        LoggingService.warn(TAG, "MEMORY_RECALL_BLOCKED reason=missing_session_scope")
                         ToolResult.Error(
                             "Memory session is unavailable; refusing an unscoped recall.",
                             code = ToolErrorCodes.MEMORY_SCOPE_UNAVAILABLE,
                         )
                     } else {
                         val recent = manager.getRecentMessages(sessionId, 5)
-                        Log.i(TAG, "MEMORY_RECALL mode=recent queryChars=${query.length} hits=${recent.size}")
+                        LoggingService.info(TAG, "MEMORY_RECALL mode=recent queryChars=${query.length} hits=${recent.size}")
                         if (recent.isEmpty()) {
                             ToolResult.Success("No memories found for: $query")
                         } else {
@@ -298,7 +298,7 @@ class ToolDispatcher(
                     ToolResult.Success("No events found in the next $days days.")
                 } else {
                     val formatted = cal.summarize(events.take(10))
-                    Log.i(TAG, "AIRI CALENDAR_READ days=$days events=${events.size}")
+                    LoggingService.info(TAG, "AIRI CALENDAR_READ days=$days events=${events.size}")
                     ToolResult.Success("Upcoming events:\n$formatted")
                 }
             }
@@ -345,7 +345,7 @@ class ToolDispatcher(
                     ?: return ToolResult.Error("Could not parse time '$time'. Use format like '7:30am' or '14:00'", code = ToolErrorCodes.INVALID_ARGUMENT)
                 val result = alarm.setAlarmViaIntent(timePair.first, timePair.second, label)
                 if (result.success) {
-                    Log.i(TAG, "ALARM_SET timeChars=${time.length} labelChars=${label.length}")
+                    LoggingService.info(TAG, "ALARM_SET timeChars=${time.length} labelChars=${label.length}")
                     ToolResult.Success("Alarm set for $time: $label")
                 } else {
                     ToolResult.Error(result.message, code = ToolErrorCodes.EXECUTION_FAILED)
@@ -358,7 +358,7 @@ class ToolDispatcher(
                 val content = args["content"] ?: return ToolResult.Error("Missing content", code = ToolErrorCodes.INVALID_ARGUMENT)
                 val notes   = NotesTool(context)
                 val note    = notes.createNote(title, content)
-                Log.i(TAG, "NOTE_CREATED titleChars=${title.length} contentChars=${content.length}")
+                LoggingService.info(TAG, "NOTE_CREATED titleChars=${title.length} contentChars=${content.length}")
                 ToolResult.Success("Note created: ${note.title}")
             }
 
@@ -378,7 +378,7 @@ class ToolDispatcher(
                         ToolResult.Error(result.reason, code = ToolErrorCodes.PERMISSION_DENIED)
                     is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Completed -> when (val execution = result.result) {
                         is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.Success -> {
-                            Log.i(TAG, "TERMINAL_TOOL_COMPLETE commandChars=${command.length} outputChars=${execution.output.length}")
+                            LoggingService.info(TAG, "TERMINAL_TOOL_COMPLETE commandChars=${command.length} outputChars=${execution.output.length}")
                             ToolResult.Success(execution.output.ifBlank { "Command completed without output." })
                         }
                         is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.Timeout ->
@@ -412,7 +412,7 @@ class ToolDispatcher(
                 val directory = java.io.File(context.filesDir, AgentFileWriter.DIRECTORY_NAME)
                 when (val written = AgentFileWriter.write(directory, filename, content, overwrite)) {
                     is AgentFileWriter.Result.Written -> {
-                        Log.i(TAG, "FILE_WRITTEN chars=${written.chars}")
+                        LoggingService.info(TAG, "FILE_WRITTEN chars=${written.chars}")
                         ToolResult.Success("Saved ${written.file.name} (${written.chars} characters) in AIRI files.")
                     }
                     is AgentFileWriter.Result.Rejected ->
@@ -471,7 +471,7 @@ class ToolDispatcher(
                             source = ProposalSource.AIRI_GENERATED,
                             sourceUrl = args["source_url"],
                         )
-                        Log.i(TAG, "AIRI SKILL_PROPOSAL_CREATED id=${proposal.id} source=generated")
+                        LoggingService.info(TAG, "AIRI SKILL_PROPOSAL_CREATED id=${proposal.id} source=generated")
                         ToolResult.Success("SKILL_PROPOSAL_REQUIRED|${proposal.id}", provenance = ToolProvenance.SKILL)
                     }
                 }
@@ -497,7 +497,7 @@ class ToolDispatcher(
                             sourceUrl = url,
                             warnings = imported.warnings,
                         )
-                        Log.i(TAG, "AIRI SKILL_PROPOSAL_CREATED id=${proposal.id} source=internet")
+                        LoggingService.info(TAG, "AIRI SKILL_PROPOSAL_CREATED id=${proposal.id} source=internet")
                         ToolResult.Success("SKILL_PROPOSAL_REQUIRED|${proposal.id}", provenance = ToolProvenance.SKILL)
                     }
                 }
@@ -508,7 +508,7 @@ class ToolDispatcher(
                 // Route any "skill_*" prefixed tool call through the SkillToolBridge
                 val bridge = skillToolBridge
                 if (bridge != null && bridge.handles(toolName)) {
-                    Log.i(TAG, "AIRI SKILL_TOOL_DISPATCH tool=$toolName")
+                    LoggingService.info(TAG, "AIRI SKILL_TOOL_DISPATCH tool=$toolName")
                     val result = bridge.invoke(toolName, args, executionId = executionId)
                     val output = com.airi.assistant.ai.skills.SkillToolResultFormatter.format(result)
                     if (result.success) {
@@ -522,7 +522,7 @@ class ToolDispatcher(
                         )
                     }
                 } else if (connectorToolBridge != null && connectorToolBridge.handles(toolName)) {
-                    Log.i(TAG, "AIRI CONNECTOR_TOOL_DISPATCH tool=$toolName path=ConnectorRuntimeManager")
+                    LoggingService.info(TAG, "AIRI CONNECTOR_TOOL_DISPATCH tool=$toolName path=ConnectorRuntimeManager")
                     when (val result = connectorToolBridge.invoke(
                         toolName,
                         args,
@@ -559,7 +559,7 @@ class ToolDispatcher(
                         )
                     }
                 } else {
-                    Log.w(TAG, "Unknown tool: $toolName")
+                    LoggingService.warn(TAG, "Unknown tool: $toolName")
                     ToolResult.Error(
                         "Unknown tool: $toolName. Available tools: ${BuiltinTools.ALL.map { it.name }.joinToString()}",
                         code = ToolErrorCodes.TOOL_NOT_FOUND,

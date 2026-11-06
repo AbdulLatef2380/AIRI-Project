@@ -3245,14 +3245,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         answer = normalizedAnswer,
                         model = requestedModelIdAtDispatch.takeIf { it.isNotBlank() },
                         provider = requestedProviderIdAtDispatch.takeIf { it.isNotBlank() },
-                        requestedModel = completionMetadata.requestedModelId.takeIf { it.isNotBlank() }
+                        requestedModel = loopResult.completionMetadata.requestedModelId.takeIf { it.isNotBlank() }
                             ?: requestedModelIdAtDispatch.takeIf { it.isNotBlank() },
-                        requestedProvider = completionMetadata.requestedProviderId.takeIf { it.isNotBlank() }
+                        requestedProvider = loopResult.completionMetadata.requestedProviderId.takeIf { it.isNotBlank() }
                             ?: requestedProviderIdAtDispatch.takeIf { it.isNotBlank() },
-                        resolvedModel = completionMetadata.resolvedModelId.takeIf { it.isNotBlank() },
-                        resolvedProvider = completionMetadata.resolvedProviderId.takeIf { it.isNotBlank() }
-                            ?: completionMetadata.providerId.takeIf { it.isNotBlank() },
-                        fallbackReason = completionMetadata.fallbackReason,
+                        resolvedModel = loopResult.completionMetadata.resolvedModelId.takeIf { it.isNotBlank() },
+                        resolvedProvider = loopResult.completionMetadata.resolvedProviderId.takeIf { it.isNotBlank() }
+                            ?: loopResult.completionMetadata.providerId.takeIf { it.isNotBlank() },
+                        fallbackReason = loopResult.completionMetadata.fallbackReason,
                         estimatedOutputTokens = tokenCount.takeIf { it > 0 },
                         firstVisibleTokenLatencyMs = firstVisibleTokenLatencyMs,
                     )

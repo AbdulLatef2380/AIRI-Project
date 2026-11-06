@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Log
+import com.airi.assistant.attachments.AttachmentContentExtractor
 import com.airi.assistant.media.MediaLibrary
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -420,7 +421,7 @@ class ProjectFileManager(
             mimeType = mimeType,
             sourceUri = sourceUri,
             lifecycle = LifecycleState.IMPORTING,
-            extractionState = extractionStateFor(mimeType)
+            extractionState = extractionStateFor(mimeType, safeName)
         )
         store[id] = record
         publish()
@@ -537,10 +538,24 @@ class ProjectFileManager(
             return Extraction(ExtractionState.NOT_APPLICABLE)
         }
         return runCatching {
-            FileInputStream(file.storagePath).bufferedReader(Charsets.UTF_8).use { reader ->
-                val chars = CharArray(MAX_EXTRACTED_CHARS)
-                val count = reader.read(chars)
-                val preview = if (count > 0) String(chars, 0, count).trim() else ""
+            val source = File(file.storagePath)
+            val preview = if (AttachmentContentExtractor.supports(file.mimeType, file.name)) {
+                AttachmentContentExtractor.extract(
+                    file = source,
+                    mimeType = file.mimeType,
+                    fileName = file.name,
+                    maxChars = MAX_EXTRACTED_CHARS,
+                )
+            } else {
+                FileInputStream(source).bufferedReader(Charsets.UTF_8).use { reader ->
+                    val chars = CharArray(MAX_EXTRACTED_CHARS)
+                    val count = reader.read(chars)
+                    if (count > 0) String(chars, 0, count).trim() else ""
+                }
+            }
+            if (preview.isBlank()) {
+                Extraction(ExtractionState.FAILED, error = "No readable text could be extracted")
+            } else {
                 Extraction(ExtractionState.EXTRACTED, preview)
             }
         }.getOrElse { error ->
@@ -548,8 +563,8 @@ class ProjectFileManager(
         }
     }
 
-    private fun extractionStateFor(mimeType: String): ExtractionState =
-        ProjectFilePolicy.extractionStateFor(mimeType)
+    private fun extractionStateFor(mimeType: String, fileName: String): ExtractionState =
+        ProjectFilePolicy.extractionStateFor(mimeType, fileName)
 
     private fun mediaTypeFor(mimeType: String): MediaLibrary.MediaType = when {
         mimeType.startsWith("image/") -> MediaLibrary.MediaType.IMAGE
@@ -727,6 +742,12 @@ internal object ProjectFilePolicy {
         "application/sql",
         "application/x-yaml"
     )
+    private val locallyExtractableDocumentTypes = setOf(
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    )
 
     fun normalizeFileName(raw: String): String = raw
         .trim()
@@ -734,11 +755,16 @@ internal object ProjectFilePolicy {
         .take(MAX_FILE_NAME_CHARS)
         .ifBlank { "imported-file" }
 
-    fun extractionStateFor(mimeType: String): ProjectFileManager.ExtractionState = when {
+    fun extractionStateFor(mimeType: String, fileName: String = ""): ProjectFileManager.ExtractionState = when {
         mimeType.startsWith("text/") -> ProjectFileManager.ExtractionState.PENDING
         mimeType in textualApplicationTypes -> ProjectFileManager.ExtractionState.PENDING
+        mimeType in locallyExtractableDocumentTypes -> ProjectFileManager.ExtractionState.PENDING
+        fileName.substringAfterLast('.', "").lowercase() in locallyExtractableExtensions ->
+            ProjectFileManager.ExtractionState.PENDING
         else -> ProjectFileManager.ExtractionState.NOT_APPLICABLE
     }
 
     fun isTextualApplicationType(mimeType: String): Boolean = mimeType in textualApplicationTypes
+
+    private val locallyExtractableExtensions = setOf("pdf", "docx", "xlsx", "pptx")
 }

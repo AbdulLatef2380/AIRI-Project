@@ -31,4 +31,31 @@ class ProjectFilePolicyTest {
         assertTrue(ProjectFilePolicy.isTextualApplicationType("application/sql"))
         assertFalse(ProjectFilePolicy.isTextualApplicationType("application/pdf"))
     }
+
+    @Test
+    fun locallyExtractablePdfAndOpenXmlFormatsEnterExtractionPipeline() {
+        assertEquals(
+            ProjectFileManager.ExtractionState.PENDING,
+            ProjectFilePolicy.extractionStateFor("application/pdf", "brief.pdf")
+        )
+        assertEquals(
+            ProjectFileManager.ExtractionState.PENDING,
+            ProjectFilePolicy.extractionStateFor(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "brief.docx"
+            )
+        )
+    }
+
+    @Test
+    fun fileExtensionEnablesExtractionWhenProviderReportsOctetStream() {
+        assertEquals(
+            ProjectFileManager.ExtractionState.PENDING,
+            ProjectFilePolicy.extractionStateFor("application/octet-stream", "brief.pdf")
+        )
+        assertEquals(
+            ProjectFileManager.ExtractionState.NOT_APPLICABLE,
+            ProjectFilePolicy.extractionStateFor("application/octet-stream", "archive.zip")
+        )
+    }
 }

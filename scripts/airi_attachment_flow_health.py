@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,13 +18,16 @@ def require(content: str, expected: str, label: str, failures: list[str]) -> Non
 
 def main() -> int:
     content = VIEW_MODEL.read_text(encoding="utf-8")
+    # Formatting is not a runtime contract. Normalize whitespace so harmless
+    # Kotlin reformatting cannot make a valid attachment path fail CI.
+    normalized = re.sub(r"\s+", " ", content)
     failures: list[str] = []
 
-    require(content, "private fun sendMessageInternal(\n        input: String,\n        allowLongTextConversion: Boolean,", "Missing explicit long-text conversion boundary", failures)
-    require(content, "if (allowLongTextConversion && LongTextAttachmentPolicy.shouldAutoConvert(trimmedInput))", "Long-text conversion is not explicitly gated", failures)
-    require(content, "attachments = listOf(\n                        ChatAttachment(", "Long-text conversion does not use the attachment send path", failures)
-    require(content, "sizeBytes = LongTextAttachmentPolicy.utf8SizeBytes(trimmedInput)", "Long-text attachment lacks source size metadata", failures)
-    require(content, "fullText,\n                    allowLongTextConversion = false,", "Text attachments can be recursively converted", failures)
+    require(normalized, "private fun sendMessageInternal( input: String, allowLongTextConversion: Boolean,", "Missing explicit long-text conversion boundary", failures)
+    require(normalized, "if (allowLongTextConversion && LongTextAttachmentPolicy.shouldAutoConvert(trimmedInput))", "Long-text conversion is not explicitly gated", failures)
+    require(normalized, "attachments = listOf( ChatAttachment(", "Long-text conversion does not use the attachment send path", failures)
+    require(normalized, "sizeBytes = LongTextAttachmentPolicy.utf8SizeBytes(trimmedInput)", "Long-text attachment lacks source size metadata", failures)
+    require(normalized, "fullText, allowLongTextConversion = false,", "Text attachments can be recursively converted", failures)
 
     conversion_start = content.find("if (allowLongTextConversion && LongTextAttachmentPolicy.shouldAutoConvert(trimmedInput))")
     conversion_end = content.find("// ── Intent classification", conversion_start)

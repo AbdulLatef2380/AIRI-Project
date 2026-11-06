@@ -310,13 +310,14 @@ private fun ActivitySummaryRow(
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
                 )
-            } else if (items.isEmpty()) {
+            }
+            if (items.isEmpty() && !isWaiting && latestStatus != TaskStatus.FAILED && latestStatus != TaskStatus.CANCELLED) {
                 Text(
                     text = stringResource(R.string.agent_lifecycle_working),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
                     style = MaterialTheme.typography.bodySmall,
                 )
-            } else {
+            } else if (items.isNotEmpty()) {
                 items.forEach { item ->
                     Text(
                         text = item,

@@ -176,7 +176,7 @@ class AgentLoopVerticalIntegrationTest {
         assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
         assertEquals(1, connector.executeCalls)
         assertTrue(ExecutionStatusBus.traceSnapshot("execution-approval").any {
-            it.kind == ExecutionTraceKind.WAITING_FOR_APPROVAL && it.actionId.isNotBlank()
+            it.kind == ExecutionTraceKind.WAITING_FOR_APPROVAL && !it.actionId.isNullOrBlank()
         })
     }
 

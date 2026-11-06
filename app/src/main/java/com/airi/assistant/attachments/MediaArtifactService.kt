@@ -3,6 +3,7 @@ package com.airi.assistant.attachments
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
@@ -124,7 +125,13 @@ class MediaArtifactService(
                 info.offset = 0
                 info.size = size
                 info.presentationTimeUs = timestamp - startUs
-                info.flags = extractor.sampleFlags
+                // MediaExtractor and MediaCodec expose different flag domains.
+                // Only the sync/key-frame semantic is valid for MediaMuxer.
+                info.flags = if ((extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC) != 0) {
+                    MediaCodec.BUFFER_FLAG_KEY_FRAME
+                } else {
+                    0
+                }
                 muxer.writeSampleData(muxerTrack, buffer, info)
                 extractor.advance()
             }

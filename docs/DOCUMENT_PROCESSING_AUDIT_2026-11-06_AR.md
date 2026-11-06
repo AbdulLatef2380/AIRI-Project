@@ -169,3 +169,13 @@ Apache Tika يبيّن أن تغطية Office وOOXML وODF وPDF وEPUB وRTF �
 - أُصلح `scripts/airi_attachment_flow_health.py` ليطابق البنية بعد تطبيع whitespace، لأن الفشل السابق كان false negative ناتجاً عن مسافات ثابتة لا عن مسار تشغيل خاطئ.
 
 التحقق بعد التعديل: فحص مسار المرفقات **PASS**، فحص أمن المرفقات **PASS**، محاكاة الأداء التعاقدية **PASS**، محاكاة الحالة **PASS**، و`git diff --check` **PASS**. يبقى اختبار Gradle المحلي غير قابل للتشغيل بسبب غياب Android SDK، ولذلك يلزم اعتماد CI بعد الدفع لإثبات البناء واختبارات Kotlin الفعلية.
+
+## نتيجة CI للـcommit 5115c5be والتحليل الجذري
+
+نجحت تشغيلات `Deep Audit` و`Architecture Audit` و`Oracle`. فشل `Android CI` لسببين مستقلين. أولاً، فشل `Verify source contracts and localization` لأن `tools/final_runtime_integration_audit.py` كان يبحث عن استدعاء قديم حرفياً (`bridge.invoke(toolName, args)`) بينما المصدر الفعلي يستدعي جسر المهارات عبر متغير `bridge` مع `executionId`، وجسر الموصلات مع بقية سياق التنفيذ. لم يكن هذا فشل wiring فعلياً؛ كان فحصاً ثابتاً غير متزامن مع العقد الحالي. تم إصلاح الفحص ليطبع المسافات ويتحقق من الاستدعاءات الفعلية.
+
+ثانياً، فشلت اختبارات `AgentLifecycleTrackerPanelTest` في API 29 وAPI 34 وباللّغتين لأن لوحة العرض كانت ترسم `projection.groups` فقط وتتجاهل `projection.taskTree`. لذلك كانت خطوة حقيقية مثل `Read the inbox` وأداة `gmail_read` تختفي عند فتح السجل. كما كان وصف أداة بلا تفاصيل يضيف فاصلة دلالية فارغة، مما كسر اختبار الوصول للوصف المتوقع. تم إصلاح المسارين في `AgentLifecycleTrackerPanel.kt`: تُعرض الشجرة recursively عبر نفس قائمة التتبع، ويُبنى الوصف الدلالي من أجزاء غير فارغة فقط.
+
+ظهرت أيضاً رسائل `adb: device offline` وتأخر إقلاع emulator و`Failed to start Emulator console`، لكنها ليست السبب الوحيد ولا تبرر تجاهل فشل assertions؛ فالسجل أثبت أن الاختبارات وصلت إلى 42 اختباراً وفشلت assertions محددة في اللوحة. بعد دفع الإصلاح الجديد يجب انتظار Android CI للتأكد من زوال فشل UI ومن بقاء مشكلة المحاكي إن تكررت منفصلة.
+
+التحقق المحلي قبل الدفع: `final_runtime_integration_audit` **PASS**، `verify_core_changes` **PASS**، فحص المرفقات **PASS**، ومحاكاة الأداء التعاقدية **PASS**. اختبار Gradle المحلي ما زال غير قابل للتشغيل بسبب غياب Android SDK، لذا يبقى CI هو مصدر إثبات Kotlin/Compose النهائي.

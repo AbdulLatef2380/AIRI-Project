@@ -8,6 +8,7 @@ tool catalog/dispatch, connector failures, memory, and scheduled tasks.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +36,7 @@ def check(name: str, conditions: list[tuple[str, bool]]) -> None:
 chat = read("app/src/main/java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt")
 loop = read("app/src/main/java/com/airi/assistant/agent/loop/AgentLoop.kt")
 dispatcher = read("app/src/main/java/com/airi/assistant/agent/loop/tool/ToolDispatcher.kt")
+dispatcher_compact = re.sub(r"\s+", " ", dispatcher)
 catalog = read("app/src/main/java/com/airi/assistant/agent/loop/tool/RuntimeToolCatalog.kt")
 contract = read("app/src/main/java/com/airi/assistant/agent/loop/tool/RuntimeToolContract.kt")
 bridge = read("app/src/main/java/com/airi/assistant/connector/ConnectorToolBridge.kt")
@@ -91,8 +93,8 @@ check("hybrid local/cloud routing keeps tool context and failover", [
     ("router exposes all backends", "val allBackends: List<RuntimeBackend>" in router),
 ])
 check("skills, connectors, and builtins converge on ToolDispatcher", [
-    ("skill bridge dispatch", "skillToolBridge" in dispatcher and "bridge.invoke(toolName, args)" in dispatcher),
-    ("connector bridge dispatch", "connectorToolBridge" in dispatcher and "connectorToolBridge.invoke(toolName, args)" in dispatcher),
+    ("skill bridge dispatch", "bridge = skillToolBridge" in dispatcher_compact and "bridge.invoke(toolName, args, executionId = executionId)" in dispatcher_compact),
+    ("connector bridge dispatch", "connectorToolBridge" in dispatcher_compact and "connectorToolBridge.invoke( toolName, args, executionId = executionId" in dispatcher_compact),
     ("connector unavailable result is normalized", "ToolErrorCodes.fromConnector" in dispatcher),
     ("memory builtin exists", '"memory_recall"' in builtins and '"current_time"' in builtins),
     ("memory execution exists", '"memory_recall" ->' in dispatcher),

@@ -154,6 +154,35 @@ fun AgentLifecycleTrackerPanel(
                         }
                     }
                 }
+            } else if (projection.taskTree.isNotEmpty()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("agent-trace-list")
+                        .heightIn(max = 238.dp),
+                    verticalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
+                    projection.taskTree.forEach { node ->
+                        traceNodeItems(
+                            node = node,
+                            depth = 0,
+                            expandedEvents = expandedEvents,
+                            onToggleEvent = { event ->
+                                val canExpand = !event.detailLog.isNullOrBlank() ||
+                                    event.inputParams.isNotEmpty() || event.durationMs != null ||
+                                    event.errorCode != null
+                                if (canExpand) {
+                                    expandedEvents = if (event.eventId in expandedEvents) {
+                                        expandedEvents - event.eventId
+                                    } else {
+                                        expandedEvents + event.eventId
+                                    }
+                                }
+                            },
+                        )
+                    }
+                }
             } else if (isWorking) {
                 Text(
                     text = stringResource(R.string.agent_lifecycle_working),
@@ -394,17 +423,20 @@ private fun ActivityEventRow(
         TaskStatus.FAILED -> MaterialTheme.colorScheme.error
         TaskStatus.WAITING, TaskStatus.PENDING, TaskStatus.COMPLETED, TaskStatus.CANCELLED -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f)
     }
+    val accessibleEventDescription = buildList {
+        if (technicalEvent) add(humanTitle)
+        add(event.title)
+        add(accessibleStatus)
+        detailDescription.takeIf(String::isNotBlank)?.let(::add)
+        add(detailToggleDescription)
+    }.joinToString(". ")
     Column(Modifier.fillMaxWidth().testTag("agent-trace-event-${event.eventId}")) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (canExpand) Modifier.clickable(role = Role.Button, onClick = onToggle) else Modifier)
-            .then(if (canExpand) Modifier.semantics(mergeDescendants = true) {
-                    contentDescription = if (technicalEvent) {
-                        "$humanTitle. ${event.title}. $accessibleStatus. $detailDescription. $detailToggleDescription"
-                    } else {
-                        "${event.title}. $accessibleStatus. $detailDescription. $detailToggleDescription"
-                    }
+                .then(if (canExpand) Modifier.semantics(mergeDescendants = true) {
+                    contentDescription = accessibleEventDescription
                 } else Modifier.semantics(mergeDescendants = true) {
                     contentDescription = if (technicalEvent) {
                         "$humanTitle. ${event.title}. $accessibleStatus"

@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import android.net.Uri
+import androidx.core.content.FileProvider
 import java.text.SimpleDateFormat
 import java.security.MessageDigest
 import java.util.*
@@ -60,6 +62,12 @@ class ArtifactManager(
         REPORT        ("md",   ""),
         AUTOMATION    ("json", ""),
         DIAGRAM       ("mmd",  ""),
+        ODT           ("odt",  ""),
+        ODS           ("ods",  ""),
+        ODP           ("odp",  ""),
+        EPUB          ("epub", ""),
+        IMAGE         ("bin",  ""),
+        AUDIO         ("bin",  ""),
         UNKNOWN       ("bin",  "")
     }
 
@@ -150,6 +158,53 @@ class ArtifactManager(
         )
         Log.i(TAG, "Artifact created: $name at ${file.absolutePath}")
         artifact
+    }
+
+    /** Stores a generated or transformed binary without decoding it as text. */
+    suspend fun createBinaryArtifact(
+        sessionId: String,
+        name: String,
+        type: ArtifactType,
+        bytes: ByteArray,
+        mimeType: String,
+        description: String = "",
+        agentId: String = "",
+        provenance: ArtifactProvenance = ArtifactProvenance(projectId = sessionId),
+    ): Artifact = withContext(Dispatchers.IO) {
+        require(bytes.size <= MAX_BINARY_ARTIFACT_BYTES) { "Artifact exceeds the 25MB safety limit" }
+        require(type in setOf(ArtifactType.ODT, ArtifactType.ODS, ArtifactType.ODP, ArtifactType.EPUB, ArtifactType.IMAGE, ArtifactType.AUDIO)) {
+            "Binary artifact type is not permitted"
+        }
+        val validatedProvenance = validateProvenance(sessionId, provenance)
+        val id = UUID.randomUUID().toString().take(8)
+        val dir = File(context.filesDir, "workspace/artifacts/$sessionId").also { it.mkdirs() }
+        val safeName = safeArtifactName(name)
+        val file = File(dir, "$id-$safeName")
+        file.writeBytes(bytes)
+        val artifact = Artifact(
+            id = id, sessionId = sessionId, projectId = validatedProvenance.projectId,
+            taskId = validatedProvenance.taskId, runId = validatedProvenance.runId, stepId = validatedProvenance.stepId,
+            toolId = validatedProvenance.toolId, modelId = validatedProvenance.modelId,
+            provenanceSummary = validatedProvenance.summary, contentHash = sha256(bytes), name = safeName,
+            type = type, filePath = file.absolutePath, sizeBytes = file.length(), description = "$description [$mimeType]",
+            agentId = agentId, previewSnippet = null,
+        )
+        artifacts[id] = artifact
+        publishAll()
+        artifactDao?.insert(artifact.toEntity())
+        AgentActivityBus.emit("Artifact created: $safeName (${file.length() / 1024}KB)", ActivityCategory.SANDBOX, machineTag = "file_created")
+        artifact
+    }
+
+    /** Stable in-app link; it never exposes the private filesystem path. */
+    fun internalLink(id: String): String = "airi://artifact/${Uri.encode(id)}"
+
+    /** Share/download URI scoped by the app FileProvider. */
+    fun downloadUri(id: String): Uri? {
+        val artifact = artifacts[id] ?: return null
+        val file = File(artifact.filePath)
+        if (!file.isFile || !file.canonicalPath.startsWith(File(context.filesDir, "workspace/artifacts").canonicalPath + File.separator)) return null
+        return runCatching { FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file) }.getOrNull()
     }
 
     suspend fun updateArtifact(id: String, newContent: String): Artifact? = withContext(Dispatchers.IO) {
@@ -314,8 +369,10 @@ class ArtifactManager(
         return provenance
     }
 
-    private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
-        .digest(value.toByteArray(Charsets.UTF_8))
+    private fun sha256(value: String): String = sha256(value.toByteArray(Charsets.UTF_8))
+
+    private fun sha256(value: ByteArray): String = MessageDigest.getInstance("SHA-256")
+        .digest(value)
         .joinToString("") { byte -> "%02x".format(byte) }
 
     private fun historyDirectory(artifact: Artifact): File =
@@ -386,6 +443,7 @@ class ArtifactManager(
 
     private companion object {
         const val MAX_ARTIFACT_NAME_CHARS = 80
+        const val MAX_BINARY_ARTIFACT_BYTES = 25L * 1024L * 1024L
         val VERSION_PATTERN = Regex("version-(\\d+)\\.[A-Za-z0-9]+")
     }
 }

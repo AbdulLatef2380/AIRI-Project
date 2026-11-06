@@ -6,6 +6,7 @@ import com.airi.assistant.ai.skills.impl.AdvancedModelSkill
 import com.airi.assistant.ai.skills.impl.CodeAssistantSkill
 import com.airi.assistant.ai.skills.impl.DocumentReaderSkill
 import com.airi.assistant.ai.skills.impl.DocumentAnalysisSkill
+import com.airi.assistant.ai.skills.impl.DocumentGenerationSkill
 import com.airi.assistant.ai.skills.impl.DefensiveEngineeringSkill
 import com.airi.assistant.ai.skills.impl.EngineeringQualitySkill
 import com.airi.assistant.ai.skills.impl.DriveSearchSkill
@@ -237,6 +238,34 @@ object OfficialSkillLibrary {
             ),
             tier    = Tier.SYSTEM,
             factory = ::DocumentReaderSkill
+        ),
+
+        OfficialEntry(
+            manifest = SkillManifest(
+                id           = "document_generator",
+                name         = "Document Generator",
+                description  = "Generate real downloadable ODF, EPUB, Markdown, CSV, JSON, HTML, and text artifacts",
+                version      = "1.0.0",
+                author       = "AIRI Official",
+                category     = "DOCUMENTS",
+                isOfficial   = true,
+                iconEmoji    = "",
+                memoryAccess = SkillMemoryAccess.NONE,
+                modelAccess  = SkillModelAccess.NONE,
+                tags         = listOf("document", "generate", "odf", "epub", "export"),
+                tools        = listOf(
+                    SkillManifest.ToolDef(
+                        "generate_document",
+                        "Create a downloadable document artifact",
+                        mapOf(
+                            "fileName" to SkillManifest.ParamDef("string", "Output file name with extension"),
+                            "content" to SkillManifest.ParamDef("string", "Document content"),
+                        ),
+                    ),
+                ),
+            ),
+            tier    = Tier.CORE,
+            factory = ::DocumentGenerationSkill,
         ),
 
         OfficialEntry(

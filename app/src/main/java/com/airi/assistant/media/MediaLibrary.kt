@@ -365,6 +365,12 @@ class MediaLibrary(private val context: Context) {
             ArtifactManager.ArtifactType.AUTOMATION     -> "application/json"
             ArtifactManager.ArtifactType.TEXT           -> "text/plain"
             ArtifactManager.ArtifactType.DIAGRAM        -> "text/plain"
+            ArtifactManager.ArtifactType.ODT             -> "application/vnd.oasis.opendocument.text"
+            ArtifactManager.ArtifactType.ODS             -> "application/vnd.oasis.opendocument.spreadsheet"
+            ArtifactManager.ArtifactType.ODP             -> "application/vnd.oasis.opendocument.presentation"
+            ArtifactManager.ArtifactType.EPUB            -> "application/epub+zip"
+            ArtifactManager.ArtifactType.IMAGE           -> "image/jpeg"
+            ArtifactManager.ArtifactType.AUDIO           -> "audio/mp4"
             ArtifactManager.ArtifactType.UNKNOWN        -> "application/octet-stream"
         }
 

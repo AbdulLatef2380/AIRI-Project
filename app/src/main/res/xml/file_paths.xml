@@ -2,5 +2,7 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Only explicitly staged chat attachments and converted prompts may be shared. -->
     <files-path name="attachments" path="attachments/" />
+    <!-- Generated AIRI artifacts; ArtifactManager validates the canonical path before sharing. -->
+    <files-path name="workspace_artifacts" path="workspace/artifacts/" />
     <cache-path name="chat_attachments" path="chat_attachments/" />
 </paths>

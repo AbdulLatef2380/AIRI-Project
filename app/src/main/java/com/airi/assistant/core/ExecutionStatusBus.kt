@@ -425,7 +425,7 @@ object ExecutionStatusBus {
         // The UI status is single-owner, but durable traces may outlive the
         // active UI execution. Close a known secondary execution in its own
         // trace without overwriting the active UI state.
-        if (!blockedByApproval && !accepted) {
+        if (!blockedByApproval && !accepted && _status.value.executionId != executionId) {
             synchronized(traceLock) {
                 if (executionId in traceBuffers && executionId !in terminalExecutions) {
                     terminalExecutions += executionId

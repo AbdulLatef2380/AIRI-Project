@@ -4,6 +4,8 @@ import com.airi.assistant.domain.logging.LoggingService
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.concurrent.Executors
 
 /**
@@ -134,11 +136,18 @@ object ExecutionTraceArchive {
             target.parentFile?.mkdirs()
             val tmp = File(target.parentFile, target.name + ".tmp")
             tmp.writeText(array.toString())
-            if (!tmp.renameTo(target)) {
-                // Never delete the last known-good archive just because the
-                // replacement could not be published.
-                tmp.delete()
-                error("Could not atomically publish execution trace archive")
+            try {
+                Files.move(
+                    tmp.toPath(),
+                    target.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            } catch (atomicFailure: Exception) {
+                if (!tmp.renameTo(target)) {
+                    tmp.delete()
+                    throw atomicFailure
+                }
             }
         }.onFailure { error ->
             LoggingService.error("AIRI_TRACE", "Execution trace archive write failed", error)

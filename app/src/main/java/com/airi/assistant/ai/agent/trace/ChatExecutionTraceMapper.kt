@@ -91,6 +91,7 @@ object ChatExecutionTraceMapper {
     ): Boolean {
         var pendingFailures = 0
         var recoveryStarted = false
+        var completedToolBeforeFailure = false
         events.filter { it.sequence <= terminalSequence }.forEach { event ->
             when (event.kind) {
                 ExecutionTraceKind.TOOL_FAILED,
@@ -104,6 +105,7 @@ object ChatExecutionTraceMapper {
                 ExecutionTraceKind.RECOVERING -> recoveryStarted = true
                 ExecutionTraceKind.TOOL_COMPLETED,
                 ExecutionTraceKind.STEP_COMPLETED -> {
+                    if (event.kind == ExecutionTraceKind.TOOL_COMPLETED) completedToolBeforeFailure = true
                     if (pendingFailures > 0 && recoveryStarted) pendingFailures--
                     recoveryStarted = false
                 }
@@ -113,7 +115,10 @@ object ChatExecutionTraceMapper {
                 else -> Unit
             }
         }
-        return pendingFailures == 0
+        // A later explicit recovery is authoritative. A completed tool turn
+        // followed by a non-terminal tool diagnostic is also a successful
+        // overall execution; the diagnostic remains visible as a failed step.
+        return pendingFailures == 0 || completedToolBeforeFailure
     }
 
     /** Only events that mark a finished unit of work become steps. */
@@ -123,7 +128,6 @@ object ChatExecutionTraceMapper {
             ExecutionTraceKind.TOOL_FAILED -> AgentStepType.TOOL to false
             ExecutionTraceKind.TOOL_CANCELLED -> AgentStepType.TOOL to false
             ExecutionTraceKind.STEP_COMPLETED -> AgentStepType.TASK_STEP to true
-            ExecutionTraceKind.RECOVERING -> AgentStepType.TASK_STEP to false
             ExecutionTraceKind.APPROVAL_CANCELLED -> AgentStepType.TASK_STEP to false
             ExecutionTraceKind.APPROVAL_TIMEOUT -> AgentStepType.TASK_STEP to false
             ExecutionTraceKind.TIMED_OUT -> AgentStepType.TASK_STEP to false

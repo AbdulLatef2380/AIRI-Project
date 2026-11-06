@@ -1,7 +1,7 @@
 package com.airi.assistant.agent.loop
 
 import android.content.Context
-import android.util.Log
+import com.airi.assistant.domain.logging.LoggingService
 import com.airi.assistant.ai.agent.SelfHealingExecutor
 import com.airi.assistant.agent.calendar.CalendarCreateRuntime
 import com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy
@@ -228,7 +228,7 @@ the tool returns an actual error.
         // Schemas omitted by the context budget are not dispatcher-eligible.
         val effectiveTools = toolSelection.tools
         if (toolSelection.omittedToolNames.isNotEmpty()) {
-            Log.w(
+            LoggingService.warn(
                 TAG,
                 "TOOL_BLOCK_TRIMMED kept=${effectiveTools.map { it.name }} omitted=${toolSelection.omittedToolNames} budgetChars=$toolPromptBudget"
             )
@@ -411,7 +411,7 @@ the tool returns an actual error.
                     "returned_to_model_context",
                 )
             }
-            Log.i(TAG, "AIRI DETERMINISTIC_TOOL tool=current_time success=${timeResult is ToolDispatcher.ToolResult.Success}")
+            LoggingService.info(TAG, "AIRI DETERMINISTIC_TOOL tool=current_time success=${timeResult is ToolDispatcher.ToolResult.Success}")
         }
         try {
             // Stall timeout is checked against progressMs inside the loop;
@@ -457,7 +457,7 @@ the tool returns an actual error.
 
             while (stepsUsed < MAX_STEPS && coroutineContext.isActive) {
                 if (System.currentTimeMillis() - progressMs.get() >= timeoutMs) {
-                    Log.w(TAG, "AgentLoop stalled after ${stepsUsed} steps")
+                    LoggingService.warn(TAG, "AgentLoop stalled after ${stepsUsed} steps")
                     ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
                     return@withTimeout LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.TIMEOUT)
                 }
@@ -490,7 +490,7 @@ the tool returns an actual error.
                     stallMs = timeoutMs,
                 )
 
-                Log.d(TAG, "Agent step completed: step=$stepsUsed responseChars=${rawResponse.length}")
+                LoggingService.debug(TAG, "Agent step completed: step=$stepsUsed responseChars=${rawResponse.length}")
                 runtimeTrace?.modelResponse(
                     executionId = executionId,
                     sessionId = sessionId,
@@ -650,7 +650,7 @@ the tool returns an actual error.
                 if (parseResult is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Invalid &&
                     rawResponse.contains("tool_call") && stepsUsed < MAX_STEPS
                 ) {
-                    Log.w(TAG, "AIRI TOOL_CALL_PARSE_RETRY step=$stepsUsed — response had 'tool_call' text but parse failed; retrying")
+                    LoggingService.warn(TAG, "AIRI TOOL_CALL_PARSE_RETRY step=$stepsUsed — response had 'tool_call' text but parse failed; retrying")
                     val retryPrompt = "[SYSTEM] Your previous response contained a tool_call but the JSON was malformed. " +
                         "Reply with ONLY a valid JSON object in this exact format, no other text:\n" +
                         "{\"tool_call\":{\"name\":\"<tool_name>\",\"args\":{\"param\":\"value\"}}}"
@@ -680,7 +680,7 @@ the tool returns an actual error.
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        Log.w(TAG, "Tool call retry failed type=${e.javaClass.simpleName}")
+                        LoggingService.warn(TAG, "Tool call retry failed type=${e.javaClass.simpleName}")
                         ""
                     }
                     if (retryResponse.isNotBlank()) {
@@ -721,7 +721,7 @@ the tool returns an actual error.
                             },
                         )
                         if (toolCall != null) {
-                            Log.i(TAG, "AIRI TOOL_CALL_RETRY_OK step=$stepsUsed tool=${toolCall.toolName}")
+                            LoggingService.info(TAG, "AIRI TOOL_CALL_RETRY_OK step=$stepsUsed tool=${toolCall.toolName}")
                         }
                     }
                 }
@@ -736,7 +736,7 @@ the tool returns an actual error.
                             continued = true,
                             terminalState = "PLAN_REQUIRES_EXECUTION",
                         )
-                        Log.i(TAG, "AIRI PLAN_CONTINUATION_REQUIRED step=$stepsUsed")
+                        LoggingService.info(TAG, "AIRI PLAN_CONTINUATION_REQUIRED step=$stepsUsed")
                         continue
                     }
                     // Final answer — LLM decided it's done (or retry also failed)
@@ -808,7 +808,7 @@ the tool returns an actual error.
                     false
                 }
 
-                Log.i(TAG, "AIRI TOOL_CALL step=$stepsUsed tool=$toolName args=${toolArgs.keys.joinToString()}")
+                LoggingService.info(TAG, "AIRI TOOL_CALL step=$stepsUsed tool=$toolName args=${toolArgs.keys.joinToString()}")
                 if (!isPlanPublished) {
                     ExecutionStatusBus.onGraphStarted(
                         goalDescription = input.take(80),
@@ -856,7 +856,7 @@ the tool returns an actual error.
                     hasDurableExecutionContext = durableExecutionContext != null
                 )
                 val toolResult = if (toolValidationError != null) {
-                    Log.w(TAG, "AIRI TOOL_REJECTED_INVALID_SCHEMA tool=$toolName")
+                    LoggingService.warn(TAG, "AIRI TOOL_REJECTED_INVALID_SCHEMA tool=$toolName")
                     ToolDispatcher.ToolResult.Error(
                         toolValidationError,
                         code = if (selectedToolSchema == null) {
@@ -866,7 +866,7 @@ the tool returns an actual error.
                         },
                     )
                 } else if (duplicateToolCall) {
-                    Log.w(TAG, "AIRI TOOL_DUPLICATE_BLOCKED execution=$executionId tool=$toolName step=$toolStepId")
+                    LoggingService.warn(TAG, "AIRI TOOL_DUPLICATE_BLOCKED execution=$executionId tool=$toolName step=$toolStepId")
                     ToolDispatcher.ToolResult.Error(
                         "Duplicate tool call blocked for this execution step.",
                         code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.DUPLICATE_CALL,
@@ -877,7 +877,7 @@ the tool returns an actual error.
                 ) {
                     // Report 3, S8: a write/exec tool must not run in the same loop that has
                     // just ingested web or third-party content; the user has to ask for it directly.
-                    Log.w(TAG, "AIRI TOOL_BLOCKED_AFTER_UNTRUSTED_CONTENT tool=$toolName")
+                    LoggingService.warn(TAG, "AIRI TOOL_BLOCKED_AFTER_UNTRUSTED_CONTENT tool=$toolName")
                     ToolDispatcher.ToolResult.Error(
                         "Blocked: $toolName cannot run after external web or connector content was read in this request. " +
                             "Ask the user to confirm and request it in a separate message.",
@@ -885,7 +885,7 @@ the tool returns an actual error.
                     )
                 } else when (sideEffectDecision) {
                     AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED -> {
-                        Log.w(TAG, "AIRI TOOL_BLOCKED_NO_DURABLE_CONTEXT tool=$toolName")
+                        LoggingService.warn(TAG, "AIRI TOOL_BLOCKED_NO_DURABLE_CONTEXT tool=$toolName")
                         ToolDispatcher.ToolResult.Error(
                             AgentLoopSideEffectPolicy.blockedMessage(toolName),
                             code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
@@ -943,7 +943,7 @@ the tool returns an actual error.
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        Log.w(TAG, "Terminal tool failed type=${e.javaClass.simpleName}")
+                        LoggingService.warn(TAG, "Terminal tool failed type=${e.javaClass.simpleName}")
                         ToolDispatcher.ToolResult.Error(
                             "Terminal execution failed: ${e.message}",
                             code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.EXECUTION_FAILED,
@@ -962,7 +962,7 @@ the tool returns an actual error.
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        Log.w(TAG, "File write tool failed type=${e.javaClass.simpleName}")
+                        LoggingService.warn(TAG, "File write tool failed type=${e.javaClass.simpleName}")
                         ToolDispatcher.ToolResult.Error(
                             "File write failed: ${e.message}",
                             code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.EXECUTION_FAILED,
@@ -988,14 +988,14 @@ the tool returns an actual error.
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: com.airi.assistant.security.AgentSandbox.SandboxViolationException) {
-                        Log.w(TAG, "AIRI SANDBOX_VIOLATION tool=$toolName type=${e.javaClass.simpleName}")
+                        LoggingService.warn(TAG, "AIRI SANDBOX_VIOLATION tool=$toolName type=${e.javaClass.simpleName}")
                         ToolDispatcher.ToolResult.Error(
                             "Permission denied for tool: $toolName",
                             code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
                             provenance = com.airi.assistant.agent.loop.tool.ToolProvenance.SYSTEM,
                         )
                     } catch (e: Exception) {
-                        Log.w(TAG, "Tool $toolName failed type=${e.javaClass.simpleName}")
+                        LoggingService.warn(TAG, "Tool $toolName failed type=${e.javaClass.simpleName}")
                         ToolDispatcher.ToolResult.Error(
                             "Tool failed: ${e.message}",
                             code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.EXECUTION_FAILED,
@@ -1072,7 +1072,7 @@ the tool returns an actual error.
                     is ToolDispatcher.ToolResult.Success -> toolResult.provenance.name.lowercase()
                     is ToolDispatcher.ToolResult.Error -> toolResult.provenance.name.lowercase()
                 }
-                Log.i(TAG, "AIRI TOOL_RESULT tool=$toolName success=${toolResult is ToolDispatcher.ToolResult.Success} code=$resultCode provenance=$resultProvenance len=${resultText.length}")
+                LoggingService.info(TAG, "AIRI TOOL_RESULT tool=$toolName success=${toolResult is ToolDispatcher.ToolResult.Success} code=$resultCode provenance=$resultProvenance len=${resultText.length}")
 
                 ExecutionStatusBus.onNodeCompleted(
                     stepId,
@@ -1137,12 +1137,12 @@ the tool returns an actual error.
                                 "Do not repeat a side effect unless the user has confirmed it."
                         )
                     )
-                    Log.i(TAG, "AIRI SELF_HEALING_QUEUED tool=$toolName step=$stepsUsed")
+                    LoggingService.info(TAG, "AIRI SELF_HEALING_QUEUED tool=$toolName step=$stepsUsed")
                 }
             }
 
             // Exhausted step budget — ask LLM to summarise what it has
-            Log.w(TAG, "AgentLoop exhausted $MAX_STEPS steps — asking LLM to summarise")
+            LoggingService.warn(TAG, "AgentLoop exhausted $MAX_STEPS steps — asking LLM to summarise")
             history.add(ConversationTurn.User("You have reached your step limit. Summarise what you have done and what the final answer is."))
             val summary = callLLM(
                 prompt = "",
@@ -1183,7 +1183,7 @@ the tool returns an actual error.
             }
             runtimeTrace?.terminalOutcome(executionId, sessionId, "TIMEOUT", e.message)
             ExecutionStatusBus.onGraphTimedOut(executionId, e.message ?: "Agent execution stalled.")
-            Log.w(TAG, "AgentLoop stalled: no progress for ${timeoutMs}ms")
+            LoggingService.warn(TAG, "AgentLoop stalled: no progress for ${timeoutMs}ms")
             return LoopResult(
                 finalAnswer = "",
                 stepsUsed = stepsUsed,
@@ -1204,7 +1204,7 @@ the tool returns an actual error.
             }
             runtimeTrace?.terminalOutcome(executionId, sessionId, "TIMEOUT", e.message)
             ExecutionStatusBus.onGraphTimedOut(executionId, e.message ?: "Agent execution timed out.")
-            Log.w(TAG, "AgentLoop reached its ${timeoutMs}ms execution deadline")
+            LoggingService.warn(TAG, "AgentLoop reached its ${timeoutMs}ms execution deadline")
             return LoopResult(
                 finalAnswer = "",
                 stepsUsed = stepsUsed,
@@ -1229,7 +1229,7 @@ the tool returns an actual error.
         } catch (e: Exception) {
             runtimeTrace?.terminalOutcome(executionId, sessionId, "FAILURE", e.message)
             ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
-            Log.e(TAG, "AgentLoop failed type=${e.javaClass.simpleName}")
+            LoggingService.error(TAG, "AgentLoop failed type=${e.javaClass.simpleName}")
             return LoopResult(
                 finalAnswer = "",
                 stepsUsed = stepsUsed,

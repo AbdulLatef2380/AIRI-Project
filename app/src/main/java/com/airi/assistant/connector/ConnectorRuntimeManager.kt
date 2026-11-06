@@ -1,6 +1,6 @@
 package com.airi.assistant.connector
 
-import android.util.Log
+import com.airi.assistant.domain.logging.LoggingService
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.ActivitySeverity
 import com.airi.assistant.ui.activity.AgentActivityBus
@@ -170,7 +170,7 @@ class ConnectorRuntimeManager(
             // Exception text can contain provider URLs, request data, or other
             // implementation details. Keep it in logs only; the tool contract
             // exposes a stable, non-sensitive message to the agent and user.
-            Log.e(TAG, "Connector execution failed connector=$connectorId action=${input.action}", e)
+            LoggingService.error(TAG, "Connector execution failed connector=$connectorId action=${input.action}", e)
             val safeMessage = "Connector execution failed before a confirmed result was received"
             setOperationState(operationId, ConnectorOperationState.Failed(operationId, "runtime_error", safeMessage, false))
             ConnectorOutput.Failure("runtime_error", safeMessage)
@@ -267,7 +267,7 @@ class ConnectorRuntimeManager(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                Log.e(TAG, "Connector adapter threw connector=${connector.id} action=${input.action}", e)
+                LoggingService.error(TAG, "Connector adapter threw connector=${connector.id} action=${input.action}", e)
                 ConnectorOutput.Failure(
                     "exception",
                     "Connector execution failed before a confirmed result was received",

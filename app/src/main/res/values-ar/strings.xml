@@ -2279,6 +2279,8 @@
     <string name="agent_trace_event_inputs">المدخلات المنقحة</string>
     <string name="agent_trace_event_duration">المدة: %1$d مللي ثانية</string>
     <string name="agent_trace_event_reason">السبب: %1$s</string>
+    <string name="trace_metadata_step_duration">المدة: %1$d مللي ثانية</string>
+    <string name="trace_metadata_step_time">بدأ في: %1$s</string>
     <string name="agent_lifecycle_status_waiting">قيد الانتظار</string>
     <string name="agent_lifecycle_status_cancelled">أُلغي</string>
     <string name="artifact_copied">تم نسخ المحتوى القابل لإعادة الاستخدام</string>

@@ -2818,6 +2818,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             Log.i("AIRI", "AGENT_LOOP_START inputChars=${trimmedInput.length} queryType=${queryType.name} planMode=${_isPlanModeActive.value}")
             val reasoningParser = ReasoningStreamParser()
             var lastPersistedAssistantMessageId: Long? = null
+            var completionMetadata = com.airi.assistant.execution.CompletionMetadata()
 
             suspend fun persistAssistantResponse(content: String): Boolean {
                 val safeContent = ReasoningStreamParser.extractAnswer(content).ifBlank { content }.trim()
@@ -3055,6 +3056,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     },
                     runtimeCapabilities = runtimeInventory.traceEntries(),
                 )
+                completionMetadata = loopResult.completionMetadata
                 if (loopResult.terminalState == com.airi.assistant.agent.loop.AgentLoop.TerminalState.CANCELLED ||
                     _isCancelled.get() || !isCurrentGeneration(generationId)
                 ) {

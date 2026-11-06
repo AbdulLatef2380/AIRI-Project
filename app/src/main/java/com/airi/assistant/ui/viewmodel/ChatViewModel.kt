@@ -2928,6 +2928,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     attachmentTrace = attachmentTrace,
                     platformCapabilitySnapshot = platformSnapshotBlock,
                     requestedExecutionId = traceExecutionId,
+                    planMode       = _isPlanModeActive.value,
                     onToken      = token@{ tok ->
                         if (!isCurrentGeneration(generationId) || _isCancelled.get()) return@token
                         val visibleToken = reasoningParser.consume(tok)

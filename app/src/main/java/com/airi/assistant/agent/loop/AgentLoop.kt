@@ -194,6 +194,8 @@ the tool returns an actual error.
         requestedExecutionId: String? = null,
         /** Optional message coordinate used by connector and artifact runtimes. */
         messageId: String = "",
+        /** When enabled, a plan-only first turn must be followed by an execution turn. */
+        planMode: Boolean = false,
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
         // Last sign of progress; see TIMEOUT_MS. Streaming tokens and finished tool calls bump it.
@@ -725,6 +727,18 @@ the tool returns an actual error.
                 }
 
                 if (toolCall == null) {
+                    if (planMode && PlanModePolicy.requiresExecutionContinuation(rawResponse, stepsUsed)) {
+                        history.add(ConversationTurn.Assistant(rawResponse))
+                        history.add(ConversationTurn.User(PlanModePolicy.EXECUTION_CONTINUATION_PROMPT))
+                        runtimeTrace?.continuation(
+                            executionId,
+                            sessionId,
+                            continued = true,
+                            terminalState = "PLAN_REQUIRES_EXECUTION",
+                        )
+                        Log.i(TAG, "AIRI PLAN_CONTINUATION_REQUIRED step=$stepsUsed")
+                        continue
+                    }
                     // Final answer — LLM decided it's done (or retry also failed)
                     history.add(ConversationTurn.Assistant(rawResponse))
                     onStepComplete(StepEvent.FinalAnswer(rawResponse, stepsUsed))

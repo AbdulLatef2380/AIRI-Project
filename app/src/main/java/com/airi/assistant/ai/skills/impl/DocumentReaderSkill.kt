@@ -3,6 +3,7 @@ package com.airi.assistant.ai.skills.impl
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import com.airi.assistant.attachments.AttachmentContentExtractor
 import com.airi.assistant.ai.skills.AiriSkill
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillMemoryAccess
@@ -16,16 +17,14 @@ import kotlinx.coroutines.withContext
 /**
  * DocumentReaderSkill — reads plain text and structured document files from device storage.
  *
- * Supported formats: .txt, .md, .csv, .json, .xml, .html, .log, .yaml, .yml
- *
- * For PDF reading, the skill provides instructions to the user since direct PDF
- * parsing requires a native PDF library not bundled by default.
+ * Supported formats: bounded text files plus PDF/DOCX/XLSX/PPTX text extraction.
+ * Binary formats outside this list fail closed instead of being decoded as UTF-8.
  */
 class DocumentReaderSkill(private val context: Context) : AiriSkill {
 
     override val skillId    = "document_reader"
     override val name       = "document_reader"
-    override val description = "Read and extract text content from documents stored on your device (TXT, MD, CSV, JSON, HTML, XML)"
+    override val description = "Read bounded text from TXT/MD/CSV/JSON/HTML/XML and extract text from PDF/DOCX/XLSX/PPTX"
     override val version    = "1.0.0"
     override val author     = "AIRI Official"
     override val category   = "PRODUCTIVITY"
@@ -85,17 +84,15 @@ class DocumentReaderSkill(private val context: Context) : AiriSkill {
             val fileName = getFileName(uri)
             val extension = fileName?.substringAfterLast('.', "")?.lowercase() ?: ""
 
-            if (extension == "pdf") {
-                return@withContext SkillResult(
-                    success   = true,
-                    data      = "PDF file detected: $fileName\n\nTo read PDF content, AIRI uses the system PDF viewer. " +
-                                "For text extraction from PDFs, share the document and ask AIRI to describe it after opening.",
-                    skillName = skillId,
-                    metadata  = mapOf("file" to (fileName ?: "unknown"), "type" to "pdf")
-                )
+            val mime = context.contentResolver.getType(uri).orEmpty()
+                .substringBefore(';').trim().lowercase()
+            val content = if (AttachmentContentExtractor.supports(mime, fileName.orEmpty())) {
+                extractStructuredDocument(uri, mime, fileName.orEmpty(), maxChars)
+            } else if (isTextDocument(mime, extension)) {
+                readTextFromUri(uri, maxChars)
+            } else {
+                throw IllegalArgumentException("Unsupported document format: ${fileName ?: "unknown"}")
             }
-
-            val content = readTextFromUri(uri, maxChars)
             if (content.isBlank()) {
                 SkillResult(false, "", "Document is empty or unreadable: $fileName", skillId)
             } else {
@@ -146,4 +143,25 @@ class DocumentReaderSkill(private val context: Context) : AiriSkill {
                 sb.toString()
             } ?: ""
     }
+
+    private fun extractStructuredDocument(uri: Uri, mime: String, fileName: String, maxChars: Int): String {
+        val staged = java.io.File.createTempFile("airi_reader_", ".bin", context.cacheDir)
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                staged.outputStream().use { output ->
+                    input.copyTo(output, 64 * 1024)
+                }
+            } ?: throw IllegalArgumentException("Unable to open document")
+            require(staged.length() <= 25L * 1024L * 1024L) { "Document exceeds the 25MB safety limit" }
+            AttachmentContentExtractor.extract(staged, mime, fileName, maxChars)
+        } finally {
+            staged.delete()
+        }
+    }
+
+    private fun isTextDocument(mime: String, extension: String): Boolean =
+        mime.startsWith("text/") || extension in setOf(
+            "txt", "md", "markdown", "csv", "tsv", "json", "xml", "html", "htm",
+            "log", "yaml", "yml", "kt", "java", "py", "js", "ts", "css", "sql", "ini", "toml"
+        )
 }

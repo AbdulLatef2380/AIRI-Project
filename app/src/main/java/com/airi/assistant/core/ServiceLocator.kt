@@ -30,6 +30,7 @@ import com.airi.assistant.agent.scheduler.ScheduledJobOrchestrator
 import com.airi.assistant.agent.subagent.SubAgentRegistry
 import com.airi.assistant.agent.subagent.impl.AndroidAgent
 import com.airi.assistant.agent.subagent.impl.CloudBrowserAgent
+import com.airi.assistant.agent.subagent.impl.DocumentProcessorAgent
 import com.airi.assistant.agent.subagent.impl.MemoryAgent
 import com.airi.assistant.agent.subagent.impl.ProductivityAgent
 import com.airi.assistant.agent.subagent.impl.ResearchAgent
@@ -764,10 +765,12 @@ object ServiceLocator {
             // CodingAgent REMOVED (): intercepted code/implement/write/create queries
             //   and returned "[CodingAgent delegated to LLM]" placeholder, blocking LLM response.
             // MediaGenerationAgent REMOVED (): delegation shell, no real capability.
-            // DocumentProcessorAgent REMOVED (): delegation shell.
+            // DocumentProcessorAgent is a real local URI reader/extractor and must remain
+            // registered so document requests reach the bounded extraction path.
             // LocalBrowserOperator REMOVED (): delegation shell, 0 real operations.
             ResearchAgent(searchTool),
             androidAgent,
+            DocumentProcessorAgent(requireContext()),
             ProductivityAgent(calendarTool, alarmTool, notesTool),
             MemoryAgent(memoryManager),
             CloudBrowserAgent(requireContext())

@@ -63,7 +63,11 @@ class DocumentProcessorAgent(
         ),
         domains             = listOf("document", "file", "pdf", "text", "analysis", "extract"),
         requiresCloud       = false,
-        requiredTools       = listOf("file_reader"),
+        // Reading is performed by this agent through ContentResolver and the
+        // bounded AttachmentContentExtractor. Do not require a phantom
+        // `file_reader` tool: SubAgentAuthorization would reject this real
+        // implementation before it can run.
+        requiredTools       = emptyList(),
         costTier            = SubAgentCapability.CostTier.LOW,
         latencyProfile      = SubAgentCapability.LatencyProfile.MODERATE,
         supportsBackground  = true,
@@ -87,7 +91,7 @@ class DocumentProcessorAgent(
 
         emit(AgentEvent.Progress("Reading document…", 25, "read"))
         emit(AgentEvent.ToolCall(
-            toolName  = "file_reader",
+            toolName  = "document_extractor",
             params    = mapOf(
                 "uri"       to (uriString ?: "(from context)"),
                 "operation" to operation.name
@@ -110,7 +114,7 @@ class DocumentProcessorAgent(
             emit(AgentEvent.Complete(
                 result     = "[DocumentProcessor: no file provided]",
                 durationMs = System.currentTimeMillis() - start,
-                toolsUsed  = listOf("file_reader")
+                toolsUsed  = listOf("document_extractor")
             ))
             return@flow
         }
@@ -141,7 +145,7 @@ class DocumentProcessorAgent(
         emit(AgentEvent.Complete(
             result     = "[DocumentProcessor: ${operation.name} chars=$chars]",
             durationMs = System.currentTimeMillis() - start,
-            toolsUsed  = listOf("file_reader")
+            toolsUsed  = listOf("document_extractor")
         ))
     }
 

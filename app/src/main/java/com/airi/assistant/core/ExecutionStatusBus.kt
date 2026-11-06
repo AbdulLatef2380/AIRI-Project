@@ -263,6 +263,12 @@ object ExecutionStatusBus {
 
     /** Timeout a live approval using only its durable approval identifier. */
     fun onApprovalTimedOut(interruptId: String, actionId: String, reason: String = "Approval expired") {
+        // Keep the historical three-argument executionId/actionId/interruptId
+        // call shape unambiguous for callers compiled against the old API.
+        if (_status.value.executionId == interruptId && _status.value.approvalInterruptId == reason) {
+            onApprovalTimedOut(interruptId, actionId, reason, "Approval expired")
+            return
+        }
         val executionId = synchronized(traceLock) { approvalOwners[interruptId] } ?: return
         onApprovalTimedOut(executionId, actionId, interruptId, reason)
     }

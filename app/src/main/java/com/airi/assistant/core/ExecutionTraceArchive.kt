@@ -144,9 +144,13 @@ object ExecutionTraceArchive {
                     StandardCopyOption.REPLACE_EXISTING,
                 )
             } catch (atomicFailure: Exception) {
-                if (!tmp.renameTo(target)) {
-                    tmp.delete()
-                    throw atomicFailure
+                runCatching {
+                    Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                }.onFailure {
+                    if (!tmp.renameTo(target)) {
+                        tmp.delete()
+                        throw atomicFailure
+                    }
                 }
             }
         }.onFailure { error ->

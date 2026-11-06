@@ -177,8 +177,9 @@ class AgentTraceManager internal constructor() {
     }
 
     private fun publish(trace: AgentTrace) {
+        val safeTrace = trace.sanitizeForTraceStorage()
         _traces.update { current ->
-            (current.filterNot { it.id == trace.id } + trace).takeLast(maxTraces)
+            (current.filterNot { it.id == safeTrace.id } + safeTrace).takeLast(maxTraces)
         }
         val target = store ?: return
         // Read the flow when the write runs, not now: a snapshot captured earlier

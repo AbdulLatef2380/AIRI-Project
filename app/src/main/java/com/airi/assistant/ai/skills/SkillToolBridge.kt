@@ -33,7 +33,7 @@ import kotlinx.coroutines.withTimeout
  */
 class SkillToolBridge(
     private val context:      Context,
-    private val registry: SkillRegistry,
+    private val registry: SkillRoutingSource,
     private val modelBridge: SkillModelBridge? = null,
     private val skillCtx: () -> SkillContext = { SkillContext() },
     // A bridge without an injected connector registry must not assume that

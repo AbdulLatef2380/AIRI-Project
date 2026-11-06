@@ -53,6 +53,8 @@ class ToolDispatcher(
     private val skillToolBridge: com.airi.assistant.ai.skills.SkillToolBridge? = null,
     // Canonical live connector bridge — handles dynamically exposed connector_* tools
     private val connectorToolBridge: com.airi.assistant.connector.ConnectorToolBridge? = null,
+    // Optional gateway seam for deterministic tests; production defaults to ServiceLocator.
+    private val terminalAgentExecutionPort: com.airi.assistant.terminal.TerminalAgentExecutionPort? = null,
 ) {
     companion object {
         private const val TAG = "AIRI_ToolDispatcher"
@@ -367,8 +369,9 @@ class ToolDispatcher(
             "terminal_execute" -> {
                 val command = args["command"]?.trim().orEmpty()
                 if (command.isBlank()) return ToolResult.Error("Missing command", code = ToolErrorCodes.INVALID_ARGUMENT)
-                when (val result = com.airi.assistant.core.ServiceLocator.terminalExecutionGateway
-                    .executeForAgent(command, agentId)) {
+                val gateway = terminalAgentExecutionPort
+                    ?: com.airi.assistant.core.ServiceLocator.terminalExecutionGateway
+                when (val result = gateway.executeForAgent(command, agentId)) {
                     is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Disabled ->
                         ToolResult.Error(
                             result.reason,

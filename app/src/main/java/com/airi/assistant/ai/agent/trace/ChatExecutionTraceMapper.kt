@@ -82,7 +82,7 @@ object ChatExecutionTraceMapper {
             firstVisibleTokenLatencyMs = firstVisibleTokenLatencyMs,
             truncated = allSteps.size > kept.size,
             droppedSteps = allSteps.size - kept.size,
-        )
+        ).sanitizeForTraceStorage()
     }
 
     private fun hasRecoveredFailures(

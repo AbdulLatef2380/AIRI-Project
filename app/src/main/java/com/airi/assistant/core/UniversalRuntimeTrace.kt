@@ -154,6 +154,12 @@ class UniversalRuntimeTraceRecorder(
         response: String,
         containsToolCallCandidate: Boolean,
         parserInputClassification: String,
+        durationMs: Long? = null,
+        requestedModelId: String? = null,
+        requestedProviderId: String? = null,
+        resolvedModelId: String? = null,
+        resolvedProviderId: String? = null,
+        fallbackReason: String? = null,
     ) = record(
         eventType = UniversalTraceEventType.MODEL_RESPONSE_RECEIVED,
         executionId = executionId,
@@ -166,7 +172,17 @@ class UniversalRuntimeTraceRecorder(
             "redactedPreview" to RuntimeTraceRedaction.preview(response),
             "containsToolCallCandidate" to containsToolCallCandidate.toString(),
             "parserInputClassification" to parserInputClassification,
-        )
+        ) + buildMap {
+            durationMs?.let {
+                put("durationMs", it.coerceAtLeast(0L).toString())
+                put("durationScope", "agent_loop_call_llm_wall_clock")
+            }
+            requestedModelId?.let { put("requestedModel", RuntimeTraceRedaction.token(it)) }
+            requestedProviderId?.let { put("requestedProvider", RuntimeTraceRedaction.token(it)) }
+            resolvedModelId?.let { put("resolvedModel", RuntimeTraceRedaction.token(it)) }
+            resolvedProviderId?.let { put("resolvedProvider", RuntimeTraceRedaction.token(it)) }
+            fallbackReason?.let { put("fallbackReason", RuntimeTraceRedaction.safeReason(it)) }
+        }
     )
 
     fun modelRequestBuilt(

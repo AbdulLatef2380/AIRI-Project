@@ -30,7 +30,7 @@ class AgentTraceStore(private val file: File) {
         if (!file.exists()) return@runCatching emptyList()
         val array = JSONArray(file.readText())
         (0 until array.length()).map { index ->
-            traceFromJson(array.getJSONObject(index))
+            traceFromJson(array.getJSONObject(index)).sanitizeForTraceStorage()
         }
     }.onFailure { Log.e("AIRI_TRACE", "Agent trace store read failed; preserving existing file", it) }
         .getOrNull()
@@ -38,7 +38,7 @@ class AgentTraceStore(private val file: File) {
     private fun write(traces: List<AgentTrace>) {
         runCatching {
             val array = JSONArray()
-            traces.forEach { array.put(traceToJson(it)) }
+            traces.forEach { array.put(traceToJson(it.sanitizeForTraceStorage())) }
             file.parentFile?.mkdirs()
             // A unique temp file prevents concurrent writers from sharing and
             // corrupting one fixed .tmp path.

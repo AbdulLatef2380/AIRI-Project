@@ -211,4 +211,60 @@ class ChatExecutionTracePrivacyTest {
         assertEquals("requested-model", trace.model)
         assertEquals("requested-provider", trace.provider)
     }
+
+    @Test
+    fun mapperRedactsTargetIdentityFallbackAndClampsMetrics() {
+        val executionId = "exec-sensitive-targets"
+        val trace = requireNotNull(ChatExecutionTraceMapper.toAgentTrace(
+            executionId = executionId,
+            sessionId = "session-sensitive-targets",
+            messageId = 96L,
+            userInput = "safe request",
+            events = listOf(
+                ExecutionTraceEvent(
+                    executionId = executionId,
+                    sequence = 1,
+                    timestampMs = 6_001L,
+                    kind = ExecutionTraceKind.COMPLETED,
+                    summary = "completed",
+                ),
+            ),
+            answerText = "done",
+            model = "api_key=model-secret-value",
+            provider = "Bearer provider-secret-value",
+            requestedModel = "account@example.com",
+            requestedProvider = "token=target-secret-value",
+            resolvedModel = "/data/user/0/private/model",
+            resolvedProvider = "local",
+            fallbackReason = "password=fallback-secret-value",
+            estimatedOutputTokens = -4,
+            firstVisibleTokenLatencyMs = -9L,
+        ))
+
+        val flattened = listOf(
+            trace.model,
+            trace.provider,
+            trace.requestedModel,
+            trace.requestedProvider,
+            trace.resolvedModel,
+            trace.resolvedProvider,
+            trace.fallbackReason,
+        ).joinToString("\n")
+        listOf(
+            "model-secret-value",
+            "provider-secret-value",
+            "account@example.com",
+            "target-secret-value",
+            "/data/user/0/private/model",
+            "fallback-secret-value",
+        ).forEach { assertFalse(flattened.contains(it)) }
+        assertEquals(0, trace.estimatedOutputTokens)
+        assertEquals(0L, trace.firstVisibleTokenLatencyMs)
+        assertTrue(trace.model.orEmpty().contains("[KEY_REDACTED]"))
+        assertTrue(trace.provider.orEmpty().contains("[KEY_REDACTED]"))
+        assertTrue(trace.requestedModel.orEmpty().contains("[EMAIL_REDACTED]"))
+        assertTrue(trace.requestedProvider.orEmpty().contains("[SECRET_REDACTED]"))
+        assertTrue(trace.resolvedModel.orEmpty().contains("[PATH_REDACTED]"))
+        assertTrue(trace.fallbackReason.orEmpty().contains("[SECRET_REDACTED]"))
+    }
 }

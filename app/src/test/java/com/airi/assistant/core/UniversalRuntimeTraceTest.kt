@@ -129,6 +129,63 @@ class UniversalRuntimeTraceTest {
     }
 
     @Test
+    fun modelTargetMetadataIsBoundedRedactedAndCarriesResolvedFallbackEvidence() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        recorder.begin("exec-target", "session-target", "requested-model", "requested-provider", "cloud", "private", emptyList())
+        recorder.modelRequestBuilt(
+            executionId = "exec-target",
+            sessionId = "session-target",
+            modelId = "m".repeat(200),
+            providerId = "api_key=provider-secret",
+            promptTokens = -1,
+            historyTurns = -1,
+            toolCount = -1,
+            requiresToolCalling = false,
+            requiresLongContext = false,
+        )
+        recorder.modelResponse(
+            executionId = "exec-target",
+            sessionId = "session-target",
+            response = "Bearer response-secret user@example.com final answer",
+            containsToolCallCandidate = false,
+            parserInputClassification = "single_pass",
+            durationMs = -25L,
+            requestedModelId = "m".repeat(200),
+            requestedProviderId = "api_key=provider-secret",
+            resolvedModelId = "local-model-v2",
+            resolvedProviderId = "local",
+            fallbackReason = "Bearer fallback-secret provider unavailable",
+        )
+
+        val request = recorder.eventsFor("exec-target").last {
+            it.eventType == UniversalTraceEventType.MODEL_REQUEST_BUILT
+        }
+        val response = recorder.eventsFor("exec-target").last {
+            it.eventType == UniversalTraceEventType.MODEL_RESPONSE_RECEIVED
+        }
+
+        assertEquals(80, request.attributes.getValue("model").length)
+        assertEquals(request.attributes["model"], request.attributes["requestedModel"])
+        assertTrue(request.attributes.getValue("provider").contains("[REDACTED]"))
+        assertEquals(request.attributes["provider"], request.attributes["requestedProvider"])
+        assertEquals("0", request.attributes["promptTokens"])
+        assertEquals("0", request.attributes["historyTurns"])
+        assertEquals("0", request.attributes["toolCount"])
+        assertEquals("0", response.attributes["durationMs"])
+        assertEquals("agent_loop_call_llm_wall_clock", response.attributes["durationScope"])
+        assertEquals("local-model-v2", response.attributes["resolvedModel"])
+        assertEquals("local", response.attributes["resolvedProvider"])
+        assertTrue(response.attributes.getValue("fallbackReason").contains("[REDACTED]"))
+        assertTrue(response.attributes.getValue("redactedPreview").contains("[REDACTED]"))
+        assertTrue(response.attributes.getValue("redactedPreview").contains("[EMAIL]"))
+        val serializedAttributes = (request.attributes.values + response.attributes.values).joinToString("\n")
+        assertFalse(serializedAttributes.contains("provider-secret"))
+        assertFalse(serializedAttributes.contains("fallback-secret"))
+        assertFalse(serializedAttributes.contains("response-secret"))
+        assertFalse(serializedAttributes.contains("user@example.com"))
+    }
+
+    @Test
     fun terminalOutcomePreservesLifecycleClassificationAndRedactsReason() {
         val recorder = UniversalRuntimeTraceRecorder()
         recorder.begin("exec-terminal", "session-1", "model", "provider", "test", "input", emptyList())

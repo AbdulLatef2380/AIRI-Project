@@ -15,10 +15,14 @@ import com.airi.assistant.security.PermissionGovernanceLayer
  * Agent calls receive a fresh, bounded workspace session. UI sessions still
  * use the same gateway and never instantiate the executor directly.
  */
+fun interface TerminalAgentExecutionPort {
+    suspend fun executeForAgent(command: String, agentId: String): TerminalExecutionGateway.Result
+}
+
 class TerminalExecutionGateway(
     private val sandboxManager: SandboxManager,
     private val governance: PermissionGovernanceLayer
-) {
+) : TerminalAgentExecutionPort {
     sealed class Result {
         data class Disabled(val reason: String, val requiresApproval: Boolean = false) : Result()
         data class Denied(val reason: String) : Result()
@@ -30,7 +34,7 @@ class TerminalExecutionGateway(
     fun closeSession(id: String) = sandboxManager.closeSession(id)
 
     /** Execute one agent request in a task-owned ephemeral workspace. */
-    suspend fun executeForAgent(command: String, agentId: String): Result {
+    override suspend fun executeForAgent(command: String, agentId: String): Result {
         val session = createSession("agent:$agentId")
             ?: return Result.Denied("Could not allocate an agent workspace")
         return try {

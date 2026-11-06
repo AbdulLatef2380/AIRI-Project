@@ -418,6 +418,7 @@ the tool returns an actual error.
             return withTimeout(HARD_CAP_MS) {
             // If no tools provided, single-pass inference.
             if (effectiveTools.isEmpty()) {
+                val modelCallStartedAtMs = System.currentTimeMillis()
                 val response = callLLM(
                     prompt = input,
                     systemPrompt = promptWithPlatformSnapshot,
@@ -441,7 +442,14 @@ the tool returns an actual error.
                     sessionId = sessionId,
                     response = response,
                     containsToolCallCandidate = response.contains("tool_call"),
-                    parserInputClassification = "single_pass"
+                    parserInputClassification = "single_pass",
+                    durationMs = System.currentTimeMillis() - modelCallStartedAtMs,
+                    requestedModelId = completionMetadata.requestedModelId.takeIf { it.isNotBlank() } ?: modelId,
+                    requestedProviderId = completionMetadata.requestedProviderId.takeIf { it.isNotBlank() } ?: providerId,
+                    resolvedModelId = completionMetadata.resolvedModelId.takeIf { it.isNotBlank() },
+                    resolvedProviderId = completionMetadata.resolvedProviderId.takeIf { it.isNotBlank() }
+                        ?: completionMetadata.providerId.takeIf { it.isNotBlank() },
+                    fallbackReason = completionMetadata.fallbackReason,
                 )
                 runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = if (response.isBlank()) "NO_RESPONSE" else "SUCCESS")
                 return@withTimeout if (response.isBlank()) {
@@ -464,6 +472,7 @@ the tool returns an actual error.
 
                 val tokenBuffer = StringBuilder()
                 val queuedToolCall = pendingToolCalls.removeFirstOrNull()
+                val modelCallStartedAtMs = if (queuedToolCall == null) System.currentTimeMillis() else null
                 val rawResponse = queuedToolCall?.let {
                     com.airi.assistant.agent.loop.tool.TextToolCallProtocol.encode(it)
                 } ?: callLLM(
@@ -489,13 +498,22 @@ the tool returns an actual error.
                 )
 
                 Log.d(TAG, "Agent step completed: step=$stepsUsed responseChars=${rawResponse.length}")
-                runtimeTrace?.modelResponse(
-                    executionId = executionId,
-                    sessionId = sessionId,
-                    response = rawResponse,
-                    containsToolCallCandidate = rawResponse.contains("tool_call"),
-                    parserInputClassification = "agent_step"
-                )
+                if (queuedToolCall == null) {
+                    runtimeTrace?.modelResponse(
+                        executionId = executionId,
+                        sessionId = sessionId,
+                        response = rawResponse,
+                        containsToolCallCandidate = rawResponse.contains("tool_call"),
+                        parserInputClassification = "agent_step",
+                        durationMs = modelCallStartedAtMs?.let { System.currentTimeMillis() - it },
+                        requestedModelId = completionMetadata.requestedModelId.takeIf { it.isNotBlank() } ?: modelId,
+                        requestedProviderId = completionMetadata.requestedProviderId.takeIf { it.isNotBlank() } ?: providerId,
+                        resolvedModelId = completionMetadata.resolvedModelId.takeIf { it.isNotBlank() },
+                        resolvedProviderId = completionMetadata.resolvedProviderId.takeIf { it.isNotBlank() }
+                            ?: completionMetadata.providerId.takeIf { it.isNotBlank() },
+                        fallbackReason = completionMetadata.fallbackReason,
+                    )
+                }
                 if (rawResponse.isBlank()) {
                     runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = "NO_RESPONSE")
                     ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
@@ -656,6 +674,7 @@ the tool returns an actual error.
                         it.add(ConversationTurn.Assistant(rawResponse))
                         it.add(ConversationTurn.User(retryPrompt))
                     }
+                    val retryStartedAtMs = System.currentTimeMillis()
                     val retryResponse = try {
                         callLLM(
                             prompt       = "",
@@ -703,6 +722,13 @@ the tool returns an actual error.
                             response = retryResponse,
                             containsToolCallCandidate = retryResponse.contains("tool_call"),
                             parserInputClassification = "tool_call_retry",
+                            durationMs = System.currentTimeMillis() - retryStartedAtMs,
+                            requestedModelId = completionMetadata.requestedModelId.takeIf { it.isNotBlank() } ?: modelId,
+                            requestedProviderId = completionMetadata.requestedProviderId.takeIf { it.isNotBlank() } ?: providerId,
+                            resolvedModelId = completionMetadata.resolvedModelId.takeIf { it.isNotBlank() },
+                            resolvedProviderId = completionMetadata.resolvedProviderId.takeIf { it.isNotBlank() }
+                                ?: completionMetadata.providerId.takeIf { it.isNotBlank() },
+                            fallbackReason = completionMetadata.fallbackReason,
                         )
                         runtimeTrace?.parser(
                             executionId = executionId,

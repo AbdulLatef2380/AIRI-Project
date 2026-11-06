@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.airi.assistant.attachments.AttachmentContentExtractor
+import com.airi.assistant.attachments.DocumentFormatRegistry
 import com.airi.assistant.ai.skills.AiriSkill
 import com.airi.assistant.ai.skills.SkillContext
 import com.airi.assistant.ai.skills.SkillMemoryAccess
@@ -17,14 +18,14 @@ import kotlinx.coroutines.withContext
 /**
  * DocumentReaderSkill — reads plain text and structured document files from device storage.
  *
- * Supported formats: bounded text files plus PDF/DOCX/XLSX/PPTX text extraction.
+ * Supported formats: bounded text files plus PDF/DOCX/XLSX/PPTX/ODF/EPUB text extraction.
  * Binary formats outside this list fail closed instead of being decoded as UTF-8.
  */
 class DocumentReaderSkill(private val context: Context) : AiriSkill {
 
     override val skillId    = "document_reader"
     override val name       = "document_reader"
-    override val description = "Read bounded text from TXT/MD/CSV/JSON/HTML/XML and extract text from PDF/DOCX/XLSX/PPTX"
+    override val description = "Read bounded text from common text, PDF, OOXML, ODF, and EPUB documents"
     override val version    = "1.0.0"
     override val author     = "AIRI Official"
     override val category   = "PRODUCTIVITY"
@@ -77,7 +78,12 @@ class DocumentReaderSkill(private val context: Context) : AiriSkill {
                 skillId
             )
 
-        val maxChars = (params["maxChars"] as? String)?.toIntOrNull() ?: 8000
+        val maxChars = when (val value = params["maxChars"]) {
+            is Int -> value
+            is Number -> value.toInt()
+            is String -> value.toIntOrNull() ?: 8000
+            else -> 8000
+        }.coerceIn(1, AttachmentContentExtractor.MAX_CHARS)
 
         return@withContext try {
             val uri = Uri.parse(uriString)
@@ -86,7 +92,7 @@ class DocumentReaderSkill(private val context: Context) : AiriSkill {
 
             val mime = context.contentResolver.getType(uri).orEmpty()
                 .substringBefore(';').trim().lowercase()
-            val content = if (AttachmentContentExtractor.supports(mime, fileName.orEmpty())) {
+            val content = if (DocumentFormatRegistry.readable(mime, fileName.orEmpty())) {
                 extractStructuredDocument(uri, mime, fileName.orEmpty(), maxChars)
             } else if (isTextDocument(mime, extension)) {
                 readTextFromUri(uri, maxChars)
@@ -149,10 +155,20 @@ class DocumentReaderSkill(private val context: Context) : AiriSkill {
         return try {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 staged.outputStream().use { output ->
-                    input.copyTo(output, 64 * 1024)
+                    val buffer = ByteArray(64 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        if (count == 0) continue
+                        total += count
+                        require(total <= 25L * 1024L * 1024L) {
+                            "Document exceeds the 25MB safety limit"
+                        }
+                        output.write(buffer, 0, count)
+                    }
                 }
             } ?: throw IllegalArgumentException("Unable to open document")
-            require(staged.length() <= 25L * 1024L * 1024L) { "Document exceeds the 25MB safety limit" }
             AttachmentContentExtractor.extract(staged, mime, fileName, maxChars)
         } finally {
             staged.delete()

@@ -75,7 +75,7 @@ class MediaArtifactService(
         require(startMs >= 0L)
         val input = copyToCache(source, "airi_audio_in_")
         val output = File.createTempFile("airi_audio_out_", ".m4a", context.cacheDir)
-        try {
+        return try {
             val durationMs = MediaMetadataRetriever().run {
                 setDataSource(input.absolutePath)
                 extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L

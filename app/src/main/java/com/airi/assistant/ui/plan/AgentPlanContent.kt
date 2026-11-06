@@ -361,12 +361,13 @@ private fun traceKindLabel(kind: ExecutionTraceKind): String = stringResource(wh
     ExecutionTraceKind.REFLECTING -> R.string.agent_trace_kind_reflecting
     ExecutionTraceKind.COMPLETED -> R.string.agent_trace_kind_completed
     ExecutionTraceKind.FAILED -> R.string.agent_trace_kind_failed
+    ExecutionTraceKind.TIMED_OUT -> R.string.agent_trace_kind_failed
     ExecutionTraceKind.CANCELLED -> R.string.agent_trace_kind_cancelled
 })
 
 @Composable
 private fun traceKindColor(kind: ExecutionTraceKind): Color = when (kind) {
-    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED, ExecutionTraceKind.APPROVAL_TIMEOUT -> SemanticError
+    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED, ExecutionTraceKind.TIMED_OUT, ExecutionTraceKind.APPROVAL_TIMEOUT -> SemanticError
     ExecutionTraceKind.WAITING_FOR_APPROVAL -> SemanticWarn
     ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED, ExecutionTraceKind.APPROVAL_CANCELLED -> AiriTheme.onSurface.copy(alpha = 0.5f)
     ExecutionTraceKind.RECOVERING -> SemanticWarn
@@ -375,7 +376,7 @@ private fun traceKindColor(kind: ExecutionTraceKind): Color = when (kind) {
 }
 
 private fun traceKindIcon(kind: ExecutionTraceKind) = when (kind) {
-    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED, ExecutionTraceKind.APPROVAL_TIMEOUT -> Icons.Outlined.ErrorOutline
+    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED, ExecutionTraceKind.TIMED_OUT, ExecutionTraceKind.APPROVAL_TIMEOUT -> Icons.Outlined.ErrorOutline
     ExecutionTraceKind.WAITING_FOR_APPROVAL -> Icons.Outlined.HourglassEmpty
     ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.COMPLETED -> Icons.Outlined.Check
     ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED, ExecutionTraceKind.APPROVAL_CANCELLED -> Icons.Outlined.Close

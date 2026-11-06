@@ -112,8 +112,9 @@ private fun ExecutionTraceKind.isOutcomeEvidence(): Boolean = this in setOf(
     ExecutionTraceKind.RECOVERING,
     ExecutionTraceKind.COMPLETED,
     ExecutionTraceKind.FAILED,
-    ExecutionTraceKind.CANCELLED,
-    ExecutionTraceKind.APPROVAL_CANCELLED,
+	    ExecutionTraceKind.CANCELLED,
+	    ExecutionTraceKind.TIMED_OUT,
+	    ExecutionTraceKind.APPROVAL_CANCELLED,
     ExecutionTraceKind.APPROVAL_TIMEOUT,
 )
 
@@ -157,9 +158,11 @@ enum class ExecutionTraceKind {
     WAITING_FOR_APPROVAL,
     /** The user rejected the pending side effect or its continuation. */
     APPROVAL_CANCELLED,
-    /** The approval expired before a decision was received. */
-    APPROVAL_TIMEOUT,
-    RECOVERING,
+	    /** The approval expired before a decision was received. */
+	    APPROVAL_TIMEOUT,
+	    /** The execution exceeded its stall or hard deadline. */
+	    TIMED_OUT,
+	    RECOVERING,
     REFLECTING,
     COMPLETED,
     FAILED,

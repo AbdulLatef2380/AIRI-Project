@@ -32,8 +32,9 @@ object ChatExecutionTraceMapper {
 
         val ordered = events.sortedBy { it.sequence }
         val terminal = ordered.lastOrNull {
-            it.kind == ExecutionTraceKind.COMPLETED ||
+                it.kind == ExecutionTraceKind.COMPLETED ||
                 it.kind == ExecutionTraceKind.FAILED ||
+                it.kind == ExecutionTraceKind.TIMED_OUT ||
                 it.kind == ExecutionTraceKind.CANCELLED
         }
         // A trace without a terminal event is incomplete, never successful.
@@ -95,7 +96,8 @@ object ChatExecutionTraceMapper {
                 ExecutionTraceKind.TOOL_FAILED,
                 ExecutionTraceKind.TOOL_CANCELLED,
                 ExecutionTraceKind.APPROVAL_CANCELLED,
-                ExecutionTraceKind.APPROVAL_TIMEOUT -> {
+                ExecutionTraceKind.APPROVAL_TIMEOUT,
+                ExecutionTraceKind.TIMED_OUT -> {
                     pendingFailures++
                     recoveryStarted = false
                 }
@@ -124,6 +126,7 @@ object ChatExecutionTraceMapper {
             ExecutionTraceKind.RECOVERING -> AgentStepType.TASK_STEP to false
             ExecutionTraceKind.APPROVAL_CANCELLED -> AgentStepType.TASK_STEP to false
             ExecutionTraceKind.APPROVAL_TIMEOUT -> AgentStepType.TASK_STEP to false
+            ExecutionTraceKind.TIMED_OUT -> AgentStepType.TASK_STEP to false
             else -> return null
         }
         return AgentStep(

@@ -1167,7 +1167,8 @@ the tool returns an actual error.
                     detail = "Agent execution stalled.",
                 )
             }
-            ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
+            runtimeTrace?.terminalOutcome(executionId, sessionId, "TIMEOUT", e.message)
+            ExecutionStatusBus.onGraphTimedOut(executionId, e.message ?: "Agent execution stalled.")
             Log.w(TAG, "AgentLoop stalled: no progress for ${timeoutMs}ms")
             return LoopResult(
                 finalAnswer = "",
@@ -1187,7 +1188,8 @@ the tool returns an actual error.
                     detail = "Agent execution timed out.",
                 )
             }
-            ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
+            runtimeTrace?.terminalOutcome(executionId, sessionId, "TIMEOUT", e.message)
+            ExecutionStatusBus.onGraphTimedOut(executionId, e.message ?: "Agent execution timed out.")
             Log.w(TAG, "AgentLoop reached its ${timeoutMs}ms execution deadline")
             return LoopResult(
                 finalAnswer = "",
@@ -1207,9 +1209,11 @@ the tool returns an actual error.
                     detail = "Tool was cancelled.",
                 )
             }
+            runtimeTrace?.terminalOutcome(executionId, sessionId, "CANCELLED", e.message)
             ExecutionStatusBus.onGraphCancelled(executionId)
             return LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.CANCELLED, completionMetadata = completionMetadata)
         } catch (e: Exception) {
+            runtimeTrace?.terminalOutcome(executionId, sessionId, "FAILURE", e.message)
             ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
             Log.e(TAG, "AgentLoop failed type=${e.javaClass.simpleName}")
             return LoopResult(

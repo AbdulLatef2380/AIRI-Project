@@ -39,7 +39,7 @@ object ExecutionTracePresentation {
     ): ExecutionTraceSummaryStatus {
         if (isWorking) return ExecutionTraceSummaryStatus.RUNNING
         return when (events.lastOrNull()?.kind) {
-            ExecutionTraceKind.FAILED, ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.APPROVAL_TIMEOUT -> ExecutionTraceSummaryStatus.FAILED
+            ExecutionTraceKind.FAILED, ExecutionTraceKind.TIMED_OUT, ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.APPROVAL_TIMEOUT -> ExecutionTraceSummaryStatus.FAILED
             ExecutionTraceKind.CANCELLED, ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.APPROVAL_CANCELLED -> ExecutionTraceSummaryStatus.CANCELLED
             else -> ExecutionTraceSummaryStatus.COMPLETED
         }
@@ -87,6 +87,7 @@ object ExecutionTracePresentation {
             ExecutionTraceKind.TOOL_FAILED,
             ExecutionTraceKind.TOOL_CANCELLED,
             ExecutionTraceKind.FAILED,
+            ExecutionTraceKind.TIMED_OUT,
             ExecutionTraceKind.CANCELLED,
             ExecutionTraceKind.APPROVAL_CANCELLED,
             ExecutionTraceKind.APPROVAL_TIMEOUT,

@@ -307,9 +307,10 @@ internal object UnifiedExecutionTraceProjector {
             ExecutionTraceKind.TOOL_COMPLETED,
             ExecutionTraceKind.TOOL_FAILED,
             ExecutionTraceKind.TOOL_CANCELLED,
-            ExecutionTraceKind.APPROVAL_CANCELLED,
-            ExecutionTraceKind.APPROVAL_TIMEOUT,
-        )),
+	            ExecutionTraceKind.APPROVAL_CANCELLED,
+	            ExecutionTraceKind.APPROVAL_TIMEOUT,
+	            ExecutionTraceKind.TIMED_OUT,
+	        )),
         OTHER(emptySet()),
     }
 
@@ -437,7 +438,8 @@ internal object UnifiedExecutionTraceProjector {
         ExecutionTraceKind.REFLECTING -> ActivityPhase.ACTION
         ExecutionTraceKind.COMPLETED,
         ExecutionTraceKind.FAILED,
-        ExecutionTraceKind.CANCELLED -> ActivityPhase.LIFECYCLE
+        ExecutionTraceKind.CANCELLED,
+        ExecutionTraceKind.TIMED_OUT -> ActivityPhase.LIFECYCLE
     }
 
     private fun summarize(events: List<UnifiedExecutionTraceEvent>): UnifiedExecutionTraceSummary {
@@ -476,7 +478,7 @@ internal object UnifiedExecutionTraceProjector {
             listOf("search", "بحث", "web", "url", "research").any(text::contains) -> UnifiedTraceCategory.SEARCH
             kind in setOf(ExecutionTraceKind.TOOL_STARTED, ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.TOOL_CANCELLED) -> UnifiedTraceCategory.TOOL
             kind == ExecutionTraceKind.PLANNING || kind == ExecutionTraceKind.RECOVERING || kind == ExecutionTraceKind.REFLECTING -> UnifiedTraceCategory.PLAN
-            kind == ExecutionTraceKind.WAITING_FOR_APPROVAL || kind == ExecutionTraceKind.APPROVAL_CANCELLED || kind == ExecutionTraceKind.APPROVAL_TIMEOUT -> UnifiedTraceCategory.TASK
+            kind == ExecutionTraceKind.WAITING_FOR_APPROVAL || kind == ExecutionTraceKind.APPROVAL_CANCELLED || kind == ExecutionTraceKind.APPROVAL_TIMEOUT || kind == ExecutionTraceKind.TIMED_OUT -> UnifiedTraceCategory.TASK
             kind == ExecutionTraceKind.STEP_STARTED || kind == ExecutionTraceKind.STEP_COMPLETED -> UnifiedTraceCategory.TASK
             else -> UnifiedTraceCategory.SYSTEM
         }
@@ -516,7 +518,7 @@ internal object UnifiedExecutionTraceProjector {
         return when {
             kind == ExecutionTraceKind.PLANNING || normalized == "planning task" || normalized.startsWith("planning:") -> "lifecycle:planning"
             kind == ExecutionTraceKind.COMPLETED || normalized == "execution completed" -> "lifecycle:completed"
-            kind == ExecutionTraceKind.FAILED || normalized.startsWith("execution failed") -> "lifecycle:failed"
+            kind == ExecutionTraceKind.FAILED || kind == ExecutionTraceKind.TIMED_OUT || normalized.startsWith("execution failed") || normalized.startsWith("execution timed out") -> "lifecycle:failed"
             kind == ExecutionTraceKind.CANCELLED || normalized.startsWith("execution cancelled") -> "lifecycle:cancelled"
             else -> null
         }
@@ -527,7 +529,7 @@ internal object UnifiedExecutionTraceProjector {
         ExecutionTraceKind.RECOVERING, ExecutionTraceKind.REFLECTING -> TaskStatus.RUNNING
         ExecutionTraceKind.WAITING_FOR_APPROVAL -> TaskStatus.WAITING
         ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.COMPLETED -> TaskStatus.COMPLETED
-        ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED, ExecutionTraceKind.APPROVAL_TIMEOUT -> TaskStatus.FAILED
+        ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED, ExecutionTraceKind.TIMED_OUT, ExecutionTraceKind.APPROVAL_TIMEOUT -> TaskStatus.FAILED
         ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED, ExecutionTraceKind.APPROVAL_CANCELLED -> TaskStatus.CANCELLED
     }
 

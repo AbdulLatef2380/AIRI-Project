@@ -125,6 +125,24 @@ class UniversalRuntimeTraceTest {
     }
 
     @Test
+    fun terminalOutcomePreservesLifecycleClassificationAndRedactsReason() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        recorder.begin("exec-terminal", "session-1", "model", "provider", "test", "input", emptyList())
+
+        recorder.terminalOutcome(
+            executionId = "exec-terminal",
+            sessionId = "session-1",
+            outcome = "TIMEOUT",
+            reason = "Bearer secret-token timed out",
+        )
+
+        val event = recorder.events.last()
+        assertEquals(UniversalTraceEventType.EXECUTION_TERMINAL_OUTCOME, event.eventType)
+        assertEquals("TIMEOUT", event.outcome)
+        assertFalse(event.attributes.getValue("reason").contains("secret-token"))
+    }
+
+    @Test
     fun toolSchemaHashIsStableAndDoesNotContainDescriptionOrArguments() {
         val tool = ToolSchema(
             name = "safe_read",

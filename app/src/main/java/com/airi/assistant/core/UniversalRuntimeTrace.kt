@@ -296,6 +296,23 @@ class UniversalRuntimeTraceRecorder(
         attributes = mapOf("terminalState" to terminalState)
     )
 
+    /** Records the single request-level terminal outcome for lifecycle diagnostics. */
+    fun terminalOutcome(
+        executionId: String,
+        sessionId: String,
+        outcome: String,
+        reason: String? = null,
+    ) = record(
+        eventType = UniversalTraceEventType.EXECUTION_TERMINAL_OUTCOME,
+        executionId = executionId,
+        sessionId = sessionId,
+        component = "AgentLoop",
+        outcome = RuntimeTraceRedaction.safeReason(outcome),
+        attributes = buildMap {
+            reason?.let { put("reason", RuntimeTraceRedaction.safeReason(it)) }
+        },
+    )
+
     /** Evidence event for the request-scoped capability matrix. */
     fun capabilityStage(
         executionId: String,
@@ -404,6 +421,7 @@ enum class UniversalTraceEventType {
     MODEL_CONTINUATION_COMPLETED,
     UI_PROJECTION_COMPLETED,
     INTENT_STAGE_RECORDED,
+    EXECUTION_TERMINAL_OUTCOME,
 }
 
 enum class CapabilityRuntimeStage {

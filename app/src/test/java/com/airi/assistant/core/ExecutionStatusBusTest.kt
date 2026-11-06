@@ -175,6 +175,25 @@ class ExecutionStatusBusTest {
     }
 
     @Test
+    fun timeoutIsTerminalDistinctFromFailureAndRejectsLateEvents() {
+        val executionId = "timeout-terminal-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Long task", 1, executionId, sessionId = "session-1")
+
+        ExecutionStatusBus.onGraphTimedOut(executionId, "stall deadline reached")
+
+        assertFalse(ExecutionStatusBus.status.value.isWorking)
+        assertEquals(ExecutionStage.FAILED, ExecutionStatusBus.status.value.executionStage)
+        assertEquals(ExecutionTraceKind.TIMED_OUT, ExecutionStatusBus.trace.value.last().kind)
+        assertEquals("execution_timeout", ExecutionStatusBus.trace.value.last().errorCode)
+        val traceAfterTimeout = ExecutionStatusBus.trace.value
+        ExecutionStatusBus.onToolStarted(executionId, "late-tool", "late_tool")
+        ExecutionStatusBus.onGraphCompleted(success = true, executionId = executionId)
+        assertEquals(traceAfterTimeout, ExecutionStatusBus.trace.value)
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
     fun startedToolStillPublishesCancellationAfterStopRequest() {
         val executionId = "tool-cancel-after-stop-test"
         ExecutionStatusBus.reset()

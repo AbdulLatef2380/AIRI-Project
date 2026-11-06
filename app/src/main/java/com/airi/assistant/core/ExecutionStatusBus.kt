@@ -427,6 +427,47 @@ object ExecutionStatusBus {
     }
 
     /**
+     * Closes an execution that exceeded its deadline without collapsing the
+     * outcome into a generic FAILED event. The UI still uses FAILED as its
+     * terminal presentation, while the trace retains the machine-readable
+     * timeout distinction and rejects all late events.
+     */
+    fun onGraphTimedOut(
+        executionId: String,
+        reason: String = "Execution timed out",
+    ) {
+        var accepted = false
+        statusUpdate { current ->
+            if (!acceptsEvent(current.executionId, executionId) ||
+                current.executionStage in TERMINAL_STAGES
+            ) return@statusUpdate current
+            accepted = true
+            current.copy(
+                isWorking = false,
+                executionStage = ExecutionStage.FAILED,
+                currentAction = "Execution timed out",
+                activeNodeId = "",
+                activeNodeAction = "",
+                cancellationRequested = false,
+                waitingForApproval = false,
+                approvalInterruptId = "",
+            )
+        }
+        if (accepted || isOpenExecution(executionId)) {
+            appendTrace(
+                executionId = executionId,
+                kind = ExecutionTraceKind.TIMED_OUT,
+                summary = "Execution timed out",
+                detail = reason.take(160),
+                errorCode = "execution_timeout",
+                machineTag = "execution_timeout",
+            )
+            synchronized(traceLock) { terminalExecutions += executionId }
+        }
+        safeLog { Log.i(TAG, "EXEC_STATUS_TIMED_OUT") }
+    }
+
+    /**
      * Records the user's stop request without pretending that cancellation has
      * already completed. While this flag is set, late node/tool events for the
      * same execution are rejected until [onGraphCancelled] closes the owner.

@@ -3096,7 +3096,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             partialResponseSaved = partialSaved
                         )
                         persistExecutionOutcome(
-                            kind = ExecutionTraceKind.FAILED,
+                            kind = ExecutionTraceKind.TIMED_OUT,
                             summary = "Agent execution timed out",
                             answer = streamedAnswer,
                         )

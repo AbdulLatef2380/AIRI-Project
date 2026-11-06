@@ -179,7 +179,7 @@ object PrivacyGuard {
     )
 
     private val TRACE_SECRET_FIELD_REGEX = Regex(
-        """(?i)^(?:authorization|proxy-authorization|cookie|set-cookie|password|passwd|secret|token|api[_-]?key)$"""
+        """(?i)^(?:authorization|proxy-authorization|cookie|set-cookie|password|passwd|secret|token|access[_-]?token|refresh[_-]?token|client[_-]?secret|webhook[_-]?key|api[_-]?key)$"""
     )
 
     private val TRACE_SECRET_REGEX = Regex(

@@ -25,8 +25,8 @@ class ExecutionTraceBuffer(
         require(executionId.isNotBlank()) { "executionId is required" }
         entries.clear()
         nextSequence = 1L
-        activeExecutionId = executionId
-        activeSessionId = sessionId
+        activeExecutionId = executionId.trim()
+        activeSessionId = sessionId.trim().take(MAX_ID_CHARS)
         return snapshot()
     }
 
@@ -65,15 +65,19 @@ class ExecutionTraceBuffer(
             sequence = nextSequence++,
             timestampMs = timestampMs,
             kind = kind,
-            summary = summary,
-            detail = detail,
-            actionId = actionId?.takeIf { it.isNotBlank() },
+            summary = summary.trim().take(MAX_SUMMARY_CHARS),
+            detail = detail?.trim()?.take(MAX_DETAIL_CHARS),
+            actionId = actionId?.trim()?.take(MAX_ID_CHARS)?.takeIf { it.isNotBlank() },
             durationMs = durationMs?.coerceAtLeast(0L),
             errorCode = normalizeErrorCode(errorCode),
             sessionId = activeSessionId,
-            machineTag = machineTag?.takeIf { it.isNotBlank() },
-            parentId = parentId?.takeIf { it.isNotBlank() },
-            inputParams = inputParams,
+            machineTag = machineTag?.trim()?.take(MAX_TAG_CHARS)?.takeIf { it.isNotBlank() },
+            parentId = parentId?.trim()?.take(MAX_ID_CHARS)?.takeIf { it.isNotBlank() },
+            inputParams = inputParams.entries
+                .asSequence()
+                .filter { it.key.isNotBlank() }
+                .take(MAX_INPUT_FIELDS)
+                .associate { it.key.trim().take(MAX_FIELD_CHARS) to it.value.take(MAX_FIELD_VALUE_CHARS) },
         )
         entries.addLast(event)
         while (entries.size > maxEntries) {
@@ -95,6 +99,13 @@ class ExecutionTraceBuffer(
 
     companion object {
         const val DEFAULT_MAX_ENTRIES = 150
+        const val MAX_SUMMARY_CHARS = 240
+        const val MAX_DETAIL_CHARS = 800
+        const val MAX_ID_CHARS = 160
+        const val MAX_TAG_CHARS = 80
+        const val MAX_FIELD_CHARS = 80
+        const val MAX_FIELD_VALUE_CHARS = 240
+        const val MAX_INPUT_FIELDS = 32
 
         private val ERROR_CODE_PATTERN = Regex("[a-z0-9][a-z0-9_.:-]{0,63}")
 

@@ -229,8 +229,11 @@ object ExecutionStatusBus {
             }
         }
         if (accepted) {
-            synchronized(traceLock) { approvalOwners.remove(interruptId) }
-            appendTrace(executionId, ExecutionTraceKind.APPROVAL_CANCELLED, "Approval cancelled", reason.take(160), actionId = actionId, machineTag = "approval_cancelled")
+            synchronized(traceLock) {
+                approvalOwners.remove(interruptId)
+                terminalExecutions += executionId
+            }
+            appendTrace(executionId, ExecutionTraceKind.APPROVAL_CANCELLED, "Approval cancelled", reason.take(160), actionId = actionId, machineTag = "approval_cancelled", allowTerminal = true)
         }
     }
 
@@ -250,8 +253,11 @@ object ExecutionStatusBus {
             }
         }
         if (accepted) {
-            synchronized(traceLock) { approvalOwners.remove(interruptId) }
-            appendTrace(executionId, ExecutionTraceKind.APPROVAL_TIMEOUT, "Approval expired", reason.take(160), actionId = actionId, errorCode = "approval_timeout", machineTag = "approval_timeout")
+            synchronized(traceLock) {
+                approvalOwners.remove(interruptId)
+                terminalExecutions += executionId
+            }
+            appendTrace(executionId, ExecutionTraceKind.APPROVAL_TIMEOUT, "Approval expired", reason.take(160), actionId = actionId, errorCode = "approval_timeout", machineTag = "approval_timeout", allowTerminal = true)
         }
     }
 
@@ -404,6 +410,7 @@ object ExecutionStatusBus {
                 return@statusUpdate current
             }
             accepted = true
+            synchronized(traceLock) { terminalExecutions += executionId }
             current.copy(
                 isWorking      = false,
                 executionStage = stage,
@@ -414,14 +421,14 @@ object ExecutionStatusBus {
                 approvalInterruptId = "",
             )
         }
-        if (!blockedByApproval && (accepted || isOpenExecution(executionId))) {
+        if (!blockedByApproval && accepted) {
             appendTrace(
                 executionId,
                 if (success) ExecutionTraceKind.COMPLETED else ExecutionTraceKind.FAILED,
                 if (success) "Execution completed" else "Execution failed",
                 machineTag = if (success) "execution_completed" else "execution_failed",
+                allowTerminal = true,
             )
-            synchronized(traceLock) { terminalExecutions += executionId }
         }
         safeLog { Log.i(TAG, "EXEC_STATUS ${stage.name}") }
     }
@@ -442,6 +449,7 @@ object ExecutionStatusBus {
                 current.executionStage in TERMINAL_STAGES
             ) return@statusUpdate current
             accepted = true
+            synchronized(traceLock) { terminalExecutions += executionId }
             current.copy(
                 isWorking = false,
                 executionStage = ExecutionStage.FAILED,
@@ -453,7 +461,7 @@ object ExecutionStatusBus {
                 approvalInterruptId = "",
             )
         }
-        if (accepted || isOpenExecution(executionId)) {
+        if (accepted) {
             appendTrace(
                 executionId = executionId,
                 kind = ExecutionTraceKind.TIMED_OUT,
@@ -461,8 +469,8 @@ object ExecutionStatusBus {
                 detail = reason.take(160),
                 errorCode = "execution_timeout",
                 machineTag = "execution_timeout",
+                allowTerminal = true,
             )
-            synchronized(traceLock) { terminalExecutions += executionId }
         }
         safeLog { Log.i(TAG, "EXEC_STATUS_TIMED_OUT") }
     }
@@ -516,6 +524,7 @@ object ExecutionStatusBus {
                 current.executionStage in TERMINAL_STAGES
             ) return@statusUpdate current
             accepted = true
+            synchronized(traceLock) { terminalExecutions += executionId }
             current.copy(
                 isWorking = false,
                 executionStage = ExecutionStage.CANCELLED,
@@ -527,9 +536,8 @@ object ExecutionStatusBus {
                 approvalInterruptId = "",
             )
         }
-        if (accepted || isOpenExecution(executionId)) {
-            appendTrace(executionId, ExecutionTraceKind.CANCELLED, "Execution cancelled", machineTag = "execution_cancelled")
-            synchronized(traceLock) { terminalExecutions += executionId }
+        if (accepted) {
+            appendTrace(executionId, ExecutionTraceKind.CANCELLED, "Execution cancelled", machineTag = "execution_cancelled", allowTerminal = true)
         }
         safeLog { Log.i(TAG, "EXEC_STATUS_CANCELLED") }
     }
@@ -593,11 +601,12 @@ object ExecutionStatusBus {
         machineTag: String? = null,
         parentId: String? = null,
         inputParams: Map<String, String> = emptyMap(),
+        allowTerminal: Boolean = false,
     ) {
         val normalizedErrorCode = ExecutionTraceBuffer.normalizeErrorCode(errorCode)
         val event = synchronized(traceLock) {
             val buffer = traceBuffers[executionId] ?: return
-            if (executionId in terminalExecutions) return
+            if (executionId in terminalExecutions && !allowTerminal) return
             val appended = buffer.append(
                 executionId = executionId,
                 kind = kind,

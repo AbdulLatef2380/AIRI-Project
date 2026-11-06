@@ -3,6 +3,7 @@ package com.airi.assistant.core
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -103,6 +104,31 @@ class ExecutionTraceBufferTest {
 
         assertEquals("authorization_required", normalized.errorCode)
         assertNull(unsafe.errorCode)
+    }
+
+    @Test
+    fun append_boundsUserControlledFieldsAndInputMap() {
+        val buffer = ExecutionTraceBuffer(maxEntries = 2)
+        buffer.begin("exec-bounds", "session-" + "s".repeat(500))
+        val event = buffer.append(
+            executionId = "exec-bounds",
+            kind = ExecutionTraceKind.TOOL_STARTED,
+            summary = "s".repeat(500),
+            detail = "d".repeat(1_000),
+            actionId = "a".repeat(500),
+            machineTag = "t".repeat(200),
+            parentId = "p".repeat(500),
+            inputParams = (0..40).associate { "key-$it" to "v".repeat(500) },
+        )!!
+
+        assertEquals(ExecutionTraceBuffer.MAX_SUMMARY_CHARS, event.summary.length)
+        assertEquals(ExecutionTraceBuffer.MAX_DETAIL_CHARS, event.detail?.length)
+        assertEquals(ExecutionTraceBuffer.MAX_ID_CHARS, event.actionId?.length)
+        assertEquals(ExecutionTraceBuffer.MAX_TAG_CHARS, event.machineTag?.length)
+        assertEquals(ExecutionTraceBuffer.MAX_ID_CHARS, event.parentId?.length)
+        assertEquals(ExecutionTraceBuffer.MAX_INPUT_FIELDS, event.inputParams.size)
+        assertEquals(ExecutionTraceBuffer.MAX_FIELD_VALUE_CHARS, event.inputParams.values.first().length)
+        assertEquals(ExecutionTraceBuffer.MAX_ID_CHARS, event.sessionId.length)
     }
 
     @Test

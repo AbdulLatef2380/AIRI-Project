@@ -113,6 +113,10 @@ class UniversalRuntimeTraceTest {
         )
 
         val event = recorder.events.last { it.eventType == UniversalTraceEventType.MODEL_REQUEST_BUILT }
+        assertEquals("exec-1", event.executionId)
+        assertEquals("session-1", event.sessionId)
+        assertEquals("AgentLoop", event.component)
+        assertEquals("built", event.outcome)
         assertEquals("gemini-2.0-flash", event.attributes["model"])
         assertEquals("google", event.attributes["provider"])
         assertEquals("gemini-2.0-flash", event.attributes["requestedModel"])

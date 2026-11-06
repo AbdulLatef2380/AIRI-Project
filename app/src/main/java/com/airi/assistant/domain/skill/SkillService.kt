@@ -24,6 +24,7 @@ import com.airi.assistant.domain.monetization.SubscriptionManager
 import com.airi.assistant.domain.policy.PolicyDecision
 import com.airi.assistant.domain.policy.PolicyEngine
 import com.airi.assistant.domain.policy.UnifiedPolicyGate
+import com.airi.assistant.execution.privacy.PrivacyGuard
 
 class SkillService(private val context: Context) {
 
@@ -92,7 +93,16 @@ class SkillService(private val context: Context) {
 
         val startTime  = System.currentTimeMillis()
         val skillLabel = "SkillExecution"
-        EventBus.emitSync(AppEvent.SkillExecutionStarted(skillLabel, input.take(80)))
+        val executionId = skillContext.executionId
+        val sessionId = skillContext.sessionId
+        EventBus.emitSync(
+            AppEvent.SkillExecutionStarted(
+                skillLabel,
+                PrivacyGuard.redactForTrace(input, 80),
+                executionId,
+                sessionId,
+            )
+        )
 
         return try {
             val result    = skillExecutor.tryHandle(input, skillContext)
@@ -105,7 +115,7 @@ class SkillService(private val context: Context) {
                 latencyMs = latencyMs
             )
 
-            EventBus.emitSync(AppEvent.SkillExecutionCompleted(skillLabel, result != null, latencyMs))
+            EventBus.emitSync(AppEvent.SkillExecutionCompleted(skillLabel, result != null, latencyMs, executionId, sessionId))
             if (result != null) subscriptionManager?.recordSkillUse()
             result
         } catch (e: Exception) {
@@ -121,14 +131,18 @@ class SkillService(private val context: Context) {
                 errorReason = e.message
             )
 
-            EventBus.emitSync(AppEvent.SkillExecutionCompleted(skillLabel, false, latencyMs))
+            EventBus.emitSync(AppEvent.SkillExecutionCompleted(skillLabel, false, latencyMs, executionId, sessionId))
             null
         }
     }
 
     // ── Policy-gated tool call execution ──────────────────────────────────────
 
-    suspend fun executeToolCall(response: String): ToolCallResult {
+    suspend fun executeToolCall(
+        response: String,
+        executionId: String = "",
+        sessionId: String = "",
+    ): ToolCallResult {
         val toolCall = ToolCallParser.parse(response) ?: return ToolCallResult.NoToolCall
 
         LoggingService.debug(TAG, "Tool call detected: ${toolCall.toolName}")
@@ -151,7 +165,14 @@ class SkillService(private val context: Context) {
             }
         }
 
-        EventBus.emitSync(AppEvent.SkillExecutionStarted("Tool:${toolCall.toolName}", toolCall.toolName))
+        EventBus.emitSync(
+            AppEvent.SkillExecutionStarted(
+                "Tool:${toolCall.toolName}",
+                PrivacyGuard.redactForTrace(toolCall.toolName, 80),
+                executionId,
+                sessionId,
+            )
+        )
         val startMs = System.currentTimeMillis()
 
         return try {
@@ -163,14 +184,22 @@ class SkillService(private val context: Context) {
                 latencyMs = latencyMs,
                 errorReason = if (result.success) null else "tool_execution_failed"
             )
-            EventBus.emitSync(AppEvent.ToolCallExecuted(toolCall.toolName, result.success))
+            if (executionId.isBlank() && sessionId.isBlank()) {
+                EventBus.emitSync(AppEvent.ToolCallExecuted(toolCall.toolName, result.success))
+            } else {
+                EventBus.emitSync(AppEvent.ToolCallExecuted(toolCall.toolName, result.success, executionId, sessionId))
+            }
             resultForToolExecution(toolCall, result)
         } catch (e: Exception) {
             val latencyMs = System.currentTimeMillis() - startMs
             val error     = AppError.SkillExecutionFailed(toolCall.toolName, e.message ?: "Unknown", e)
             AppErrorHandler.log(error)
             outcomeScorer.record(toolCall.toolName, success = false, latencyMs = latencyMs, errorReason = e.message)
-            EventBus.emitSync(AppEvent.ToolCallExecuted(toolCall.toolName, false))
+            if (executionId.isBlank() && sessionId.isBlank()) {
+                EventBus.emitSync(AppEvent.ToolCallExecuted(toolCall.toolName, false))
+            } else {
+                EventBus.emitSync(AppEvent.ToolCallExecuted(toolCall.toolName, false, executionId, sessionId))
+            }
             ToolCallResult.Failed(toolCall.toolName, AppErrorHandler.toUserMessage(error))
         }
     }

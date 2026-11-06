@@ -265,6 +265,23 @@ class ExecutionStatusBusTest {
     }
 
     @Test
+    fun approvalTerminalOutcomesRejectLateToolsAndDuplicateFinalEvents() {
+        val executionId = "approval-terminal-admission-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Publish", 1, executionId)
+        ExecutionStatusBus.onApprovalWaiting(executionId, "tool-1", "approval-1", "Publish")
+        ExecutionStatusBus.onApprovalCancelled("approval-1", "tool-1", "Denied")
+
+        val afterCancel = ExecutionStatusBus.trace.value
+        ExecutionStatusBus.onToolStarted(executionId, "late-tool", "late_tool")
+        ExecutionStatusBus.onGraphCompleted(success = true, executionId = executionId)
+
+        assertEquals(afterCancel, ExecutionStatusBus.trace.value)
+        assertEquals(1, ExecutionStatusBus.trace.value.count { it.kind == ExecutionTraceKind.APPROVAL_CANCELLED })
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
     fun graphCompletionCannotOverwriteApprovalWaitingState() {
         val executionId = "approval-completion-race-test"
         ExecutionStatusBus.reset()

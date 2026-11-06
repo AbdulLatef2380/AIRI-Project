@@ -28,13 +28,25 @@ sealed class AppEvent(
 
     // ── Skill / Tool Events ───────────────────────────────────────────────────
 
-    class SkillExecutionStarted(val skillName: String, val input: String) : AppEvent()
+    class SkillExecutionStarted(
+        val skillName: String,
+        val input: String,
+        val executionId: String = "",
+        val sessionId: String = "",
+    ) : AppEvent()
     class SkillExecutionCompleted(
         val skillName: String,
         val success: Boolean,
-        val durationMs: Long
+        val durationMs: Long,
+        val executionId: String = "",
+        val sessionId: String = "",
     ) : AppEvent()
-    class ToolCallExecuted(val toolName: String, val success: Boolean) : AppEvent()
+    class ToolCallExecuted(
+        val toolName: String,
+        val success: Boolean,
+        val executionId: String = "",
+        val sessionId: String = "",
+    ) : AppEvent()
 
     // ── Auth Events ───────────────────────────────────────────────────────────
 

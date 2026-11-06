@@ -264,7 +264,7 @@ class DataDeletionCoordinator(
         //   c) Active multimodal projection model symlink / copy.
         runStep(Step.FILESYSTEM_WIPE, failures, completed) {
             withContext(Dispatchers.IO) {
-                AgentTraceManager.instance.clearTraces()
+                AgentTraceManager.instance.clearAllTraces()
                 ExecutionTraceArchive.clear()
                 artifactManager.deleteAll()
                 projectFileManager.deleteAll()
@@ -348,7 +348,7 @@ class DataDeletionCoordinator(
         runStep(Step.ROOM_DATA_WIPE, failures, completed) { storageRepository.deleteAllData() }
         runStep(Step.FILESYSTEM_WIPE, failures, completed) {
             withContext(Dispatchers.IO) {
-                AgentTraceManager.instance.clearTraces()
+                AgentTraceManager.instance.clearAllTraces()
                 ExecutionTraceArchive.clear()
                 artifactManager.deleteAll()
                 projectFileManager.deleteAll()

@@ -1,6 +1,7 @@
 package com.airi.assistant.execution.privacy
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -63,5 +64,16 @@ class PrivacyGuardTraceRedactionTest {
         assertFalse(redacted.contains("access-value"))
         assertFalse(redacted.contains("client-value"))
         assertFalse(redacted.contains(jwt))
+    }
+
+    @Test
+    fun redactTraceField_blocksSensitiveFieldNamesEvenForShortValues() {
+        val sensitive = listOf(
+            "access_token", "refresh-token", "client_secret", "webhook_key", "api-key"
+        )
+
+        sensitive.forEach { field ->
+            assertEquals("[SECRET_REDACTED]", PrivacyGuard.redactTraceField(field, "x"))
+        }
     }
 }

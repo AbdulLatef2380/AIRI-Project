@@ -94,6 +94,31 @@ class AgentTraceManagerLifecycleTest {
     }
 
     @Test
+    fun deletingOwnerWhileTraceIsActive_preventsLateFinalizeFromRecreatingIt() {
+        val manager = AgentTraceManager()
+        val sessionTrace = manager.startTrace("session work", executionId = "e1", sessionId = "s1")
+        val messageTrace = manager.startTrace("message work", executionId = "e2", messageId = 22L)
+
+        manager.deleteForSession("s1")
+        manager.deleteForMessage(22L)
+        manager.finalizeTrace(sessionTrace, "late session result", success = true)
+        manager.finalizeTrace(messageTrace, "late message result", success = true)
+
+        assertTrue(manager.traces.value.isEmpty())
+    }
+
+    @Test
+    fun clearAllTraces_abandonsActiveBuilders() {
+        val manager = AgentTraceManager()
+        val id = manager.startTrace("account data", executionId = "e1", sessionId = "s1")
+
+        manager.clearAllTraces()
+        manager.finalizeTrace(id, "late result", success = true)
+
+        assertTrue(manager.traces.value.isEmpty())
+    }
+
+    @Test
     fun store_roundTripsTraceFields() {
         val file = File.createTempFile("agent_traces", ".json").apply { deleteOnExit() }
         val store = AgentTraceStore(file)

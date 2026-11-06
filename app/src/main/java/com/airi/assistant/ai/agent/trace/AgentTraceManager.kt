@@ -67,13 +67,21 @@ class AgentTraceManager internal constructor() {
         }
     }
 
-    fun startTrace(originalInput: String): String {
+    fun startTrace(
+        originalInput: String,
+        executionId: String = "",
+        sessionId: String = "",
+        messageId: Long? = null,
+    ): String {
         pruneStale()
         val traceId = UUID.randomUUID().toString()
         activeBuilders[traceId] = ActiveTrace(
             base = AgentTrace(
                 id = traceId,
                 originalInput = PrivacyGuard.redactForTrace(originalInput, INPUT_CHARS),
+                executionId = executionId,
+                sessionId = sessionId,
+                messageId = messageId,
             )
         )
         return traceId
@@ -134,6 +142,7 @@ class AgentTraceManager internal constructor() {
     /** Removes finished traces owned by one persisted chat message. */
     fun deleteForMessage(messageId: Long) {
         if (messageId <= 0L) return
+        activeBuilders.entries.removeIf { it.value.base.messageId == messageId }
         _traces.update { current -> current.filterNot { it.messageId == messageId } }
         store?.let { target -> persistExecutor.execute { target.deleteMatching { it.messageId == messageId } } }
     }
@@ -142,6 +151,7 @@ class AgentTraceManager internal constructor() {
     fun deleteForSession(sessionId: String) {
         val normalized = sessionId.trim()
         if (normalized.isBlank()) return
+        activeBuilders.entries.removeIf { it.value.base.sessionId == normalized }
         _traces.update { current -> current.filterNot { it.sessionId == normalized } }
         store?.let { target -> persistExecutor.execute { target.deleteMatching { it.sessionId == normalized } } }
     }
@@ -151,6 +161,17 @@ class AgentTraceManager internal constructor() {
      * pressing "clear" mid-execution does not silently lose the active one.
      */
     fun clearTraces() {
+        _traces.value = emptyList()
+        store?.let { target -> persistExecutor.execute { target.clear() } }
+    }
+
+    /**
+     * Irreversible local wipe used by account deletion. Unlike [clearTraces],
+     * this also abandons active builders so a late callback cannot recreate
+     * deleted trace data.
+     */
+    fun clearAllTraces() {
+        activeBuilders.clear()
         _traces.value = emptyList()
         store?.let { target -> persistExecutor.execute { target.clear() } }
     }

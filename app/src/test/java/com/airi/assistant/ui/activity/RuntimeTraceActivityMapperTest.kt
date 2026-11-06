@@ -80,4 +80,32 @@ class RuntimeTraceActivityMapperTest {
         assertEquals(UniversalTraceEventType.MODEL_RESPONSE_RECEIVED, response.eventType)
         assertNull(RuntimeTraceActivityMapper.map(response))
     }
+
+    @Test
+    fun modelRequestBuiltRemainsDiagnosticOnly() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        recorder.begin(
+            executionId = "runtime-model-request",
+            sessionId = "session-1",
+            modelId = "model-1",
+            providerId = "provider-1",
+            executionMode = "cloud",
+            input = "private prompt",
+            tools = emptyList(),
+        )
+        recorder.modelRequestBuilt(
+            executionId = "runtime-model-request",
+            sessionId = "session-1",
+            promptTokens = 12,
+            historyTurns = 1,
+            toolCount = 0,
+            requiresToolCalling = false,
+            requiresLongContext = false,
+        )
+        val event = recorder.eventsFor("runtime-model-request").first {
+            it.eventType == UniversalTraceEventType.MODEL_REQUEST_BUILT
+        }
+
+        assertNull(RuntimeTraceActivityMapper.map(event))
+    }
 }

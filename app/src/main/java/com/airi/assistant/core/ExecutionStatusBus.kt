@@ -286,33 +286,22 @@ object ExecutionStatusBus {
         inputParams: Map<String, String> = emptyMap(),
         parentId: String? = null,
     ) {
-        val admitted = synchronized(traceLock) {
-            toolTraceLifecycles[executionId]?.admitStart(executionId, actionId) == true
-        }
-        if (!isOpenExecution(executionId) ||
-            (_status.value.executionId == executionId && _status.value.cancellationRequested) ||
-            !admitted
-        ) {
-            safeLog { Log.w(TAG, "TRACE_TOOL_START_REJECTED owner=${executionId.take(8)}") }
-            return
-        }
-        val redactedParams = inputParams.mapValues { (key, value) -> PrivacyGuard.redactTraceField(key, value) }
         synchronized(traceLock) {
+            if (!isOpenExecution(executionId) ||
+                (_status.value.executionId == executionId && _status.value.cancellationRequested) ||
+                toolTraceLifecycles[executionId]?.admitStart(executionId, actionId) != true
+            ) {
+                safeLog { Log.w(TAG, "TRACE_TOOL_START_REJECTED owner=${executionId.take(8)}") }
+                return
+            }
+            val redactedParams = inputParams.mapValues { (key, value) -> PrivacyGuard.redactTraceField(key, value) }
             toolTraceContexts[executionId]?.set(
                 actionId,
                 ToolTraceContext(redactedParams, parentId?.takeIf { it.isNotBlank() })
             )
+            appendTrace(executionId, ExecutionTraceKind.TOOL_STARTED, "Running tool: $toolName", detail,
+                actionId, machineTag = "tool_call", parentId = parentId, inputParams = redactedParams)
         }
-        appendTrace(
-            executionId = executionId,
-            kind = ExecutionTraceKind.TOOL_STARTED,
-            summary = "Running tool: $toolName",
-            detail = detail,
-            actionId = actionId,
-            machineTag = "tool_call",
-            parentId = parentId,
-            inputParams = redactedParams,
-        )
     }
 
     /** Adds the single successful terminal event for an owned tool action. */
@@ -587,31 +576,19 @@ object ExecutionStatusBus {
         detail: String?,
         errorCode: String? = null,
     ) {
-        val admitted = synchronized(traceLock) {
-            toolTraceLifecycles[executionId]?.admitTerminal(executionId, actionId) == true
+        synchronized(traceLock) {
+            if (!belongsToToolTerminalExecution(_status.value, executionId) ||
+                !isOpenExecution(executionId) ||
+                toolTraceLifecycles[executionId]?.admitTerminal(executionId, actionId) != true
+            ) {
+                safeLog { Log.w(TAG, "TRACE_TOOL_TERMINAL_REJECTED owner=${executionId.take(8)}") }
+                return
+            }
+            val context = toolTraceContexts[executionId]?.remove(actionId)
+            appendTrace(executionId, kind, "$summaryPrefix: $toolName", detail, actionId, durationMs,
+                errorCode, machineTag = "tool_call", parentId = context?.parentId,
+                inputParams = context?.inputParams.orEmpty())
         }
-        if (!belongsToToolTerminalExecution(_status.value, executionId) ||
-            !isOpenExecution(executionId) ||
-            !admitted
-        ) {
-            safeLog { Log.w(TAG, "TRACE_TOOL_TERMINAL_REJECTED owner=${executionId.take(8)}") }
-            return
-        }
-        val context = synchronized(traceLock) {
-            toolTraceContexts[executionId]?.remove(actionId)
-        }
-        appendTrace(
-            executionId = executionId,
-            kind = kind,
-            summary = "$summaryPrefix: $toolName",
-            detail = detail,
-            actionId = actionId,
-            durationMs = durationMs,
-            errorCode = errorCode,
-            machineTag = "tool_call",
-            parentId = context?.parentId,
-            inputParams = context?.inputParams.orEmpty(),
-        )
     }
 
     private fun appendTrace(

@@ -99,7 +99,8 @@ object ExecutionTraceArchive {
     private fun ensureLoaded(target: File): Boolean {
         if (loaded) return true
         return runCatching {
-            if (!target.exists()) {
+            if (!target.exists() || target.length() == 0L) {
+                entries.clear()
                 loaded = true
                 return@runCatching true
             }

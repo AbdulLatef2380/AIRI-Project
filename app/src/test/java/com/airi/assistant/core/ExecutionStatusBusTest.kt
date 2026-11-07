@@ -148,6 +148,64 @@ class ExecutionStatusBusTest {
     }
 
     @Test
+    fun stressMatrix_preservesIsolationForOneTenAndFiftyExecutions() {
+        val previousHistoryLimit = ExecutionStatusBus.maxTraceHistory
+        try {
+            // Keep every execution addressable during this test; production remains bounded at 32.
+            ExecutionStatusBus.maxTraceHistory = 64
+            listOf(1, 10, 50).forEach { executionCount ->
+                ExecutionStatusBus.reset()
+                val ids = (0 until executionCount).map { "stress-$executionCount-$it" }
+                ids.forEach { executionId ->
+                    ExecutionStatusBus.onGraphStarted(
+                        goalDescription = "Stress execution",
+                        totalNodes = 100,
+                        executionId = executionId,
+                        sessionId = "stress-session",
+                    )
+                }
+
+                val startedAt = System.nanoTime()
+                val heapBefore = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()
+                val executor = Executors.newFixedThreadPool(minOf(executionCount, 8))
+                ids.forEach { executionId ->
+                    executor.submit {
+                        // 50 starts + 50 terminals = 100 tool events per execution.
+                        repeat(50) { index ->
+                            val actionId = "$executionId-tool-$index"
+                            ExecutionStatusBus.onToolStarted(executionId, actionId, "read_file")
+                            ExecutionStatusBus.onToolCompleted(executionId, actionId, "read_file", 1L)
+                        }
+                        ExecutionStatusBus.onGraphCompleted(true, executionId)
+                    }
+                }
+                executor.shutdown()
+                assertTrue(executor.awaitTermination(20, TimeUnit.SECONDS))
+
+                val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L
+                val heapAfter = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()
+                println("P2 executionCount=$executionCount toolEventsPerExecution=100 elapsedMs=$elapsedMs heapDeltaBytes=${heapAfter - heapBefore}")
+
+                ids.forEach { executionId ->
+                    val events = ExecutionStatusBus.traceSnapshot(executionId)
+                    assertTrue("missing trace for $executionId", events.isNotEmpty())
+                    assertTrue("cross-owner event in $executionId", events.all { it.executionId == executionId })
+                    assertEquals(50, events.count { it.kind == ExecutionTraceKind.TOOL_COMPLETED })
+                    assertEquals(ExecutionTraceKind.COMPLETED, events.last().kind)
+                    assertEquals(
+                        events.map { it.sequence }.distinct().size,
+                        events.size,
+                    )
+                    assertTrue("sequence order regressed for $executionId", events.zipWithNext().all { (left, right) -> left.sequence < right.sequence })
+                }
+            }
+        } finally {
+            ExecutionStatusBus.maxTraceHistory = previousHistoryLimit
+            ExecutionStatusBus.reset()
+        }
+    }
+
+    @Test
     fun cancellationRequestClosesAdmissionBeforeTerminalCancellation() {
         val executionId = "cancellation-gate-test"
         ExecutionStatusBus.reset()

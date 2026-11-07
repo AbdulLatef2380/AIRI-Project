@@ -82,9 +82,10 @@ object MemoryStore {
         if (newFacts.isEmpty()) return
         val current = getFacts(ctx, sessionId).toMutableList()
         for (f in newFacts) {
-            val key = f.substringBefore('=', missingDelimiterValue = f).trim()
+            val safeFact = MemoryFactAdmissionPolicy.sanitize(f) ?: continue
+            val key = safeFact.substringBefore('=', missingDelimiterValue = safeFact).trim()
             current.removeAll { it.substringBefore('=', missingDelimiterValue = it).trim() == key }
-            current.add(f.trim())
+            current.add(safeFact)
         }
         val trimmed = current.takeLast(MAX_FACTS)
         val arr = JSONArray()
@@ -101,4 +102,20 @@ object MemoryStore {
     }
 
     private const val MAX_FACTS = 30
+}
+
+/**
+ * Guards the per-session compression scratchpad. Durable memory has a richer
+ * admission policy; this smaller cache must still reject secrets and bound
+ * every value because it can be injected into a future prompt.
+ */
+internal object MemoryFactAdmissionPolicy {
+    private const val MAX_FACT_CHARS = 240
+    private val sensitive = Regex("\\b(api[ _-]?key|password|passwd|secret|token|bearer|private[ _-]?key)\\b", RegexOption.IGNORE_CASE)
+
+    fun sanitize(raw: String): String? {
+        val value = raw.trim().replace(Regex("\\s+"), " ").take(MAX_FACT_CHARS)
+        if (value.isBlank() || sensitive.containsMatchIn(value)) return null
+        return value
+    }
 }

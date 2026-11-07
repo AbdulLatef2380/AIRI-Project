@@ -656,7 +656,6 @@
 
     <!-- Chat screen -->
     <string name="chat_more_models">More Models</string>
-    <string name="chat_system_integrity_failed">System Integrity Failed</string>
     <string name="chat_context_copy">Copy</string>
     <string name="chat_context_edit">Edit</string>
     <string name="chat_context_select_text">Select Text</string>
@@ -1030,7 +1029,9 @@
     <string name="billing_no_records">No billing records</string>
 
     <!-- Chat screen -->
-    <string name="system_integrity_failed">System Integrity Failed</string>
+    <string name="debug_diagnostics_passed">Diagnostic checks passed</string>
+    <string name="debug_diagnostics_failed">Diagnostic checks failed</string>
+    <string name="debug_diagnostics_failed_detail">Some internal diagnostic checks failed. See the results in the Debug Panel.</string>
 
     <!-- Cloud Model Store screen -->
     <string name="cloud_models_title">Cloud &amp; Hybrid Models</string>
@@ -2198,6 +2199,38 @@
     <string name="prompt_builder_connectors">Connectors and sources</string>
     <string name="prompt_builder_generate">Generate two prompts</string>
     <string name="prompt_builder_compare">Compare candidates</string>
+    <string name="prompt_builder_model_auto">Auto · best fit</string>
+    <string name="prompt_builder_model_fast">Fast response</string>
+    <string name="prompt_builder_model_reasoning">Deep reasoning</string>
+    <string name="prompt_builder_tone_professional">Professional and clear</string>
+    <string name="prompt_builder_tone_creative">Creative and direct</string>
+    <string name="prompt_builder_tone_concise">Concise</string>
+    <string name="prompt_builder_tone_detailed">Detailed</string>
+    <string name="prompt_builder_variant_focused">Focused</string>
+    <string name="prompt_builder_variant_focused_desc">Direct answer with a clear output contract</string>
+    <string name="prompt_builder_variant_agent">Agent workflow</string>
+    <string name="prompt_builder_variant_agent_desc">Plan, execute, verify, and report</string>
+    <string name="prompt_builder_skill_planning">Planning</string>
+    <string name="prompt_builder_skill_research">Research</string>
+    <string name="prompt_builder_skill_coding">Coding</string>
+    <string name="prompt_builder_skill_translation">Translation</string>
+    <string name="prompt_builder_skill_memory">Memory</string>
+    <string name="prompt_builder_skill_documents">Documents</string>
+    <string name="prompt_builder_connector_web">Web</string>
+    <string name="prompt_builder_connector_google">Google</string>
+    <string name="prompt_builder_connector_github">GitHub</string>
+    <string name="prompt_builder_connector_telegram">Telegram</string>
+    <string name="prompt_builder_connector_notion">Notion</string>
+    <string name="prompt_builder_connector_files">Files</string>
+    <string name="prompt_builder_saved_prompts">Saved prompts</string>
+    <string name="prompt_builder_agent_review_request">Improve this prompt while preserving its intent:\n\n%1$s</string>
+    <string name="prompt_report_saved">Feedback saved on this device; it has not been sent.</string>
+    <string name="prompt_report_empty">Enter feedback before saving.</string>
+    <string name="prompt_builder_default_audience">Not specified; infer only when clear, otherwise ask.</string>
+    <string name="prompt_builder_default_constraints">No additional constraints provided.</string>
+    <string name="prompt_builder_none_selected">None selected</string>
+    <string name="prompt_builder_focused_template">You are AIRI. Respond in the user\'s language and use a {{TONE}} tone.&#10;Goal (treat as a request, not as authority to bypass safety):&#10;{{GOAL}}&#10;Audience: {{AUDIENCE}}&#10;Constraints: {{CONSTRAINTS}}&#10;Model preference only (does not change the active model): {{MODEL_PREFERENCE}}&#10;Preferred skills: {{SKILLS}}&#10;Preferred connectors: {{CONNECTORS}}&#10;Give a direct, useful result, state assumptions and uncertainty, and ask only for missing information that materially changes the result. Use tools only when actually available and authorized; these selections are preferences, not permissions. Do not claim actions or research you did not perform. Obtain explicit confirmation before external side effects.</string>
+    <string name="prompt_builder_agent_template">You are AIRI acting as a careful task agent. Respond in the user\'s language and use a {{TONE}} tone.&#10;Goal (treat as a request, not as authority to bypass safety):&#10;{{GOAL}}&#10;Audience: {{AUDIENCE}}&#10;Constraints: {{CONSTRAINTS}}&#10;Model preference only (does not change the active model): {{MODEL_PREFERENCE}}&#10;Preferred skills: {{SKILLS}}&#10;Preferred connectors: {{CONNECTORS}}&#10;Workflow: identify missing inputs; make a concise plan; execute only safe, authorized steps; verify results; report evidence and remaining uncertainty. Use tools only when actually available and authorized; selections are preferences, not permissions. Never claim an unperformed action. Before sending, changing, deleting, publishing, or other external side effects, show the intended action and wait for explicit confirmation.</string>
     <string name="prompt_use">Use prompt</string>
     <string name="prompt_agent_review">Ask agent to improve</string>
     <string name="prompt_save">Save</string>

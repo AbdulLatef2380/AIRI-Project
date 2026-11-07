@@ -17,6 +17,16 @@ object CanonicalIntentClassifier {
         "write a poem", "write me a poem", "write a story", "create a poem",
         "اكتب قصيدة", "اكتب قصة", "قصة قصيرة", "ابتكر", "تخيل",
     )
+    private val creativeGenerationPattern = Regex(
+        """^(?:write|create|compose|invent|draft|generate)\s+(?:me\s+)?(?:a\s+)?(?:[a-z0-9]+(?:-[a-z0-9]+)?\s+){0,4}(?:story|poem|tale|song|lyrics|fiction|narrative|novel)\b"""
+    )
+
+    private val analyticalPrefixes = normalizedList(
+        "explain", "analyze", "analyse", "compare", "describe in detail",
+        "summarize", "evaluate", "assess", "elaborate", "discuss",
+        "step by step", "in detail", "حلل", "قارن", "اشرح", "لخص", "ناقش",
+        "خطوة بخطوة", "الفرق بين", "ايجابيات", "سلبيات", "مميزات", "عيوب",
+    )
 
     /**
      * Imperative verbs. Latin verbs keep a trailing space (word boundary); Arabic verbs are
@@ -48,7 +58,7 @@ object CanonicalIntentClassifier {
             return ChatIntent(ChatIntent.Kind.CONVERSATION, QueryType.SIMPLE, confidence = ChatIntent.Confidence.HIGH,
                 risk = ChatIntent.Risk.NONE, rationale = "exact_greeting")
         }
-        if (creative.any(text::contains)) {
+        if (creative.any(text::contains) || creativeGenerationPattern.containsMatchIn(text)) {
             return ChatIntent(ChatIntent.Kind.CREATIVE, QueryType.CREATIVE, confidence = ChatIntent.Confidence.HIGH,
                 risk = ChatIntent.Risk.NONE, rationale = "creative_pattern")
         }
@@ -95,6 +105,19 @@ object CanonicalIntentClassifier {
                 confidence = if (capability == "user_action") ChatIntent.Confidence.MEDIUM else ChatIntent.Confidence.HIGH,
                 risk = if (deviceAction || terminalExecute || fileWrite || startsAction || connectorWrite) ChatIntent.Risk.SIDE_EFFECT else ChatIntent.Risk.READ,
                 rationale = "capability_or_imperative_detected",
+            )
+        }
+
+        val isAnalyticalRequest = analyticalPrefixes.any { prefix ->
+            text == prefix || text.startsWith("$prefix ")
+        }
+        if (isAnalyticalRequest && !liveRead) {
+            return ChatIntent(
+                kind = ChatIntent.Kind.QUESTION,
+                queryType = QueryType.ANALYTICAL,
+                confidence = ChatIntent.Confidence.HIGH,
+                risk = ChatIntent.Risk.NONE,
+                rationale = "analytical_request_prefix",
             )
         }
 

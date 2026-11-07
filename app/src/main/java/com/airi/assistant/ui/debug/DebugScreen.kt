@@ -41,7 +41,7 @@ private val MONO     = FontFamily.Monospace
 fun DebugScreen(onBack: () -> Unit) {
     val runtime         by RuntimeStore.state.collectAsState()
     val events          by VerificationTracker.events.collectAsState()
-    val systemHealthy   by Diagnostics.systemHealthy.collectAsState()
+    val diagnosticsPassing by Diagnostics.diagnosticsPassing.collectAsState()
     var isRunning       by remember { mutableStateOf(false) }
 
     Column(
@@ -88,7 +88,7 @@ fun DebugScreen(onBack: () -> Unit) {
         }
 
         Surface(
-            color = if (systemHealthy) GREEN.copy(alpha = 0.1f) else RED.copy(alpha = 0.15f),
+            color = if (diagnosticsPassing) GREEN.copy(alpha = 0.1f) else RED.copy(alpha = 0.15f),
             shape = RoundedCornerShape(8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -98,14 +98,17 @@ fun DebugScreen(onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(
-                    if (systemHealthy) Icons.Default.CheckCircle else Icons.Default.Error,
+                    if (diagnosticsPassing) Icons.Default.CheckCircle else Icons.Default.Error,
                     contentDescription = null,
                     tint = AiriTheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
                 Text(
-                    if (systemHealthy) "System Healthy" else "System Integrity Failed",
-                    color = if (systemHealthy) GREEN else RED,
+                    stringResource(
+                        if (diagnosticsPassing) R.string.debug_diagnostics_passed
+                        else R.string.debug_diagnostics_failed
+                    ),
+                    color = if (diagnosticsPassing) GREEN else RED,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )

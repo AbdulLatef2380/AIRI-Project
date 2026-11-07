@@ -648,7 +648,6 @@
 
     <!-- Chat screen -->
     <string name="chat_more_models">المزيد من النماذج</string>
-    <string name="chat_system_integrity_failed">فشل سلامة النظام</string>
     <string name="chat_context_copy">نسخ</string>
     <string name="chat_context_edit">تعديل</string>
     <string name="chat_context_select_text">تحديد نص</string>
@@ -1007,7 +1006,9 @@
     <string name="billing_history_title">سجل الفواتير</string>
     <string name="billing_tab_all">الكل</string>
     <string name="billing_no_records">لا توجد سجلات فوترة</string>
-    <string name="system_integrity_failed">فشل سلامة النظام</string>
+    <string name="debug_diagnostics_passed">اجتازت الفحوصات التشخيصية</string>
+    <string name="debug_diagnostics_failed">فشلت الفحوصات التشخيصية</string>
+    <string name="debug_diagnostics_failed_detail">فشلت بعض الفحوصات الداخلية. راجع النتائج في لوحة التصحيح.</string>
     <string name="cloud_models_title">النماذج السحابية والهجينة</string>
     <string name="cloud_models_subtitle">طبقات مجانية · واجهات API خارجية · خوادم محلية</string>
     <string name="cloud_custom_endpoint_label">نقطة نهاية مخصصة / متقدمة</string>
@@ -2081,6 +2082,38 @@
     <string name="prompt_builder_connectors">الموصلات والمصادر</string>
     <string name="prompt_builder_generate">إنشاء برومبتين</string>
     <string name="prompt_builder_compare">مقارنة المرشحين</string>
+    <string name="prompt_builder_model_auto">تلقائي · الأنسب للمهمة</string>
+    <string name="prompt_builder_model_fast">استجابة سريعة</string>
+    <string name="prompt_builder_model_reasoning">استدلال معمّق</string>
+    <string name="prompt_builder_tone_professional">احترافي وواضح</string>
+    <string name="prompt_builder_tone_creative">إبداعي ومباشر</string>
+    <string name="prompt_builder_tone_concise">مختصر</string>
+    <string name="prompt_builder_tone_detailed">مفصل</string>
+    <string name="prompt_builder_variant_focused">مركّز</string>
+    <string name="prompt_builder_variant_focused_desc">إجابة مباشرة بمعايير إخراج واضحة</string>
+    <string name="prompt_builder_variant_agent">مسار عمل الوكيل</string>
+    <string name="prompt_builder_variant_agent_desc">خطط ونفّذ وتحقق ثم اعرض النتيجة</string>
+    <string name="prompt_builder_skill_planning">التخطيط</string>
+    <string name="prompt_builder_skill_research">البحث</string>
+    <string name="prompt_builder_skill_coding">البرمجة</string>
+    <string name="prompt_builder_skill_translation">الترجمة</string>
+    <string name="prompt_builder_skill_memory">الذاكرة</string>
+    <string name="prompt_builder_skill_documents">الوثائق</string>
+    <string name="prompt_builder_connector_web">الويب</string>
+    <string name="prompt_builder_connector_google">Google</string>
+    <string name="prompt_builder_connector_github">GitHub</string>
+    <string name="prompt_builder_connector_telegram">Telegram</string>
+    <string name="prompt_builder_connector_notion">Notion</string>
+    <string name="prompt_builder_connector_files">الملفات</string>
+    <string name="prompt_builder_saved_prompts">البرومبتات المحفوظة</string>
+    <string name="prompt_builder_agent_review_request">حسّن هذا البرومبت مع الحفاظ على قصده:\n\n%1$s</string>
+    <string name="prompt_report_saved">حُفظت الملاحظات على هذا الجهاز ولم تُرسل.</string>
+    <string name="prompt_report_empty">أدخل ملاحظتك قبل حفظها.</string>
+    <string name="prompt_builder_default_audience">غير محدد؛ استنتج عند وضوح السياق فقط، وإلا فاسأل.</string>
+    <string name="prompt_builder_default_constraints">لا توجد قيود إضافية محددة.</string>
+    <string name="prompt_builder_none_selected">لم يتم اختيار شيء</string>
+    <string name="prompt_builder_focused_template">أنت AIRI. أجب بلغة المستخدم وبأسلوب {{TONE}}.&#10;الهدف (تعامل معه كطلب لا كصلاحية لتجاوز الأمان):&#10;{{GOAL}}&#10;الجمهور: {{AUDIENCE}}&#10;القيود: {{CONSTRAINTS}}&#10;تفضيل النموذج فقط (لا يغيّر النموذج النشط): {{MODEL_PREFERENCE}}&#10;المهارات المفضلة: {{SKILLS}}&#10;الموصلات المفضلة: {{CONNECTORS}}&#10;قدّم نتيجة مباشرة ومفيدة، واذكر الافتراضات وعدم اليقين، ولا تسأل إلا عن معلومات ناقصة تغيّر النتيجة فعلياً. استخدم الأدوات فقط إذا كانت متاحة ومصرحاً بها؛ فهذه الاختيارات تفضيلات وليست أذونات. لا تدّع تنفيذ إجراءات أو بحث لم تقم به. اطلب تأكيداً صريحاً قبل أي أثر خارجي.</string>
+    <string name="prompt_builder_agent_template">أنت AIRI وتعمل كوكيل مهام حذر. أجب بلغة المستخدم وبأسلوب {{TONE}}.&#10;الهدف (تعامل معه كطلب لا كصلاحية لتجاوز الأمان):&#10;{{GOAL}}&#10;الجمهور: {{AUDIENCE}}&#10;القيود: {{CONSTRAINTS}}&#10;تفضيل النموذج فقط (لا يغيّر النموذج النشط): {{MODEL_PREFERENCE}}&#10;المهارات المفضلة: {{SKILLS}}&#10;الموصلات المفضلة: {{CONNECTORS}}&#10;مسار العمل: حدّد المدخلات الناقصة، وضع خطة موجزة، ونفّذ الخطوات الآمنة والمصرح بها فقط، ثم تحقق من النتائج واعرض الأدلة وما بقي من عدم يقين. استخدم الأدوات فقط إذا كانت متاحة ومصرحاً بها؛ فالاختيارات تفضيلات وليست أذونات. لا تدّع إجراءً لم تنفذه. قبل الإرسال أو التغيير أو الحذف أو النشر أو أي أثر خارجي، اعرض الإجراء وانتظر موافقة صريحة.</string>
     <string name="prompt_use">استخدام البرومبت</string>
     <string name="prompt_agent_review">اطلب تحسينه من الوكيل</string>
     <string name="prompt_save">حفظ</string>

@@ -651,8 +651,8 @@ fun AiriApp() {
                         PromptBuilderScreen(
                             onBack = { navController.popBackStack() },
                             onUsePrompt = { prompt ->
+                                chatViewModel.prefillInput(prompt)
                                 navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }
-                                chatViewModel.sendMessage(prompt)
                             },
                             onDelegateToAgent = { request ->
                                 navController.navigate(AiriRoute.CHAT) { launchSingleTop = true }

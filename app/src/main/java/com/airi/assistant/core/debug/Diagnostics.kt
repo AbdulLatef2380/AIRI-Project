@@ -10,8 +10,8 @@ object Diagnostics {
 
     private const val TAG = "AIRI"
 
-    private val _systemHealthy = MutableStateFlow(true)
-    val systemHealthy: StateFlow<Boolean> = _systemHealthy
+    private val _diagnosticsPassing = MutableStateFlow(true)
+    val diagnosticsPassing: StateFlow<Boolean> = _diagnosticsPassing
 
     fun runDiagnostics(): DiagnosticsRunner.DiagnosticsReport {
         val report = DiagnosticsRunner.runDiagnostics()
@@ -21,9 +21,9 @@ object Diagnostics {
                 "case=${result.name} ${if (result.passed) "PASS" else "FAIL"} detail=${result.detail}"
             )
         }
-        val healthy = report.allPassed
-        _systemHealthy.value = healthy
-        Log.d(TAG, "SYSTEM_HEALTH healthy=$healthy")
+        val passing = report.allPassed
+        _diagnosticsPassing.value = passing
+        Log.d(TAG, "DIAGNOSTICS_STATUS passing=$passing")
         return report
     }
 }

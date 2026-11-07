@@ -80,6 +80,26 @@ class CanonicalIntentClassifierTest {
     }
 
     @Test
+    fun explainPrefixIsAnalyticalRatherThanUnknown() {
+        val intent = CanonicalIntentClassifier.classify("Explain TCP handshake")
+        assertEquals(ChatIntent.Kind.QUESTION, intent.kind)
+        assertEquals(QueryType.ANALYTICAL, intent.queryType)
+        assertEquals(QueryType.ANALYTICAL, com.airi.assistant.ai.QueryClassifier.classifyQuery("Explain TCP handshake"))
+        assertFalse(intent.isExecutableCandidate)
+    }
+
+    @Test
+    fun creativeRequestAllowsDescriptiveWordsBeforeStoryType() {
+        listOf("write a sci-fi story", "write me a dark fantasy story").forEach { input ->
+            val intent = CanonicalIntentClassifier.classify(input)
+            assertEquals(input, ChatIntent.Kind.CREATIVE, intent.kind)
+            assertEquals(input, QueryType.CREATIVE, intent.queryType)
+            assertEquals(input, QueryType.CREATIVE, com.airi.assistant.ai.QueryClassifier.classifyQuery(input))
+            assertFalse(input, intent.isExecutableCandidate)
+        }
+    }
+
+    @Test
     fun lowConfidenceInputRequestsClarification() {
         val intent = CanonicalIntentClassifier.classify("something unusual please")
         assertEquals(ChatIntent.Kind.CLARIFICATION, intent.kind)

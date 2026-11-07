@@ -41,7 +41,6 @@ fun DebugPanelScreen(
     onBack: () -> Unit
 ) {
     val debugState        by viewModel.debugState.collectAsState()
-    val integrityFailed   by viewModel.systemIntegrityFailed.collectAsState()
     var diagReport        by remember { mutableStateOf<DiagnosticsRunner.DiagnosticsReport?>(null) }
     var isRunning         by remember { mutableStateOf(false) }
 
@@ -69,7 +68,7 @@ fun DebugPanelScreen(
             Text(stringResource(R.string.debug_panel_title), color = CosmicAccent, fontWeight = FontWeight.Bold, fontSize = 20.sp)
         }
 
-        if (integrityFailed) {
+        if (diagReport?.allPassed == false) {
             Surface(
                 color = FailRed.copy(alpha = 0.15f),
                 shape = AIRIShapes.xs,
@@ -82,7 +81,7 @@ fun DebugPanelScreen(
                     Icon(Icons.Default.Error, contentDescription = null, tint = AiriTheme.onSurfaceVariant)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "System Integrity Failed",
+                        stringResource(R.string.debug_diagnostics_failed_detail),
                         color = FailRed,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp

@@ -232,7 +232,6 @@ fun ChatScreen(
     val snackbarHost  = remember { SnackbarHostState() }
     val paywallTrigger        by viewModel.paywallTrigger.collectAsState()
     val upgradePrompt         by viewModel.upgradePrompt.collectAsState()
-    val systemIntegrityFailed by viewModel.systemIntegrityFailed.collectAsState()
     val contextResetWarning   by viewModel.contextResetWarning.collectAsState()
     val isSummarizing         by viewModel.isSummarizing.collectAsState()
     val pendingSummary        by viewModel.pendingSummary.collectAsState()
@@ -1271,27 +1270,10 @@ fun ChatScreen(
                     com.airi.assistant.ui.debug.DebugOverlay()
                 }
             }
-            if (systemIntegrityFailed) {
-                Box(modifier = Modifier.align(Alignment.TopCenter)) {
-                Surface(color = Color(0xFFFF4444), modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(stringResource(R.string.system_integrity_failed), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        TextButton(onClick = { viewModel.clearSystemIntegrityFailed() }) {
-                            Text(stringResource(R.string.dismiss), color = AiriTheme.onBackground, fontSize = 12.sp)
-                        }
-                    }
-                }
-            }
-            }
-
             // : Offline mode banner — shown when device has no internet.
-            // Informs user that cloud models are unavailable and local model is active.
+            // Informs the user that cloud models are unavailable and local model is active.
             if (!isOnline) {
-                Box(modifier = Modifier.align(Alignment.TopCenter).padding(top = if (systemIntegrityFailed) 48.dp else 0.dp)) {
+                Box(modifier = Modifier.align(Alignment.TopCenter)) {
                 Surface(
                     color    = Color(0xFF1A1A2E),
                     modifier = Modifier.fillMaxWidth()
@@ -1326,12 +1308,7 @@ fun ChatScreen(
                 viewModel.isDebugModeEnabled(),
             ) &&
                 contextResetWarning != null
-            val topOffset = when {
-                systemIntegrityFailed && !isOnline -> 96.dp
-                systemIntegrityFailed              -> 48.dp
-                !isOnline                          -> 48.dp
-                else                               -> 0.dp
-            }
+            val topOffset = if (!isOnline) 48.dp else 0.dp
             if (showContextResetBanner) {
                 Box(modifier = Modifier.align(Alignment.TopCenter).padding(top = topOffset)) {
                 Surface(

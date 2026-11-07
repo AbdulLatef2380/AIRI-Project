@@ -1154,11 +1154,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _debugState = MutableStateFlow(DebugState())
     val debugState: StateFlow<DebugState> = _debugState.asStateFlow()
 
-    private val _systemIntegrityFailed = MutableStateFlow(false)
-    val systemIntegrityFailed: StateFlow<Boolean> = _systemIntegrityFailed.asStateFlow()
-
-    fun clearSystemIntegrityFailed() { _systemIntegrityFailed.value = false }
-
     fun updateVoiceState(stateName: String) {
         com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", stateName)
         com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = stateName) }
@@ -1167,10 +1162,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun runDiagnostics() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
-            val report = com.airi.assistant.core.debug.Diagnostics.runDiagnostics()
-            if (!report.allPassed) {
-                _systemIntegrityFailed.value = true
-            }
+            com.airi.assistant.core.debug.Diagnostics.runDiagnostics()
         }
     }
 

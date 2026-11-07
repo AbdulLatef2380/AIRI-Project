@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 class SandboxManager(private val context: Context) {
     private val TAG = "SandboxManager"
+    private companion object { const val MAX_SESSIONS = 5 }
     private val sessions = ConcurrentHashMap<String, SandboxSession>()
     private val _activeSessions = MutableStateFlow<List<SandboxSession>>(emptyList())
     val activeSessions: StateFlow<List<SandboxSession>> = _activeSessions.asStateFlow()
@@ -25,7 +26,12 @@ class SandboxManager(private val context: Context) {
     init { startReaper() }
 
     fun createSession(label: String): SandboxSession? {
-        if (sessions.size >= 5) evictOldest()
+        // Never evict an existing session implicitly: it may own a running
+        // process or uncommitted user work. Callers must close one explicitly.
+        if (sessions.size >= MAX_SESSIONS) {
+            Log.w(TAG, "Session allocation denied: maximum active sessions reached")
+            return null
+        }
         val id = SandboxSession.newId()
         val dir = File(context.filesDir, "sandbox/$id").also { it.mkdirs() }
         if (!dir.exists()) { Log.e(TAG, "Failed to create dir for $id"); return null }
@@ -56,7 +62,6 @@ class SandboxManager(private val context: Context) {
 
     fun closeAll() { sessions.keys.toList().forEach { closeSession(it) }; File(context.filesDir, "sandbox").deleteRecursively() }
 
-    private fun evictOldest() { sessions.values.minByOrNull { it.createdAtMs }?.let { closeSession(it.sessionId) } }
     private fun startReaper() {
         scope.launch { while (true) { delay(300_000L)
             sessions.values.filter { System.currentTimeMillis() - it.createdAtMs > 1_800_000L }

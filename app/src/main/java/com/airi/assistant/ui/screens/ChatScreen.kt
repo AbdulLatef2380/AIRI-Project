@@ -4274,6 +4274,7 @@ fun AiriChatInputBar(
                     "spreadsheet" -> stringResource(R.string.attach_spreadsheet)
                     "plan" -> stringResource(R.string.attach_plan)
                     "scheduled" -> stringResource(R.string.attach_scheduled_tasks)
+                    "tasks" -> stringResource(R.string.attach_recent_tasks)
                     "prompt" -> stringResource(R.string.prompt_builder_shortcut)
                     "skills" -> stringResource(R.string.attach_skills)
                     "image" -> stringResource(R.string.attach_image)
@@ -4310,6 +4311,7 @@ fun AiriChatInputBar(
                                     "spreadsheet" -> Icons.Outlined.Storage
                                     "plan" -> Icons.Outlined.Assignment
                                     "scheduled" -> Icons.Outlined.History
+                                    "tasks" -> Icons.Outlined.EventNote
                                     "prompt" -> Icons.Outlined.EditNote
                                     "skills" -> Icons.Outlined.StarBorder
                                     "image" -> Icons.Outlined.Image
@@ -4858,18 +4860,18 @@ fun AiriChatInputBar(
                         label = if (imageInputEnabled) stringResource(R.string.attach_image) else stringResource(R.string.attachment_capability_unavailable),
                         enabled = imageInputEnabled,
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; activeAttachmentMode = "image"; onPickImage() }
+                    ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_image_prompt, "image"); onPickImage() }
                     AttachCard(
                         icon = Icons.Outlined.CameraAlt,
                         label = stringResource(R.string.attach_camera),
                         enabled = imageInputEnabled,
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; activeAttachmentMode = "camera"; onTakePhoto() }
+                    ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_camera_prompt, "camera"); onTakePhoto() }
                     AttachCard(
                         icon = Icons.Outlined.Videocam,
                         label = stringResource(R.string.attach_video),
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; activeAttachmentMode = "video"; onPickVideo() }
+                    ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_video_prompt, "video"); onPickVideo() }
                 }
                 Spacer(Modifier.height(10.dp))
                 Row(
@@ -4882,12 +4884,12 @@ fun AiriChatInputBar(
                         icon = Icons.Outlined.Description,
                         label = stringResource(R.string.attach_text),
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; activeAttachmentMode = "text"; onPickText() }
+                    ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_text_prompt, "text"); onPickText() }
                     AttachCard(
                         icon = Icons.Outlined.AttachFile,
                         label = stringResource(R.string.attach_files),
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; activeAttachmentMode = "file"; onPickFile() }
+                    ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_file_prompt, "file"); onPickFile() }
                     Spacer(modifier = Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(12.dp))

@@ -2044,6 +2044,11 @@
     <string name="chat_composer_action_mode_active">وضع AIRI مفعّل — سيُنفّذ الطلب عبر مسار الوكيل</string>
     <string name="chat_composer_action_mode_clear">إلغاء وضع الإجراء</string>
     <string name="chat_composer_project_none">لا يوجد مشروع</string>
+    <string name="attach_image_prompt">【وضع تحليل صورة】 حلّل الصورة المرفقة بدقة، صف ما يظهر فيها، واستخرج التفاصيل المهمة ثم أجب عن طلبي:</string>
+    <string name="attach_camera_prompt">【وضع صورة من الكاميرا】 حلّل الصورة التي التقطتها، واذكر العناصر المهمة وأي ملاحظات أو نصوص ظاهرة فيها، ثم نفّذ طلبي:</string>
+    <string name="attach_video_prompt">【وضع تحليل فيديو】 افحص الفيديو المرفق، واستخرج الأحداث أو المشاهد المهمة زمنيًا، ثم أجب عن طلبي مع توضيح حدود التحليل:</string>
+    <string name="attach_text_prompt">【وضع تحليل نص】 اقرأ النص المرفق كاملًا، واستخرج بنيته ومحتواه، ثم نفّذ طلب المستخدم دون إسقاط أجزاء منه:</string>
+    <string name="attach_file_prompt">【وضع تحليل ملف】 افحص الملف المرفق باستخدام مسار AIRI المناسب، واستخرج محتواه أو بياناته ثم نفّذ طلبي مع ذكر ما تمّت معالجته:</string>
     <string name="archive_chat">أرشفة</string>
     <string name="history_no_messages">لا توجد رسائل بعد</string>
     <string name="task_info_title">معلومات المهمة</string>

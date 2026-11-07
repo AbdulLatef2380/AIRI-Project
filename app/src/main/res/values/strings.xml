@@ -2161,6 +2161,11 @@
     <string name="chat_composer_action_mode_active">AIRI mode active — this request will use the agent path</string>
     <string name="chat_composer_action_mode_clear">Clear action mode</string>
     <string name="chat_composer_project_none">No project</string>
+    <string name="attach_image_prompt">[Image analysis mode] Analyze the attached image carefully, describe what it contains, extract important details, and answer my request:</string>
+    <string name="attach_camera_prompt">[Camera image mode] Analyze the captured image, identify important elements and visible text, then carry out my request:</string>
+    <string name="attach_video_prompt">[Video analysis mode] Inspect the attached video, extract important events or scenes with timing, then answer my request while stating analysis limits:</string>
+    <string name="attach_text_prompt">[Text analysis mode] Read the attached text in full, extract its structure and content, then carry out the user's request without dropping sections:</string>
+    <string name="attach_file_prompt">[File analysis mode] Inspect the attached file using the appropriate AIRI path, extract its content or data, then carry out my request and state what was processed:</string>
     <string name="archive_chat">Archive</string>
     <string name="history_no_messages">No messages yet</string>
     <string name="task_info_title">Task information</string>

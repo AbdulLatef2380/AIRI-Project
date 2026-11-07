@@ -2317,10 +2317,7 @@ fun ChatMessageList(
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
                 )
-                // Deliberately empty action area: the welcome state contains
-                // only the greeting/tagline. Actions remain available through
-                // the composer and navigation, not as central starter cards.
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(28.dp))
             }
         }
     } else {
@@ -3894,6 +3891,7 @@ fun AiriChatInputBar(
     var text by rememberSaveable { mutableStateOf(draftText) }
     var isSkillPickerOpen by rememberSaveable { mutableStateOf(false) }
     var skillRemovalStage by rememberSaveable { mutableStateOf(0) }
+    var activeAttachmentMode by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(draftText) {
         if (text != draftText) {
             text = draftText
@@ -3919,6 +3917,13 @@ fun AiriChatInputBar(
         isSkillPickerOpen || showingSkillShortcuts -> skillSuggestions
         showingKnowledgeShortcuts -> knowledgeSuggestions
         else -> emptyList()
+    }
+
+    fun applyAttachmentPrompt(promptRes: Int, mode: String? = null) {
+        val merged = AttachmentActionPromptPolicy.merge(text, context.getString(promptRes))
+        text = merged
+        if (mode != null) activeAttachmentMode = mode
+        onDraftTextChanged(merged)
     }
 
     // Large prompt conversion is handled on send by the ViewModel. Never create a
@@ -3953,6 +3958,7 @@ fun AiriChatInputBar(
     // focus and the platform keyboard brings the input state back naturally.
     val finishAcceptedSend: () -> Unit = {
         text = ""
+        activeAttachmentMode = ""
         onDraftTextChanged("")
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
@@ -4257,6 +4263,129 @@ fun AiriChatInputBar(
                             onRemove   = { onRemoveAttachment(attachment.uid) },
                             onPreview  = { previewAttachment = attachment },
                         )
+                    }
+                }
+            }
+            if (activeAttachmentMode.isNotBlank()) {
+                val modeTitle = when (activeAttachmentMode) {
+                    "website" -> stringResource(R.string.attach_website)
+                    "slides" -> stringResource(R.string.attach_slides)
+                    "app" -> stringResource(R.string.attach_app)
+                    "spreadsheet" -> stringResource(R.string.attach_spreadsheet)
+                    "plan" -> stringResource(R.string.attach_plan)
+                    "scheduled" -> stringResource(R.string.attach_scheduled_tasks)
+                    "prompt" -> stringResource(R.string.prompt_builder_shortcut)
+                    "skills" -> stringResource(R.string.attach_skills)
+                    "image" -> stringResource(R.string.attach_image)
+                    "camera" -> stringResource(R.string.attach_camera)
+                    "video" -> stringResource(R.string.attach_video)
+                    "text" -> stringResource(R.string.attach_text)
+                    "file" -> stringResource(R.string.attach_files)
+                    "edit_image" -> stringResource(R.string.attach_edit_image)
+                    "voice" -> stringResource(R.string.attach_conversation_mode)
+                    else -> stringResource(R.string.attach_files)
+                }
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    shape = AIRIShapes.md,
+                    color = CosmicAccent.copy(alpha = 0.10f),
+                    border = BorderStroke(1.dp, CosmicAccent.copy(alpha = 0.35f)),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(
+                                imageVector = when (activeAttachmentMode) {
+                                    "website" -> Icons.Outlined.Language
+                                    "slides" -> Icons.Outlined.Slideshow
+                                    "app" -> Icons.Outlined.PhoneAndroid
+                                    "spreadsheet" -> Icons.Outlined.Storage
+                                    "plan" -> Icons.Outlined.Assignment
+                                    "scheduled" -> Icons.Outlined.History
+                                    "prompt" -> Icons.Outlined.EditNote
+                                    "skills" -> Icons.Outlined.StarBorder
+                                    "image" -> Icons.Outlined.Image
+                                    "camera" -> Icons.Outlined.CameraAlt
+                                    "video" -> Icons.Outlined.Videocam
+                                    "text" -> Icons.Outlined.Description
+                                    "file" -> Icons.Outlined.AttachFile
+                                    "edit_image" -> Icons.Outlined.Edit
+                                    "voice" -> Icons.Outlined.Mic
+                                    else -> Icons.Outlined.AutoAwesome
+                                },
+                                contentDescription = null,
+                                tint = CosmicAccent,
+                                modifier = Modifier.size(19.dp),
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = modeTitle,
+                                    color = AiriTheme.onSurface,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    text = stringResource(R.string.chat_composer_action_mode_active),
+                                    color = AiriTheme.onSurfaceVariant,
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            IconButton(
+                                onClick = { activeAttachmentMode = "" },
+                                modifier = Modifier.size(30.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Close,
+                                    contentDescription = stringResource(R.string.chat_composer_action_mode_clear),
+                                    tint = AiriTheme.onSurfaceVariant,
+                                    modifier = Modifier.size(17.dp),
+                                )
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Surface(
+                                onClick = { onNavigate(AiriRoute.WORKSPACE) },
+                                shape = AIRIShapes.pill,
+                                color = AiriTheme.surfaceVariant.copy(alpha = 0.85f),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                ) {
+                                    Icon(Icons.Outlined.FolderOpen, contentDescription = null, modifier = Modifier.size(14.dp), tint = AiriTheme.onSurfaceVariant)
+                                    Text(stringResource(R.string.chat_composer_project_none), color = AiriTheme.onSurfaceVariant, fontSize = 10.sp)
+                                    Icon(Icons.Outlined.ExpandMore, contentDescription = null, modifier = Modifier.size(14.dp), tint = AiriTheme.onSurfaceVariant)
+                                }
+                            }
+                            Surface(
+                                onClick = onOpenModels,
+                                shape = AIRIShapes.pill,
+                                color = AiriTheme.surfaceVariant.copy(alpha = 0.85f),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                ) {
+                                    Icon(Icons.Outlined.CloudQueue, contentDescription = null, modifier = Modifier.size(14.dp), tint = AiriTheme.onSurfaceVariant)
+                                    Text(modelState.activeModelLabel, color = AiriTheme.onSurfaceVariant, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -4729,18 +4858,18 @@ fun AiriChatInputBar(
                         label = if (imageInputEnabled) stringResource(R.string.attach_image) else stringResource(R.string.attachment_capability_unavailable),
                         enabled = imageInputEnabled,
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; onPickImage() }
+                    ) { showAttachPopup = false; activeAttachmentMode = "image"; onPickImage() }
                     AttachCard(
                         icon = Icons.Outlined.CameraAlt,
                         label = stringResource(R.string.attach_camera),
                         enabled = imageInputEnabled,
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; onTakePhoto() }
+                    ) { showAttachPopup = false; activeAttachmentMode = "camera"; onTakePhoto() }
                     AttachCard(
                         icon = Icons.Outlined.Videocam,
                         label = stringResource(R.string.attach_video),
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; onPickVideo() }
+                    ) { showAttachPopup = false; activeAttachmentMode = "video"; onPickVideo() }
                 }
                 Spacer(Modifier.height(10.dp))
                 Row(
@@ -4753,12 +4882,12 @@ fun AiriChatInputBar(
                         icon = Icons.Outlined.Description,
                         label = stringResource(R.string.attach_text),
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; onPickText() }
+                    ) { showAttachPopup = false; activeAttachmentMode = "text"; onPickText() }
                     AttachCard(
                         icon = Icons.Outlined.AttachFile,
                         label = stringResource(R.string.attach_files),
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; onPickFile() }
+                    ) { showAttachPopup = false; activeAttachmentMode = "file"; onPickFile() }
                     Spacer(modifier = Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(12.dp))
@@ -4769,39 +4898,70 @@ fun AiriChatInputBar(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
-                AttachListRow(Icons.Outlined.Description, stringResource(R.string.attach_recent_files)) { showAttachPopup = false; onPickRecentFile() }
-                AttachListRow(Icons.Outlined.EventNote, stringResource(R.string.attach_recent_tasks)) { showAttachPopup = false; onNavigate(AiriRoute.AGENT_TASKS) }
-                AttachListRow(Icons.Outlined.StarBorder, stringResource(R.string.attach_skills)) { showAttachPopup = false; onNavigate(AiriRoute.SKILL_MANAGER) }
-                AttachListRow(Icons.Outlined.EditNote, stringResource(R.string.prompt_builder_shortcut)) { showAttachPopup = false; onNavigate(AiriRoute.PROMPT_BUILDER) }
-                AttachListRow(Icons.Outlined.Assignment, stringResource(R.string.attach_plan)) { showAttachPopup = false; onNavigate(AiriRoute.PLANNING_DASHBOARD) }
-                AttachListRow(Icons.Outlined.Slideshow, stringResource(R.string.attach_slides)) { showAttachPopup = false; onDraftTextChanged(context.getString(R.string.attach_slides) + ": ") }
-                AttachListRow(Icons.Outlined.Language, stringResource(R.string.attach_website)) { showAttachPopup = false; onDraftTextChanged(context.getString(R.string.attach_website) + ": ") }
-                AttachListRow(Icons.Outlined.PhoneAndroid, stringResource(R.string.attach_app)) { showAttachPopup = false; onDraftTextChanged(context.getString(R.string.attach_app) + ": ") }
+                AttachListRow(
+                    Icons.Outlined.Description,
+                    stringResource(R.string.attach_recent_files),
+                    stringResource(R.string.attach_recent_files_desc)
+                ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_recent_files_prompt, "file"); onPickRecentFile() }
+                AttachListRow(
+                    Icons.Outlined.EventNote,
+                    stringResource(R.string.attach_recent_tasks),
+                    stringResource(R.string.attach_recent_tasks_desc)
+                ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_recent_tasks_prompt, "tasks"); onNavigate(AiriRoute.AGENT_TASKS) }
+                AttachListRow(
+                    Icons.Outlined.StarBorder,
+                    stringResource(R.string.attach_skills),
+                    stringResource(R.string.attach_skills_desc)
+                ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_skills_prompt, "skills"); onNavigate(AiriRoute.SKILL_MANAGER) }
+                AttachListRow(
+                    Icons.Outlined.EditNote,
+                    stringResource(R.string.prompt_builder_shortcut),
+                    stringResource(R.string.attach_prompt_builder_desc)
+                ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_prompt_builder_prompt, "prompt"); onNavigate(AiriRoute.PROMPT_BUILDER) }
+                AttachListRow(
+                    Icons.Outlined.Assignment,
+                    stringResource(R.string.attach_plan),
+                    stringResource(R.string.attach_plan_desc)
+                ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_plan_prompt, "plan"); onNavigate(AiriRoute.PLANNING_DASHBOARD) }
+                AttachListRow(
+                    Icons.Outlined.Slideshow,
+                    stringResource(R.string.attach_slides),
+                    stringResource(R.string.attach_slides_desc)
+                ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_slides_prompt, "slides") }
+                AttachListRow(
+                    Icons.Outlined.Language,
+                    stringResource(R.string.attach_website),
+                    stringResource(R.string.attach_website_desc)
+                ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_website_prompt, "website") }
+                AttachListRow(
+                    Icons.Outlined.PhoneAndroid,
+                    stringResource(R.string.attach_app),
+                    stringResource(R.string.attach_app_desc)
+                ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_app_prompt, "app") }
                 AttachListRow(
                     icon = Icons.Outlined.Storage,
-                    label = stringResource(R.string.attach_spreadsheet)
+                    label = stringResource(R.string.attach_spreadsheet),
+                    description = stringResource(R.string.attach_spreadsheet_desc)
                 ) {
                     showAttachPopup = false
-                    onDraftTextChanged(
-                        text + if (text.isBlank()) {
-                            context.getString(R.string.chat_create_spreadsheet_prefix)
-                        } else {
-                            "\n${context.getString(R.string.chat_create_spreadsheet_prefix)}"
-                        }
-                    )
+                    applyAttachmentPrompt(R.string.attach_spreadsheet_prompt, "spreadsheet")
                 }
                 AttachListRow(
                     icon = Icons.Outlined.History,
-                    label = stringResource(R.string.attach_scheduled_tasks)
+                    label = stringResource(R.string.attach_scheduled_tasks),
+                    description = stringResource(R.string.attach_scheduled_tasks_desc)
                 ) {
                     showAttachPopup = false
+                    applyAttachmentPrompt(R.string.attach_scheduled_tasks_prompt, "scheduled")
                     onNavigate(AiriRoute.AGENT_TASKS)
                 }
                 AttachListRow(
                     icon = Icons.Outlined.Mic,
-                    label = stringResource(R.string.attach_conversation_mode)
+                    label = stringResource(R.string.attach_conversation_mode),
+                    description = stringResource(R.string.attach_conversation_mode_desc)
                 ) {
                     showAttachPopup = false
+                    activeAttachmentMode = "voice"
                     onVoiceChatClick()
                 }
                 AttachListRow(
@@ -4809,13 +4969,7 @@ fun AiriChatInputBar(
                     label = stringResource(R.string.attach_edit_image)
                 ) {
                     showAttachPopup = false
-                    onDraftTextChanged(
-                        text + if (text.isBlank()) {
-                            context.getString(R.string.chat_edit_image_prefix)
-                        } else {
-                            "\n${context.getString(R.string.chat_edit_image_prefix)}"
-                        }
-                    )
+                    applyAttachmentPrompt(R.string.chat_edit_image_prefix, "edit_image")
                     onPickImage()
                 }
             }
@@ -4906,6 +5060,7 @@ private fun AttachCard(
 private fun AttachListRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
+    description: String = "",
     onClick: () -> Unit
 ) {
     Row(
@@ -4922,12 +5077,27 @@ private fun AttachListRow(
         ) {
             Icon(icon, contentDescription = label, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
         }
-        Text(
-            text = label,
-            color = AiriTheme.onSurface,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Normal
-        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = label,
+                color = AiriTheme.onSurface,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+            if (description.isNotBlank()) {
+                Text(
+                    text = description,
+                    color = AiriTheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 

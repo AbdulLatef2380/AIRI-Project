@@ -23,7 +23,12 @@ class ExecutionGraphRuntime(
     private val durableTaskManager: DurableTaskManager? = null,
     private val snapshotStore: ExecutionSnapshotStore? = null
 ) {
-    private val mutex = Mutex()
+    /**
+     * Serializes resumes of the same deterministic plan, without blocking
+     * unrelated plans. A single runtime-wide mutex would turn the runtime into
+     * a global queue and defeat the orchestrator's independent parallelism.
+     */
+    private val planLocks = ConcurrentHashMap<String, Mutex>()
     private val activeSnapshots = ConcurrentHashMap<String, ExecutionGraphSnapshot>()
     private val activeJobs = ConcurrentHashMap<String, kotlinx.coroutines.Job>()
     private val tag = "ExecutionGraphRuntime"
@@ -55,8 +60,8 @@ class ExecutionGraphRuntime(
      * event is emitted as the graph advances.
      */
     fun resume(plan: ActionPlan, context: SubAgentContext): Flow<ExecutionGraphEvent> = flow {
-        mutex.withLock {
-            val runtimePlan = buildRuntimePlan(plan)
+        val runtimePlan = buildRuntimePlan(plan)
+        planLock(runtimePlan.planId).withLock {
             snapshotStore?.load(runtimePlan.planId)?.let { restore(it) }
             val runJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
             if (runJob != null) activeJobs[runtimePlan.planId] = runJob
@@ -81,20 +86,25 @@ class ExecutionGraphRuntime(
         plan: ActionPlan,
         context: SubAgentContext,
         emitEvent: suspend (ExecutionGraphEvent) -> Unit
-    ): ExecutionGraphResult = mutex.withLock {
+    ): ExecutionGraphResult {
         val runtimePlan = buildRuntimePlan(plan)
-        snapshotStore?.load(runtimePlan.planId)?.let { restore(it) }
-        val runJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
-        if (runJob != null) activeJobs[runtimePlan.planId] = runJob
-        try {
-            executeGraph(runtimePlan, context, emitEvent)
-        } catch (cancelled: CancellationException) {
-            markCancelled(runtimePlan.planId)
-            throw cancelled
-        } finally {
-            if (runJob != null) activeJobs.remove(runtimePlan.planId, runJob)
+        return planLock(runtimePlan.planId).withLock {
+            snapshotStore?.load(runtimePlan.planId)?.let { restore(it) }
+            val runJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
+            if (runJob != null) activeJobs[runtimePlan.planId] = runJob
+            try {
+                executeGraph(runtimePlan, context, emitEvent)
+            } catch (cancelled: CancellationException) {
+                markCancelled(runtimePlan.planId)
+                throw cancelled
+            } finally {
+                if (runJob != null) activeJobs.remove(runtimePlan.planId, runJob)
+            }
         }
     }
+
+    private fun planLock(planId: String): Mutex =
+        planLocks.computeIfAbsent(planId) { Mutex() }
 
     // ── Core graph execution ────────────────────────────────────────────────
 

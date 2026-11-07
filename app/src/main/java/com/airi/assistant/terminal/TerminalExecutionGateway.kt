@@ -48,26 +48,33 @@ class TerminalExecutionGateway(
         if (!sandboxManager.ownsSession(session)) {
             return Result.Denied("Sandbox session is not owned by the active sandbox manager")
         }
-        val policy = TerminalExecutionPolicy.evaluate(command)
-        if (!policy.allowed) return Result.Disabled(policy.reason, policy.requiresApproval)
+        if (!session.beginUse()) {
+            return Result.Denied("Sandbox session is unavailable")
+        }
+        try {
+            val policy = TerminalExecutionPolicy.evaluate(command)
+            if (!policy.allowed) return Result.Disabled(policy.reason, policy.requiresApproval)
 
-        val decision = runCatching {
-            governance.evaluate(
-                actionType = "terminal_execute",
-                actionDesc = CommandRedactor.redact(command),
-                agentId = agentId,
-                payload = command
-            )
-        }.getOrElse { return Result.Denied("Terminal governance failed closed") }
-        if (!decision.allowed) return Result.Denied(decision.reason)
+            val decision = runCatching {
+                governance.evaluate(
+                    actionType = "terminal_execute",
+                    actionDesc = CommandRedactor.redact(command),
+                    agentId = agentId,
+                    payload = command
+                )
+            }.getOrElse { return Result.Denied("Terminal governance failed closed") }
+            if (!decision.allowed) return Result.Denied(decision.reason)
 
-        return Result.Completed(
-            SandboxExecutor(session).execute(
-                SandboxExecutor.SandboxTask(
-                    type = SandboxExecutor.TaskType.SHELL_COMMAND,
-                    command = command
+            return Result.Completed(
+                SandboxExecutor(session).execute(
+                    SandboxExecutor.SandboxTask(
+                        type = SandboxExecutor.TaskType.SHELL_COMMAND,
+                        command = command
+                    )
                 )
             )
-        )
+        } finally {
+            session.endUse()
+        }
     }
 }

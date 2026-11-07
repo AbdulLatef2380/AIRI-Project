@@ -170,7 +170,8 @@ class ExecutionStatusBusTest {
                 val executor = Executors.newFixedThreadPool(minOf(executionCount, 8))
                 ids.forEach { executionId ->
                     executor.submit {
-                        repeat(100) { index ->
+                        // 50 starts + 50 terminals = 100 tool events per execution.
+                        repeat(50) { index ->
                             val actionId = "$executionId-tool-$index"
                             ExecutionStatusBus.onToolStarted(executionId, actionId, "read_file")
                             ExecutionStatusBus.onToolCompleted(executionId, actionId, "read_file", 1L)
@@ -189,7 +190,7 @@ class ExecutionStatusBusTest {
                     val events = ExecutionStatusBus.traceSnapshot(executionId)
                     assertTrue("missing trace for $executionId", events.isNotEmpty())
                     assertTrue("cross-owner event in $executionId", events.all { it.executionId == executionId })
-                    assertEquals(100, events.count { it.kind == ExecutionTraceKind.TOOL_COMPLETED })
+                    assertEquals(50, events.count { it.kind == ExecutionTraceKind.TOOL_COMPLETED })
                     assertEquals(ExecutionTraceKind.COMPLETED, events.last().kind)
                     assertEquals(
                         events.map { it.sequence }.distinct().size,

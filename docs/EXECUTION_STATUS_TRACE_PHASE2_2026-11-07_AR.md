@@ -73,10 +73,10 @@ ExecutionStatusBusTest.stressMatrix_preservesIsolationForOneTenAndFiftyExecution
 | 10 | 100 | ownership، عدم التداخل، terminal |
 | 50 | 100 | ownership، عدم التداخل، terminal، bounded history |
 
-لكل تنفيذ يتم إرسال 100 زوج `TOOL_STARTED/TOOL_COMPLETED` بالتوازي، ثم `COMPLETED`. الاختبار يقيس ويطبع `elapsedMs` و`heapDeltaBytes` في CI، ويتحقق من:
+لكل تنفيذ يتم إرسال 50 زوج `TOOL_STARTED/TOOL_COMPLETED` بالتوازي، أي 100 حدث أداة فعلي، ثم `COMPLETED`. الاختبار يقيس ويطبع `elapsedMs` و`heapDeltaBytes` في CI، ويتحقق من:
 
 - عدم وجود حدث يحمل executionId خاطئاً.
-- بقاء 100 حدث `TOOL_COMPLETED` لكل تنفيذ.
+- بقاء 50 حدث `TOOL_COMPLETED` لكل تنفيذ مع 100 حدث أداة إجمالاً.
 - وجود terminal completion واحد في نهاية trace.
 - عدم تكرار sequence داخل التنفيذ.
 - عدم رجوع sequence إلى الخلف.

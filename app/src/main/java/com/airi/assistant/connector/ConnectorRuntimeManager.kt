@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicLong
 class ConnectorRuntimeManager(
     private val registry: ConnectorRegistry,
     private val accessProfiles: ConnectorAccessProfileStore = InMemoryConnectorAccessProfileStore(),
+    private val diagnosticsStore: ConnectorDiagnosticsStore = ConnectorDiagnosticsStore(),
 ) {
     private val TAG = "ConnectorRuntimeManager"
 
@@ -35,6 +36,8 @@ class ConnectorRuntimeManager(
     val inflightActions: StateFlow<List<InflightAction>> = _inflightActions.asStateFlow()
     private val _operationStates = MutableStateFlow<Map<Long, ConnectorOperationState>>(emptyMap())
     val operationStates: StateFlow<Map<Long, ConnectorOperationState>> = _operationStates.asStateFlow()
+    /** Bounded, redacted request diagnostics for connector health surfaces. */
+    val diagnostics: StateFlow<Map<String, ConnectorDiagnosticSnapshot>> = diagnosticsStore.snapshots
     suspend fun execute(connectorId: String, input: ConnectorInput, maxRetries: Int = 2, timeoutMs: Long = 20_000L): ConnectorOutput =
         executeInternal(connectorId, input, maxRetries, timeoutMs, approvedContinuation = false)
 
@@ -100,6 +103,7 @@ class ConnectorRuntimeManager(
         }
         val operationId = invocationSequence.incrementAndGet()
         val key = "${connectorId}::${input.action}#$operationId"
+        val requestStartedMs = System.currentTimeMillis()
         trackStart(key, InflightAction(connectorId, input.action))
         setOperationState(operationId, ConnectorOperationState.Running(operationId, connectorId, input.action))
         AgentActivityBus.emit(
@@ -143,6 +147,7 @@ class ConnectorRuntimeManager(
                 }
                 executeWithRetry(connector, input, retryBudget)
             }.also { output ->
+                diagnosticsStore.record(connectorId, output, System.currentTimeMillis() - requestStartedMs)
                 setOperationState(operationId, when (output) {
                     is ConnectorOutput.Success, is ConnectorOutput.Streaming -> ConnectorOperationState.Success(operationId)
                     is ConnectorOutput.ApprovalRequired -> ConnectorOperationState.AwaitingApproval(operationId, output.approvalId)
@@ -159,7 +164,9 @@ class ConnectorRuntimeManager(
             // A timeout has an unknown outcome. Retrying blindly can duplicate a
             // mutation, so callers must opt into a contract-specific retry.
             setOperationState(operationId, ConnectorOperationState.TimedOut(operationId, timeoutMs))
-            ConnectorOutput.Failure("timeout", "Timed out after ${timeoutMs}ms; outcome is unknown", retryable = false)
+            ConnectorOutput.Failure("timeout", "Timed out after ${timeoutMs}ms; outcome is unknown", retryable = false).also {
+                diagnosticsStore.record(connectorId, it, System.currentTimeMillis() - requestStartedMs)
+            }
         } catch (e: CancellationException) {
             // Cancellation is a control-flow signal, never a retryable connector
             // failure. Re-throw it so ViewModel/agent cancellation reaches the
@@ -173,7 +180,9 @@ class ConnectorRuntimeManager(
             LoggingService.error(TAG, "Connector execution failed connector=$connectorId action=${input.action}", e)
             val safeMessage = "Connector execution failed before a confirmed result was received"
             setOperationState(operationId, ConnectorOperationState.Failed(operationId, "runtime_error", safeMessage, false))
-            ConnectorOutput.Failure("runtime_error", safeMessage)
+            ConnectorOutput.Failure("runtime_error", safeMessage).also {
+                diagnosticsStore.record(connectorId, it, System.currentTimeMillis() - requestStartedMs)
+            }
         } finally { trackEnd(key) }
     }
 
@@ -282,7 +291,8 @@ class ConnectorRuntimeManager(
                     return last
                 }
                 last is ConnectorOutput.Failure && last.retryable && attempt < maxRetries -> {
-                    val backoffMs = 500L * (attempt + 1)
+                    val providerBackoffMs = last.retryAfterMs?.coerceIn(0L, MAX_RETRY_AFTER_MS)
+                    val backoffMs = providerBackoffMs ?: (500L * (attempt + 1))
                     AgentActivityBus.emit("Retrying '${connector.id}' (${attempt + 2}/${maxRetries + 1})", ActivityCategory.CONNECTOR, ActivitySeverity.WARN)
                     delay(backoffMs)
                 }
@@ -310,6 +320,7 @@ class ConnectorRuntimeManager(
 
     private companion object {
         const val MAX_RETRIES = 3
+        const val MAX_RETRY_AFTER_MS = 60_000L
         const val MAX_OPERATION_HISTORY = 100
         const val MAX_ERROR_CHARS = 240
     }

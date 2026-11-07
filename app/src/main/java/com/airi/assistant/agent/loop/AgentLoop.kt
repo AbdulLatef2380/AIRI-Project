@@ -4,7 +4,6 @@ import android.content.Context
 import com.airi.assistant.domain.logging.LoggingService
 import com.airi.assistant.ai.agent.SelfHealingExecutor
 import com.airi.assistant.agent.calendar.CalendarCreateRuntime
-import com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy
 import com.airi.assistant.agent.loop.tool.ToolDispatcher
 import com.airi.assistant.agent.loop.tool.ToolSchema
 import com.airi.assistant.agent.loop.tool.ToolSpecAdapter
@@ -206,19 +205,13 @@ the tool returns an actual error.
             providerId = providerId,
             toolsRequested = tools.isNotEmpty(),
         )
-        val permissionFilteredTools = permissionProfile.filterTools(tools).filter { schema ->
-            val typedContextAvailable = when (schema.name) {
-                "calendar_create" -> executionContextFactory != null && calendarCreateRuntime != null
-                "terminal_execute", "write_file" -> executionContextFactory != null
-                else -> false
-            }
-            val sideEffectAllowed = com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy
-                .decide(schema, typedContextAvailable) !=
-                com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED
-            val terminalEnabled = schema.name != "terminal_execute" ||
-                com.airi.assistant.domain.terminal.TerminalExecutionPolicy.evaluate("echo").allowed
-            sideEffectAllowed && terminalEnabled
-        }
+        val permissionFilteredTools = AgentLoopToolAdmission.filter(
+            tools = permissionProfile.filterTools(tools),
+            hasExecutionContext = executionContextFactory != null,
+            hasCalendarRuntime = calendarCreateRuntime != null,
+            terminalEnabled = com.airi.assistant.domain.terminal.TerminalExecutionPolicy
+                .evaluate("echo").allowed,
+        )
         val toolPromptBudget = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
             .toolCharsCapFor(providerId, contextBudgetProvider().availableForContent)
         val toolSelection = com.airi.assistant.agent.loop.tool.ToolSchemaPromptBudget.select(

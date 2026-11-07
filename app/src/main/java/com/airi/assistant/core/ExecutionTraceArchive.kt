@@ -4,6 +4,7 @@ import com.airi.assistant.domain.logging.LoggingService
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.concurrent.Executors
@@ -98,27 +99,26 @@ object ExecutionTraceArchive {
 
     private fun ensureLoaded(target: File): Boolean {
         if (loaded) return true
-        return runCatching {
-            if (!target.exists() || target.length() == 0L) {
-                entries.clear()
-                loaded = true
-                return@runCatching true
-            }
-            val array = JSONArray(target.readText())
-            val loadedEntries = LinkedHashMap<Long, List<ExecutionTraceEvent>>()
-            for (i in 0 until array.length()) {
-                val item = array.getJSONObject(i)
-                val events = item.getJSONArray("events")
-                loadedEntries[item.getLong("messageId")] = (0 until events.length()).map {
-                    eventFromJson(events.getJSONObject(it))
-                }
-            }
+        val candidates = listOf(target, backupFile(target), tempFile(target))
+        for ((index, candidate) in candidates.withIndex()) {
+            val parsed = readEntries(candidate) ?: continue
             entries.clear()
-            entries.putAll(loadedEntries)
+            entries.putAll(parsed.entries.takeLast(maxMessages.coerceAtLeast(1)))
             loaded = true
-            true
-        }.onFailure { LoggingService.error("AIRI_TRACE", "Execution trace archive read failed", it) }
-            .getOrDefault(false)
+            if (index != 0) {
+                LoggingService.warn("AIRI_TRACE", "Recovered execution trace archive from ${candidate.name}")
+                restoreRecoveredFile(candidate, target)
+            }
+            return true
+        }
+        // A corrupt archive must not poison every subsequent read forever. Keep
+        // the in-memory view empty and wait for the next successful write.
+        entries.clear()
+        loaded = true
+        if (target.exists() && target.length() > 0L) {
+            LoggingService.error("AIRI_TRACE", "Execution trace archive was invalid; ignored without publishing partial entries")
+        }
+        return true
     }
 
     private fun write(snapshot: Map<Long, List<ExecutionTraceEvent>>, generation: Long) {
@@ -135,8 +135,13 @@ object ExecutionTraceArchive {
                 })
             }
             target.parentFile?.mkdirs()
-            val tmp = File(target.parentFile, target.name + ".tmp")
-            tmp.writeText(array.toString())
+            val tmp = tempFile(target)
+            val backup = backupFile(target)
+            tmp.writeText(array.toString(), StandardCharsets.UTF_8)
+            check(readEntries(tmp) != null) { "archive snapshot validation failed" }
+            if (target.exists() && target.length() > 0L) {
+                Files.copy(target.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
             try {
                 Files.move(
                     tmp.toPath(),
@@ -148,22 +153,41 @@ object ExecutionTraceArchive {
                 runCatching {
                     Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
                 }.onFailure {
-                    // Some Android/JVM filesystems reject both atomic moves
-                    // and rename-over-existing. Preserve the snapshot by
-                    // falling back to a direct replacement before reporting
-                    // a genuine write failure.
-                    runCatching { target.writeText(array.toString()) }
-                        .onFailure { fallbackFailure ->
-                            tmp.delete()
-                            throw fallbackFailure
-                        }
-                    tmp.delete()
+                    throw it
                 }
             }
+            tmp.delete()
         }.onFailure { error ->
             LoggingService.error("AIRI_TRACE", "Execution trace archive write failed", error)
+            tempFile(target).delete()
         }
     }
+
+    private fun readEntries(candidate: File): LinkedHashMap<Long, List<ExecutionTraceEvent>>? {
+        if (!candidate.exists() || candidate.length() == 0L) return LinkedHashMap()
+        return runCatching {
+            val array = JSONArray(candidate.readText(StandardCharsets.UTF_8))
+            LinkedHashMap<Long, List<ExecutionTraceEvent>>().also { loadedEntries ->
+                for (i in 0 until array.length()) {
+                    val item = array.getJSONObject(i)
+                    val events = item.getJSONArray("events")
+                    loadedEntries[item.getLong("messageId")] = (0 until events.length()).map {
+                        eventFromJson(events.getJSONObject(it))
+                    }
+                }
+            }
+        }.getOrNull()
+    }
+
+    private fun restoreRecoveredFile(source: File, target: File) {
+        runCatching {
+            target.parentFile?.mkdirs()
+            Files.copy(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }.onFailure { LoggingService.error("AIRI_TRACE", "Recovered archive could not be restored", it) }
+    }
+
+    private fun tempFile(target: File): File = File(target.parentFile, target.name + ".tmp")
+    private fun backupFile(target: File): File = File(target.parentFile, target.name + ".bak")
 
     internal fun eventToJson(event: ExecutionTraceEvent): JSONObject = JSONObject().apply {
         put("executionId", event.executionId)

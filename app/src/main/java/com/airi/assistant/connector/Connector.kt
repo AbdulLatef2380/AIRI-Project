@@ -287,6 +287,8 @@ sealed class ConnectorOutput {
         val message: String,
         /** Whether the agent should retry this same connector or fall back. */
         val retryable: Boolean = false,
+        /** Provider-advised delay, when available (for example HTTP Retry-After). */
+        val retryAfterMs: Long? = null,
     ) : ConnectorOutput()
 
     /** A durable side effect was stopped before invocation and needs a decision. */

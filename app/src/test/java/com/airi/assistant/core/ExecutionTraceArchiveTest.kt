@@ -70,6 +70,34 @@ class ExecutionTraceArchiveTest {
     }
 
     @Test
+    fun corruptPrimary_recoversValidatedBackupWithoutPublishingPartialData() {
+        val file = File.createTempFile("execution_trace_archive_backup", ".json").apply { deleteOnExit() }
+        val backup = File(file.parentFile, file.name + ".bak").apply { deleteOnExit() }
+        val event = ExecutionTraceEvent("exec-backup", 1, 10L, ExecutionTraceKind.COMPLETED, "backup")
+        backup.writeText("[{\"messageId\":7,\"events\":[${ExecutionTraceArchive.eventToJson(event)}] }]")
+        file.writeText("[{\"messageId\":7")
+
+        ExecutionTraceArchive.attach(file)
+
+        assertEquals(mapOf(7L to listOf(event)), ExecutionTraceArchive.getAll(listOf(7L)))
+        assertTrue("recovered primary archive should be valid", file.readText().startsWith("["))
+    }
+
+    @Test
+    fun validArchive_isPreferredOverStaleTemporaryFile() {
+        val file = File.createTempFile("execution_trace_archive_temp", ".json").apply { deleteOnExit() }
+        val temp = File(file.parentFile, file.name + ".tmp").apply { deleteOnExit() }
+        val primary = ExecutionTraceEvent("exec-primary", 1, 1L, ExecutionTraceKind.COMPLETED, "primary")
+        val stale = ExecutionTraceEvent("exec-stale", 1, 2L, ExecutionTraceKind.COMPLETED, "stale")
+        file.writeText("[{\"messageId\":1,\"events\":[${ExecutionTraceArchive.eventToJson(primary)}]}]")
+        temp.writeText("[{\"messageId\":2,\"events\":[${ExecutionTraceArchive.eventToJson(stale)}]}]")
+
+        ExecutionTraceArchive.attach(file)
+
+        assertEquals(mapOf(1L to listOf(primary)), ExecutionTraceArchive.getAll(listOf(1L, 2L)))
+    }
+
+    @Test
     fun deleteMessageAndSession_removeOnlyOwnedTraces() {
         val file = File.createTempFile("execution_trace_archive_delete", ".json").apply { deleteOnExit() }
         val first = ExecutionTraceEvent("exec-1", 1, 1L, ExecutionTraceKind.COMPLETED, "one", sessionId = "session-a")

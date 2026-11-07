@@ -2,12 +2,15 @@ package com.airi.assistant.agent.sandbox
 
 import android.util.Log
 import com.airi.assistant.security.CommandRedactor
+import com.airi.assistant.domain.terminal.TerminalExecutionPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import java.io.ByteArrayOutputStream
+import java.util.concurrent.TimeUnit
 
 /**
  * SandboxExecutor — capability-restricted, argv-exec sandbox runner.
@@ -57,8 +60,9 @@ class SandboxExecutor(private val session: SandboxSession) {
     }
 
     suspend fun execute(task: SandboxTask): ExecutionResult = withContext(Dispatchers.IO) {
+        if (task.timeoutMs <= 0L) return@withContext ExecutionResult.SecurityViolation("Timeout must be positive")
         session.appendLog(SandboxLogEntry(message = "EXEC ${task.type} → ${CommandRedactor.redact(task.command).take(80)}"))
-        val result = withTimeoutOrNull(task.timeoutMs) {
+        val result = withTimeoutOrNull(task.timeoutMs.coerceAtMost(MAX_TIMEOUT_MS)) {
             when (task.type) {
                 TaskType.FILE_WRITE    -> executeFileWrite(task)
                 TaskType.FILE_READ     -> executeFileRead(task)
@@ -130,6 +134,8 @@ class SandboxExecutor(private val session: SandboxSession) {
      *   7. Cap output, force-kill process tree on timeout.
      */
     private suspend fun executeShell(task: SandboxTask): ExecutionResult {
+        val policy = TerminalExecutionPolicy.evaluate(task.command)
+        if (!policy.allowed) return ExecutionResult.SecurityViolation(policy.reason)
         val argv = tokenize(task.command)
         if (argv.isEmpty()) {
             return ExecutionResult.SecurityViolation("Empty command")
@@ -176,40 +182,44 @@ class SandboxExecutor(private val session: SandboxSession) {
             }
 
             val proc = pb.start()
+            // Terminal is deliberately non-interactive. Closing stdin prevents
+            // commands such as `cat` from waiting forever for a user input.
+            runCatching { proc.outputStream.close() }
             // runInterruptible is essential here: a subprocess may keep stdout
             // open without producing data. A coroutine timeout alone cannot
             // unblock a JVM InputStream.read(), so it could otherwise leave an
             // IO worker and child process alive past the task deadline.
             return runInterruptible(Dispatchers.IO) {
-                val output = StringBuilder()
+                val output = ByteArrayOutputStream()
                 // P0-4: Guarantee process cleanup on any exit path including coroutine cancellation.
                 try {
-                    proc.inputStream.bufferedReader().use { reader ->
-                        val buf = CharArray(4096)
+                    proc.inputStream.use { input ->
+                        val buf = ByteArray(4096)
                         while (true) {
-                            val n = reader.read(buf)
+                            val n = input.read(buf)
                             if (n < 0) break
-                            if (output.toString().toByteArray(Charsets.UTF_8).size + n > OUTPUT_LIMIT_BYTES) {
-                                val remaining = (OUTPUT_LIMIT_BYTES - output.toString().toByteArray(Charsets.UTF_8).size).coerceAtLeast(0)
-                                output.append(buf, 0, remaining.coerceAtMost(n))
-                                output.append("\n[output truncated at $OUTPUT_LIMIT_BYTES bytes]")
+                            val remaining = OUTPUT_LIMIT_BYTES - output.size()
+                            if (n > remaining) {
+                                if (remaining > 0) output.write(buf, 0, remaining)
+                                output.write("\n[output truncated at $OUTPUT_LIMIT_BYTES bytes]".toByteArray(Charsets.UTF_8))
                                 runCatching { proc.destroyForcibly() }
                                 break
                             }
-                            output.append(buf, 0, n)
+                            output.write(buf, 0, n)
                         }
                     }
                     // P0-4: Use timed waitFor to prevent ANR when subprocess hangs.
                     // runInterruptible above also makes cancellation interrupt a
                     // blocked read before this wait is reached.
                     @Suppress("BlockingMethodInNonBlockingContext")
-                    val finished = proc.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
+                    val finished = proc.waitFor(1, TimeUnit.SECONDS)
                     if (finished) {
                         val exit = proc.exitValue()
-                        if (exit == 0) ExecutionResult.Success(output.toString(), exit)
-                        else ExecutionResult.Failure(output.toString(), exit, retryable = false)
+                        val text = output.toByteArray().toString(Charsets.UTF_8)
+                        if (exit == 0) ExecutionResult.Success(text, exit)
+                        else ExecutionResult.Failure(text, exit, retryable = false)
                     } else {
-                        ExecutionResult.Failure("Process timed out after 5 s", retryable = false)
+                        ExecutionResult.Failure("Process exceeded the bounded wait deadline", retryable = false)
                     }
                 } finally {
                     // Runs on normal exit, exception, AND coroutine cancellation.
@@ -297,5 +307,6 @@ class SandboxExecutor(private val session: SandboxSession) {
         private const val SAFE_PATH = "/system/bin:/system/xbin"
         private const val OUTPUT_LIMIT_BYTES = 256 * 1024  // 256 KiB
         private const val MAX_FILE_BYTES = 256 * 1024
+        private const val MAX_TIMEOUT_MS = 120_000L
     }
 }

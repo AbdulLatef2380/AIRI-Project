@@ -60,7 +60,10 @@ class TerminalExecutionGateway(
                     actionType = "terminal_execute",
                     actionDesc = CommandRedactor.redact(command),
                     agentId = agentId,
-                    payload = command
+                    // Governance receives only the redacted representation;
+                    // the raw command remains inside the bounded executor and
+                    // is never copied into audit/policy payloads.
+                    payload = CommandRedactor.redact(command)
                 )
             }.getOrElse { return Result.Denied("Terminal governance failed closed") }
             if (!decision.allowed) return Result.Denied(decision.reason)

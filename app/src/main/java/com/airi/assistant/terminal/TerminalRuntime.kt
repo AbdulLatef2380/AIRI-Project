@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 import java.util.LinkedList
 import java.util.UUID
@@ -144,9 +145,22 @@ class TerminalRuntime(
 
         // Built-in commands
         when (command.lowercase()) {
-            "clear"  -> { _lines.value = emptyList(); commandInFlight.set(false); return }
-            "help"   -> { appendHelp(); commandInFlight.set(false); return }
-            "exit"   -> { activeSession?.let { executionGateway.closeSession(it.sandboxId) }; activeSession = null; commandInFlight.set(false); return }
+            "clear"  -> {
+                _lines.value = emptyList()
+                finishLocalCommand(executionJob)
+                return
+            }
+            "help"   -> {
+                appendHelp()
+                finishLocalCommand(executionJob)
+                return
+            }
+            "exit"   -> {
+                activeSession?.let { executionGateway.closeSession(it.sandboxId) }
+                activeSession = null
+                finishLocalCommand(executionJob)
+                return
+            }
         }
 
         // Governance check
@@ -218,6 +232,17 @@ class TerminalRuntime(
         return true
     }
 
+    /** Releases the runtime-owned job and sandbox session when its UI/service owner dies. */
+    fun shutdown() {
+        activeExecutionJob?.cancel(CancellationException("Terminal runtime shut down"))
+        activeExecutionJob = null
+        activeSession?.let { executionGateway.closeSession(it.sandboxId) }
+        activeSession = null
+        commandInFlight.set(false)
+        _isRunning.value = false
+        scope.cancel()
+    }
+
     // ── History navigation ────────────────────────────────────────────────────
 
     fun historyUp(): String? {
@@ -255,6 +280,12 @@ class TerminalRuntime(
             "available in the sandbox for security reasons."
         )
         help.forEach { appendLine(TerminalLine(text = it)) }
+    }
+
+    private fun finishLocalCommand(executionJob: Job?) {
+        if (activeExecutionJob === executionJob) activeExecutionJob = null
+        _isRunning.value = false
+        commandInFlight.set(false)
     }
 
     private fun stripAnsi(input: String): String =

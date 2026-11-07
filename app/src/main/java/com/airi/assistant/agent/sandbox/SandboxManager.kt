@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -24,7 +25,10 @@ class SandboxManager(private val context: Context) {
     val activeSessions: StateFlow<List<SandboxSession>> = _activeSessions.asStateFlow()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    init { startReaper() }
+    init {
+        cleanupOrphanedWorkspaces()
+        startReaper()
+    }
 
     fun createSession(label: String): SandboxSession? {
         // Never evict an existing session implicitly: it may own a running
@@ -79,6 +83,22 @@ class SandboxManager(private val context: Context) {
     fun closeAll() {
         sessions.keys.toList().forEach { closeSession(it) }
         if (sessions.isEmpty()) File(context.filesDir, "sandbox").deleteRecursively()
+    }
+
+    /** Stops the reaper and releases idle sessions when the owning service dies. */
+    fun shutdown() {
+        scope.cancel()
+        closeAll()
+    }
+
+    private fun cleanupOrphanedWorkspaces() {
+        val root = File(context.filesDir, "sandbox")
+        root.listFiles()
+            ?.filter { it.isDirectory }
+            ?.forEach { orphan ->
+                runCatching { orphan.deleteRecursively() }
+                    .onFailure { Log.w(TAG, "Could not remove orphan sandbox ${orphan.name}", it) }
+            }
     }
 
     private fun startReaper() {

@@ -103,7 +103,9 @@ object ExecutionTraceArchive {
         for ((index, candidate) in candidates.withIndex()) {
             val parsed = readEntries(candidate) ?: continue
             entries.clear()
-            entries.putAll(parsed.entries.takeLast(maxMessages.coerceAtLeast(1)))
+            parsed.toList().takeLast(maxMessages.coerceAtLeast(1)).forEach { (messageId, events) ->
+                entries[messageId] = events
+            }
             loaded = true
             if (index != 0) {
                 LoggingService.warn("AIRI_TRACE", "Recovered execution trace archive from ${candidate.name}")

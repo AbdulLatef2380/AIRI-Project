@@ -128,4 +128,20 @@ class SandboxExecutorSecurityTest {
             root.deleteRecursively()
         }
     }
+
+    @Test
+    fun activeSessionCannotBeReleasedUntilExecutionEnds() {
+        val root = Files.createTempDirectory("airi-sandbox-").toFile()
+        val session = SandboxSession("test", "test", root)
+        try {
+            assertTrue(session.beginUse())
+            session.release()
+            assertTrue(root.exists())
+            session.endUse()
+            session.release()
+            assertTrue(!root.exists())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
 }

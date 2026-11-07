@@ -66,17 +66,12 @@ object WorkspaceRegistry {
     }
 
     /**
-     * Evict workspaces with no snapshots taken in the last [maxAgeMs] milliseconds.
-     *
-     * Uses the latest snapshot timestamp as a proxy for last-activity time.
-     * Workspaces with no snapshots (never received a wave checkpoint) are
-     * evicted if they've been registered for longer than [maxAgeMs].
+     * Evict workspaces with no activity in the last [maxAgeMs] milliseconds.
      */
     fun pruneStale(maxAgeMs: Long = 30 * 60 * 1_000L) {
         val cutoff = System.currentTimeMillis() - maxAgeMs
         val stale  = active.entries.filter { (_, ws) ->
-            val lastSnap = ws.listSnapshots().maxOfOrNull { it.createdAtMs } ?: 0L
-            lastSnap < cutoff
+            ws.lastActivityMs < cutoff
         }.map { it.key }
         stale.forEach { id ->
             active.remove(id)

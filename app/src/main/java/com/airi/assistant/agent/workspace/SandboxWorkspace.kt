@@ -66,15 +66,18 @@ sealed class WorkspaceResult {
 class SandboxWorkspace(val goalId: String) {
 
     private val files     = ConcurrentHashMap<String, String>()
+    private val fileLock  = Any()
     private val actionLog = mutableListOf<ActionLogEntry>()
     private val snapshots = ArrayDeque<SandboxSnapshot>(MAX_SNAPSHOTS)
+    @Volatile var lastActivityMs: Long = System.currentTimeMillis()
+        private set
 
     // ── File system ───────────────────────────────────────────────────────────
 
     /** Write (create or overwrite) a virtual file at [path]. */
     fun writeFile(path: String, content: String, actor: String = "agent"): WorkspaceResult {
         val normalised = normalisePath(path)
-        files[normalised] = content
+        synchronized(fileLock) { files[normalised] = content }
         log(ActionCategory.FILE_OP, actor, "write", mapOf("path" to normalised, "bytes" to content.length.toString()), "ok")
         Log.d(TAG, "WORKSPACE_WRITE goal=$goalId path=$normalised bytes=${content.length}")
         return WorkspaceResult.Ok(content)
@@ -83,9 +86,10 @@ class SandboxWorkspace(val goalId: String) {
     /** Append [content] to an existing file, creating it if absent. */
     fun appendFile(path: String, content: String, actor: String = "agent"): WorkspaceResult {
         val normalised = normalisePath(path)
-        val existing   = files[normalised] ?: ""
-        val merged     = existing + content
-        files[normalised] = merged
+        val merged = synchronized(fileLock) {
+            val existing = files[normalised] ?: ""
+            (existing + content).also { files[normalised] = it }
+        }
         log(ActionCategory.FILE_OP, actor, "append", mapOf("path" to normalised, "addedBytes" to content.length.toString()), "ok")
         return WorkspaceResult.Ok(merged)
     }
@@ -93,22 +97,24 @@ class SandboxWorkspace(val goalId: String) {
     /** Read a virtual file. Returns [WorkspaceResult.NotFound] if absent. */
     fun readFile(path: String): WorkspaceResult {
         val normalised = normalisePath(path)
-        return files[normalised]?.let { WorkspaceResult.Ok(it) } ?: WorkspaceResult.NotFound
+        return synchronized(fileLock) {
+            files[normalised]?.let { WorkspaceResult.Ok(it) } ?: WorkspaceResult.NotFound
+        }
     }
 
     /** Delete a file. Returns true if it existed. */
     fun deleteFile(path: String, actor: String = "agent"): Boolean {
         val normalised = normalisePath(path)
-        val existed    = files.remove(normalised) != null
+        val existed = synchronized(fileLock) { files.remove(normalised) != null }
         log(ActionCategory.FILE_OP, actor, "delete", mapOf("path" to normalised, "existed" to existed.toString()), if (existed) "ok" else "not_found")
         return existed
     }
 
     /** List all paths currently held in the workspace. */
-    fun listFiles(): List<String> = files.keys.sorted()
+    fun listFiles(): List<String> = synchronized(fileLock) { files.keys.sorted() }
 
     /** True if a file exists at [path]. */
-    fun exists(path: String): Boolean = files.containsKey(normalisePath(path))
+    fun exists(path: String): Boolean = synchronized(fileLock) { files.containsKey(normalisePath(path)) }
 
     // ── Action log ────────────────────────────────────────────────────────────
 
@@ -138,6 +144,7 @@ class SandboxWorkspace(val goalId: String) {
             actionLog.add(entry)
             if (actionLog.size > MAX_ACTION_LOG) actionLog.removeAt(0)
         }
+        lastActivityMs = entry.timestampMs
         return entry
     }
 
@@ -156,7 +163,10 @@ class SandboxWorkspace(val goalId: String) {
      * from corrupting the ArrayDeque (which is not thread-safe).
      */
     fun snapshot(): SandboxSnapshot {
-        val snap = SandboxSnapshot(files = files.toMap(), logSize = actionLog.size)
+        val snap = SandboxSnapshot(
+            files = synchronized(fileLock) { files.toMap() },
+            logSize = synchronized(actionLog) { actionLog.size },
+        )
         synchronized(snapshots) {
             if (snapshots.size >= MAX_SNAPSHOTS) snapshots.removeFirst()
             snapshots.addLast(snap)
@@ -179,10 +189,11 @@ class SandboxWorkspace(val goalId: String) {
             snapshots.lastOrNull { it.id == snapId } ?: snapshots.lastOrNull()
         } ?: return false
 
-        // Write-first, prune-second — no empty window visible to concurrent readers.
-        files.putAll(snap.files)
-        val snapKeys = snap.files.keys
-        files.keys.retainAll(snapKeys)
+        synchronized(fileLock) {
+            files.putAll(snap.files)
+            val snapKeys = snap.files.keys
+            files.keys.retainAll(snapKeys)
+        }
 
         log(ActionCategory.DECISION, "workspace", "rollback", mapOf("snapId" to snap.id), "restored")
         Log.w(TAG, "AIRI WORKSPACE_ROLLBACK goal=$goalId snapId=${snap.id} files=${snap.files.size}")
@@ -220,4 +231,3 @@ data class WorkspaceSummary(
     val snapshotCount: Int,
     val fileList:      List<String>
 )
-

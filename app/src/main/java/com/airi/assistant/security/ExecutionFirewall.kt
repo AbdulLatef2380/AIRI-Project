@@ -66,7 +66,11 @@ class ExecutionFirewall(
                     tokens.set(BUCKET_CAPACITY)
                 }
             }
-            return tokens.decrementAndGet() >= 0
+            while (true) {
+                val available = tokens.get()
+                if (available <= 0) return false
+                if (tokens.compareAndSet(available, available - 1)) return true
+            }
         }
     }
 

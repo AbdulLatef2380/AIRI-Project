@@ -45,6 +45,10 @@ class SandboxManager(private val context: Context) {
 
     fun getSession(id: String): SandboxSession? = sessions[id]
 
+    /** A gateway session must be the live object allocated by this manager. */
+    fun ownsSession(session: SandboxSession): Boolean =
+        sessions[session.sessionId] === session && session.isAlive
+
     fun closeSession(id: String) {
         sessions.remove(id)?.release(); publishSessions()
         AgentActivityBus.emit("Sandbox session closed: $id", ActivityCategory.SANDBOX)

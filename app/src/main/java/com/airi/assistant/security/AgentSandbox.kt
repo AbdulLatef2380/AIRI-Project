@@ -102,6 +102,12 @@ class AgentSandbox(
             workspace.logError(agentId, "UNKNOWN_TOOL: ${e.message}")
             workspace.rollback(snap.id)
             throw SandboxViolationException("Unknown tool called by agent=$agentId", e)
+        } catch (e: ExecutionFirewall.RateLimitException) {
+            LoggingService.warn(TAG, "AIRI SANDBOX_RATE_LIMITED agent=$agentId msg=${e.message}")
+            telemetry.report(AgentTelemetryEvent.AgentFailed(agentId, "RATE_LIMITED"))
+            workspace.logError(agentId, "RATE_LIMITED")
+            workspace.rollback(snap.id)
+            throw SandboxViolationException("Agent rate limit exceeded for agent=$agentId", e)
         }
     }
 

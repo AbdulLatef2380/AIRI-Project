@@ -45,6 +45,9 @@ class TerminalExecutionGateway(
         command: String,
         agentId: String = "terminal"
     ): Result {
+        if (!sandboxManager.ownsSession(session)) {
+            return Result.Denied("Sandbox session is not owned by the active sandbox manager")
+        }
         val policy = TerminalExecutionPolicy.evaluate(command)
         if (!policy.allowed) return Result.Disabled(policy.reason, policy.requiresApproval)
 

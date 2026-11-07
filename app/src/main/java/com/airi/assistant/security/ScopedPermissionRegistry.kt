@@ -27,6 +27,9 @@ class ScopedPermissionRegistry {
 
     private val grants = ConcurrentHashMap<String, MutableSet<AgentPermission>>()
 
+    private fun grantSet(agentId: String): MutableSet<AgentPermission> =
+        grants.computeIfAbsent(agentId) { ConcurrentHashMap.newKeySet() }
+
     enum class AgentPermission {
         // Data access
         READ_CALENDAR,
@@ -108,7 +111,7 @@ class ScopedPermissionRegistry {
      * Grant one or more permissions to an agent.
      */
     fun grant(agentId: String, vararg permissions: AgentPermission) {
-        val set = grants.getOrPut(agentId) { mutableSetOf() }
+        val set = grantSet(agentId)
         permissions.forEach { p ->
             set.add(p)
             LoggingService.info(TAG, "AIRI PERMISSION_GRANTED agent=$agentId permission=$p")

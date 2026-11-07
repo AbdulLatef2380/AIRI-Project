@@ -2541,6 +2541,25 @@ Java_com_airi_assistant_ai_LlamaNative_evalImageAndGenerate(
         PROOF("MMPROJ_EVAL_FAILED reason=not_ready");
         return env->NewStringUTF("");
     }
+    // Keep the JNI boundary defensive even when callers bypass VisionImage.
+    // Validate before multiplication/GetByteArrayElements so malformed input
+    // cannot overflow the RGB byte count or trigger an oversized allocation.
+    constexpr int64_t MAX_RGB_BYTES = 4LL * 1024LL * 1024LL;
+    constexpr int MAX_IMAGE_SIDE = 4096;
+    constexpr int MAX_NEW_TOKENS = 4096;
+    if (jRgb == nullptr || width <= 0 || height <= 0 ||
+        width > MAX_IMAGE_SIDE || height > MAX_IMAGE_SIDE ||
+        maxNewTokens <= 0 || maxNewTokens > MAX_NEW_TOKENS) {
+        PROOF("MMPROJ_EVAL_FAILED reason=invalid_input w=%d h=%d max_new=%d",
+              width, height, maxNewTokens);
+        return env->NewStringUTF("");
+    }
+    const int64_t requiredBytes = 3LL * (int64_t)width * (int64_t)height;
+    if (requiredBytes <= 0 || requiredBytes > MAX_RGB_BYTES) {
+        PROOF("MMPROJ_EVAL_FAILED reason=rgb_bytes bytes=%lld cap=%lld w=%d h=%d",
+              (long long)requiredBytes, (long long)MAX_RGB_BYTES, width, height);
+        return env->NewStringUTF("");
+    }
     // ---- Compose prompt with the model-specific image marker -----------------
     const char* cPrompt = env->GetStringUTFChars(jPrompt, nullptr);
     std::string prompt(cPrompt ? cPrompt : "");
@@ -2551,7 +2570,7 @@ Java_com_airi_assistant_ai_LlamaNative_evalImageAndGenerate(
     }
 
     // ---- Wrap RGB888 buffer in an mtmd_bitmap -------------------------------
-    const jsize need = (jsize)(3 * width * height);
+    const jsize need = (jsize)requiredBytes;
     const jsize have = env->GetArrayLength(jRgb);
     if (have < need) {
         PROOF("MMPROJ_EVAL_FAILED reason=bitmap_size have=%d need=%d", have, need);

@@ -2,6 +2,7 @@ package com.airi.assistant.ai.skills
 
 import android.content.Context
 import android.util.Log
+import com.airi.assistant.connector.ConnectorRegistry
 import com.airi.assistant.core.ServiceLocator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -275,7 +276,7 @@ private object CompatibilityValidator {
     fun validate(
         context:    android.content.Context,
         descriptor: AiriSkillOrchestrator.SkillDescriptor,
-        connectorRegistry: Any?
+        connectorRegistry: ConnectorRegistry?
     ): Boolean {
         // Check Android permissions
         for (perm in descriptor.permissions) {
@@ -286,7 +287,22 @@ private object CompatibilityValidator {
                 return false
             }
         }
-        // Connector check deferred to runtime (connectors may self-heal)
+
+        // Selection must not advertise an integration that cannot be routed.
+        // Invocation still re-checks readiness and authorization at the final
+        // dispatcher boundary because state can change after this snapshot.
+        if (descriptor.connectorIds.isNotEmpty()) {
+            val registry = connectorRegistry ?: return false
+            val allReady = descriptor.connectorIds.all { connectorId ->
+                val connector = registry.get(connectorId) ?: return false
+                val state = registry.getConnectionState(connectorId) ?: return false
+                connector.agentActions().isNotEmpty() && state.connected && state.healthy
+            }
+            if (!allReady) {
+                Log.d("AIRI_COMPAT", "Skill ${descriptor.skillId} rejected: connector not ready")
+                return false
+            }
+        }
         return true
     }
 }

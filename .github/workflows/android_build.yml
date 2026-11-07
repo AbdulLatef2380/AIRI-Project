@@ -94,6 +94,22 @@ jobs:
     - name: Run unit tests and Android lint
       run: ./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace
 
+    - name: Collect unit test and lint evidence
+      if: always()
+      run: |
+        mkdir -p ci-unit
+        cp -R app/build/test-results ci-unit/test-results 2>/dev/null || true
+        cp -R app/build/reports/tests ci-unit/tests-report 2>/dev/null || true
+        cp -R app/build/reports/lint-results-debug.html ci-unit/lint-results-debug.html 2>/dev/null || true
+
+    - name: Upload unit test and lint evidence
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: AIRI-Unit-Lint-Evidence
+        path: ci-unit/
+        if-no-files-found: warn
+
     - name: Compile release sources
       run: ./gradlew :app:compileReleaseKotlin --stacktrace
 

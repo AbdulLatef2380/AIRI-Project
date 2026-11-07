@@ -80,6 +80,16 @@ class CanonicalIntentClassifierTest {
     }
 
     @Test
+    fun arabicCodeGenerationIsCreativeContentNotUnclassifiedAction() {
+        val intent = CanonicalIntentClassifier.classify("اصنع كود بلغة python لآلة حاسبة كاملة")
+        assertEquals(ChatIntent.Kind.CREATIVE, intent.kind)
+        assertEquals(QueryType.CREATIVE, intent.queryType)
+        assertEquals("code_generation_request", intent.rationale)
+        assertEquals(ChatIntent.Risk.NONE, intent.risk)
+        assertFalse(intent.isExecutableCandidate)
+    }
+
+    @Test
     fun explainPrefixIsAnalyticalRatherThanUnknown() {
         val intent = CanonicalIntentClassifier.classify("Explain TCP handshake")
         assertEquals(ChatIntent.Kind.QUESTION, intent.kind)

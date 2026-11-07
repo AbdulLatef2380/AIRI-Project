@@ -247,7 +247,17 @@ internal object UnifiedExecutionTraceProjector {
             .groupBy { ActionGroupKey(it.actionId!!, it.kind.actionFamily()) }
             .forEach { (key, actionEntries) ->
                 val first = actionEntries.first()
-                val terminal = actionEntries.lastOrNull { it.kind in key.family.terminalKinds }
+                val approvalWaiting = actionEntries.lastOrNull { it.kind == ExecutionTraceKind.WAITING_FOR_APPROVAL }
+                val approvalOutcome = actionEntries.lastOrNull {
+                    it.kind == ExecutionTraceKind.APPROVAL_CANCELLED || it.kind == ExecutionTraceKind.APPROVAL_TIMEOUT
+                }
+                val terminal = if (approvalWaiting != null &&
+                    (approvalOutcome == null || approvalOutcome.sequence < approvalWaiting.sequence)
+                ) {
+                    approvalWaiting
+                } else {
+                    actionEntries.lastOrNull { it.kind in key.family.terminalKinds }
+                }
                 val source = terminal ?: first
                 val parentId = actionEntries.asSequence().mapNotNull { it.parentId }.firstOrNull()
                 val title = if (key.family == ActionFamily.STEP) "Agent step" else toolTitle(first.summary, source.summary)
@@ -307,10 +317,11 @@ internal object UnifiedExecutionTraceProjector {
             ExecutionTraceKind.TOOL_COMPLETED,
             ExecutionTraceKind.TOOL_FAILED,
             ExecutionTraceKind.TOOL_CANCELLED,
-	            ExecutionTraceKind.APPROVAL_CANCELLED,
-	            ExecutionTraceKind.APPROVAL_TIMEOUT,
-	            ExecutionTraceKind.TIMED_OUT,
-	        )),
+            ExecutionTraceKind.WAITING_FOR_APPROVAL,
+            ExecutionTraceKind.APPROVAL_CANCELLED,
+            ExecutionTraceKind.APPROVAL_TIMEOUT,
+            ExecutionTraceKind.TIMED_OUT,
+        )),
         OTHER(emptySet()),
     }
 

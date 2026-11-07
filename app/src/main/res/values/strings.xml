@@ -2148,8 +2148,8 @@
     <string name="attach_spreadsheet_desc">Create an organized sheet with columns and formulas</string>
     <string name="attach_scheduled_tasks_desc">Create a scheduled task with time and recurrence</string>
     <string name="attach_conversation_mode_desc">Talk to AIRI by voice instead of typing</string>
-    <string name="attach_recent_files_prompt">[File analysis mode] Analyze the latest attached file, then carry out the user's request on it and state what was read and what needs follow-up.</string>
-    <string name="attach_recent_tasks_prompt">[Task review mode] Review AIRI's recent tasks and summarize their status, results, and any action required from me.</string>
+    <string name="attach_recent_files_prompt">[File analysis mode] Analyze the latest attached file, then carry out the user\'s request on it and state what was read and what needs follow-up.</string>
+    <string name="attach_recent_tasks_prompt">[Task review mode] Review AIRI\'s recent tasks and summarize their status, results, and any action required from me.</string>
     <string name="attach_skills_prompt">[Skills mode] Use the AIRI skills that fit this request, and state which skill you will use and why before executing it.</string>
     <string name="attach_prompt_builder_prompt">[Prompt builder mode] Turn this request into a clear structured prompt defining the goal, inputs, constraints, and expected result, then prepare it for AIRI execution.</string>
     <string name="attach_plan_prompt">[Planning mode] Create a practical execution plan for this request, divide it into clear steps, and execute the appropriate steps using AIRI tools when needed.</string>
@@ -2164,7 +2164,7 @@
     <string name="attach_image_prompt">[Image analysis mode] Analyze the attached image carefully, describe what it contains, extract important details, and answer my request:</string>
     <string name="attach_camera_prompt">[Camera image mode] Analyze the captured image, identify important elements and visible text, then carry out my request:</string>
     <string name="attach_video_prompt">[Video analysis mode] Inspect the attached video, extract important events or scenes with timing, then answer my request while stating analysis limits:</string>
-    <string name="attach_text_prompt">[Text analysis mode] Read the attached text in full, extract its structure and content, then carry out the user's request without dropping sections:</string>
+    <string name="attach_text_prompt">[Text analysis mode] Read the attached text in full, extract its structure and content, then carry out the user\'s request without dropping sections:</string>
     <string name="attach_file_prompt">[File analysis mode] Inspect the attached file using the appropriate AIRI path, extract its content or data, then carry out my request and state what was processed:</string>
     <string name="archive_chat">Archive</string>
     <string name="history_no_messages">No messages yet</string>

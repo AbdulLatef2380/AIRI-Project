@@ -58,6 +58,7 @@ class ExecutionTraceBuffer(
             ExecutionTraceKind.TOOL_COMPLETED,
             ExecutionTraceKind.TOOL_FAILED,
             ExecutionTraceKind.TOOL_CANCELLED,
+            ExecutionTraceKind.WAITING_FOR_APPROVAL,
         )
         if (requiresActionIdentity && actionId.isNullOrBlank()) return null
         val event = ExecutionTraceEvent(
@@ -120,6 +121,7 @@ private fun ExecutionTraceKind.isOutcomeEvidence(): Boolean = this in setOf(
     ExecutionTraceKind.TOOL_COMPLETED,
     ExecutionTraceKind.TOOL_FAILED,
     ExecutionTraceKind.TOOL_CANCELLED,
+    ExecutionTraceKind.WAITING_FOR_APPROVAL,
     ExecutionTraceKind.RECOVERING,
     ExecutionTraceKind.COMPLETED,
     ExecutionTraceKind.FAILED,

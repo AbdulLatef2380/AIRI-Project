@@ -20,6 +20,8 @@ import com.airi.assistant.connector.ConnectorAccessProfile
 import com.airi.assistant.connector.InMemoryConnectorAccessProfileStore
 import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.core.ExecutionTraceKind
+import com.airi.assistant.core.UniversalRuntimeTraceRecorder
+import com.airi.assistant.core.UniversalTraceEventType
 import com.airi.assistant.execution.AgentOrchestrator
 import com.airi.assistant.execution.CompletionMetadata
 import com.airi.assistant.execution.ExecOrigin
@@ -124,60 +126,94 @@ class AgentLoopVerticalIntegrationTest {
 
     @Test
     fun duplicateReadCallsInOneBatchDispatchOnlyOnce() = runBlocking {
-        val connector = RecordingConnector()
-        val fixture = fixture(connector)
-        val orchestrator = ScriptedOrchestrator(
-            "{\"tool_calls\":[" +
-                "{\"id\":\"first\",\"name\":\"connector_vertical_read\",\"args\":{}} ," +
-                "{\"id\":\"second\",\"name\":\"connector_vertical_read\",\"args\":{}}]}",
-            "Duplicate work was suppressed.",
-        )
+        ExecutionStatusBus.reset()
+        try {
+            val connector = RecordingConnector()
+            val fixture = fixture(connector)
+            val orchestrator = ScriptedOrchestrator(
+                "{\"tool_calls\":[" +
+                    "{\"id\":\"first\",\"name\":\"connector_vertical_read\",\"args\":{}} ," +
+                    "{\"id\":\"second\",\"name\":\"connector_vertical_read\",\"args\":{}}]}",
+                "Duplicate work was suppressed.",
+            )
 
-        val result = fixture.loop(orchestrator).run(
-            input = "Read the source once",
-            systemPrompt = "You are AIRI.",
-            tools = listOf(fixture.readSchema),
-            onToken = {},
-        )
+            val result = fixture.loop(orchestrator).run(
+                input = "Read the source once",
+                systemPrompt = "You are AIRI.",
+                tools = listOf(fixture.readSchema),
+                requestedExecutionId = "execution-batch-trace",
+                onToken = {},
+            )
 
-        assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
-        assertEquals(1, connector.executeCalls)
-        assertEquals(2, orchestrator.requests.size)
-        assertTrue(orchestrator.requests[1].conversationHistory.count { it.kind == "tool_result" } == 2)
+            assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
+            assertEquals(1, connector.executeCalls)
+            assertEquals(2, orchestrator.requests.size)
+            assertTrue(orchestrator.requests[1].conversationHistory.count { it.kind == "tool_result" } == 2)
+            val batchTrace = ExecutionStatusBus.traceSnapshot("execution-batch-trace")
+            val started = batchTrace.filter { it.kind == ExecutionTraceKind.TOOL_STARTED }
+            val terminal = batchTrace.filter {
+                it.kind == ExecutionTraceKind.TOOL_COMPLETED || it.kind == ExecutionTraceKind.TOOL_FAILED
+            }
+            assertEquals(setOf("tool_1_batch_1", "tool_1_batch_2"), started.mapNotNull { it.actionId }.toSet())
+            assertEquals(2, terminal.size)
+            assertEquals(
+                setOf(ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.TOOL_FAILED),
+                terminal.map { it.kind }.toSet(),
+            )
+            assertTrue(started.all { it.parentId == "step_1" })
+            assertTrue(terminal.all { it.durationMs != null })
+        } finally {
+            ExecutionStatusBus.reset()
+        }
     }
 
     @Test
     fun connectorApprovalIsNormalizedAndRecordedAsWaitingTrace() = runBlocking {
-        val connector = RecordingConnector().apply {
-            output = ConnectorOutput.ApprovalRequired(
-                approvalId = "approval-vertical",
-                taskId = "task-vertical",
-                runId = "run-vertical",
-                stepId = "step-vertical",
-                expiresAtMs = 123L,
-                message = "Approval is required",
+        ExecutionStatusBus.reset()
+        try {
+            val connector = RecordingConnector().apply {
+                output = ConnectorOutput.ApprovalRequired(
+                    approvalId = "approval-vertical",
+                    taskId = "task-vertical",
+                    runId = "run-vertical",
+                    stepId = "step-vertical",
+                    expiresAtMs = 123L,
+                    message = "Approval is required",
+                )
+            }
+            val fixture = fixture(connector)
+            val orchestrator = ScriptedOrchestrator(
+                "{\"tool_call\":{\"name\":\"connector_vertical_read\",\"args\":{}}}",
+                "Waiting state was recorded.",
             )
+            val runtimeTrace = UniversalRuntimeTraceRecorder()
+
+            val result = fixture.loop(orchestrator, runtimeTrace).run(
+                input = "Read the screen with the approval-gated action",
+                systemPrompt = "You are AIRI.",
+                tools = listOf(fixture.readSchema),
+                sessionId = "session-approval",
+                requestedExecutionId = "execution-approval",
+                onToken = {},
+            )
+
+            assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
+            assertEquals(1, connector.executeCalls)
+            val approvalTrace = ExecutionStatusBus.traceSnapshot("execution-approval")
+            val waiting = approvalTrace.single {
+                it.kind == ExecutionTraceKind.WAITING_FOR_APPROVAL && !it.actionId.isNullOrBlank()
+            }
+            assertEquals("step_1", waiting.parentId)
+            assertTrue(approvalTrace.none {
+                it.actionId == waiting.actionId &&
+                    it.kind in setOf(ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.TOOL_FAILED)
+            })
+            assertTrue(runtimeTrace.eventsFor("execution-approval").none {
+                it.eventType == UniversalTraceEventType.CONNECTOR_EXECUTION_COMPLETED && it.outcome == "success"
+            })
+        } finally {
+            ExecutionStatusBus.reset()
         }
-        val fixture = fixture(connector)
-        val orchestrator = ScriptedOrchestrator(
-            "{\"tool_call\":{\"name\":\"connector_vertical_read\",\"args\":{}}}",
-            "Waiting state was recorded.",
-        )
-
-        val result = fixture.loop(orchestrator).run(
-            input = "Read the screen with the approval-gated action",
-            systemPrompt = "You are AIRI.",
-            tools = listOf(fixture.readSchema),
-            sessionId = "session-approval",
-            requestedExecutionId = "execution-approval",
-            onToken = {},
-        )
-
-        assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
-        assertEquals(1, connector.executeCalls)
-        assertTrue(ExecutionStatusBus.traceSnapshot("execution-approval").any {
-            it.kind == ExecutionTraceKind.WAITING_FOR_APPROVAL && !it.actionId.isNullOrBlank()
-        })
     }
 
     @Test
@@ -233,10 +269,14 @@ class AgentLoopVerticalIntegrationTest {
         val dispatcher: ToolDispatcher,
         val readSchema: ToolSchema,
     ) {
-        fun loop(orchestrator: AgentOrchestrator) = AgentLoop(
+        fun loop(
+            orchestrator: AgentOrchestrator,
+            runtimeTrace: UniversalRuntimeTraceRecorder? = null,
+        ) = AgentLoop(
             orchestrator = orchestrator,
             dispatcher = dispatcher,
             appContext = ContextWrapper(null),
+            runtimeTrace = runtimeTrace,
         )
     }
 

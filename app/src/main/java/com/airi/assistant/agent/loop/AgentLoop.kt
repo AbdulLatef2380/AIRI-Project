@@ -527,15 +527,22 @@ the tool returns an actual error.
                 val batchSchemas = parsedToolCalls.map { call ->
                     call to effectiveTools.firstOrNull { it.name == call.toolName }
                 }
-                if (batchSchemas.size > 1 && batchSchemas.all { it.second?.sideEffectPolicy == ToolSchema.SideEffectPolicy.READ_ONLY }) {
+                val batchCallsHaveStableIds = parsedToolCalls.all { it.id.isNotBlank() } &&
+                    parsedToolCalls.map { it.id }.distinct().size == parsedToolCalls.size
+                if (batchSchemas.size > 1 && batchCallsHaveStableIds &&
+                    batchSchemas.all { it.second?.sideEffectPolicy == ToolSchema.SideEffectPolicy.READ_ONLY }
+                ) {
                     val batchRequests = batchSchemas.map { (call, schema) ->
                         com.airi.assistant.agent.loop.tool.ToolCallBatchExecutor.Request(
-                            id = call.id.ifBlank { "call_${call.toolName}" },
+                            id = call.id,
                             toolName = call.toolName,
                             arguments = call.params,
                             schema = schema!!,
                         )
                     }
+                    val batchActionIds = batchRequests.mapIndexed { index, request ->
+                        request.id to "tool_${stepsUsed}_batch_${index + 1}"
+                    }.toMap()
                     val batchFingerprints = batchRequests.associate { request ->
                         request.id to ToolCallFingerprint(
                             executionId = executionId,
@@ -546,29 +553,122 @@ the tool returns an actual error.
                             parentStepId = "step_$stepsUsed",
                         )
                     }
-                    val batchResults = com.airi.assistant.agent.loop.tool.ToolCallBatchExecutor.execute(batchRequests) { request ->
-                        val validation = StrictArgumentValidator.validate(
-                            spec = ToolSpecAdapter.fromSchema(request.schema),
-                            raw = request.arguments,
+                    val batchStepId = "step_$stepsUsed"
+                    if (!isPlanPublished) {
+                        ExecutionStatusBus.onGraphStarted(
+                            goalDescription = input.take(80),
+                            totalNodes = 0,
+                            executionId = executionId,
+                            sessionId = sessionId,
                         )
-                        if (!validation.isValid) {
-                            ToolDispatcher.ToolResult.Error(
-                                validation.failure?.message ?: "Invalid tool arguments.",
-                                code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.INVALID_ARGUMENT,
+                        isPlanPublished = true
+                    }
+                    ExecutionStatusBus.onWaveStarted(
+                        nodeIds = listOf(batchStepId),
+                        nodeActions = listOf(batchRequests.joinToString(", ") { it.toolName }),
+                        executionId = executionId,
+                    )
+                    val batchResults = com.airi.assistant.agent.loop.tool.ToolCallBatchExecutor.execute(batchRequests) { request ->
+                        val actionId = batchActionIds.getValue(request.id)
+                        val startedAtMs = System.currentTimeMillis()
+                        ExecutionStatusBus.onToolStarted(
+                            executionId = executionId,
+                            actionId = actionId,
+                            toolName = request.toolName,
+                            detail = "Agent step $stepsUsed",
+                            inputParams = request.arguments,
+                            parentId = batchStepId,
+                        )
+                        val result = try {
+                            val validation = StrictArgumentValidator.validate(
+                                spec = ToolSpecAdapter.fromSchema(request.schema),
+                                raw = request.arguments,
                             )
-                        } else if (batchFingerprints[request.id]?.let { !toolLedger.tryClaim(it) } == true) {
-                            ToolDispatcher.ToolResult.Error(
-                                "Duplicate tool call blocked for this execution step.",
-                                code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.DUPLICATE_CALL,
-                            )
-                        } else if (agentSandbox != null) {
-                            agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
-                                ctx.guardTool(request.toolName)
-                                dispatcher.execute(request.toolName, validation.arguments?.canonical ?: request.arguments, appContext, executionId, actionId = "tool_batch_${request.id}", traceId = traceId, sessionId = sessionId, messageId = messageId)
+                            when {
+                                !validation.isValid -> ToolDispatcher.ToolResult.Error(
+                                    validation.failure?.message ?: "Invalid tool arguments.",
+                                    code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.INVALID_ARGUMENT,
+                                )
+                                batchFingerprints[request.id]?.let { !toolLedger.tryClaim(it) } == true ->
+                                    ToolDispatcher.ToolResult.Error(
+                                        "Duplicate tool call blocked for this execution step.",
+                                        code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.DUPLICATE_CALL,
+                                    )
+                                else -> {
+                                    runtimeTrace?.dispatched(executionId, sessionId, request.toolName, "parallel_read_batch")
+                                    if (agentSandbox != null) {
+                                        agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
+                                            ctx.guardTool(request.toolName)
+                                            dispatcher.execute(
+                                                request.toolName,
+                                                validation.arguments?.canonical ?: request.arguments,
+                                                appContext,
+                                                executionId,
+                                                actionId = actionId,
+                                                traceId = traceId,
+                                                sessionId = sessionId,
+                                                messageId = messageId,
+                                            )
+                                        }
+                                    } else {
+                                        dispatcher.execute(
+                                            request.toolName,
+                                            validation.arguments?.canonical ?: request.arguments,
+                                            appContext,
+                                            executionId,
+                                            actionId = actionId,
+                                            traceId = traceId,
+                                            sessionId = sessionId,
+                                            messageId = messageId,
+                                        )
+                                    }
+                                }
                             }
-                        } else {
-                            dispatcher.execute(request.toolName, validation.arguments?.canonical ?: request.arguments, appContext, executionId, actionId = "tool_batch_${request.id}", traceId = traceId, sessionId = sessionId, messageId = messageId)
+                        } catch (cancelled: CancellationException) {
+                            ExecutionStatusBus.onToolCancelled(
+                                executionId = executionId,
+                                actionId = actionId,
+                                toolName = request.toolName,
+                                durationMs = System.currentTimeMillis() - startedAtMs,
+                                detail = "Parallel tool action was cancelled.",
+                            )
+                            throw cancelled
+                        } catch (error: Exception) {
+                            LoggingService.warn(TAG, "Batched tool ${request.toolName} failed type=${error.javaClass.simpleName}")
+                            ToolDispatcher.ToolResult.Error(
+                                "Tool failed: ${error.message}",
+                                code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.EXECUTION_FAILED,
+                            )
                         }
+                        val resultText = when (result) {
+                            is ToolDispatcher.ToolResult.Success -> result.output
+                            is ToolDispatcher.ToolResult.Error -> "Error [${result.code}]: ${result.message}"
+                        }
+                        val durationMs = System.currentTimeMillis() - startedAtMs
+                        runtimeTrace?.executionCompleted(
+                            executionId = executionId,
+                            sessionId = sessionId,
+                            toolName = request.toolName,
+                            success = result is ToolDispatcher.ToolResult.Success,
+                            durationMs = durationMs,
+                            resultLength = resultText.length,
+                            errorCategory = (result as? ToolDispatcher.ToolResult.Error)?.code,
+                        )
+                        val traceDetail = when (result) {
+                            is ToolDispatcher.ToolResult.Success ->
+                                "Source: ${result.provenance.name.lowercase()}; result length: ${resultText.length} chars."
+                            is ToolDispatcher.ToolResult.Error ->
+                                "Source: ${result.provenance.name.lowercase()}; operation returned an error."
+                        }
+                        when (result) {
+                            is ToolDispatcher.ToolResult.Success -> ExecutionStatusBus.onToolCompleted(
+                                executionId, actionId, request.toolName, durationMs, traceDetail,
+                            )
+                            is ToolDispatcher.ToolResult.Error -> ExecutionStatusBus.onToolFailed(
+                                executionId, actionId, request.toolName, durationMs, traceDetail, result.code,
+                            )
+                        }
+                        result
                     }
                     history.add(ConversationTurn.Assistant(rawResponse))
                     batchResults.forEach { outcome ->
@@ -581,7 +681,9 @@ the tool returns an actual error.
                         batchFingerprints[outcome.request.id]?.let { fingerprint ->
                             if (result is ToolDispatcher.ToolResult.Success) {
                                 toolLedger.markCompleted(fingerprint)
-                            } else {
+                            } else if ((result as? ToolDispatcher.ToolResult.Error)?.code !=
+                                com.airi.assistant.agent.loop.tool.ToolErrorCodes.DUPLICATE_CALL
+                            ) {
                                 toolLedger.release(fingerprint)
                             }
                         }
@@ -615,6 +717,7 @@ the tool returns an actual error.
                         )
                         runtimeTrace?.resultReturned(executionId, sessionId, outcome.request.toolName)
                     }
+                    ExecutionStatusBus.onNodeCompleted(batchStepId, stepsUsed, executionId)
                     progressMs.set(System.currentTimeMillis())
                     runtimeTrace?.continuation(executionId, sessionId, continued = stepsUsed < MAX_STEPS, terminalState = "PARALLEL_READ_BATCH")
                     continue
@@ -849,6 +952,7 @@ the tool returns an actual error.
                     schema = selectedToolSchema ?: ToolSchema(name = toolName, description = "Unknown tool"),
                     hasDurableExecutionContext = durableExecutionContext != null
                 )
+                var approvalPending = false
                 val toolResult = if (toolValidationError != null) {
                     LoggingService.warn(TAG, "AIRI TOOL_REJECTED_INVALID_SCHEMA tool=$toolName")
                     ToolDispatcher.ToolResult.Error(
@@ -904,6 +1008,7 @@ the tool returns an actual error.
                                     val pending = runtime.requestApproval(created.proposal.id)
                                 ) {
                                     is CalendarCreateRuntime.ProposalResult.ApprovalPending -> {
+                                        approvalPending = true
                                         ExecutionStatusBus.onApprovalWaiting(
                                             executionId = executionId,
                                             actionId = toolStepId,
@@ -997,36 +1102,42 @@ the tool returns an actual error.
                     }
                 }
 
-                val resultText = when (toolResult) {
+                val toolError = toolResult as? ToolDispatcher.ToolResult.Error
+                toolError?.approval?.let { approval ->
+                    approvalPending = true
+                    ExecutionStatusBus.onApprovalWaiting(
+                        executionId = executionId,
+                        actionId = toolStepId,
+                        interruptId = approval.approvalId,
+                        actionDescription = toolError.message,
+                    )
+                }
+
+                val resultText = if (approvalPending) {
+                    "Approval is required; the requested action is paused for user review. Do not retry the operation."
+                } else when (toolResult) {
                     is ToolDispatcher.ToolResult.Success -> toolResult.output
                     is ToolDispatcher.ToolResult.Error ->
                         "Error [${toolResult.code}${if (toolResult.retryable) ", retryable" else ""}]: ${toolResult.message}"
                 }
 
-                (toolResult as? ToolDispatcher.ToolResult.Error)?.approval?.let { approval ->
-                    ExecutionStatusBus.onApprovalWaiting(
+                val toolDurationMs = System.currentTimeMillis() - toolStartedAtMs
+                if (!approvalPending) {
+                    runtimeTrace?.executionCompleted(
                         executionId = executionId,
-                        actionId = toolStepId,
-                        interruptId = approval.approvalId,
-                        actionDescription = toolResult.message,
+                        sessionId = sessionId,
+                        toolName = toolName,
+                        success = toolResult is ToolDispatcher.ToolResult.Success,
+                        durationMs = toolDurationMs,
+                        resultLength = resultText.length,
+                        errorCategory = (toolResult as? ToolDispatcher.ToolResult.Error)?.code,
+                    )
+                    runtimeTrace?.capabilityStage(
+                        executionId, sessionId, toolName,
+                        com.airi.assistant.core.CapabilityRuntimeStage.EXECUTED,
+                        if (toolResult is ToolDispatcher.ToolResult.Success) "success" else "failure",
                     )
                 }
-
-                val toolDurationMs = System.currentTimeMillis() - toolStartedAtMs
-                runtimeTrace?.executionCompleted(
-                    executionId = executionId,
-                    sessionId = sessionId,
-                    toolName = toolName,
-                    success = toolResult is ToolDispatcher.ToolResult.Success,
-                    durationMs = toolDurationMs,
-                    resultLength = resultText.length,
-                    errorCategory = (toolResult as? ToolDispatcher.ToolResult.Error)?.code,
-                )
-                runtimeTrace?.capabilityStage(
-                    executionId, sessionId, toolName,
-                    com.airi.assistant.core.CapabilityRuntimeStage.EXECUTED,
-                    if (toolResult is ToolDispatcher.ToolResult.Success) "success" else "failure",
-                )
                 val traceProvenance = when (toolResult) {
                     is ToolDispatcher.ToolResult.Success -> toolResult.provenance
                     is ToolDispatcher.ToolResult.Error -> toolResult.provenance
@@ -1037,25 +1148,27 @@ the tool returns an actual error.
                     is ToolDispatcher.ToolResult.Error ->
                         "Source: ${traceProvenance.name.lowercase()}; operation returned an error."
                 }
-                when (toolResult) {
-                    is ToolDispatcher.ToolResult.Success -> ExecutionStatusBus.onToolCompleted(
-                        executionId = executionId,
-                        actionId = toolStepId,
-                        toolName = toolName,
-                        durationMs = toolDurationMs,
-                        detail = safeTraceDetail,
-                    )
-                    is ToolDispatcher.ToolResult.Error -> ExecutionStatusBus.onToolFailed(
-                        executionId = executionId,
-                        actionId = toolStepId,
-                        toolName = toolName,
-                        durationMs = toolDurationMs,
-                        detail = safeTraceDetail,
-                        errorCode = toolResult.code,
-                    )
+                if (!approvalPending) {
+                    when (toolResult) {
+                        is ToolDispatcher.ToolResult.Success -> ExecutionStatusBus.onToolCompleted(
+                            executionId = executionId,
+                            actionId = toolStepId,
+                            toolName = toolName,
+                            durationMs = toolDurationMs,
+                            detail = safeTraceDetail,
+                        )
+                        is ToolDispatcher.ToolResult.Error -> ExecutionStatusBus.onToolFailed(
+                            executionId = executionId,
+                            actionId = toolStepId,
+                            toolName = toolName,
+                            durationMs = toolDurationMs,
+                            detail = safeTraceDetail,
+                            errorCode = toolResult.code,
+                        )
+                    }
                 }
 
-                if (toolResult is ToolDispatcher.ToolResult.Success) {
+                if (toolResult is ToolDispatcher.ToolResult.Success || approvalPending) {
                     toolLedger.markCompleted(toolFingerprint)
                 } else {
                     toolLedger.release(toolFingerprint)

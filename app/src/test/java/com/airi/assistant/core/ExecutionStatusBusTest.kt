@@ -52,6 +52,141 @@ class ExecutionStatusBusTest {
     }
 
     @Test
+    fun approvalWaitingClosesStartedToolAndRejectsLateCompletion() {
+        val executionId = "approval-tool-lifecycle-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Create calendar proposal", 1, executionId)
+        ExecutionStatusBus.onWaveStarted(listOf("step-1"), listOf("calendar_create"), executionId)
+        ExecutionStatusBus.onToolStarted(
+            executionId = executionId,
+            actionId = "tool-1",
+            toolName = "calendar_create",
+            inputParams = mapOf("title" to "Review"),
+            parentId = "step-1",
+        )
+
+        ExecutionStatusBus.onApprovalWaiting(executionId, "tool-1", "approval-1", "Create event")
+        ExecutionStatusBus.onToolCompleted(executionId, "tool-1", "calendar_create", 3L)
+
+        val events = ExecutionStatusBus.traceSnapshot(executionId)
+        val waiting = events.single { it.kind == ExecutionTraceKind.WAITING_FOR_APPROVAL }
+        assertEquals("step-1", waiting.parentId)
+        assertEquals("Review", waiting.inputParams["title"])
+        assertFalse(events.any {
+            it.actionId == "tool-1" &&
+                it.kind in setOf(ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.TOOL_FAILED)
+        })
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
+    fun openToolTraceCompletesAfterAnotherExecutionBecomesTerminal() {
+        val firstExecutionId = "open-tool-execution"
+        val secondExecutionId = "terminal-visible-execution"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("First execution", 1, firstExecutionId)
+        ExecutionStatusBus.onToolStarted(firstExecutionId, "tool-1", "read_file")
+        ExecutionStatusBus.onGraphStarted("Second execution", 1, secondExecutionId)
+        ExecutionStatusBus.onGraphCompleted(true, secondExecutionId)
+
+        ExecutionStatusBus.onToolCompleted(firstExecutionId, "tool-1", "read_file", 5L)
+
+        assertEquals(
+            1,
+            ExecutionStatusBus.traceSnapshot(firstExecutionId).count {
+                it.kind == ExecutionTraceKind.TOOL_COMPLETED && it.actionId == "tool-1"
+            },
+        )
+        assertEquals(secondExecutionId, ExecutionStatusBus.status.value.executionId)
+        assertEquals(ExecutionStage.COMPLETED, ExecutionStatusBus.status.value.executionStage)
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
+    fun approvalTraceForOpenNonCurrentExecutionDoesNotReplaceVisibleStatus() {
+        val firstExecutionId = "approval-background-execution"
+        val visibleExecutionId = "approval-visible-execution"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Approval owner", 1, firstExecutionId)
+        ExecutionStatusBus.onToolStarted(firstExecutionId, "tool-approval", "calendar_create")
+        ExecutionStatusBus.onGraphStarted("Visible execution", 1, visibleExecutionId)
+
+        ExecutionStatusBus.onApprovalWaiting(
+            firstExecutionId,
+            "tool-approval",
+            "approval-background",
+            "Create calendar event",
+        )
+
+        assertTrue(ExecutionStatusBus.traceSnapshot(firstExecutionId).any {
+            it.kind == ExecutionTraceKind.WAITING_FOR_APPROVAL && it.actionId == "tool-approval"
+        })
+        assertEquals(visibleExecutionId, ExecutionStatusBus.status.value.executionId)
+        assertFalse(ExecutionStatusBus.status.value.waitingForApproval)
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
+    fun backgroundApprovalCancellationClosesOnlyItsOwnedTrace() {
+        val approvalExecutionId = "approval-cancel-background"
+        val visibleExecutionId = "approval-cancel-visible"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Approval task", 1, approvalExecutionId)
+        ExecutionStatusBus.onToolStarted(approvalExecutionId, "cancel-tool", "calendar_create")
+        ExecutionStatusBus.onApprovalWaiting(
+            approvalExecutionId,
+            "cancel-tool",
+            "cancel-interrupt",
+            "Create calendar event",
+        )
+        ExecutionStatusBus.onGraphStarted("Visible task", 1, visibleExecutionId)
+
+        ExecutionStatusBus.onApprovalCancelled(
+            approvalExecutionId,
+            "cancel-tool",
+            "cancel-interrupt",
+            "User declined",
+        )
+
+        val trace = ExecutionStatusBus.traceSnapshot(approvalExecutionId)
+        assertEquals(ExecutionTraceKind.APPROVAL_CANCELLED, trace.last().kind)
+        assertEquals(visibleExecutionId, ExecutionStatusBus.status.value.executionId)
+        ExecutionStatusBus.onToolCompleted(approvalExecutionId, "cancel-tool", "calendar_create", 1L)
+        assertEquals(ExecutionTraceKind.APPROVAL_CANCELLED, ExecutionStatusBus.traceSnapshot(approvalExecutionId).last().kind)
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
+    fun backgroundApprovalTimeoutClosesOnlyItsOwnedTrace() {
+        val approvalExecutionId = "approval-timeout-background"
+        val visibleExecutionId = "approval-timeout-visible"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Approval task", 1, approvalExecutionId)
+        ExecutionStatusBus.onToolStarted(approvalExecutionId, "timeout-tool", "calendar_create")
+        ExecutionStatusBus.onApprovalWaiting(
+            approvalExecutionId,
+            "timeout-tool",
+            "timeout-interrupt",
+            "Create calendar event",
+        )
+        ExecutionStatusBus.onGraphStarted("Visible task", 1, visibleExecutionId)
+
+        ExecutionStatusBus.onApprovalTimedOut(
+            approvalExecutionId,
+            "timeout-tool",
+            "timeout-interrupt",
+            "Expired",
+        )
+
+        val trace = ExecutionStatusBus.traceSnapshot(approvalExecutionId)
+        assertEquals(ExecutionTraceKind.APPROVAL_TIMEOUT, trace.last().kind)
+        assertEquals(visibleExecutionId, ExecutionStatusBus.status.value.executionId)
+        ExecutionStatusBus.onToolCompleted(approvalExecutionId, "timeout-tool", "calendar_create", 1L)
+        assertEquals(ExecutionTraceKind.APPROVAL_TIMEOUT, ExecutionStatusBus.traceSnapshot(approvalExecutionId).last().kind)
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
     fun terminalToolEventCarriesStartedInputAndParent() {
         val executionId = "trace-input-parent-test"
         ExecutionStatusBus.reset()
@@ -108,6 +243,35 @@ class ExecutionStatusBusTest {
         assertTrue(second.all { it.executionId == "parallel-2" })
         assertEquals(ExecutionTraceKind.COMPLETED, first.last().kind)
         assertEquals(ExecutionTraceKind.FAILED, second.last().kind)
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
+    fun backgroundGraphTimeoutClosesItsTraceWithoutReplacingVisibleStatus() {
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Timed out background task", 1, "timeout-background")
+        ExecutionStatusBus.onGraphStarted("Visible task", 1, "timeout-visible")
+
+        ExecutionStatusBus.onGraphTimedOut("timeout-background", "Background deadline exceeded")
+
+        assertEquals(ExecutionTraceKind.TIMED_OUT, ExecutionStatusBus.traceSnapshot("timeout-background").last().kind)
+        assertEquals("timeout-visible", ExecutionStatusBus.status.value.executionId)
+        assertTrue(ExecutionStatusBus.traceSnapshot("timeout-background").none {
+            it.kind == ExecutionTraceKind.COMPLETED || it.kind == ExecutionTraceKind.FAILED
+        })
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
+    fun backgroundGraphCancellationClosesItsTraceWithoutReplacingVisibleStatus() {
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Cancelled background task", 1, "cancel-background")
+        ExecutionStatusBus.onGraphStarted("Visible task", 1, "cancel-visible")
+
+        ExecutionStatusBus.onGraphCancelled("cancel-background")
+
+        assertEquals(ExecutionTraceKind.CANCELLED, ExecutionStatusBus.traceSnapshot("cancel-background").last().kind)
+        assertEquals("cancel-visible", ExecutionStatusBus.status.value.executionId)
         ExecutionStatusBus.reset()
     }
 

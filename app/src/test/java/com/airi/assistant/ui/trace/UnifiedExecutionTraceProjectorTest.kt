@@ -731,7 +731,7 @@ class UnifiedExecutionTraceProjectorTest {
             emptyList(),
         )
         assertEquals(1, completedAfterApproval.size)
-        assertEquals(TaskStatus.COMPLETED, completedAfterApproval.single().status)
+        assertEquals(TaskStatus.WAITING, completedAfterApproval.single().status)
 
         val waiting = project(
             "run-approval",
@@ -743,7 +743,11 @@ class UnifiedExecutionTraceProjectorTest {
 
         val timedOut = project(
             "run-approval",
-            listOf(trace("run-approval", 1, 1_000, ExecutionTraceKind.APPROVAL_TIMEOUT, "Approval expired", "tool-1", errorCode = "approval_timeout")),
+            listOf(
+                trace("run-approval", 1, 1_000, ExecutionTraceKind.TOOL_STARTED, "Tool started", "tool-1"),
+                trace("run-approval", 2, 1_001, ExecutionTraceKind.WAITING_FOR_APPROVAL, "Approval required", "tool-1"),
+                trace("run-approval", 3, 1_002, ExecutionTraceKind.APPROVAL_TIMEOUT, "Approval expired", "tool-1", errorCode = "approval_timeout"),
+            ),
             emptyList(),
         )
         assertEquals(TaskStatus.FAILED, timedOut.single().status)

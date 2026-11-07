@@ -17,6 +17,22 @@ class OutputBudgetPolicyTest {
         )
     }
 
+    @Test fun arabicCodeCreationRequestGetsLongFormOutputBudget() {
+        val input = "اصنع كود بلغة python لآلة حاسبة كاملة"
+        val queryType = QueryClassifier.classifyQuery(input)
+        assertEquals(QueryType.CREATIVE, queryType)
+        assertEquals(
+            10240,
+            OutputBudgetPolicy.effectiveTokens(
+                input,
+                queryType,
+                estimatedPromptTokens = 900,
+                providerId = "gemini",
+                budget = ContextBudget.UNLOADED,
+            ),
+        )
+    }
+
     @Test fun localBudgetNeverExceedsRemainingContext() {
         val budget = ContextBudget(2048)
         val result = OutputBudgetPolicy.effectiveTokens("explain", QueryType.ANALYTICAL, 2000, "local", budget)

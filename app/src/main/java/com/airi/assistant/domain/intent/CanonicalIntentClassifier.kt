@@ -49,6 +49,14 @@ object CanonicalIntentClassifier {
         latin + arabic
     }
 
+    private val codeGenerationRequests = normalizedList(
+        "write code", "write a program", "write a script", "create code", "create a program",
+        "make code", "make a program", "build a program", "generate a script",
+        "اكتب كود", "اكتب لي كود", "اصنع كود", "اصنع لي كود", "انشئ كود", "انشئ لي كود",
+        "اكتب برنامج", "اكتب لي برنامج", "اصنع برنامج", "اصنع لي برنامج", "انشئ برنامج", "انشئ لي برنامج",
+        "كود بلغة", "برنامج بلغة", "شفرة برمجية",
+    )
+
     fun classify(input: String): ChatIntent {
         val normalized = InputNormalizer.normalize(input)
         val text = normalized.normalized
@@ -79,6 +87,17 @@ object CanonicalIntentClassifier {
         val connectorRead = capabilityIntent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ)
         val connectorWrite = capabilityIntent.requires(CapabilityIntentDetector.Capability.CONNECTOR_WRITE)
         val fileWrite = capabilityIntent.requires(CapabilityIntentDetector.Capability.FILE_WRITE)
+        if (codeGenerationRequests.any(text::contains) &&
+            !deviceAction && !terminalExecute && !connectorRead && !connectorWrite && !fileWrite
+        ) {
+            return ChatIntent(
+                kind = ChatIntent.Kind.CREATIVE,
+                queryType = QueryType.CREATIVE,
+                confidence = ChatIntent.Confidence.HIGH,
+                risk = ChatIntent.Risk.NONE,
+                rationale = "code_generation_request",
+            )
+        }
         val liveRead = capabilityIntent.requiresTools && !deviceAction && !terminalExecute && !fileWrite
         val startsAction = actionVerbs.any(text::startsWith)
         val possibleAction = deviceAction || terminalExecute || fileWrite || startsAction || connectorRead || connectorWrite

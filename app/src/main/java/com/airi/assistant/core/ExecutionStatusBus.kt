@@ -16,11 +16,11 @@ import java.util.concurrent.ConcurrentHashMap
  * ExecutionStatusBus — decoupled live execution status channel.
  *
  * ── PURPOSE ───────────────────────────────────────────────────────────────────
- * Bridges the autonomous execution layer (UnifiedCognitiveLoop, orchestrators)
+ * Bridges the autonomous execution layer (AgentLoop, UnifiedCognitiveLoop, orchestrators)
  * with the UI layer (ChatViewModel) without introducing a direct dependency.
  *
  * Pattern: singleton observable bus.
- *   - Writers: UCL.executeGraph(), ProductionAgentOrchestrator, repatchNode()
+ *   - Writers: AgentLoop, UCL.executeGraph(), ProductionAgentOrchestrator, repatchNode()
  *   - Readers: ChatViewModel (collects via viewModelScope.launch)
  *
  * ── WHY NOT INJECT DIRECTLY ───────────────────────────────────────────────────
@@ -176,41 +176,54 @@ object ExecutionStatusBus {
         actionDescription: String,
         expiresAtMs: Long? = null,
     ) {
-        if (!belongsToActiveExecution(_status.value, executionId) || actionId.isBlank() || interruptId.isBlank()) return
-        synchronized(traceLock) { approvalOwners[interruptId] = executionId }
-        statusUpdate { current ->
-            if (!belongsToActiveExecution(current, executionId)) current else current.copy(
-                isWorking = false,
-                currentAction = "Waiting for approval",
-                waitingForApproval = true,
-                approvalInterruptId = interruptId,
-                activeNodeAction = actionDescription.take(120),
+        synchronized(traceLock) {
+            if (!isOpenExecution(executionId) || actionId.isBlank() || interruptId.isBlank()) return
+            approvalOwners[interruptId] = executionId
+            if (_status.value.executionId == executionId) {
+                _status.update { current ->
+                    if (!belongsToActiveExecution(current, executionId)) current else current.copy(
+                        isWorking = false,
+                        currentAction = "Waiting for approval",
+                        waitingForApproval = true,
+                        approvalInterruptId = interruptId,
+                        activeNodeAction = actionDescription.take(120),
+                    )
+                }
+            }
+            val closedToolAction = toolTraceLifecycles[executionId]?.admitTerminal(executionId, actionId) == true
+            val context = if (closedToolAction) toolTraceContexts[executionId]?.remove(actionId) else null
+            appendTrace(
+                executionId = executionId,
+                kind = ExecutionTraceKind.WAITING_FOR_APPROVAL,
+                summary = "Approval required",
+                detail = buildString {
+                    append(actionDescription.take(160))
+                    expiresAtMs?.let { append("; expiresAtMs=$it") }
+                },
+                actionId = actionId,
+                machineTag = "approval_waiting",
+                parentId = context?.parentId,
+                inputParams = context?.inputParams.orEmpty(),
             )
         }
-        appendTrace(
-            executionId = executionId,
-            kind = ExecutionTraceKind.WAITING_FOR_APPROVAL,
-            summary = "Approval required",
-            detail = buildString {
-                append(actionDescription.take(160))
-                expiresAtMs?.let { append("; expiresAtMs=$it") }
-            },
-            actionId = actionId,
-            machineTag = "approval_waiting",
-        )
     }
 
     /** Resume only the execution that owns the exact approval interrupt. */
     fun onApprovalResumed(executionId: String, interruptId: String) {
-        statusUpdate { current ->
-            if (!belongsToActiveExecution(current, executionId) || current.approvalInterruptId != interruptId) current else current.copy(
-                isWorking = true,
-                currentAction = "Resuming approved action",
-                waitingForApproval = false,
-                approvalInterruptId = "",
-            )
+        synchronized(traceLock) {
+            if (!isOpenExecution(executionId) || approvalOwners[interruptId] != executionId) return
+            approvalOwners.remove(interruptId)
+            if (_status.value.executionId == executionId) {
+                _status.update { current ->
+                    if (!belongsToActiveExecution(current, executionId) || current.approvalInterruptId != interruptId) current else current.copy(
+                        isWorking = true,
+                        currentAction = "Resuming approved action",
+                        waitingForApproval = false,
+                        approvalInterruptId = "",
+                    )
+                }
+            }
         }
-        synchronized(traceLock) { approvalOwners.remove(interruptId) }
     }
 
     /** Resume a live approval using only its durable approval identifier. */
@@ -221,19 +234,30 @@ object ExecutionStatusBus {
 
     /** Close a pending approval as a user rejection/cancellation. */
     fun onApprovalCancelled(executionId: String, actionId: String, interruptId: String, reason: String) {
-        var accepted = false
-        statusUpdate { current ->
-            if (!belongsToActiveExecution(current, executionId) || current.approvalInterruptId != interruptId) current else {
-                accepted = true
-                current.copy(isWorking = false, executionStage = ExecutionStage.CANCELLED, currentAction = "Approval cancelled", waitingForApproval = false, approvalInterruptId = "")
+        synchronized(traceLock) {
+            if (!isOpenExecution(executionId) || approvalOwners[interruptId] != executionId) return
+            approvalOwners.remove(interruptId)
+            terminalExecutions += executionId
+            if (_status.value.executionId == executionId) {
+                _status.update { current ->
+                    if (!belongsToActiveExecution(current, executionId) || current.approvalInterruptId != interruptId) current else current.copy(
+                        isWorking = false,
+                        executionStage = ExecutionStage.CANCELLED,
+                        currentAction = "Approval cancelled",
+                        waitingForApproval = false,
+                        approvalInterruptId = "",
+                    )
+                }
             }
-        }
-        if (accepted) {
-            synchronized(traceLock) {
-                approvalOwners.remove(interruptId)
-                terminalExecutions += executionId
-            }
-            appendTrace(executionId, ExecutionTraceKind.APPROVAL_CANCELLED, "Approval cancelled", reason.take(160), actionId = actionId, machineTag = "approval_cancelled", allowTerminal = true)
+            appendTrace(
+                executionId,
+                ExecutionTraceKind.APPROVAL_CANCELLED,
+                "Approval cancelled",
+                reason.take(160),
+                actionId = actionId,
+                machineTag = "approval_cancelled",
+                allowTerminal = true,
+            )
         }
     }
 
@@ -245,19 +269,31 @@ object ExecutionStatusBus {
 
     /** Close a pending approval as a timeout; it is never reported as success. */
     fun onApprovalTimedOut(executionId: String, actionId: String, interruptId: String, reason: String = "Approval expired") {
-        var accepted = false
-        statusUpdate { current ->
-            if (!belongsToActiveExecution(current, executionId) || current.approvalInterruptId != interruptId) current else {
-                accepted = true
-                current.copy(isWorking = false, executionStage = ExecutionStage.FAILED, currentAction = "Approval expired", waitingForApproval = false, approvalInterruptId = "")
+        synchronized(traceLock) {
+            if (!isOpenExecution(executionId) || approvalOwners[interruptId] != executionId) return
+            approvalOwners.remove(interruptId)
+            terminalExecutions += executionId
+            if (_status.value.executionId == executionId) {
+                _status.update { current ->
+                    if (!belongsToActiveExecution(current, executionId) || current.approvalInterruptId != interruptId) current else current.copy(
+                        isWorking = false,
+                        executionStage = ExecutionStage.FAILED,
+                        currentAction = "Approval expired",
+                        waitingForApproval = false,
+                        approvalInterruptId = "",
+                    )
+                }
             }
-        }
-        if (accepted) {
-            synchronized(traceLock) {
-                approvalOwners.remove(interruptId)
-                terminalExecutions += executionId
-            }
-            appendTrace(executionId, ExecutionTraceKind.APPROVAL_TIMEOUT, "Approval expired", reason.take(160), actionId = actionId, errorCode = "approval_timeout", machineTag = "approval_timeout", allowTerminal = true)
+            appendTrace(
+                executionId,
+                ExecutionTraceKind.APPROVAL_TIMEOUT,
+                "Approval expired",
+                reason.take(160),
+                actionId = actionId,
+                errorCode = "approval_timeout",
+                machineTag = "approval_timeout",
+                allowTerminal = true,
+            )
         }
     }
 
@@ -453,13 +489,18 @@ object ExecutionStatusBus {
         executionId: String,
         reason: String = "Execution timed out",
     ) {
-        var accepted = false
+        val traceAccepted = synchronized(traceLock) {
+            if (!isOpenExecution(executionId)) false else {
+                terminalExecutions += executionId
+                true
+            }
+        }
+        var statusAccepted = false
         statusUpdate { current ->
             if (!acceptsEvent(current.executionId, executionId) ||
                 current.executionStage in TERMINAL_STAGES
             ) return@statusUpdate current
-            accepted = true
-            synchronized(traceLock) { terminalExecutions += executionId }
+            statusAccepted = true
             current.copy(
                 isWorking = false,
                 executionStage = ExecutionStage.FAILED,
@@ -471,7 +512,7 @@ object ExecutionStatusBus {
                 approvalInterruptId = "",
             )
         }
-        if (accepted) {
+        if (traceAccepted || statusAccepted) {
             appendTrace(
                 executionId = executionId,
                 kind = ExecutionTraceKind.TIMED_OUT,
@@ -528,13 +569,18 @@ object ExecutionStatusBus {
 
     /** Signal explicit user or lifecycle cancellation of the active graph. */
     fun onGraphCancelled(executionId: String) {
-        var accepted = false
+        val traceAccepted = synchronized(traceLock) {
+            if (!isOpenExecution(executionId)) false else {
+                terminalExecutions += executionId
+                true
+            }
+        }
+        var statusAccepted = false
         statusUpdate { current ->
             if (!acceptsEvent(current.executionId, executionId) ||
                 current.executionStage in TERMINAL_STAGES
             ) return@statusUpdate current
-            accepted = true
-            synchronized(traceLock) { terminalExecutions += executionId }
+            statusAccepted = true
             current.copy(
                 isWorking = false,
                 executionStage = ExecutionStage.CANCELLED,
@@ -546,7 +592,7 @@ object ExecutionStatusBus {
                 approvalInterruptId = "",
             )
         }
-        if (accepted) {
+        if (traceAccepted || statusAccepted) {
             appendTrace(executionId, ExecutionTraceKind.CANCELLED, "Execution cancelled", machineTag = "execution_cancelled", allowTerminal = true)
         }
         safeLog { Log.i(TAG, "EXEC_STATUS_CANCELLED") }
@@ -577,8 +623,9 @@ object ExecutionStatusBus {
         errorCode: String? = null,
     ) {
         synchronized(traceLock) {
-            if (!belongsToToolTerminalExecution(_status.value, executionId) ||
-                !isOpenExecution(executionId) ||
+            // Tool traces are execution-owned. The single visible AgentState may
+            // already belong to (or be terminal for) a different execution.
+            if (!isOpenExecution(executionId) ||
                 toolTraceLifecycles[executionId]?.admitTerminal(executionId, actionId) != true
             ) {
                 safeLog { Log.w(TAG, "TRACE_TOOL_TERMINAL_REJECTED owner=${executionId.take(8)}") }
@@ -655,14 +702,6 @@ object ExecutionStatusBus {
         acceptsEvent(current.executionId, executionId) &&
             current.executionStage !in TERMINAL_STAGES &&
             !current.cancellationRequested
-
-    /**
-     * A stop request blocks new work, but an already-started tool must still
-     * publish its terminal cancellation so the trace cannot contain a dangling
-     * TOOL_STARTED event forever.
-     */
-    private fun belongsToToolTerminalExecution(current: AgentState, executionId: String): Boolean =
-        executionId.isNotBlank() && current.executionStage !in TERMINAL_STAGES
 
     private fun isOpenExecution(executionId: String): Boolean = synchronized(traceLock) {
         executionId.isNotBlank() && executionId in traceBuffers && executionId !in terminalExecutions

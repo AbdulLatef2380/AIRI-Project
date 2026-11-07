@@ -4,6 +4,7 @@ import android.util.Log
 import com.airi.assistant.security.CommandRedactor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
@@ -128,7 +129,7 @@ class SandboxExecutor(private val session: SandboxSession) {
      *   6. Exec with ProcessBuilder(argv), redirectErrorStream=true.
      *   7. Cap output, force-kill process tree on timeout.
      */
-    private fun executeShell(task: SandboxTask): ExecutionResult {
+    private suspend fun executeShell(task: SandboxTask): ExecutionResult {
         val argv = tokenize(task.command)
         if (argv.isEmpty()) {
             return ExecutionResult.SecurityViolation("Empty command")
@@ -175,40 +176,45 @@ class SandboxExecutor(private val session: SandboxSession) {
             }
 
             val proc = pb.start()
-            val output = StringBuilder()
-            // P0-4: Guarantee process cleanup on any exit path including coroutine cancellation.
-            try {
-                proc.inputStream.bufferedReader().use { reader ->
-                    val buf = CharArray(4096)
-                    while (true) {
-                        val n = reader.read(buf)
-                        if (n < 0) break
-                        if (output.toString().toByteArray(Charsets.UTF_8).size + n > OUTPUT_LIMIT_BYTES) {
-                            val remaining = (OUTPUT_LIMIT_BYTES - output.toString().toByteArray(Charsets.UTF_8).size).coerceAtLeast(0)
-                            output.append(buf, 0, remaining.coerceAtMost(n))
-                            output.append("\n[output truncated at $OUTPUT_LIMIT_BYTES bytes]")
-                            runCatching { proc.destroyForcibly() }
-                            break
+            // runInterruptible is essential here: a subprocess may keep stdout
+            // open without producing data. A coroutine timeout alone cannot
+            // unblock a JVM InputStream.read(), so it could otherwise leave an
+            // IO worker and child process alive past the task deadline.
+            return runInterruptible(Dispatchers.IO) {
+                val output = StringBuilder()
+                // P0-4: Guarantee process cleanup on any exit path including coroutine cancellation.
+                try {
+                    proc.inputStream.bufferedReader().use { reader ->
+                        val buf = CharArray(4096)
+                        while (true) {
+                            val n = reader.read(buf)
+                            if (n < 0) break
+                            if (output.toString().toByteArray(Charsets.UTF_8).size + n > OUTPUT_LIMIT_BYTES) {
+                                val remaining = (OUTPUT_LIMIT_BYTES - output.toString().toByteArray(Charsets.UTF_8).size).coerceAtLeast(0)
+                                output.append(buf, 0, remaining.coerceAtMost(n))
+                                output.append("\n[output truncated at $OUTPUT_LIMIT_BYTES bytes]")
+                                runCatching { proc.destroyForcibly() }
+                                break
+                            }
+                            output.append(buf, 0, n)
                         }
-                        output.append(buf, 0, n)
                     }
+                    // P0-4: Use timed waitFor to prevent ANR when subprocess hangs.
+                    // runInterruptible above also makes cancellation interrupt a
+                    // blocked read before this wait is reached.
+                    @Suppress("BlockingMethodInNonBlockingContext")
+                    val finished = proc.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
+                    if (finished) {
+                        val exit = proc.exitValue()
+                        if (exit == 0) ExecutionResult.Success(output.toString(), exit)
+                        else ExecutionResult.Failure(output.toString(), exit, retryable = false)
+                    } else {
+                        ExecutionResult.Failure("Process timed out after 5 s", retryable = false)
+                    }
+                } finally {
+                    // Runs on normal exit, exception, AND coroutine cancellation.
+                    runCatching { proc.destroyForcibly() }
                 }
-                // P0-4: Use timed waitFor to prevent ANR when subprocess hangs.
-                // The outer withTimeoutOrNull caps wall-clock time, but a subprocess
-                // that has closed stdout while still running would block proc.waitFor()
-                // indefinitely. 5 s is generous for any allowlisted binary.
-                @Suppress("BlockingMethodInNonBlockingContext")
-                val finished = proc.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
-                if (finished) {
-                    val exit = proc.exitValue()
-                    if (exit == 0) ExecutionResult.Success(output.toString(), exit)
-                    else ExecutionResult.Failure(output.toString(), exit, retryable = false)
-                } else {
-                    ExecutionResult.Failure("Process timed out after 5 s", retryable = false)
-                }
-            } finally {
-                // Runs on normal exit, exception, AND coroutine cancellation.
-                runCatching { proc.destroyForcibly() }
             }
         } catch (e: CancellationException) {
             throw e

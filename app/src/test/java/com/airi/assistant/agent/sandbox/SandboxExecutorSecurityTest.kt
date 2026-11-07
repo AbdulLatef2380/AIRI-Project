@@ -2,6 +2,7 @@ package com.airi.assistant.agent.sandbox
 
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.nio.file.Files
 
@@ -96,6 +97,33 @@ class SandboxExecutorSecurityTest {
             assertTrue(absoluteRead is SandboxExecutor.ExecutionResult.SecurityViolation)
             assertTrue(networkGit is SandboxExecutor.ExecutionResult.SecurityViolation)
             assertTrue(!java.io.File(root, "escaped").exists())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun silentProcessIsCancelledAtSandboxDeadline() = runBlocking {
+        val root = Files.createTempDirectory("airi-sandbox-").toFile()
+        val fifo = java.io.File(root, "blocked.pipe")
+        try {
+            val mkfifo = runCatching {
+                ProcessBuilder("mkfifo", fifo.absolutePath).start().also { it.waitFor() }
+            }.getOrNull()
+            assumeTrue("mkfifo is required for the blocking-read test", mkfifo?.exitValue() == 0)
+
+            val startedAt = System.nanoTime()
+            val result = SandboxExecutor(SandboxSession("test", "test", root)).execute(
+                SandboxExecutor.SandboxTask(
+                    type = SandboxExecutor.TaskType.SHELL_COMMAND,
+                    command = "cat ${fifo.name}",
+                    timeoutMs = 250L,
+                )
+            )
+            val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L
+
+            assertTrue(result is SandboxExecutor.ExecutionResult.Timeout)
+            assertTrue("silent process exceeded deadline: ${elapsedMs}ms", elapsedMs < 2_000L)
         } finally {
             root.deleteRecursively()
         }

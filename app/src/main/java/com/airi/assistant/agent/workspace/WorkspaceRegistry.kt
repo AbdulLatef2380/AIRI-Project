@@ -45,7 +45,7 @@ object WorkspaceRegistry {
      */
     fun get(goalId: String): SandboxWorkspace =
         active.computeIfAbsent(goalId) {
-            Log.i(TAG, "WORKSPACE_CREATE goalId=$goalId")
+            safeLog("WORKSPACE_CREATE goalId=$goalId")
             SandboxWorkspace(goalId = goalId)
         }
 
@@ -61,7 +61,7 @@ object WorkspaceRegistry {
     fun release(goalId: String) {
         val ws = active.remove(goalId)
         if (ws != null) {
-            Log.i(TAG, "WORKSPACE_RELEASE goalId=$goalId artifacts=${ws.summary().fileCount}")
+            safeLog("WORKSPACE_RELEASE goalId=$goalId artifacts=${ws.summary().fileCount}")
         }
     }
 
@@ -75,11 +75,17 @@ object WorkspaceRegistry {
         }.map { it.key }
         stale.forEach { id ->
             active.remove(id)
-            Log.i(TAG, "WORKSPACE_PRUNE_STALE goalId=$id")
+            safeLog("WORKSPACE_PRUNE_STALE goalId=$id")
         }
         if (stale.isNotEmpty()) {
-            Log.i(TAG, "WorkspaceRegistry.pruneStale evicted=${stale.size} remaining=${active.size}")
+            safeLog("WorkspaceRegistry.pruneStale evicted=${stale.size} remaining=${active.size}")
         }
+    }
+
+    /** Android's platform Log throws in plain JVM tests; never let diagnostics
+     * change the lifecycle contract or make a workspace operation fail. */
+    private fun safeLog(message: String) {
+        runCatching { Log.i(TAG, message) }
     }
 
     /** Returns how many workspaces are currently active. For diagnostics only. */

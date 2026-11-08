@@ -5,7 +5,9 @@ import com.airi.assistant.security.CommandRedactor
 import com.airi.assistant.domain.terminal.TerminalExecutionPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
@@ -185,19 +187,27 @@ class SandboxExecutor(private val session: SandboxSession) {
             // Terminal is deliberately non-interactive. Closing stdin prevents
             // commands such as `cat` from waiting forever for a user input.
             runCatching { proc.outputStream.close() }
-            // runInterruptible is essential here: a subprocess may keep stdout
-            // open without producing data. A coroutine timeout alone cannot
-            // unblock a JVM InputStream.read(), so it could otherwise leave an
-            // IO worker and child process alive past the task deadline.
-            return runInterruptible(Dispatchers.IO) {
+            // Do not perform a blocking read on a pipe/FIFO here. Some Android
+            // and JVM implementations do not unblock that read when the
+            // coroutine is cancelled, which can pin the Gradle test worker for
+            // the whole job timeout. Polling available() keeps cancellation
+            // responsive; the finally block still owns process cleanup.
+            return withContext(Dispatchers.IO) {
                 val output = ByteArrayOutputStream()
                 // P0-4: Guarantee process cleanup on any exit path including coroutine cancellation.
                 try {
                     proc.inputStream.use { input ->
                         val buf = ByteArray(4096)
                         while (true) {
-                            val n = input.read(buf)
-                            if (n < 0) break
+                            currentCoroutineContext().ensureActive()
+                            val available = input.available()
+                            if (available == 0) {
+                                if (!proc.isAlive) break
+                                delay(10L)
+                                continue
+                            }
+                            val n = input.read(buf, 0, available.coerceAtMost(buf.size))
+                            if (n <= 0) continue
                             val remaining = OUTPUT_LIMIT_BYTES - output.size()
                             if (n > remaining) {
                                 if (remaining > 0) output.write(buf, 0, remaining)

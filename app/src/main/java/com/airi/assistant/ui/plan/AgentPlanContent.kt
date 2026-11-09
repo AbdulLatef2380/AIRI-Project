@@ -55,6 +55,7 @@ import com.airi.assistant.ui.theme.*
 import com.airi.assistant.core.ExecutionTraceEvent
 import com.airi.assistant.core.ExecutionTraceKind
 import com.airi.assistant.ui.viewmodel.ExecutionStage
+import com.airi.assistant.ui.activity.AgentLifecycleTrackerPanel
 
 /**
  * /: Agent Plan content for ModalBottomSheet.
@@ -76,11 +77,7 @@ fun AgentPlanContent(
     val stage by viewModel.currentStage.collectAsStateWithLifecycle()
     val cancellationRequested by viewModel.cancellationRequested.collectAsStateWithLifecycle()
     val goal  by viewModel.goalDescription.collectAsStateWithLifecycle()
-    val traceEntries by viewModel.traceEntries.collectAsStateWithLifecycle()
-    val traceFilter by viewModel.traceFilter.collectAsStateWithLifecycle()
-    val traceAutoScroll by viewModel.traceAutoScroll.collectAsStateWithLifecycle()
-    val unreadTraceCount by viewModel.unreadTraceCount.collectAsStateWithLifecycle()
-    val showTraceJumpToLatest by viewModel.showTraceJumpToLatest.collectAsStateWithLifecycle()
+    val traceProjection by viewModel.traceProjection.collectAsStateWithLifecycle()
 
     val listState = rememberLazyListState()
     val runningIdx = steps.indexOfLast { it.status.isActive }
@@ -136,16 +133,10 @@ fun AgentPlanContent(
 
         Divider(color = AiriTheme.outline)
 
-        AgentTraceSection(
-            entries = traceEntries,
-            selectedFilter = traceFilter,
-            autoScroll = traceAutoScroll,
-            unreadCount = unreadTraceCount,
-            showJumpToLatest = showTraceJumpToLatest,
-            onSelectFilter = viewModel::setTraceFilter,
-            onPauseFollowing = viewModel::pauseTraceAutoScroll,
-            onFollowLatest = viewModel::followTraceLatest,
-            onObserved = viewModel::markTraceObserved,
+        AgentLifecycleTrackerPanel(
+            projection = traceProjection,
+            isWorking = stage == ExecutionStage.EXECUTING && !cancellationRequested,
+            modifier = Modifier.padding(horizontal = 12.dp),
         )
 
         // ── Steps ────────────────────────────────────────────────────────────

@@ -5,7 +5,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.core.ExecutionTraceEvent
+import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.ui.viewmodel.ExecutionStage
+import com.airi.assistant.ui.trace.UnifiedExecutionTraceProjector
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -51,6 +53,31 @@ class AgentPlanViewModel(application: Application) : AndroidViewModel(applicatio
         if (executionId.isBlank()) emptyList()
         else ExecutionTracePresentation.visibleEntries(events, executionId, filter)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** The plan sheet consumes the same hierarchical projection as the inline live tracker. */
+    val traceProjection = combine(
+        traceEntries,
+        AgentActivityBus.recentEvents,
+        _executionId,
+    ) { entries, activities, executionId ->
+        UnifiedExecutionTraceProjector.projectProjection(
+            executionId = executionId,
+            traceEntries = entries,
+            activityEvents = activities,
+            planningTaskLabel = "Planning",
+            executionCompletedLabel = "Execution completed",
+        )
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "",
+            traceEntries = emptyList(),
+            activityEvents = emptyList(),
+            planningTaskLabel = "Planning",
+            executionCompletedLabel = "Execution completed",
+        ),
+    )
 
     /** Only expose the panel for a real multi-step execution. */
     val showPanel: StateFlow<Boolean> = combine(steps, ExecutionStatusBus.status, _restoredPlan) { planSteps, state, restored ->

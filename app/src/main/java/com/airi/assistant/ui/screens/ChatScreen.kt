@@ -214,12 +214,12 @@ fun ChatScreen(
         onDispose { profilePreferences.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     val scope         = rememberCoroutineScope()
-    val messages      by viewModel.messages.collectAsState()
-    val streamingText by viewModel.streamingText.collectAsState()
-    val agentState    by viewModel.agentState.collectAsState()
-    val generationStoppedNotice by viewModel.generationStoppedNotice.collectAsState()
-    val agentActivityEvents by AgentActivityBus.recentEvents.collectAsState()
-    val lastExecutionError by viewModel.lastExecutionError.collectAsState()
+    val messages      by viewModel.messages.collectAsStateWithLifecycle()
+    val streamingText by viewModel.streamingText.collectAsStateWithLifecycle()
+    val agentState    by viewModel.agentState.collectAsStateWithLifecycle()
+    val generationStoppedNotice by viewModel.generationStoppedNotice.collectAsStateWithLifecycle()
+    val agentActivityEvents by AgentActivityBus.recentEvents.collectAsStateWithLifecycle()
+    val lastExecutionError by viewModel.lastExecutionError.collectAsStateWithLifecycle()
     val modelState    by viewModel.modelState.collectAsState()
     val capabilityDescriptor = remember(modelState) { viewModel.currentCapabilityDescriptor() }
     val agentMode     by viewModel.agentMode.collectAsState()

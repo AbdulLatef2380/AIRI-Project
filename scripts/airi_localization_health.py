@@ -25,6 +25,10 @@ TECHNICAL_RESOURCE_NAMES = {
     "about_stack_body",
     "secret_manager_key_placeholder",
     "zapier_webhook_placeholder",
+    # These resources intentionally contain only format placeholders; the
+    # surrounding labels are localized by the caller.
+    "agent_file_card_description",
+    "run_model_tokens",
 }
 TECHNICAL_VALUES = {
     "AIRI",

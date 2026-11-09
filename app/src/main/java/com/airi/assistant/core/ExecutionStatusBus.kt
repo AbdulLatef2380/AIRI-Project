@@ -371,17 +371,6 @@ object ExecutionStatusBus {
                 return
             }
             val redactedParams = inputParams.mapValues { (key, value) -> PrivacyGuard.redactTraceField(key, value) }
-            appendTrace(
-                executionId,
-                ExecutionTraceKind.TOOL_REQUESTED,
-                "Tool requested: $toolName",
-                detail,
-                actionId = actionId,
-                machineTag = "tool_requested",
-                parentId = parentId,
-                inputParams = redactedParams,
-                provenance = toolName.substringBefore('_').takeIf { it.isNotBlank() },
-            )
             toolTraceContexts[executionId]?.set(
                 actionId,
                 ToolTraceContext(redactedParams, parentId?.takeIf { it.isNotBlank() })
@@ -389,6 +378,32 @@ object ExecutionStatusBus {
             appendTrace(executionId, ExecutionTraceKind.TOOL_STARTED, "Running tool: $toolName", detail,
                 actionId, machineTag = "tool_call", parentId = parentId, inputParams = redactedParams,
                 provenance = toolName.substringBefore('_').takeIf { it.isNotBlank() })
+        }
+    }
+
+    /** Records tool selection before admission/start, preserving requested identity on denial. */
+    fun onToolRequested(
+        executionId: String,
+        actionId: String,
+        toolName: String,
+        detail: String? = null,
+        inputParams: Map<String, String> = emptyMap(),
+        parentId: String? = null,
+    ) {
+        synchronized(traceLock) {
+            if (!isOpenExecution(executionId) || actionId.isBlank()) return
+            val redactedParams = inputParams.mapValues { (key, value) -> PrivacyGuard.redactTraceField(key, value) }
+            appendTrace(
+                executionId = executionId,
+                kind = ExecutionTraceKind.TOOL_REQUESTED,
+                summary = "Tool requested: $toolName",
+                detail = detail,
+                actionId = actionId,
+                machineTag = "tool_requested",
+                parentId = parentId,
+                inputParams = redactedParams,
+                provenance = toolName.substringBefore('_').takeIf { it.isNotBlank() },
+            )
         }
     }
 

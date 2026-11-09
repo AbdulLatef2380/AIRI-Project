@@ -56,6 +56,13 @@ class ExecutionStatusBusTest {
         val executionId = "typed-tool-lifecycle-test"
         ExecutionStatusBus.reset()
         ExecutionStatusBus.onGraphStarted("Verify workspace", 1, executionId)
+        ExecutionStatusBus.onToolRequested(
+            executionId = executionId,
+            actionId = "tool-1",
+            toolName = "read_file",
+            inputParams = mapOf("path" to "/safe/README.md"),
+            parentId = "step-1",
+        )
         ExecutionStatusBus.onToolStarted(
             executionId = executionId,
             actionId = "tool-1",

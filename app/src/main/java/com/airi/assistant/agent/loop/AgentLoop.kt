@@ -405,6 +405,12 @@ the tool returns an actual error.
             val actionId = "tool_deterministic_current_time"
             val startedAtMs = System.currentTimeMillis()
             activeToolTrace = ActiveToolTrace(executionId, actionId, "current_time", startedAtMs)
+            ExecutionStatusBus.onToolRequested(
+                executionId = executionId,
+                actionId = actionId,
+                toolName = "current_time",
+                detail = "Selected deterministic device-clock tool.",
+            )
             ExecutionStatusBus.onToolStarted(
                 executionId = executionId,
                 actionId = actionId,
@@ -702,6 +708,13 @@ the tool returns an actual error.
                     val batchResults = com.airi.assistant.agent.loop.tool.ToolCallBatchExecutor.execute(batchRequests) { request ->
                         val actionId = batchActionIds.getValue(request.id)
                         val startedAtMs = System.currentTimeMillis()
+                        ExecutionStatusBus.onToolRequested(
+                            executionId = executionId,
+                            actionId = actionId,
+                            toolName = request.toolName,
+                            detail = "Selected from model tool call.",
+                            inputParams = request.arguments,
+                        )
                         ExecutionStatusBus.onToolStarted(
                             executionId = executionId,
                             actionId = actionId,
@@ -1096,6 +1109,14 @@ the tool returns an actual error.
                     executionId = executionId,
                 )
 
+                ExecutionStatusBus.onToolRequested(
+                    executionId = executionId,
+                    actionId = toolStepId,
+                    toolName = toolName,
+                    detail = "Selected from execution step.",
+                    inputParams = toolArgs,
+                    parentId = stepId,
+                )
                 ExecutionStatusBus.onToolStarted(
                     executionId = executionId,
                     actionId = toolStepId,

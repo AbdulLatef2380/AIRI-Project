@@ -57,6 +57,22 @@ class ChatExecutionTraceStepDetailTest {
     }
 
     @Test
+    fun boundedToolOutputEvidenceIsPreferredOverGenericCompletionDetail() {
+        val done = toolDone(2, "read_file", detail = "Source: builtin; result length: 40 chars.")
+        val output = ExecutionTraceEvent(
+            executionId = "exec-1",
+            sequence = 1,
+            timestampMs = 1_001L,
+            kind = ExecutionTraceKind.TOOL_OUTPUT,
+            summary = "Tool output: read_file",
+            actionId = "action-2",
+            outputSummary = "README contains 3 sections",
+        )
+        val trace = map(listOf(output, done, completed(3)))
+        assertEquals("README contains 3 sections", trace.steps.single().outputSummary)
+    }
+
+    @Test
     fun inputParamsReachTheStepSoTheFileCardCanFindTheFilename() {
         val trace = map(listOf(toolDone(1, "write_file", params = mapOf("filename" to "a.py")), completed(2)))
         assertEquals("a.py", trace.steps.single().inputParams["filename"])

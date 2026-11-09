@@ -46,7 +46,10 @@ object ChatExecutionTraceMapper {
         val success = terminal?.kind == ExecutionTraceKind.COMPLETED &&
             hasRecoveredFailures(ordered, terminal.sequence)
 
-        val allSteps = ordered.mapNotNull(::stepFor)
+        val outputByActionId = ordered
+            .filter { it.kind == ExecutionTraceKind.TOOL_OUTPUT && it.actionId != null }
+            .associateBy { it.actionId!! }
+        val allSteps = ordered.mapNotNull { stepFor(it, outputByActionId) }
         val kept = if (allSteps.size <= AgentTraceManager.MAX_STEPS) {
             allSteps
         } else {
@@ -137,7 +140,10 @@ object ChatExecutionTraceMapper {
     }
 
     /** Only events that mark a finished unit of work become steps. */
-    private fun stepFor(event: ExecutionTraceEvent): AgentStep? {
+    private fun stepFor(
+        event: ExecutionTraceEvent,
+        outputByActionId: Map<String, ExecutionTraceEvent> = emptyMap(),
+    ): AgentStep? {
         val (type, ok) = when (event.kind) {
             ExecutionTraceKind.TOOL_COMPLETED -> AgentStepType.TOOL to true
             ExecutionTraceKind.TOOL_FAILED -> AgentStepType.TOOL to false
@@ -146,6 +152,8 @@ object ChatExecutionTraceMapper {
             ExecutionTraceKind.APPROVAL_CANCELLED -> AgentStepType.TASK_STEP to false
             ExecutionTraceKind.APPROVAL_TIMEOUT -> AgentStepType.TASK_STEP to false
             ExecutionTraceKind.TIMED_OUT -> AgentStepType.TASK_STEP to false
+            ExecutionTraceKind.VERIFICATION_PASSED -> AgentStepType.VERIFY to true
+            ExecutionTraceKind.VERIFICATION_FAILED -> AgentStepType.VERIFY to false
             else -> return null
         }
         val decisionType = when (event.machineTag) {
@@ -159,7 +167,12 @@ object ChatExecutionTraceMapper {
         val toolName = if (event.machineTag == "tool_call") toolNameFrom(event.summary) else null
         // A successful tool event carries only `detail` (source and result length), which the old
         // mapping dropped; show it instead of repeating the "Tool completed" summary.
-        val shownOutput = if (ok && toolName != null) event.detail?.takeIf { it.isNotBlank() } ?: event.summary else event.summary
+        val outputEvidence = outputByActionId[event.actionId]?.outputSummary
+        val shownOutput = if (ok && toolName != null) {
+            outputEvidence?.takeIf { it.isNotBlank() }
+                ?: event.detail?.takeIf { it.isNotBlank() }
+                ?: event.summary
+        } else event.summary
         return AgentStep(
             stepIndex = 0,
             type = decisionType ?: type,

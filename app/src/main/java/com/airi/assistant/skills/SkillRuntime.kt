@@ -11,8 +11,8 @@ import com.airi.assistant.ai.skills.SkillResultVerifier
 import com.airi.assistant.agent.sandbox.SandboxExecutor
 import com.airi.assistant.agent.sandbox.SandboxManager
 import com.airi.assistant.connector.ConnectorRuntimeManager
+import com.airi.assistant.core.ExecutionTraceGateway
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
@@ -70,7 +70,13 @@ class SkillRuntime(
     /** Register a new skill at runtime — available immediately for routing. */
     fun registerDynamic(skill: AiriSkill) {
         dynamicSkills[skill.name] = skill
-        AgentActivityBus.emit("Skill registered: ${skill.name}", ActivityCategory.TOOL)
+        ExecutionTraceGateway.emitExecution(
+            executionId = null,
+            actionId = "skill_registration:${skill.name}",
+            phase = "registered",
+            message = "Skill registered: ${skill.name}",
+            category = ActivityCategory.TOOL,
+        )
         Log.i(TAG, "Dynamic skill registered: ${skill.name}")
     }
 
@@ -137,11 +143,14 @@ class SkillRuntime(
     suspend fun execute(
         skill:   AiriSkill,
         params:  Map<String, Any> = emptyMap(),
-        timeoutMs: Long = 30_000L
+        timeoutMs: Long = 30_000L,
+        executionId: String? = null,
+        actionId: String? = null,
     ): SkillResult {
         val key = skill.name
+        val traceActionId = actionId ?: "skill:$key"
         trackStart(key)
-        AgentActivityBus.emit("Running skill: ${skill.name}", ActivityCategory.TOOL)
+        ExecutionTraceGateway.emitExecution(executionId, traceActionId, "started", "Running skill: ${skill.name}", ActivityCategory.TOOL)
 
         return try {
             val result = SkillResultVerifier.verify(
@@ -150,14 +159,16 @@ class SkillRuntime(
             )
 
             if (result.success) trackEnd(key, result.data) else trackFail(key)
-            AgentActivityBus.emit(
+            ExecutionTraceGateway.emitExecution(
+                executionId, traceActionId,
+                if (result.success) "completed" else "failed",
                 if (result.success) "Skill ${skill.name} completed" else "Skill ${skill.name} failed",
-                ActivityCategory.TOOL
+                ActivityCategory.TOOL,
             )
             result
         } catch (e: TimeoutCancellationException) {
             trackFail(key)
-            AgentActivityBus.emit("Skill ${skill.name} timed out", ActivityCategory.TOOL)
+            ExecutionTraceGateway.emitExecution(executionId, traceActionId, "timeout", "Skill ${skill.name} timed out", ActivityCategory.TOOL)
             SkillResult(
                 success = false,
                 data = "",
@@ -170,7 +181,7 @@ class SkillRuntime(
             throw e
         } catch (e: Exception) {
             trackFail(key)
-            AgentActivityBus.emit("Skill ${skill.name} failed (${e.javaClass.simpleName})", ActivityCategory.TOOL)
+            ExecutionTraceGateway.emitExecution(executionId, traceActionId, "failed", "Skill ${skill.name} failed (${e.javaClass.simpleName})", ActivityCategory.TOOL)
             SkillResult(
                 success = false,
                 data = "",
@@ -191,11 +202,23 @@ class SkillRuntime(
     ): SkillResult {
         var currentParams = initialInput
         var lastResult    = SkillResult(success = false, data = "No skills in chain")
-        AgentActivityBus.emit("Skill chain started: ${skills.map { it.name }.joinToString("→")}", ActivityCategory.TOOL)
+        ExecutionTraceGateway.emitExecution(
+            executionId = null,
+            actionId = "skill_chain:${skills.joinToString(",") { it.name }}",
+            phase = "started",
+            message = "Skill chain started: ${skills.map { it.name }.joinToString("→")}",
+            category = ActivityCategory.TOOL,
+        )
         for (skill in skills) {
             lastResult = execute(skill, currentParams)
             if (!lastResult.success) {
-                AgentActivityBus.emit("Skill chain broken at '${skill.name}'", ActivityCategory.TOOL)
+                ExecutionTraceGateway.emitExecution(
+                    executionId = null,
+                    actionId = "skill_chain:${skill.name}",
+                    phase = "failed",
+                    message = "Skill chain broken at '${skill.name}'",
+                    category = ActivityCategory.TOOL,
+                )
                 break
             }
             // Pass output as input for the next skill

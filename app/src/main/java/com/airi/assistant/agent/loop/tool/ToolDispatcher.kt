@@ -22,11 +22,8 @@ import com.airi.assistant.domain.customskill.ProposalSource
 import com.airi.assistant.domain.customskill.SkillType
 import com.airi.assistant.marketplace.GitHubSkillImporter
 import com.airi.assistant.execution.privacy.PrivacyGuard
+import com.airi.assistant.core.ExecutionTraceGateway
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.ActivityEvent
-import com.airi.assistant.ui.activity.ActivityMetadata
-import com.airi.assistant.ui.activity.ActivityPhase
-import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.domain.tool.TypedArgumentContract
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -117,21 +114,17 @@ class ToolDispatcher(
             }
         }
         LoggingService.info(TAG, "TOOL_DISPATCH tool=$toolName argCount=${args.size}")
-        AgentActivityBus.emit(
-            ActivityEvent(
-                message = PrivacyGuard.redactForTrace("Tool dispatched: $toolName"),
-                executionId = executionId?.takeIf { it.isNotBlank() },
-                category = ActivityCategory.TOOL,
-                metadata = ActivityMetadata(
-                    phase = ActivityPhase.ACTION,
-                    actionId = actionId?.takeIf { it.isNotBlank() },
-                ),
-                machineTag = "tool_dispatch_compat:${when (toolName) {
+        ExecutionTraceGateway.emitExecution(
+            executionId = executionId,
+            actionId = actionId,
+            phase = "dispatched",
+            message = PrivacyGuard.redactForTrace("Tool dispatched: $toolName"),
+            category = ActivityCategory.TOOL,
+            machineTag = "tool_dispatch_compat:${when (toolName) {
                     "read_screen", "web_search", "fetch_url" -> "page_viewed"
                     "terminal_execute" -> "command_executed"
                     else -> "tool_executed"
                 }}",
-            )
         )
 
         return when (toolName) {

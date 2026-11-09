@@ -1,9 +1,9 @@
 package com.airi.assistant.connector
 
+import com.airi.assistant.core.ExecutionTraceGateway
 import com.airi.assistant.domain.logging.LoggingService
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.ActivitySeverity
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.CancellationException
@@ -106,10 +106,12 @@ class ConnectorRuntimeManager(
         val requestStartedMs = System.currentTimeMillis()
         trackStart(key, InflightAction(connectorId, input.action))
         setOperationState(operationId, ConnectorOperationState.Running(operationId, connectorId, input.action))
-        AgentActivityBus.emit(
+        ExecutionTraceGateway.emitExecution(
+            executionId = input.executionId,
+            actionId = input.actionId ?: "connector:$connectorId:$operationId",
+            phase = "started",
             message = "Executing '$connectorId' → ${input.action}",
             category = ActivityCategory.CONNECTOR,
-            executionId = input.executionId,
         )
         return try {
             withTimeout(timeoutMs) {
@@ -155,11 +157,13 @@ class ConnectorRuntimeManager(
                 })
             }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            AgentActivityBus.emit(
+            ExecutionTraceGateway.emitExecution(
+                executionId = input.executionId,
+                actionId = input.actionId ?: "connector:$connectorId:$operationId",
+                phase = "timeout",
                 message = "'$connectorId' timed out after ${timeoutMs}ms",
                 category = ActivityCategory.CONNECTOR,
                 severity = ActivitySeverity.WARN,
-                executionId = input.executionId,
             )
             // A timeout has an unknown outcome. Retrying blindly can duplicate a
             // mutation, so callers must opt into a contract-specific retry.
@@ -284,19 +288,52 @@ class ConnectorRuntimeManager(
                 )
             }
             when {
-                last is ConnectorOutput.Success   -> { AgentActivityBus.emit(" '${connector.id}' ${input.action}", ActivityCategory.CONNECTOR); return last }
+                last is ConnectorOutput.Success   -> {
+                    ExecutionTraceGateway.emitExecution(
+                        executionId = input.executionId,
+                        actionId = input.actionId,
+                        phase = "completed",
+                        message = " '${connector.id}' ${input.action}",
+                        category = ActivityCategory.CONNECTOR,
+                    )
+                    return last
+                }
                 last is ConnectorOutput.Streaming -> return last
                 last is ConnectorOutput.ApprovalRequired -> {
-                    AgentActivityBus.emit(" '${connector.id}' is awaiting approval", ActivityCategory.CONNECTOR, ActivitySeverity.WARN)
+                    ExecutionTraceGateway.emitExecution(
+                        executionId = input.executionId,
+                        actionId = input.actionId,
+                        phase = "waiting_for_approval",
+                        message = " '${connector.id}' is awaiting approval",
+                        category = ActivityCategory.CONNECTOR,
+                        severity = ActivitySeverity.WARN,
+                    )
                     return last
                 }
                 last is ConnectorOutput.Failure && last.retryable && attempt < maxRetries -> {
                     val providerBackoffMs = last.retryAfterMs?.coerceIn(0L, MAX_RETRY_AFTER_MS)
                     val backoffMs = providerBackoffMs ?: (500L * (attempt + 1))
-                    AgentActivityBus.emit("Retrying '${connector.id}' (${attempt + 2}/${maxRetries + 1})", ActivityCategory.CONNECTOR, ActivitySeverity.WARN)
+                    ExecutionTraceGateway.emitExecution(
+                        executionId = input.executionId,
+                        actionId = input.actionId,
+                        phase = "retry_${attempt + 2}",
+                        message = "Retrying '${connector.id}' (${attempt + 2}/${maxRetries + 1})",
+                        category = ActivityCategory.CONNECTOR,
+                        severity = ActivitySeverity.WARN,
+                    )
                     delay(backoffMs)
                 }
-                else -> { AgentActivityBus.emit(" '${connector.id}' failed: ${(last as? ConnectorOutput.Failure)?.message?.take(60)}", ActivityCategory.CONNECTOR, ActivitySeverity.ERROR); return last }
+                else -> {
+                    ExecutionTraceGateway.emitExecution(
+                        executionId = input.executionId,
+                        actionId = input.actionId,
+                        phase = "failed",
+                        message = " '${connector.id}' failed: ${(last as? ConnectorOutput.Failure)?.message?.take(60)}",
+                        category = ActivityCategory.CONNECTOR,
+                        severity = ActivitySeverity.ERROR,
+                    )
+                    return last
+                }
             }
         }
         return last

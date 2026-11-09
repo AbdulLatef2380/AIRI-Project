@@ -1,6 +1,7 @@
 package com.airi.assistant.ui.activity
 
 import com.airi.assistant.core.ExecutionStatusBus
+import com.airi.assistant.core.ExecutionTraceGateway
 import com.airi.assistant.domain.event.AppEvent
 import com.airi.assistant.domain.event.EventBus
 import com.airi.assistant.execution.privacy.PrivacyGuard
@@ -37,7 +38,7 @@ object GlobalAgentEventDispatcher {
                 ExecutionStage.CANCELLED   -> "Execution cancelled" to ActivitySeverity.WARN
                 ExecutionStage.IDLE        -> return@onEach
             }
-            AgentActivityBus.emit(
+            ExecutionTraceGateway.emitActivity(
                 ActivityEvent(
                     message = PrivacyGuard.redactForTrace(msg),
                     executionId = state.executionId.takeIf { it.isNotBlank() },
@@ -52,7 +53,7 @@ object GlobalAgentEventDispatcher {
     private fun wireAppEventBus() {
         EventBus.events.onEach { event ->
             val ae = mapAppEvent(event) ?: return@onEach
-            AgentActivityBus.emit(ae)
+            ExecutionTraceGateway.emitActivity(ae)
         }.launchIn(scope)
     }
 
@@ -141,7 +142,7 @@ object GlobalAgentEventDispatcher {
 
     fun registerCustomSource(source: suspend (emit: suspend (ActivityEvent) -> Unit) -> Unit) {
         kotlinx.coroutines.flow.flow<ActivityEvent> { source { emit(it) } }
-            .onEach { AgentActivityBus.emit(it) }
+            .onEach { ExecutionTraceGateway.emitActivity(it) }
             .launchIn(scope)
     }
 }

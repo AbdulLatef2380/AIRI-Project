@@ -4,10 +4,10 @@ import android.util.Log
 import com.airi.assistant.agent.sandbox.SandboxLogEntry
 import com.airi.assistant.agent.sandbox.SandboxManager
 import com.airi.assistant.agent.sandbox.SandboxSession
+import com.airi.assistant.core.ExecutionTraceGateway
 import com.airi.assistant.security.PermissionGovernanceLayer
 import com.airi.assistant.security.CommandRedactor
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -125,7 +125,12 @@ class TerminalRuntime(
 
     // ── Command execution ─────────────────────────────────────────────────────
 
-    suspend fun execute(rawCommand: String, agentId: String = "terminal") {
+    suspend fun execute(
+        rawCommand: String,
+        agentId: String = "terminal",
+        executionId: String? = null,
+        actionId: String? = null,
+    ) {
         val command = rawCommand.trim()
         if (command.isBlank()) return
         if (!commandInFlight.compareAndSet(false, true)) {
@@ -165,7 +170,13 @@ class TerminalRuntime(
 
         // Governance check
         _isRunning.value = true
-        AgentActivityBus.emit("Terminal: $safeCommand", ActivityCategory.SANDBOX)
+        ExecutionTraceGateway.emitExecution(
+            executionId = executionId,
+            actionId = actionId ?: "terminal:${safeCommand.hashCode()}",
+            phase = "started",
+            message = "Terminal: $safeCommand",
+            category = ActivityCategory.SANDBOX,
+        )
 
         val sandboxSessionId = activeSession?.sandboxId
         val sandboxSession   = sandboxSessionId?.let { executionGateway.getSession(it) }

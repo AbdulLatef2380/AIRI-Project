@@ -45,6 +45,8 @@ data class UnifiedExecutionTraceEvent(
     val durationMs: Long? = null,
     /** Stable machine-readable failure/approval code, never a raw provider error. */
     val errorCode: String? = null,
+    /** Activity compatibility event has no matching canonical trace identity. */
+    val orphaned: Boolean = false,
 )
 
 /** Immutable execution tree node with a parent event and ordered child steps. */
@@ -154,6 +156,7 @@ internal object UnifiedExecutionTraceProjector {
             .toList()
         val structured = collapseStructuredActions(owned, planningTaskLabel, executionCompletedLabel, titleResolver)
         val structuredKeys = structured.mapNotNull { it.dedupeKey }.toMutableSet()
+        val canonicalActionIds = owned.mapNotNull { it.actionId }.toSet()
         val projected = structured.map { it.event }.toMutableList()
 
         activityEvents
@@ -168,7 +171,15 @@ internal object UnifiedExecutionTraceProjector {
             }
             .map(::sanitizeActivityEventForDisplay)
             .sortedWith(compareBy<ActivityEvent> { it.timestampMs }.thenBy { it.sequenceNumber ?: 0L })
-            .mapIndexed { index, event -> event.toProjectionCandidate(event.sequenceNumber ?: index.toLong(), planningTaskLabel, executionCompletedLabel, titleResolver) }
+            .mapIndexed { index, event ->
+                event.toProjectionCandidate(
+                    sequence = event.sequenceNumber ?: index.toLong(),
+                    planningTaskLabel = planningTaskLabel,
+                    executionCompletedLabel = executionCompletedLabel,
+                    titleResolver = titleResolver,
+                    linkedToCanonicalTrace = event.metadata.actionId?.let(canonicalActionIds::contains) == true,
+                )
+            }
             .sortedWith(compareBy<ProjectionCandidate> { it.event.timestampMs }.thenBy { it.event.sequence })
             .forEach { candidate ->
                 val duplicate = candidate.dedupeKey != null && candidate.dedupeKey in structuredKeys
@@ -193,9 +204,10 @@ internal object UnifiedExecutionTraceProjector {
                 events = groupEvents,
             )
         }.sortedBy { groupOrder(it.category) }
-        val summary = summarize(events)
-        val taskTree = buildTaskTree(events)
-        val admitted = events.any { it.category in setOf(
+        val stateEvents = events.filterNot { it.orphaned }
+        val summary = summarize(stateEvents)
+        val taskTree = buildTaskTree(stateEvents)
+        val admitted = stateEvents.any { it.category in setOf(
             UnifiedTraceCategory.TASK,
             UnifiedTraceCategory.FILE,
             UnifiedTraceCategory.COMMAND,
@@ -210,8 +222,8 @@ internal object UnifiedExecutionTraceProjector {
             summary = summary,
             taskTree = taskTree,
             executionMode = when {
-                events.any { it.category == UnifiedTraceCategory.TASK } -> UnifiedExecutionMode.PLAN
-                events.any {
+                stateEvents.any { it.category == UnifiedTraceCategory.TASK } -> UnifiedExecutionMode.PLAN
+                stateEvents.any {
                     it.category in setOf(
                         UnifiedTraceCategory.FILE,
                         UnifiedTraceCategory.COMMAND,
@@ -224,9 +236,9 @@ internal object UnifiedExecutionTraceProjector {
                 else -> UnifiedExecutionMode.DIRECT
             },
             admitted = admitted,
-            currentStep = events.lastOrNull { it.category == UnifiedTraceCategory.TASK && it.status == TaskStatus.RUNNING },
-            lastCompletedStep = events.lastOrNull { it.category == UnifiedTraceCategory.TASK && it.status == TaskStatus.COMPLETED },
-            lastActivity = events.lastOrNull(),
+            currentStep = stateEvents.lastOrNull { it.category == UnifiedTraceCategory.TASK && it.status == TaskStatus.RUNNING },
+            lastCompletedStep = stateEvents.lastOrNull { it.category == UnifiedTraceCategory.TASK && it.status == TaskStatus.COMPLETED },
+            lastActivity = stateEvents.lastOrNull(),
         )
     }
 
@@ -421,6 +433,7 @@ internal object UnifiedExecutionTraceProjector {
         planningTaskLabel: String,
         executionCompletedLabel: String,
         titleResolver: (machineTag: String?, fallback: String) -> String,
+        linkedToCanonicalTrace: Boolean,
     ): ProjectionCandidate {
         val title = titleResolver(machineTag, localizeLifecycleSummary(message, planningTaskLabel, executionCompletedLabel))
         val category = categoryForActivity(category, title, machineTag)
@@ -447,6 +460,7 @@ internal object UnifiedExecutionTraceProjector {
                 machineTag = machineTag,
                 phase = metadata.phase,
                 parentId = metadata.parentId,
+                orphaned = !linkedToCanonicalTrace,
             ),
             dedupeKey = when {
                 metadata.actionId != null && category in setOf(UnifiedTraceCategory.TOOL, UnifiedTraceCategory.CONNECTOR) ->

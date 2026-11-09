@@ -106,6 +106,34 @@ class UnifiedExecutionTraceProjectorTest {
     }
 
     @Test
+    fun `unlinked execution activity is diagnostic orphan and cannot admit execution`() {
+        val projection = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-orphan",
+            traceEntries = emptyList(),
+            activityEvents = listOf(
+                ActivityEvent(
+                    id = "orphan-activity",
+                    timestampMs = 1_000,
+                    message = "Tool finished without canonical trace",
+                    executionId = "run-orphan",
+                    category = ActivityCategory.TOOL,
+                    metadata = ActivityMetadata(
+                        phase = ActivityPhase.RESULT,
+                        status = ActivityStatus.COMPLETED,
+                    ),
+                ),
+            ),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertTrue(projection.events.single().orphaned)
+        assertFalse(projection.admitted)
+        assertTrue(projection.taskTree.isEmpty())
+        assertFalse(projection.summary.hasContent)
+    }
+
+    @Test
     fun `events from another execution never enter the projection`() {
         val current = trace("run-1", 1, 1_000, ExecutionTraceKind.TOOL_STARTED, "Read mail")
         val other = trace("run-2", 1, 1_001, ExecutionTraceKind.TOOL_STARTED, "Read private mail")

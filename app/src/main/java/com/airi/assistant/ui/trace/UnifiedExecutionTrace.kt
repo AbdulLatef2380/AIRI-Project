@@ -51,6 +51,7 @@ data class UnifiedExecutionTraceTaskNode(
 
 data class UnifiedExecutionTraceSummary(
     val filesRead: Int = 0,
+    val filesEdited: Int = 0,
     val commandsExecuted: Int = 0,
     val toolsUsed: Int = 0,
     val searches: Int = 0,
@@ -58,7 +59,7 @@ data class UnifiedExecutionTraceSummary(
     val tasks: Int = 0,
 ) {
     val hasContent: Boolean
-        get() = filesRead + commandsExecuted + toolsUsed + searches + memoryOperations + tasks > 0
+        get() = filesRead + filesEdited + commandsExecuted + toolsUsed + searches + memoryOperations + tasks > 0
 }
 
 data class UnifiedExecutionTraceGroup(
@@ -90,6 +91,15 @@ data class UnifiedExecutionTraceProjection(
  * state is updated by the terminal event; they are never rendered as separate rows.
  */
 internal object UnifiedExecutionTraceProjector {
+    private val FILE_EDIT_MARKERS = setOf(
+        "file_created", "file_updated", "file_edited", "file_written",
+        "create file", "edit file", "write file",
+        "إنشاء ملف", "تحرير ملف", "تعديل ملف", "كتابة ملف",
+    )
+    private val MACHINE_FILE_MARKERS = setOf(
+        "file_created", "file_updated", "file_edited", "file_written",
+    )
+
     fun project(
         executionId: String,
         traceEntries: List<ExecutionTraceEvent>,
@@ -383,7 +393,7 @@ internal object UnifiedExecutionTraceProjector {
         titleResolver: (machineTag: String?, fallback: String) -> String,
     ): ProjectionCandidate {
         val title = titleResolver(machineTag, localizeLifecycleSummary(message, planningTaskLabel, executionCompletedLabel))
-        val category = categoryForActivity(category, title)
+        val category = categoryForActivity(category, title, machineTag)
         return ProjectionCandidate(
             event = UnifiedExecutionTraceEvent(
                 executionId = executionId.orEmpty(),
@@ -455,8 +465,10 @@ internal object UnifiedExecutionTraceProjector {
 
     private fun summarize(events: List<UnifiedExecutionTraceEvent>): UnifiedExecutionTraceSummary {
         fun count(category: UnifiedTraceCategory) = events.count { it.category == category }
+        val editedFiles = events.count { it.category == UnifiedTraceCategory.FILE && it.representsFileEdit() }
         return UnifiedExecutionTraceSummary(
-            filesRead = count(UnifiedTraceCategory.FILE),
+            filesRead = (count(UnifiedTraceCategory.FILE) - editedFiles).coerceAtLeast(0),
+            filesEdited = editedFiles,
             commandsExecuted = count(UnifiedTraceCategory.COMMAND),
             toolsUsed = count(UnifiedTraceCategory.TOOL) + count(UnifiedTraceCategory.CONNECTOR),
             searches = count(UnifiedTraceCategory.SEARCH),
@@ -465,10 +477,21 @@ internal object UnifiedExecutionTraceProjector {
         )
     }
 
-    private fun categoryForActivity(activityCategory: ActivityCategory, value: String): UnifiedTraceCategory {
+    private fun UnifiedExecutionTraceEvent.representsFileEdit(): Boolean {
+        val token = listOf(machineTag.orEmpty(), title).joinToString(" ").lowercase()
+        return FILE_EDIT_MARKERS.any(token::contains)
+    }
+
+    private fun categoryForActivity(
+        activityCategory: ActivityCategory,
+        value: String,
+        machineTag: String?,
+    ): UnifiedTraceCategory {
         val text = value.lowercase()
+        val machineToken = machineTag.orEmpty().lowercase()
         return when {
-            listOf("file", "read ", "written", "document", ".kt", ".md", ".txt", "ملف", "قراءة").any(text::contains) -> UnifiedTraceCategory.FILE
+            MACHINE_FILE_MARKERS.any(machineToken::contains) ||
+                listOf("file", "read ", "written", "document", ".kt", ".md", ".txt", "ملف", "قراءة").any(text::contains) -> UnifiedTraceCategory.FILE
             listOf("command", "terminal", "shell", "compile", "gradle", "git ", "أمر", "طرفية").any(text::contains) -> UnifiedTraceCategory.COMMAND
             listOf("search", "بحث", "web", "url", "research").any(text::contains) -> UnifiedTraceCategory.SEARCH
             activityCategory == ActivityCategory.MODEL -> UnifiedTraceCategory.MODEL

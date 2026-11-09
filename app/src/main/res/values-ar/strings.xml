@@ -1939,6 +1939,9 @@
     <string name="agent_trace_title_runtime_model_continuation_completed">اكتمال متابعة النموذج</string>
     <string name="agent_trace_title_runtime_intent_stage">مرحلة فهم الطلب</string>
     <string name="agent_trace_summary_files">قُرئت %1$d ملفات</string>
+    <string name="agent_trace_summary_files_completed">تمت قراءة %1$d ملفات</string>
+    <string name="agent_trace_summary_files_edited">جارٍ تعديل %1$d ملفات</string>
+    <string name="agent_trace_summary_files_edited_completed">تم تعديل %1$d ملفات</string>
     <string name="agent_trace_summary_commands">نُفذت %1$d أوامر</string>
     <string name="agent_trace_summary_tools">استُخدمت %1$d أدوات</string>
     <string name="agent_trace_summary_searches">أُجري %1$d عمليات بحث</string>
@@ -2341,6 +2344,10 @@
     <string name="agent_trace_event_details">التفاصيل</string>
     <string name="agent_trace_event_inputs">المدخلات المنقحة</string>
     <string name="agent_trace_event_duration">المدة: %1$d مللي ثانية</string>
+    <string name="agent_trace_event_completed_in">اكتمل خلال %1$s</string>
+    <string name="agent_docked_working">جارٍ العمل</string>
+    <string name="agent_docked_completed">اكتملت قائمة مهام الوكيل</string>
+    <string name="agent_docked_steps">%1$d / %2$d</string>
     <string name="agent_trace_event_reason">السبب: %1$s</string>
     <string name="trace_metadata_step_duration">المدة: %1$d مللي ثانية</string>
     <string name="trace_metadata_step_time">بدأ في: %1$s</string>

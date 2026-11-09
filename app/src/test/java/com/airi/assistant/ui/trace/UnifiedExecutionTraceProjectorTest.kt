@@ -243,6 +243,42 @@ class UnifiedExecutionTraceProjectorTest {
     }
 
     @Test
+    fun `summary reports edited files separately from file reads`() {
+        val result = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-file-edit",
+            traceEntries = emptyList(),
+            activityEvents = listOf(
+                ActivityEvent(
+                    timestampMs = 1_000,
+                    message = "Artifact updated: calculator.py",
+                    executionId = "run-file-edit",
+                    category = ActivityCategory.SANDBOX,
+                    machineTag = "file_created",
+                    metadata = ActivityMetadata(
+                        phase = ActivityPhase.ACTION,
+                        status = ActivityStatus.COMPLETED,
+                    ),
+                ),
+                ActivityEvent(
+                    timestampMs = 1_100,
+                    message = "Read file README.md",
+                    executionId = "run-file-edit",
+                    category = ActivityCategory.SANDBOX,
+                    metadata = ActivityMetadata(
+                        phase = ActivityPhase.ACTION,
+                        status = ActivityStatus.COMPLETED,
+                    ),
+                ),
+            ),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertEquals(1, result.summary.filesRead)
+        assertEquals(1, result.summary.filesEdited)
+    }
+
+    @Test
     fun `compatibility lifecycle events are not rendered beside structured trace`() {
         val activity = ActivityEvent(
             message = "Execution completed",

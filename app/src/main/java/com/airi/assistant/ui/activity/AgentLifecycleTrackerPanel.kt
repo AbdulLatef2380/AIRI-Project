@@ -225,7 +225,12 @@ private fun ActivitySummaryRow(
 ) {
     val latestStatus = summary.lastActivity?.status ?: summary.events.lastOrNull()?.status
     val items = buildList {
-        summary.summary.filesRead.takeIf { it > 0 }?.let { add(stringResource(R.string.agent_trace_summary_files, it)) }
+        summary.summary.filesRead.takeIf { it > 0 }?.let {
+            add(stringResource(if (isTerminal) R.string.agent_trace_summary_files_completed else R.string.agent_trace_summary_files, it))
+        }
+        summary.summary.filesEdited.takeIf { it > 0 }?.let {
+            add(stringResource(if (isTerminal) R.string.agent_trace_summary_files_edited_completed else R.string.agent_trace_summary_files_edited, it))
+        }
         summary.summary.commandsExecuted.takeIf { it > 0 }?.let { add(stringResource(R.string.agent_trace_summary_commands, it)) }
         summary.summary.toolsUsed.takeIf { it > 0 }?.let { add(stringResource(R.string.agent_trace_summary_tools, it)) }
         summary.summary.searches.takeIf { it > 0 }?.let { add(stringResource(R.string.agent_trace_summary_searches, it)) }
@@ -318,13 +323,13 @@ private fun ActivitySummaryRow(
                     style = MaterialTheme.typography.bodySmall,
                 )
             } else if (items.isNotEmpty()) {
-                items.forEach { item ->
-                    Text(
-                        text = item,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
+                Text(
+                    text = items.joinToString(" · "),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             progressMessage?.let { messageRes ->
                 Text(
@@ -492,6 +497,14 @@ private fun ActivityEventRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            event.durationMs?.takeIf { it >= 0L }?.let { durationMs ->
+                Text(
+                    text = stringResource(R.string.agent_trace_event_completed_in, formatTraceDuration(durationMs)),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                )
+            }
             StatusIcon(event.status)
             if (canExpand) {
                 Spacer(Modifier.width(3.dp))
@@ -561,6 +574,12 @@ private fun ActivityEventRow(
             }
         }
     }
+}
+
+private fun formatTraceDuration(durationMs: Long): String = when {
+    durationMs < 1_000L -> "${durationMs}ms"
+    durationMs < 60_000L -> "${durationMs / 1_000L}s"
+    else -> "${durationMs / 60_000L}m ${(durationMs % 60_000L) / 1_000L}s"
 }
 
 @Composable

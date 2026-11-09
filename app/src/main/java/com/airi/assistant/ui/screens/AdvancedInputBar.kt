@@ -100,6 +100,10 @@ fun AdvancedChatInputBar(
     ,bottomNavVisible:      Boolean                 = false
     ,onBottomNavToggle:     () -> Unit              = {}
     ,imageInputEnabled:     Boolean                 = true
+    ,agentTaskLabel:        String                  = ""
+    ,agentCompletedSteps:   Int                     = 0
+    ,agentTotalSteps:       Int                     = 0
+    ,agentTaskCompleted:    Boolean                 = false
 ) {
     // Track focus state to collapse toolbar when idle
     var hasFocus by remember { mutableStateOf(false) }
@@ -173,6 +177,10 @@ fun AdvancedChatInputBar(
             onRemoveAttachment      = onRemoveAttachment,
             onDropFiles              = onDropFiles
             ,imageInputEnabled      = imageInputEnabled
+            ,agentTaskLabel        = agentTaskLabel
+            ,agentCompletedSteps   = agentCompletedSteps
+            ,agentTotalSteps       = agentTotalSteps
+            ,agentTaskCompleted    = agentTaskCompleted
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -191,6 +199,57 @@ fun AdvancedChatInputBar(
                     tint = AiriTheme.onSurfaceVariant
                 )
             }
+        }
+    }
+}
+
+@Composable
+internal fun DockedTaskPill(
+    label: String,
+    completedSteps: Int,
+    totalSteps: Int,
+    isWorking: Boolean,
+) {
+    val safeTotal = totalSteps.coerceAtLeast(1)
+    val safeCompleted = completedSteps.coerceIn(0, safeTotal)
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
+        shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp),
+        color = AiriTheme.surfaceVariant.copy(alpha = 0.96f),
+        border = BorderStroke(1.dp, CosmicAccent.copy(alpha = 0.22f)),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (isWorking) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    color = CosmicAccent,
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF66BB6A), modifier = Modifier.size(16.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label.ifBlank {
+                        stringResource(if (isWorking) R.string.agent_docked_working else R.string.agent_docked_completed)
+                    },
+                    color = AiriTheme.onSurface,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(R.string.agent_docked_steps, safeCompleted, safeTotal),
+                    color = AiriTheme.onSurfaceVariant,
+                    fontSize = 10.sp,
+                )
+            }
+            Icon(Icons.Outlined.ExpandLess, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
         }
     }
 }

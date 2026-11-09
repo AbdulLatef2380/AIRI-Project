@@ -2055,6 +2055,9 @@
     <string name="agent_trace_title_runtime_model_continuation_completed">Model continuation completed</string>
     <string name="agent_trace_title_runtime_intent_stage">Understand request</string>
     <string name="agent_trace_summary_files">Read %1$d files</string>
+    <string name="agent_trace_summary_files_completed">Read %1$d files</string>
+    <string name="agent_trace_summary_files_edited">Editing %1$d files</string>
+    <string name="agent_trace_summary_files_edited_completed">Edited %1$d files</string>
     <string name="agent_trace_summary_commands">Ran %1$d commands</string>
     <string name="agent_trace_summary_tools">Used %1$d tools</string>
     <string name="agent_trace_summary_searches">Searched %1$d times</string>
@@ -2451,6 +2454,10 @@
     <string name="agent_trace_event_details">Details</string>
     <string name="agent_trace_event_inputs">Redacted inputs</string>
     <string name="agent_trace_event_duration">Duration: %1$d ms</string>
+    <string name="agent_trace_event_completed_in">Completed in %1$s</string>
+    <string name="agent_docked_working">Working</string>
+    <string name="agent_docked_completed">Agent task list completed</string>
+    <string name="agent_docked_steps">%1$d / %2$d</string>
     <string name="agent_trace_event_reason">Reason: %1$s</string>
     <string name="agent_lifecycle_status_waiting">Waiting</string>
     <string name="agent_lifecycle_status_cancelled">Cancelled</string>

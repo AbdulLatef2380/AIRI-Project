@@ -98,6 +98,7 @@ import com.airi.assistant.ui.viewmodel.ChatMainActionPolicy
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.ui.viewmodel.ExecutionErrorProjection
 import com.airi.assistant.ui.viewmodel.ExecutionFailureStage
+import com.airi.assistant.ui.viewmodel.ExecutionStage
 import com.airi.assistant.ui.viewmodel.FinalAnswerUiState
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -943,6 +944,10 @@ fun ChatScreen(
                     voicePartial  = partialVoiceInput,
                     smartReplies  = smartReplies,
                     hasUserSentMessage = messages.any { it.isUser },
+                    agentTaskLabel = agentState.activeNodeAction.ifBlank { agentState.activeGoalDescription },
+                    agentCompletedSteps = agentState.nodesCompleted,
+                    agentTotalSteps = agentState.nodesTotal,
+                    agentTaskCompleted = agentState.executionStage == ExecutionStage.COMPLETED,
                     onSend        = { text, onAccepted ->
                         val toSend = pendingAttachments
                         if (toSend.isNotEmpty()) {
@@ -3908,6 +3913,10 @@ fun AiriChatInputBar(
     onRemoveAttachment: (String) -> Unit = {},
     imageInputEnabled: Boolean = true,
     onDropFiles: (List<Uri>) -> Unit = {}
+    ,agentTaskLabel: String = ""
+    ,agentCompletedSteps: Int = 0
+    ,agentTotalSteps: Int = 0
+    ,agentTaskCompleted: Boolean = false
 ) {
     val context          = LocalContext.current
     val focusManager      = LocalFocusManager.current
@@ -4266,6 +4275,14 @@ fun AiriChatInputBar(
                 .background(AiriTheme.surface.copy(alpha = 0.97f))
                 .border(0.5.dp, AiriTheme.outline.copy(alpha = 0.6f), AIRIShapes.xl)
         ) {
+            if (agentTotalSteps > 0 && (isGenerating || agentTaskCompleted)) {
+                DockedTaskPill(
+                    label = agentTaskLabel,
+                    completedSteps = agentCompletedSteps,
+                    totalSteps = agentTotalSteps,
+                    isWorking = isGenerating,
+                )
+            }
             if (isDragActive) {
                 Surface(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),

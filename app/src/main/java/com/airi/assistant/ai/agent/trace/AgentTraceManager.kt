@@ -151,6 +151,14 @@ class AgentTraceManager internal constructor() {
                 applied = false
                 return@update current
             }
+            if (existing != null && existing.inProgress && trace.inProgress &&
+                liveProgress(trace) < liveProgress(existing)
+            ) {
+                // Flow collectors and event producers may complete out of order. A late snapshot
+                // must never regress the visible lifecycle to an older sequence.
+                applied = false
+                return@update current
+            }
             applied = true
             val kept = current.filterNot { it.id == trace.id || (it.inProgress && it.timestamp < cutoff) }
             (kept + trace).takeLast(maxTraces)
@@ -284,6 +292,10 @@ class AgentTraceManager internal constructor() {
         outputSummary = PrivacyGuard.redactForTrace(step.outputSummary, STEP_OUTPUT_CHARS),
         error = step.error?.let { PrivacyGuard.redactForTrace(it, STEP_OUTPUT_CHARS) },
     )
+
+    private fun liveProgress(trace: AgentTrace): Long = trace.steps.maxOfOrNull { step ->
+        step.sequence.takeIf { it > 0L } ?: step.stepIndex.toLong()
+    } ?: 0L
 
     private fun mergeTraces(saved: List<AgentTrace>, live: List<AgentTrace>): List<AgentTrace> {
         val liveIds = live.map { it.id }.toSet()

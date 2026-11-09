@@ -29,7 +29,7 @@ object LiveTraceProjector {
         sessionId: String,
         modelTurns: List<ModelTurnRecord> = emptyList(),
     ): AgentTrace? {
-        val ordered = events.sortedBy { it.sequence }
+        val ordered = events.sortedWith(compareBy<ExecutionTraceEvent> { it.sequence }.thenBy { it.eventId })
         val executionId = ordered.firstOrNull()?.executionId?.takeIf { it.isNotBlank() } ?: return null
         val input = goal.ifBlank { ordered.first().summary }
         val mapped = ChatExecutionTraceMapper.toAgentTrace(

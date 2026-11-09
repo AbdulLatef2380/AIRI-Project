@@ -31,6 +31,8 @@ data class AgentEvent(
     val inputParams: Map<String, String> = emptyMap(),
     val outputSummary: String? = null,
     val provenance: String? = null,
+    /** Exact lifecycle source; [type] is the coarse compatibility projection. */
+    val traceKind: ExecutionTraceKind? = null,
 ) {
     enum class Type {
         INTENT_RESOLVED,
@@ -55,6 +57,7 @@ data class AgentEvent(
             sequence = event.sequence,
             timestampMs = event.timestampMs,
             type = TraceEventContract.agentTypeFor(event.kind),
+            traceKind = event.kind,
             title = event.summary,
             detail = event.detail,
             actionId = event.actionId,

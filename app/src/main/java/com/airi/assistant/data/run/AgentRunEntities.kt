@@ -66,6 +66,8 @@ data class AgentRunEventEntity(
     val sequence: Long,
     val timestampMs: Long,
     val parentId: String? = null,
+    /** Stable logical action owner shared by request/start/output/completion phases. */
+    @ColumnInfo(defaultValue = "NULL") val actionId: String? = null,
     /** UnifiedTraceCategory name. */
     val category: String,
     val type: String,
@@ -131,13 +133,19 @@ abstract class AgentRunDatabase : RoomDatabase() {
     abstract fun runDao(): AgentRunDao
 
     companion object {
-        const val VERSION = 2
+        const val VERSION = 3
 
         /** 1 → 2: full request and answer text. Additive, so existing history is kept. */
         val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE agent_run ADD COLUMN request TEXT NOT NULL DEFAULT ''")
                 db.execSQL("ALTER TABLE agent_run ADD COLUMN answer TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE agent_run_event ADD COLUMN actionId TEXT DEFAULT NULL")
             }
         }
     }

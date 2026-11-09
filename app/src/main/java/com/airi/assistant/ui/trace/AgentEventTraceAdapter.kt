@@ -14,12 +14,12 @@ internal object AgentEventTraceAdapter {
             .filter { it.executionId.isNotBlank() }
             .distinctBy { it.eventId }
             .sortedWith(compareBy<AgentEvent> { it.timestampMs }.thenBy { it.sequence }.thenBy { it.eventId })
-            .mapIndexed { index, event ->
+            .map { event ->
                 ExecutionTraceEvent(
                     executionId = event.executionId,
-                    sequence = index.toLong(),
+                    sequence = event.sequence,
                     timestampMs = event.timestampMs,
-                    kind = TraceEventContract.traceKindFor(event.type, event.errorCode),
+                    kind = event.traceKind ?: TraceEventContract.traceKindFor(event.type, event.errorCode),
                     summary = event.title,
                     detail = event.detail,
                     actionId = event.actionId,

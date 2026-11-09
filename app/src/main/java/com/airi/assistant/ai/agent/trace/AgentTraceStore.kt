@@ -141,6 +141,11 @@ class AgentTraceStore(private val file: File) {
             put("durationMs", step.durationMs)
             step.parentId?.let { put("parentId", it) }
             put("timestampMs", step.timestampMs)
+            put("eventId", step.eventId)
+            step.actionId?.let { put("actionId", it) }
+            put("traceStatus", step.traceStatus.name)
+            put("lifecycleKinds", JSONArray().also { kinds -> step.lifecycleKinds.forEach { kinds.put(it.name) } })
+            put("orphanedParent", step.orphanedParent)
         }
 
         private fun stepFromJson(json: JSONObject): AgentStep {
@@ -157,6 +162,17 @@ class AgentTraceStore(private val file: File) {
                 durationMs = json.optLong("durationMs", 0L),
                 parentId = if (json.has("parentId")) json.getString("parentId") else null,
                 timestampMs = json.optLong("timestampMs", 0L),
+                eventId = json.optString("eventId"),
+                actionId = if (json.has("actionId")) json.getString("actionId") else null,
+                traceStatus = runCatching {
+                    com.airi.assistant.core.ExecutionTraceStatus.valueOf(json.optString("traceStatus"))
+                }.getOrDefault(com.airi.assistant.core.ExecutionTraceStatus.COMPLETED),
+                lifecycleKinds = (json.optJSONArray("lifecycleKinds") ?: JSONArray()).let { kinds ->
+                    (0 until kinds.length()).mapNotNull { index ->
+                        runCatching { com.airi.assistant.core.ExecutionTraceKind.valueOf(kinds.getString(index)) }.getOrNull()
+                    }
+                },
+                orphanedParent = json.optBoolean("orphanedParent", false),
             )
         }
     }

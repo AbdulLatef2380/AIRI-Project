@@ -49,7 +49,29 @@ object ChatExecutionTraceMapper {
         val outputByActionId = ordered
             .filter { it.kind == ExecutionTraceKind.TOOL_OUTPUT && it.actionId != null }
             .associateBy { it.actionId!! }
-        val allSteps = ordered.mapNotNull { stepFor(it, outputByActionId) }
+        val rawSteps = ordered.mapNotNull { stepFor(it, outputByActionId) }
+        // Request/start/output/completion is one logical action. Keep every source phase
+        // in lifecycleKinds rather than creating duplicate rows for one action.
+        val folded = linkedMapOf<String, AgentStep>()
+        rawSteps.forEach { step ->
+            val key = step.actionId?.let { "action:$it" } ?: "event:${step.eventId}"
+            val previous = folded[key]
+            folded[key] = if (previous == null) step else step.copy(
+                stepIndex = previous.stepIndex,
+                lifecycleKinds = (previous.lifecycleKinds + step.lifecycleKinds).distinct(),
+                inputParams = if (step.inputParams.isNotEmpty()) step.inputParams else previous.inputParams,
+                outputSummary = step.outputSummary.ifBlank { previous.outputSummary },
+                error = if (step.traceStatus == com.airi.assistant.core.ExecutionTraceStatus.COMPLETED) {
+                    null
+                } else step.error ?: previous.error,
+                parentId = step.parentId ?: previous.parentId,
+                orphanedParent = previous.orphanedParent || step.orphanedParent,
+            )
+        }
+        val knownActionIds = ordered.mapNotNull { it.actionId }.toSet()
+        val allSteps = folded.values.map { step ->
+            step.copy(orphanedParent = step.parentId != null && step.parentId !in knownActionIds)
+        }
         val kept = if (allSteps.size <= AgentTraceManager.MAX_STEPS) {
             allSteps
         } else {
@@ -139,22 +161,51 @@ object ChatExecutionTraceMapper {
         return pendingFailures == 0
     }
 
-    /** Only events that mark a finished unit of work become steps. */
+    /** Every lifecycle event is retained; action phases are folded later by actionId. */
     private fun stepFor(
         event: ExecutionTraceEvent,
         outputByActionId: Map<String, ExecutionTraceEvent> = emptyMap(),
     ): AgentStep? {
+        // Execution-level lifecycle and terminal records are represented by AgentTrace metadata
+        // (success/finalResult), not as duplicate work rows. Action-scoped phases remain visible
+        // and are folded into their single logical node below.
+        if (event.actionId.isNullOrBlank() && event.kind in setOf(
+                ExecutionTraceKind.EXECUTION_STARTED,
+                ExecutionTraceKind.PLAN_CREATED,
+                ExecutionTraceKind.REASONING_NOTE,
+                ExecutionTraceKind.PLANNING,
+                ExecutionTraceKind.REFLECTING,
+                ExecutionTraceKind.WAITING_FOR_APPROVAL,
+                ExecutionTraceKind.RECOVERING,
+                ExecutionTraceKind.COMPLETED,
+                ExecutionTraceKind.FAILED,
+                ExecutionTraceKind.CANCELLED,
+                ExecutionTraceKind.TIMED_OUT,
+            )) return null
         val (type, ok) = when (event.kind) {
-            ExecutionTraceKind.TOOL_COMPLETED -> AgentStepType.TOOL to true
+            ExecutionTraceKind.EXECUTION_STARTED,
+            ExecutionTraceKind.PLAN_CREATED,
+            ExecutionTraceKind.REASONING_NOTE,
+            ExecutionTraceKind.PLANNING,
+            ExecutionTraceKind.STEP_STARTED,
+            ExecutionTraceKind.STEP_COMPLETED -> AgentStepType.TASK_STEP to (event.status == com.airi.assistant.core.ExecutionTraceStatus.COMPLETED)
+            ExecutionTraceKind.TOOL_REQUESTED,
+            ExecutionTraceKind.TOOL_STARTED,
+            ExecutionTraceKind.TOOL_OUTPUT,
+            ExecutionTraceKind.TOOL_COMPLETED -> AgentStepType.TOOL to (event.status == com.airi.assistant.core.ExecutionTraceStatus.COMPLETED)
             ExecutionTraceKind.TOOL_FAILED -> AgentStepType.TOOL to false
             ExecutionTraceKind.TOOL_CANCELLED -> AgentStepType.TOOL to false
-            ExecutionTraceKind.STEP_COMPLETED -> AgentStepType.TASK_STEP to true
             ExecutionTraceKind.APPROVAL_CANCELLED -> AgentStepType.TASK_STEP to false
             ExecutionTraceKind.APPROVAL_TIMEOUT -> AgentStepType.TASK_STEP to false
             ExecutionTraceKind.TIMED_OUT -> AgentStepType.TASK_STEP to false
-            ExecutionTraceKind.VERIFICATION_PASSED -> AgentStepType.VERIFY to true
+            ExecutionTraceKind.WAITING_FOR_APPROVAL,
+            ExecutionTraceKind.RECOVERING,
+            ExecutionTraceKind.CANCELLED,
+            ExecutionTraceKind.FAILED -> AgentStepType.TASK_STEP to false
+            ExecutionTraceKind.REFLECTING,
+            ExecutionTraceKind.VERIFICATION_STARTED,
+            ExecutionTraceKind.VERIFICATION_PASSED -> AgentStepType.VERIFY to (event.status == com.airi.assistant.core.ExecutionTraceStatus.COMPLETED)
             ExecutionTraceKind.VERIFICATION_FAILED -> AgentStepType.VERIFY to false
-            else -> return null
         }
         val decisionType = when (event.machineTag) {
             "decision_intent" -> AgentStepType.INTENT
@@ -179,14 +230,22 @@ object ChatExecutionTraceMapper {
             name = toolName ?: event.actionId ?: event.machineTag ?: event.kind.name.lowercase(),
             outputSummary = PrivacyGuard.redactForTrace(shownOutput, AgentTraceManager.STEP_OUTPUT_CHARS),
             success = ok,
-            error = if (ok) null else PrivacyGuard.redactForTrace(
-                event.detail ?: event.errorCode ?: event.summary,
-                AgentTraceManager.STEP_OUTPUT_CHARS,
-            ),
+            error = if (event.status == com.airi.assistant.core.ExecutionTraceStatus.FAILED ||
+                event.status == com.airi.assistant.core.ExecutionTraceStatus.CANCELLED
+            ) {
+                PrivacyGuard.redactForTrace(
+                    event.detail ?: event.errorCode ?: event.summary,
+                    AgentTraceManager.STEP_OUTPUT_CHARS,
+                )
+            } else null,
             durationMs = event.durationMs ?: 0L,
             parentId = event.parentId,
             timestampMs = event.timestampMs,
             inputParams = event.inputParams,
+            eventId = event.eventId,
+            actionId = event.actionId,
+            traceStatus = event.status,
+            lifecycleKinds = listOf(event.kind),
         )
     }
 

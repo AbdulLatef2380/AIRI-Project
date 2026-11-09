@@ -65,35 +65,25 @@ class LiveTraceBridge(
     /** Emits when a model turn is recorded, so its row shows without waiting for the next trace event. */
     private val turnTicks: Flow<Long> = kotlinx.coroutines.flow.flowOf(0L),
 ) {
-    private var currentExecutionId: String = ""
-    private var currentGoal: String = ""
-    private var currentSession: String = ""
-
     fun start(scope: CoroutineScope): Job = scope.launch {
         kotlinx.coroutines.flow.combine(events, turnTicks) { list, _ -> list }
             .collect { list -> runCatching { handle(list) } }
     }
 
     internal fun handle(list: List<ExecutionTraceEvent>) {
-        val executionId = list.firstOrNull()?.executionId?.takeIf { it.isNotBlank() } ?: return
-        if (executionId != currentExecutionId) {
-            currentExecutionId = executionId
-            currentGoal = ""
-            currentSession = ""
-        }
-        // The status can move on at the end of a run, so keep the first goal seen.
-        if (currentGoal.isBlank()) {
-            goalFor(executionId)?.let { (goal, session) ->
-                currentGoal = goal
-                currentSession = session
+        // The shared status stream can contain multiple admitted runs. Project each owner
+        // independently so concurrent executions never mix and none is silently dropped.
+        list.filter { it.executionId.isNotBlank() }
+            .groupBy { it.executionId }
+            .forEach { (executionId, scopedEvents) ->
+                val (goal, session) = goalFor(executionId) ?: ("" to scopedEvents.first().sessionId)
+                val trace = LiveTraceProjector.project(scopedEvents, goal, session, turnsFor(executionId)) ?: return@forEach
+                // Model turns alone do not make an agent run: a plain reply must stay out of the log.
+                if (trace.steps.none { it.type != AgentStepType.MODEL_TURN }) {
+                    manager.removeLiveTrace(trace.id)
+                } else {
+                    manager.publishLive(trace)
+                }
             }
-        }
-        val trace = LiveTraceProjector.project(list, currentGoal, currentSession, turnsFor(executionId)) ?: return
-        // Model turns alone do not make an agent run: a plain reply must stay out of the log.
-        if (trace.steps.none { it.type != AgentStepType.MODEL_TURN }) {
-            manager.removeLiveTrace(trace.id)
-        } else {
-            manager.publishLive(trace)
-        }
     }
 }

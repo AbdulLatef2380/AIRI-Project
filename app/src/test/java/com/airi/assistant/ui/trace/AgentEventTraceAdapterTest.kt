@@ -38,4 +38,13 @@ class AgentEventTraceAdapterTest {
         assertEquals(ExecutionTraceKind.COMPLETED, rows[2].kind)
         assertTrue(rows.all { it.executionId == "exec-1" })
     }
+
+    @Test fun adapterUsesExactCanonicalKindWhenCompatibilityTypeIsCoarse() {
+        val event = event("requested", 7, AgentEvent.Type.TOOL_CALL).copy(
+            traceKind = ExecutionTraceKind.TOOL_REQUESTED,
+        )
+        val row = AgentEventTraceAdapter.toExecutionTrace(listOf(event)).single()
+        assertEquals(ExecutionTraceKind.TOOL_REQUESTED, row.kind)
+        assertEquals(7L, row.sequence)
+    }
 }

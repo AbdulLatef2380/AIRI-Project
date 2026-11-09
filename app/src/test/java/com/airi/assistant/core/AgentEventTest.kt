@@ -32,9 +32,26 @@ class AgentEventTest {
         )
 
         assertEquals(AgentEvent.Type.TOOL_CALL, toolStart.type)
+        assertEquals(ExecutionTraceKind.TOOL_STARTED, toolStart.traceKind)
         assertEquals(AgentEvent.Type.FINAL, final.type)
         assertEquals("exec-1:event:1", toolStart.eventId)
         assertEquals("session-1", final.sessionId)
+    }
+
+    @Test
+    fun canonicalEventRetainsExactKindEvenWhenCompatibilityTypeIsCoarse() {
+        val requested = AgentEvent.fromTrace(
+            ExecutionTraceEvent(
+                executionId = "exec-kind",
+                sequence = 4,
+                timestampMs = 40,
+                kind = ExecutionTraceKind.TOOL_REQUESTED,
+                summary = "requested",
+                actionId = "a-1",
+            ),
+        )
+        assertEquals(AgentEvent.Type.TOOL_CALL, requested.type)
+        assertEquals(ExecutionTraceKind.TOOL_REQUESTED, requested.traceKind)
     }
 
     @Test

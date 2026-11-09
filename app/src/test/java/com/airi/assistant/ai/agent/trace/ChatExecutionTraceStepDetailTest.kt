@@ -73,6 +73,41 @@ class ChatExecutionTraceStepDetailTest {
     }
 
     @Test
+    fun toolLifecyclePhasesAreFoldedIntoOneNodeWithoutLosingSourceKinds() {
+        val events = listOf(
+            ExecutionTraceEvent("exec-1", 1, 1_001L, ExecutionTraceKind.TOOL_REQUESTED, "requested", actionId = "a-1"),
+            ExecutionTraceEvent("exec-1", 2, 1_002L, ExecutionTraceKind.TOOL_STARTED, "started", actionId = "a-1"),
+            ExecutionTraceEvent("exec-1", 3, 1_003L, ExecutionTraceKind.TOOL_OUTPUT, "output", actionId = "a-1", outputSummary = "safe result"),
+            ExecutionTraceEvent("exec-1", 4, 1_004L, ExecutionTraceKind.TOOL_COMPLETED, "completed", actionId = "a-1"),
+            completed(5),
+        )
+        val step = map(events).steps.single()
+        assertEquals("a-1", step.actionId)
+        assertEquals(
+            listOf(
+                ExecutionTraceKind.TOOL_REQUESTED,
+                ExecutionTraceKind.TOOL_STARTED,
+                ExecutionTraceKind.TOOL_OUTPUT,
+                ExecutionTraceKind.TOOL_COMPLETED,
+            ),
+            step.lifecycleKinds,
+        )
+        assertEquals("safe result", step.outputSummary)
+    }
+
+    @Test
+    fun missingParentIsMarkedInsteadOfSilentlyBecomingRoot() {
+        val trace = map(listOf(
+            ExecutionTraceEvent(
+                "exec-1", 1, 1_001L, ExecutionTraceKind.TOOL_COMPLETED,
+                "Tool completed: read_file", actionId = "a-1", parentId = "missing-parent",
+            ),
+            completed(2),
+        ))
+        assertTrue(trace.steps.single().orphanedParent)
+    }
+
+    @Test
     fun inputParamsReachTheStepSoTheFileCardCanFindTheFilename() {
         val trace = map(listOf(toolDone(1, "write_file", params = mapOf("filename" to "a.py")), completed(2)))
         assertEquals("a.py", trace.steps.single().inputParams["filename"])
@@ -112,6 +147,34 @@ class ChatExecutionTraceStepDetailTest {
         val json = AgentTraceStore.traceToJson(AgentTrace(id = "t", originalInput = "x"))
         json.remove("droppedAtIndex")
         assertEquals(0, AgentTraceStore.traceFromJson(json).droppedAtIndex)
+    }
+
+    @Test
+    fun lifecycleMetadataSurvivesTraceStoreRoundTrip() {
+        val original = AgentTrace(
+            id = "trace-a",
+            originalInput = "run",
+            steps = listOf(
+                AgentStep(
+                    stepIndex = 0,
+                    type = AgentStepType.TOOL,
+                    name = "read_file",
+                    eventId = "exec:event:4",
+                    actionId = "action-1",
+                    traceStatus = com.airi.assistant.core.ExecutionTraceStatus.COMPLETED,
+                    lifecycleKinds = listOf(
+                        ExecutionTraceKind.TOOL_REQUESTED,
+                        ExecutionTraceKind.TOOL_COMPLETED,
+                    ),
+                    orphanedParent = true,
+                ),
+            ),
+        )
+        val restored = AgentTraceStore.traceFromJson(AgentTraceStore.traceToJson(original))
+        assertEquals(original.steps.single().eventId, restored.steps.single().eventId)
+        assertEquals(original.steps.single().actionId, restored.steps.single().actionId)
+        assertEquals(original.steps.single().lifecycleKinds, restored.steps.single().lifecycleKinds)
+        assertTrue(restored.steps.single().orphanedParent)
     }
 
     @Test

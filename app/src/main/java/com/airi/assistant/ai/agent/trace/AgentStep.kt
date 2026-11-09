@@ -1,5 +1,8 @@
 package com.airi.assistant.ai.agent.trace
 
+import com.airi.assistant.core.ExecutionTraceKind
+import com.airi.assistant.core.ExecutionTraceStatus
+
 enum class AgentStepType {
     SKILL,
     TOOL,
@@ -30,6 +33,16 @@ data class AgentStep(
     val parentId: String? = null,
     /** Original event timestamp; zero is retained for legacy traces. */
     val timestampMs: Long = 0L,
+    /** Stable source event identity; blank for legacy traces. */
+    val eventId: String = "",
+    /** Stable action identity, allowing request/start/output/completion to update one node. */
+    val actionId: String? = null,
+    /** Exact lifecycle state represented by this snapshot. */
+    val traceStatus: ExecutionTraceStatus = ExecutionTraceStatus.COMPLETED,
+    /** Exact source kinds folded into this action snapshot, oldest first. */
+    val lifecycleKinds: List<ExecutionTraceKind> = emptyList(),
+    /** True when the supplied parentId was not present in the execution snapshot. */
+    val orphanedParent: Boolean = false,
 ) {
     val displayName: String get() = name.replace("_", " ")
         .split(" ").joinToString(" ") { it.replaceFirstChar(Char::titlecase) }

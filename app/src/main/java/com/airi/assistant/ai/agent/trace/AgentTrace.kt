@@ -59,8 +59,17 @@ data class AgentTrace(
     // Model turns are bookkeeping about the model, not units of work: they never change the step
     // counters or the error state that the run card, logs and notifications are built on.
     val stepCount: Int get() = steps.count { it.type != AgentStepType.MODEL_TURN }
-    val successCount: Int get() = steps.count { it.type != AgentStepType.MODEL_TURN && it.success }
-    val hasErrors: Boolean get() = steps.any { it.type != AgentStepType.MODEL_TURN && (!it.success || it.error != null) }
+    val successCount: Int get() = steps.count {
+        it.type != AgentStepType.MODEL_TURN &&
+            it.traceStatus == com.airi.assistant.core.ExecutionTraceStatus.COMPLETED &&
+            it.success
+    }
+    val hasErrors: Boolean get() = steps.any {
+        it.type != AgentStepType.MODEL_TURN &&
+            (it.traceStatus == com.airi.assistant.core.ExecutionTraceStatus.FAILED ||
+                it.traceStatus == com.airi.assistant.core.ExecutionTraceStatus.CANCELLED ||
+                it.error != null)
+    }
 
     companion object {
         const val SOURCE_SKILL = "skill"

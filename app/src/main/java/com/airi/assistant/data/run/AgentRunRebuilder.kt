@@ -3,6 +3,8 @@ package com.airi.assistant.data.run
 import com.airi.assistant.ai.agent.trace.AgentStep
 import com.airi.assistant.ai.agent.trace.AgentStepType
 import com.airi.assistant.ai.agent.trace.AgentTrace
+import com.airi.assistant.core.ExecutionTraceKind
+import com.airi.assistant.core.ExecutionTraceStatus
 
 /**
  * Part 5 §6: rebuilds an [AgentTrace] from the Room rows, so the run screen can open a run that the
@@ -58,10 +60,13 @@ object AgentRunRebuilder {
     }
 
     private fun toStep(e: AgentRunEventEntity, index: Int): AgentStep {
-        val ok = e.status == "COMPLETED"
+        val encodedType = e.type.split('|')
+        val traceStatus = runCatching { ExecutionTraceStatus.valueOf(e.status) }
+            .getOrDefault(if (e.status == "COMPLETED") ExecutionTraceStatus.COMPLETED else ExecutionTraceStatus.FAILED)
+        val ok = traceStatus == ExecutionTraceStatus.COMPLETED
         return AgentStep(
             stepIndex = index,
-            type = AgentStepType.values().firstOrNull { it.name == e.type } ?: AgentStepType.TASK_STEP,
+            type = AgentStepType.values().firstOrNull { it.name == encodedType.first() } ?: AgentStepType.TASK_STEP,
             name = e.title,
             inputParams = parseParams(e.inputPreview),
             outputSummary = if (ok) e.outputPreview else "",
@@ -70,6 +75,12 @@ object AgentRunRebuilder {
             durationMs = e.durationMs ?: 0L,
             timestampMs = e.timestampMs,
             parentId = e.parentId,
+            actionId = e.actionId,
+            eventId = e.eventId,
+            traceStatus = traceStatus,
+            lifecycleKinds = encodedType.drop(1).mapNotNull { value ->
+                runCatching { ExecutionTraceKind.valueOf(value) }.getOrNull()
+            },
         )
     }
 }

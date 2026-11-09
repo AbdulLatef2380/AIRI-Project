@@ -24,7 +24,7 @@ object AgentRunStore {
                 database = Room.databaseBuilder(
                     context.applicationContext, AgentRunDatabase::class.java, "airi_agent_runs.db",
                 )
-                    .addMigrations(AgentRunDatabase.MIGRATION_1_2)
+                    .addMigrations(AgentRunDatabase.MIGRATION_1_2, AgentRunDatabase.MIGRATION_2_3)
                     // Derived data: if a future schema has no migration, rebuilding it beats crashing.
                     .fallbackToDestructiveMigration(true)
                     .build()

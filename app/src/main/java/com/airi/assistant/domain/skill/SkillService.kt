@@ -45,10 +45,10 @@ class SkillService(private val context: Context) {
     }
 
     private val skillExecutor         = SkillExecutor(context)
-    private val skillRegistry         = SkillRegistry(context)
+    private val skillRegistry         = SkillRegistry.shared(context)
     private val toolExecutor          = ToolExecutor(context)
     private val customSkillExecutor   = CustomSkillExecutor(context)
-    private val customSkillRepository = CustomSkillRepository(context)
+    private val customSkillRepository = CustomSkillRepository.shared(context)
     private val outcomeScorer         = SkillOutcomeScorer.getInstance(context)
 
     // ── Policy-gated skill execution ──────────────────────────────────────────

@@ -15,7 +15,7 @@ import com.airi.assistant.domain.customskill.CustomSkillRepository
 
 class ToolRegistry(private val context: Context) {
 
-    private val customSkillRepository = CustomSkillRepository(context)
+    private val customSkillRepository = CustomSkillRepository.shared(context)
 
     fun getAvailableTools(): List<Tool> {
         val tools = mutableListOf<Tool>()

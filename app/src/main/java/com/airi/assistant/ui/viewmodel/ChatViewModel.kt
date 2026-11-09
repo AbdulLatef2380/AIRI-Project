@@ -496,7 +496,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // genuine iterative loop: LLM sees tool schemas → emits structured JSON →
     // ToolDispatcher executes → result fed back into next LLM turn.
     // Used for ACTION queries when agentLoopEnabled=true.
-    private val skillRegistry            = SkillRegistry(appContext)
+    private val skillRegistry            = SkillRegistry.shared(appContext)
     private val skillToolBridge          = SkillToolBridge(
         registry    = skillRegistry,
         context     = appContext,
@@ -2644,7 +2644,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
             val capabilityIntent = resolvedRuntimeIntent.toCapabilityIntent()
             val capabilityFailures = mutableListOf<com.airi.assistant.agent.loop.tool.CapabilitySourceFailure>()
-            val liveSkillSchemas = runCatching { skillToolBridge.asToolSchemas() }.getOrElse { error ->
+            val skillSnapshot = skillRegistry.snapshotForExecution()
+            val liveSkillSchemas = runCatching { skillToolBridge.asToolSchemas(skillSnapshot) }.getOrElse { error ->
                 capabilityFailures += com.airi.assistant.agent.loop.tool.CapabilitySourceFailure(
                     sourceId = "skills",
                     stage = "schema_build",
@@ -2809,7 +2810,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 ) + skillCapabilityInventoryEntries(
                     catalogToolNames = catalog.exposed.mapTo(mutableSetOf()) { it.schema.name },
                     dispatcherAdmittedNames = dispatcherAdmittedNames,
-                ) + sandboxCapabilityInventoryEntries(),
+                ) + sandboxCapabilityInventoryEntries(
+                    input = trimmedInput,
+                    dispatcherAdmittedNames = dispatcherAdmittedNames,
+                ),
             )
             val platformSnapshot = com.airi.assistant.agent.loop.tool.PlatformCapabilitySnapshot.from(
                 inventory = runtimeInventory,
@@ -3061,7 +3065,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                         val approved = awaitAccessibilityConfirmation("Save skill: ${proposal.skill.name}", details)
                                         if (approved) {
                                             val persisted = proposalStore.accept(proposal.id) { approvedProposal ->
-                                                SkillRegistry(appContext).registerDynamicFromManifest(
+                                                SkillRegistry.shared(appContext).registerDynamicFromManifest(
                                                     manifest = approvedProposal.manifest,
                                                     endpoint = approvedProposal.skill.config.endpoint,
                                                     method = approvedProposal.skill.config.method,
@@ -3713,10 +3717,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun sandboxCapabilityInventoryEntries(): List<com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry> {
+    private fun sandboxCapabilityInventoryEntries(
+        input: String,
+        dispatcherAdmittedNames: Set<String>,
+    ): List<com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry> {
         val guardRegistered = runCatching { ServiceLocator.agentSandbox }.isSuccess
         val terminalRuntimeRegistered = runCatching { ServiceLocator.terminalExecutionGateway }.isSuccess
         val sandboxManagerRegistered = runCatching { ServiceLocator.sandboxManager }.isSuccess
+        val terminalRequested = com.airi.assistant.ai.CapabilityIntentDetector.normalize(input).let { normalized ->
+            listOf("terminal", "shell", "sandbox", "command", "أمر").any(normalized::contains)
+        }
+        val terminalPolicyAllowed = runCatching {
+            com.airi.assistant.domain.terminal.TerminalExecutionPolicy.evaluate("echo").allowed
+        }.getOrDefault(false)
+        val terminalProjection = com.airi.assistant.agent.loop.tool.TerminalCapabilityNegotiation.project(
+            registered = terminalRuntimeRegistered,
+            sandboxReady = sandboxManagerRegistered,
+            policyAllowed = terminalPolicyAllowed,
+            requested = terminalRequested,
+            exposed = "terminal_execute" in dispatcherAdmittedNames,
+            admitted = "terminal_execute" in dispatcherAdmittedNames,
+        )
         return listOf(
             com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry(
                 id = "agent_sandbox_guard",
@@ -3727,6 +3748,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 exposedToAgent = false,
                 admittedToDispatcher = false,
                 detail = "Permission/workspace guard; it is not an operating-system shell or process executor.",
+            ),
+            com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry(
+                id = "terminal_execute",
+                family = com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Family.BUILTIN,
+                registered = terminalRuntimeRegistered,
+                availability = terminalProjection.availability,
+                inRequestCatalog = terminalProjection.inRequestCatalog,
+                exposedToAgent = terminalProjection.exposedToAgent,
+                admittedToDispatcher = terminalProjection.admittedToDispatcher,
+                detail = terminalProjection.detail,
+                dispatcherRoute = "ToolDispatcher → TerminalExecutionGateway",
             ),
             com.airi.assistant.agent.loop.tool.RuntimeCapabilityInventory.Entry(
                 id = "sandbox_process_execution",

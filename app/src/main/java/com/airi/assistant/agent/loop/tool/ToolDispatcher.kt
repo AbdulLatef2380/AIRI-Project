@@ -27,6 +27,7 @@ import com.airi.assistant.ui.activity.ActivityEvent
 import com.airi.assistant.ui.activity.ActivityMetadata
 import com.airi.assistant.ui.activity.ActivityPhase
 import com.airi.assistant.ui.activity.AgentActivityBus
+import com.airi.assistant.domain.tool.TypedArgumentContract
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -86,6 +87,20 @@ class ToolDispatcher(
         sessionId: String? = null,
         messageId: String? = null,
     ): ToolResult {
+        val schema = BuiltinTools.ALL.firstOrNull { it.name == toolName }
+            ?: skillToolBridge?.asToolSchemas()?.firstOrNull { it.name == toolName }
+            ?: connectorToolBridge?.asToolSchemas(includeUnavailable = true)?.firstOrNull { it.name == toolName }
+        schema?.let {
+            val validation = TypedArgumentContract.validate(TypedArgumentAdapters.fromSchema(it), args)
+            if (!validation.isValid) {
+                val failure = validation.failure!!
+                return ToolResult.Error(
+                    message = "${failure.message} ${failure.repairHint}",
+                    code = ToolErrorCodes.INVALID_ARGUMENT,
+                    retryable = false,
+                )
+            }
+        }
         LoggingService.info(TAG, "TOOL_DISPATCH tool=$toolName argCount=${args.size}")
         AgentActivityBus.emit(
             ActivityEvent(
@@ -488,7 +503,7 @@ class ToolDispatcher(
                         config = SkillConfig(endpoint = endpoint, method = method, bodyTemplate = body),
                         createdAt = System.currentTimeMillis(),
                     )
-                    val registry = SkillRegistry(context)
+                    val registry = SkillRegistry.shared(context)
                     if (!registry.validateDynamicManifest(manifest, endpoint, method, body, SkillType.API)) {
                         ToolResult.Error("Skill proposal failed AIRI validation", code = ToolErrorCodes.INVALID_ARGUMENT)
                     } else {
@@ -514,7 +529,7 @@ class ToolDispatcher(
                     val skill = imported.skill
                     if (!imported.success || manifest == null || skill == null) {
                         ToolResult.Error(imported.errors.joinToString("; ").ifBlank { "Skill import failed" }, code = ToolErrorCodes.EXECUTION_FAILED)
-                    } else if (!SkillRegistry(context).validateDynamicManifest(manifest, skill.config.endpoint, skill.config.method, skill.config.bodyTemplate, skill.type)) {
+                    } else if (!SkillRegistry.shared(context).validateDynamicManifest(manifest, skill.config.endpoint, skill.config.method, skill.config.bodyTemplate, skill.type)) {
                         ToolResult.Error("Imported skill failed AIRI validation", code = ToolErrorCodes.INVALID_ARGUMENT)
                     } else {
                         val proposal = SkillProposalStore(context).create(

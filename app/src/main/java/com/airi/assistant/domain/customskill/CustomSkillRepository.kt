@@ -13,7 +13,10 @@ class CustomSkillRepository(context: Context) {
         val secured = skill.withEncryptedHeaders()
         val skills = loadRaw().filterNot { it.id == skill.id }.toMutableList()
         skills.add(secured)
-        prefs.edit().putString(KEY_SKILLS, gson.toJson(skills.sortedByDescending { it.createdAt })).apply()
+        prefs.edit()
+            .putString(KEY_SKILLS, gson.toJson(skills.sortedByDescending { it.createdAt }))
+            .putLong(KEY_VERSION, version() + 1L)
+            .apply()
     }
 
     fun getAllSkills(): List<CustomSkill> =
@@ -21,8 +24,13 @@ class CustomSkillRepository(context: Context) {
 
     fun deleteSkill(id: String) {
         val skills = loadRaw().filterNot { it.id == id }
-        prefs.edit().putString(KEY_SKILLS, gson.toJson(skills)).apply()
+        prefs.edit().putString(KEY_SKILLS, gson.toJson(skills))
+            .putLong(KEY_VERSION, version() + 1L)
+            .apply()
     }
+
+    /** Monotonic catalog version used to pin one execution to one repository view. */
+    fun version(): Long = prefs.getLong(KEY_VERSION, 0L)
 
     fun getSkillById(id: String): CustomSkill? =
         getAllSkills().firstOrNull { it.id == id }
@@ -41,7 +49,14 @@ class CustomSkillRepository(context: Context) {
     private fun CustomSkill.withDecryptedHeaders(): CustomSkill =
         copy(config = config.copy(headers = CustomSkillCrypto.decryptSensitiveHeaders(config.headers)))
 
-    private companion object {
+    companion object {
+        private var shared: CustomSkillRepository? = null
+        private val lock = Any()
         private const val KEY_SKILLS = "skills"
+        private const val KEY_VERSION = "catalog_version"
+
+        fun shared(context: Context): CustomSkillRepository = synchronized(lock) {
+            shared ?: CustomSkillRepository(context.applicationContext).also { shared = it }
+        }
     }
 }

@@ -69,8 +69,8 @@ fun SkillManagerScreen(
 ) {
     val context       = LocalContext.current
     val presentationLocale = remember { Locale.getDefault() }
-    val repository    = remember { CustomSkillRepository(context) }
-    val skillRegistry = remember { SkillRegistry(context) }
+    val repository    = remember { CustomSkillRepository.shared(context) }
+    val skillRegistry = remember { SkillRegistry.shared(context) }
     val scope         = rememberCoroutineScope()
 
     // getAllSkillInfos() also appends custom skills with author="builtin" — filter them out

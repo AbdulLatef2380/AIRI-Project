@@ -104,7 +104,7 @@ class UnifiedCognitiveLoop {
         ServiceLocator.context?.let { context ->
             SkillToolBridge(
                 context = context,
-                registry = SkillRegistry(context),
+                registry = SkillRegistry.shared(context),
                 // UCL is a live runtime. Use the same connector-health source
                 // as ChatViewModel/AgentLoop instead of the bridge's closed
                 // default, which denied every connector-bound skill preflight.

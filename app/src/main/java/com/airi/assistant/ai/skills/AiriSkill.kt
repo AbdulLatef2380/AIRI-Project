@@ -114,7 +114,18 @@ data class SkillToolDefinition(
 data class SkillParamDef(
     val type:        String,
     val description: String = "",
-    val required:    Boolean = true
+    val required:    Boolean = true,
+    val nullable: Boolean = false,
+    val defaultValue: String? = null,
+    val minLength: Int? = null,
+    val maxLength: Int? = null,
+    val minInt: Long? = null,
+    val maxInt: Long? = null,
+    val minNumber: Double? = null,
+    val maxNumber: Double? = null,
+    val allowedValues: Set<String> = emptySet(),
+    val items: SkillParamDef? = null,
+    val properties: Map<String, SkillParamDef> = emptyMap(),
 )
 
 enum class SkillRiskLevel { LOW, MEDIUM, HIGH, CRITICAL }

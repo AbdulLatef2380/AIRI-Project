@@ -23,6 +23,8 @@ data class ToolSchema(
         val type:        String,          // "string" | "int" | "number" | "boolean"
         val description: String = "",
         val required:    Boolean = true,
+        val nullable:    Boolean = false,
+        val defaultValue: String? = null,
         val minLength:   Int? = null,
         val maxLength:   Int? = null,
         val minInt:      Long? = null,

@@ -47,7 +47,7 @@ class ToolExecutor(
             )
 
         if (toolCall.toolName.startsWith("custom_skill_")) {
-            val customSkill = CustomSkillRepository(context).getAllSkills()
+            val customSkill = CustomSkillRepository.shared(context).getAllSkills()
                 .firstOrNull { customSkillToolName(it) == toolCall.toolName }
                 ?: return ToolResult(false, "", "Custom skill '${toolCall.toolName}' is not available.")
             return try {

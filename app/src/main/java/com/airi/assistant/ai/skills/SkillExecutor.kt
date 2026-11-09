@@ -18,7 +18,7 @@ import android.content.Context
 )
 class SkillExecutor(private val context: Context) {
 
-    private val registry = SkillRegistry(context)
+    private val registry = SkillRegistry.shared(context)
 
     companion object {
         private const val SCORE_THRESHOLD = 20

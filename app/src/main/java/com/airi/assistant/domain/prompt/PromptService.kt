@@ -15,7 +15,7 @@ import com.airi.assistant.profile.UserPreferenceProfileStore
 class PromptService(private val context: Context) {
 
     private val toolRegistry  = ToolRegistry(context)
-    private val skillRegistry = SkillRegistry(context)
+    private val skillRegistry = SkillRegistry.shared(context)
     private val preferenceProfileStore = UserPreferenceProfileStore(context)
 
     // ── Quality rules injected into every system prompt ───────────────────────
@@ -207,7 +207,10 @@ The example demonstrates structure and conversational continuity, not text to co
             //
             //   In FAST mode we skip both to minimise latency regardless.
             if (performanceMode != PerformanceMode.FAST && !hasAgentTools) {
-                val toolBlock = toolRegistry.buildToolDescriptionBlock()
+                val toolBlock = PromptCapabilityBlockPolicy.narrativeBlockIfNeeded(
+                    existingPrompt = this.toString(),
+                    narrativeBlock = toolRegistry.buildToolDescriptionBlock(),
+                )
                 if (toolBlock.isNotBlank()) append(toolBlock)
 
                 // SPRINT 2: Claim SKILLS budget before building the skill block.

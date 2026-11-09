@@ -278,6 +278,8 @@ the tool returns an actual error.
         }.toMutableList()
         val priorHistoryCount = history.size
         var stepsUsed    = 0
+        var repairAttempts = 0
+        val maxRepairAttempts = 2
         val executionId   = requestedExecutionId?.takeIf(String::isNotBlank) ?: UUID.randomUUID().toString()
         val traceId = "trace-$executionId"
         val requestIdentity = ChatExecutionIdentityContract.create(sessionId, executionId)
@@ -1550,12 +1552,21 @@ the tool returns an actual error.
                 if (toolResult is ToolDispatcher.ToolResult.Error &&
                     toolResult.retryable &&
                     recoveryDecision == SelfHealingExecutor.Decision.RETRY_PARAMETER_REPAIR &&
-                    stepsUsed < MAX_STEPS
+                    stepsUsed < MAX_STEPS &&
+                    repairAttempts < maxRepairAttempts
                 ) {
+                    repairAttempts++
                     val healing = SelfHealingExecutor.recoverFromToolError(
                         failedToolName = toolName,
                         errorMessage = toolResult.message.take(300),
                         originalInput = input,
+                        errorCode = toolResult.code,
+                        sideEffectPolicy = selectedToolSchema?.sideEffectPolicy
+                            ?: ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
+                        attempt = repairAttempts - 1,
+                        maxAttempts = maxRepairAttempts,
+                        hasIdempotencyKey = toolArgs["idempotency_key"].orEmpty().isNotBlank(),
+                        schemaHint = selectedToolSchema?.description.orEmpty(),
                     )
                     history.add(
                         ConversationTurn.User(
@@ -1563,7 +1574,7 @@ the tool returns an actual error.
                                 "Do not repeat a side effect unless the user has confirmed it."
                         )
                     )
-                    LoggingService.info(TAG, "AIRI SELF_HEALING_QUEUED tool=$toolName step=$stepsUsed")
+                    LoggingService.info(TAG, "AIRI SELF_HEALING_QUEUED tool=$toolName step=$stepsUsed attempt=$repairAttempts/$maxRepairAttempts")
                 }
             }
 

@@ -39,7 +39,7 @@ class SkillRegistry(private val context: Context) {
             else combine(connectors.map { it.state() }) { states -> states.toList() }
         }
     }
-    private val customSkillRepository = CustomSkillRepository(context)
+    private val customSkillRepository = CustomSkillRepository.shared(context)
 
     /** Shared executor instance for custom-skill adapters returned from [getAvailableSkills]. */
     private val customSkillExecutor by lazy { CustomSkillExecutor(context) }
@@ -101,7 +101,24 @@ class SkillRegistry(private val context: Context) {
     }
 
     fun setSkillEnabled(skillName: String, enabled: Boolean) {
-        disabledSkillsPrefs.edit().putBoolean(skillName, enabled).apply()
+        disabledSkillsPrefs.edit()
+            .putBoolean(skillName, enabled)
+            .putLong(CATALOG_VERSION_KEY, catalogVersion() + 1L)
+            .apply()
+    }
+
+    fun catalogVersion(): Long = maxOf(
+        disabledSkillsPrefs.getLong(CATALOG_VERSION_KEY, 0L),
+        customSkillRepository.version(),
+    )
+
+    fun snapshotForExecution(): SkillCatalogSnapshot {
+        val registered = getRegisteredSkillsForRouting()
+        return SkillCatalogSnapshot(
+            version = catalogVersion(),
+            skills = registered,
+            registeredIds = registered.map { it.skillId }.toSet(),
+        )
     }
 
     fun getAvailableSkills(): List<AiriSkill> {
@@ -524,9 +541,16 @@ class SkillRegistry(private val context: Context) {
 
     private data class SkillMeta(val whenToUse: String, val expectedInput: String)
 
-    private companion object {
+    companion object {
+        private var shared: SkillRegistry? = null
+        private val lock = Any()
+        private const val CATALOG_VERSION_KEY = "catalog_version"
         private val SUPPORTED_HTTP_METHODS = setOf("GET", "POST", "PUT", "PATCH", "DELETE")
         private val REMOTE_SKILL_TYPES = setOf(SkillType.API, SkillType.WEBHOOK)
+
+        fun shared(context: Context): SkillRegistry = synchronized(lock) {
+            shared ?: SkillRegistry(context.applicationContext).also { shared = it }
+        }
 
         private val SKILL_METADATA = mapOf(
             "web_search" to SkillMeta(

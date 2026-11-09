@@ -113,8 +113,8 @@ fun SkillBuilderScreen(
     onSaved: () -> Unit
 ) {
     val context = LocalContext.current
-    val repository = remember { CustomSkillRepository(context) }
-    val skillRegistry = remember { SkillRegistry(context) }
+    val repository = remember { CustomSkillRepository.shared(context) }
+    val skillRegistry = remember { SkillRegistry.shared(context) }
     val existing = remember(skillId) { skillId?.let { repository.getSkillById(it) } }
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()

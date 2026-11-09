@@ -69,7 +69,7 @@ fun SkillDetailsScreen(
     onExplain: (String) -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val registry = remember { SkillRegistry(context) }
+    val registry = remember { SkillRegistry.shared(context) }
     val entry = remember(skillId) { OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == skillId } }
     val manifest = entry?.manifest
     val presentation = manifest?.let { SkillPresentation.localized(it, java.util.Locale.getDefault()) }

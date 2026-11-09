@@ -35,16 +35,38 @@ object SelfHealingExecutor {
         else -> Decision.STOP_AND_EXPLAIN
     }
 
-    fun recoverFromToolError(failedToolName: String, errorMessage: String, originalInput: String): HealingResult {
-        val safeError = errorMessage.replace(Regex("[\\r\\n]+"), " ").take(300)
-        val repairInstruction = "The previous execution of tool '$failedToolName' failed with error: '$safeError'. " +
-                "Re-evaluate the original request, correct only the invalid arguments, and retry only if the operation is safe and idempotent. " +
-                "Never repeat a side effect without explicit confirmation."
+    fun recoverFromToolError(
+        failedToolName: String,
+        errorMessage: String,
+        originalInput: String,
+        errorCode: String = ToolErrorCodes.INVALID_ARGUMENT,
+        sideEffectPolicy: ToolSchema.SideEffectPolicy = ToolSchema.SideEffectPolicy.READ_ONLY,
+        attempt: Int = 0,
+        maxAttempts: Int = 2,
+        hasIdempotencyKey: Boolean = false,
+        schemaHint: String = "",
+    ): HealingResult {
+        val repair = ModelFacingRepairContract.buildPrompt(
+            ModelFacingRepairContract.Request(
+                toolName = failedToolName,
+                errorCode = errorCode,
+                sideEffectPolicy = sideEffectPolicy,
+                originalInput = originalInput,
+                attempt = attempt,
+                maxAttempts = maxAttempts,
+                hasIdempotencyKey = hasIdempotencyKey,
+                schemaHint = schemaHint,
+            )
+        )
+        val repairInstruction = repair.prompt ?: "Do not retry this tool failure. Explain the failure and the required next action."
         val preservedInput = originalInput.trim().ifBlank { "[original request unavailable]" }
         return HealingResult(
-            success = true,
+            success = repair.decision == ModelFacingRepairContract.Decision.REPAIR_ARGUMENTS ||
+                repair.decision == ModelFacingRepairContract.Decision.RETRY_READ_TRANSIENT,
             correctedPromptOrInput = "$preservedInput\n\n[System Recovery Note: $repairInstruction]",
-            reason = "Auto-corrected tool parameters for $failedToolName",
+            reason = if (repair.decision == ModelFacingRepairContract.Decision.REPAIR_ARGUMENTS)
+                "Auto-corrected tool parameters for $failedToolName"
+            else repair.decision.name,
         )
     }
 }

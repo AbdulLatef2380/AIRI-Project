@@ -29,7 +29,7 @@ class SelfHealingExecutorTest {
         )
 
         assertTrue(result.correctedPromptOrInput.startsWith("اقرأ الصفحة ثم لخصها"))
-        assertTrue(result.correctedPromptOrInput.contains("bad input secret detail"))
+        assertTrue(!result.correctedPromptOrInput.contains("secret detail"))
     }
 
     @Test

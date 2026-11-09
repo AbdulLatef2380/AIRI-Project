@@ -3,6 +3,8 @@ package com.airi.assistant.ai.skills
 import android.content.Context
 import android.util.Log
 import com.airi.assistant.agent.loop.tool.ToolSchema
+import com.airi.assistant.agent.loop.tool.TypedArgumentAdapters
+import com.airi.assistant.domain.tool.TypedArgumentContract
 import com.airi.assistant.domain.permission.PermissionService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
@@ -54,11 +56,11 @@ class SkillToolBridge(
      * Convert all enabled skills' toolDefinitions into [ToolSchema] entries
      * the [AgentLoop] injects into the system prompt.
      */
-    fun asToolSchemas(): List<ToolSchema> {
+    fun asToolSchemas(snapshot: SkillCatalogSnapshot? = null): List<ToolSchema> {
         // Registration/discovery is deliberately separate from authorization.
         // Expose registered skills with a truthful readiness marker; invoke()
         // applies the same policy again and remains fail-closed.
-        val skills = registry.getRegisteredSkillsForRouting()
+        val skills = snapshot?.skills ?: registry.getRegisteredSkillsForRouting()
         val schemas = mutableListOf<ToolSchema>()
         skills.forEach { skill ->
             val status = when (val decision = readiness(skill)) {
@@ -106,7 +108,7 @@ class SkillToolBridge(
         name        = "$PREFIX${skill.skillId}_${toolDef.name}",
         description = "[${skill.name}] ${toolDef.description}${status.orEmpty()}",
         parameters  = toolDef.parameters.mapValues { (_, p) ->
-            ToolSchema.Param(type = p.type, description = p.description, required = p.required)
+            ToolSchema.Param(type = p.type, description = p.description, required = p.required, nullable = p.nullable, defaultValue = p.defaultValue, minLength = p.minLength, maxLength = p.maxLength, minInt = p.minInt, maxInt = p.maxInt, minNumber = p.minNumber, maxNumber = p.maxNumber, allowedValues = p.allowedValues, items = p.items?.let { item -> ToolSchema.Param(item.type, item.description, item.required) }, properties = p.properties.mapValues { (_, child) -> ToolSchema.Param(child.type, child.description, child.required) })
         },
         dangerous   = toolDef.dangerous,
         category    = ToolSchema.Category.EXTERNAL
@@ -179,6 +181,20 @@ class SkillToolBridge(
             Log.d(TAG, "AIRI SKILL_BRIDGE_SUPPRESSED skillId=${skill.skillId} — modelAccess=NONE")
         }
 
+        val definition = skill.toolDefinitions.firstOrNull { definition ->
+            toolName == "$PREFIX${skill.skillId}_${definition.name}" || toolName == "$PREFIX${definition.name}"
+        }
+        val argumentSpecs = definition?.parameters
+            ?.let(TypedArgumentAdapters::fromSkill)
+            ?: skill.parameters.map { (name, description) ->
+                com.airi.assistant.domain.tool.TypedArgumentSpec(name, com.airi.assistant.domain.tool.TypedArgumentSpec.Type.STRING, required = false, description = description)
+            }
+        val typed = TypedArgumentContract.validate(argumentSpecs, args)
+        if (!typed.isValid) {
+            val failure = typed.failure!!
+            return SkillResult(false, "", "${failure.message} ${failure.repairHint}", skillName = skill.skillId, metadata = mapOf("failure_type" to "invalid_argument", "error_code" to failure.code))
+        }
+
         Log.i(TAG, "AIRI SKILL_INVOKE " +
             "tool=$toolName " +
             "skillId=${skill.skillId} " +
@@ -189,8 +205,8 @@ class SkillToolBridge(
             "sessionId=${skillCtxInstance.sessionId.take(12).ifBlank { "NONE" }}")
 
         val params: Map<String, Any> = buildMap {
-            put("input", args["input"] ?: args["query"] ?: args.values.firstOrNull() ?: "")
-            putAll(args)
+            put("input", typed.value!!.canonical["input"] ?: typed.value!!.canonical["query"] ?: typed.value!!.canonical.values.firstOrNull() ?: "")
+            putAll(typed.value!!.canonical)
             put("context", skillCtxInstance)
         }
 

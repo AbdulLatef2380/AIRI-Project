@@ -1,6 +1,8 @@
 package com.airi.assistant.connector
 
 import com.airi.assistant.agent.loop.tool.ToolSchema
+import com.airi.assistant.agent.loop.tool.TypedArgumentAdapters
+import com.airi.assistant.domain.tool.TypedArgumentContract
 
 /**
  * Canonical bridge between live ConnectorRegistry entries and AgentLoop.
@@ -51,6 +53,13 @@ class ConnectorToolBridge(
     fun actionForTool(toolName: String): ConnectorAgentAction? =
         bindings(onlyExecutable = false, onlyGranted = false)[resolveToolName(toolName)]?.action
 
+    /** Single model/UI-safe authorization state for this action surface. */
+    fun authorizationForTool(toolName: String): ConnectorAuthorizationState? {
+        val binding = bindings(onlyExecutable = false, onlyGranted = false)[resolveToolName(toolName)] ?: return null
+        val connector = registry.get(binding.connectorId) ?: return null
+        return ConnectorAuthorizationProjection.forAction(connector, binding.action, accessProfiles)
+    }
+
     suspend fun invoke(
         toolName: String,
         args: Map<String, String>,
@@ -63,6 +72,13 @@ class ConnectorToolBridge(
         val canonicalToolName = resolveToolName(toolName)
         val binding = bindings(onlyExecutable = false, onlyGranted = false)[canonicalToolName]
             ?: return ConnectorOutput.Failure("unknown_tool", "Unknown connector tool: $toolName")
+        val typed = TypedArgumentContract.validate(
+            TypedArgumentAdapters.fromConnector(binding.action.parameters), args
+        )
+        if (!typed.isValid) {
+            val failure = typed.failure!!
+            return ConnectorOutput.Failure("invalid_argument", "${failure.message} ${failure.repairHint}")
+        }
         when (ConnectorAccessPolicy.evaluate(
             accessProfiles.get(binding.action.surfaceId ?: binding.connectorId), binding.action
         )) {
@@ -84,7 +100,7 @@ class ConnectorToolBridge(
             input = ConnectorInput(
                 action = binding.action.runtimeAction,
                 text = text,
-                params = args.filterKeys { it != "text" || it in binding.action.parameters } + binding.action.fixedParams,
+                params = typed.value!!.canonical.filterKeys { it != "text" || it in binding.action.parameters } + binding.action.fixedParams,
                 executionId = executionId?.takeIf(String::isNotBlank),
                 traceId = traceId?.takeIf(String::isNotBlank),
                 sessionId = sessionId?.takeIf(String::isNotBlank),
@@ -125,9 +141,16 @@ class ConnectorToolBridge(
         if (toolName == "github_push") "connector_github_push" else toolName
 
     private fun Binding.toSchema(toolName: String): ToolSchema {
+        val authorization = registry.get(connectorId)?.let {
+            ConnectorAuthorizationProjection.forAction(it, action, accessProfiles)
+        }
+        val authorizationHint = authorization?.let { state ->
+            " [AUTH=${state.status.name.lowercase()}" +
+                (state.reasonCode?.let { "; reason=$it" } ?: "") + "]"
+        }.orEmpty()
         return ToolSchema(
             name = toolName,
-            description = "[$connectorId] ${action.description}",
+            description = "[$connectorId] ${action.description}$authorizationHint",
             parameters = action.parameters.mapValues { (_, parameter) -> parameter.toToolSchemaParam() },
             category = ToolSchema.Category.EXTERNAL,
             sideEffectPolicy = when {
@@ -145,11 +168,15 @@ class ConnectorToolBridge(
         type = type,
         description = description,
         required = required,
+        nullable = nullable,
+        defaultValue = defaultValue,
+        minLength = minLength,
         maxLength = maxLength,
         minInt = minInt,
         maxInt = maxInt,
         minNumber = minNumber,
         maxNumber = maxNumber,
+        allowedValues = allowedValues,
         items = items?.toToolSchemaParam(),
         properties = properties.mapValues { (_, property) -> property.toToolSchemaParam() },
     )

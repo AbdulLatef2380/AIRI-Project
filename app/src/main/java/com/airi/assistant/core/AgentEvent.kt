@@ -54,32 +54,7 @@ data class AgentEvent(
             sessionId = event.sessionId,
             sequence = event.sequence,
             timestampMs = event.timestampMs,
-            type = when (event.kind) {
-                ExecutionTraceKind.EXECUTION_STARTED,
-                ExecutionTraceKind.PLAN_CREATED,
-                ExecutionTraceKind.REASONING_NOTE,
-                ExecutionTraceKind.PLANNING -> Type.PLAN_UPDATED
-                ExecutionTraceKind.TOOL_REQUESTED,
-                ExecutionTraceKind.TOOL_STARTED -> Type.TOOL_CALL
-                ExecutionTraceKind.TOOL_OUTPUT,
-                ExecutionTraceKind.TOOL_COMPLETED,
-                ExecutionTraceKind.TOOL_FAILED,
-                ExecutionTraceKind.TOOL_CANCELLED -> Type.TOOL_RESULT
-                ExecutionTraceKind.WAITING_FOR_APPROVAL,
-                ExecutionTraceKind.APPROVAL_CANCELLED,
-                ExecutionTraceKind.APPROVAL_TIMEOUT -> Type.APPROVAL
-                ExecutionTraceKind.RECOVERING -> Type.FALLBACK
-                ExecutionTraceKind.REFLECTING -> Type.VERIFY
-                ExecutionTraceKind.VERIFICATION_STARTED,
-                ExecutionTraceKind.VERIFICATION_PASSED,
-                ExecutionTraceKind.VERIFICATION_FAILED -> Type.VERIFY
-                ExecutionTraceKind.COMPLETED,
-                ExecutionTraceKind.FAILED,
-                ExecutionTraceKind.CANCELLED,
-                ExecutionTraceKind.TIMED_OUT -> Type.FINAL
-                ExecutionTraceKind.STEP_STARTED,
-                ExecutionTraceKind.STEP_COMPLETED -> Type.LIFECYCLE
-            },
+            type = TraceEventContract.agentTypeFor(event.kind),
             title = event.summary,
             detail = event.detail,
             actionId = event.actionId,

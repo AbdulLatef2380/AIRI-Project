@@ -2,7 +2,7 @@ package com.airi.assistant.ui.trace
 
 import com.airi.assistant.core.AgentEvent
 import com.airi.assistant.core.ExecutionTraceEvent
-import com.airi.assistant.core.ExecutionTraceKind
+import com.airi.assistant.core.TraceEventContract
 
 /**
  * Compatibility projection for the old UI projector. AgentEvent remains the only write contract;
@@ -19,7 +19,7 @@ internal object AgentEventTraceAdapter {
                     executionId = event.executionId,
                     sequence = index.toLong(),
                     timestampMs = event.timestampMs,
-                    kind = event.type.toTraceKind(event.errorCode),
+                    kind = TraceEventContract.traceKindFor(event.type, event.errorCode),
                     summary = event.title,
                     detail = event.detail,
                     actionId = event.actionId,
@@ -34,26 +34,4 @@ internal object AgentEventTraceAdapter {
                 )
             }
 
-    private fun AgentEvent.Type.toTraceKind(errorCode: String?): ExecutionTraceKind = when (this) {
-        AgentEvent.Type.INTENT_RESOLVED,
-        AgentEvent.Type.TOOLS_EXPOSED,
-        AgentEvent.Type.PLAN_UPDATED -> ExecutionTraceKind.PLANNING
-        AgentEvent.Type.MODEL_TURN,
-        AgentEvent.Type.VERIFY -> ExecutionTraceKind.REFLECTING
-        AgentEvent.Type.TOOL_CALL,
-        AgentEvent.Type.SKILL_LOADED -> ExecutionTraceKind.TOOL_STARTED
-        AgentEvent.Type.TOOL_RESULT -> if (errorCode == null) {
-            ExecutionTraceKind.TOOL_COMPLETED
-        } else {
-            ExecutionTraceKind.TOOL_FAILED
-        }
-        AgentEvent.Type.APPROVAL -> ExecutionTraceKind.WAITING_FOR_APPROVAL
-        AgentEvent.Type.FALLBACK -> ExecutionTraceKind.RECOVERING
-        AgentEvent.Type.FINAL -> if (errorCode == null) {
-            ExecutionTraceKind.COMPLETED
-        } else {
-            ExecutionTraceKind.FAILED
-        }
-        AgentEvent.Type.LIFECYCLE -> ExecutionTraceKind.STEP_COMPLETED
-    }
 }

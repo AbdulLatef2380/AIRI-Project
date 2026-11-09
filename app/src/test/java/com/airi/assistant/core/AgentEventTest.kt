@@ -57,6 +57,30 @@ class AgentEventTest {
     }
 
     @Test
+    fun traceContractCoversEveryCanonicalKindAndKeepsTerminalDistinctFromToolSuccess() {
+        ExecutionTraceKind.entries.forEach { kind ->
+            assertTrue("missing mapping for $kind", TraceEventContract.agentTypeFor(kind) != null)
+        }
+
+        assertEquals(
+            AgentEvent.Type.TOOL_RESULT,
+            TraceEventContract.agentTypeFor(ExecutionTraceKind.TOOL_COMPLETED),
+        )
+        assertEquals(
+            AgentEvent.Type.FINAL,
+            TraceEventContract.agentTypeFor(ExecutionTraceKind.COMPLETED),
+        )
+        assertEquals(
+            ExecutionTraceKind.TOOL_COMPLETED,
+            TraceEventContract.traceKindFor(AgentEvent.Type.TOOL_RESULT, null),
+        )
+        assertEquals(
+            ExecutionTraceKind.COMPLETED,
+            TraceEventContract.traceKindFor(AgentEvent.Type.FINAL, null),
+        )
+    }
+
+    @Test
     fun busKeepsAFilteredSnapshotAndCanBeCleared() {
         AgentEventBus.clear()
         val event = AgentEvent(

@@ -65,7 +65,7 @@ internal object OpenAIResponsesPayloadContract {
                 if (index > 0) append(",")
                 append(ToolDefinitionJson.openAiResponseFunction(definition))
             }
-            append("],\"tool_choice\":\"auto\",")
+            append("],\"tool_choice\":").append(ToolChoiceJson.openAiResponsesValue(request.toolChoice, request.toolChoiceName)).append(",")
         }
         append("\"stream\":true")
         append("}")

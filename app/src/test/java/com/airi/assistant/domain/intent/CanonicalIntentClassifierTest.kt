@@ -80,13 +80,52 @@ class CanonicalIntentClassifierTest {
     }
 
     @Test
-    fun arabicCodeGenerationIsCreativeContentNotUnclassifiedAction() {
+    fun arabicCodeGenerationIsAnAgentCodeTaskNotToollessCreativeContent() {
         val intent = CanonicalIntentClassifier.classify("اصنع كود بلغة python لآلة حاسبة كاملة")
-        assertEquals(ChatIntent.Kind.CREATIVE, intent.kind)
-        assertEquals(QueryType.CREATIVE, intent.queryType)
-        assertEquals("code_generation_request", intent.rationale)
-        assertEquals(ChatIntent.Risk.NONE, intent.risk)
-        assertFalse(intent.isExecutableCandidate)
+        assertEquals(ChatIntent.Kind.POSSIBLE_ACTION, intent.kind)
+        assertEquals(QueryType.ACTION, intent.queryType)
+        assertEquals("code_task", intent.canonicalCapability)
+        assertEquals("coding_task_detected", intent.rationale)
+        assertEquals(ChatIntent.Risk.SIDE_EFFECT, intent.risk)
+        assertTrue(intent.isExecutableCandidate)
+    }
+
+    @Test
+    fun literalCalculatorRequestFromTheFieldReportIsACodeTask() {
+        val input = "قم بإنشاء كود لآلة حاسبة كاملة بلغة python مع ثيمات متعددة"
+        val intent = CanonicalIntentClassifier.classify(input)
+        assertEquals(ChatIntent.Kind.POSSIBLE_ACTION, intent.kind)
+        assertEquals(QueryType.ACTION, intent.queryType)
+        assertEquals("code_task", intent.canonicalCapability)
+        assertEquals("python", intent.typedSlots["language"]?.value)
+        assertEquals(ResolvedIntent.IntentKind.CODE_TASK, intent.resolvedIntent.kind)
+        assertEquals(QueryType.ACTION, com.airi.assistant.ai.QueryClassifier.classifyQuery(input))
+    }
+
+    @Test
+    fun codeTaskPhrasingVariantsAreAllCodeTasks() {
+        listOf(
+            "أنشئ كود لآلة حاسبة بلغة python", "إنشاء كود لآلة حاسبة بلغة بايثون",
+            "اعمل لي تطبيق آلة حاسبة", "صمم لي برنامج لإدارة المهام", "برمج لي سكربت ينسخ الملفات",
+            "write a python script that renames files", "create a calculator app in kotlin",
+        ).forEach { input ->
+            val intent = CanonicalIntentClassifier.classify(input)
+            assertEquals(input, "code_task", intent.canonicalCapability)
+            assertEquals(input, QueryType.ACTION, intent.queryType)
+        }
+    }
+
+    @Test
+    fun questionsAndChatAboutCodeDoNotActivateTheAgentPath() {
+        listOf(
+            "كيف اكتب كود بلغة python", "how do I write a python script", "اشرح لي هذا الكود",
+            "اكتب لي عن بايثون", "write a poem about my app", "my app build failed", "مرحبا", "hello",
+        ).forEach { input ->
+            assertFalse(input, "code_task" == CanonicalIntentClassifier.classify(input).canonicalCapability)
+        }
+        // A question-shaped code request keeps the legacy tool-free answer.
+        val question = CanonicalIntentClassifier.classify("كيف اكتب كود بلغة python")
+        assertEquals(QueryType.CREATIVE, question.queryType)
     }
 
     @Test

@@ -500,7 +500,7 @@ open class OpenAIAdapter(
                 if (index > 0) append(",")
                 append(ToolDefinitionJson.openAiFunction(definition))
             }
-            append("],\"tool_choice\":\"auto\"")
+            append("],\"tool_choice\":").append(ToolChoiceJson.openAiValue(req.toolChoice, req.toolChoiceName))
         }
         append("}")
     }

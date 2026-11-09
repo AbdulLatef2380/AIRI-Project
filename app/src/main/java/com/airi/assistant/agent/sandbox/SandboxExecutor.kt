@@ -284,13 +284,10 @@ class SandboxExecutor(private val session: SandboxSession) {
 
     companion object {
         // Allowed leading binary. Everything else is rejected.
-        private val BINARY_ALLOWLIST: Set<String> = setOf(
-            "ls", "cat", "echo", "mkdir", "cp", "mv", "rm",
-            "find", "grep", "sed", "awk", "head", "tail", "wc",
-            "sort", "uniq", "git", "zip", "unzip", "tar"
-            // Removed: curl, wget — these are network primitives that should
-            // be wrapped by a higher-level capability and not exposed via raw shell.
-        )
+        // Shared with TerminalExecutionPolicy so the two lists cannot drift apart.
+        // curl and wget stay out: they are network primitives for a higher-level capability.
+        private val BINARY_ALLOWLIST: Set<String> =
+            com.airi.assistant.domain.terminal.TerminalExecutionPolicy.executableBinaries
 
         // git: only read-only subcommands. Push/fetch/pull/commit/config are blocked.
         private val GIT_SUBCOMMAND_ALLOWLIST: Set<String> = setOf(

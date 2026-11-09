@@ -38,7 +38,17 @@ internal object AgentLoopSideEffectPolicy {
             hasDurableExecutionContext,
         )
 
-    fun blockedMessage(toolName: String): String = when (toolName) {
+    /**
+     * The tool result goes to the model, which then talks to the user. The technical reason alone
+     * produced replies like "requires a task-owned approval session"; the guidance makes the
+     * model say in the user's language what was not done and how to proceed (report ب-3 / د-5).
+     */
+    fun blockedMessage(toolName: String): String = technicalBlockedMessage(toolName) +
+        " Tell the user, in their own language and in plain words, that this action was not performed " +
+        "because it needs their explicit approval, and ask whether they want it done. Do not retry it yourself " +
+        "and do not quote this technical text."
+
+    private fun technicalBlockedMessage(toolName: String): String = when (toolName) {
         "calendar_create" -> "Calendar creation requires a task-owned approval session before it can run."
         "create_note" -> "Creating a note requires a task-owned approval session before it can run."
         "set_alarm" -> "Setting an alarm requires a task-owned approval session before it can run."
@@ -59,7 +69,7 @@ internal object AgentLoopSideEffectPolicy {
                 tool.name to
                 RuntimeToolCatalog.StatusOverride(
                     readiness = RuntimeToolContract.Readiness.BLOCKED,
-                    reason = blockedMessage(tool.name),
+                    reason = technicalBlockedMessage(tool.name),
                 )
             }
 }

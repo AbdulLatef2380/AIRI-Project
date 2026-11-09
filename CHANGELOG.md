@@ -1,5 +1,147 @@
 # AIRI — Changelog
 
+## [Unreleased] - Part 5 batch 8 (full request/answer in Room, merged run source, diagnostics gated)
+- Room run store schema 2 (additive migration): full request and answer, so runs rebuilt from Room are exact.
+- `AgentViewModel.traces` merges in-memory runs with Room-only runs, bounded by the retention level; delete/clear cover both.
+- Raw "full details" screen reachable only in debug mode. Unit tests added; not compiled in this environment.
+
+## [Unreleased] - Part 5 batch 7 (Room fallback, live model rows, screenshot references)
+
+Nothing was compiled or run (no Gradle, Kotlin compiler, Android SDK or network here). Script checks only; run `./gradlew :app:testDebugUnitTest :app:airiUiHardcodedTextLint` and `:app:connectedDebugAndroidTest`.
+
+- Room read path: `AgentRunRebuilder` rebuilds a read-only `AgentTrace` from the Room rows; `AgentRunViewModel` uses it (once per opened run) when the in-memory store no longer holds the run, so old runs open instead of showing "missing". Approximation by design: the title stands in for the request, the preview for the answer, arguments are the stored previews; a run still marked RUNNING opens as interrupted. The list, the chat card and `AgentTraceDetailScreen` still read `AgentTraceManager`, so the screen is not removed yet.
+- Live model rows: `ExecutionStatusBus.modelTurnTicks` makes `LiveTraceBridge` republish when a turn is recorded, so a turn shows without waiting for the next trace event.
+- Screenshot references without a library: `PixelComparator` (JVM-tested) and `AgentRunScreensInstrumentedTest.screenshotsMatchTheReferenceImages` compare captures with `androidTest/assets/run_goldens/*.png` (2 per channel, 0.5% of pixels), write actual + diff on failure. No reference images exist yet: record them once (`-Pandroid.testInstrumentationRunnerArguments.recordGoldens=true`) and commit them; until then that test fails by design.
+- Tests: `AgentRunRebuilderTest`, `PixelComparatorTest`.
+
+## [Unreleased] - Part 5 batch 6 (per-turn model rows, approval notification, step retry)
+
+Nothing was compiled or run (no Gradle, Kotlin compiler or network here). Brace balance, XML validity, string keys per locale and `airi_ui_hardcoded_text_lint.py` were checked by script; the new unit tests were not executed. Run `./gradlew :app:testDebugUnitTest :app:airiUiHardcodedTextLint`.
+
+- Per-turn model rows: `AgentLoop` records every provider request (`ModelTurnRecord`: provider/model actually serving, tool choice, finish reason, estimated prompt/output tokens, duration) into `ExecutionStatusBus` (max 64 per run, evicted with the trace). The mapper and the live bridge merge them as `AgentStepType.MODEL_TURN` steps, so they reach Room too. They are kept out of the raw trace-event list on purpose (the plan panel and legacy screens render every event).
+- `AgentTrace.stepCount/successCount/hasErrors` ignore model turns; model turns are not counted against `MAX_STEPS`; a plain reply with only model turns is still not an agent run.
+- Run screen: model rows interleaved with work rows by time (`buildFeed`), a switch row wherever the serving target changes, finish-reason and tool-required wording. Run duration now includes model time (it sums all step durations).
+- Waiting-approval notification: posted when the approval gate opens while the app is in the background, cancelled when the gate closes; own high-importance channel; opens the live run; generic lock-screen text.
+- Retry one step: the failed-step action sends a scoped follow-up draft ("retry only this step") instead of re-running the whole task. It is a request to the agent, not a replay of the tool, because stored arguments are truncated and redacted.
+- New strings x 4 languages; tests in `ModelTurnTest.kt` and `RunNotifyAndFeedbackTest.kt`.
+- Still open: UI reading from Room (and removing `AgentTraceDetailScreen`), golden screenshots (needs a library and `verification-metadata.xml`), live model rows can lag until the next trace event.
+
+## [Unreleased] - Part 5 batch 5 (editor, diff, replay, notification, states, rating reason)
+
+Nothing was compiled or run (no Gradle, Kotlin compiler or network here). Brace balance, XML validity, resource keys per locale and `airi_ui_hardcoded_text_lint.py` were checked by script; the new unit and device tests were not executed. Run `./gradlew :app:testDebugUnitTest :app:airiUiHardcodedTextLint` and `:app:connectedDebugAndroidTest`.
+
+- Workspace sheet: tap a file for a read-only editor (syntax colors, line numbers) with Current / Original / Diff tabs; new Replay tab steps through the recorded writes with a slider and "Jump to live".
+- `AgentFileHistory` (new): `write_file` keeps before/after snapshots per execution (capped: 60 per run, 30 runs, 200,000 chars). Contents are not redacted; they are deleted with the run, "clear logs" and account deletion.
+- `LineDiff`, `SyntaxHighlighter`, `FileHistoryModel` (pure, tested); `CodeViewer`, `WorkspaceSheet` (Compose).
+- Long-task notification (`AgentRunNotifier`): runs of 20 s or more with tool steps that end while the app is in the background, not stopped by the user; opens `airi://agent/run/{id}`; lock-screen text is generic.
+- Run screen: dedicated look for waiting-approval and cancelled runs (icon, color, banner), a stop button for the live run, optional reason after a thumbs-down (stored on the device, removed with the run).
+- Fix: deleting a run, clearing logs or deleting the account now also removes the Room run row (it used to stay), the file snapshots and the rating reason. `AgentTraceManager.onTracesRemoved` carries the scope (`SOME`, `CLEAR_LOGS`, `WIPE`). Room run store keeps at most 200 runs.
+- 26 new strings x 4 languages; `AgentRunScreensInstrumentedTest` (approval card, PNG capture en/ar x light/dark).
+- Still open: UI reads from Room, per-turn model rows, waiting-approval notification, golden screenshots. See `docs/design/AGENT_RUN_SCREEN_PART5_PROGRESS_AR.md`.
+
+## [Unreleased] - Part 5 batch 4 (run card, approval, footer, workspace)
+
+Nothing was compiled or run (no Gradle, Kotlin compiler or network here). Brace balance, XML validity, resource names per locale and `airi_ui_hardcoded_text_lint.py` were checked by script; the new unit tests were not executed. Run `./gradlew :app:testDebugUnitTest :app:airiUiHardcodedTextLint`.
+
+- Chat: the "Agent · N" badge is replaced by a run card (title, status, live timer, real step count, Open). No card for a conversation without tool steps. `AiBubble` falls back to the old badge when no `onOpenRun` is given.
+- Run screen: model rows (provider/model, estimated tokens, first-token latency, provider switch with reason), inline approval card with countdown, footer (follow-up drafts, thumbs rating, run again, copy diagnostics), workspace bottom sheet (files, terminal), and real buttons for the suggested failure action.
+- `ChatViewModel`: `ConfirmationRequest.requestedAtMs`; `confirmAccessibilityAction(approved, rememberForRun)`. "Allow for this run" is limited to non-destructive requests of the same action in the same execution and is never persisted.
+- Added `RunExtrasModel.kt`, `RunCard.kt`, `RunExtrasModelTest.kt`, new strings in en/ar/es/zh.
+- See `docs/design/AGENT_RUN_SCREEN_PART5_PROGRESS_AR.md` for what is still open.
+
+## [Unreleased] - Part 5 agent run list
+
+- Agent logs screen rebuilt as a run list: status badge, duration, model/provider, file/command/tool counters, one-line result preview, day grouping, filters, swipe-to-delete with confirmation, running run pinned first.
+- New AgentRunScreen (header with live timer, plan strip, timeline, decisions, result) opened from the run list and the deep link.
+- Added standalone Room run store (`AgentRun`, `AgentRunEvent`) fed from AgentTraceManager, `AgentRunViewModel`, `airi://agent/run/{id}` deep link, run screen state derivation.
+- Added `airiUiHardcodedTextLint` (fails on new literal `Text("...")` in `ui/`) and `AgentRunListModelTest`.
+- See `docs/design/AGENT_RUN_SCREEN_PART5_PROGRESS_AR.md`.
+
+## Unreleased — Closure plan (part 4), B5 + B6 + B7 + B8 + B9
+
+Verification: **nothing was compiled or run** (no Android SDK, Kotlin compiler or network in this environment). Brace balance and XML validity were checked by script only. New JUnit tests are **not executed**. Run `./gradlew :app:testDebugUnitTest` and open the log screens on a device.
+
+**State found:** A (one trace view) and B1 (live trace) were already in this tree from the earlier entries below; nothing more was changed for them. B2–B4 and the copy half of B5 were done earlier too.
+
+- **B5, open message:** the log detail screen has an "Open message in chat" button (hidden while the run is in progress, for legacy skill traces, and when the trace has no session or message id). `ChatViewModel.requestOpenMessage` loads the session if needed and publishes a `MessageFocusRequest`; `ChatMessageList` waits for the load, scrolls to the message, then clears the request (`MessageFocusPolicy`, pure and tested). A deleted message, a failed load, or a message hidden by the chat search filter just drops the request. `AiriApp` navigates to chat with `popUpTo(CHAT)` so Back does not return into the log.
+- **B5, share:** a Share button sends the same plain-text trace as Copy through the system share sheet (capped at 100,000 characters). There is no file export.
+- **B6, step detail:** tapping a raw step opens a dialog with everything the log stored for it (inputs, output or error, duration), selectable and copyable.
+- **B6, dropped steps:** `AgentTrace.droppedAtIndex` (stored in the trace file, default 0) records where steps were dropped, and the raw list shows a marker row at that position ("N steps were dropped here"). The mapper keeps the first step and drops from the middle (index 1).
+- **B6, readable step names and kept detail:** `ChatExecutionTraceMapper` named tool steps after the opaque action id; it now uses the tool name from the event summary. A successful tool step used to show only "Tool completed: X" because its `detail` was dropped; it now shows the detail. This changes what existing steps display.
+- **B6, result file:** a successful `write_file` step shows the same Save/Share/Open card as chat when the file is still in `agent_files/` (`AgentFileCards.fromExistingFile`; same name and folder checks as the chat card).
+- **B6, NOT done, by design:** the full tool output is **not** available. Trace events never carried it: `AgentLoop` records only "Source …; result length N chars", and `appendTrace` clamps `detail` to 240 characters. Storing raw tool results would be a privacy decision, so I did not do it. The step dialog says the log keeps at most 500 characters per step output.
+- **B7, checked by reading the code only, not by running it:**
+  - "Executing 0/13" stuck after the reply: `onGraphCompleted` and the cancel path set a terminal stage and `isWorking = false`, and `PlanPanelVisibilityPolicy` shows terminal stages. I found no path that leaves EXECUTING after a terminal event, but a failed or killed run that never reaches either call was not traced.
+  - Repeated "Model unloaded": `LlamaManager.unloadModel` emits it only when a local model or session existed (`hadLoadedModel`), so a cloud model does not trigger it. Two quick unloads could both see the flag before the first clears it; I did not change that.
+  - Errors as chat bubbles: provider errors go to `ExecutionErrorProjection` and `ExecutionErrorBubble`, not to saved messages. I did not check every call site.
+  - Flipped RTL punctuation: the user bubble sets the layout direction from the text (`chatTextDirection`, covered by `ChatPresentationPolicyTest`).
+- **B8:** not fixable in code. New `docs/FIREBASE_API_KEY_RESTRICTION.md` lists the exact console settings (package, SHA-1, API restrictions). The key stays in `app/google-services.json` because the Gradle plugin needs it.
+- **B9, tests added:** `MessageFocusPolicyTest` (7), `ChatExecutionTraceStepDetailTest` (9: names, detail, params, cap marker, store round trip, old files), `AgentFileCardExistingFileTest` (5). **Still not covered:** the Compose screens themselves (`AgentLogsScreen`, `AgentTraceDetailScreen`, the step dialog, the scroll-to-message effect) have no UI test; the `androidTest` setup exists but I wrote none.
+- **Check on a device:** scroll position after "Open message" (the chat list also scrolls to the bottom when messages load, and I did not confirm the order); the step dialog on long output; the marker row position.
+- **New strings** in 4 languages: share, open message, output-limit note, dropped-steps plural (Arabic has all six forms).
+
+## Unreleased — Closure plan (part 4), A: one trace view
+
+Verification: not compiled or run. Brace balance and XML validity checked by script only; new tests are **not executed**.
+
+- **Problem (A):** three trace UIs. The chat panel used the grouped/tree model (`UnifiedExecutionTraceProjector`); the log detail screen used the old `AgentTrace/AgentStep` model, which has no category or tree.
+- **Log detail now shows the same timeline as chat.** `AgentTraceDetailScreen` renders `InlineExecutionTrace` (categories, step tree, counters) from the execution's `ExecutionTraceEvent`s: live from `ExecutionStatusBus.trace` while running, otherwise from the bus history or `ExecutionTraceArchive` (by `messageId`), loaded off the main thread. Combined with B1, a running task now updates in place in the log.
+- **Raw steps kept as a fallback:** the old step cards are hidden behind a "Show raw steps" toggle when the unified timeline exists, and shown by default when it does not (old traces, plain runs, archive missing). New strings in 4 languages.
+- **`executionTraceAdmitted(...)`** (new, `InlineExecutionTrace.kt`): tells a screen whether the panel would render, so it can pick the fallback instead of showing an empty area.
+- **Tests:** `ExecutionTraceAdmittedTest` (4 cases).
+- **Not done:** the developer screens (Runtime/Diagnostics, Effect Debug Panel) are untouched and I did not check whether their registered agents are wired to chat. The list screen still reads `AgentTrace`; `AgentTrace/AgentStep` was not retired, because the log store and persistence depend on it. Old logs whose events were never archived (before the archive existed or past its retention) show only raw steps. The chat panel's nested list is height-limited (about 238dp) and I assumed that nests safely inside the detail `LazyColumn`; check scrolling on a device.
+
+## Unreleased — Closure plan (part 4), B1: live trace
+
+Verification: not compiled or run (same limits as the entry below). Brace balance and XML validity checked by script only; new JUnit tests were written but **not executed**.
+
+- **Problem (B1):** `AgentTraceManager.startTrace/addStep` were only called from tests, so the log screen learned about a run only after the answer was saved.
+- **`LiveTraceBridge` + `LiveTraceProjector` (new, `ai/agent/trace`):** collects `ExecutionStatusBus.trace` and publishes a snapshot of the running execution through `AgentTraceManager.publishLive`. Started once in `AIRIApplication` next to `attachStore`. `ChatViewModel` is **not** changed. The snapshot uses the id `trace-<executionId>`, the same id the chat path uses for its final record, so the final record replaces it.
+- **`AgentTrace.inProgress`:** new flag. In-progress snapshots are never written to disk (`persistSnapshot` filters them); a snapshot abandoned for more than `STALE_TRACE_MS` is dropped on the next live publish.
+- **Safety rules:** a late live update never overwrites a final record that already has a `messageId`; `removeLiveTrace` only removes still-running snapshots; a run with no finished step yet (plain chat) is not shown, matching the chat path.
+- **UI:** list rows and the detail screen show a spinner and "In progress" (4 languages) instead of "Failed" while running. `AgentViewModel` now refreshes the open `selectedTrace` when its trace changes, so the detail screen updates live.
+- **Limits:** the mapper only turns *finished* tool/step events into steps, so a tool that is currently running does not appear until it ends. A run killed with the process leaves no record (live snapshots are memory-only). Not done: an AgentTraceManager `startTrace/addStep` caller in production (the bridge replaces the need for it), cancel-from-log button.
+- **Tests:** `LiveTraceBridgeTest` (7 cases: id parity with the final record, finished flag, no duplicates, late update, plain chat hidden).
+
+## Unreleased — Closure plan (part 4), agent-log screens
+
+Scope: items B2, B4 and the log half of B5/B6 from part 4. Verification: **nothing was compiled or run** (no Android SDK or network here). Brace balance and XML validity were checked by script only. Run `./gradlew :app:testDebugUnitTest` and open both screens on a device.
+
+- **Localization (B2):** `AgentLogsScreen` and `AgentTraceDetailScreen` no longer hard-code English ("traces recorded", empty-state hint, "step(s)", "hidden", "Has errors", "Execution Successful/Failed", "N steps", truncation note, "OUTPUT"/"ERROR"). New strings and plurals added to `values`, `values-ar`, `values-es`, `values-zh` (Arabic has all six plural forms). The existing `traces_recorded` string is reused.
+- **Dates (B2):** new `TraceFormatting.kt` formats with `DateFormat.getBestDateTimePattern`, so month names and ordering follow the locale instead of `MMM d, HH:mm`. Per-step times (`HH:mm:ss.SSS`) are unchanged.
+- **Clear-all confirmation (B4):** the Clear button now opens a dialog showing how many traces will be removed.
+- **Delete one trace (B4):** `AgentTraceManager.deleteTrace(id)` (memory + store), `AgentViewModel.deleteTrace`, a delete button on each list row and in the detail top bar, both behind a confirmation. Two unit tests added to `AgentTraceManagerLifecycleTest`.
+- **Search (B4):** a search field in the list filters by input and final result text.
+- **Copy (B5):** the detail screen copies the trace as plain text (already redacted by `AgentTraceManager`).
+- **Deliberately not changed — provider error text (B3):** `CloudBackend.buildUserErrorMessage` stays English because `ExecutionFailurePolicy.classify` matches those exact phrases (and `ExecutionFailurePolicyTest` asserts them). Translating it would silently break classification. The user-facing text already goes through the localized `ExecutionErrorProjection`; I did not verify every path uses it.
+- **Not done:** a single unified trace UI (A), live `startTrace/addStep` in production (B1), "open message" link (B5), full-output view and dropped-step display (B6), checking the old-screenshot bugs (B7), `google-services.json` key restriction (B8, a Google console task), tests for the trace screens (B9), and the Manus-style features in section C.
+
+## Unreleased — Closure plan (part 3), gap pass
+
+Checked each item of the closure plan against the code first: most of phases 1–2 (coding-task detector, `CodeTaskGate`, `ActionCompletionGuard`, REQUIRED tool choice, skills catalog, OpenRouter `supported_parameters`, no synthetic COMPLETED for plain chats) were already in this tree. Only the gaps below were changed.
+
+Verification: the pure-Kotlin parts were compiled with the Kotlin 2.0.21 compiler bundled in Gradle and their JUnit tests were run (27 tests passed: planner, model support, tool-choice JSON, coding-task detector, trace success rule). Android-dependent code (`NativeToolCallWire` uses `org.json`, adapters, `ChatViewModel`) was **not** compiled or run; run `./gradlew :app:testDebugUnitTest`.
+
+- **Build fix:** `AgentStep.typeLabel` had a non-exhaustive `when` after `INTENT/PLAN/VERIFY` were added to `AgentStepType`; the module would not compile. Branches added.
+- **`NativeToolCallWire` (item 1.6):** arguments that are not a JSON object (for example cut off by the output limit) were turned into `{}` by `encode`, so `AgentLoop`'s `argumentsValid` check never fired and a truncated `write_file` ran with empty content. Invalid arguments are now carried in the envelope (`invalid_arguments_raw`) and stay invalid after `decode`. Tests added to `NativeToolCallParserTest`.
+- **`toolChoice` (item 1.3):** `ExecutionRequest.ToolChoice` gains `NONE` and `SPECIFIC` (+ `toolChoiceName`). `ToolChoiceJson` maps them: OpenAI Chat `none` / `{"type":"function","function":{"name"}}`, OpenAI Responses flat function form, Anthropic `none` / `{"type":"tool","name"}`, Gemini `NONE` / `ANY` + `allowedFunctionNames`. `SPECIFIC` with a blank name degrades to REQUIRED. Provider limits (for example forcing with extended thinking) were not checked.
+- **`ModelToolSupport` (item 1.5):** NATIVE / TEXT_PROTOCOL / NONE, resolved from provider id, the OpenRouter catalog flag and a verified-local flag.
+- **`AgentRequestPlanner` (item 1.1):** pure planner returning `RequestPlan` (kind, query type, confidence, exposed and blocked tools with reasons, required tools, tool choice, "unfulfillable" reason). **Not wired into `ChatViewModel` / `AgentLoop` yet**; they still use `ToolExposurePipeline`. Wiring a 6,000-line view model without a build was judged too risky.
+- **Trace success rule (item 4.4):** `hasRecoveredFailures` no longer lets an earlier tool success hide a later unrecovered failure. Existing test expectation changed accordingly; `ChatExecutionTraceSuccessRuleTest` covers the four cases in the plan.
+- **Not done:** `AgentEvent` unified model, trace persistence and "copy diagnostics" button, `TOOLS_EXPOSED` / `CAPABILITY_FILTERED` in the details screen, `check_syntax` / `run_python` tools, the MockWebServer acceptance suite S1–S10 (needs OkHttp test deps and a device build).
+
+## Unreleased — Agent code-task path, item 7 (file card)
+
+Static verification only (no Android SDK / Kotlin compiler available): nothing below was compiled or run. Run `./gradlew :app:testDebugUnitTest` before relying on it.
+
+- **File card after `write_file`:** a successful `write_file` now shows a card under the assistant reply (file name, kind, size) with **Save** (copies to the public Downloads folder through MediaStore, no permission needed on Android 10+), **Share** and **Open in…** (chooser over a read-only `content://` grant, for apps such as Pydroid). New: `AgentFileCard.kt` (pure model/factory), `AgentFileExporter.kt` (FileProvider, share/open intents, MediaStore copy), `ui/components/AgentFileCardView.kt`. `ChatMessage.fileCards` is filled in `ChatViewModel` from the tool step and rendered by `AiBubble`.
+- **The bridge:** files stay in `filesDir/agent_files/`; `file_paths.xml` now exposes that folder to FileProvider. A card is created only when the tool is `write_file`, the result is the writer's success message for the same name, and the file exists directly inside that folder. Failed, paused and approval-pending writes produce no card. The exporter re-checks the name against the folder on every action.
+- **Writer message:** `AgentFileWriter.savedMessage` / `SAVED_PREFIX` hold the success text (wording unchanged) so the dispatcher and the card cannot drift apart.
+- **Prompt:** `CODE_TASK_INSTRUCTION` tells the model the app shows a Save/Share card and forbids inventing a path or claiming a Downloads save.
+- **Strings:** 12 `agent_file_*` strings in en/ar/es/zh.
+- **Tests:** `AgentFileCardTest`, `AgentFileProviderPathsTest`.
+- **Known limits:** the card is UI-only like `toolOutputs`, so it is not restored when the chat is reloaded after the app restarts (the file itself stays in `agent_files/`). Save to Downloads is unavailable below Android 10 (the app then points the person to Share). Not tried on a device: whether a given Python editor accepts the Share/Open intent.
+
 ## Unreleased — Report 5, batch 2
 
 Static verification only (no Android SDK / Kotlin compiler available). Item covered: C3. **P3 (Room encryption) is deliberately not done** — see below.

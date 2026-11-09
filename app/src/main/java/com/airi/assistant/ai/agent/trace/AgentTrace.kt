@@ -39,14 +39,28 @@ data class AgentTrace(
     val truncated: Boolean = false,
     /** Number of steps dropped because of the cap. */
     val droppedSteps: Int = 0,
+    /**
+     * Position in [steps] where the dropped steps used to be: 0 when the oldest steps were dropped
+     * ([AgentTraceManager.addStep]), 1 when the first step was kept and the middle was dropped
+     * ([ChatExecutionTraceMapper]). Lets the log show a gap marker where the missing steps were.
+     */
+    val droppedAtIndex: Int = 0,
+    /**
+     * True while the execution is still running. Such a trace is a live snapshot built by
+     * [LiveTraceBridge]: it is shown in the log but never written to disk, and it is replaced by
+     * the final record (same [id]) when the run ends.
+     */
+    val inProgress: Boolean = false,
 ) {
     /** Explicit correlation tuple used when navigating from a log to chat. */
     val correlationKey: String
         get() = "traceId=$traceId|executionId=$executionId|messageId=${messageId?.toString().orEmpty()}|sessionId=$sessionId"
 
-    val stepCount: Int get() = steps.size
-    val successCount: Int get() = steps.count { it.success }
-    val hasErrors: Boolean get() = steps.any { !it.success || it.error != null }
+    // Model turns are bookkeeping about the model, not units of work: they never change the step
+    // counters or the error state that the run card, logs and notifications are built on.
+    val stepCount: Int get() = steps.count { it.type != AgentStepType.MODEL_TURN }
+    val successCount: Int get() = steps.count { it.type != AgentStepType.MODEL_TURN && it.success }
+    val hasErrors: Boolean get() = steps.any { it.type != AgentStepType.MODEL_TURN && (!it.success || it.error != null) }
 
     companion object {
         const val SOURCE_SKILL = "skill"

@@ -368,7 +368,10 @@ class ToolDispatcher(
                 val command = args["command"]?.trim().orEmpty()
                 if (command.isBlank()) return ToolResult.Error("Missing command", code = ToolErrorCodes.INVALID_ARGUMENT)
                 when (val result = com.airi.assistant.core.ServiceLocator.terminalExecutionGateway
-                    .executeForAgent(command, agentId)) {
+                    .executeForAgent(
+                        command, agentId,
+                        seedFilesFrom = java.io.File(context.filesDir, AgentFileWriter.DIRECTORY_NAME),
+                    )) {
                     is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Disabled ->
                         ToolResult.Error(
                             result.reason,
@@ -410,14 +413,38 @@ class ToolDispatcher(
                 }.getOrElse { return ToolResult.Error("File write governance failed closed", code = ToolErrorCodes.PERMISSION_DENIED) }
                 if (!decision.allowed) return ToolResult.Error(decision.reason, code = ToolErrorCodes.PERMISSION_DENIED)
                 val directory = java.io.File(context.filesDir, AgentFileWriter.DIRECTORY_NAME)
+                // Part 5 §4: the version being replaced, kept for the run screen's Original/Diff tabs.
+                val previousContent = if (overwrite) AgentFileHistory.readExisting(directory, filename) else null
                 when (val written = AgentFileWriter.write(directory, filename, content, overwrite)) {
                     is AgentFileWriter.Result.Written -> {
                         LoggingService.info(TAG, "FILE_WRITTEN chars=${written.chars}")
-                        ToolResult.Success("Saved ${written.file.name} (${written.chars} characters) in AIRI files.")
+                        // Best effort: a failed snapshot never fails or delays the write itself.
+                        if (!executionId.isNullOrBlank()) {
+                            runCatching {
+                                AgentFileHistory.record(
+                                    root = java.io.File(context.filesDir, AgentFileHistory.DIRECTORY_NAME),
+                                    executionId = executionId,
+                                    fileName = written.file.name,
+                                    before = previousContent,
+                                    after = content,
+                                    nowMs = System.currentTimeMillis(),
+                                )
+                            }
+                        }
+                        ToolResult.Success(AgentFileWriter.savedMessage(written.file.name, written.chars))
                     }
                     is AgentFileWriter.Result.Rejected ->
                         ToolResult.Error(written.reason, code = ToolErrorCodes.INVALID_ARGUMENT)
                 }
+            }
+
+            // ── Skill instructions on demand (report 3, phase 2) ──────────────
+            "load_skill" -> {
+                val loaded = com.airi.assistant.agent.loop.skill.AgentSkillCatalog.load(args["name"].orEmpty())
+                loaded.fold(
+                    onSuccess = { ToolResult.Success(it) },
+                    onFailure = { ToolResult.Error(it.message ?: "Unknown skill", code = ToolErrorCodes.INVALID_ARGUMENT) },
+                )
             }
 
             // ── Confirmation request (LLM asks user) ──────────────────────────

@@ -245,6 +245,7 @@ class GeminiAdapter(
                 append(ToolDefinitionJson.geminiDeclaration(definition))
             }
             append("]}],")
+            append(ToolChoiceJson.geminiMember(req.toolChoice, hasTools = true, toolName = req.toolChoiceName))
         }
         append("\"contents\":[")
         var first = true

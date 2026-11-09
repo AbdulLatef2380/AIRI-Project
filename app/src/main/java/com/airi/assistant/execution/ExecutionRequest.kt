@@ -46,11 +46,22 @@ data class ExecutionRequest(
     val attachmentTrace:          AttachmentDeliveryTrace? = null,
     /** Provider-neutral tool declarations. Adapters translate these to their native wire format. */
     val toolDefinitions:          List<ToolDefinition> = emptyList(),
+    /**
+     * Whether the model may answer in plain text. REQUIRED forces a tool call on this turn
+     * (OpenAI `tool_choice:"required"`, Anthropic `{"type":"any"}`, Gemini mode `ANY`); NONE forbids
+     * tool calls on this turn; SPECIFIC forces the tool named in [toolChoiceName]. It only has an
+     * effect when [toolDefinitions] is not empty. Local text-protocol backends ignore it.
+     */
+    val toolChoice:               ToolChoice = ToolChoice.AUTO,
+    /** The tool forced when [toolChoice] is SPECIFIC; ignored otherwise. */
+    val toolChoiceName:           String = "",
     /** Correlation identity; generated at the request boundary and preserved downstream. */
     val identity:                 ExecutionIdentity? = null,
     /** Explicit privacy/routing boundary for this request. */
     val allowCloud:               Boolean = true,
 ) {
+    enum class ToolChoice { AUTO, REQUIRED, NONE, SPECIFIC }
+
     data class ToolDefinition(
         val name: String,
         val description: String,

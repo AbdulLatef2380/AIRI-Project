@@ -85,6 +85,8 @@ class AnthropicAdapter(
         var connWatcher: kotlinx.coroutines.Job? = null
         val fullText       = StringBuilder()
         val nativeCalls    = linkedMapOf<String, NativeToolCallWire.Call>()
+        // content block index -> tool call id, so input_json_delta goes to its own block.
+        val callIdByBlock  = mutableMapOf<Int, String>()
         var promptTokens   = 0
         var completeTokens = 0
         val startMs        = System.currentTimeMillis()
@@ -145,6 +147,8 @@ class AnthropicAdapter(
                                     val block = runCatching { JSONObject(payload).optJSONObject("content_block") }.getOrNull()
                                     if (block?.optString("type") == "tool_use") {
                                         val id = block.optString("id", block.optString("name"))
+                                        runCatching { JSONObject(payload).optInt("index", -1) }.getOrDefault(-1)
+                                            .takeIf { it >= 0 }?.let { callIdByBlock[it] = id }
                                         nativeCalls[id] = NativeToolCallWire.Call(
                                             name = block.optString("name"),
                                             argumentsJson = block.optJSONObject("input")?.toString() ?: "{}",
@@ -155,7 +159,8 @@ class AnthropicAdapter(
                                 "content_block_delta" -> {
                                     val delta = runCatching { JSONObject(payload).optJSONObject("delta") }.getOrNull()
                                     if (delta?.optString("type") == "input_json_delta") {
-                                        val id = nativeCalls.keys.lastOrNull()
+                                        val blockIndex = runCatching { JSONObject(payload).optInt("index", -1) }.getOrDefault(-1)
+                                        val id = callIdByBlock[blockIndex] ?: nativeCalls.keys.lastOrNull()
                                         val current = id?.let(nativeCalls::get)
                                         if (id != null && current != null) {
                                             nativeCalls[id] = current.copy(

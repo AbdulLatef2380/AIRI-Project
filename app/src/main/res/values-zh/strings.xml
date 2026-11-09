@@ -2102,6 +2102,7 @@
     <string name="agent_trace_title_runtime_model_continuation_completed">模型续接完成</string>
     <string name="agent_trace_title_runtime_model_response_received">收到模型响应</string>
     <string name="agent_trace_title_runtime_request_received">收到请求</string>
+    <string name="agent_trace_title_runtime_intent_decision">意图与工具决策</string>
     <string name="agent_trace_title_runtime_result_returned">返回执行结果</string>
     <string name="agent_trace_title_runtime_tool_rejected">工具调用被拒绝</string>
     <string name="agent_trace_title_runtime_tools_exposed">向模型提供工具</string>
@@ -2139,4 +2140,175 @@
     <string name="chat_composer_action_mode_active">AIRI 模式已启用：此请求将使用智能代理路径</string>
     <string name="chat_composer_action_mode_clear">清除操作模式</string>
     <string name="chat_composer_project_none">无项目</string>
+    <string name="agent_file_kind_code">代码</string>
+    <string name="agent_file_kind_text">文本</string>
+    <string name="agent_file_kind_data">数据</string>
+    <string name="agent_file_save">保存</string>
+    <string name="agent_file_share">分享</string>
+    <string name="agent_file_open">打开方式…</string>
+    <string name="agent_file_saved_downloads">已保存到“下载”：%1$s</string>
+    <string name="agent_file_save_failed">无法保存文件</string>
+    <string name="agent_file_save_use_share">保存到“下载”需要 Android 10 或更高版本，请改用分享。</string>
+    <string name="agent_file_action_failed">没有可打开该文件的应用</string>
+    <string name="agent_file_missing">文件已不可用</string>
+    <string name="agent_file_card_description">%1$s，%2$s，%3$s</string>
+
+    <!-- Agent logs: localized list/detail UI -->
+    <string name="agent_logs_empty_hint">执行技能或任务时会出现跟踪记录</string>
+    <string name="agent_logs_search_hint">搜索跟踪记录</string>
+    <string name="agent_logs_search_cd">搜索</string>
+    <string name="agent_logs_no_matches">没有符合搜索条件的跟踪记录</string>
+    <string name="agent_logs_clear_title">清除所有跟踪记录？</string>
+    <string name="agent_logs_clear_message">这将永久删除全部 %1$d 条跟踪记录，且无法撤销。</string>
+    <string name="agent_logs_delete_title">删除此跟踪记录？</string>
+    <string name="agent_logs_delete_message">此跟踪记录将被永久删除。</string>
+    <string name="agent_logs_delete_cd">删除跟踪记录</string>
+    <string name="agent_logs_copy_cd">复制跟踪记录</string>
+    <string name="agent_logs_copied">已复制跟踪记录</string>
+    <string name="agent_logs_has_errors">含错误</string>
+    <string name="agent_logs_hidden_steps">另有 %1$d 条已隐藏</string>
+    <string name="trace_execution_successful">执行成功</string>
+    <string name="trace_execution_failed">执行失败</string>
+    <string name="trace_steps_ratio">%1$d/%2$d 步</string>
+    <string name="trace_output_badge">输出</string>
+    <string name="trace_error_badge">错误</string>
+    <string name="trace_input_label">输入</string>
+    <plurals name="agent_logs_step_count">
+        <item quantity="other">%1$d 步</item>
+    </plurals>
+    <plurals name="trace_truncated_note">
+        <item quantity="other">另有 %1$d 步已执行但未显示（已达步骤上限）。</item>
+    </plurals>
+    <string name="trace_in_progress">进行中</string>
+    <string name="trace_show_raw_steps">显示原始步骤</string>
+    <string name="trace_hide_raw_steps">隐藏原始步骤</string>
+    <string name="agent_logs_share_cd">分享跟踪记录</string>
+    <string name="agent_logs_share_chooser">分享跟踪记录</string>
+    <string name="agent_logs_open_message">在聊天中打开消息</string>
+    <string name="agent_logs_output_limit_note">日志最多保存每个步骤输出的 %1$d 个字符，不会保存工具的完整结果。</string>
+    <plurals name="trace_dropped_steps_marker">
+        <item quantity="other">此处省略了 %1$d 个步骤（已达步骤上限）。</item>
+    </plurals>
+
+    <!-- Part 5 §2: agent run list -->
+    <string name="run_filter_all">全部</string>
+    <string name="run_filter_running">进行中</string>
+    <string name="run_filter_failed">失败</string>
+    <string name="run_filter_files">含文件</string>
+    <string name="run_status_running">进行中</string>
+    <string name="run_status_completed">已完成</string>
+    <string name="run_status_failed">失败</string>
+    <string name="run_day_today">今天</string>
+    <string name="run_day_yesterday">昨天</string>
+    <plurals name="run_counter_files">
+        <item quantity="other">%1$d 个文件</item>
+    </plurals>
+    <plurals name="run_counter_commands">
+        <item quantity="other">%1$d 条命令</item>
+    </plurals>
+    <plurals name="run_counter_tools">
+        <item quantity="other">%1$d 个工具</item>
+    </plurals>
+    <!-- Part 5 §3: run screen -->
+    <string name="run_title_file">文件:%1$s</string>
+    <string name="run_title_command">命令:%1$s</string>
+    <string name="run_title_search">搜索:%1$s</string>
+    <string name="run_plan_title">需求</string>
+    <string name="run_plan_counter">%1$d/%2$d</string>
+    <string name="run_decisions_title">决策</string>
+    <string name="run_jump_live">跳到实时</string>
+    <string name="run_result_title">结果</string>
+    <string name="run_menu_copy">复制诊断信息</string>
+    <string name="run_menu_share">分享</string>
+    <string name="run_menu_delete">删除</string>
+    <string name="run_menu_details">完整诊断</string>
+    <string name="run_menu_cd">更多选项</string>
+    <string name="run_action_retry">重试</string>
+    <string name="run_step_retry_prompt">只重试这一步并从这里继续：%1$s。不要重做已成功的步骤。</string>
+    <string name="run_action_switch_model">切换模型</string>
+    <string name="run_action_grant">授予权限</string>
+    <string name="run_suggestion">建议操作:%1$s</string>
+    <string name="run_error_default">此步骤失败</string>
+    <string name="run_state_missing">此运行已不存在</string>
+    <string name="run_state_offline">无网络连接</string>
+    <string name="run_state_cancelled">运行已取消</string>
+    <string name="run_state_waiting">等待你的批准</string>
+    <string name="run_elapsed_cd">已用时间 %1$s</string>
+    <string name="run_model_title">模型</string>
+    <string name="run_model_tokens">%1$d 个 token（估算）</string>
+    <string name="run_model_first_token">首个 token %1$d 毫秒</string>
+    <string name="run_model_switch">已从 %1$s 切换到 %2$s</string>
+    <string name="run_model_switch_reason">原因：%1$s</string>
+    <string name="run_model_turn_title">模型 · 第 %1$d 轮</string>
+    <string name="run_model_tool_required">必须调用工具</string>
+    <string name="run_model_finish_stop">已结束</string>
+    <string name="run_model_finish_tool_calls">请求了工具</string>
+    <string name="run_model_finish_length">达到长度上限而停止</string>
+    <string name="run_model_finish_filtered">被内容过滤拦截</string>
+    <string name="run_model_finish_cancelled">已取消</string>
+    <string name="run_model_finish_error">因错误结束</string>
+    <string name="run_model_finish_connection">连接中断</string>
+    <string name="run_model_prompt_tokens">%1$d 个输入令牌（估算）</string>
+    <string name="run_model_duration">耗时 %1$s</string>
+    <string name="run_approval_title">需要你的批准</string>
+    <string name="run_approval_irreversible">此操作无法撤销</string>
+    <string name="run_approval_allow_once">允许一次</string>
+    <string name="run_approval_allow_run">本次任务允许</string>
+    <string name="run_approval_deny">拒绝</string>
+    <string name="run_approval_countdown">剩余 %1$d 秒</string>
+    <string name="run_footer_rerun">重新运行</string>
+    <string name="run_footer_copy">复制诊断信息</string>
+    <string name="run_footer_like">结果不错</string>
+    <string name="run_footer_dislike">结果不佳</string>
+    <string name="run_followup_explain">说明你执行的步骤以及原因</string>
+    <string name="run_followup_retry">重试失败的步骤</string>
+    <string name="run_followup_verify">对照需求再次验证结果</string>
+    <string name="run_card_open">打开</string>
+    <string name="run_card_cd">代理运行：%1$s，%2$s</string>
+    <plurals name="run_card_steps">
+        <item quantity="other">%d 个步骤</item>
+    </plurals>
+    <string name="run_workspace_title">代理工作区</string>
+    <string name="run_workspace_files">文件</string>
+    <string name="run_workspace_terminal">终端</string>
+    <string name="run_workspace_empty">这里还没有内容</string>
+    <string name="run_workspace_written">已写入</string>
+    <string name="run_workspace_read">已读取</string>
+    <string name="run_workspace_failed">失败</string>
+    <string name="run_workspace_open_cd">打开工作区</string>
+    <string name="run_workspace_close">关闭</string>
+    <string name="run_workspace_no_output">无输出</string>
+
+    <!-- Part 5 batch 5 -->
+    <string name="run_workspace_replay">回放</string>
+    <string name="run_code_current">当前</string>
+    <string name="run_code_original">原始</string>
+    <string name="run_code_diff">差异</string>
+    <string name="run_code_content">内容</string>
+    <string name="run_code_no_snapshot">此次运行没有该文件的已保存版本。它在这里只被读取过，或此次运行早于版本记录。</string>
+    <string name="run_code_created">此次运行创建了该文件，因此没有更早的版本。</string>
+    <string name="run_code_no_changes">没有更改。</string>
+    <string name="run_code_read_failed">无法读取此文件。</string>
+    <string name="run_code_truncated">仅显示前 %1$d 行。</string>
+    <string name="run_code_diff_truncated">对比内容较长，仅显示前面部分。</string>
+    <plurals name="run_code_unchanged_lines">
+        <item quantity="other">%1$d 行未更改</item>
+    </plurals>
+    <string name="run_replay_frame">第 %1$d 步，共 %2$d 步 · %3$s</string>
+    <string name="run_stop_cd">停止运行</string>
+    <string name="run_banner_waiting">已暂停。此次运行正在等待你在下方卡片中批准。</string>
+    <string name="run_banner_cancelled">此次运行在完成前被停止。</string>
+    <string name="run_reason_title">哪里出了问题？</string>
+    <string name="run_reason_inaccurate">不正确</string>
+    <string name="run_reason_incomplete">不完整</string>
+    <string name="run_reason_slow">太慢</string>
+    <string name="run_reason_other">其他</string>
+    <string name="run_notif_channel_name">代理任务</string>
+    <string name="run_notif_channel_desc">应用在后台时，长时间的代理任务结束后通知你。</string>
+    <string name="run_notif_done_title">代理任务已完成</string>
+    <string name="run_notif_failed_title">代理任务失败</string>
+    <string name="run_notif_public_text">打开 AIRI 查看结果。</string>
+    <string name="run_approval_notif_title">代理正在等待你的批准</string>
+    <string name="run_approval_notif_channel_name">代理正在等待你的批准</string>
+    <string name="run_approval_notif_channel_desc">应用在后台时，代理任务等待你批准时通知你。</string>
 </resources>

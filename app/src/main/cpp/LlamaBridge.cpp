@@ -131,6 +131,12 @@ static float   g_sp_frequency_penalty = 0.0f;
 // Default 64 matches llama.cpp's own sample default.
 static int32_t g_sp_penalty_last_n    = 64;
 
+// Report أ-6 — optional GBNF grammar for tool-call JSON. Empty = no constraint. It is applied
+// LAZILY: the grammar sampler stays inactive while the model writes ordinary text and starts
+// constraining only once the output begins `{"tool_call`, so normal answers are unaffected.
+// Written under LLAMA_LOCK by nativeSetToolGrammar() before each generation.
+static std::string g_tool_grammar;
+
 // SPEC v3 — STABILITY: monotonic identifiers used by the Kotlin layer to
 // detect and DROP stale callbacks that originated from a since-destroyed
 // llama_context.
@@ -858,6 +864,20 @@ static std::string airi_generate_next(
     // If a parameter is at its "disabled" value (e.g. top_k==0, min_p==0),
     // we skip adding that stage to keep the chain as short as possible.
     llama_sampler* sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
+    if (!g_tool_grammar.empty()) {
+        // Pattern is matched from the start of the generated text; the grammar is fed from the
+        // first match group, i.e. from the `{"tool_call` that triggered it.
+        const char* trigger_patterns[] = { "[\\s\\S]*?(\\{\\s*\"tool_call[\\s\\S]*)" };
+        llama_sampler* grammar = llama_sampler_init_grammar_lazy_patterns(
+            vocab, g_tool_grammar.c_str(), "root",
+            trigger_patterns, 1, nullptr, 0);
+        if (grammar != nullptr) {
+            llama_sampler_chain_add(sampler, grammar);
+            PROOF("TOOL_GRAMMAR_ACTIVE bytes=%zu", g_tool_grammar.size());
+        } else {
+            LOGE("TOOL_GRAMMAR_REJECTED: grammar failed to parse; generating without it");
+        }
+    }
     if (g_sp_penalty_last_n != 0 &&
         (g_sp_repeat_penalty > 1.0f ||
          g_sp_frequency_penalty != 0.0f ||
@@ -1618,6 +1638,20 @@ Java_com_airi_assistant_ai_LlamaNative_nativeSetSamplingParams(
           g_sp_temperature, g_sp_top_k, g_sp_top_p, g_sp_min_p,
           g_sp_repeat_penalty, g_sp_presence_penalty, g_sp_frequency_penalty,
           g_sp_penalty_last_n);
+}
+
+// Report أ-6 — set (or clear with null/empty) the lazy tool-call grammar for the NEXT generation.
+JNIEXPORT void JNICALL
+Java_com_airi_assistant_ai_LlamaNative_nativeSetToolGrammar(
+    JNIEnv* env, jobject /*this*/, jstring grammar)
+{
+    LLAMA_LOCK();
+    if (grammar == nullptr) { g_tool_grammar.clear(); return; }
+    const char* chars = env->GetStringUTFChars(grammar, nullptr);
+    if (chars == nullptr) { g_tool_grammar.clear(); return; }
+    g_tool_grammar.assign(chars);
+    env->ReleaseStringUTFChars(grammar, chars);
+    PROOF("TOOL_GRAMMAR_SET bytes=%zu", g_tool_grammar.size());
 }
 
 JNIEXPORT void JNICALL

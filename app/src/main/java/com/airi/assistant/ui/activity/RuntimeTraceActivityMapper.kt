@@ -14,11 +14,21 @@ internal object RuntimeTraceActivityMapper {
             UniversalTraceEventType.CAPABILITY_FILTERED,
             UniversalTraceEventType.CAPABILITY_STAGE_RECORDED,
             UniversalTraceEventType.TOOLS_EXPOSED,
-            UniversalTraceEventType.INTENT_STAGE_RECORDED,
             UniversalTraceEventType.EXECUTION_PATH_RESOLVED,
             UniversalTraceEventType.TOOL_PARSE_COMPLETED,
             UniversalTraceEventType.MODEL_REQUEST_BUILT,
             UniversalTraceEventType.UI_PROJECTION_COMPLETED -> null
+
+            // Only the decision stage is user-meaningful: it says why tools were or were not
+            // offered. The other intent stages are constant markers and stay diagnostic-only.
+            UniversalTraceEventType.INTENT_STAGE_RECORDED -> if (event.attributes["stage"] == "INTENT_DECISION") {
+                Presentation(
+                    category = ActivityCategory.ORCHESTRATION,
+                    tag = "runtime_intent_decision",
+                    detail = details(event, "reason"),
+                    metadata = ActivityMetadata(phase = ActivityPhase.MODEL, status = ActivityStatus.COMPLETED),
+                )
+            } else null
 
             UniversalTraceEventType.MODEL_CONTEXT_RESOLVED -> Presentation(
                 category = ActivityCategory.MODEL,

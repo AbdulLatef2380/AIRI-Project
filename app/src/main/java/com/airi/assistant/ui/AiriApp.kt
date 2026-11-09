@@ -124,6 +124,8 @@ object AiriRoute {
     const val AGENT_CONTROL      = "screen_agent_control"
     const val AGENT_LOGS         = "screen_agent_logs"
     const val AGENT_TRACE_DETAIL = "screen_agent_trace_detail"
+    const val AGENT_RUN          = "screen_agent_run/{runId}"
+    fun agentRun(runId: String) = "screen_agent_run/${android.net.Uri.encode(runId)}"
     const val OBSERVABILITY      = "screen_observability"
     const val PAYWALL            = "screen_paywall"
     const val REFERRALS          = "screen_referrals"
@@ -206,6 +208,20 @@ fun AiriApp() {
     val planViewModel: AgentPlanViewModel = viewModel()
     val browserHandoff by BrowserUserTakeoverCoordinator.pending.collectAsState()
     var browserHandoffUnavailable by remember { mutableStateOf(false) }
+
+    // Part 5 §1: airi://agent/run/{id}. A run that no longer exists falls back to the run list.
+    val pendingRunId by com.airi.assistant.ui.run.AgentRunDeepLink.pending.collectAsState()
+    LaunchedEffect(pendingRunId) {
+        val id = pendingRunId ?: return@LaunchedEffect
+        val target = agentViewModel.traces.value.firstOrNull { it.id == id || it.traceId == id }
+        if (target != null) {
+            navController.navigate(AiriRoute.AGENT_LOGS) { launchSingleTop = true }
+            navController.navigate(AiriRoute.agentRun(target.id)) { launchSingleTop = true }
+        } else {
+            navController.navigate(AiriRoute.AGENT_LOGS) { launchSingleTop = true }
+        }
+        com.airi.assistant.ui.run.AgentRunDeepLink.consume(id)
+    }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -713,8 +729,100 @@ fun AiriApp() {
                                 viewModel       = agentViewModel,
                                 onBack          = { navController.popBackStack() },
                                 onTraceSelected = {
-                                    navController.navigate(AiriRoute.AGENT_TRACE_DETAIL) { launchSingleTop = true }
+                                    agentViewModel.selectedTrace.value?.id?.let { id ->
+                                        navController.navigate(AiriRoute.agentRun(id)) { launchSingleTop = true }
+                                    }
                                 }
+                            )
+                        }
+                    }
+
+                    composable(
+                        route = AiriRoute.AGENT_RUN,
+                        arguments = listOf(navArgument("runId") { type = NavType.StringType }),
+                    ) { entry ->
+                        val runId = entry.arguments?.getString("runId").orEmpty()
+                        val runViewModel: com.airi.assistant.ui.run.AgentRunViewModel = viewModel()
+                        val runAgentState by chatViewModel.agentState.collectAsState()
+                        val runTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsState()
+                        val chatMessages by chatViewModel.messages.collectAsState()
+                        val runGenerating by chatViewModel.isGenerating.collectAsState()
+                        val runDebugMode by agentViewModel.debugMode.collectAsState()
+                        val runContext = androidx.compose.ui.platform.LocalContext.current
+                        val feedbackStore = remember { com.airi.assistant.ui.run.RunFeedbackStore.from(runContext) }
+                        val runTrace = runTraces.firstOrNull { it.id == runId || it.traceId == runId }
+                        val approvalRequest = runAgentState.confirmationRequest
+                        // The gate belongs to this run only when the execution ids match (Part 5 §3.6).
+                        val approval = if (runTrace != null && approvalRequest != null &&
+                            com.airi.assistant.ui.run.approvalAppliesTo(runTrace, runAgentState.executionId)
+                        ) {
+                            com.airi.assistant.ui.run.ApprovalCardModel(
+                                actionName = approvalRequest.actionDisplayName,
+                                description = approvalRequest.actionDescription,
+                                destructive = approvalRequest.isDestructive,
+                                requestedAtMs = approvalRequest.requestedAtMs,
+                            )
+                        } else null
+                        val ratedMessage = runTrace?.let { t -> chatMessages.firstOrNull { it.traceId == t.id && !it.isUser } }
+                        val goToChat = {
+                            navController.navigate(AiriRoute.CHAT) {
+                                popUpTo(AiriRoute.CHAT) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        }
+                        val runActions = com.airi.assistant.ui.run.RunScreenActions(
+                            approval = approval,
+                            onApproval = { choice ->
+                                when (choice) {
+                                    com.airi.assistant.ui.run.ApprovalChoice.ALLOW_ONCE -> chatViewModel.confirmAccessibilityAction(true)
+                                    com.airi.assistant.ui.run.ApprovalChoice.ALLOW_THIS_RUN ->
+                                        chatViewModel.confirmAccessibilityAction(true, rememberForRun = true)
+                                    com.airi.assistant.ui.run.ApprovalChoice.DENY -> chatViewModel.confirmAccessibilityAction(false)
+                                }
+                            },
+                            feedback = ratedMessage?.feedback ?: 0,
+                            onRate = ratedMessage?.let { m -> { liked: Boolean -> chatViewModel.submitFeedback(m.uid, liked) } },
+                            onRerun = { t ->
+                                // Same conversation and idle: send again. Otherwise leave the text in the
+                                // composer so a rerun never lands in a different conversation unseen.
+                                val sameSession = t.sessionId.isBlank() || t.sessionId == chatViewModel.currentSessionId.value
+                                if (sameSession && !chatViewModel.isGenerating.value) chatViewModel.sendMessage(t.originalInput)
+                                else chatViewModel.prefillInput(t.originalInput)
+                                goToChat()
+                            },
+                            onFollowUp = { text -> chatViewModel.prefillInput(text); goToChat() },
+                            onSwitchModel = { navController.navigate(AiriRoute.MODELS) { launchSingleTop = true } },
+                            onGrantPermission = { navController.navigate(AiriRoute.PERMISSIONS_SCREEN) { launchSingleTop = true } },
+                            // The stop button is offered only for the run that is generating right now; it is the
+                            // same cancel the chat screen uses, so it stops the model and any tool work.
+                            onStop = if (runTrace != null && runTrace.inProgress && runGenerating &&
+                                (runTrace.executionId.isBlank() || runTrace.executionId == runAgentState.executionId)
+                            ) ({ chatViewModel.cancelGeneration() }) else null,
+                            reason = feedbackStore.reasonFor(runId),
+                            onReason = { reason -> feedbackStore.setReason(runId, reason) },
+                        )
+                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
+                            com.airi.assistant.ui.run.AgentRunScreen(
+                                viewModel = runViewModel,
+                                runId = runId,
+                                onBack = { navController.popBackStack() },
+                                onDelete = { trace ->
+                                    agentViewModel.deleteTrace(trace)
+                                    navController.popBackStack()
+                                },
+                                onOpenMessage = { sessionId, messageId ->
+                                    chatViewModel.requestOpenMessage(sessionId, messageId)
+                                    navController.navigate(AiriRoute.CHAT) {
+                                        popUpTo(AiriRoute.CHAT) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
+                                },
+                                // The raw per-event screen is a developer tool: shown only with debug mode on.
+                                onOpenDiagnostics = if (runDebugMode) ({ trace ->
+                                    agentViewModel.selectTrace(trace)
+                                    navController.navigate(AiriRoute.AGENT_TRACE_DETAIL) { launchSingleTop = true }
+                                }) else null,
+                                actions = runActions,
                             )
                         }
                     }
@@ -723,7 +831,14 @@ fun AiriApp() {
                         InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
                             AgentTraceDetailScreen(
                                 viewModel = agentViewModel,
-                                onBack    = { navController.popBackStack() }
+                                onBack    = { navController.popBackStack() },
+                                onOpenMessage = { sessionId, messageId ->
+                                    chatViewModel.requestOpenMessage(sessionId, messageId)
+                                    navController.navigate(AiriRoute.CHAT) {
+                                        popUpTo(AiriRoute.CHAT) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
+                                }
                             )
                         }
                     }

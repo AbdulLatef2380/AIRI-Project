@@ -30,4 +30,14 @@ class CodeGenerationGuidancePolicyTest {
         assertTrue(instruction.contains("clearly label the result as partial"))
         assertTrue(instruction.contains("isolated validation tool"))
     }
+
+    @Test
+    fun codeTaskSuffixMakesTheFileTheDeliverableAndKeepsTheNoFakeExecutionRule() {
+        val suffix = CodeGenerationGuidancePolicy.systemPromptSuffix("اصنع كود بلغة python", codeTask = true)
+        assertTrue(suffix.contains("Call the write_file tool"))
+        assertTrue(suffix.contains("Never claim the code was run"))
+        assertTrue(suffix.contains(CodeGenerationGuidancePolicy.SYSTEM_INSTRUCTION))
+        val chatOnly = CodeGenerationGuidancePolicy.systemPromptSuffix("اصنع كود بلغة python")
+        assertFalse(chatOnly.contains("write_file"))
+    }
 }

@@ -97,6 +97,7 @@ class AgentTraceStore(private val file: File) {
             trace.firstVisibleTokenLatencyMs?.let { put("firstVisibleTokenLatencyMs", it) }
             put("truncated", trace.truncated)
             put("droppedSteps", trace.droppedSteps)
+            put("droppedAtIndex", trace.droppedAtIndex)
             put("steps", JSONArray().also { steps -> trace.steps.forEach { steps.put(stepToJson(it)) } })
         }
 
@@ -125,6 +126,7 @@ class AgentTraceStore(private val file: File) {
                 firstVisibleTokenLatencyMs = if (json.has("firstVisibleTokenLatencyMs")) json.getLong("firstVisibleTokenLatencyMs") else null,
                 truncated = json.optBoolean("truncated", false),
                 droppedSteps = json.optInt("droppedSteps", 0),
+                droppedAtIndex = json.optInt("droppedAtIndex", 0),
             )
         }
 

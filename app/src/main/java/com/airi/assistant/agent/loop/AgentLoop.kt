@@ -18,6 +18,7 @@ import com.airi.assistant.ai.context.ContextBudget
 import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.core.UniversalRuntimeTraceRecorder
 import com.airi.assistant.execution.CompletionMetadata
+import com.airi.assistant.execution.CompletionReason
 import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.execution.AgentPromptTokenEstimator
 import com.airi.assistant.execution.ExecutionIdentity
@@ -196,29 +197,43 @@ the tool returns an actual error.
         messageId: String = "",
         /** When enabled, a plan-only first turn must be followed by an execution turn. */
         planMode: Boolean = false,
+        /**
+         * Code tasks: force a tool call on the first model turn so the program is written with
+         * write_file instead of being pasted as chat text. Only honoured when write_file is in
+         * the admitted tool list; later turns return to AUTO so the model can give its summary.
+         */
+        requireToolOnFirstStep: Boolean = false,
+        /** Tools the request cannot work without; same list ChatViewModel used for its budget selection. */
+        requiredToolNames: Set<String>? = null,
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
         // Last sign of progress; see TIMEOUT_MS. Streaming tokens and finished tool calls bump it.
         val progressMs   = AtomicLong(startMs)
-        val permissionProfile = com.airi.assistant.core.AgentPermissionProfile.resolve(
+        val toolPromptBudget = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
+            .toolCharsCapFor(providerId, contextBudgetProvider().availableForContent)
+        // Report ب-2: one shared pipeline (also used by ChatViewModel) with the same inputs,
+        // including the code-task flag and the required-tool list the loop used to ignore.
+        val toolExposure = com.airi.assistant.agent.loop.tool.ToolExposurePipeline.resolve(
+            candidates = tools,
             queryType = queryType,
             modelId = modelId,
             providerId = providerId,
-            toolsRequested = tools.isNotEmpty(),
+            codeTask = requireToolOnFirstStep,
+            promptBudgetChars = toolPromptBudget,
+            requiredToolNames = requiredToolNames,
+            admission = { permitted ->
+                AgentLoopToolAdmission.filter(
+                    tools = permitted,
+                    hasExecutionContext = executionContextFactory != null,
+                    hasCalendarRuntime = calendarCreateRuntime != null,
+                    terminalEnabled = com.airi.assistant.domain.terminal.TerminalExecutionPolicy
+                        .evaluate("echo").allowed,
+                )
+            },
         )
-        val permissionFilteredTools = AgentLoopToolAdmission.filter(
-            tools = permissionProfile.filterTools(tools),
-            hasExecutionContext = executionContextFactory != null,
-            hasCalendarRuntime = calendarCreateRuntime != null,
-            terminalEnabled = com.airi.assistant.domain.terminal.TerminalExecutionPolicy
-                .evaluate("echo").allowed,
-        )
-        val toolPromptBudget = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
-            .toolCharsCapFor(providerId, contextBudgetProvider().availableForContent)
-        val toolSelection = com.airi.assistant.agent.loop.tool.ToolSchemaPromptBudget.select(
-            permissionFilteredTools,
-            toolPromptBudget,
-        )
+        val permissionProfile = toolExposure.profile
+        val permissionFilteredTools = toolExposure.permitted
+        val toolSelection = toolExposure.selection
         // Schemas omitted by the context budget are not dispatcher-eligible.
         val effectiveTools = toolSelection.tools
         if (toolSelection.omittedToolNames.isNotEmpty()) {
@@ -228,6 +243,24 @@ the tool returns an actual error.
             )
         }
         val toolsInvoked = mutableListOf<String>()
+        // Code tasks only: verifies that a file was saved and passed the syntax check before a
+        // plain-text reply is accepted as the final answer.
+        val codeGate = if (requireToolOnFirstStep && effectiveTools.any { it.name == "write_file" }) {
+            // PLAN phase: the user's named requirements are extracted once and recorded; the gate
+            // later asks for evidence of each one in the saved files before releasing the answer.
+            com.airi.assistant.agent.loop.verification.CodeTaskGate(
+                requirements = com.airi.assistant.agent.loop.plan.RequirementExtractor.extract(input),
+            ).also { gate ->
+                LoggingService.info(
+                    TAG,
+                    "AIRI PLAN phase=${gate.phase.current} requirements=${gate.requirements.size} " +
+                        "ids=${gate.requirements.joinToString(",") { it.id }}",
+                )
+            }
+        } else null
+        // Tools the user explicitly approved after external content was read in this request.
+        val approvedAfterUntrusted = mutableSetOf<String>()
+        var forceToolNextTurn = false
         // Report 3, S8: set once third-party content has entered this loop's context.
         var untrustedContentSeen = false
         var completionMetadata = CompletionMetadata()
@@ -258,6 +291,13 @@ the tool returns an actual error.
             requestedTraceId = traceId,
         )
         runtimeTrace?.intentStage(executionId, sessionId, "INTENT_RAW", "received")
+        if (codeGate != null && codeGate.requirements.isNotEmpty()) {
+            ExecutionStatusBus.onDecisionStep(
+                executionId, "plan",
+                summary = "Plan: ${codeGate.requirements.size} requirement(s)",
+                detail = codeGate.planSummary(arabic = false).take(300),
+            )
+        }
         runtimeTrace?.intentStage(executionId, sessionId, "INTENT_NORMALIZED", "normalized")
         runtimeTrace?.intentStage(executionId, sessionId, "INTENT_DETECTED", "capability_detector")
         runtimeTrace?.intentStage(executionId, sessionId, "INTENT_RESOLVED", "agent_loop")
@@ -279,12 +319,37 @@ the tool returns an actual error.
         val fullSystemPrompt = promptWithPlatformSnapshot + "\n\n" + toolSelection.promptBlock + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
         val capabilityIntent = com.airi.assistant.ai.CapabilityIntentDetector.detect(input)
+        // Report أ-2: non-code requests that ask for an action must not end on a text-only reply.
+        val actionGuard = if (codeGate == null) {
+            com.airi.assistant.agent.loop.verification.ActionCompletionGuard(
+                required = capabilityIntent.capabilities
+                    .intersect(com.airi.assistant.agent.loop.verification.ActionCompletionGuard.ENFORCED),
+                exposedTools = effectiveTools.map { it.name }.toSet(),
+            )
+        } else null
         val admission = ExecutionAdmissionPolicy.decide(
             input = input,
             queryType = queryType,
             effectiveTools = effectiveTools,
             attachmentCount = visionParts.size + attachmentParts.size,
         )
+        // Report ج-3/ج-4: record WHAT was decided (not just that the stages ran), so the log can
+        // explain why a tool was or was not offered. Values only: no user text.
+        runtimeTrace?.intentStage(
+            executionId, sessionId, "INTENT_DECISION",
+            outcome = queryType.name.lowercase(),
+            reason = "capabilities=" + capabilityIntent.capabilities.joinToString("+") { it.name.lowercase() }.ifBlank { "none" } +
+                " admission=${admission.reason} tools=${effectiveTools.size}" +
+                " names=" + effectiveTools.joinToString(",") { it.name }.take(120).ifBlank { "none" },
+        )
+        if (capabilityIntent.requiresTools) {
+            ExecutionStatusBus.onDecisionStep(
+                executionId, "intent",
+                summary = "Request needs: " + capabilityIntent.capabilities.joinToString(", ") { it.name.lowercase() },
+                detail = "admission=${admission.reason}; tools offered=" +
+                    effectiveTools.joinToString(",") { it.name }.take(160).ifBlank { "none" },
+            )
+        }
         // A direct response must not create a visible plan. For admitted work,
         // publish only the real known count; 0 means "not declared" rather than
         // a fabricated estimate based on the loop ceiling or tool catalog size.
@@ -460,6 +525,13 @@ the tool returns an actual error.
 
                 val tokenBuffer = StringBuilder()
                 val queuedToolCall = pendingToolCalls.removeFirstOrNull()
+                // Part 5 §3.4: what this one model call asked for and how it ended.
+                val turnToolChoice = if (requireToolOnFirstStep && (stepsUsed == 1 || forceToolNextTurn) &&
+                    effectiveTools.any { it.name == "write_file" }
+                ) ExecutionRequest.ToolChoice.REQUIRED else ExecutionRequest.ToolChoice.AUTO
+                val turnStartedMs = System.currentTimeMillis()
+                var turnPromptEstimate = 0
+                var turnMetadata: CompletionMetadata? = null
                 val rawResponse = queuedToolCall?.let {
                     com.airi.assistant.agent.loop.tool.TextToolCallProtocol.encode(it)
                 } ?: callLLM(
@@ -467,6 +539,7 @@ the tool returns an actual error.
                     systemPrompt = fullSystemPrompt,
                     history      = history,
                     tools        = effectiveTools,
+                    toolChoice   = turnToolChoice,
                     queryType    = queryType,
                     modelId = modelId,
                     providerId = providerId,
@@ -479,11 +552,29 @@ the tool returns an actual error.
                     },
                     identity      = requestIdentity,
                     localHistoryStartIndex = priorHistoryCount,
-                    onCompletionMetadata = { completionMetadata = it },
+                    onCompletionMetadata = {
+                        completionMetadata = it
+                        turnMetadata = it
+                    },
+                    onPromptEstimate = { turnPromptEstimate = it },
                     progress = progressMs,
                     stallMs = timeoutMs,
                 )
 
+                if (queuedToolCall == null) {
+                    recordModelTurn(
+                        executionId = executionId,
+                        turn = stepsUsed,
+                        startedMs = turnStartedMs,
+                        requestedProviderId = providerId,
+                        requestedModelId = modelId,
+                        toolChoice = turnToolChoice,
+                        metadata = turnMetadata,
+                        promptTokens = turnPromptEstimate,
+                        reply = rawResponse,
+                    )
+                }
+                forceToolNextTurn = false
                 LoggingService.debug(TAG, "Agent step completed: step=$stepsUsed responseChars=${rawResponse.length}")
                 runtimeTrace?.modelResponse(
                     executionId = executionId,
@@ -514,6 +605,14 @@ the tool returns an actual error.
                     } else {
                         com.airi.assistant.agent.loop.tool.TextToolCallProtocol.parse(rawResponse)
                     }
+                }
+                // A native call whose arguments were cut off or are not a JSON object must not run
+                // with empty arguments: it becomes a malformed call, which the retry below handles.
+                if (nativeEnvelope.any { !it.argumentsValid }) {
+                    LoggingService.warn(TAG, "AIRI NATIVE_TOOL_ARGS_INVALID step=$stepsUsed — arguments were not valid JSON (possibly truncated)")
+                    parseResult = com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Invalid(
+                        com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseFailureReason.INVALID_ARGS_OBJECT
+                    )
                 }
                 var parsedToolCalls = when (parseResult) {
                     is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Call -> listOf(parseResult.toolCall)
@@ -836,12 +935,54 @@ the tool returns an actual error.
                         LoggingService.info(TAG, "AIRI PLAN_CONTINUATION_REQUIRED step=$stepsUsed")
                         continue
                     }
+                    var gateNotice: String? = null
+                    if (codeGate != null) {
+                        when (val verdict = codeGate.onFinalText(
+                            canContinue = stepsUsed < MAX_STEPS,
+                            preferArabic = com.airi.assistant.agent.loop.verification.CodeTaskGate.looksArabic(rawResponse + input),
+                        )) {
+                            is com.airi.assistant.agent.loop.verification.CodeTaskGate.Verdict.Correct -> {
+                                ExecutionStatusBus.onDecisionStep(
+                                    executionId, "verify", "Verification: correction needed (${verdict.reason.name.lowercase()})",
+                                    detail = codeGate.requirementStatus(), success = false,
+                                )
+                                history.add(ConversationTurn.Assistant(rawResponse))
+                                history.add(ConversationTurn.User(verdict.prompt))
+                                forceToolNextTurn = true
+                                runtimeTrace?.continuation(executionId, sessionId, continued = true, terminalState = verdict.reason.name)
+                                LoggingService.info(TAG, "AIRI CODE_TASK_GATE_CORRECTION reason=${verdict.reason} step=$stepsUsed")
+                                continue
+                            }
+                            is com.airi.assistant.agent.loop.verification.CodeTaskGate.Verdict.Reject -> {
+                                gateNotice = verdict.notice
+                                runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = verdict.reason.name)
+                                LoggingService.warn(TAG, "AIRI CODE_TASK_GATE_REJECTED reason=${verdict.reason} step=$stepsUsed")
+                            }
+                            com.airi.assistant.agent.loop.verification.CodeTaskGate.Verdict.Accept ->
+                                ExecutionStatusBus.onDecisionStep(
+                                    executionId, "verify", "Verification passed", detail = codeGate.requirementStatus(),
+                                )
+                        }
+                    }
+                    if (actionGuard != null && stepsUsed < MAX_STEPS) {
+                        val verdict = actionGuard.onFinalText(toolsInvoked)
+                        if (verdict is com.airi.assistant.agent.loop.verification.ActionCompletionGuard.Verdict.Correct) {
+                            history.add(ConversationTurn.Assistant(rawResponse))
+                            history.add(ConversationTurn.User(verdict.prompt))
+                            runtimeTrace?.continuation(executionId, sessionId, continued = true, terminalState = "ACTION_NOT_PERFORMED")
+                            LoggingService.info(TAG, "AIRI ACTION_GUARD_CORRECTION step=$stepsUsed missing=${verdict.missing.joinToString(",")}")
+                            continue
+                        }
+                    }
+                    val finalText = if (gateNotice != null) "$gateNotice\n\n$rawResponse" else rawResponse
                     // Final answer — LLM decided it's done (or retry also failed)
                     history.add(ConversationTurn.Assistant(rawResponse))
-                    onStepComplete(StepEvent.FinalAnswer(rawResponse, stepsUsed))
-                    runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = "SUCCESS")
+                    onStepComplete(StepEvent.FinalAnswer(finalText, stepsUsed))
+                    if (gateNotice == null) {
+                        runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = "SUCCESS")
+                    }
                     ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
-                    return@withTimeout LoopResult(rawResponse, stepsUsed, toolsInvoked, completionMetadata = completionMetadata)
+                    return@withTimeout LoopResult(finalText, stepsUsed, toolsInvoked, completionMetadata = completionMetadata)
                 }
 
                 // Execute the tool
@@ -952,6 +1093,59 @@ the tool returns an actual error.
                     schema = selectedToolSchema ?: ToolSchema(name = toolName, description = "Unknown tool"),
                     hasDurableExecutionContext = durableExecutionContext != null
                 )
+                // Search-then-write (report 3, phase 2, item 4): after web or connector content was
+                // read, a write/exec tool is no longer refused outright. The user is asked through
+                // the existing confirmation dialog; without a yes the call is refused with a plain
+                // message in the user's language, and a yes covers only that tool for this request.
+                var untrustedRefusal: ToolDispatcher.ToolResult.Error? = null
+                if (
+                    toolValidationError == null && !duplicateToolCall && untrustedContentSeen &&
+                    (toolName == "terminal_execute" || toolName == "write_file") &&
+                    toolName !in approvedAfterUntrusted
+                ) {
+                    val arabic = com.airi.assistant.agent.loop.verification.CodeTaskGate.looksArabic(input)
+                    val target = when (toolName) {
+                        "write_file" -> toolArgs["filename"].orEmpty().take(96)
+                        else -> toolArgs["command"].orEmpty().take(200)
+                    }
+                    val action = if (arabic) {
+                        if (toolName == "write_file") "حفظ الملف $target بعد قراءة محتوى من الإنترنت أو من موصل"
+                        else "تشغيل أمر في الطرفية بعد قراءة محتوى من الإنترنت أو من موصل"
+                    } else {
+                        if (toolName == "write_file") "Save the file $target after reading web or connector content"
+                        else "Run a terminal command after reading web or connector content"
+                    }
+                    val details = if (arabic) {
+                        "قرأ AIRI محتوى خارجيًا في هذا الطلب. لن يُنفَّذ هذا الإجراء إلا بموافقتك. الهدف: $target"
+                    } else {
+                        "AIRI read external content in this request. This action runs only with your approval. Target: $target"
+                    }
+                    LoggingService.info(TAG, "AIRI APPROVAL_REQUESTED_AFTER_UNTRUSTED tool=$toolName step=$stepsUsed")
+                    val answer = onStepComplete(
+                        StepEvent.ToolExecuted(
+                            "ask_confirmation",
+                            mapOf("action" to action, "details" to details),
+                            "CONFIRMATION_REQUIRED|$action|$details",
+                            stepsUsed,
+                        )
+                    )
+                    progressMs.set(System.currentTimeMillis())
+                    if (answer?.startsWith("User confirmed") == true) {
+                        approvedAfterUntrusted += toolName
+                        LoggingService.info(TAG, "AIRI APPROVAL_GRANTED_AFTER_UNTRUSTED tool=$toolName")
+                    } else {
+                        LoggingService.warn(TAG, "AIRI TOOL_BLOCKED_AFTER_UNTRUSTED_CONTENT tool=$toolName approved=false")
+                        untrustedRefusal = ToolDispatcher.ToolResult.Error(
+                            if (arabic) {
+                                "لم تتم الموافقة على $toolName بعد قراءة المحتوى الخارجي، فلم يُنفَّذ. أخبر المستخدم بذلك ولا تعد المحاولة."
+                            } else {
+                                "The user did not approve $toolName after external content was read, so it did not run. Tell the user and do not retry."
+                            },
+                            code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
+                        )
+                    }
+                }
+                val refusalResult: ToolDispatcher.ToolResult.Error? = untrustedRefusal
                 var approvalPending = false
                 val toolResult = if (toolValidationError != null) {
                     LoggingService.warn(TAG, "AIRI TOOL_REJECTED_INVALID_SCHEMA tool=$toolName")
@@ -969,18 +1163,8 @@ the tool returns an actual error.
                         "Duplicate tool call blocked for this execution step.",
                         code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.DUPLICATE_CALL,
                     )
-                } else if (
-                    untrustedContentSeen &&
-                    (toolName == "terminal_execute" || toolName == "write_file")
-                ) {
-                    // Report 3, S8: a write/exec tool must not run in the same loop that has
-                    // just ingested web or third-party content; the user has to ask for it directly.
-                    LoggingService.warn(TAG, "AIRI TOOL_BLOCKED_AFTER_UNTRUSTED_CONTENT tool=$toolName")
-                    ToolDispatcher.ToolResult.Error(
-                        "Blocked: $toolName cannot run after external web or connector content was read in this request. " +
-                            "Ask the user to confirm and request it in a separate message.",
-                        code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
-                    )
+                } else if (refusalResult != null) {
+                    refusalResult
                 } else when (sideEffectDecision) {
                     AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED -> {
                         LoggingService.warn(TAG, "AIRI TOOL_BLOCKED_NO_DURABLE_CONTEXT tool=$toolName")
@@ -1188,8 +1372,16 @@ the tool returns an actual error.
                 )
                 // P0-2: onStepComplete may return a non-null String to replace the tool result
                 // (used when the agent calls ask_confirmation and ChatViewModel suspends for user input)
-                val effectiveResult = onStepComplete(StepEvent.ToolExecuted(toolName, toolArgs, resultText, stepsUsed))
-                    ?: resultText
+                val gateFeedback = if (toolName == "write_file") {
+                    codeGate?.onWriteFile(
+                        args = toolArgs,
+                        succeeded = toolResult is ToolDispatcher.ToolResult.Success,
+                        approvalPending = approvalPending,
+                    )
+                } else null
+                val checkedResultText = if (gateFeedback != null) "$resultText\n\n$gateFeedback" else resultText
+                val effectiveResult = onStepComplete(StepEvent.ToolExecuted(toolName, toolArgs, checkedResultText, stepsUsed))
+                    ?: checkedResultText
 
                 // Append the assistant's tool_call + tool result to history so the LLM
                 // sees what it asked for and what it got back.
@@ -1348,6 +1540,51 @@ the tool returns an actual error.
         }
     }
 
+    /**
+     * Part 5 §3.4: publishes one model call to [ExecutionStatusBus]. Output size is an estimate
+     * (about four characters per token) because the providers report no per-turn usage. Never
+     * throws: a trace failure must not affect the run.
+     */
+    private fun recordModelTurn(
+        executionId: String,
+        turn: Int,
+        startedMs: Long,
+        requestedProviderId: String,
+        requestedModelId: String,
+        toolChoice: ExecutionRequest.ToolChoice,
+        metadata: CompletionMetadata?,
+        promptTokens: Int,
+        reply: String,
+    ) {
+        if (executionId.isBlank()) return
+        runCatching {
+            val now = System.currentTimeMillis()
+            ExecutionStatusBus.recordModelTurn(
+                executionId,
+                com.airi.assistant.ai.agent.trace.ModelTurnRecord(
+                    turn = turn,
+                    timestampMs = now,
+                    durationMs = (now - startedMs).coerceAtLeast(0L),
+                    providerId = metadata?.resolvedProviderId?.takeIf { it.isNotBlank() }
+                        ?: metadata?.providerId?.takeIf { it.isNotBlank() }
+                        ?: requestedProviderId,
+                    modelId = metadata?.resolvedModelId?.takeIf { it.isNotBlank() } ?: requestedModelId,
+                    requestedProviderId = requestedProviderId,
+                    requestedModelId = requestedModelId,
+                    toolChoice = if (toolChoice == ExecutionRequest.ToolChoice.REQUIRED) {
+                        com.airi.assistant.ai.agent.trace.ModelTurnRecord.TOOL_CHOICE_REQUIRED
+                    } else {
+                        com.airi.assistant.ai.agent.trace.ModelTurnRecord.TOOL_CHOICE_AUTO
+                    },
+                    finishReason = (metadata?.reason ?: CompletionReason.UNKNOWN).name,
+                    promptTokens = promptTokens,
+                    outputTokens = (reply.length + 3) / 4,
+                    fallbackReason = metadata?.fallbackReason,
+                ),
+            )
+        }
+    }
+
     // ── LLM call (always through HybridOrchestrator) ───────────────────────────
 
     private suspend fun callLLM(
@@ -1355,6 +1592,7 @@ the tool returns an actual error.
         systemPrompt: String,
         history:      List<ConversationTurn>,
         tools:        List<ToolSchema>,
+        toolChoice:   ExecutionRequest.ToolChoice = ExecutionRequest.ToolChoice.AUTO,
         queryType:      QueryType = QueryType.UNKNOWN,
         modelId:      String = "",
         providerId:   String = "",
@@ -1365,6 +1603,8 @@ the tool returns an actual error.
         identity:      ExecutionIdentity,
         localHistoryStartIndex: Int = 0,
         onCompletionMetadata: (CompletionMetadata) -> Unit = {},
+        /** Receives the estimated prompt size of this request (Part 5 §3.4 turn record). */
+        onPromptEstimate: (Int) -> Unit = {},
         /** Shared progress clock; when set, a stalled model call is cancelled (see TIMEOUT_MS). */
         progress: AtomicLong? = null,
         stallMs: Long = 0L,
@@ -1410,6 +1650,7 @@ the tool returns an actual error.
             projection = requestProjection,
         )
         val longContextThreshold = contextBudgetProvider().longContextThreshold
+        onPromptEstimate(estimatedTokens)
 
         val buf = StringBuilder()
         var error: String? = null
@@ -1470,6 +1711,7 @@ the tool returns an actual error.
 
                 conversationHistory   = requestProjection.conversationHistory,
                 requiresToolCalling   = tools.isNotEmpty(),
+                toolChoice            = toolChoice,
             ),
             context    = appContext,
             onToken    = { tok ->

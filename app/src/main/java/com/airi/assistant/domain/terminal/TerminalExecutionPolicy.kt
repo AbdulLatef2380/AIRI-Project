@@ -19,6 +19,8 @@ object TerminalExecutionPolicy {
         "ls", "cat", "echo", "find", "grep", "sed", "awk", "head", "tail", "wc", "sort", "uniq", "git"
     )
     private val destructiveBinaries = setOf("mkdir", "cp", "mv", "rm", "zip", "unzip", "tar")
+    /** Every binary the sandbox may start (read-only ones plus those that need approval). Single source of truth. */
+    val executableBinaries: Set<String> = safeBinaries + destructiveBinaries
     private val gitReadOnly = setOf("status", "log", "diff", "show", "ls-files", "rev-parse", "branch")
     private val shellMeta = setOf(';', '&', '|', '`', '$', '>', '<', '\n', '\r', '\u0000', '*', '?', '[', ']', '(', ')', '\\', '"', '\'')
 

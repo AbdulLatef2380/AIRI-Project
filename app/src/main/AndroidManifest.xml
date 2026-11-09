@@ -127,6 +127,17 @@
                     android:pathPrefix="/callback" />
             </intent-filter>
 
+            <!-- Long-task notification deep link: airi://agent/run/{id} opens the run screen. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="airi"
+                    android:host="agent"
+                    android:pathPrefix="/run/" />
+            </intent-filter>
+
         </activity>
 
         <service

@@ -43,6 +43,8 @@ object ExecutionStatusBus {
     private val traceLock = Any()
     private val traceHistory = linkedMapOf<String, List<ExecutionTraceEvent>>()
     private val traceBuffers = linkedMapOf<String, ExecutionTraceBuffer>()
+    /** Per-execution model calls (Part 5 §3.4); lives and is evicted with the execution's trace. */
+    private val modelTurnStore = mutableMapOf<String, MutableList<com.airi.assistant.ai.agent.trace.ModelTurnRecord>>()
     // Tool admission is queried both inside and outside traceLock by terminal
     // callbacks. A concurrent map prevents two executions from racing on the
     // registry while each lifecycle remains synchronized internally.
@@ -66,6 +68,32 @@ object ExecutionStatusBus {
         else traceHistory[executionId]?.toList()
             ?: traceBuffers[executionId]?.snapshot().orEmpty()
     }
+    private val _modelTurnTicks = MutableStateFlow(0L)
+
+    /** Increments whenever a model turn is recorded, so live views can refresh between trace events. */
+    val modelTurnTicks: StateFlow<Long> = _modelTurnTicks.asStateFlow()
+
+    /** Model calls recorded for [executionId], oldest first; empty when none or unknown. */
+    fun modelTurns(executionId: String): List<com.airi.assistant.ai.agent.trace.ModelTurnRecord> =
+        synchronized(traceLock) {
+            if (executionId.isBlank()) emptyList() else modelTurnStore[executionId]?.toList().orEmpty()
+        }
+
+    /**
+     * Records one model call of an open execution. Kept outside [trace] on purpose: the plan panel
+     * and the older log screens render every raw trace event, and a model call is not a step there.
+     * Dropped silently for an unknown or finished execution and once the per-run cap is reached.
+     */
+    fun recordModelTurn(executionId: String, record: com.airi.assistant.ai.agent.trace.ModelTurnRecord) {
+        synchronized(traceLock) {
+            if (!isOpenExecutionLocked(executionId)) return
+            val list = modelTurnStore.getOrPut(executionId) { mutableListOf() }
+            if (list.size >= com.airi.assistant.ai.agent.trace.ModelTurnSteps.MAX_TURNS) return
+            list += record
+        }
+        _modelTurnTicks.update { it + 1 }
+    }
+
     // Wrapped version for collectors that want pressure detection:
     val monitoredStatus = FlowPressureMonitor.monitorFlow("ExecutionStatusBus", _status)
 
@@ -98,6 +126,7 @@ object ExecutionStatusBus {
             traceBuffers[executionId] = ExecutionTraceBuffer().also { it.begin(executionId, sessionId) }
             toolTraceLifecycles[executionId] = ExecutionToolTraceLifecycle().also { it.begin(executionId) }
             toolTraceContexts[executionId] = mutableMapOf()
+            modelTurnStore.remove(executionId)
             terminalExecutions.remove(executionId)
             traceHistory[executionId] = emptyList()
             while (traceHistory.size > maxTraceHistory) {
@@ -106,6 +135,7 @@ object ExecutionStatusBus {
                 traceBuffers.remove(evicted)
                 toolTraceLifecycles.remove(evicted)
                 toolTraceContexts.remove(evicted)
+                modelTurnStore.remove(evicted)
                 terminalExecutions.remove(evicted)
             }
         }
@@ -418,6 +448,22 @@ object ExecutionStatusBus {
         safeLog { Log.i(TAG, "EXEC_STATUS_RECOVERING node=$nodeId attempt=$retryCount reasonChars=${reason.length}") }
     }
 
+    /**
+     * Report ج-5: record a decision as a finished step (INTENT / PLAN / VERIFY) so the trace shows
+     * what was decided and checked, not only which tools ran. [kind] is "intent", "plan" or "verify".
+     */
+    fun onDecisionStep(executionId: String, kind: String, summary: String, detail: String? = null, success: Boolean = true) {
+        if (!isOpenExecution(executionId)) return
+        appendTrace(
+            executionId,
+            if (success) ExecutionTraceKind.STEP_COMPLETED else ExecutionTraceKind.TOOL_FAILED,
+            summary,
+            detail,
+            actionId = "decision_$kind",
+            machineTag = "decision_$kind",
+        )
+    }
+
     /** Signal that reflection is running post-graph. */
     fun onReflecting(executionId: String = "") {
         statusUpdate { current ->
@@ -606,6 +652,7 @@ object ExecutionStatusBus {
             traceBuffers.clear()
             toolTraceLifecycles.clear()
             toolTraceContexts.clear()
+            modelTurnStore.clear()
             terminalExecutions.clear()
             approvalOwners.clear()
         }
@@ -673,7 +720,9 @@ object ExecutionStatusBus {
             val currentSnapshot = buffer.snapshot()
             traceHistory[executionId] = currentSnapshot
             while (traceHistory.size > maxTraceHistory) {
-                traceHistory.remove(traceHistory.keys.first())
+                val evictedKey = traceHistory.keys.first()
+                traceHistory.remove(evictedKey)
+                modelTurnStore.remove(evictedKey)
             }
             if (_status.value.executionId == executionId) {
                 _trace.update { currentSnapshot }
@@ -702,6 +751,9 @@ object ExecutionStatusBus {
         acceptsEvent(current.executionId, executionId) &&
             current.executionStage !in TERMINAL_STAGES &&
             !current.cancellationRequested
+
+    private fun isOpenExecutionLocked(executionId: String): Boolean =
+        executionId.isNotBlank() && executionId in traceBuffers && executionId !in terminalExecutions
 
     private fun isOpenExecution(executionId: String): Boolean = synchronized(traceLock) {
         executionId.isNotBlank() && executionId in traceBuffers && executionId !in terminalExecutions

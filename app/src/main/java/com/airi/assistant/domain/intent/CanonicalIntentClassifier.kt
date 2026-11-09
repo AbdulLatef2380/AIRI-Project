@@ -1,6 +1,7 @@
 package com.airi.assistant.domain.intent
 
 import com.airi.assistant.ai.CapabilityIntentDetector
+import com.airi.assistant.ai.CodingTaskDetector
 import com.airi.assistant.ai.QueryType
 
 /** Pure classifier adapter: it describes intent and never dispatches a tool. */
@@ -87,6 +88,25 @@ object CanonicalIntentClassifier {
         val connectorRead = capabilityIntent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ)
         val connectorWrite = capabilityIntent.requires(CapabilityIntentDetector.Capability.CONNECTOR_WRITE)
         val fileWrite = capabilityIntent.requires(CapabilityIntentDetector.Capability.FILE_WRITE)
+        // A request to BUILD a program is an agent task (write the file, then deliver it), not a
+        // tool-free creative answer. Checked before the legacy phrase list below, which only
+        // matched a few literal phrases and missed "قم بإنشاء كود لآلة حاسبة ... بلغة python".
+        // Questions about code ("كيف اكتب كود ...") are rejected by the detector and still fall
+        // through to the legacy branch / question handling.
+        val codingTask = CodingTaskDetector.detect(text)
+        if (codingTask != null && !deviceAction && !terminalExecute && !connectorRead && !connectorWrite) {
+            return ChatIntent(
+                kind = ChatIntent.Kind.POSSIBLE_ACTION,
+                queryType = QueryType.ACTION,
+                canonicalCapability = "code_task",
+                typedSlots = codingTask.languages.firstOrNull()?.let { language ->
+                    mapOf("language" to ChatIntent.TypedSlot(language, ChatIntent.TypedSlot.SlotType.TEXT))
+                }.orEmpty(),
+                confidence = ChatIntent.Confidence.HIGH,
+                risk = ChatIntent.Risk.SIDE_EFFECT,
+                rationale = "coding_task_detected",
+            )
+        }
         if (codeGenerationRequests.any(text::contains) &&
             !deviceAction && !terminalExecute && !connectorRead && !connectorWrite && !fileWrite
         ) {

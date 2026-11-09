@@ -41,6 +41,33 @@ class AgentTraceManagerLifecycleTest {
     }
 
     @Test
+    fun deleteTrace_removesOnlyTheRequestedTrace() {
+        val manager = AgentTraceManager()
+        val keep = manager.startTrace("keep me")
+        val drop = manager.startTrace("drop me")
+        manager.finalizeTrace(keep, "ok", success = true)
+        manager.finalizeTrace(drop, "ok", success = true)
+
+        manager.deleteTrace(drop)
+
+        assertNotNull(manager.getTrace(keep))
+        assertNull(manager.getTrace(drop))
+        assertEquals(1, manager.traces.value.size)
+    }
+
+    @Test
+    fun deleteTrace_ignoresBlankAndUnknownIds() {
+        val manager = AgentTraceManager()
+        val id = manager.startTrace("run")
+        manager.finalizeTrace(id, "ok", success = true)
+
+        manager.deleteTrace("")
+        manager.deleteTrace("missing")
+
+        assertEquals(1, manager.traces.value.size)
+    }
+
+    @Test
     fun clearTraces_doesNotDropAnInFlightTrace() {
         val manager = AgentTraceManager()
         val id = manager.startTrace("running")
@@ -188,7 +215,8 @@ class AgentTraceManagerLifecycleTest {
         assertEquals("openai", trace.provider)
         assertEquals(42, trace.estimatedOutputTokens)
         assertEquals(710L, trace.firstVisibleTokenLatencyMs)
-        assertTrue(trace.success)
+        // The last tool failed and was never recovered, so COMPLETED must not make the run succeed.
+        assertFalse(trace.success)
         assertEquals(2, trace.steps.size)
         assertTrue(trace.steps[0].success)
         assertFalse(trace.steps[1].success)

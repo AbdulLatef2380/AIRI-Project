@@ -36,6 +36,13 @@ import kotlinx.coroutines.sync.withLock
  */
 class LlamaManager(private val context: Context) {
 
+    /**
+     * Report أ-6: GBNF grammar that constrains tool-call JSON for the next generation, or null.
+     * Set by the local backend just before [generateStream]; pushed to the native sampler with
+     * the sampling parameters.
+     */
+    @Volatile var toolCallGrammar: String? = null
+
     private var isLoaded = false
     private var lastLoadFailure: String? = null
     private var loadedModelPath: String? = null
@@ -1239,6 +1246,12 @@ class LlamaManager(private val context: Context) {
                 // native side additionally takes LLAMA_LOCK as a belt-and-braces
                 // guard. runCatching wraps the call so a missing native symbol (e.g.
                 // device running an older APK) degrades gracefully to the defaults.
+                // One-shot: the backend sets it before each generation, so a later plain-chat
+                // generation can never inherit a previous tool grammar.
+                val grammarForThisRun = toolCallGrammar
+                toolCallGrammar = null
+                runCatching { LlamaNative.nativeSetToolGrammar(grammarForThisRun) }
+                    .onFailure { Log.w("AIRI", "TOOL_GRAMMAR_PUSH_FAILED ${it.javaClass.simpleName}") }
                 runCatching {
                     LlamaNative.nativeSetSamplingParams(
                         temperature       = temperature,

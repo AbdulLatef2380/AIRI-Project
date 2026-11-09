@@ -56,6 +56,23 @@ fun InlineExecutionTrace(
 }
 
 
+/**
+ * True when [InlineExecutionTrace] would render a panel for these events. Lets other screens
+ * (the agent-log detail) decide whether to show the unified timeline or fall back to raw steps.
+ * Admission depends only on event categories, so the labels are irrelevant here.
+ */
+fun executionTraceAdmitted(
+    executionId: String,
+    entries: List<ExecutionTraceEvent>,
+    activityEvents: List<ActivityEvent> = emptyList(),
+): Boolean = UnifiedExecutionTraceProjector.projectProjection(
+    executionId = executionId,
+    traceEntries = entries,
+    activityEvents = activityEvents,
+    planningTaskLabel = "",
+    executionCompletedLabel = "",
+).let { it.admitted && it.events.isNotEmpty() }
+
 private fun localizedTraceTitle(context: Context, machineTag: String?, fallback: String): String {
     val tag = machineTag?.substringBefore(':')?.trim()?.lowercase()?.takeIf { it.matches(Regex("[a-z0-9_]+")) }
         ?: return fallback

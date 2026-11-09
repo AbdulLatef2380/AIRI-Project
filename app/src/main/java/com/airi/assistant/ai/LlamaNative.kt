@@ -165,6 +165,9 @@ object LlamaNative {
     // llamaDispatcher immediately before the generate call, so it is already
     // serialised behind any in-flight decode.  The native side additionally
     // takes LLAMA_LOCK as a belt-and-braces guard.
+    /** Report أ-6: lazy GBNF grammar for tool-call JSON for the next generation; null clears it. */
+    external fun nativeSetToolGrammar(grammar: String?)
+
     external fun nativeSetSamplingParams(
         temperature: Float,
         topK: Int,

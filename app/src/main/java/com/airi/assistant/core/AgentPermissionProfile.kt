@@ -22,12 +22,19 @@ data class AgentPermissionProfile(
     val allowApprovedProposals: Boolean,
     val allowAutomation: Boolean,
     val maxToolSteps: Int,
+    /**
+     * write_file may be exposed without opening the terminal. A code task ("build me a Python
+     * calculator") needs the file tool but no shell, so the two grants are separate; the
+     * default keeps every existing caller's behaviour (file writes follow the terminal grant).
+     */
+    val allowFileWrite: Boolean = allowTerminalExecute,
 ) {
     fun allows(tool: ToolSchema): Boolean {
         if (!allowReadTools) return false
         if (tool.dangerous && !(
                 (allowApprovedProposals && tool.name == "calendar_create") ||
-                    (allowTerminalExecute && (tool.name == "terminal_execute" || tool.name == "write_file"))
+                    (allowTerminalExecute && tool.name == "terminal_execute") ||
+                    (allowFileWrite && tool.name == "write_file")
             )) return false
         if (tool.name.startsWith("skill_") && !allowSkills) return false
         if (tool.name.startsWith("connector_") && !allowConnectorRead) return false
@@ -48,6 +55,7 @@ data class AgentPermissionProfile(
         "allowConnectorRead" to allowConnectorRead.toString(),
         "allowMemoryRead" to allowMemoryRead.toString(),
         "allowTerminalExecute" to allowTerminalExecute.toString(),
+        "allowFileWrite" to allowFileWrite.toString(),
         "allowApprovedProposals" to allowApprovedProposals.toString(),
         "allowAutomation" to allowAutomation.toString(),
         "maxToolSteps" to maxToolSteps.toString(),
@@ -59,6 +67,7 @@ data class AgentPermissionProfile(
             modelId: String,
             providerId: String,
             toolsRequested: Boolean = false,
+            codeTask: Boolean = false,
         ): AgentPermissionProfile {
             val mode = queryType.name.lowercase()
             // A short request can still require current_time, memory, or a
@@ -75,6 +84,7 @@ data class AgentPermissionProfile(
                 allowConnectorRead = interactive,
                 allowMemoryRead = interactive,
                 allowTerminalExecute = queryType == QueryType.ACTION,
+                allowFileWrite = queryType == QueryType.ACTION || (codeTask && interactive),
                 allowApprovedProposals = queryType == QueryType.ACTION || queryType == QueryType.ANALYTICAL,
                 allowAutomation = queryType == QueryType.ACTION,
                 maxToolSteps = if (interactive) 8 else 0,

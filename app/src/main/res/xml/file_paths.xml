@@ -4,5 +4,7 @@
     <files-path name="attachments" path="attachments/" />
     <!-- Generated AIRI artifacts; ArtifactManager validates the canonical path before sharing. -->
     <files-path name="workspace_artifacts" path="workspace/artifacts/" />
+    <!-- Files written by the agent's write_file tool; AgentFileExporter validates the name before sharing. -->
+    <files-path name="agent_files" path="agent_files/" />
     <cache-path name="chat_attachments" path="chat_attachments/" />
 </paths>

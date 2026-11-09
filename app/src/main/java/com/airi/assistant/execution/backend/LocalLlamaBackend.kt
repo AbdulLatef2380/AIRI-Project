@@ -167,6 +167,7 @@ class LocalLlamaBackend(
             request.toolDefinitions,
         )
 
+        llamaManager.toolCallGrammar = LocalToolCallGrammar.build(request.toolDefinitions.map { it.name })
         try {
             llamaManager.generateStream(
                 prompt         = request.localPrompt.ifBlank { request.prompt },
@@ -303,6 +304,7 @@ class LocalLlamaBackend(
             }
         }
 
+        llamaManager.toolCallGrammar = LocalToolCallGrammar.build(request.toolDefinitions.map { it.name })
         try {
             llamaManager.generateStream(
                 prompt         = request.localPrompt.ifBlank { request.prompt },

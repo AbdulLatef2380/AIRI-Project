@@ -14,7 +14,7 @@ data class ResolvedIntent(
     val requestedConnectorIds: Set<String> = emptySet(),
     val requiredCapabilities: Set<String> = emptySet(),
 ) {
-    enum class IntentKind { CONVERSATION, QUESTION, CREATIVE, CONNECTOR_ACTION, DEVICE_ACTION, CLARIFICATION }
+    enum class IntentKind { CONVERSATION, QUESTION, CREATIVE, CONNECTOR_ACTION, DEVICE_ACTION, CODE_TASK, CLARIFICATION }
     data class ResolvedCapability(val family: String, val operation: String, val risk: ChatIntent.Risk)
     data class IntentTarget(val type: String, val value: String)
     data class IntentSlot(val name: String)
@@ -32,6 +32,7 @@ data class ResolvedIntent(
                 intent.kind == ChatIntent.Kind.CLARIFICATION -> IntentKind.CLARIFICATION
                 capability.startsWith("connector") -> IntentKind.CONNECTOR_ACTION
                 capability == "device_action" || capability == "open_settings" -> IntentKind.DEVICE_ACTION
+                capability == "code_task" -> IntentKind.CODE_TASK
                 intent.kind == ChatIntent.Kind.QUESTION -> IntentKind.QUESTION
                 else -> IntentKind.QUESTION
             }

@@ -4,7 +4,20 @@ import com.airi.assistant.ai.context.ContextBudget
 
 /** Single source of truth for generation budgets across local and cloud backends. */
 object OutputBudgetPolicy {
-    fun requestedTokens(input: String, queryType: QueryType): Int = when (ResponseDepthPolicy.resolve(input, queryType)) {
+    /**
+     * A code task delivers its whole program inside one write_file call. Routed as ACTION it
+     * would otherwise fall back to the 2,048-token STANDARD budget, and a call cut by the output
+     * cap arrives with truncated or empty content. It keeps the long-form budget that the same
+     * request had when it was routed as CREATIVE.
+     */
+    const val CODE_TASK_TOKENS = 10_240
+
+    fun requestedTokens(input: String, queryType: QueryType): Int {
+        if (CodingTaskDetector.isCodingTask(input)) return CODE_TASK_TOKENS
+        return depthBudget(input, queryType)
+    }
+
+    private fun depthBudget(input: String, queryType: QueryType): Int = when (ResponseDepthPolicy.resolve(input, queryType)) {
         ResponseDepth.BRIEF -> 384
         ResponseDepth.STANDARD -> 2_048
         ResponseDepth.DETAILED -> when (queryType) {

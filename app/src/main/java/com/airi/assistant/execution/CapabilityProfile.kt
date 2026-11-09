@@ -82,6 +82,9 @@ data class CapabilityProfile(
     }
 
     companion object {
+        /** Smallest local context window that can hold a tool catalog plus a conversation turn. */
+        const val MIN_LOCAL_TOOL_CONTEXT_TOKENS = 2048
+
         /**
          * Conservative static local profile used before a model is loaded.
          * SPRINT 1 migration note: maxContextTokens was hardcoded to 4096 here.
@@ -122,7 +125,9 @@ data class CapabilityProfile(
             hasVision: Boolean = false
         ): CapabilityProfile = CapabilityProfile(
             supportsStreaming            = true,
-            supportsToolCalling          = true,
+            // Report أ-4: tool schemas travel in the prompt for local models, so a context window
+            // that cannot hold them cannot call tools. Decided from the loaded model's real nCtx.
+            supportsToolCalling          = budget.nCtx >= MIN_LOCAL_TOOL_CONTEXT_TOKENS,
             supportsVision               = hasVision,
             supportsLongContext          = budget.supportsLongContext,
             supportsFastReasoning        = false,

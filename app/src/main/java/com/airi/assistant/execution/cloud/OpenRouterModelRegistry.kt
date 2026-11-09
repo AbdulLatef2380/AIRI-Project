@@ -22,7 +22,13 @@ object OpenRouterModelRegistry {
     @Volatile private var cachedIds: Set<String> = emptySet()
     @Volatile private var fetchedAtMs: Long = 0L
 
+    // Models whose catalog entry lists "tools" in supported_parameters (report أ-5).
+    @Volatile private var cachedToolIds: Set<String> = emptySet()
+
     fun snapshot(): Set<String> = cachedIds
+
+    /** Live-catalog models that declare tool support; empty until a catalog with that field was read. */
+    fun toolCapableSnapshot(): Set<String> = cachedToolIds
 
     fun contains(modelId: String): Boolean = cachedIds.isEmpty() || modelId in cachedIds
 
@@ -37,14 +43,20 @@ object OpenRouterModelRegistry {
                 readTimeout = READ_TIMEOUT_MS
                 setRequestProperty("Accept", "application/json")
             }
+            var toolIds: Set<String> = emptySet()
             val ids = try {
                 if (connection.responseCode !in 200..299) emptySet()
-                else connection.inputStream.bufferedReader().use { parseModelIds(it.readText()) }
+                else connection.inputStream.bufferedReader().use {
+                    val body = it.readText()
+                    toolIds = parseToolCapableIds(body)
+                    parseModelIds(body)
+                }
             } finally {
                 connection.disconnect()
             }
             if (ids.isNotEmpty()) {
                 cachedIds = ids
+                cachedToolIds = toolIds
                 fetchedAtMs = now
             }
             cachedIds
@@ -54,6 +66,20 @@ object OpenRouterModelRegistry {
             cachedIds
         }
     }
+
+    internal fun parseToolCapableIds(body: String): Set<String> = runCatching {
+        val data = JSONObject(body).optJSONArray("data") ?: return@runCatching emptySet()
+        buildSet {
+            for (index in 0 until data.length()) {
+                val model = data.optJSONObject(index) ?: continue
+                val id = model.optString("id").trim().takeIf { it.isNotBlank() } ?: continue
+                val params = model.optJSONArray("supported_parameters") ?: continue
+                for (i in 0 until params.length()) {
+                    if (params.optString(i) == "tools") { add(id); break }
+                }
+            }
+        }
+    }.getOrDefault(emptySet())
 
     internal fun parseModelIds(body: String): Set<String> = runCatching {
         val data = JSONObject(body).optJSONArray("data") ?: return@runCatching emptySet()

@@ -35,6 +35,13 @@ class AgentPermissionProfileTest {
         category = ToolSchema.Category.PRODUCTIVITY,
     )
 
+    private val writeFile = ToolSchema(
+        name = "write_file",
+        description = "write",
+        dangerous = true,
+        category = ToolSchema.Category.PRODUCTIVITY,
+    )
+
     @Test
     fun simpleRequestReceivesNoAgentCapabilitySurface() {
         val profile = AgentPermissionProfile.resolve(QueryType.SIMPLE, "model", "provider")
@@ -73,5 +80,31 @@ class AgentPermissionProfileTest {
         val automation = ToolSchema("open_app", "automation", category = ToolSchema.Category.AUTOMATION)
         assertFalse(profile.filterTools(listOf(automation)).contains(automation))
         assertTrue(profile.allowConnectorRead)
+    }
+
+    @Test
+    fun actionProfileStillAllowsWriteFileAndTerminalTogether() {
+        val profile = AgentPermissionProfile.resolve(QueryType.ACTION, "model", "provider")
+        assertTrue(profile.allowFileWrite)
+        assertTrue(profile.filterTools(listOf(writeFile, terminal)).containsAll(listOf(writeFile, terminal)))
+    }
+
+    @Test
+    fun codeTaskGrantsWriteFileWithoutOpeningTheTerminal() {
+        val profile = AgentPermissionProfile.resolve(
+            QueryType.SIMPLE, "model", "provider", toolsRequested = true, codeTask = true,
+        )
+        val exposed = profile.filterTools(listOf(writeFile, terminal))
+        assertTrue(exposed.contains(writeFile))
+        assertFalse(exposed.contains(terminal))
+        assertFalse(profile.allowTerminalExecute)
+    }
+
+    @Test
+    fun writeFileStaysClosedWithoutActionOrCodeTask() {
+        val simple = AgentPermissionProfile.resolve(QueryType.SIMPLE, "model", "provider", toolsRequested = true)
+        assertFalse(simple.filterTools(listOf(writeFile)).contains(writeFile))
+        val noTools = AgentPermissionProfile.resolve(QueryType.SIMPLE, "model", "provider", codeTask = true)
+        assertFalse(noTools.filterTools(listOf(writeFile)).contains(writeFile))
     }
 }

@@ -6,6 +6,7 @@ import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import com.airi.assistant.ai.agent.trace.AgentTraceManager.TraceRemoval
 import com.airi.assistant.ui.activity.GlobalAgentEventDispatcher
 import com.airi.assistant.ai.remote.RemoteModelRegistry
 import com.airi.assistant.analytics.AnalyticsService
@@ -61,6 +62,58 @@ class AIRIApplication : Application() {
                 com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.attachStore(
                     com.airi.assistant.ai.agent.trace.AgentTraceStore(File(filesDir, "agent_traces.json"))
                 )
+                com.airi.assistant.ai.agent.trace.LiveTraceBridge(
+                    events = com.airi.assistant.core.ExecutionStatusBus.trace,
+                    goalFor = { id ->
+                        com.airi.assistant.core.ExecutionStatusBus.status.value
+                            .takeIf { it.executionId == id }
+                            ?.let { it.activeGoalDescription to it.sessionId }
+                    },
+                    manager = com.airi.assistant.ai.agent.trace.AgentTraceManager.instance,
+                    turnsFor = { id -> com.airi.assistant.core.ExecutionStatusBus.modelTurns(id) },
+                    turnTicks = com.airi.assistant.core.ExecutionStatusBus.modelTurnTicks,
+                ).start(applicationScope)
+                com.airi.assistant.data.run.AgentRunStore.init(applicationContext)
+                com.airi.assistant.ui.run.AppForegroundTracker.register(this)
+                com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.onTraceFinalized = { trace ->
+                    // Read now: the person may leave the app a moment later, and the answer is "where were
+                    // they when the run ended".
+                    val inForeground = com.airi.assistant.ui.run.AppForegroundTracker.isForeground
+                    applicationScope.launch {
+                        runCatching { com.airi.assistant.data.run.AgentRunStore.record(trace, keep = com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.maxTraces) }
+                        com.airi.assistant.ui.run.AgentRunNotifier.notifyIfNeeded(applicationContext, trace, inForeground)
+                    }
+                }
+                // Removals follow the same source: a deleted run also leaves the Room store and drops its
+                // file snapshots; the full wipe (account deletion) clears both completely.
+                com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.onTracesRemoved = { removed, kind ->
+                    applicationScope.launch {
+                        val history = File(filesDir, com.airi.assistant.agent.loop.tool.AgentFileHistory.DIRECTORY_NAME)
+                        val feedback = com.airi.assistant.ui.run.RunFeedbackStore.from(applicationContext)
+                        when (kind) {
+                            TraceRemoval.WIPE -> {
+                                runCatching { com.airi.assistant.data.run.AgentRunStore.clear() }
+                                com.airi.assistant.agent.loop.tool.AgentFileHistory.clear(history)
+                                runCatching { feedback.clear() }
+                            }
+                            TraceRemoval.CLEAR_LOGS -> {
+                                runCatching { com.airi.assistant.data.run.AgentRunStore.clear() }
+                                runCatching { feedback.clear() }
+                                com.airi.assistant.agent.loop.tool.AgentFileHistory.clear(
+                                    history,
+                                    keepExecutionIds = removed.filter { it.inProgress }.map { it.executionId }.filter { it.isNotBlank() }.toSet(),
+                                )
+                            }
+                            TraceRemoval.SOME -> removed.forEach { trace ->
+                                runCatching { com.airi.assistant.data.run.AgentRunStore.delete(trace.id) }
+                                runCatching { feedback.remove(trace.id) }
+                                if (trace.executionId.isNotBlank()) {
+                                    com.airi.assistant.agent.loop.tool.AgentFileHistory.delete(history, trace.executionId)
+                                }
+                            }
+                        }
+                    }
+                }
                 com.airi.assistant.core.ExecutionTraceArchive.attach(File(filesDir, "execution_trace_archive.json"))
                 com.airi.assistant.core.TraceRetention.apply(com.airi.assistant.core.TraceRetention.levelFrom(applicationContext))
             }

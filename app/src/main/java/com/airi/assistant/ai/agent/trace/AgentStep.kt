@@ -3,7 +3,15 @@ package com.airi.assistant.ai.agent.trace
 enum class AgentStepType {
     SKILL,
     TOOL,
-    TASK_STEP
+    TASK_STEP,
+    /** Report ج-5: what the loop decided about the request (query type, capabilities, tools offered). */
+    INTENT,
+    /** Requirements extracted before acting (code tasks). */
+    PLAN,
+    /** The verification gate's verdict on the result. */
+    VERIFY,
+    /** One model call of the run (Part 5 §3.4): provider/model, tool choice, finish reason, tokens. */
+    MODEL_TURN,
 }
 
 data class AgentStep(
@@ -30,5 +38,9 @@ data class AgentStep(
         AgentStepType.SKILL     -> "Skill"
         AgentStepType.TOOL      -> "Tool"
         AgentStepType.TASK_STEP -> "Task Step"
+        AgentStepType.INTENT    -> "Intent"
+        AgentStepType.PLAN      -> "Plan"
+        AgentStepType.VERIFY    -> "Verify"
+        AgentStepType.MODEL_TURN -> "Model"
     }
 }

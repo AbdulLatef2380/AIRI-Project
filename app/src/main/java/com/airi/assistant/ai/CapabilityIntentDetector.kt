@@ -19,6 +19,8 @@ object CapabilityIntentDetector {
         DEVICE_ACTION,
         TERMINAL_EXECUTE,
         FILE_WRITE,
+        /** "Build me a program": needs write_file so the result is delivered as a file. */
+        CODE_TASK,
     }
 
     data class Intent(
@@ -287,6 +289,7 @@ object CapabilityIntentDetector {
             capabilities += Capability.TERMINAL_EXECUTE
         }
         if (fileWritePhrases.any { text.contains(it) }) capabilities += Capability.FILE_WRITE
+        if (CodingTaskDetector.isCodingTask(text)) capabilities += Capability.CODE_TASK
         return Intent(capabilities, connectors)
     }
 

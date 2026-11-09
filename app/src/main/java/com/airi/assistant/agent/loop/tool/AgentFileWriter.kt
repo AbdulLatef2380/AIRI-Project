@@ -16,6 +16,16 @@ object AgentFileWriter {
     const val MAX_FILES = 200
     const val DIRECTORY_NAME = "agent_files"
 
+    /** Tool name this writer backs; the chat file card keys off it. */
+    const val TOOL_NAME = "write_file"
+
+    /** First words of the success message; [savedMessage] and the file card agree on it. */
+    const val SAVED_PREFIX = "Saved "
+
+    /** The tool result the model sees after a successful write. */
+    fun savedMessage(fileName: String, chars: Int): String =
+        "$SAVED_PREFIX$fileName ($chars characters) in AIRI files."
+
     val ALLOWED_EXTENSIONS: Set<String> = setOf(
         "txt", "md", "json", "csv", "tsv", "html", "css", "js", "ts", "jsx", "tsx",
         "py", "kt", "java", "xml", "yaml", "yml", "toml", "ini", "sql", "log",

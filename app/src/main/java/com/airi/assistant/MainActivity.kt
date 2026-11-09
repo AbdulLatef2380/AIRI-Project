@@ -66,6 +66,7 @@ class MainActivity : ComponentActivity() {
 
         // Cold-start OAuth callback — handles CustomTab redirects that launch the app fresh
         intent?.let { dispatchOAuthCallback(it) }
+        com.airi.assistant.ui.run.AgentRunDeepLink.offer(intent?.dataString)
 
         setContent {
             AiriTheme {
@@ -131,6 +132,7 @@ class MainActivity : ComponentActivity() {
             WakeWordDispatcher.fireTriggered()
         }
         dispatchOAuthCallback(intent)
+        com.airi.assistant.ui.run.AgentRunDeepLink.offer(intent.dataString)
     }
 
     /**

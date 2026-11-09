@@ -127,6 +127,8 @@ import com.airi.assistant.ui.text.canPerform
 import com.airi.assistant.ui.text.AssistantToolOutput
 import com.airi.assistant.ui.trace.InlineExecutionTrace
 import com.airi.assistant.ui.components.ThinkingAnimation
+import com.airi.assistant.ui.components.AgentFileCards
+import com.airi.assistant.agent.loop.tool.AgentFileCard
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -236,6 +238,7 @@ fun ChatScreen(
     val isSummarizing         by viewModel.isSummarizing.collectAsState()
     val pendingSummary        by viewModel.pendingSummary.collectAsState()
     val currentSessionId      by viewModel.currentSessionId.collectAsState()
+    val messageFocus          by viewModel.messageFocus.collectAsState()
     val sessionLoadState      by viewModel.sessionLoadState.collectAsState()
     val sessions              by viewModel.sessions.collectAsState()
     val favoriteSessionIds    by viewModel.favoriteSessionIds.collectAsState()
@@ -1200,6 +1203,8 @@ fun ChatScreen(
                 isCloudReady  = modelState.isCloudReady,
                 sessionLoadState = sessionLoadState,
                 onRetrySession = { id -> id?.let(viewModel::loadSession) },
+                focusRequest = messageFocus,
+                onFocusHandled = { request -> viewModel.consumeMessageFocus(request) },
                 onOpenModels  = { onNavigate(AiriRoute.MODELS) },
                 onShareAiResponse = { response -> shareAiResponse(context, response) },
                 onSpeak = { text ->
@@ -1222,6 +1227,7 @@ fun ChatScreen(
                 onExportPdf        = { exportPdfLauncher.launch(ChatExporter.buildFileName("pdf")) },
                 onExportMarkdown   = { exportMdLauncher.launch(ChatExporter.buildFileName("md")) },
                 onFeedback         = { uid, liked -> viewModel.submitFeedback(uid, liked) },
+                onOpenRun          = { runId -> onNavigate(AiriRoute.agentRun(runId)) },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = if (showChatSearch) 72.dp else 0.dp)
@@ -2169,6 +2175,8 @@ fun ChatMessageList(
     inlineTraceWorking: Boolean = false,
     sessionLoadState: com.airi.assistant.ui.viewmodel.SessionLoadState = com.airi.assistant.ui.viewmodel.SessionLoadState.NotStarted,
     onRetrySession: (String?) -> Unit = {},
+    focusRequest: com.airi.assistant.ui.viewmodel.MessageFocusRequest? = null,
+    onFocusHandled: (com.airi.assistant.ui.viewmodel.MessageFocusRequest) -> Unit = {},
     finalAnswerVerification: FinalAnswerUiState? = null,
     isModelReady: Boolean = false,
     isCloudReady: Boolean = false,
@@ -2182,6 +2190,7 @@ fun ChatMessageList(
     onExportPdf: (String) -> Unit = {},
     onExportMarkdown: (String) -> Unit = {},
     onFeedback: (uid: String, liked: Boolean) -> Unit = { _, _ -> },
+    onOpenRun: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -2194,6 +2203,29 @@ fun ChatMessageList(
         }
     }
     var lastScrolledStreamLen by remember { mutableStateOf(0) }
+
+    // "Open message" from the agent log: wait for the session to load, scroll to the message, and
+    // forget the request. Leading items mirror the conditional items declared before the messages.
+    LaunchedEffect(focusRequest, reversedMessages, sessionLoadState) {
+        val request = focusRequest ?: return@LaunchedEffect
+        val leadingItems = listOf(
+            generationStoppedNotice,
+            executionError != null,
+            streamingText.isNotEmpty() && isGenerating,
+            isGenerating && streamingText.isEmpty(),
+            finalAnswerVerification != null && !isGenerating,
+        ).count { it }
+        when (val decision = com.airi.assistant.ui.viewmodel.MessageFocusPolicy.decide(
+            request, reversedMessages.map { it.id }, leadingItems, sessionLoadState
+        )) {
+            is com.airi.assistant.ui.viewmodel.MessageFocusDecision.ScrollTo -> {
+                listState.scrollToItem(decision.index)
+                onFocusHandled(request)
+            }
+            com.airi.assistant.ui.viewmodel.MessageFocusDecision.Drop -> onFocusHandled(request)
+            com.airi.assistant.ui.viewmodel.MessageFocusDecision.Wait -> Unit
+        }
+    }
 
     LaunchedEffect(messages.size) {
         if (isPinnedToBottom && (messages.isNotEmpty() || streamingText.isNotEmpty())) {
@@ -2399,6 +2431,7 @@ fun ChatMessageList(
                                 text            = msg.outputPresentation.agentOutput,
                                 messageId       = msg.uid,
                                 toolOutputs     = msg.outputPresentation.toolOutputs,
+                                fileCards       = msg.fileCards,
                                 agentTag        = msg.agentTag,
                                 planLabel       = planLabel,
                                 traceId         = msg.traceId,
@@ -2419,7 +2452,8 @@ fun ChatMessageList(
                                 onFeedback      = { liked -> onFeedback(msg.uid, liked) },
                                 onExportPdf     = onExportPdf,
                                 onExportMarkdown = onExportMarkdown,
-                                initialFeedback = msg.feedback
+                                initialFeedback = msg.feedback,
+                                onOpenRun       = onOpenRun,
                             )
                         }
                     }
@@ -2953,6 +2987,7 @@ fun AiBubble(
     text: String,
     messageId: String = "",
     toolOutputs: List<AssistantToolOutput> = emptyList(),
+    fileCards: List<AgentFileCard> = emptyList(),
     agentTag: String? = null,
     planLabel: String = "Free",
     traceId: String? = null,
@@ -2970,7 +3005,9 @@ fun AiBubble(
     
     onFeedback: (liked: Boolean) -> Unit = {},
     onExportPdf: (String) -> Unit = {},
-    onExportMarkdown: (String) -> Unit = {}
+    onExportMarkdown: (String) -> Unit = {},
+    /** Opens the run screen for a trace id. When null, the legacy expandable badge is shown. */
+    onOpenRun: ((String) -> Unit)? = null,
 ) {
     val context   = LocalContext.current
     val haptic    = LocalHapticFeedback.current
@@ -2978,6 +3015,7 @@ fun AiBubble(
     val trace = remember(traceId, allTraces) {
         if (traceId != null) allTraces.find { it.id == traceId } else null
     }
+    val runCard = remember(trace) { trace?.let { com.airi.assistant.ui.run.buildRunCardModel(it) } }
     var traceExpanded by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
     var isSelectingText by remember { mutableStateOf(false) }
@@ -3177,6 +3215,14 @@ fun AiBubble(
                     }
                 }
 
+                // Item 7: files the agent wrote this turn, with Save / Share / Open.
+                if (fileCards.isNotEmpty()) {
+                    AgentFileCards(
+                        cards = fileCards,
+                        modifier = Modifier.padding(top = 8.dp, start = 2.dp, end = 2.dp),
+                    )
+                }
+
                 if (continuationHops > 0) {
                     Text(
                         text = stringResource(R.string.chat_auto_continued, continuationHops),
@@ -3229,8 +3275,11 @@ fun AiBubble(
                     }
                 }
 
-                // Agent trace card
-                if (trace != null) {
+                // Agent run card (Part 5 §1): real step count, opens the run screen; none without tools.
+                if (runCard != null && onOpenRun != null) {
+                    Spacer(Modifier.height(6.dp))
+                    com.airi.assistant.ui.run.RunCard(model = runCard, onOpen = { onOpenRun(runCard.runId) })
+                } else if (trace != null && onOpenRun == null) {
                     Spacer(Modifier.height(6.dp))
                     Column(
                         modifier = Modifier
@@ -3275,7 +3324,7 @@ fun AiBubble(
                             }
                         }
                     }
-                } else if (agentTag != null) {
+                } else if (trace == null && agentTag != null) {
                     Spacer(Modifier.height(4.dp))
                     Box(
                         modifier = Modifier.clip(AIRIShapes.xl).background(CosmicAccent.copy(0.12f))

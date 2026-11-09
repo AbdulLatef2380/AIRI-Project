@@ -147,6 +147,9 @@ import com.airi.assistant.ai.agent.trace.ChatExecutionTraceMapper
 import com.airi.assistant.ai.agent.trace.AgentTraceManager
 import com.airi.assistant.ui.text.AssistantOutputPresentation
 import com.airi.assistant.ui.text.AssistantToolOutput
+import com.airi.assistant.agent.loop.tool.AgentFileCard
+import com.airi.assistant.agent.loop.tool.AgentFileCards
+import com.airi.assistant.agent.loop.tool.AgentFileWriter
 
 private const val MAX_TOOL_OUTPUT_PRESENTATION_CHARS = 4_000
 
@@ -209,6 +212,8 @@ data class ChatMessage(
     val voiceDurationMs: Long = 0L,
     /** Raw tool results are presentation metadata, never merged into [text]. */
     val toolOutputs: List<AssistantToolOutput> = emptyList(),
+    /** Files the agent wrote this turn (Save / Share card). UI-only and not persisted. */
+    val fileCards: List<AgentFileCard> = emptyList(),
     /** UI-only evidence that the cloud response used automatic continuation. */
     val continuationHops: Int = 0,
 ) {
@@ -269,7 +274,9 @@ data class AgentState(
     data class ConfirmationRequest(
         val actionDisplayName: String,
         val actionDescription: String,
-        val isDestructive:     Boolean = true
+        val isDestructive:     Boolean = true,
+        /** Start of the approval window; the run screen draws its countdown from this. */
+        val requestedAtMs:     Long = System.currentTimeMillis()
     )
 }
 
@@ -972,6 +979,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val sessionLoadState: StateFlow<SessionLoadState> = _sessionLoadState.asStateFlow()
     private val sessionLoadGate = LatestOperationGate()
 
+    private val _messageFocus = MutableStateFlow<MessageFocusRequest?>(null)
+    /** Pending "open this message" request from the agent log; consumed by the chat list. */
+    val messageFocus: StateFlow<MessageFocusRequest?> = _messageFocus.asStateFlow()
+
+    /** Opens [sessionId] (if it is not the current one) and asks the chat list to show [messageId]. */
+    fun requestOpenMessage(sessionId: String, messageId: Long) {
+        if (sessionId.isBlank() || messageId <= 0L) return
+        _messageFocus.value = MessageFocusRequest(sessionId, messageId)
+        if (_currentSessionId.value != sessionId) loadSession(sessionId)
+    }
+
+    /** Clears [request] only if it is still the pending one, so a newer request is never lost. */
+    fun consumeMessageFocus(request: MessageFocusRequest) {
+        _messageFocus.compareAndSet(request, null)
+    }
+
     // Composer input is transient but owned by a durable conversation ID. It is
     // intentionally not written to Room because picker URIs and camera bitmaps
     // must not become persisted chat metadata before the user sends them.
@@ -1218,6 +1241,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         streamAccumulator.setLength(0)
         _streamingText.value = ""
+        runScopedAllowances.clear()
         _agentState.value = AgentState()
         _generationPhase.value = GenerationPhase.IDLE
         _isGenerating.value = false
@@ -1295,6 +1319,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // observed isWorking=true but the owned generation id is not yet
             // published. Without this, the stop button could appear inert.
             if (generationId == 0L) {
+                runScopedAllowances.clear()
                 _agentState.value = AgentState()
                 _generationPhase.value = GenerationPhase.IDLE
                 _isGenerating.value = false
@@ -1461,11 +1486,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * Called by ChatScreen confirmation dialog when the user responds to a
      * destructive accessibility action. Resumes the suspended AndroidAgent.
      */
-    fun confirmAccessibilityAction(approved: Boolean) {
+    fun confirmAccessibilityAction(approved: Boolean, rememberForRun: Boolean = false) {
+        val pending = _agentState.value
+        val request = pending.confirmationRequest
+        // "Allow for this run" is honoured only for a non-destructive request, and only for the
+        // same action within the same execution. A destructive action is always asked again.
+        if (approved && rememberForRun && request != null && !request.isDestructive && pending.executionId.isNotBlank()) {
+            runScopedAllowances.add(runAllowanceKey(pending.executionId, request.actionDisplayName))
+        }
         pendingConfirmation?.complete(approved)
         pendingConfirmation = null
         _agentState.update { it.copy(confirmationRequest = null) }
     }
+
+    /** Actions the user allowed for the rest of one execution; never persisted. */
+    private val runScopedAllowances: MutableSet<String> =
+        java.util.Collections.synchronizedSet(mutableSetOf())
+
+    private fun runAllowanceKey(executionId: String, actionDisplayName: String) = "$executionId|$actionDisplayName"
 
     /**
      * Suspend until the user confirms or cancels a destructive accessibility action.
@@ -1476,6 +1514,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         actionDisplayName: String,
         actionDescription: String
     ): Boolean {
+        val executionId = _agentState.value.executionId
+        if (executionId.isNotBlank() && runAllowanceKey(executionId, actionDisplayName) in runScopedAllowances) {
+            return true
+        }
         val deferred = kotlinx.coroutines.CompletableDeferred<Boolean>()
         pendingConfirmation = deferred
         _agentState.update {
@@ -1486,11 +1528,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
             )
         }
+        // Part 5 §1: the gate waits only 30 s, so when the app is not visible the person is told now.
+        val gateExecutionId = _agentState.value.executionId
+        com.airi.assistant.ui.run.AgentRunNotifier.notifyApprovalNeeded(
+            context = appContext,
+            executionId = gateExecutionId,
+            actionDisplayName = actionDisplayName,
+            appInForeground = com.airi.assistant.ui.run.AppForegroundTracker.isForeground,
+        )
         return try {
             kotlinx.coroutines.withTimeoutOrNull(30_000L) { deferred.await() } ?: false
         } finally {
             pendingConfirmation = null
             _agentState.update { it.copy(confirmationRequest = null) }
+            com.airi.assistant.ui.run.AgentRunNotifier.cancelApproval(appContext, gateExecutionId)
         }
     }
 
@@ -1694,6 +1745,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 deferredLlamaHistory = DeferredLlamaHistory(session.id, emptyList())
             } else {
                 streamAccumulator.setLength(0)
+                runScopedAllowances.clear()
                 _agentState.value = AgentState()
                 deferredLlamaHistory = null
                 llamaManager.setHistory(emptyList())
@@ -1734,6 +1786,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _messages.value = emptyList()
             streamAccumulator.setLength(0)
             _streamingText.value = ""
+            runScopedAllowances.clear()
             _agentState.value = AgentState()
             llamaManager.setHistory(emptyList())
             refreshSessions()
@@ -1811,7 +1864,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 fallbackReason = fallbackReason,
                 estimatedOutputTokens = estimatedOutputTokens,
                 firstVisibleTokenLatencyMs = firstVisibleTokenLatencyMs,
-            )?.let { AgentTraceManager.instance.recordChatExecution(it) }
+                modelTurns = ExecutionStatusBus.modelTurns(executionId),
+            )?.takeIf { it.steps.any { step -> step.type != com.airi.assistant.ai.agent.trace.AgentStepType.MODEL_TURN } || !it.success }
+                // A plain chat reply with no tool or step is not an agent run: storing it created an
+                // "Agent · 0" record per conversation. Failed runs are still kept as evidence.
+                ?.let { AgentTraceManager.instance.recordChatExecution(it) }
         }.onFailure { Log.w("AIRI_TRACE", "Could not persist execution trace type=${it.javaClass.simpleName}") }
     }
 
@@ -2552,7 +2609,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         append(knowledge)
                     }
                 } + com.airi.assistant.ai.prompt.CodeGenerationGuidancePolicy
-                    .systemPromptSuffix(trimmedInput)
+                    .systemPromptSuffix(trimmedInput, codeTask = chatIntent.canonicalCapability == "code_task")
             preTimeline.mark("base_prompt")
             // SPRINT 2 / Phase A4: Notify LlamaManager of the actual system prompt token
             // count so trimHistoryByTokens() can compensate for skill/tool expansion
@@ -2688,20 +2745,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     ) ?: availableTools
                 }
             }
-            val requestPermissionProfile = com.airi.assistant.core.AgentPermissionProfile.resolve(
+            val toolPromptBudget = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
+                .toolCharsCapFor(requestedProviderIdAtDispatch, llamaManager.contextBudget.availableForContent)
+            // Report ب-2: the same pipeline AgentLoop uses, so the two can no longer disagree.
+            val toolExposure = com.airi.assistant.agent.loop.tool.ToolExposurePipeline.resolve(
+                candidates = candidateTools,
                 queryType = queryType,
                 modelId = requestedModelIdAtDispatch,
                 providerId = requestedProviderIdAtDispatch,
-                toolsRequested = candidateTools.isNotEmpty(),
-            )
-            val permissionFilteredTools = requestPermissionProfile.filterTools(candidateTools)
-            val toolPromptBudget = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
-                .toolCharsCapFor(requestedProviderIdAtDispatch, llamaManager.contextBudget.availableForContent)
-            val toolSelection = com.airi.assistant.agent.loop.tool.ToolSchemaPromptBudget.select(
-                permissionFilteredTools,
-                toolPromptBudget,
+                codeTask = chatIntent.canonicalCapability == "code_task",
+                promptBudgetChars = toolPromptBudget,
                 requiredToolNames = catalog.requiredToolNames,
             )
+            val requestPermissionProfile = toolExposure.profile
+            val permissionFilteredTools = toolExposure.permitted
+            val toolSelection = toolExposure.selection
             val activeTools = toolSelection.tools
             preTimeline.mark("tool_catalog")
             val omittedRequiredTools = toolSelection.requiredButOmittedToolNames
@@ -2803,6 +2861,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 	            var firstTokenReceived = false
 	            var firstVisibleTokenLatencyMs: Long? = null
 	            val toolOutputs = mutableListOf<AssistantToolOutput>()
+	            val fileCards = mutableListOf<AgentFileCard>()
 	            val requestStart = System.currentTimeMillis()
 	            val traceExecutionId = java.util.UUID.randomUUID().toString()
             val needsResummarize = summaryPlan.shouldSummarize
@@ -2856,6 +2915,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 executionTraceSnapshot = ExecutionStatusBus.traceSnapshot(traceExecutionId),
                                 executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == traceExecutionId },
                                 toolOutputs = toolOutputs.toList(),
+                                fileCards = fileCards.toList(),
                             )
                         }
                     }
@@ -2921,6 +2981,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     platformCapabilitySnapshot = platformSnapshotBlock,
                     requestedExecutionId = traceExecutionId,
                     planMode       = _isPlanModeActive.value,
+                    requireToolOnFirstStep = chatIntent.canonicalCapability == "code_task",
+                    requiredToolNames = catalog.requiredToolNames,
                     onToken      = token@{ tok ->
                         if (!isCurrentGeneration(generationId) || _isCancelled.get()) return@token
                         val visibleToken = reasoningParser.consume(tok)
@@ -3026,12 +3088,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 }
                                 val outputForPresentation = overrideResult ?: result
                                 toolOutputs += AssistantToolOutput(
-                                    id = "tool-$generationId-${stepEvent.step}",
+                                    id = "tool-$generationId-${stepEvent.step}-${stepEvent.toolName}",
                                     toolName = stepEvent.toolName,
                                     step = stepEvent.step,
                                     text = outputForPresentation.take(MAX_TOOL_OUTPUT_PRESENTATION_CHARS),
                                     truncated = outputForPresentation.length > MAX_TOOL_OUTPUT_PRESENTATION_CHARS,
                                 )
+                                // Item 7: a successful write_file becomes a Save / Share card.
+                                AgentFileCards.fromToolResult(
+                                    toolName = stepEvent.toolName,
+                                    args = stepEvent.args,
+                                    result = result,
+                                    directory = File(appContext.filesDir, AgentFileWriter.DIRECTORY_NAME),
+                                )?.let { card ->
+                                    val merged = AgentFileCards.merge(fileCards, card)
+                                    fileCards.clear()
+                                    fileCards.addAll(merged)
+                                }
                                 overrideResult
                             }
                             is com.airi.assistant.agent.loop.AgentLoop.StepEvent.FinalAnswer -> {
@@ -3264,6 +3337,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                 executionTraceSnapshot = ExecutionStatusBus.traceSnapshot(traceExecutionId),
                                 executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == traceExecutionId },
                                 toolOutputs = toolOutputs.toList(),
+                                fileCards = fileCards.toList(),
                                 continuationHops = loopResult.completionMetadata.continuationHops,
                             )
                         }

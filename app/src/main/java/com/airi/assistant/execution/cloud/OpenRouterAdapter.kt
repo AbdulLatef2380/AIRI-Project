@@ -73,6 +73,14 @@ class OpenRouterAdapter(
             }
             val live = OpenRouterModelRegistry.snapshot()
             if (live.isNotEmpty()) {
+                // When the request needs tools, a model that does not declare them would answer in
+                // plain text and skip the action. Prefer declared tool support; if the catalog has
+                // no such information yet, keep the previous behaviour.
+                val toolIds = if (request.requiresToolCalling) OpenRouterModelRegistry.toolCapableSnapshot() else emptySet()
+                if (toolIds.isNotEmpty()) {
+                    candidates.firstOrNull { it in live && it in toolIds }?.let { return it }
+                    live.firstOrNull { it.endsWith(":free") && it in toolIds }?.let { return it }
+                }
                 candidates.firstOrNull { it in live }?.let { return it }
                 live.firstOrNull { it.endsWith(":free") }?.let { return it }
             }

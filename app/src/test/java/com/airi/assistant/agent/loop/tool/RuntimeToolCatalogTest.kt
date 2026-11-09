@@ -329,4 +329,29 @@ class RuntimeToolCatalogTest {
         assertTrue(blocked.all { name -> result.filtered.any { it.toolName == name } })
         assertFalse(exposed.contains("calendar_create"))
     }
+
+    @Test
+    fun codeTaskMakesWriteFileARequiredTool() {
+        val request = "قم بإنشاء كود لآلة حاسبة كاملة بلغة python"
+        val result = RuntimeToolCatalog.assemble(
+            builtins = listOf(BuiltinTools.CURRENT_TIME, BuiltinTools.WRITE_FILE, BuiltinTools.WEB_SEARCH),
+            skills = emptyList(),
+            connectors = emptyList(),
+            intent = CapabilityIntentDetector.detect(request),
+            requestText = request,
+        )
+        assertTrue(result.requiredToolNames.contains("write_file"))
+    }
+
+    @Test
+    fun plainChatDoesNotRequireWriteFile() {
+        val result = RuntimeToolCatalog.assemble(
+            builtins = listOf(BuiltinTools.WRITE_FILE),
+            skills = emptyList(),
+            connectors = emptyList(),
+            intent = CapabilityIntentDetector.detect("مرحبا كيف حالك"),
+            requestText = "مرحبا كيف حالك",
+        )
+        assertFalse(result.requiredToolNames.contains("write_file"))
+    }
 }

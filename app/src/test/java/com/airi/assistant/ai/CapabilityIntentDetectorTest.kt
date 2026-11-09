@@ -303,4 +303,17 @@ class CapabilityIntentDetectorTest {
         listOf("ما هو الملف الشخصي", "how do I open a file", "explain files in linux")
             .forEach { assertFalse(it, CapabilityIntentDetector.detect(it).requires(fileWrite)) }
     }
+
+    @Test
+    fun buildProgramRequestsRequireTheCodeTaskCapability() {
+        val codeTask = CapabilityIntentDetector.Capability.CODE_TASK
+        listOf(
+            "قم بإنشاء كود لآلة حاسبة كاملة بلغة python", "اكتب لي كود بايثون لترتيب قائمة",
+            "write a python script that renames files", "build me a small application using python",
+        ).forEach { assertTrue(it, CapabilityIntentDetector.detect(it).requires(codeTask)) }
+        listOf(
+            "كيف اكتب كود بلغة python", "what is a python script", "اكتب لي قصة قصيرة",
+            "اكتب لي عن بايثون", "my app build failed", "كم الساعة",
+        ).forEach { assertFalse(it, CapabilityIntentDetector.detect(it).requires(codeTask)) }
+    }
 }

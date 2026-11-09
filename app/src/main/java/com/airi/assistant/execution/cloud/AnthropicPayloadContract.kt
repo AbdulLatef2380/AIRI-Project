@@ -80,6 +80,7 @@ internal object AnthropicPayloadContract {
                 append(ToolDefinitionJson.anthropicTool(definition))
             }
             append("]")
+            append(ToolChoiceJson.anthropicMember(request.toolChoice, hasTools = true, toolName = request.toolChoiceName))
         }
         append(",\"stream\":true}")
     }

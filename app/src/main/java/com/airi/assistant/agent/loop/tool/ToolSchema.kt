@@ -238,17 +238,35 @@ object BuiltinTools {
         category = ToolSchema.Category.EXTERNAL,
     )
 
+    /**
+     * Report 3, phase 2, item 2: the prompt carries only skill names and one-line descriptions;
+     * the full SKILL.md text is loaded on demand. Read-only: it returns instructions, no side effects.
+     */
+    val LOAD_SKILL = ToolSchema(
+        name        = "load_skill",
+        description = "Load the full step-by-step instructions of a built-in skill before starting work that matches it. " +
+            "Available skills:\n" + com.airi.assistant.agent.loop.skill.AgentSkillCatalog.promptCatalog(),
+        parameters  = mapOf(
+            "name" to ToolSchema.Param(
+                "string", "Skill name from the list",
+                minLength = 1, maxLength = 64,
+                allowedValues = com.airi.assistant.agent.loop.skill.AgentSkillCatalog.names.toSet(),
+            ),
+        ),
+        category    = ToolSchema.Category.PRODUCTIVITY,
+    )
+
         /** Full set of tools for an ACTION-capable session. */
     val ALL: List<ToolSchema> = listOf(
         READ_SCREEN, OPEN_APP, TAP, TYPE_TEXT, SCROLL_DOWN, GO_BACK,
         WEB_SEARCH, FETCH_URL, MEMORY_RECALL,
         CALENDAR_READ, CURRENT_TIME, FLASHLIGHT, CALENDAR_CREATE, SET_ALARM, CREATE_NOTE, TERMINAL_EXECUTE, WRITE_FILE,
-        ASK_CONFIRMATION, CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL
+        ASK_CONFIRMATION, CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL, LOAD_SKILL
     )
 
     /** Minimal set for plain chat (no accessibility, no calendar write). */
     val CHAT_ONLY: List<ToolSchema> = listOf(
         WEB_SEARCH, FETCH_URL, MEMORY_RECALL, CALENDAR_READ, CURRENT_TIME, CREATE_NOTE, TERMINAL_EXECUTE, WRITE_FILE,
-        CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL
+        CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL, LOAD_SKILL
     )
 }

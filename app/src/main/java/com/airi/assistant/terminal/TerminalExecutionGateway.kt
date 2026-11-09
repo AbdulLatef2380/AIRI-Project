@@ -30,14 +30,34 @@ class TerminalExecutionGateway(
     fun closeSession(id: String) = sandboxManager.closeSession(id)
 
     /** Execute one agent request in a task-owned ephemeral workspace. */
-    suspend fun executeForAgent(command: String, agentId: String): Result {
+    suspend fun executeForAgent(command: String, agentId: String, seedFilesFrom: java.io.File? = null): Result {
         val session = createSession("agent:$agentId")
             ?: return Result.Denied("Could not allocate an agent workspace")
         return try {
+            // Report د-2: files saved by write_file live in another folder. The task workspace gets
+            // a bounded COPY of them, so `cat`/`grep` can read what the agent wrote. The copy is
+            // thrown away with the workspace; the originals are never exposed to the command.
+            seedFilesFrom?.let { copySeedFiles(it, session.workspaceDir) }
             execute(session, command, agentId)
         } finally {
             closeSession(session.sessionId)
         }
+    }
+
+    private fun copySeedFiles(source: java.io.File, target: java.io.File) {
+        runCatching {
+            if (!source.isDirectory) return
+            source.listFiles { f -> f.isFile && !f.name.startsWith(".") && f.length() <= SEED_MAX_FILE_BYTES }
+                .orEmpty()
+                .sortedBy { it.name }
+                .take(SEED_MAX_FILES)
+                .forEach { it.copyTo(java.io.File(target, it.name), overwrite = true) }
+        }
+    }
+
+    private companion object {
+        const val SEED_MAX_FILES = 50
+        const val SEED_MAX_FILE_BYTES = 256L * 1024
     }
 
     suspend fun execute(

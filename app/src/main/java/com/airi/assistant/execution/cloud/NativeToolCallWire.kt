@@ -5,7 +5,18 @@ import org.json.JSONObject
 
 /** Bridges provider-native calls to the existing, validated AgentLoop call envelope. */
 internal object NativeToolCallWire {
-    data class Call(val name: String, val argumentsJson: String, val id: String = "")
+    /** Envelope member that carries arguments which were not a valid JSON object. */
+    const val INVALID_ARGS_KEY = "invalid_arguments_raw"
+
+    data class Call(val name: String, val argumentsJson: String, val id: String = "") {
+        /**
+         * False when [argumentsJson] is not a JSON object (for example a stream cut off by the
+         * output limit). [encode] used to turn that into `{}` silently, so a truncated write_file
+         * arrived with empty content; callers now check this flag and ask the model to re-emit.
+         */
+        val argumentsValid: Boolean
+            get() = argumentsJson.isBlank() || runCatching { JSONObject(argumentsJson) }.isSuccess
+    }
 
     fun encode(call: Call): String = encode(listOf(call))
 
@@ -33,6 +44,13 @@ internal object NativeToolCallWire {
         return objects.mapNotNull { call ->
             val name = call.optString("name").trim()
             if (name.isBlank()) return@mapNotNull null
+            val rawInvalid = call.optString(INVALID_ARGS_KEY, "")
+            if (call.has(INVALID_ARGS_KEY)) {
+                // Arguments were not a JSON object when the call was encoded (e.g. cut off by the
+                // output limit). Keep the raw text so [Call.argumentsValid] stays false and the
+                // loop reports INVALID_ARGUMENTS instead of running the tool with `{}`.
+                return@mapNotNull Call(name = name, argumentsJson = rawInvalid.ifBlank { "<invalid>" }, id = call.optString("id"))
+            }
             val args = call.optJSONObject("args") ?: call.optJSONObject("arguments") ?: JSONObject()
             Call(name = name, argumentsJson = args.toString(), id = call.optString("id"))
         }
@@ -40,7 +58,11 @@ internal object NativeToolCallWire {
 
     private fun callJson(call: Call): JSONObject = JSONObject().apply {
         put("name", call.name)
-        put("args", runCatching { JSONObject(call.argumentsJson) }.getOrElse { JSONObject() })
+        if (call.argumentsValid) {
+            put("args", if (call.argumentsJson.isBlank()) JSONObject() else JSONObject(call.argumentsJson))
+        } else {
+            put(INVALID_ARGS_KEY, call.argumentsJson)
+        }
         if (call.id.isNotBlank()) put("id", call.id)
     }
 }

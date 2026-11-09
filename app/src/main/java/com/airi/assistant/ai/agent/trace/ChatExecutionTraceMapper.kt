@@ -27,6 +27,8 @@ object ChatExecutionTraceMapper {
         estimatedOutputTokens: Int? = null,
         firstVisibleTokenLatencyMs: Long? = null,
         traceId: String? = null,
+        /** Model calls of this execution (Part 5 §3.4); merged in as [AgentStepType.MODEL_TURN] steps. */
+        modelTurns: List<ModelTurnRecord> = emptyList(),
     ): AgentTrace? {
         if (executionId.isBlank() || events.isEmpty()) return null
 
@@ -52,7 +54,18 @@ object ChatExecutionTraceMapper {
             // recovery, and completion steps are recorded.
             listOf(allSteps.first()) + allSteps.takeLast(AgentTraceManager.MAX_STEPS - 1)
         }
-        val steps = kept.mapIndexed { index, step -> step.copy(stepIndex = index) }
+        // Model turns are merged after the cap: they would otherwise crowd out the work steps the
+        // cap exists to keep, and they have their own bound ([ModelTurnSteps.MAX_TURNS]).
+        val turnSteps = modelTurns
+            .sortedBy { it.turn }
+            .take(ModelTurnSteps.MAX_TURNS)
+            .map { ModelTurnSteps.toStep(it) { text -> PrivacyGuard.redactForTrace(text, AgentTraceManager.STEP_OUTPUT_CHARS) } }
+        val merged = if (turnSteps.isEmpty()) kept else (kept + turnSteps).sortedBy { it.timestampMs }
+        val steps = merged.mapIndexed { index, step -> step.copy(stepIndex = index) }
+        // The gap marker belongs right after the first work step, wherever turns landed around it.
+        val gapIndex = if (allSteps.size > kept.size) {
+            kept.getOrNull(1)?.let { second -> merged.indexOfFirst { it === second } }?.takeIf { it >= 0 } ?: 1
+        } else 0
 
         return AgentTrace(
             id = traceId?.takeIf { it.isNotBlank() } ?: executionId,
@@ -82,16 +95,22 @@ object ChatExecutionTraceMapper {
             firstVisibleTokenLatencyMs = firstVisibleTokenLatencyMs,
             truncated = allSteps.size > kept.size,
             droppedSteps = allSteps.size - kept.size,
+            droppedAtIndex = gapIndex,
         )
     }
 
-    private fun hasRecoveredFailures(
+    /**
+     * True only when every failure up to the terminal event was followed by an explicit
+     * RECOVERING event and then a completed tool/step (or the terminal COMPLETED itself).
+     * A success before the failure, or a success after it without RECOVERING, does not clear it:
+     * the old rule let `tool ok, tool failed, COMPLETED` be reported as a successful run.
+     */
+    internal fun hasRecoveredFailures(
         events: List<ExecutionTraceEvent>,
         terminalSequence: Long,
     ): Boolean {
         var pendingFailures = 0
         var recoveryStarted = false
-        var completedToolBeforeFailure = false
         events.filter { it.sequence <= terminalSequence }.forEach { event ->
             when (event.kind) {
                 ExecutionTraceKind.TOOL_FAILED,
@@ -105,7 +124,6 @@ object ChatExecutionTraceMapper {
                 ExecutionTraceKind.RECOVERING -> recoveryStarted = true
                 ExecutionTraceKind.TOOL_COMPLETED,
                 ExecutionTraceKind.STEP_COMPLETED -> {
-                    if (event.kind == ExecutionTraceKind.TOOL_COMPLETED) completedToolBeforeFailure = true
                     if (pendingFailures > 0 && recoveryStarted) pendingFailures--
                     recoveryStarted = false
                 }
@@ -115,10 +133,7 @@ object ChatExecutionTraceMapper {
                 else -> Unit
             }
         }
-        // A later explicit recovery is authoritative. A completed tool turn
-        // followed by a non-terminal tool diagnostic is also a successful
-        // overall execution; the diagnostic remains visible as a failed step.
-        return pendingFailures == 0 || completedToolBeforeFailure
+        return pendingFailures == 0
     }
 
     /** Only events that mark a finished unit of work become steps. */
@@ -133,11 +148,23 @@ object ChatExecutionTraceMapper {
             ExecutionTraceKind.TIMED_OUT -> AgentStepType.TASK_STEP to false
             else -> return null
         }
+        val decisionType = when (event.machineTag) {
+            "decision_intent" -> AgentStepType.INTENT
+            "decision_plan" -> AgentStepType.PLAN
+            "decision_verify" -> AgentStepType.VERIFY
+            else -> null
+        }
+        // For tool events `actionId` is an opaque per-call id; the readable tool name is the part of
+        // the summary after "Tool completed: " / "Tool failed: " / "Tool cancelled: ".
+        val toolName = if (event.machineTag == "tool_call") toolNameFrom(event.summary) else null
+        // A successful tool event carries only `detail` (source and result length), which the old
+        // mapping dropped; show it instead of repeating the "Tool completed" summary.
+        val shownOutput = if (ok && toolName != null) event.detail?.takeIf { it.isNotBlank() } ?: event.summary else event.summary
         return AgentStep(
             stepIndex = 0,
-            type = type,
-            name = event.actionId ?: event.machineTag ?: event.kind.name.lowercase(),
-            outputSummary = PrivacyGuard.redactForTrace(event.summary, AgentTraceManager.STEP_OUTPUT_CHARS),
+            type = decisionType ?: type,
+            name = toolName ?: event.actionId ?: event.machineTag ?: event.kind.name.lowercase(),
+            outputSummary = PrivacyGuard.redactForTrace(shownOutput, AgentTraceManager.STEP_OUTPUT_CHARS),
             success = ok,
             error = if (ok) null else PrivacyGuard.redactForTrace(
                 event.detail ?: event.errorCode ?: event.summary,
@@ -149,4 +176,8 @@ object ChatExecutionTraceMapper {
             inputParams = event.inputParams,
         )
     }
+
+    /** Tool name from a tool lifecycle summary such as "Tool completed: write_file", or null. */
+    internal fun toolNameFrom(summary: String): String? =
+        summary.substringAfter(": ", "").trim().takeIf { it.isNotEmpty() && !it.contains(' ') }
 }

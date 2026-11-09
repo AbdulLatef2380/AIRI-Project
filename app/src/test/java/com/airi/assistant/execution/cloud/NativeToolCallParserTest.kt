@@ -33,4 +33,22 @@ class NativeToolCallParserTest {
         assertEquals("web_search", event.toolCalls.single().name)
         assertEquals("call-1", event.toolCalls.single().id)
     }
+
+    @Test
+    fun truncatedArgumentsStayInvalidAfterEncodeAndDecode() {
+        val truncated = NativeToolCallWire.Call("write_file", "{\"filename\":\"calc.py\",\"content\":\"import tk", "c1")
+        assertTrue(!truncated.argumentsValid)
+        val decoded = NativeToolCallWire.decode(NativeToolCallWire.encode(truncated))
+        assertEquals(1, decoded.size)
+        assertTrue("invalid arguments must not become {}", !decoded.single().argumentsValid)
+        assertEquals("c1", decoded.single().id)
+    }
+
+    @Test
+    fun validArgumentsRoundTrip() {
+        val call = NativeToolCallWire.Call("web_search", "{\"query\":\"x\"}", "c2")
+        val decoded = NativeToolCallWire.decode(NativeToolCallWire.encode(call)).single()
+        assertTrue(decoded.argumentsValid)
+        assertTrue(decoded.argumentsJson.contains("\"query\""))
+    }
 }

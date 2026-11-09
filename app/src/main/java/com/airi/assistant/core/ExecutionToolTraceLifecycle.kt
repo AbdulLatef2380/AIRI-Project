@@ -11,6 +11,8 @@ class ExecutionToolTraceLifecycle {
     private var activeExecutionId: String? = null
     private val activeActionIds = mutableSetOf<String>()
     private val terminalActionIds = mutableSetOf<String>()
+    private val verificationRequired = mutableSetOf<String>()
+    private val verificationPassed = mutableSetOf<String>()
 
     @Synchronized
     fun begin(executionId: String) {
@@ -18,6 +20,8 @@ class ExecutionToolTraceLifecycle {
         activeExecutionId = executionId
         activeActionIds.clear()
         terminalActionIds.clear()
+        verificationRequired.clear()
+        verificationPassed.clear()
     }
 
     @Synchronized
@@ -25,6 +29,8 @@ class ExecutionToolTraceLifecycle {
         activeExecutionId = null
         activeActionIds.clear()
         terminalActionIds.clear()
+        verificationRequired.clear()
+        verificationPassed.clear()
     }
 
     /** Admits exactly one start event for an action belonging to the active execution. */
@@ -38,10 +44,30 @@ class ExecutionToolTraceLifecycle {
 
     /** Admits one terminal event only after its matching start event. */
     @Synchronized
-    fun admitTerminal(executionId: String, actionId: String): Boolean {
+    fun admitTerminal(executionId: String, actionId: String, successful: Boolean = true): Boolean {
         if (!belongsToActiveExecution(executionId) || actionId.isBlank()) return false
+        if (successful && actionId in verificationRequired && actionId !in verificationPassed) return false
         if (!activeActionIds.remove(actionId)) return false
+        verificationRequired.remove(actionId)
+        verificationPassed.remove(actionId)
         return terminalActionIds.add(actionId)
+    }
+
+    /** Marks that this action must pass verification before a terminal result is admitted. */
+    @Synchronized
+    fun requireVerification(executionId: String, actionId: String): Boolean {
+        if (!belongsToActiveExecution(executionId) || actionId !in activeActionIds) return false
+        verificationRequired += actionId
+        verificationPassed.remove(actionId)
+        return true
+    }
+
+    /** Records the typed verification verdict for a live action. */
+    @Synchronized
+    fun completeVerification(executionId: String, actionId: String, passed: Boolean): Boolean {
+        if (!belongsToActiveExecution(executionId) || actionId !in verificationRequired) return false
+        if (passed) verificationPassed += actionId else verificationPassed.remove(actionId)
+        return true
     }
 
     @Synchronized

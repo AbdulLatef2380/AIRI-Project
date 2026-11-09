@@ -106,6 +106,32 @@ class UnifiedExecutionTraceProjectorTest {
     }
 
     @Test
+    fun `activity event with canonical action identity updates one row instead of adding a duplicate`() {
+        val canonical = listOf(
+            trace("run-action", 1, 1_000, ExecutionTraceKind.TOOL_STARTED, "Running tool: read_file", "action-1"),
+            trace("run-action", 2, 1_100, ExecutionTraceKind.TOOL_COMPLETED, "Tool completed: read_file", "action-1"),
+        )
+        val activity = ActivityEvent(
+            id = "activity-action-1",
+            timestampMs = 1_050,
+            message = "read_file completed",
+            executionId = "run-action",
+            category = ActivityCategory.TOOL,
+            metadata = ActivityMetadata(
+                phase = ActivityPhase.RESULT,
+                status = ActivityStatus.COMPLETED,
+                actionId = "action-1",
+            ),
+        )
+
+        val result = project("run-action", canonical, listOf(activity))
+
+        assertEquals(1, result.size)
+        assertEquals("action-1", result.single().actionId)
+        assertEquals(TaskStatus.COMPLETED, result.single().status)
+    }
+
+    @Test
     fun `unlinked execution activity is diagnostic orphan and cannot admit execution`() {
         val projection = UnifiedExecutionTraceProjector.projectProjection(
             executionId = "run-orphan",
@@ -837,6 +863,70 @@ class UnifiedExecutionTraceProjectorTest {
         assertTrue(result.single().detailLog.orEmpty().contains("Source: workspace"))
     }
 
+    @Test
+    fun `projection exposes one synthetic execution root while retaining canonical children`() {
+        val projection = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-root",
+            traceEntries = listOf(
+                trace("run-root", 1, 1_000, ExecutionTraceKind.STEP_STARTED, "Executing step", "step-1"),
+                trace("run-root", 2, 1_001, ExecutionTraceKind.TOOL_STARTED, "Running tool: read_file", "tool-1")
+                    .copy(parentId = "step-1"),
+                trace("run-root", 3, 1_002, ExecutionTraceKind.TOOL_COMPLETED, "Tool completed: read_file", "tool-1")
+                    .copy(parentId = "step-1"),
+            ),
+            activityEvents = emptyList(),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertEquals("execution-root:run-root", projection.executionRoot?.event?.eventId)
+        assertEquals(projection.taskTree, projection.executionRoot?.children)
+        assertEquals("tool-1", projection.executionRoot?.children?.single()?.children?.single()?.event?.actionId)
+    }
+
+    @Test
+    fun `typed plan and reasoning evidence remain visible while admission planning is hidden`() {
+        val projection = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-decisions",
+            traceEntries = listOf(
+                trace("run-decisions", 1, 1_000, ExecutionTraceKind.PLANNING, "Planning task"),
+                trace("run-decisions", 2, 1_001, ExecutionTraceKind.PLAN_CREATED, "Plan created", "plan-1")
+                    .copy(machineTag = "plan_created"),
+                trace("run-decisions", 3, 1_002, ExecutionTraceKind.REASONING_NOTE, "Using workspace", "note-1"),
+            ),
+            activityEvents = emptyList(),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertTrue(projection.events.any { it.machineTag == "plan_created" })
+        assertTrue(projection.events.any { it.title == "Using workspace" })
+        assertTrue(projection.events.none { it.machineTag == "planning" })
+    }
+
+    @Test
+    fun `large nested trees are bounded and expose dropped-node evidence`() {
+        val entries = buildList {
+            add(trace("run-cap", 1, 1_000, ExecutionTraceKind.STEP_STARTED, "Executing step", "step-1"))
+            repeat(400) { index ->
+                val action = "tool-$index"
+                add(trace("run-cap", (index * 2 + 2).toLong(), 1_001L + index, ExecutionTraceKind.TOOL_STARTED, "Read file $index", action).copy(parentId = "step-1"))
+                add(trace("run-cap", (index * 2 + 3).toLong(), 1_401L + index, ExecutionTraceKind.TOOL_COMPLETED, "Tool completed: read_file", action).copy(parentId = "step-1"))
+            }
+        }
+        val projection = UnifiedExecutionTraceProjector.projectProjection(
+            executionId = "run-cap",
+            traceEntries = entries,
+            activityEvents = emptyList(),
+            planningTaskLabel = "Planning task",
+            executionCompletedLabel = "Execution completed",
+        )
+
+        assertTrue(projection.treeTruncated)
+        assertTrue(projection.droppedNodes > 0)
+        assertTrue((projection.executionRoot?.children?.sumOf { countNodes(it) } ?: 0) <= 256)
+    }
+
     private fun trace(
         executionId: String,
         sequence: Long,
@@ -860,4 +950,7 @@ class UnifiedExecutionTraceProjectorTest {
         outputSummary = outputSummary,
         provenance = provenance,
     )
+
+    private fun countNodes(node: UnifiedExecutionTraceTaskNode): Int =
+        1 + node.children.sumOf(::countNodes)
 }

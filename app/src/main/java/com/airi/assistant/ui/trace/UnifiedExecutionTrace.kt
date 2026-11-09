@@ -84,11 +84,17 @@ data class UnifiedExecutionTraceProjection(
     val groups: List<UnifiedExecutionTraceGroup>,
     val summary: UnifiedExecutionTraceSummary,
     val taskTree: List<UnifiedExecutionTraceTaskNode> = emptyList(),
+    /** Synthetic execution root; children retain the real trace event identities. */
+    val executionRoot: UnifiedExecutionTraceTaskNode? = null,
     val executionMode: UnifiedExecutionMode = UnifiedExecutionMode.DIRECT,
     val admitted: Boolean = false,
     val currentStep: UnifiedExecutionTraceEvent? = null,
     val lastCompletedStep: UnifiedExecutionTraceEvent? = null,
     val lastActivity: UnifiedExecutionTraceEvent? = null,
+    /** True when the detailed tree was bounded; terminal outcome remains available on the root. */
+    val treeTruncated: Boolean = false,
+    val droppedNodes: Int = 0,
+    val droppedAtIndex: Int = 0,
 )
 
 /**
@@ -97,6 +103,7 @@ data class UnifiedExecutionTraceProjection(
  * state is updated by the terminal event; they are never rendered as separate rows.
  */
 internal object UnifiedExecutionTraceProjector {
+    private const val MAX_TREE_NODES = 256
     private val FILE_EDIT_MARKERS = setOf(
         "file_created", "file_updated", "file_edited", "file_written",
         "create file", "edit file", "write file",
@@ -193,7 +200,13 @@ internal object UnifiedExecutionTraceProjector {
         // so direct responses never render a phantom plan or task counter.
         val events = projected
             .asSequence()
-            .filterNot { it.category == UnifiedTraceCategory.PLAN || it.phase == ActivityPhase.ADMISSION }
+            // Planning admission is intentionally hidden, but the typed plan
+            // decision and reasoning note remain visible lifecycle evidence.
+            .filterNot {
+                it.machineTag == "planning" ||
+                    it.machineTag == "execution_started" ||
+                    it.phase == ActivityPhase.ADMISSION && it.category == UnifiedTraceCategory.PLAN
+            }
             .sortedWith(compareBy<UnifiedExecutionTraceEvent> { it.timestampMs }.thenBy { it.sequence })
             .toList()
         val groups = events.groupBy { it.category }.map { (category, groupEvents) ->
@@ -206,7 +219,23 @@ internal object UnifiedExecutionTraceProjector {
         }.sortedBy { groupOrder(it.category) }
         val stateEvents = events.filterNot { it.orphaned }
         val summary = summarize(stateEvents)
-        val taskTree = buildTaskTree(stateEvents)
+        val fullTaskTree = buildTaskTree(stateEvents)
+        val taskTreeNodeCount = fullTaskTree.sumOf { treeNodeCount(it) }
+        val taskTree = limitTree(fullTaskTree, MAX_TREE_NODES)
+        val terminal = stateEvents.lastOrNull { it.status in setOf(TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED) }
+        val rootEvent = UnifiedExecutionTraceEvent(
+            executionId = executionId,
+            eventId = "execution-root:$executionId",
+            actionId = null,
+            sequence = stateEvents.firstOrNull()?.sequence ?: 0L,
+            timestampMs = stateEvents.firstOrNull()?.timestampMs ?: 0L,
+            title = "Execution",
+            status = terminal?.status ?: if (stateEvents.isEmpty()) TaskStatus.PENDING else TaskStatus.RUNNING,
+            detailLog = terminal?.detailLog,
+            category = UnifiedTraceCategory.SYSTEM,
+            machineTag = "execution_root",
+            phase = ActivityPhase.LIFECYCLE,
+        )
         val admitted = stateEvents.any { it.category in setOf(
             UnifiedTraceCategory.TASK,
             UnifiedTraceCategory.FILE,
@@ -221,6 +250,7 @@ internal object UnifiedExecutionTraceProjector {
             groups = groups,
             summary = summary,
             taskTree = taskTree,
+            executionRoot = rootEvent.takeIf { stateEvents.isNotEmpty() }?.let { UnifiedExecutionTraceTaskNode(it, taskTree) },
             executionMode = when {
                 stateEvents.any { it.category == UnifiedTraceCategory.TASK } -> UnifiedExecutionMode.PLAN
                 stateEvents.any {
@@ -239,6 +269,9 @@ internal object UnifiedExecutionTraceProjector {
             currentStep = stateEvents.lastOrNull { it.category == UnifiedTraceCategory.TASK && it.status == TaskStatus.RUNNING },
             lastCompletedStep = stateEvents.lastOrNull { it.category == UnifiedTraceCategory.TASK && it.status == TaskStatus.COMPLETED },
             lastActivity = stateEvents.lastOrNull(),
+            treeTruncated = taskTreeNodeCount > MAX_TREE_NODES,
+            droppedNodes = (taskTreeNodeCount - MAX_TREE_NODES).coerceAtLeast(0),
+            droppedAtIndex = MAX_TREE_NODES,
         )
     }
 
@@ -275,6 +308,27 @@ internal object UnifiedExecutionTraceProjector {
         fun freeze(node: MutableNode): UnifiedExecutionTraceTaskNode =
             UnifiedExecutionTraceTaskNode(node.event, node.children.map(::freeze))
         return roots.map(::freeze)
+    }
+
+    private fun treeNodeCount(node: UnifiedExecutionTraceTaskNode): Int =
+        1 + node.children.sumOf(::treeNodeCount)
+
+    private fun treeNodeCount(nodes: List<UnifiedExecutionTraceTaskNode>): Int =
+        nodes.sumOf(::treeNodeCount)
+
+    /** Keep deterministic depth-first evidence while bounding Compose work. */
+    private fun limitTree(
+        roots: List<UnifiedExecutionTraceTaskNode>,
+        limit: Int,
+    ): List<UnifiedExecutionTraceTaskNode> {
+        var remaining = limit
+        fun trim(node: UnifiedExecutionTraceTaskNode): UnifiedExecutionTraceTaskNode? {
+            if (remaining <= 0) return null
+            remaining--
+            val children = node.children.mapNotNull(::trim)
+            return node.copy(children = children)
+        }
+        return roots.mapNotNull(::trim)
     }
 
     private fun collapseStructuredActions(

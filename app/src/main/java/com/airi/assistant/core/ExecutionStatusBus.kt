@@ -432,7 +432,11 @@ object ExecutionStatusBus {
     }
 
     fun onVerificationStarted(executionId: String, actionId: String, detail: String? = null) {
-        if (isOpenExecution(executionId)) {
+        val admitted = synchronized(traceLock) {
+            actionId == "final_answer" ||
+                toolTraceLifecycles[executionId]?.requireVerification(executionId, actionId) == true
+        }
+        if (admitted && isOpenExecution(executionId)) {
             appendTrace(executionId, ExecutionTraceKind.VERIFICATION_STARTED, "Verification started", detail,
                 actionId = actionId, machineTag = "verification_started", parentId = actionId)
         }
@@ -445,7 +449,11 @@ object ExecutionStatusBus {
         detail: String? = null,
         errorCode: String? = null,
     ) {
-        if (isOpenExecution(executionId)) {
+        val admitted = synchronized(traceLock) {
+            actionId == "final_answer" ||
+                toolTraceLifecycles[executionId]?.completeVerification(executionId, actionId, passed) == true
+        }
+        if (admitted && isOpenExecution(executionId)) {
             appendTrace(
                 executionId = executionId,
                 kind = if (passed) ExecutionTraceKind.VERIFICATION_PASSED else ExecutionTraceKind.VERIFICATION_FAILED,
@@ -773,7 +781,11 @@ object ExecutionStatusBus {
             // Tool traces are execution-owned. The single visible AgentState may
             // already belong to (or be terminal for) a different execution.
             if (!isOpenExecution(executionId) ||
-                toolTraceLifecycles[executionId]?.admitTerminal(executionId, actionId) != true
+                toolTraceLifecycles[executionId]?.admitTerminal(
+                    executionId,
+                    actionId,
+                    successful = kind == ExecutionTraceKind.TOOL_COMPLETED,
+                ) != true
             ) {
                 safeLog { Log.w(TAG, "TRACE_TOOL_TERMINAL_REJECTED owner=${executionId.take(8)}") }
                 return

@@ -2335,4 +2335,12 @@
     <string name="agent_trace_summary_files_completed">Se leyeron %1$d archivos</string>
     <string name="agent_trace_summary_files_edited">Editando %1$d archivos</string>
     <string name="agent_trace_summary_files_edited_completed">Se editaron %1$d archivos</string>
+    <string name="agent_trace_kind_execution_started">Ejecución iniciada</string>
+    <string name="agent_trace_kind_plan_created">Plan creado</string>
+    <string name="agent_trace_kind_reasoning_note">Nota de progreso</string>
+    <string name="agent_trace_kind_tool_requested">Herramienta solicitada</string>
+    <string name="agent_trace_kind_tool_output">Salida de la herramienta</string>
+    <string name="agent_trace_kind_verification_started">Verificación iniciada</string>
+    <string name="agent_trace_kind_verification_passed">Verificación superada</string>
+    <string name="agent_trace_kind_verification_failed">Verificación fallida</string>
 </resources>

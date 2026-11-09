@@ -2318,4 +2318,12 @@
     <string name="agent_trace_summary_files_completed">已读取 %1$d 个文件</string>
     <string name="agent_trace_summary_files_edited">正在编辑 %1$d 个文件</string>
     <string name="agent_trace_summary_files_edited_completed">已编辑 %1$d 个文件</string>
+    <string name="agent_trace_kind_execution_started">执行已开始</string>
+    <string name="agent_trace_kind_plan_created">计划已创建</string>
+    <string name="agent_trace_kind_reasoning_note">进度说明</string>
+    <string name="agent_trace_kind_tool_requested">已请求工具</string>
+    <string name="agent_trace_kind_tool_output">工具输出</string>
+    <string name="agent_trace_kind_verification_started">验证已开始</string>
+    <string name="agent_trace_kind_verification_passed">验证通过</string>
+    <string name="agent_trace_kind_verification_failed">验证失败</string>
 </resources>

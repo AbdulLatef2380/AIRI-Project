@@ -84,6 +84,28 @@ class ExecutionStatusBusTest {
     }
 
     @Test
+    fun failedVerificationBlocksToolCompletionAtTheTraceGateway() {
+        val executionId = "verification-gate-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Verify before completion", 1, executionId)
+        ExecutionStatusBus.onToolStarted(executionId, "tool-1", "write_file")
+        ExecutionStatusBus.onVerificationStarted(executionId, "tool-1", "checking diff")
+        ExecutionStatusBus.onVerificationCompleted(
+            executionId = executionId,
+            actionId = "tool-1",
+            passed = false,
+            detail = "diff rejected",
+            errorCode = "verification_failed",
+        )
+        ExecutionStatusBus.onToolCompleted(executionId, "tool-1", "write_file", 10L)
+
+        val trace = ExecutionStatusBus.traceSnapshot(executionId)
+        assertTrue(trace.any { it.kind == ExecutionTraceKind.VERIFICATION_FAILED })
+        assertTrue(trace.none { it.kind == ExecutionTraceKind.TOOL_COMPLETED })
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
     fun duplicateActionIdentityProducesOneStartAndOneTerminalEvent() {
         val executionId = "duplicate-action-test"
         ExecutionStatusBus.reset()

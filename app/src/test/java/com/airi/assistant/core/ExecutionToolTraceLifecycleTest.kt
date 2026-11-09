@@ -52,4 +52,18 @@ class ExecutionToolTraceLifecycleTest {
         assertFalse(lifecycle.admitTerminal("execution-current", "action-1"))
         assertFalse(lifecycle.admitStart("execution-current", "action-2"))
     }
+
+    @Test
+    fun failedVerificationCannotAdmitTerminalUntilASeparatePassingVerdict() {
+        val lifecycle = ExecutionToolTraceLifecycle()
+        lifecycle.begin("execution-current")
+        assertTrue(lifecycle.admitStart("execution-current", "action-1"))
+        assertTrue(lifecycle.requireVerification("execution-current", "action-1"))
+
+        assertTrue(lifecycle.completeVerification("execution-current", "action-1", passed = false))
+        assertFalse(lifecycle.admitTerminal("execution-current", "action-1"))
+
+        assertTrue(lifecycle.completeVerification("execution-current", "action-1", passed = true))
+        assertTrue(lifecycle.admitTerminal("execution-current", "action-1"))
+    }
 }

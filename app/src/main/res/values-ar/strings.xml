@@ -2595,4 +2595,12 @@
     <string name="run_approval_notif_title">الوكيل بانتظار موافقتك</string>
     <string name="run_approval_notif_channel_name">الوكيل بانتظار موافقتك</string>
     <string name="run_approval_notif_channel_desc">ينبّهك عندما تنتظر مهمة الوكيل موافقتك بينما التطبيق في الخلفية.</string>
+    <string name="agent_trace_kind_execution_started">بدأ التنفيذ</string>
+    <string name="agent_trace_kind_plan_created">تم إنشاء الخطة</string>
+    <string name="agent_trace_kind_reasoning_note">ملاحظة تقدم</string>
+    <string name="agent_trace_kind_tool_requested">تم طلب الأداة</string>
+    <string name="agent_trace_kind_tool_output">ناتج الأداة</string>
+    <string name="agent_trace_kind_verification_started">بدأ التحقق</string>
+    <string name="agent_trace_kind_verification_passed">نجح التحقق</string>
+    <string name="agent_trace_kind_verification_failed">فشل التحقق</string>
 </resources>

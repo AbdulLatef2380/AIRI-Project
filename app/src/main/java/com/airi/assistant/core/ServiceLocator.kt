@@ -30,6 +30,7 @@ import com.airi.assistant.agent.scheduler.ScheduledJobOrchestrator
 import com.airi.assistant.agent.subagent.SubAgentRegistry
 import com.airi.assistant.agent.subagent.impl.AndroidAgent
 import com.airi.assistant.agent.subagent.impl.CloudBrowserAgent
+import com.airi.assistant.agent.subagent.impl.CodingAgent
 import com.airi.assistant.agent.subagent.impl.DocumentProcessorAgent
 import com.airi.assistant.agent.subagent.impl.MemoryAgent
 import com.airi.assistant.agent.subagent.impl.ProductivityAgent
@@ -65,6 +66,7 @@ import com.airi.assistant.runtime.profiler.RuntimeProfiler
 import com.airi.assistant.sync.CloudSyncCoordinator
 import com.airi.assistant.telemetry.PrivacyTelemetryReporter
 import com.airi.assistant.telemetry.TelemetryConsentStore
+import com.airi.assistant.agent.coding.CodingAgentRuntime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -176,6 +178,10 @@ object ServiceLocator {
     val agentSandbox: AgentSandbox by lazy {
         AgentSandbox(executionFirewall, scopedPermissionRegistry, privacyTelemetryReporter)
     }
+
+    /** Optional production coding runtime; null keeps the safe LLM-only fallback. */
+    @Volatile
+    var codingAgentRuntimeProvider: () -> CodingAgentRuntime? = { null }
 
     // ── Crash / Runtime Reporting ─────────────────────────────────────────────
 
@@ -762,8 +768,7 @@ object ServiceLocator {
         val androidAgent = AndroidAgent(accessibilityExecutionEngine)
         val agents = listOf(
             // Real agents — verified non-delegation-shell implementations.
-            // CodingAgent REMOVED (): intercepted code/implement/write/create queries
-            //   and returned "[CodingAgent delegated to LLM]" placeholder, blocking LLM response.
+            CodingAgent { codingAgentRuntimeProvider() },
             // MediaGenerationAgent REMOVED (): delegation shell, no real capability.
             // DocumentProcessorAgent is a real local URI reader/extractor and must remain
             // registered so document requests reach the bounded extraction path.

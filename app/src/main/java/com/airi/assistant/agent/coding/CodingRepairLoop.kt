@@ -45,6 +45,13 @@ data class CodingRepairReport(
             append("repair_status=").append(status.name).append('\n')
             append("final_task=").append(finalTaskId).append('\n')
             terminalReason?.let { append("terminal_reason=").append(it.take(300)).append('\n') }
+            finalExecution.steps.forEach { step ->
+                append("final_step=").append(step.stepId)
+                    .append(" tool=").append(step.toolId)
+                    .append(" status=").append(step.status)
+                if (step.evidence.isNotBlank()) append(" evidence=").append(step.evidence.take(500))
+                append('\n')
+            }
             attempts.forEach { attempt ->
                 append("attempt=").append(attempt.attempt)
                     .append(" task=").append(attempt.taskId)
@@ -120,7 +127,7 @@ class CodingRepairLoop(
             val failed = execution.steps.lastOrNull { it.status != "SUCCEEDED" }
             val failureReason = failed?.evidence?.take(1_000)
                 ?: execution.status.name.lowercase()
-            val isRepairableFailure = failed?.toolId in VERIFICATION_TOOLS
+            val isRepairableFailure = failed?.toolId in VERIFICATION_TOOLS && !isPolicyFailure(failureReason)
             if (!isRepairableFailure) {
                 return CodingRepairReport(
                     status = CodingRepairStatus.FAILED,
@@ -159,9 +166,9 @@ class CodingRepairLoop(
 
             val request = CodingRepairRequest(currentTask, execution, runIndex + 1)
             val repair = planner.replan(request)
-                ?: return blockedReport(currentTask, attempts, "planner_returned_no_repair")
+                ?: return blockedReport(currentTask, attempts, "planner_returned_no_repair", execution)
             if (!containsPatchAndVerification(repair)) {
-                return blockedReport(currentTask, attempts, "repair_plan_missing_patch_or_verification")
+                return blockedReport(currentTask, attempts, "repair_plan_missing_patch_or_verification", execution)
             }
 
             attempts += CodingRepairAttempt(
@@ -201,22 +208,32 @@ class CodingRepairLoop(
         task: CodingTask,
         attempts: List<CodingRepairAttempt>,
         reason: String,
+        execution: CodingAgentExecutionReport? = null,
     ) = CodingRepairReport(
         status = CodingRepairStatus.BLOCKED,
         attempts = attempts,
         finalTaskId = task.taskId,
-        finalExecution = CodingAgentExecutionReport(
-            taskId = task.taskId,
-            status = CodingAgentStatus.BLOCKED,
-            steps = emptyList(),
-            remainingStepIds = task.actions.map { it.stepId },
-        ),
+        finalExecution = execution ?: CodingAgentExecutionReport(
+                taskId = task.taskId,
+                status = CodingAgentStatus.BLOCKED,
+                steps = emptyList(),
+                remainingStepIds = task.actions.map { it.stepId },
+            ),
         terminalReason = reason,
     )
 
     private fun fingerprint(task: CodingTask): String = task.actions.joinToString("|") {
         "${it.stepId}:${it.toolId}:${it.arguments.toSortedMap()}:${it.approvalToken.orEmpty()}"
     }
+
+    private fun isPolicyFailure(reason: String): Boolean =
+        reason.startsWith("verification_") ||
+            reason.startsWith("path_") ||
+            reason.startsWith("file_") ||
+            reason.startsWith("terminal_") ||
+            reason.startsWith("patch_") ||
+            reason.startsWith("missing_") ||
+            reason.startsWith("invalid_")
 
     private companion object {
         val VERIFICATION_TOOLS = setOf("run_tests", "build")

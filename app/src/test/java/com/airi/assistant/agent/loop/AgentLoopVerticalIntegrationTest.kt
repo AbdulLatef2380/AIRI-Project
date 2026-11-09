@@ -74,6 +74,40 @@ class AgentLoopVerticalIntegrationTest {
     }
 
     @Test
+    fun deterministicBuiltinToolPublishesCompleteTraceLifecycle() = runBlocking {
+        ExecutionStatusBus.reset()
+        try {
+            val orchestrator = ScriptedOrchestrator("The current time was read.")
+            val loop = AgentLoop(
+                orchestrator = orchestrator,
+                dispatcher = ToolDispatcher(),
+                appContext = ContextWrapper(null),
+            )
+
+            val result = loop.run(
+                input = "What time is it right now?",
+                systemPrompt = "You are AIRI.",
+                tools = listOf(com.airi.assistant.agent.loop.tool.BuiltinTools.CURRENT_TIME),
+                requestedExecutionId = "execution-native-lifecycle",
+                onToken = {},
+            )
+
+            assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
+            val trace = ExecutionStatusBus.traceSnapshot("execution-native-lifecycle")
+            assertTrue(trace.any { it.kind == ExecutionTraceKind.TOOL_REQUESTED })
+            assertTrue(trace.any { it.kind == ExecutionTraceKind.TOOL_STARTED })
+            assertTrue(trace.any { it.kind == ExecutionTraceKind.TOOL_OUTPUT })
+            assertTrue(trace.any { it.kind == ExecutionTraceKind.TOOL_COMPLETED })
+            assertEquals(
+                1,
+                trace.count { it.kind == ExecutionTraceKind.TOOL_COMPLETED && it.actionId == "tool_deterministic_current_time" },
+            )
+        } finally {
+            ExecutionStatusBus.reset()
+        }
+    }
+
+    @Test
     fun invalidArgumentsStopBeforeConnectorRuntimeAndReturnStructuredErrorToNextTurn() = runBlocking {
         val connector = RecordingConnector()
         val fixture = fixture(connector)

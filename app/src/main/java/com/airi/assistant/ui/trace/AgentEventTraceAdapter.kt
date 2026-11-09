@@ -29,6 +29,8 @@ internal object AgentEventTraceAdapter {
                     machineTag = event.machineTag,
                     parentId = event.parentId,
                     inputParams = event.inputParams,
+                    outputSummary = event.outputSummary,
+                    provenance = event.provenance,
                 )
             }
 

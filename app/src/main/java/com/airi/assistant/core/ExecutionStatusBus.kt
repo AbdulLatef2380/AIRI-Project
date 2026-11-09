@@ -660,6 +660,7 @@ object ExecutionStatusBus {
             approvalOwners.clear()
         }
         _trace.update { emptyList() }
+        AgentEventBus.clear()
     }
 
     private fun onToolTerminal(

@@ -3,8 +3,12 @@ package com.airi.assistant.core
 import com.airi.assistant.ai.agent.trace.ModelTurnRecord
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * Canonical, redacted event contract for the agent timeline.
@@ -99,8 +103,21 @@ object AgentEventBus {
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
     val events: SharedFlow<AgentEvent> = _events.asSharedFlow()
+    private val _recent = MutableStateFlow<List<AgentEvent>>(emptyList())
+    /** Bounded live snapshot for detail screens that subscribe after execution has started. */
+    val recent: StateFlow<List<AgentEvent>> = _recent.asStateFlow()
 
     fun emit(event: AgentEvent) {
+        _recent.update { current ->
+            (current + event).takeLast(MAX_EVENTS)
+        }
         _events.tryEmit(event)
+    }
+
+    fun snapshot(executionId: String): List<AgentEvent> =
+        if (executionId.isBlank()) emptyList() else recent.value.filter { it.executionId == executionId }
+
+    fun clear() {
+        _recent.value = emptyList()
     }
 }

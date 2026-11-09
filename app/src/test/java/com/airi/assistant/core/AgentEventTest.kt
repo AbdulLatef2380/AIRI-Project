@@ -55,4 +55,24 @@ class AgentEventTest {
         assertTrue(event.detail!!.contains("openai/gpt"))
         assertEquals(44L, event.durationMs)
     }
+
+    @Test
+    fun busKeepsAFilteredSnapshotAndCanBeCleared() {
+        AgentEventBus.clear()
+        val event = AgentEvent(
+            eventId = "exec-3:event:1",
+            executionId = "exec-3",
+            sessionId = "session-3",
+            sequence = 1,
+            timestampMs = 1,
+            type = AgentEvent.Type.PLAN_UPDATED,
+            title = "Plan",
+        )
+        AgentEventBus.emit(event)
+
+        assertEquals(listOf(event), AgentEventBus.snapshot("exec-3"))
+        assertTrue(AgentEventBus.snapshot("other").isEmpty())
+        AgentEventBus.clear()
+        assertTrue(AgentEventBus.recent.value.isEmpty())
+    }
 }

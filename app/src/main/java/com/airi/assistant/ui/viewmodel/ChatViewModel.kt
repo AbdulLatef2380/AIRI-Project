@@ -477,6 +477,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // Removed in agent-first migration. AgentService class is no longer used in sendMessage.
     private val skillService             = ServiceLocator.skillService
     private val promptService            = ServiceLocator.promptService
+    private val requestPlanningService   = com.airi.assistant.agent.request.AgentRequestPlanningService()
     private val subscriptionManager      = ServiceLocator.subscriptionManager
     private val permissionService        = ServiceLocator.permissionService
 
@@ -2717,10 +2718,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             val allActiveTools = catalog.schemas
+            // Compute semantic intent once. Downstream permission, sandbox and context-budget
+            // filters remain safety gates, but they must not reclassify the request.
+            val requestPlan = requestPlanningService.plan(
+                text = trimmedInput,
+                providerId = requestedProviderIdAtDispatch,
+                availableTools = allActiveTools,
+            )
+            if (requestPlan.unfulfillable != null) {
+                val reason = requestPlan.unfulfillable.name.lowercase().replace('_', ' ')
+                _messages.update { current ->
+                    current + ChatMessage(
+                        text = "لا أستطيع تنفيذ هذا الطلب بالأدوات المتاحة حالياً ($reason). اختر نموذجاً يدعم الأدوات أو فعّل القدرة المطلوبة ثم أعد المحاولة.",
+                        isUser = false,
+                    )
+                }
+                Log.w("AIRI", "REQUEST_PLAN_UNFULFILLABLE reason=$reason required=${requestPlan.requiredTools}")
+                return@launch
+            }
+            val plannerTools = allActiveTools.filter { it.name in requestPlan.exposedTools }
             // QueryType describes answer shape; CapabilityIntent describes live
             // data dependencies. Only a capability-free simple/creative turn
             // may use the no-tools fast path.
-            val candidateTools = if (!capabilityIntent.requiresTools &&
+            val candidateTools = if (requestPlan.toolChoice == com.airi.assistant.execution.ExecutionRequest.ToolChoice.NONE ||
+                requestPlan.kind == com.airi.assistant.agent.request.RequestPlan.Kind.ACTION ||
+                requestPlan.kind == com.airi.assistant.agent.request.RequestPlan.Kind.CODE_TASK) {
+                plannerTools
+            } else if (!capabilityIntent.requiresTools &&
                 (queryType == QueryType.SIMPLE || queryType == QueryType.CREATIVE)) {
                 // Report 1 / stage 10: plain questions on remote providers keep a few
                 // read-only lookup tools; everything else keeps the no-tool fast path.
@@ -2742,7 +2766,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         providerId = requestedProviderIdAtDispatch,
                         availableTools = availableTools,
                         localAvailableTokens = llamaManager.contextBudget.availableForContent,
-                    ) ?: availableTools
+                    ) ?: plannerTools
                 }
             }
             val toolPromptBudget = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
@@ -2753,9 +2777,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 queryType = queryType,
                 modelId = requestedModelIdAtDispatch,
                 providerId = requestedProviderIdAtDispatch,
-                codeTask = chatIntent.canonicalCapability == "code_task",
+                codeTask = requestPlan.kind == com.airi.assistant.agent.request.RequestPlan.Kind.CODE_TASK,
                 promptBudgetChars = toolPromptBudget,
-                requiredToolNames = catalog.requiredToolNames,
+                requiredToolNames = requestPlan.requiredTools,
             )
             val requestPermissionProfile = toolExposure.profile
             val permissionFilteredTools = toolExposure.permitted
@@ -2961,7 +2985,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     input        = trimmedInput,
                     systemPrompt = fullSystemPrompt,
                     tools        = activeTools,
-                    queryType    = queryType,
+                    queryType    = requestPlan.queryType,
                     modelId      = requestedModelIdAtDispatch,
                     providerId   = requestedProviderIdAtDispatch,
                     sessionId    = com.airi.assistant.execution.ChatExecutionIdentityContract
@@ -2981,8 +3005,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     platformCapabilitySnapshot = platformSnapshotBlock,
                     requestedExecutionId = traceExecutionId,
                     planMode       = _isPlanModeActive.value,
-                    requireToolOnFirstStep = chatIntent.canonicalCapability == "code_task",
-                    requiredToolNames = catalog.requiredToolNames,
+                    requireToolOnFirstStep = requestPlan.kind == com.airi.assistant.agent.request.RequestPlan.Kind.CODE_TASK,
+                    requiredToolNames = requestPlan.requiredTools,
+                    requestPlan = requestPlan,
                     onToken      = token@{ tok ->
                         if (!isCurrentGeneration(generationId) || _isCancelled.get()) return@token
                         val visibleToken = reasoningParser.consume(tok)

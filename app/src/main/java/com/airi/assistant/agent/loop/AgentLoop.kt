@@ -11,6 +11,7 @@ import com.airi.assistant.agent.loop.tool.ToolSpecAdapter
 import com.airi.assistant.accessibility.security.AccessibilityPolicyGuard
 import com.airi.assistant.ai.OutputBudgetPolicy
 import com.airi.assistant.ai.QueryType
+import com.airi.assistant.agent.request.RequestPlan
 import com.airi.assistant.ai.ResponseDepth
 import com.airi.assistant.ai.ResponseDepthPolicy
 import com.airi.assistant.ai.ResponseOptimizer
@@ -205,6 +206,8 @@ the tool returns an actual error.
         requireToolOnFirstStep: Boolean = false,
         /** Tools the request cannot work without; same list ChatViewModel used for its budget selection. */
         requiredToolNames: Set<String>? = null,
+        /** Canonical request decision produced once at the request boundary. */
+        requestPlan: RequestPlan? = null,
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
         // Last sign of progress; see TIMEOUT_MS. Streaming tokens and finished tool calls bump it.
@@ -213,14 +216,16 @@ the tool returns an actual error.
             .toolCharsCapFor(providerId, contextBudgetProvider().availableForContent)
         // Report ب-2: one shared pipeline (also used by ChatViewModel) with the same inputs,
         // including the code-task flag and the required-tool list the loop used to ignore.
+        val canonicalRequiredTools = requestPlan?.requiredTools ?: requiredToolNames
+        val canonicalCodeTask = requestPlan?.kind == RequestPlan.Kind.CODE_TASK || requireToolOnFirstStep
         val toolExposure = com.airi.assistant.agent.loop.tool.ToolExposurePipeline.resolve(
             candidates = tools,
             queryType = queryType,
             modelId = modelId,
             providerId = providerId,
-            codeTask = requireToolOnFirstStep,
+            codeTask = canonicalCodeTask,
             promptBudgetChars = toolPromptBudget,
-            requiredToolNames = requiredToolNames,
+            requiredToolNames = canonicalRequiredTools,
             admission = { permitted ->
                 AgentLoopToolAdmission.filter(
                     tools = permitted,
@@ -245,7 +250,7 @@ the tool returns an actual error.
         val toolsInvoked = mutableListOf<String>()
         // Code tasks only: verifies that a file was saved and passed the syntax check before a
         // plain-text reply is accepted as the final answer.
-        val codeGate = if (requireToolOnFirstStep && effectiveTools.any { it.name == "write_file" }) {
+        val codeGate = if (canonicalCodeTask && effectiveTools.any { it.name == "write_file" }) {
             // PLAN phase: the user's named requirements are extracted once and recorded; the gate
             // later asks for evidence of each one in the saved files before releasing the answer.
             com.airi.assistant.agent.loop.verification.CodeTaskGate(
@@ -290,6 +295,32 @@ the tool returns an actual error.
             permissionProfile = permissionProfile,
             requestedTraceId = traceId,
         )
+        requestPlan?.let { plan ->
+            com.airi.assistant.core.AgentEventBus.emit(
+                com.airi.assistant.core.AgentEvent(
+                    eventId = "$executionId:plan:intent",
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    sequence = 0L,
+                    timestampMs = System.currentTimeMillis(),
+                    type = com.airi.assistant.core.AgentEvent.Type.INTENT_RESOLVED,
+                    title = "Intent resolved",
+                    detail = plan.reason.take(400),
+                ),
+            )
+            com.airi.assistant.core.AgentEventBus.emit(
+                com.airi.assistant.core.AgentEvent(
+                    eventId = "$executionId:plan:tools",
+                    executionId = executionId,
+                    sessionId = sessionId,
+                    sequence = 0L,
+                    timestampMs = System.currentTimeMillis(),
+                    type = com.airi.assistant.core.AgentEvent.Type.TOOLS_EXPOSED,
+                    title = "Tools exposed",
+                    detail = effectiveTools.joinToString(",") { it.name }.take(400),
+                ),
+            )
+        }
         runtimeTrace?.intentStage(executionId, sessionId, "INTENT_RAW", "received")
         if (codeGate != null && codeGate.requirements.isNotEmpty()) {
             ExecutionStatusBus.onDecisionStep(
@@ -526,8 +557,9 @@ the tool returns an actual error.
                 val tokenBuffer = StringBuilder()
                 val queuedToolCall = pendingToolCalls.removeFirstOrNull()
                 // Part 5 §3.4: what this one model call asked for and how it ended.
-                val turnToolChoice = if (requireToolOnFirstStep && (stepsUsed == 1 || forceToolNextTurn) &&
-                    effectiveTools.any { it.name == "write_file" }
+                val turnToolChoice = if (((requestPlan?.toolChoice == ExecutionRequest.ToolChoice.REQUIRED) || requireToolOnFirstStep) &&
+                    (stepsUsed == 1 || forceToolNextTurn) &&
+                    effectiveTools.any { it.name in canonicalRequiredTools.orEmpty() || it.name == "write_file" }
                 ) ExecutionRequest.ToolChoice.REQUIRED else ExecutionRequest.ToolChoice.AUTO
                 val turnStartedMs = System.currentTimeMillis()
                 var turnPromptEstimate = 0

@@ -85,12 +85,15 @@ object ExecutionStatusBus {
      * Dropped silently for an unknown or finished execution and once the per-run cap is reached.
      */
     fun recordModelTurn(executionId: String, record: com.airi.assistant.ai.agent.trace.ModelTurnRecord) {
+        var accepted = false
         synchronized(traceLock) {
             if (!isOpenExecutionLocked(executionId)) return
             val list = modelTurnStore.getOrPut(executionId) { mutableListOf() }
             if (list.size >= com.airi.assistant.ai.agent.trace.ModelTurnSteps.MAX_TURNS) return
             list += record
+            accepted = true
         }
+        if (accepted) AgentEventBus.emit(AgentEvent.modelTurn(executionId, _status.value.sessionId, record))
         _modelTurnTicks.update { it + 1 }
     }
 
@@ -729,6 +732,7 @@ object ExecutionStatusBus {
             }
             appended
         }
+        AgentEventBus.emit(AgentEvent.fromTrace(event))
         safeLog { Log.d(TAG, "TRACE kind=${event.kind} seq=${event.sequence} execution=${event.executionId.take(8)}") }
     }
 

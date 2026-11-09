@@ -97,6 +97,8 @@ class AgentLoopVerticalIntegrationTest {
             assertTrue(trace.any { it.kind == ExecutionTraceKind.TOOL_REQUESTED })
             assertTrue(trace.any { it.kind == ExecutionTraceKind.TOOL_STARTED })
             assertTrue(trace.any { it.kind == ExecutionTraceKind.TOOL_OUTPUT })
+            assertTrue(trace.any { it.kind == ExecutionTraceKind.VERIFICATION_STARTED })
+            assertTrue(trace.any { it.kind == ExecutionTraceKind.VERIFICATION_PASSED })
             assertTrue(trace.any { it.kind == ExecutionTraceKind.TOOL_COMPLETED })
             assertEquals(
                 1,
@@ -125,6 +127,7 @@ class AgentLoopVerticalIntegrationTest {
             input = "Read the source",
             systemPrompt = "You are AIRI.",
             tools = listOf(schema),
+            requestedExecutionId = "execution-invalid-verification",
             onToken = {},
         )
 
@@ -133,6 +136,9 @@ class AgentLoopVerticalIntegrationTest {
         assertTrue(orchestrator.requests[1].conversationHistory.any {
             it.kind == "tool_result" && it.content.contains("invalid_argument")
         })
+        val trace = ExecutionStatusBus.traceSnapshot("execution-invalid-verification")
+        assertTrue(trace.any { it.kind == ExecutionTraceKind.VERIFICATION_FAILED })
+        assertTrue(trace.none { it.kind == ExecutionTraceKind.TOOL_COMPLETED })
     }
 
     @Test

@@ -487,12 +487,48 @@ the tool returns an actual error.
                 )
             }
             when (timeResult) {
-                is ToolDispatcher.ToolResult.Success -> ExecutionStatusBus.onToolCompleted(
-                    executionId, actionId, "current_time", durationMs, "Device time read completed.",
-                )
-                is ToolDispatcher.ToolResult.Error -> ExecutionStatusBus.onToolFailed(
-                    executionId, actionId, "current_time", durationMs, "Device time read failed.",
-                )
+                is ToolDispatcher.ToolResult.Success -> {
+                    ExecutionStatusBus.onVerificationStarted(
+                        executionId,
+                        actionId,
+                        "Checking device time result before completion.",
+                    )
+                    val verified = timeResult.output.isNotBlank()
+                    ExecutionStatusBus.onVerificationCompleted(
+                        executionId,
+                        actionId,
+                        passed = verified,
+                        detail = if (verified) "Device time result is present." else "Device time result was empty.",
+                        errorCode = if (verified) null else "verification_failed",
+                    )
+                    if (verified) {
+                        ExecutionStatusBus.onToolCompleted(
+                            executionId, actionId, "current_time", durationMs, "Device time read completed.",
+                        )
+                    } else {
+                        ExecutionStatusBus.onToolFailed(
+                            executionId, actionId, "current_time", durationMs, "Device time result was not verified.",
+                            errorCode = "verification_failed",
+                        )
+                    }
+                }
+                is ToolDispatcher.ToolResult.Error -> {
+                    ExecutionStatusBus.onVerificationStarted(
+                        executionId,
+                        actionId,
+                        "Checking device time result before completion.",
+                    )
+                    ExecutionStatusBus.onVerificationCompleted(
+                        executionId,
+                        actionId,
+                        passed = false,
+                        detail = "Device time result returned an error.",
+                        errorCode = timeResult.code,
+                    )
+                    ExecutionStatusBus.onToolFailed(
+                        executionId, actionId, "current_time", durationMs, "Device time read failed.", timeResult.code,
+                    )
+                }
             }
             activeToolTrace = null
             toolsInvoked += "current_time"
@@ -788,12 +824,26 @@ the tool returns an actual error.
                             is ToolDispatcher.ToolResult.Success -> result.output
                             is ToolDispatcher.ToolResult.Error -> "Error [${result.code}]: ${result.message}"
                         }
+                        ExecutionStatusBus.onVerificationStarted(
+                            executionId = executionId,
+                            actionId = actionId,
+                            detail = "Checking parallel tool result before completion.",
+                        )
+                        val verificationPassed = result is ToolDispatcher.ToolResult.Success && resultText.isNotBlank()
+                        ExecutionStatusBus.onVerificationCompleted(
+                            executionId = executionId,
+                            actionId = actionId,
+                            passed = verificationPassed,
+                            detail = if (verificationPassed) "Tool result is present." else "Tool result was not verified.",
+                            errorCode = if (verificationPassed) null else (result as? ToolDispatcher.ToolResult.Error)?.code
+                                ?: "verification_failed",
+                        )
                         val durationMs = System.currentTimeMillis() - startedAtMs
                         runtimeTrace?.executionCompleted(
                             executionId = executionId,
                             sessionId = sessionId,
                             toolName = request.toolName,
-                            success = result is ToolDispatcher.ToolResult.Success,
+                            success = verificationPassed,
                             durationMs = durationMs,
                             resultLength = resultText.length,
                             errorCategory = (result as? ToolDispatcher.ToolResult.Error)?.code,
@@ -804,12 +854,17 @@ the tool returns an actual error.
                             is ToolDispatcher.ToolResult.Error ->
                                 "Source: ${result.provenance.name.lowercase()}; operation returned an error."
                         }
-                        when (result) {
-                            is ToolDispatcher.ToolResult.Success -> ExecutionStatusBus.onToolCompleted(
+                        when {
+                            verificationPassed -> ExecutionStatusBus.onToolCompleted(
                                 executionId, actionId, request.toolName, durationMs, traceDetail,
                             )
-                            is ToolDispatcher.ToolResult.Error -> ExecutionStatusBus.onToolFailed(
-                                executionId, actionId, request.toolName, durationMs, traceDetail, result.code,
+                            else -> ExecutionStatusBus.onToolFailed(
+                                executionId,
+                                actionId,
+                                request.toolName,
+                                durationMs,
+                                traceDetail,
+                                (result as? ToolDispatcher.ToolResult.Error)?.code ?: "verification_failed",
                             )
                         }
                         result
@@ -1358,13 +1413,31 @@ the tool returns an actual error.
                         "Error [${toolResult.code}${if (toolResult.retryable) ", retryable" else ""}]: ${toolResult.message}"
                 }
 
+                val verificationPassed = if (!approvalPending) {
+                    ExecutionStatusBus.onVerificationStarted(
+                        executionId = executionId,
+                        actionId = toolStepId,
+                        detail = "Checking tool result before completion.",
+                    )
+                    val passed = toolResult is ToolDispatcher.ToolResult.Success && resultText.isNotBlank()
+                    ExecutionStatusBus.onVerificationCompleted(
+                        executionId = executionId,
+                        actionId = toolStepId,
+                        passed = passed,
+                        detail = if (passed) "Tool result is present." else "Tool result was not verified.",
+                        errorCode = if (passed) null else (toolResult as? ToolDispatcher.ToolResult.Error)?.code
+                            ?: "verification_failed",
+                    )
+                    passed
+                } else false
+
                 val toolDurationMs = System.currentTimeMillis() - toolStartedAtMs
                 if (!approvalPending) {
                     runtimeTrace?.executionCompleted(
                         executionId = executionId,
                         sessionId = sessionId,
                         toolName = toolName,
-                        success = toolResult is ToolDispatcher.ToolResult.Success,
+                        success = verificationPassed,
                         durationMs = toolDurationMs,
                         resultLength = resultText.length,
                         errorCategory = (toolResult as? ToolDispatcher.ToolResult.Error)?.code,
@@ -1372,7 +1445,7 @@ the tool returns an actual error.
                     runtimeTrace?.capabilityStage(
                         executionId, sessionId, toolName,
                         com.airi.assistant.core.CapabilityRuntimeStage.EXECUTED,
-                        if (toolResult is ToolDispatcher.ToolResult.Success) "success" else "failure",
+                        if (verificationPassed) "success" else "failure",
                     )
                 }
                 val traceProvenance = when (toolResult) {
@@ -1386,26 +1459,27 @@ the tool returns an actual error.
                         "Source: ${traceProvenance.name.lowercase()}; operation returned an error."
                 }
                 if (!approvalPending) {
-                    when (toolResult) {
-                        is ToolDispatcher.ToolResult.Success -> ExecutionStatusBus.onToolCompleted(
+                    when {
+                        verificationPassed -> ExecutionStatusBus.onToolCompleted(
                             executionId = executionId,
                             actionId = toolStepId,
                             toolName = toolName,
                             durationMs = toolDurationMs,
                             detail = safeTraceDetail,
                         )
-                        is ToolDispatcher.ToolResult.Error -> ExecutionStatusBus.onToolFailed(
+                        else -> ExecutionStatusBus.onToolFailed(
                             executionId = executionId,
                             actionId = toolStepId,
                             toolName = toolName,
                             durationMs = toolDurationMs,
                             detail = safeTraceDetail,
-                            errorCode = toolResult.code,
+                            errorCode = (toolResult as? ToolDispatcher.ToolResult.Error)?.code
+                                ?: "verification_failed",
                         )
                     }
                 }
 
-                if (toolResult is ToolDispatcher.ToolResult.Success || approvalPending) {
+                if (verificationPassed || approvalPending) {
                     toolLedger.markCompleted(toolFingerprint)
                 } else {
                     toolLedger.release(toolFingerprint)
@@ -1416,7 +1490,7 @@ the tool returns an actual error.
                     is ToolDispatcher.ToolResult.Success -> toolResult.provenance.name.lowercase()
                     is ToolDispatcher.ToolResult.Error -> toolResult.provenance.name.lowercase()
                 }
-                LoggingService.info(TAG, "AIRI TOOL_RESULT tool=$toolName success=${toolResult is ToolDispatcher.ToolResult.Success} code=$resultCode provenance=$resultProvenance len=${resultText.length}")
+                LoggingService.info(TAG, "AIRI TOOL_RESULT tool=$toolName success=$verificationPassed code=$resultCode provenance=$resultProvenance len=${resultText.length}")
 
                 ExecutionStatusBus.onNodeCompleted(
                     stepId,

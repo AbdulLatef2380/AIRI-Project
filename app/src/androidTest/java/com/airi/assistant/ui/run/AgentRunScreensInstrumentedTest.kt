@@ -147,7 +147,7 @@ class AgentRunScreensInstrumentedTest {
      *
      * Record the references on the device class you test on (the layout depends on density):
      *   ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.recordGoldens=true
-     * then copy `files/run_goldens_new/*.png` from the app's external files folder into the assets folder.
+     * then copy the PNG files from `files/run_goldens_new/` in the app's external files folder into the assets folder.
      * On a mismatch the actual image and a red diff are written to `files/run_goldens_failed/`.
      */
     @Test fun screenshotsMatchTheReferenceImages() {

@@ -789,6 +789,26 @@ class UnifiedExecutionTraceProjectorTest {
         assertEquals(TaskStatus.FAILED, timedOut.single().status)
     }
 
+    @Test
+    fun `tool evidence and provenance are visible without raw payload`() {
+        val result = project(
+            "run-evidence",
+            listOf(
+                trace("run-evidence", 1, 1_000, ExecutionTraceKind.TOOL_STARTED, "Running tool: read_file", "tool-1"),
+                trace(
+                    "run-evidence", 2, 1_100, ExecutionTraceKind.TOOL_COMPLETED,
+                    "Tool completed: read_file", "tool-1",
+                    detail = "3 lines",
+                    outputSummary = "README contains 3 sections",
+                    provenance = "workspace",
+                ),
+            ),
+            emptyList(),
+        )
+        assertTrue(result.single().detailLog.orEmpty().contains("Output: README contains 3 sections"))
+        assertTrue(result.single().detailLog.orEmpty().contains("Source: workspace"))
+    }
+
     private fun trace(
         executionId: String,
         sequence: Long,
@@ -798,6 +818,8 @@ class UnifiedExecutionTraceProjectorTest {
         actionId: String? = null,
         errorCode: String? = null,
         detail: String? = null,
+        outputSummary: String? = null,
+        provenance: String? = null,
     ) = ExecutionTraceEvent(
         executionId = executionId,
         sequence = sequence,
@@ -807,5 +829,7 @@ class UnifiedExecutionTraceProjectorTest {
         detail = detail,
         actionId = actionId,
         errorCode = errorCode,
+        outputSummary = outputSummary,
+        provenance = provenance,
     )
 }

@@ -307,6 +307,8 @@ internal object UnifiedExecutionTraceProjector {
                     } else if (eventCategory != UnifiedTraceCategory.FILE) {
                         source.detail?.takeIf(String::isNotBlank)?.let(::add)
                     }
+                    source.outputSummary?.takeIf(String::isNotBlank)?.let { add("Output: $it") }
+                    source.provenance?.takeIf(String::isNotBlank)?.let { add("Source: $it") }
                     source.errorCode?.let { add("Error code: ${normalizeErrorCode(it)}") }
                     source.durationMs?.let { add("${it.coerceAtLeast(0L)} ms") }
                 }.joinToString("\n").takeIf(String::isNotBlank)
@@ -395,6 +397,8 @@ internal object UnifiedExecutionTraceProjector {
                     if (eventCategory != UnifiedTraceCategory.FILE) {
                         detail?.takeIf(String::isNotBlank)?.let { add(safeTraceText(it)) }
                     }
+                    outputSummary?.takeIf(String::isNotBlank)?.let { add("Output: ${safeTraceText(it)}") }
+                    provenance?.takeIf(String::isNotBlank)?.let { add("Source: ${safeTraceText(it)}") }
                     errorCode?.let { add("Error code: ${normalizeErrorCode(it)}") }
                     durationMs?.let { add("Duration: ${it.coerceAtLeast(0L)} ms") }
                 }.joinToString("\n").takeIf(String::isNotBlank),

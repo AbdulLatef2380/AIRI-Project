@@ -2,11 +2,13 @@ package com.airi.assistant.ui.trace
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import android.content.Context
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
+import com.airi.assistant.core.AgentEventBus
 import com.airi.assistant.core.ExecutionTraceEvent
 import com.airi.assistant.ui.activity.ActivityEvent
 import com.airi.assistant.ui.activity.AgentLifecycleTrackerPanel
@@ -25,23 +27,38 @@ fun InlineExecutionTrace(
     val context = LocalContext.current
     val planningTaskLabel = stringResource(R.string.agent_trace_live_planning_task)
     val executionCompletedLabel = stringResource(R.string.agent_trace_kind_completed)
+    val canonicalEvents = AgentEventBus.recent.collectAsState().value
+        .filter { it.executionId == executionId }
     val projection = remember(
         executionId,
         entries,
         activityEvents,
+        canonicalEvents,
         planningTaskLabel,
         executionCompletedLabel,
     ) {
-        UnifiedExecutionTraceProjector.projectProjection(
-            executionId = executionId,
-            traceEntries = entries,
-            activityEvents = activityEvents,
-            planningTaskLabel = planningTaskLabel,
-            executionCompletedLabel = executionCompletedLabel,
-            titleResolver = { machineTag, fallback ->
-                localizedTraceTitle(context, machineTag, fallback)
-            },
-        )
+        if (canonicalEvents.isNotEmpty()) {
+            UnifiedExecutionTraceProjector.projectCanonical(
+                executionId = executionId,
+                events = canonicalEvents,
+                planningTaskLabel = planningTaskLabel,
+                executionCompletedLabel = executionCompletedLabel,
+                titleResolver = { machineTag, fallback ->
+                    localizedTraceTitle(context, machineTag, fallback)
+                },
+            )
+        } else {
+            UnifiedExecutionTraceProjector.projectProjection(
+                executionId = executionId,
+                traceEntries = entries,
+                activityEvents = activityEvents,
+                planningTaskLabel = planningTaskLabel,
+                executionCompletedLabel = executionCompletedLabel,
+                titleResolver = { machineTag, fallback ->
+                    localizedTraceTitle(context, machineTag, fallback)
+                },
+            )
+        }
     }
     // Never render an empty or admission-only panel for a direct response.
     // Once a user-visible activity is admitted, the same surface remains

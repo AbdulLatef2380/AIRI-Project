@@ -29,6 +29,7 @@ import com.airi.assistant.system.LanguageManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -74,6 +75,16 @@ class AIRIApplication : Application() {
                     turnTicks = com.airi.assistant.core.ExecutionStatusBus.modelTurnTicks,
                 ).start(applicationScope)
                 com.airi.assistant.data.run.AgentRunStore.init(applicationContext)
+                applicationScope.launch {
+                    com.airi.assistant.core.AgentEventBus.events.collect { event ->
+                        runCatching {
+                            com.airi.assistant.data.run.AgentRunStore.recordLiveEvent(event)
+                        }.onFailure {
+                            // Persistence diagnostics must remain visible without changing the run outcome.
+                            LoggingService.warn(TAG, "AgentEvent persistence failed type=${event.type} cause=${it.javaClass.simpleName}")
+                        }
+                    }
+                }
                 com.airi.assistant.ui.run.AppForegroundTracker.register(this)
                 com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.onTraceFinalized = { trace ->
                     // Read now: the person may leave the app a moment later, and the answer is "where were

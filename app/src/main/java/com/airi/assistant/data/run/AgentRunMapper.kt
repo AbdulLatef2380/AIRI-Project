@@ -3,6 +3,7 @@ package com.airi.assistant.data.run
 import com.airi.assistant.ai.agent.trace.AgentStep
 import com.airi.assistant.ai.agent.trace.AgentStepType
 import com.airi.assistant.ai.agent.trace.AgentTrace
+import com.airi.assistant.core.AgentEvent
 
 /** Pure AgentTrace → rows projection. Previews are capped; steps are never stored whole. */
 object AgentRunMapper {
@@ -81,4 +82,57 @@ object AgentRunMapper {
                 blobRef = null,
             )
         }
+
+    /** Projects one canonical live event without persisting secrets or unbounded payloads. */
+    fun toEvent(event: AgentEvent, previewCap: Int = DEFAULT_PREVIEW_CAP): AgentRunEventEntity =
+        AgentRunEventEntity(
+            eventId = event.eventId,
+            runId = traceIdForExecution(event.executionId),
+            sequence = event.sequence,
+            timestampMs = event.timestampMs,
+            parentId = event.parentId,
+            category = when (event.type) {
+                AgentEvent.Type.INTENT_RESOLVED,
+                AgentEvent.Type.TOOLS_EXPOSED,
+                AgentEvent.Type.PLAN_UPDATED,
+                AgentEvent.Type.VERIFY,
+                AgentEvent.Type.APPROVAL,
+                AgentEvent.Type.FALLBACK,
+                AgentEvent.Type.FINAL,
+                AgentEvent.Type.LIFECYCLE -> "SYSTEM"
+                AgentEvent.Type.MODEL_TURN -> "MODEL"
+                AgentEvent.Type.SKILL_LOADED -> "SKILL"
+                AgentEvent.Type.TOOL_CALL,
+                AgentEvent.Type.TOOL_RESULT -> "TOOL"
+            },
+            type = event.type.name,
+            title = event.title.take(previewCap),
+            status = when (event.type) {
+                AgentEvent.Type.FINAL -> if (event.errorCode == null) "COMPLETED" else "FAILED"
+                AgentEvent.Type.TOOL_RESULT -> if (event.errorCode == null) "COMPLETED" else "FAILED"
+                else -> "RECORDED"
+            },
+            durationMs = event.durationMs,
+            errorCode = event.errorCode,
+            inputPreview = event.inputParams.entries
+                .joinToString("; ") { "${it.key}=${it.value}" }
+                .take(previewCap),
+            outputPreview = event.detail.orEmpty().take(previewCap),
+        )
+
+    fun liveRun(event: AgentEvent): AgentRunEntity = AgentRunEntity(
+        id = traceIdForExecution(event.executionId),
+        title = event.title.take(200),
+        status = when (event.type) {
+            AgentEvent.Type.FINAL -> if (event.errorCode == null) "COMPLETED" else "FAILED"
+            AgentEvent.Type.APPROVAL -> "WAITING_APPROVAL"
+            else -> "RUNNING"
+        },
+        startedAtMs = event.timestampMs,
+        endedAtMs = event.takeIf { it.type == AgentEvent.Type.FINAL }?.timestampMs,
+        executionId = event.executionId,
+        sessionId = event.sessionId,
+    )
+
+    fun traceIdForExecution(executionId: String): String = "trace-$executionId"
 }

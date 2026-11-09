@@ -3,8 +3,11 @@ package com.airi.assistant.data.run
 import android.content.Context
 import androidx.room.Room
 import com.airi.assistant.ai.agent.trace.AgentTrace
+import com.airi.assistant.core.AgentEvent
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** Thin owner of [AgentRunDatabase]; readers use the DAO flows, the writer calls [record]. */
 object AgentRunStore {
@@ -12,6 +15,7 @@ object AgentRunStore {
     const val MAX_RUNS = 200
 
     @Volatile private var database: AgentRunDatabase? = null
+    private val liveWriteMutex = Mutex()
 
     fun init(context: Context) {
         if (database != null) return
@@ -40,6 +44,37 @@ object AgentRunStore {
         dao().pruneTo(keep.coerceIn(1, MAX_RUNS))
     }
 
+    /**
+     * Persists one canonical event while an execution is running. The event id is the idempotency
+     * key; a terminal run rejects late callbacks so they cannot reopen or mutate a completed run.
+     * Model-only events are intentionally ignored because ordinary chat must not become an agent run.
+     */
+    suspend fun recordLiveEvent(event: AgentEvent, previewCap: Int = AgentRunMapper.DEFAULT_PREVIEW_CAP) {
+        if (event.executionId.isBlank() || event.type == AgentEvent.Type.MODEL_TURN) return
+        liveWriteMutex.withLock {
+            val store = database ?: return
+            val runDao = store.runDao()
+            val runId = AgentRunMapper.traceIdForExecution(event.executionId)
+            val existing = runDao.observeRun(runId).first()
+            if (existing != null && existing.status in TERMINAL_STATUSES) return
+            val incoming = AgentRunMapper.liveRun(event)
+            val run = existing?.let {
+                incoming.copy(
+                    title = it.title.ifBlank { incoming.title },
+                    startedAtMs = minOf(it.startedAtMs, incoming.startedAtMs),
+                    endedAtMs = incoming.endedAtMs ?: it.endedAtMs,
+                    status = incoming.status,
+                    model = it.model,
+                    provider = it.provider,
+                    request = it.request,
+                    answer = it.answer,
+                )
+            } ?: incoming
+            runDao.upsertRun(run)
+            runDao.insertEvent(AgentRunMapper.toEvent(event, previewCap))
+        }
+    }
+
     fun observeRuns(): Flow<List<AgentRunEntity>> = dao().observeRuns()
 
     /** Same as [observeRuns] but empty, not a crash, when the store was never initialised. */
@@ -60,4 +95,6 @@ object AgentRunStore {
 
     suspend fun delete(id: String) = dao().deleteRun(id)
     suspend fun clear() = dao().clearAll()
+
+    private val TERMINAL_STATUSES = setOf("COMPLETED", "FAILED", "CANCELLED")
 }

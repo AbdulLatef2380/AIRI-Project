@@ -3,6 +3,7 @@ package com.airi.assistant.data.run
 import com.airi.assistant.ai.agent.trace.AgentStep
 import com.airi.assistant.ai.agent.trace.AgentStepType
 import com.airi.assistant.ai.agent.trace.AgentTrace
+import com.airi.assistant.core.AgentEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -54,5 +55,37 @@ class AgentRunMapperTest {
         val run = AgentRunMapper.toRun(trace)
         assertEquals("\nBuild calculator\nmore", run.request)
         assertEquals("Done **ok**", run.answer)
+    }
+
+    @Test fun liveEventUsesStableTraceIdAndCapsDetails() {
+        val event = AgentEvent(
+            eventId = "exec-1:tool:1",
+            executionId = "exec-1",
+            sessionId = "session-1",
+            sequence = 4,
+            timestampMs = 100,
+            type = AgentEvent.Type.TOOL_RESULT,
+            title = "write_file",
+            detail = "x".repeat(50),
+        )
+        val row = AgentRunMapper.toEvent(event, previewCap = 10)
+        assertEquals("trace-exec-1", row.runId)
+        assertEquals(10, row.outputPreview.length)
+        assertEquals("COMPLETED", row.status)
+    }
+
+    @Test fun finalLiveEventCarriesFailureWithoutSyntheticSuccess() {
+        val event = AgentEvent(
+            eventId = "exec-1:final",
+            executionId = "exec-1",
+            sessionId = "session-1",
+            sequence = 5,
+            timestampMs = 200,
+            type = AgentEvent.Type.FINAL,
+            title = "Failed",
+            errorCode = "TOOL_REQUIRED_NOT_CALLED",
+        )
+        assertEquals("FAILED", AgentRunMapper.toEvent(event).status)
+        assertEquals("FAILED", AgentRunMapper.liveRun(event).status)
     }
 }

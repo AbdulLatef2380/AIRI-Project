@@ -100,6 +100,22 @@ internal object UnifiedExecutionTraceProjector {
         "file_created", "file_updated", "file_edited", "file_written",
     )
 
+    /** Canonical entry point; legacy feeds remain only as a compatibility fallback. */
+    fun projectCanonical(
+        executionId: String,
+        events: List<com.airi.assistant.core.AgentEvent>,
+        planningTaskLabel: String,
+        executionCompletedLabel: String,
+        titleResolver: (machineTag: String?, fallback: String) -> String = { _, fallback -> fallback },
+    ): UnifiedExecutionTraceProjection = projectProjection(
+        executionId = executionId,
+        traceEntries = AgentEventTraceAdapter.toExecutionTrace(events),
+        activityEvents = emptyList(),
+        planningTaskLabel = planningTaskLabel,
+        executionCompletedLabel = executionCompletedLabel,
+        titleResolver = titleResolver,
+    )
+
     fun project(
         executionId: String,
         traceEntries: List<ExecutionTraceEvent>,

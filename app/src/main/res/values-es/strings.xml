@@ -2328,4 +2328,11 @@
     <string name="run_approval_notif_title">El agente espera tu aprobación</string>
     <string name="run_approval_notif_channel_name">El agente espera tu aprobación</string>
     <string name="run_approval_notif_channel_desc">Te avisa cuando una tarea del agente espera tu aprobación mientras la app está en segundo plano.</string>
+    <string name="agent_docked_completed">Lista de tareas del agente completada</string>
+    <string name="agent_docked_steps">%1$d / %2$d</string>
+    <string name="agent_docked_working">Trabajando</string>
+    <string name="agent_trace_event_completed_in">Completado en %1$s</string>
+    <string name="agent_trace_summary_files_completed">Se leyeron %1$d archivos</string>
+    <string name="agent_trace_summary_files_edited">Editando %1$d archivos</string>
+    <string name="agent_trace_summary_files_edited_completed">Se editaron %1$d archivos</string>
 </resources>

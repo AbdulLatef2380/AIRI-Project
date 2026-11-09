@@ -88,6 +88,9 @@ interface AgentRunDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertEvents(events: List<AgentRunEventEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertEvent(event: AgentRunEventEntity): Long
+
     @Transaction
     suspend fun replaceRun(run: AgentRunEntity, events: List<AgentRunEventEntity>) {
         deleteEvents(run.id)

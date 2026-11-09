@@ -32,7 +32,7 @@ object ChatExecutionTraceMapper {
     ): AgentTrace? {
         if (executionId.isBlank() || events.isEmpty()) return null
 
-        val ordered = events.sortedBy { it.sequence }
+        val ordered = events.sortedWith(compareBy<ExecutionTraceEvent> { it.sequence }.thenBy { it.eventId })
         val terminal = ordered.lastOrNull {
                 it.kind == ExecutionTraceKind.COMPLETED ||
                 it.kind == ExecutionTraceKind.FAILED ||
@@ -43,8 +43,14 @@ object ChatExecutionTraceMapper {
         // Success must be proven by an explicit COMPLETED event.
         // Every failed tool/step must also have a later recovery success. This
         // prevents a final COMPLETED event from masking an unrecovered failure.
+        val verificationRequired = ordered.any { it.kind == ExecutionTraceKind.VERIFICATION_STARTED }
+        val verificationPassed = ordered.any {
+            it.kind == ExecutionTraceKind.VERIFICATION_PASSED &&
+                it.sequence <= (terminal?.sequence ?: Long.MAX_VALUE)
+        }
         val success = terminal?.kind == ExecutionTraceKind.COMPLETED &&
-            hasRecoveredFailures(ordered, terminal.sequence)
+            hasRecoveredFailures(ordered, terminal.sequence) &&
+            (!verificationRequired || verificationPassed)
 
         val outputByActionId = ordered
             .filter { it.kind == ExecutionTraceKind.TOOL_OUTPUT && it.actionId != null }
@@ -70,7 +76,11 @@ object ChatExecutionTraceMapper {
         }
         val knownActionIds = ordered.mapNotNull { it.actionId }.toSet()
         val allSteps = folded.values.map { step ->
-            step.copy(orphanedParent = step.parentId != null && step.parentId !in knownActionIds)
+            val orphaned = step.parentId != null && step.parentId !in knownActionIds
+            step.copy(
+                orphanedParent = orphaned,
+                name = if (orphaned) "orphaned_parent:${step.name}" else step.name,
+            )
         }
         val kept = if (allSteps.size <= AgentTraceManager.MAX_STEPS) {
             allSteps
@@ -85,7 +95,11 @@ object ChatExecutionTraceMapper {
             .sortedBy { it.turn }
             .take(ModelTurnSteps.MAX_TURNS)
             .map { ModelTurnSteps.toStep(it) { text -> PrivacyGuard.redactForTrace(text, AgentTraceManager.STEP_OUTPUT_CHARS) } }
-        val merged = if (turnSteps.isEmpty()) kept else (kept + turnSteps).sortedBy { it.timestampMs }
+        // Model turns do not carry execution sequence; retain their timestamp interleaving with
+        // work steps while the execution-only path above remains sequence/eventId ordered.
+        val merged = if (turnSteps.isEmpty()) kept else (kept + turnSteps).sortedWith(
+            compareBy<AgentStep> { it.timestampMs }.thenBy { it.eventId }
+        )
         val steps = merged.mapIndexed { index, step -> step.copy(stepIndex = index) }
         // The gap marker belongs right after the first work step, wherever turns landed around it.
         val gapIndex = if (allSteps.size > kept.size) {
@@ -166,22 +180,10 @@ object ChatExecutionTraceMapper {
         event: ExecutionTraceEvent,
         outputByActionId: Map<String, ExecutionTraceEvent> = emptyMap(),
     ): AgentStep? {
-        // Execution-level lifecycle and terminal records are represented by AgentTrace metadata
-        // (success/finalResult), not as duplicate work rows. Action-scoped phases remain visible
-        // and are folded into their single logical node below.
-        if (event.actionId.isNullOrBlank() && event.kind in setOf(
-                ExecutionTraceKind.EXECUTION_STARTED,
-                ExecutionTraceKind.PLAN_CREATED,
-                ExecutionTraceKind.REASONING_NOTE,
-                ExecutionTraceKind.PLANNING,
-                ExecutionTraceKind.REFLECTING,
-                ExecutionTraceKind.WAITING_FOR_APPROVAL,
-                ExecutionTraceKind.RECOVERING,
-                ExecutionTraceKind.COMPLETED,
-                ExecutionTraceKind.FAILED,
-                ExecutionTraceKind.CANCELLED,
-                ExecutionTraceKind.TIMED_OUT,
-            )) return null
+        // The terminal execution record remains authoritative in AgentTrace metadata; keeping it
+        // out of the work list avoids a duplicate "completed" row while all non-terminal lifecycle
+        // evidence (including EXECUTION_STARTED) remains visible.
+        if (event.actionId.isNullOrBlank() && event.kind == ExecutionTraceKind.COMPLETED) return null
         val (type, ok) = when (event.kind) {
             ExecutionTraceKind.EXECUTION_STARTED,
             ExecutionTraceKind.PLAN_CREATED,
@@ -246,6 +248,7 @@ object ChatExecutionTraceMapper {
             actionId = event.actionId,
             traceStatus = event.status,
             lifecycleKinds = listOf(event.kind),
+            sequence = event.sequence,
         )
     }
 

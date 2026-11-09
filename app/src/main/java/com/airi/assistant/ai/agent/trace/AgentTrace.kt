@@ -52,6 +52,27 @@ data class AgentTrace(
      */
     val inProgress: Boolean = false,
 ) {
+    /** Stable hierarchical view of the flat persisted steps. */
+    val hierarchy: List<AgentTraceNode>
+        get() {
+            val allNodes = steps
+                .sortedWith(compareBy<AgentStep> { it.sequence }.thenBy { it.eventId }.thenBy { it.stepIndex })
+                .map { AgentTraceNode(it) }
+            val nodes = allNodes.flatMap { node ->
+                listOfNotNull(
+                    node.step.eventId.takeIf { it.isNotBlank() }?.let { it to node },
+                    node.step.actionId?.takeIf { it.isNotBlank() }?.let { it to node },
+                    "step:${node.step.stepIndex}" to node,
+                )
+            }.toMap()
+            val roots = mutableListOf<AgentTraceNode>()
+            allNodes.forEach { node ->
+                val parent = node.step.parentId?.let { nodes[it] }
+                if (parent == null) roots += node else parent.children += node
+            }
+            return roots
+        }
+
     /** Explicit correlation tuple used when navigating from a log to chat. */
     val correlationKey: String
         get() = "traceId=$traceId|executionId=$executionId|messageId=${messageId?.toString().orEmpty()}|sessionId=$sessionId"
@@ -75,4 +96,9 @@ data class AgentTrace(
         const val SOURCE_SKILL = "skill"
         const val SOURCE_CHAT = "chat"
     }
+}
+
+/** A non-persisted tree node used by run history and trace consumers. */
+class AgentTraceNode(val step: AgentStep) {
+    val children: MutableList<AgentTraceNode> = mutableListOf()
 }

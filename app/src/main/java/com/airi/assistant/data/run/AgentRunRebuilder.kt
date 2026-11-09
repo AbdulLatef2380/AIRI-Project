@@ -81,6 +81,7 @@ object AgentRunRebuilder {
             lifecycleKinds = encodedType.drop(1).mapNotNull { value ->
                 runCatching { ExecutionTraceKind.valueOf(value) }.getOrNull()
             },
+            sequence = e.sequence,
         )
     }
 }

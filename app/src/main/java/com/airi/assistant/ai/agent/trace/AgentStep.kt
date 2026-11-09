@@ -43,6 +43,8 @@ data class AgentStep(
     val lifecycleKinds: List<ExecutionTraceKind> = emptyList(),
     /** True when the supplied parentId was not present in the execution snapshot. */
     val orphanedParent: Boolean = false,
+    /** Original execution sequence; zero is retained for legacy traces. */
+    val sequence: Long = 0L,
 ) {
     val displayName: String get() = name.replace("_", " ")
         .split(" ").joinToString(" ") { it.replaceFirstChar(Char::titlecase) }

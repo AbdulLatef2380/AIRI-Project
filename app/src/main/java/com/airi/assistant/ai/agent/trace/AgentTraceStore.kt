@@ -146,6 +146,7 @@ class AgentTraceStore(private val file: File) {
             put("traceStatus", step.traceStatus.name)
             put("lifecycleKinds", JSONArray().also { kinds -> step.lifecycleKinds.forEach { kinds.put(it.name) } })
             put("orphanedParent", step.orphanedParent)
+            put("sequence", step.sequence)
         }
 
         private fun stepFromJson(json: JSONObject): AgentStep {
@@ -173,6 +174,7 @@ class AgentTraceStore(private val file: File) {
                     }
                 },
                 orphanedParent = json.optBoolean("orphanedParent", false),
+                sequence = json.optLong("sequence", 0L),
             )
         }
     }

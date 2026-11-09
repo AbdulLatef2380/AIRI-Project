@@ -84,6 +84,45 @@ class ExecutionStatusBusTest {
     }
 
     @Test
+    fun duplicateActionIdentityProducesOneStartAndOneTerminalEvent() {
+        val executionId = "duplicate-action-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Duplicate action", 1, executionId)
+
+        ExecutionStatusBus.onToolStarted(executionId, "tool-1", "read_file")
+        ExecutionStatusBus.onToolStarted(executionId, "tool-1", "read_file")
+        ExecutionStatusBus.onToolCompleted(executionId, "tool-1", "read_file", 4L)
+        ExecutionStatusBus.onToolCompleted(executionId, "tool-1", "read_file", 4L)
+
+        val events = ExecutionStatusBus.traceSnapshot(executionId)
+        assertEquals(1, events.count { it.kind == ExecutionTraceKind.TOOL_STARTED && it.actionId == "tool-1" })
+        assertEquals(1, events.count { it.kind == ExecutionTraceKind.TOOL_COMPLETED && it.actionId == "tool-1" })
+        assertEquals(ExecutionTraceKind.TOOL_COMPLETED, events.last().kind)
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
+    fun cancellationBetweenRequestAndStartRejectsTheLateStart() {
+        val executionId = "request-cancel-gate-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Cancel before tool", 1, executionId)
+        ExecutionStatusBus.onToolRequested(executionId, "tool-1", "write_file")
+        ExecutionStatusBus.onGraphCancellationRequested(executionId)
+
+        ExecutionStatusBus.onToolStarted(executionId, "tool-1", "write_file")
+        ExecutionStatusBus.onToolCompleted(executionId, "tool-1", "write_file", 1L)
+        val beforeTerminal = ExecutionStatusBus.traceSnapshot(executionId)
+        assertTrue(beforeTerminal.any { it.kind == ExecutionTraceKind.TOOL_REQUESTED })
+        assertTrue(beforeTerminal.none { it.kind == ExecutionTraceKind.TOOL_STARTED })
+        assertTrue(beforeTerminal.none { it.kind == ExecutionTraceKind.TOOL_COMPLETED })
+
+        ExecutionStatusBus.onGraphCancelled(executionId)
+        val afterTerminal = ExecutionStatusBus.traceSnapshot(executionId)
+        assertEquals(ExecutionTraceKind.CANCELLED, afterTerminal.last().kind)
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
     fun approvalWaitingClosesStartedToolAndRejectsLateCompletion() {
         val executionId = "approval-tool-lifecycle-test"
         ExecutionStatusBus.reset()

@@ -347,13 +347,21 @@ private fun traceFilterLabel(filter: ExecutionTraceFilter): String = stringResou
 
 @Composable
 private fun traceKindLabel(kind: ExecutionTraceKind): String = stringResource(when (kind) {
+    ExecutionTraceKind.EXECUTION_STARTED -> R.string.agent_trace_kind_execution_started
+    ExecutionTraceKind.PLAN_CREATED -> R.string.agent_trace_kind_plan_created
+    ExecutionTraceKind.REASONING_NOTE -> R.string.agent_trace_kind_reasoning_note
     ExecutionTraceKind.PLANNING -> R.string.agent_trace_kind_planning
     ExecutionTraceKind.STEP_STARTED -> R.string.agent_trace_kind_step_started
     ExecutionTraceKind.STEP_COMPLETED -> R.string.agent_trace_kind_step_completed
+    ExecutionTraceKind.TOOL_REQUESTED -> R.string.agent_trace_kind_tool_requested
     ExecutionTraceKind.TOOL_STARTED -> R.string.agent_trace_kind_tool_started
+    ExecutionTraceKind.TOOL_OUTPUT -> R.string.agent_trace_kind_tool_output
     ExecutionTraceKind.TOOL_COMPLETED -> R.string.agent_trace_kind_tool_completed
     ExecutionTraceKind.TOOL_FAILED -> R.string.agent_trace_kind_tool_failed
     ExecutionTraceKind.TOOL_CANCELLED -> R.string.agent_trace_kind_tool_cancelled
+    ExecutionTraceKind.VERIFICATION_STARTED -> R.string.agent_trace_kind_verification_started
+    ExecutionTraceKind.VERIFICATION_PASSED -> R.string.agent_trace_kind_verification_passed
+    ExecutionTraceKind.VERIFICATION_FAILED -> R.string.agent_trace_kind_verification_failed
     ExecutionTraceKind.WAITING_FOR_APPROVAL -> R.string.agent_trace_kind_waiting_for_approval
     ExecutionTraceKind.APPROVAL_CANCELLED -> R.string.agent_trace_kind_approval_cancelled
     ExecutionTraceKind.APPROVAL_TIMEOUT -> R.string.agent_trace_kind_approval_timeout

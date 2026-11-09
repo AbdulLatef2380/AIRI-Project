@@ -2015,6 +2015,14 @@
     <string name="agent_plan_trace_show_details">Show safe details</string>
     <string name="agent_plan_trace_hide_details">Hide details</string>
     <string name="agent_plan_trace_duration_ms">%1$d ms</string>
+    <string name="agent_trace_kind_execution_started">Execution started</string>
+    <string name="agent_trace_kind_plan_created">Plan created</string>
+    <string name="agent_trace_kind_reasoning_note">Progress note</string>
+    <string name="agent_trace_kind_tool_requested">Tool requested</string>
+    <string name="agent_trace_kind_tool_output">Tool output</string>
+    <string name="agent_trace_kind_verification_started">Verification started</string>
+    <string name="agent_trace_kind_verification_passed">Verification passed</string>
+    <string name="agent_trace_kind_verification_failed">Verification failed</string>
     <string name="agent_trace_kind_planning">Planning</string>
     <string name="agent_trace_kind_step_started">Step started</string>
     <string name="agent_trace_kind_step_completed">Step completed</string>

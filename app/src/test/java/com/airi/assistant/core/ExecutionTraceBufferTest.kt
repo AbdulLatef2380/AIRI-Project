@@ -83,6 +83,34 @@ class ExecutionTraceBufferTest {
     }
 
     @Test
+    fun append_preservesTypedRequestAndOutputEvidenceWithinBounds() {
+        val buffer = ExecutionTraceBuffer(maxEntries = 8)
+        buffer.begin("exec-evidence")
+
+        val requested = buffer.append(
+            executionId = "exec-evidence",
+            kind = ExecutionTraceKind.TOOL_REQUESTED,
+            summary = "Tool requested: read_file",
+            actionId = "tool-1",
+            provenance = "workspace",
+        )!!
+        val output = buffer.append(
+            executionId = "exec-evidence",
+            kind = ExecutionTraceKind.TOOL_OUTPUT,
+            summary = "Tool output: read_file",
+            actionId = "tool-1",
+            outputSummary = "safe result",
+            provenance = "workspace",
+        )!!
+
+        assertEquals(ExecutionTraceStatus.PENDING, requested.status)
+        assertEquals(ExecutionTraceStatus.COMPLETED, output.status)
+        assertEquals("safe result", output.outputSummary)
+        assertEquals("workspace", output.provenance)
+        assertEquals(listOf(1L, 2L), buffer.snapshot().map { it.sequence })
+    }
+
+    @Test
     fun append_normalizesAndRejectsUnsafeErrorCodes() {
         val buffer = ExecutionTraceBuffer(maxEntries = 3)
         buffer.begin("exec-1")

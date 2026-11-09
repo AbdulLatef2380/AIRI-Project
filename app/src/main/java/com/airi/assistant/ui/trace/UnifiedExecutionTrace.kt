@@ -37,6 +37,10 @@ data class UnifiedExecutionTraceEvent(
     val parentId: String? = null,
     /** Redacted arguments retained only for on-demand user-visible evidence. */
     val inputParams: Map<String, String> = emptyMap(),
+    /** Redacted bounded tool result evidence. */
+    val outputSummary: String? = null,
+    /** Safe origin label for the operation. */
+    val provenance: String? = null,
     /** Typed duration; the UI must not parse it from provider text. */
     val durationMs: Long? = null,
     /** Stable machine-readable failure/approval code, never a raw provider error. */
@@ -323,6 +327,8 @@ internal object UnifiedExecutionTraceProjector {
                         phase = phaseForStructured(source.kind),
                         parentId = parentId,
                         inputParams = first.inputParams.ifEmpty { source.inputParams },
+                        outputSummary = source.outputSummary,
+                        provenance = source.provenance,
                         durationMs = source.durationMs,
                         errorCode = source.errorCode,
                     ),
@@ -340,6 +346,7 @@ internal object UnifiedExecutionTraceProjector {
     private enum class ActionFamily(val terminalKinds: Set<ExecutionTraceKind>) {
         STEP(setOf(ExecutionTraceKind.STEP_COMPLETED)),
         TOOL(setOf(
+            ExecutionTraceKind.TOOL_REQUESTED,
             ExecutionTraceKind.TOOL_COMPLETED,
             ExecutionTraceKind.TOOL_FAILED,
             ExecutionTraceKind.TOOL_CANCELLED,
@@ -354,7 +361,8 @@ internal object UnifiedExecutionTraceProjector {
     private fun ExecutionTraceKind.actionFamily(): ActionFamily = when (this) {
         ExecutionTraceKind.STEP_STARTED, ExecutionTraceKind.STEP_COMPLETED,
         ExecutionTraceKind.RECOVERING -> ActionFamily.STEP
-        ExecutionTraceKind.TOOL_STARTED, ExecutionTraceKind.TOOL_COMPLETED,
+        ExecutionTraceKind.TOOL_REQUESTED, ExecutionTraceKind.TOOL_STARTED, ExecutionTraceKind.TOOL_OUTPUT,
+        ExecutionTraceKind.TOOL_COMPLETED,
         ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.TOOL_CANCELLED,
         ExecutionTraceKind.WAITING_FOR_APPROVAL,
         ExecutionTraceKind.APPROVAL_CANCELLED,
@@ -393,6 +401,8 @@ internal object UnifiedExecutionTraceProjector {
                 category = eventCategory,
                 machineTag = machineTag,
                 phase = phaseForStructured(kind),
+                outputSummary = outputSummary,
+                provenance = provenance,
                 inputParams = inputParams,
                 durationMs = durationMs,
                 errorCode = errorCode,
@@ -461,16 +471,24 @@ internal object UnifiedExecutionTraceProjector {
     }
 
     private fun phaseForStructured(kind: ExecutionTraceKind): ActivityPhase = when (kind) {
+        ExecutionTraceKind.EXECUTION_STARTED,
+        ExecutionTraceKind.PLAN_CREATED,
         ExecutionTraceKind.PLANNING -> ActivityPhase.ADMISSION
+        ExecutionTraceKind.REASONING_NOTE -> ActivityPhase.UNDERSTANDING
         ExecutionTraceKind.STEP_STARTED,
         ExecutionTraceKind.STEP_COMPLETED,
+        ExecutionTraceKind.TOOL_REQUESTED,
         ExecutionTraceKind.TOOL_STARTED,
+        ExecutionTraceKind.TOOL_OUTPUT,
         ExecutionTraceKind.TOOL_COMPLETED,
         ExecutionTraceKind.TOOL_FAILED,
         ExecutionTraceKind.TOOL_CANCELLED,
         ExecutionTraceKind.WAITING_FOR_APPROVAL,
         ExecutionTraceKind.APPROVAL_CANCELLED,
         ExecutionTraceKind.APPROVAL_TIMEOUT,
+        ExecutionTraceKind.VERIFICATION_STARTED,
+        ExecutionTraceKind.VERIFICATION_PASSED,
+        ExecutionTraceKind.VERIFICATION_FAILED,
         ExecutionTraceKind.RECOVERING,
         ExecutionTraceKind.REFLECTING -> ActivityPhase.ACTION
         ExecutionTraceKind.COMPLETED,
@@ -575,11 +593,16 @@ internal object UnifiedExecutionTraceProjector {
     }
 
     private fun ExecutionTraceKind.toTaskStatus(): TaskStatus = when (this) {
-        ExecutionTraceKind.PLANNING, ExecutionTraceKind.STEP_STARTED, ExecutionTraceKind.TOOL_STARTED,
+        ExecutionTraceKind.EXECUTION_STARTED, ExecutionTraceKind.PLAN_CREATED,
+        ExecutionTraceKind.REASONING_NOTE, ExecutionTraceKind.PLANNING, ExecutionTraceKind.STEP_STARTED,
+        ExecutionTraceKind.TOOL_REQUESTED, ExecutionTraceKind.TOOL_STARTED, ExecutionTraceKind.TOOL_OUTPUT,
+        ExecutionTraceKind.VERIFICATION_STARTED,
         ExecutionTraceKind.RECOVERING, ExecutionTraceKind.REFLECTING -> TaskStatus.RUNNING
         ExecutionTraceKind.WAITING_FOR_APPROVAL -> TaskStatus.WAITING
-        ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.COMPLETED -> TaskStatus.COMPLETED
-        ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED, ExecutionTraceKind.TIMED_OUT, ExecutionTraceKind.APPROVAL_TIMEOUT -> TaskStatus.FAILED
+        ExecutionTraceKind.STEP_COMPLETED, ExecutionTraceKind.TOOL_COMPLETED,
+        ExecutionTraceKind.VERIFICATION_PASSED, ExecutionTraceKind.COMPLETED -> TaskStatus.COMPLETED
+        ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.VERIFICATION_FAILED,
+        ExecutionTraceKind.FAILED, ExecutionTraceKind.TIMED_OUT, ExecutionTraceKind.APPROVAL_TIMEOUT -> TaskStatus.FAILED
         ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED, ExecutionTraceKind.APPROVAL_CANCELLED -> TaskStatus.CANCELLED
     }
 

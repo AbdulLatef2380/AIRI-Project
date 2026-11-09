@@ -52,6 +52,31 @@ class ExecutionStatusBusTest {
     }
 
     @Test
+    fun toolTraceIncludesRequestOutputAndVerificationEvidence() {
+        val executionId = "typed-tool-lifecycle-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Verify workspace", 1, executionId)
+        ExecutionStatusBus.onToolStarted(
+            executionId = executionId,
+            actionId = "tool-1",
+            toolName = "read_file",
+            inputParams = mapOf("path" to "/safe/README.md"),
+            parentId = "step-1",
+        )
+        ExecutionStatusBus.onToolOutput(executionId, "tool-1", "read_file", "3 lines", provenance = "workspace")
+        ExecutionStatusBus.onVerificationStarted(executionId, "tool-1")
+        ExecutionStatusBus.onVerificationCompleted(executionId, "tool-1", passed = true, detail = "schema valid")
+        ExecutionStatusBus.onToolCompleted(executionId, "tool-1", "read_file", 12L, "3 lines")
+
+        val events = ExecutionStatusBus.traceSnapshot(executionId)
+        assertTrue(events.any { it.kind == ExecutionTraceKind.TOOL_REQUESTED && it.status == ExecutionTraceStatus.PENDING })
+        assertTrue(events.any { it.kind == ExecutionTraceKind.TOOL_OUTPUT && it.outputSummary == "3 lines" })
+        assertTrue(events.any { it.kind == ExecutionTraceKind.VERIFICATION_STARTED })
+        assertTrue(events.any { it.kind == ExecutionTraceKind.VERIFICATION_PASSED && it.status == ExecutionTraceStatus.COMPLETED })
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
     fun approvalWaitingClosesStartedToolAndRejectsLateCompletion() {
         val executionId = "approval-tool-lifecycle-test"
         ExecutionStatusBus.reset()

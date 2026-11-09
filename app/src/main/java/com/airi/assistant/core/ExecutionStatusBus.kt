@@ -142,6 +142,13 @@ object ExecutionStatusBus {
                 terminalExecutions.remove(evicted)
             }
         }
+        appendTrace(
+            executionId,
+            ExecutionTraceKind.EXECUTION_STARTED,
+            "Execution started",
+            goalDescription,
+            machineTag = "execution_started",
+        )
         appendTrace(executionId, ExecutionTraceKind.PLANNING, "Planning task", goalDescription, machineTag = "planning")
         safeLog { Log.i(TAG, "EXEC_STATUS_PLANNING goalChars=${goalDescription.length} nodes=$totalNodes") }
     }
@@ -364,12 +371,76 @@ object ExecutionStatusBus {
                 return
             }
             val redactedParams = inputParams.mapValues { (key, value) -> PrivacyGuard.redactTraceField(key, value) }
+            appendTrace(
+                executionId,
+                ExecutionTraceKind.TOOL_REQUESTED,
+                "Tool requested: $toolName",
+                detail,
+                actionId = actionId,
+                machineTag = "tool_requested",
+                parentId = parentId,
+                inputParams = redactedParams,
+                provenance = toolName.substringBefore('_').takeIf { it.isNotBlank() },
+            )
             toolTraceContexts[executionId]?.set(
                 actionId,
                 ToolTraceContext(redactedParams, parentId?.takeIf { it.isNotBlank() })
             )
             appendTrace(executionId, ExecutionTraceKind.TOOL_STARTED, "Running tool: $toolName", detail,
-                actionId, machineTag = "tool_call", parentId = parentId, inputParams = redactedParams)
+                actionId, machineTag = "tool_call", parentId = parentId, inputParams = redactedParams,
+                provenance = toolName.substringBefore('_').takeIf { it.isNotBlank() })
+        }
+    }
+
+    /** Records bounded tool output before the result is returned to the model context. */
+    fun onToolOutput(
+        executionId: String,
+        actionId: String,
+        toolName: String,
+        outputSummary: String,
+        detail: String? = null,
+        provenance: String? = null,
+    ) {
+        synchronized(traceLock) {
+            if (!isOpenExecution(executionId) || actionId.isBlank()) return
+            appendTrace(
+                executionId = executionId,
+                kind = ExecutionTraceKind.TOOL_OUTPUT,
+                summary = "Tool output: $toolName",
+                detail = detail,
+                actionId = actionId,
+                machineTag = "tool_output",
+                outputSummary = PrivacyGuard.redactForTrace(outputSummary, ExecutionTraceBuffer.MAX_DETAIL_CHARS),
+                provenance = provenance ?: toolName.substringBefore('_').takeIf { it.isNotBlank() },
+            )
+        }
+    }
+
+    fun onVerificationStarted(executionId: String, actionId: String, detail: String? = null) {
+        if (isOpenExecution(executionId)) {
+            appendTrace(executionId, ExecutionTraceKind.VERIFICATION_STARTED, "Verification started", detail,
+                actionId = actionId, machineTag = "verification_started", parentId = actionId)
+        }
+    }
+
+    fun onVerificationCompleted(
+        executionId: String,
+        actionId: String,
+        passed: Boolean,
+        detail: String? = null,
+        errorCode: String? = null,
+    ) {
+        if (isOpenExecution(executionId)) {
+            appendTrace(
+                executionId = executionId,
+                kind = if (passed) ExecutionTraceKind.VERIFICATION_PASSED else ExecutionTraceKind.VERIFICATION_FAILED,
+                summary = if (passed) "Verification passed" else "Verification failed",
+                detail = detail,
+                actionId = actionId,
+                machineTag = if (passed) "verification_passed" else "verification_failed",
+                parentId = actionId,
+                errorCode = errorCode,
+            )
         }
     }
 
@@ -604,6 +675,16 @@ object ExecutionStatusBus {
         details: List<String> = emptyList(),
         executionId: String = ""
     ) {
+        if (isOpenExecution(executionId)) {
+            onVerificationStarted(executionId, "final_answer", "Checking final answer")
+            onVerificationCompleted(
+                executionId = executionId,
+                actionId = "final_answer",
+                passed = verified,
+                detail = details.joinToString("; ").take(160),
+                errorCode = if (verified) null else "final_answer_verification_failed",
+            )
+        }
         statusUpdate { current ->
             if (!belongsToActiveExecution(current, executionId)) return@statusUpdate current
             current.copy(
@@ -683,9 +764,16 @@ object ExecutionStatusBus {
                 return
             }
             val context = toolTraceContexts[executionId]?.remove(actionId)
+            onToolOutput(
+                executionId = executionId,
+                actionId = actionId,
+                toolName = toolName,
+                outputSummary = detail ?: summaryPrefix,
+            )
             appendTrace(executionId, kind, "$summaryPrefix: $toolName", detail, actionId, durationMs,
                 errorCode, machineTag = "tool_call", parentId = context?.parentId,
-                inputParams = context?.inputParams.orEmpty())
+                inputParams = context?.inputParams.orEmpty(),
+                provenance = toolName.substringBefore('_').takeIf { it.isNotBlank() })
         }
     }
 
@@ -700,6 +788,8 @@ object ExecutionStatusBus {
         machineTag: String? = null,
         parentId: String? = null,
         inputParams: Map<String, String> = emptyMap(),
+        outputSummary: String? = null,
+        provenance: String? = null,
         allowTerminal: Boolean = false,
     ) {
         val normalizedErrorCode = ExecutionTraceBuffer.normalizeErrorCode(errorCode)
@@ -720,6 +810,8 @@ object ExecutionStatusBus {
                 machineTag = machineTag,
                 parentId = parentId,
                 inputParams = inputParams,
+                outputSummary = outputSummary?.let { PrivacyGuard.redactForTrace(it, ExecutionTraceBuffer.MAX_DETAIL_CHARS) },
+                provenance = provenance?.let { PrivacyGuard.redactForTrace(it, ExecutionTraceBuffer.MAX_TAG_CHARS) },
             ) ?: return
             val currentSnapshot = buffer.snapshot()
             traceHistory[executionId] = currentSnapshot

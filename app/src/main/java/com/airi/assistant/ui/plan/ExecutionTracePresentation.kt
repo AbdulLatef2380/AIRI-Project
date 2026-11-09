@@ -25,10 +25,15 @@ object ExecutionTracePresentation {
         events.lastOrNull()?.takeIf { event ->
             event.kind in setOf(
                 ExecutionTraceKind.PLANNING,
+                ExecutionTraceKind.EXECUTION_STARTED,
+                ExecutionTraceKind.PLAN_CREATED,
                 ExecutionTraceKind.STEP_STARTED,
+                ExecutionTraceKind.TOOL_REQUESTED,
                 ExecutionTraceKind.TOOL_STARTED,
+                ExecutionTraceKind.TOOL_OUTPUT,
                 ExecutionTraceKind.RECOVERING,
                 ExecutionTraceKind.REFLECTING,
+                ExecutionTraceKind.VERIFICATION_STARTED,
                 ExecutionTraceKind.WAITING_FOR_APPROVAL,
             )
         }
@@ -68,6 +73,8 @@ object ExecutionTracePresentation {
         ExecutionTraceFilter.ALL -> true
         ExecutionTraceFilter.PLANNING -> kind in setOf(
             ExecutionTraceKind.PLANNING,
+            ExecutionTraceKind.EXECUTION_STARTED,
+            ExecutionTraceKind.PLAN_CREATED,
             ExecutionTraceKind.REFLECTING,
         )
         ExecutionTraceFilter.STEPS -> kind in setOf(
@@ -75,9 +82,14 @@ object ExecutionTracePresentation {
             ExecutionTraceKind.STEP_COMPLETED,
             ExecutionTraceKind.RECOVERING,
             ExecutionTraceKind.WAITING_FOR_APPROVAL,
+            ExecutionTraceKind.VERIFICATION_STARTED,
+            ExecutionTraceKind.VERIFICATION_PASSED,
+            ExecutionTraceKind.VERIFICATION_FAILED,
         )
         ExecutionTraceFilter.TOOLS -> kind in setOf(
+            ExecutionTraceKind.TOOL_REQUESTED,
             ExecutionTraceKind.TOOL_STARTED,
+            ExecutionTraceKind.TOOL_OUTPUT,
             ExecutionTraceKind.TOOL_COMPLETED,
             ExecutionTraceKind.TOOL_FAILED,
             ExecutionTraceKind.TOOL_CANCELLED,
@@ -91,6 +103,7 @@ object ExecutionTracePresentation {
             ExecutionTraceKind.CANCELLED,
             ExecutionTraceKind.APPROVAL_CANCELLED,
             ExecutionTraceKind.APPROVAL_TIMEOUT,
+            ExecutionTraceKind.VERIFICATION_FAILED,
         )
     }
 }

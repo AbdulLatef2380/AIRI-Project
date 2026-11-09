@@ -196,6 +196,7 @@ object ExecutionTraceArchive {
         put("sequence", event.sequence)
         put("timestampMs", event.timestampMs)
         put("kind", event.kind.name)
+        put("status", event.status.name)
         put("summary", event.summary)
         event.detail?.let { put("detail", it) }
         event.actionId?.let { put("actionId", it) }
@@ -205,6 +206,8 @@ object ExecutionTraceArchive {
         event.machineTag?.let { put("machineTag", it) }
         event.parentId?.let { put("parentId", it) }
         put("inputParams", JSONObject().also { params -> event.inputParams.forEach { (key, value) -> params.put(key, value) } })
+        event.outputSummary?.let { put("outputSummary", it) }
+        event.provenance?.let { put("provenance", it) }
     }
 
     internal fun eventFromJson(json: JSONObject): ExecutionTraceEvent = ExecutionTraceEvent(
@@ -212,6 +215,9 @@ object ExecutionTraceArchive {
         sequence = json.getLong("sequence"),
         timestampMs = json.getLong("timestampMs"),
         kind = ExecutionTraceKind.valueOf(json.getString("kind")),
+        status = json.optString("status").takeIf { it.isNotBlank() }
+            ?.let { runCatching { ExecutionTraceStatus.valueOf(it) }.getOrNull() }
+            ?: ExecutionTraceKind.valueOf(json.getString("kind")).let { it.defaultStatusForArchive() },
         summary = json.optString("summary"),
         detail = if (json.has("detail")) json.getString("detail") else null,
         actionId = if (json.has("actionId")) json.getString("actionId") else null,
@@ -223,5 +229,20 @@ object ExecutionTraceArchive {
         inputParams = json.optJSONObject("inputParams")?.let { params ->
             params.keys().asSequence().associateWith { key -> params.optString(key) }
         }.orEmpty(),
+        outputSummary = if (json.has("outputSummary")) json.getString("outputSummary") else null,
+        provenance = if (json.has("provenance")) json.getString("provenance") else null,
     )
+}
+
+private fun ExecutionTraceKind.defaultStatusForArchive(): ExecutionTraceStatus = when (this) {
+    ExecutionTraceKind.TOOL_REQUESTED -> ExecutionTraceStatus.PENDING
+    ExecutionTraceKind.WAITING_FOR_APPROVAL -> ExecutionTraceStatus.WAITING
+    ExecutionTraceKind.TOOL_FAILED, ExecutionTraceKind.FAILED, ExecutionTraceKind.TIMED_OUT,
+    ExecutionTraceKind.VERIFICATION_FAILED, ExecutionTraceKind.APPROVAL_TIMEOUT -> ExecutionTraceStatus.FAILED
+    ExecutionTraceKind.TOOL_CANCELLED, ExecutionTraceKind.CANCELLED, ExecutionTraceKind.APPROVAL_CANCELLED -> ExecutionTraceStatus.CANCELLED
+    ExecutionTraceKind.TOOL_COMPLETED, ExecutionTraceKind.STEP_COMPLETED,
+    ExecutionTraceKind.TOOL_OUTPUT, ExecutionTraceKind.VERIFICATION_PASSED,
+    ExecutionTraceKind.COMPLETED -> ExecutionTraceStatus.COMPLETED
+    ExecutionTraceKind.RECOVERING -> ExecutionTraceStatus.RECOVERING
+    else -> ExecutionTraceStatus.RUNNING
 }

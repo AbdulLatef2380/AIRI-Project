@@ -50,11 +50,16 @@ class ExecutionTraceBuffer(
         machineTag: String? = null,
         parentId: String? = null,
         inputParams: Map<String, String> = emptyMap(),
+        outputSummary: String? = null,
+        provenance: String? = null,
         timestampMs: Long = System.currentTimeMillis(),
+        status: ExecutionTraceStatus = kind.defaultStatus(),
     ): ExecutionTraceEvent? {
         if (executionId.isBlank() || executionId != activeExecutionId || summary.isBlank()) return null
         val requiresActionIdentity = kind in setOf(
+            ExecutionTraceKind.TOOL_REQUESTED,
             ExecutionTraceKind.TOOL_STARTED,
+            ExecutionTraceKind.TOOL_OUTPUT,
             ExecutionTraceKind.TOOL_COMPLETED,
             ExecutionTraceKind.TOOL_FAILED,
             ExecutionTraceKind.TOOL_CANCELLED,
@@ -66,6 +71,7 @@ class ExecutionTraceBuffer(
             sequence = nextSequence++,
             timestampMs = timestampMs,
             kind = kind,
+            status = status,
             summary = summary.trim().take(MAX_SUMMARY_CHARS),
             detail = detail?.trim()?.take(MAX_DETAIL_CHARS),
             actionId = actionId?.trim()?.take(MAX_ID_CHARS)?.takeIf { it.isNotBlank() },
@@ -79,6 +85,8 @@ class ExecutionTraceBuffer(
                 .filter { it.key.isNotBlank() }
                 .take(MAX_INPUT_FIELDS)
                 .associate { it.key.trim().take(MAX_FIELD_CHARS) to it.value.take(MAX_FIELD_VALUE_CHARS) },
+            outputSummary = outputSummary?.trim()?.take(MAX_DETAIL_CHARS)?.takeIf { it.isNotBlank() },
+            provenance = provenance?.trim()?.take(MAX_TAG_CHARS)?.takeIf { it.isNotBlank() },
         )
         entries.addLast(event)
         while (entries.size > maxEntries) {
@@ -121,6 +129,9 @@ private fun ExecutionTraceKind.isOutcomeEvidence(): Boolean = this in setOf(
     ExecutionTraceKind.TOOL_COMPLETED,
     ExecutionTraceKind.TOOL_FAILED,
     ExecutionTraceKind.TOOL_CANCELLED,
+    ExecutionTraceKind.TOOL_OUTPUT,
+    ExecutionTraceKind.VERIFICATION_PASSED,
+    ExecutionTraceKind.VERIFICATION_FAILED,
     ExecutionTraceKind.WAITING_FOR_APPROVAL,
     ExecutionTraceKind.RECOVERING,
     ExecutionTraceKind.COMPLETED,
@@ -136,6 +147,7 @@ data class ExecutionTraceEvent(
     val sequence: Long,
     val timestampMs: Long,
     val kind: ExecutionTraceKind,
+    val status: ExecutionTraceStatus = kind.defaultStatus(),
     val summary: String,
     val detail: String? = null,
     /** Stable owner for a single tool action when [kind] is a tool lifecycle event. */
@@ -152,6 +164,10 @@ data class ExecutionTraceEvent(
     val parentId: String? = null,
     /** Redacted tool arguments; never contains raw secrets or provider payloads. */
     val inputParams: Map<String, String> = emptyMap(),
+    /** Redacted bounded result evidence; never the raw tool payload. */
+    val outputSummary: String? = null,
+    /** Safe source label such as local, connector, skill, or terminal. */
+    val provenance: String? = null,
 ) {
     /** Stable correlation key for this ordered event within one execution. */
     val eventId: String get() = "$executionId:event:$sequence"
@@ -160,13 +176,21 @@ data class ExecutionTraceEvent(
 }
 
 enum class ExecutionTraceKind {
+    EXECUTION_STARTED,
+    PLAN_CREATED,
+    REASONING_NOTE,
+    TOOL_REQUESTED,
     PLANNING,
     STEP_STARTED,
     STEP_COMPLETED,
     TOOL_STARTED,
+    TOOL_OUTPUT,
     TOOL_COMPLETED,
     TOOL_FAILED,
     TOOL_CANCELLED,
+    VERIFICATION_STARTED,
+    VERIFICATION_PASSED,
+    VERIFICATION_FAILED,
     /** Execution is durably paused until the user decides a side effect. */
     WAITING_FOR_APPROVAL,
     /** The user rejected the pending side effect or its continuation. */
@@ -180,4 +204,41 @@ enum class ExecutionTraceKind {
     COMPLETED,
     FAILED,
     CANCELLED,
+}
+
+enum class ExecutionTraceStatus {
+    PENDING,
+    RUNNING,
+    WAITING,
+    RECOVERING,
+    COMPLETED,
+    FAILED,
+    CANCELLED,
+}
+
+private fun ExecutionTraceKind.defaultStatus(): ExecutionTraceStatus = when (this) {
+    ExecutionTraceKind.TOOL_REQUESTED -> ExecutionTraceStatus.PENDING
+    ExecutionTraceKind.TOOL_STARTED,
+    ExecutionTraceKind.EXECUTION_STARTED,
+    ExecutionTraceKind.PLAN_CREATED,
+    ExecutionTraceKind.REASONING_NOTE,
+    ExecutionTraceKind.STEP_STARTED,
+    ExecutionTraceKind.REFLECTING,
+    ExecutionTraceKind.VERIFICATION_STARTED -> ExecutionTraceStatus.RUNNING
+    ExecutionTraceKind.WAITING_FOR_APPROVAL -> ExecutionTraceStatus.WAITING
+    ExecutionTraceKind.RECOVERING -> ExecutionTraceStatus.RECOVERING
+    ExecutionTraceKind.TOOL_COMPLETED,
+    ExecutionTraceKind.STEP_COMPLETED,
+    ExecutionTraceKind.TOOL_OUTPUT,
+    ExecutionTraceKind.VERIFICATION_PASSED,
+    ExecutionTraceKind.COMPLETED -> ExecutionTraceStatus.COMPLETED
+    ExecutionTraceKind.TOOL_FAILED,
+    ExecutionTraceKind.FAILED,
+    ExecutionTraceKind.TIMED_OUT,
+    ExecutionTraceKind.VERIFICATION_FAILED,
+    ExecutionTraceKind.APPROVAL_TIMEOUT -> ExecutionTraceStatus.FAILED
+    ExecutionTraceKind.TOOL_CANCELLED,
+    ExecutionTraceKind.CANCELLED,
+    ExecutionTraceKind.APPROVAL_CANCELLED -> ExecutionTraceStatus.CANCELLED
+    ExecutionTraceKind.PLANNING -> ExecutionTraceStatus.RUNNING
 }

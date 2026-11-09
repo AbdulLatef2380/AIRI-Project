@@ -2,7 +2,7 @@ package com.airi.assistant.ui.trace
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import android.content.Context
 import androidx.compose.ui.platform.LocalContext
@@ -27,7 +27,7 @@ fun InlineExecutionTrace(
     val context = LocalContext.current
     val planningTaskLabel = stringResource(R.string.agent_trace_live_planning_task)
     val executionCompletedLabel = stringResource(R.string.agent_trace_kind_completed)
-    val canonicalEvents = AgentEventBus.recent.collectAsState().value
+    val canonicalEvents = AgentEventBus.recent.collectAsStateWithLifecycle().value
         .filter { it.executionId == executionId }
     val projection = remember(
         executionId,

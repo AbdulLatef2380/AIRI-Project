@@ -2343,4 +2343,8 @@
     <string name="agent_trace_kind_verification_started">Verificación iniciada</string>
     <string name="agent_trace_kind_verification_passed">Verificación superada</string>
     <string name="agent_trace_kind_verification_failed">Verificación fallida</string>
+    <string name="agent_trace_active_node">Activo: %1$s</string>
+    <string name="agent_trace_execution_counts">%1$d pasos · %2$d herramientas</string>
+    <string name="agent_trace_event_output">Salida: %1$s</string>
+    <string name="agent_trace_event_source">Origen: %1$s</string>
 </resources>

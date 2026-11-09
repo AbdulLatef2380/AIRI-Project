@@ -2668,4 +2668,8 @@
     <string name="run_approval_notif_title">Approval needed</string>
     <string name="run_approval_notif_channel_name">Approval needed</string>
     <string name="run_approval_notif_channel_desc">Tells you when an agent task is waiting for your approval while the app is in the background.</string>
+    <string name="agent_trace_active_node">Active: %1$s</string>
+    <string name="agent_trace_execution_counts">%1$d steps · %2$d tools</string>
+    <string name="agent_trace_event_output">Output: %1$s</string>
+    <string name="agent_trace_event_source">Source: %1$s</string>
 </resources>

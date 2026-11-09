@@ -83,8 +83,9 @@ fun AgentLifecycleTrackerPanel(
     val isWaiting = latestStatus == TaskStatus.WAITING
     val isTerminal = latestStatus == TaskStatus.COMPLETED || latestStatus == TaskStatus.FAILED || latestStatus == TaskStatus.CANCELLED
 
-    LaunchedEffect(lastEventKey, expanded) {
-        if (expanded && projection.groups.isNotEmpty() && listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 >= listState.layoutInfo.totalItemsCount - 2) {
+    LaunchedEffect(lastEventKey, expanded, projection.executionRoot != null, projection.taskTree.size) {
+        if (expanded && (projection.groups.isNotEmpty() || projection.executionRoot != null || projection.taskTree.isNotEmpty()) &&
+            listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 >= listState.layoutInfo.totalItemsCount - 2) {
             listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
         }
     }
@@ -111,7 +112,34 @@ fun AgentLifecycleTrackerPanel(
             isTerminal = isTerminal,
         )
         AnimatedVisibility(visible = expanded) {
-            if (projection.groups.isNotEmpty()) {
+            if (projection.executionRoot != null) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("agent-trace-list")
+                        .heightIn(max = 238.dp),
+                    verticalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
+                    traceNodeItems(
+                        node = projection.executionRoot,
+                        depth = 0,
+                        expandedEvents = expandedEvents,
+                        onToggleEvent = { event ->
+                            val canExpand = !event.detailLog.isNullOrBlank() ||
+                                event.inputParams.isNotEmpty() || event.outputSummary != null ||
+                                event.provenance != null || event.durationMs != null || event.errorCode != null
+                            if (canExpand) {
+                                expandedEvents = if (event.eventId in expandedEvents) {
+                                    expandedEvents - event.eventId
+                                } else {
+                                    expandedEvents + event.eventId
+                                }
+                            }
+                        },
+                    )
+                }
+            } else if (projection.groups.isNotEmpty()) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -141,7 +169,8 @@ fun AgentLifecycleTrackerPanel(
                                     depth = 0,
                                     expanded = event.eventId in expandedEvents,
                                     onToggle = {
-                                        if (!event.detailLog.isNullOrBlank()) {
+                                        if (!event.detailLog.isNullOrBlank() || event.outputSummary != null || event.provenance != null ||
+                                            event.inputParams.isNotEmpty() || event.durationMs != null || event.errorCode != null) {
                                             expandedEvents = if (event.eventId in expandedEvents) {
                                                 expandedEvents - event.eventId
                                             } else {
@@ -170,7 +199,8 @@ fun AgentLifecycleTrackerPanel(
                             expandedEvents = expandedEvents,
                             onToggleEvent = { event ->
                                 val canExpand = !event.detailLog.isNullOrBlank() ||
-                                    event.inputParams.isNotEmpty() || event.durationMs != null ||
+                                    event.inputParams.isNotEmpty() || event.outputSummary != null ||
+                                    event.provenance != null || event.durationMs != null ||
                                     event.errorCode != null
                                 if (canExpand) {
                                     expandedEvents = if (event.eventId in expandedEvents) {
@@ -253,6 +283,12 @@ private fun ActivitySummaryRow(
         isWorking -> R.string.agent_lifecycle_understood
         else -> null
     }
+    val activeNode = summary.currentStep ?: summary.lastActivity
+    val executionCounts = stringResource(
+        R.string.agent_trace_execution_counts,
+        summary.summary.tasks,
+        summary.summary.toolsUsed,
+    )
     val toggleDescription = stringResource(
         if (expanded) R.string.agent_trace_collapse_panel else R.string.agent_trace_expand_panel,
     )
@@ -343,6 +379,24 @@ private fun ActivitySummaryRow(
                     modifier = Modifier.testTag("agent-trace-human-progress"),
                 )
             }
+            activeNode?.let { node ->
+                Text(
+                    text = stringResource(R.string.agent_trace_active_node, node.title),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("agent-trace-active-node"),
+                )
+            }
+            if (summary.summary.tasks > 0 || summary.summary.toolsUsed > 0) {
+                Text(
+                    text = executionCounts,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.testTag("agent-trace-execution-counts"),
+                )
+            }
         }
         Icon(
             imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
@@ -405,7 +459,7 @@ private fun ActivityEventRow(
     onToggle: () -> Unit,
 ) {
     val canExpand = !event.detailLog.isNullOrBlank() || event.inputParams.isNotEmpty() ||
-        event.durationMs != null || event.errorCode != null
+        event.outputSummary != null || event.provenance != null || event.durationMs != null || event.errorCode != null
     val accessibleStatus = statusLabel(event.status)
     val technicalEvent = event.category == UnifiedTraceCategory.TOOL ||
         event.category == UnifiedTraceCategory.CONNECTOR
@@ -423,6 +477,7 @@ private fun ActivityEventRow(
         if (event.inputParams.isNotEmpty()) add("${event.inputParams.size} input parameters")
         event.durationMs?.let { add("${it.coerceAtLeast(0L)} ms") }
         event.errorCode?.let(::add)
+        event.provenance?.let(::add)
     }.joinToString(". ")
     val color = when (event.status) {
         TaskStatus.RUNNING -> MaterialTheme.colorScheme.onSurface
@@ -561,6 +616,24 @@ private fun ActivityEventRow(
                         text = stringResource(R.string.agent_trace_event_duration, durationMs.coerceAtLeast(0L)),
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+                event.outputSummary?.let { output ->
+                    Text(
+                        text = stringResource(R.string.agent_trace_event_output, output),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                event.provenance?.let { source ->
+                    Text(
+                        text = stringResource(R.string.agent_trace_event_source, source),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 event.errorCode?.let { errorCode ->

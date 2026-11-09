@@ -253,7 +253,7 @@ private fun AgentTraceSection(
                 modifier = Modifier.fillMaxWidth().heightIn(max = 210.dp),
                 contentPadding = PaddingValues(bottom = 6.dp),
             ) {
-                items(entries, key = { it.sequence }) { entry ->
+                items(entries, key = { it.eventId }) { entry ->
                     TraceEntryRow(entry)
                 }
             }
@@ -277,7 +277,7 @@ private fun AgentTraceSection(
 
 @Composable
 private fun TraceEntryRow(entry: ExecutionTraceEvent) {
-    var expanded by remember(entry.sequence) { mutableStateOf(false) }
+    var expanded by remember(entry.eventId) { mutableStateOf(false) }
     val kindLabel = traceKindLabel(entry.kind)
     val label = "${entry.sequence} · $kindLabel"
     val rowColor = traceKindColor(entry.kind)

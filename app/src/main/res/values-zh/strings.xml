@@ -2326,4 +2326,8 @@
     <string name="agent_trace_kind_verification_started">验证已开始</string>
     <string name="agent_trace_kind_verification_passed">验证通过</string>
     <string name="agent_trace_kind_verification_failed">验证失败</string>
+    <string name="agent_trace_active_node">当前：%1$s</string>
+    <string name="agent_trace_execution_counts">%1$d 个步骤 · %2$d 个工具</string>
+    <string name="agent_trace_event_output">输出：%1$s</string>
+    <string name="agent_trace_event_source">来源：%1$s</string>
 </resources>

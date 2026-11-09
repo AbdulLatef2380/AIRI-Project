@@ -2603,4 +2603,8 @@
     <string name="agent_trace_kind_verification_started">بدأ التحقق</string>
     <string name="agent_trace_kind_verification_passed">نجح التحقق</string>
     <string name="agent_trace_kind_verification_failed">فشل التحقق</string>
+    <string name="agent_trace_active_node">النشاط الآن: %1$s</string>
+    <string name="agent_trace_execution_counts">%1$d خطوات · %2$d أدوات</string>
+    <string name="agent_trace_event_output">الناتج: %1$s</string>
+    <string name="agent_trace_event_source">المصدر: %1$s</string>
 </resources>

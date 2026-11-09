@@ -101,6 +101,14 @@ data class SubAgentContext(
      * Agents can reference these to chain results.
      */
     val dependencyResults: Map<String, String> = emptyMap()
+
+    // ── Trace ownership ─────────────────────────────────────────────────────
+    /** Owning execution supplied by the orchestrator; never inferred from UI state. */
+    val executionId: String = "",
+    /** Parent step/action in the owning execution tree. */
+    val parentId: String? = null,
+    /** Stable action identity for this sub-agent invocation. */
+    val actionId: String = "",
 ) {
     companion object {
         const val MAX_NESTING_DEPTH = 3

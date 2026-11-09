@@ -19,6 +19,7 @@ import com.airi.assistant.agent.reflection.FinalAnswerVerifier
 import com.airi.assistant.agent.reflection.PlanQualityScorer
 import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgentContext
+import com.airi.assistant.agent.subagent.SubAgentTraceAdapter
 import com.airi.assistant.agent.subagent.SubAgentRegistry
 import com.airi.assistant.agent.workspace.SandboxWorkspace
 import com.airi.assistant.agent.workspace.WorkspaceRegistry
@@ -276,7 +277,7 @@ class UnifiedCognitiveLoop {
                     waveNodes.map { node ->
                         async {
                             val startMs = System.currentTimeMillis()
-                            val result = runCatching { runNode(node) }.getOrElse { e ->
+                            val result = runCatching { runNode(node, graph.goalId) }.getOrElse { e ->
                                 if (e is CancellationException) throw e
                                 CommandResult(false, "node_exception:${e.message?.take(120)}")
                             }
@@ -439,7 +440,7 @@ class UnifiedCognitiveLoop {
      * as CommandResult(false, ...). The caller wraps it in runCatching anyway
      * for defence-in-depth.
      */
-    private suspend fun runNode(node: GoalNode): CommandResult {
+    private suspend fun runNode(node: GoalNode, executionId: String): CommandResult {
         executeDirectCognitiveSkill(node)?.let { return it }
         val routingInput = buildString {
             append(node.activeAction.replace('_', ' '))
@@ -455,7 +456,10 @@ class UnifiedCognitiveLoop {
             grantedPermissions = SubAgentRegistry.activeCapabilities(),
             nestingDepth       = 1,
             dependencyResults  = node.activeParams,
-            privacyLevel       = resolvePrivacyLevel()
+            privacyLevel       = resolvePrivacyLevel(),
+            executionId        = executionId,
+            parentId           = node.id,
+            actionId           = "subagent:${node.id}",
         )
 
         val agent = SubAgentRegistry.route(routingInput, context)
@@ -464,8 +468,10 @@ class UnifiedCognitiveLoop {
             var resultText = ""
             var failed     = false
             var failReason = ""
+            val traceAdapter = SubAgentTraceAdapter(context, agent.capability.agentId)
             runCatching {
                 agent.execute(routingInput, context).collect { event ->
+                    traceAdapter.accept(event)
                     when (event) {
                         is AgentEvent.Complete      -> resultText = event.result
                         is AgentEvent.PartialResult -> resultText += event.text
@@ -520,7 +526,10 @@ class UnifiedCognitiveLoop {
                     }
                 }
             }.onFailure { e ->
-                if (e is CancellationException) throw e
+                if (e is CancellationException) {
+                    traceAdapter.cancelled()
+                    throw e
+                }
                 Log.e(TAG, "runNode agent threw: ${e.message}")
                 failed = true; failReason = e.message ?: "agent exception"
             }

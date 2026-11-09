@@ -415,6 +415,7 @@ object ExecutionStatusBus {
         outputSummary: String,
         detail: String? = null,
         provenance: String? = null,
+        parentId: String? = null,
     ) {
         synchronized(traceLock) {
             if (!isOpenExecution(executionId) || actionId.isBlank()) return
@@ -425,6 +426,7 @@ object ExecutionStatusBus {
                 detail = detail,
                 actionId = actionId,
                 machineTag = "tool_output",
+                parentId = parentId,
                 outputSummary = PrivacyGuard.redactForTrace(outputSummary, ExecutionTraceBuffer.MAX_DETAIL_CHARS),
                 provenance = provenance ?: toolName.substringBefore('_').takeIf { it.isNotBlank() },
             )
@@ -689,6 +691,107 @@ object ExecutionStatusBus {
             }
         }
         safeLog { Log.i(TAG, "EXEC_STATUS_CANCELLATION_REQUESTED") }
+    }
+
+    /** Records bounded SubAgent progress without exposing raw agent events to UI. */
+    fun onSubAgentProgress(
+        executionId: String,
+        parentId: String?,
+        actionId: String,
+        agentId: String,
+        stepName: String,
+        message: String,
+        percentComplete: Int,
+    ) {
+        if (!isOpenExecution(executionId) || actionId.isBlank()) return
+        appendTrace(
+            executionId = executionId,
+            kind = ExecutionTraceKind.REASONING_NOTE,
+            summary = stepName.takeIf { it.isNotBlank() }?.let { "Sub-agent progress: $it" } ?: "Sub-agent progress",
+            detail = PrivacyGuard.redactTraceField("message", message).take(160),
+            actionId = actionId,
+            parentId = parentId,
+            machineTag = "subagent_progress",
+            inputParams = mapOf("percentComplete" to percentComplete.coerceIn(-1, 100).toString()),
+            provenance = "subagent:${agentId.take(80)}",
+        )
+    }
+
+    /** Adds bounded, redacted SubAgent output evidence to the owning action. */
+    fun onSubAgentOutput(
+        executionId: String,
+        actionId: String,
+        outputSummary: String,
+        provenance: String,
+        parentId: String? = null,
+    ) {
+        if (!isOpenExecution(executionId) || actionId.isBlank()) return
+        onToolOutput(
+            executionId = executionId,
+            actionId = actionId,
+            toolName = "subagent_output",
+            outputSummary = outputSummary,
+            provenance = provenance.take(80),
+            parentId = parentId,
+        )
+    }
+
+    /** Closes a SubAgent-owned plan step without claiming global execution success. */
+    fun onSubAgentCompleted(
+        executionId: String,
+        actionId: String,
+        agentId: String,
+        durationMs: Long,
+        parentId: String? = null,
+    ) {
+        if (!isOpenExecution(executionId) || actionId.isBlank()) return
+        appendTrace(
+            executionId = executionId,
+            kind = ExecutionTraceKind.STEP_COMPLETED,
+            summary = "Sub-agent completed: ${agentId.take(80)}",
+            actionId = actionId,
+            parentId = parentId,
+            machineTag = "subagent_completed",
+            durationMs = durationMs.coerceAtLeast(0L),
+            provenance = "subagent:${agentId.take(80)}",
+        )
+    }
+
+    /** Emits a typed SubAgent failure while leaving global graph ownership to UCL. */
+    fun onSubAgentFailed(
+        executionId: String,
+        actionId: String,
+        agentId: String,
+        reason: String,
+        errorCode: String,
+        parentId: String? = null,
+    ) {
+        if (!isOpenExecution(executionId) || actionId.isBlank()) return
+        appendTrace(
+            executionId = executionId,
+            kind = ExecutionTraceKind.TOOL_FAILED,
+            summary = "Sub-agent failed: ${agentId.take(80)}",
+            detail = PrivacyGuard.redactTraceField("reason", reason).take(160),
+            actionId = actionId,
+            parentId = parentId,
+            machineTag = "subagent_failed",
+            errorCode = errorCode.take(80),
+            provenance = "subagent:${agentId.take(80)}",
+        )
+    }
+
+    /** Emits cancellation as a typed child outcome, not as a generic failure. */
+    fun onSubAgentCancelled(executionId: String, actionId: String, agentId: String, parentId: String? = null) {
+        if (!isOpenExecution(executionId) || actionId.isBlank()) return
+        appendTrace(
+            executionId = executionId,
+            kind = ExecutionTraceKind.TOOL_CANCELLED,
+            summary = "Sub-agent cancelled: ${agentId.take(80)}",
+            actionId = actionId,
+            parentId = parentId,
+            machineTag = "subagent_cancelled",
+            provenance = "subagent:${agentId.take(80)}",
+        )
     }
 
     /** Publishes a compact, user-safe final verification result for ChatScreen. */

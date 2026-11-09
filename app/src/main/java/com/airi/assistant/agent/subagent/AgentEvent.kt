@@ -3,8 +3,9 @@ package com.airi.assistant.agent.subagent
 /**
  * Sealed hierarchy of events emitted by a [SubAgent] during execution.
  *
- * Consumers (UI, orchestrator) pattern-match on these to:
- *   - Display streaming progress ([Progress], [PartialResult])
+ * The orchestrator consumes these events and routes them through the Trace
+ * Gateway before any UI projection. It uses them to:
+ *   - Report bounded progress ([Progress], [PartialResult])
  *   - Record tool invocations in the agent trace ([ToolCall])
  *   - Finalize results ([Complete], [Failed])
  *   - Delegate to another agent ([Delegate])

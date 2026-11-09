@@ -60,9 +60,23 @@ class ToolDispatcher(
     }
 
     sealed class ToolResult {
+        /** Structured, redacted execution evidence for trace and verification layers. */
+        data class Evidence(
+            val kind: Kind,
+            val exitCode: Int? = null,
+            val changedFiles: List<String> = emptyList(),
+            val artifactId: String? = null,
+            val durationMs: Long? = null,
+            val provenance: ToolProvenance = ToolProvenance.BUILTIN,
+            val untrusted: Boolean = false,
+        ) {
+            enum class Kind { GENERIC, TERMINAL, FILE_DIFF, BUILD, TEST, SKILL, CONNECTOR }
+        }
+
         data class Success(
             val output: String,
             val provenance: ToolProvenance = ToolProvenance.BUILTIN,
+            val evidence: Evidence = Evidence(kind = Evidence.Kind.GENERIC, provenance = provenance),
         ) : ToolResult()
 
         data class Error(
@@ -71,6 +85,7 @@ class ToolDispatcher(
             val retryable: Boolean = false,
             val provenance: ToolProvenance = ToolProvenance.BUILTIN,
             val approval: ToolApprovalContext? = null,
+            val evidence: Evidence = Evidence(kind = Evidence.Kind.GENERIC, provenance = provenance),
         ) : ToolResult()
     }
 
@@ -397,16 +412,53 @@ class ToolDispatcher(
                     is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Completed -> when (val execution = result.result) {
                         is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.Success -> {
                             LoggingService.info(TAG, "TERMINAL_TOOL_COMPLETE commandChars=${command.length} outputChars=${execution.output.length}")
-                            ToolResult.Success(execution.output.ifBlank { "Command completed without output." })
+                            ToolResult.Success(
+                                execution.output.ifBlank { "Command completed without output." },
+                                evidence = ToolResult.Evidence(
+                                    kind = ToolResult.Evidence.Kind.TERMINAL,
+                                    exitCode = execution.exitCode,
+                                    provenance = ToolProvenance.BUILTIN,
+                                ),
+                            )
                         }
                         is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.Timeout ->
-                            ToolResult.Error("Command timed out", code = ToolErrorCodes.EXECUTION_FAILED)
+                            ToolResult.Error(
+                                "Command timed out",
+                                code = ToolErrorCodes.EXECUTION_FAILED,
+                                evidence = ToolResult.Evidence(
+                                    kind = ToolResult.Evidence.Kind.TERMINAL,
+                                    provenance = ToolProvenance.BUILTIN,
+                                ),
+                            )
                         is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.Failure ->
-                            ToolResult.Error(execution.error, code = ToolErrorCodes.EXECUTION_FAILED)
+                            ToolResult.Error(
+                                execution.error,
+                                code = ToolErrorCodes.EXECUTION_FAILED,
+                                evidence = ToolResult.Evidence(
+                                    kind = ToolResult.Evidence.Kind.TERMINAL,
+                                    exitCode = execution.exitCode,
+                                    provenance = ToolProvenance.BUILTIN,
+                                ),
+                            )
                         is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.SecurityViolation ->
-                            ToolResult.Error(execution.reason, code = ToolErrorCodes.PERMISSION_DENIED)
+                            ToolResult.Error(
+                                execution.reason,
+                                code = ToolErrorCodes.PERMISSION_DENIED,
+                                evidence = ToolResult.Evidence(
+                                    kind = ToolResult.Evidence.Kind.TERMINAL,
+                                    provenance = ToolProvenance.SYSTEM,
+                                    untrusted = true,
+                                ),
+                            )
                         com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.UnsupportedOnDevice ->
-                            ToolResult.Error("Command is unsupported on this device", code = ToolErrorCodes.UNSUPPORTED)
+                            ToolResult.Error(
+                                "Command is unsupported on this device",
+                                code = ToolErrorCodes.UNSUPPORTED,
+                                evidence = ToolResult.Evidence(
+                                    kind = ToolResult.Evidence.Kind.TERMINAL,
+                                    provenance = ToolProvenance.SYSTEM,
+                                ),
+                            )
                     }
                 }
             }
@@ -446,7 +498,14 @@ class ToolDispatcher(
                                 )
                             }
                         }
-                        ToolResult.Success(AgentFileWriter.savedMessage(written.file.name, written.chars))
+                        ToolResult.Success(
+                            AgentFileWriter.savedMessage(written.file.name, written.chars),
+                            evidence = ToolResult.Evidence(
+                                kind = ToolResult.Evidence.Kind.FILE_DIFF,
+                                changedFiles = listOf(written.file.name),
+                                provenance = ToolProvenance.BUILTIN,
+                            ),
+                        )
                     }
                     is AgentFileWriter.Result.Rejected ->
                         ToolResult.Error(written.reason, code = ToolErrorCodes.INVALID_ARGUMENT)

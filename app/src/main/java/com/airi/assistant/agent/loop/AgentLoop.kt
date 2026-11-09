@@ -75,11 +75,9 @@ class AgentLoop(
     private val appContext:            Context,
     private val contextBudgetProvider: () -> ContextBudget = { ContextBudget.UNLOADED },
     /**
-     * : Optional sandbox wrapper. When non-null, every tool dispatch is
-     * routed through [agentSandbox.execute] so permission checks, workspace
-     * logging, and rollback-on-violation are applied to every tool call.
-     * Null keeps the legacy direct-dispatch path for callers that have not
-     * yet been updated (conservative default).
+     * Sandbox wrapper for tool execution. It remains nullable for legacy test
+     * construction, but sensitive terminal/filesystem/read paths fail closed
+     * when it is absent; they never fall back to direct dispatch.
      */
     private val agentSandbox: com.airi.assistant.security.AgentSandbox? = null,
     /** Typed local proposal runtime; only calendar creation is eligible today. */
@@ -1331,7 +1329,11 @@ the tool returns an actual error.
                                 dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId, traceId = traceId, sessionId = sessionId, messageId = messageId)
                             }
                         } else {
-                            dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId, traceId = traceId, sessionId = sessionId, messageId = messageId)
+                            ToolDispatcher.ToolResult.Error(
+                                "Sandbox is required before terminal execution",
+                                code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
+                                provenance = com.airi.assistant.agent.loop.tool.ToolProvenance.SYSTEM,
+                            )
                         }
                     } catch (e: CancellationException) {
                         throw e
@@ -1350,7 +1352,11 @@ the tool returns an actual error.
                                 dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId, traceId = traceId, sessionId = sessionId, messageId = messageId)
                             }
                         } else {
-                            dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId, traceId = traceId, sessionId = sessionId, messageId = messageId)
+                            ToolDispatcher.ToolResult.Error(
+                                "Sandbox is required before file writes",
+                                code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
+                                provenance = com.airi.assistant.agent.loop.tool.ToolProvenance.SYSTEM,
+                            )
                         }
                     } catch (e: CancellationException) {
                         throw e
@@ -1376,7 +1382,11 @@ the tool returns an actual error.
                                 dispatcher.execute(toolName, toolArgs, appContext, executionId, actionId = toolStepId, traceId = traceId, sessionId = sessionId, messageId = messageId)
                             }
                         } else {
-                            dispatcher.execute(toolName, toolArgs, appContext, executionId, actionId = toolStepId, traceId = traceId, sessionId = sessionId, messageId = messageId)
+                            ToolDispatcher.ToolResult.Error(
+                                "Sandbox is required before tool reads",
+                                code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
+                                provenance = com.airi.assistant.agent.loop.tool.ToolProvenance.SYSTEM,
+                            )
                         }
                     } catch (e: CancellationException) {
                         throw e
@@ -1434,6 +1444,10 @@ the tool returns an actual error.
                 } else false
 
                 val toolDurationMs = System.currentTimeMillis() - toolStartedAtMs
+                val toolEvidence = when (toolResult) {
+                    is ToolDispatcher.ToolResult.Success -> toolResult.evidence
+                    is ToolDispatcher.ToolResult.Error -> toolResult.evidence
+                }
                 if (!approvalPending) {
                     runtimeTrace?.executionCompleted(
                         executionId = executionId,
@@ -1443,6 +1457,10 @@ the tool returns an actual error.
                         durationMs = toolDurationMs,
                         resultLength = resultText.length,
                         errorCategory = (toolResult as? ToolDispatcher.ToolResult.Error)?.code,
+                        evidenceKind = toolEvidence.kind.name.lowercase(),
+                        evidenceExitCode = toolEvidence.exitCode,
+                        changedFiles = toolEvidence.changedFiles,
+                        evidenceUntrusted = toolEvidence.untrusted,
                     )
                     runtimeTrace?.capabilityStage(
                         executionId, sessionId, toolName,

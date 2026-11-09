@@ -264,6 +264,10 @@ class UniversalRuntimeTraceRecorder(
         durationMs: Long,
         resultLength: Int,
         errorCategory: String? = null,
+        evidenceKind: String? = null,
+        evidenceExitCode: Int? = null,
+        changedFiles: List<String> = emptyList(),
+        evidenceUntrusted: Boolean = false,
     ) = record(
         eventType = UniversalTraceEventType.CONNECTOR_EXECUTION_COMPLETED,
         executionId = executionId,
@@ -275,6 +279,13 @@ class UniversalRuntimeTraceRecorder(
             put("durationMs", durationMs.coerceAtLeast(0L).toString())
             put("resultLength", resultLength.toString())
             errorCategory?.let { put("errorCategory", RuntimeTraceRedaction.safeReason(it)) }
+            evidenceKind?.let { put("evidenceKind", RuntimeTraceRedaction.safeReason(it)) }
+            evidenceExitCode?.let { put("evidenceExitCode", it.toString()) }
+            if (changedFiles.isNotEmpty()) {
+                put("changedFileCount", changedFiles.size.toString())
+                put("changedFileNames", changedFiles.joinToString(",") { RuntimeTraceRedaction.token(it) })
+            }
+            put("evidenceUntrusted", evidenceUntrusted.toString())
         }
     )
 

@@ -27,6 +27,23 @@ data class RuntimeCapabilityInventory(
         UNKNOWN,
     }
 
+    enum class LifecycleStage {
+        REGISTERED,
+        READY,
+        SELECTED,
+        EXPOSED,
+        ADMITTED,
+        DISPATCHER_ROUTE,
+        EXECUTABLE,
+    }
+
+    /** One request-scoped projection of the complete capability lifecycle. */
+    data class LifecycleProjection(
+        val stages: List<LifecycleStage>,
+        val current: LifecycleStage,
+        val reason: String? = null,
+    )
+
     data class Entry(
         val id: String,
         val family: Family,
@@ -40,7 +57,32 @@ data class RuntimeCapabilityInventory(
         val detail: String? = null,
         /** Canonical execution route used after catalog admission. */
         val dispatcherRoute: String? = null,
-    )
+    ) {
+        /**
+         * The lifecycle is derived only from this immutable snapshot. A blocked
+         * capability stops at REGISTERED and carries the exact readiness reason;
+         * it is never presented as an absent feature.
+         */
+        val lifecycle: LifecycleProjection
+            get() {
+                val stages = buildList {
+                    if (registered) add(LifecycleStage.REGISTERED) else return@buildList
+                    if (availability == Availability.READY) add(LifecycleStage.READY) else return@buildList
+                    if (inRequestCatalog) add(LifecycleStage.SELECTED) else return@buildList
+                    if (exposedToAgent) add(LifecycleStage.EXPOSED) else return@buildList
+                    if (admittedToDispatcher) add(LifecycleStage.ADMITTED) else return@buildList
+                    if (!dispatcherRoute.isNullOrBlank()) add(LifecycleStage.DISPATCHER_ROUTE) else return@buildList
+                    add(LifecycleStage.EXECUTABLE)
+                }
+                return LifecycleProjection(
+                    stages = stages,
+                    current = stages.lastOrNull() ?: LifecycleStage.REGISTERED,
+                    reason = if (stages.lastOrNull() != LifecycleStage.EXECUTABLE) {
+                        detail ?: availability.name.lowercase()
+                    } else null,
+                )
+            }
+    }
 
     data class ConnectorReadinessFacts(
         val supported: Boolean = true,
@@ -93,8 +135,10 @@ data class RuntimeCapabilityInventory(
             if (important.isNotEmpty()) {
                 appendLine("- Relevant registered entries (status fields are independent):")
                 important.forEach { entry ->
-                    append("  • ${entry.id}: registered=${entry.registered}, availability=${entry.availability.name.lowercase()}, in_request_catalog=${entry.inRequestCatalog}, exposed=${entry.exposedToAgent}, dispatcher_admitted=${entry.admittedToDispatcher}")
+                    val lifecycle = entry.lifecycle
+                    append("  • ${entry.id}: registered=${entry.registered}, availability=${entry.availability.name.lowercase()}, in_request_catalog=${entry.inRequestCatalog}, exposed=${entry.exposedToAgent}, dispatcher_admitted=${entry.admittedToDispatcher}, lifecycle=${lifecycle.stages.joinToString(">") { it.name.lowercase() }}, current=${lifecycle.current.name.lowercase()}")
                     entry.detail?.takeIf(String::isNotBlank)?.let { append("; note=${it.take(MAX_DETAIL_CHARS)}") }
+                    lifecycle.reason?.takeIf(String::isNotBlank)?.let { append("; reason=${it.take(MAX_DETAIL_CHARS)}") }
                     appendLine()
                 }
             }

@@ -4,6 +4,7 @@ import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgent
 import com.airi.assistant.agent.subagent.SubAgentCapability
 import com.airi.assistant.agent.subagent.SubAgentContext
+import com.airi.assistant.core.ExecutionStatusBus
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -109,6 +110,34 @@ class ProductionAgentOrchestratorReliabilityTest {
             assertTrue(failure.taskErrors.getValue("missing-terminal-task").contains("terminal Complete"))
         } finally {
             orchestrator.cancelAll()
+        }
+    }
+
+    @Test
+    fun productionOrchestratorRoutesTaskLifecycleThroughTraceGateway() = runBlocking {
+        ExecutionStatusBus.reset()
+        val agent = TestAgent { input ->
+            emit(AgentEvent.Progress("started", 10, "work"))
+            emit(AgentEvent.ToolCall("lookup", mapOf("query" to input)))
+            emit(AgentEvent.PartialResult("partial ".repeat(80)))
+            emit(AgentEvent.Complete("done:$input", durationMs = 25L, toolsUsed = listOf("lookup")))
+        }
+        val orchestrator = orchestratorFor(agent)
+
+        try {
+            val result = orchestrator.executePlan(
+                plan(id = "trace-gateway-plan", tasks = listOf(task("trace-task", "trace-input")))
+            )
+
+            assertTrue(result is ProductionAgentOrchestrator.ExecutionResult.Success)
+            val trace = ExecutionStatusBus.traceSnapshot("trace-gateway-plan")
+            assertTrue(trace.any { it.machineTag == "subagent_progress" })
+            assertTrue(trace.any { it.kind == com.airi.assistant.core.ExecutionTraceKind.TOOL_REQUESTED })
+            assertTrue(trace.any { it.machineTag == "subagent_completed" })
+            assertTrue(trace.any { it.machineTag == "execution_completed" })
+        } finally {
+            orchestrator.cancelAll()
+            ExecutionStatusBus.reset()
         }
     }
 

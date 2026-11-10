@@ -21,9 +21,13 @@ class SubAgentTraceAdapter(
     private val activeActions = linkedMapOf<String, String>()
     private var partialText = StringBuilder()
     private var partialEmissions = 0
+    private var nextActionSequence = 0L
+    private var terminal = false
 
+    @Synchronized
     fun accept(event: AgentEvent) {
         if (executionId.isBlank()) return
+        if (terminal) return
         when (event) {
             is AgentEvent.Progress -> {
                 ExecutionStatusBus.onSubAgentProgress(
@@ -82,10 +86,11 @@ class SubAgentTraceAdapter(
                 if (partialEmissions < MAX_PARTIAL_EMISSIONS &&
                     partialText.length - lastPublishedLength >= PARTIAL_CHUNK_CHARS
                 ) {
-                    publishPartial()
+                    publishPartial(force = event.isFinal)
                 }
             }
             is AgentEvent.Complete -> {
+                terminal = true
                 if (partialText.isNotEmpty()) publishPartial(force = true)
                 val safeOutput = PrivacyGuard.redactForTrace(event.result, MAX_OUTPUT_CHARS)
                 ExecutionStatusBus.onSubAgentOutput(
@@ -105,6 +110,7 @@ class SubAgentTraceAdapter(
                 )
             }
             is AgentEvent.Failed -> {
+                terminal = true
                 closeActiveActions(0L, failed = true, errorCode = event.errorCode.ifBlank { "subagent_failed" })
                 ExecutionStatusBus.onSubAgentFailed(
                     executionId = executionId,
@@ -118,8 +124,11 @@ class SubAgentTraceAdapter(
         }
     }
 
+    @Synchronized
     fun cancelled() {
         if (executionId.isBlank()) return
+        if (terminal) return
+        terminal = true
         closeActiveActions(0L, failed = false)
         ExecutionStatusBus.onSubAgentCancelled(
             executionId = executionId,
@@ -129,7 +138,23 @@ class SubAgentTraceAdapter(
         )
     }
 
-    private fun actionId(suffix: String): String = "$rootActionId:$suffix:${activeActions.size}"
+    /** Close an unfinished stream as a typed timeout, not as a normal cancellation. */
+    @Synchronized
+    fun timedOut() {
+        if (executionId.isBlank() || terminal) return
+        terminal = true
+        closeActiveActions(0L, failed = true, errorCode = "subagent_timeout")
+        ExecutionStatusBus.onSubAgentFailed(
+            executionId = executionId,
+            actionId = rootActionId,
+            agentId = agentId,
+            reason = "Sub-agent execution timed out",
+            errorCode = "subagent_timeout",
+            parentId = parentId,
+        )
+    }
+
+    private fun actionId(suffix: String): String = "$rootActionId:$suffix:${nextActionSequence++}"
 
     private var lastPublishedLength = 0
 

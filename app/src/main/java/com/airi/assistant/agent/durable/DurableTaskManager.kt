@@ -886,8 +886,17 @@ class DurableTaskWorker(
 
         manager.beginRun(taskId, task.currentRunId ?: taskId, task.currentStepId)
         manager.updateCheckpoint(taskId, task.checkpointData, 0, "Starting…")
+        var executionId = taskId
+        var traceAdapter: com.airi.assistant.agent.subagent.SubAgentTraceAdapter? = null
         return try {
             val current = manager.getTask(taskId) ?: return Result.failure()
+            executionId = current.currentRunId ?: taskId
+            com.airi.assistant.core.ExecutionStatusBus.onGraphStarted(
+                goalDescription = current.title.take(160),
+                totalNodes = current.plan.size.coerceAtLeast(1),
+                executionId = executionId,
+                sessionId = current.projectId ?: taskId,
+            )
             val context = com.airi.assistant.agent.subagent.SubAgentContext(
                 sessionId = current.projectId ?: taskId,
                 userId = current.ownerId,
@@ -897,7 +906,10 @@ class DurableTaskWorker(
                 parentTaskId = taskId,
                 nestingDepth = 0,
                 dependencyResults = current.checkpointData.takeIf { it.isNotBlank() }
-                    ?.let { mapOf("checkpoint" to it) } ?: emptyMap()
+                    ?.let { mapOf("checkpoint" to it) } ?: emptyMap(),
+                executionId = executionId,
+                parentId = current.currentStepId,
+                actionId = current.currentStepId ?: taskId,
             )
             val registry = com.airi.assistant.agent.subagent.SubAgentRegistry
             val agent = registry.authorizedAgent(current.agentId, context)
@@ -905,7 +917,12 @@ class DurableTaskWorker(
                 ?: error("No authorized agent found for id=${current.agentId}")
             var finalResult = ""
             var failure: String? = null
+            traceAdapter = com.airi.assistant.agent.subagent.SubAgentTraceAdapter(
+                context = context,
+                agentId = agent.capability.agentId,
+            )
             agent.execute(current.input, context).collect { event ->
+                traceAdapter?.accept(event)
                 when (event) {
                     is com.airi.assistant.agent.subagent.AgentEvent.Complete -> finalResult = event.result
                     is com.airi.assistant.agent.subagent.AgentEvent.Failed -> failure = event.reason
@@ -917,11 +934,22 @@ class DurableTaskWorker(
             failure?.let { error(it) }
             if (finalResult.isBlank()) error("Agent completed without a result")
             manager.markCompleted(taskId, finalResult)
+            com.airi.assistant.core.ExecutionStatusBus.onGraphCompleted(success = true, executionId = executionId)
             Result.success()
         } catch (e: CancellationException) {
+            // Preserve a typed cancellation in the execution trace before propagating it.
+            traceAdapter?.cancelled()
+            com.airi.assistant.core.ExecutionStatusBus.onGraphCancelled(executionId)
             throw e
         } catch (e: Throwable) {
             Log.e(TAG, "DurableTaskWorker failed taskId=$taskId: ${e.message}", e)
+            traceAdapter?.accept(
+                com.airi.assistant.agent.subagent.AgentEvent.Failed(
+                    reason = e.message ?: "durable task failed",
+                    errorCode = "durable_task_failed",
+                )
+            )
+            com.airi.assistant.core.ExecutionStatusBus.onGraphCompleted(success = false, executionId = executionId)
             com.airi.assistant.core.ServiceLocator.crashReporter.reportDurableTaskCrash(taskId, task.agentId, e)
             if (runAttemptCount < MAX_RETRIES) {
                 manager.markRetrying(taskId, e.message ?: "transient task failure")

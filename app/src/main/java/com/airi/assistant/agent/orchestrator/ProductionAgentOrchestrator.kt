@@ -16,7 +16,9 @@ import com.airi.assistant.agent.subagent.SubAgent
 import com.airi.assistant.agent.subagent.SubAgentCapability
 import com.airi.assistant.agent.subagent.SubAgentContext
 import com.airi.assistant.agent.subagent.SubAgentRegistry
+import com.airi.assistant.agent.subagent.SubAgentTraceAdapter
 import com.airi.assistant.agent.workspace.AgentWorkspace
+import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.workspace.ArtifactManager
 import com.airi.assistant.workspace.ArtifactProvenance
 import kotlinx.coroutines.CancellationException
@@ -272,6 +274,9 @@ class ProductionAgentOrchestrator(
             )
         try {
             executePlanInScope(plan, onEvent, execution)
+        } catch (cancelled: CancellationException) {
+            ExecutionStatusBus.onGraphCancelled(plan.id)
+            throw cancelled
         } finally {
             activeExecutions.remove(plan.id, execution)
             execution.job.cancel()
@@ -336,6 +341,12 @@ class ProductionAgentOrchestrator(
         )
 
         Log.i(TAG, "AIRI PLAN_START id=$executionId tasks=${plan.tasks.size}")
+        ExecutionStatusBus.onGraphStarted(
+            goalDescription = plan.tasks.firstOrNull()?.description?.take(160) ?: executionId,
+            totalNodes = plan.tasks.size,
+            executionId = executionId,
+            sessionId = plan.tasks.firstOrNull()?.context?.sessionId.orEmpty(),
+        )
         publishState()
 
         // Per-plan shared tool workspace — agents publish/consume typed artifacts here
@@ -395,7 +406,10 @@ class ProductionAgentOrchestrator(
                         dependencyResults = seededDependencies + taskResults.toMap() + workspaceInjection,
                         remainingCloudTokenBudget = teamAdmission.taskCloudBudgets[task.id]
                             ?: task.context.remainingCloudTokenBudget,
-                        parentTaskId = executionId
+                        parentTaskId = executionId,
+                        executionId = executionId,
+                        parentId = task.context.parentId,
+                        actionId = task.id,
                     )
                     val result = executeTask(task, enrichedContext, onEvent, allEvents, eventMutex, workspace)
                     when (result) {
@@ -519,6 +533,7 @@ class ProductionAgentOrchestrator(
             val finalResult = taskResults[finalTaskId].orEmpty()
             Log.i(TAG, "AIRI PLAN_SUCCESS id=$executionId duration=${durationMs}ms")
             durableTaskManager?.markCompleted(executionId, finalResult)
+            ExecutionStatusBus.onGraphCompleted(success = true, executionId = executionId)
             ExecutionResult.Success(
                 planId        = executionId,
                 taskResults   = taskResults.toMap(),
@@ -532,6 +547,7 @@ class ProductionAgentOrchestrator(
                 executionId,
                 taskErrors.values.firstOrNull() ?: "Execution failed"
             )
+            ExecutionStatusBus.onGraphCompleted(success = false, executionId = executionId)
             ExecutionResult.PartialFailure(
                 planId      = executionId,
                 taskResults = taskResults.toMap(),
@@ -578,10 +594,18 @@ class ProductionAgentOrchestrator(
         var completionObserved = false
         val toolsUsed = mutableListOf<String>()
         val durableTaskId = context.parentTaskId.takeIf { it.isNotBlank() }
+        val traceAdapter = SubAgentTraceAdapter(
+            context = context.copy(
+                executionId = context.executionId,
+                actionId = "${context.actionId.ifBlank { task.id }}:attempt:$retryAttempt",
+            ),
+            agentId = agent.capability.agentId,
+        )
 
         val timeoutMs = if (context.timeoutMs > 0) context.timeoutMs else 30_000L
 
-        val timedOut = withTimeoutOrNull(timeoutMs) {
+        val timedOut = try {
+            withTimeoutOrNull(timeoutMs) {
             runCatching {
                 agent.execute(task.input, context)
                     .onCompletion { throwable ->
@@ -597,6 +621,7 @@ class ProductionAgentOrchestrator(
                     .collect { event ->
                         eventMutex.withLock {
                             allEvents.add(event)
+                            traceAdapter.accept(event)
                             onEvent(event)
                         }
 
@@ -682,11 +707,16 @@ class ProductionAgentOrchestrator(
                 taskError = "Agent execution failed: ${e.message}"
                 Log.e(TAG, "Task ${task.id} exception: ${e.message}")
             }
+            }
+        } catch (cancelled: CancellationException) {
+            traceAdapter.cancelled()
+            throw cancelled
         }
 
         if (timedOut == null) {
             val reason = "Task timed out after ${timeoutMs}ms"
             Log.w(TAG, "Task ${task.id} timed out after ${timeoutMs}ms")
+            traceAdapter.timedOut()
             // On timeout, allow one retry with half the time budget
             if (retryAttempt == 0) {
                 Log.i(TAG, "Recovery: timeout retry attempt=1 task=${task.id}")

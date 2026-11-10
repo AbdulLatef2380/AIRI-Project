@@ -77,7 +77,7 @@ class CapabilityVerticalSliceTest {
                 hasIdempotencyKey = false,
             )
         )
-        assertEquals(ModelFacingRepairContract.Decision.EXPLAIN_APPROVAL, approval.decision)
+        assertEquals(ModelFacingRepairContract.Decision.EXPLAIN_PERMISSION, approval.decision)
 
         val notReady = TerminalCapabilityNegotiation.project(true, false, true, true, true, true)
         assertEquals(RuntimeCapabilityInventory.Availability.CONFIGURATION_REQUIRED, notReady.availability)

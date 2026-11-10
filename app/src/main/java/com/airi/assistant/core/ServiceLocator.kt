@@ -186,7 +186,7 @@ object ServiceLocator {
     }
 
     @Volatile
-    var codingAgentRuntimeProvider: () -> CodingAgentRuntime? = { codingAgentRuntime }
+    var codingAgentRuntimeProvider: () -> CodingAgentRuntime = { codingAgentRuntime }
 
     // ── Crash / Runtime Reporting ─────────────────────────────────────────────
 

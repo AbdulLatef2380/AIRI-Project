@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.flow
  * Emits [AgentEvent.PartialResult] chunks for streaming display.
  */
 class CodingAgent(
-    private val runtimeProvider: () -> CodingAgentRuntime? = { null },
+    private val runtimeProvider: () -> CodingAgentRuntime,
 ) : SubAgent {
 
     override val capability = SubAgentCapability(
@@ -57,72 +57,22 @@ class CodingAgent(
         val start = System.currentTimeMillis()
         Log.i(TAG, "CODING_AGENT_EXECUTE inputChars=${input.length}")
 
-        val runtime = runtimeProvider()
-        if (runtime != null) {
-            emit(AgentEvent.Progress("Preparing a bounded coding workspace…", stepName = "admission"))
-            val result = runtime.execute(input, context)
-            emit(AgentEvent.PartialResult(result.evidence, isFinal = false))
-            if (result.report.status == com.airi.assistant.agent.coding.CodingRepairStatus.SUCCEEDED) {
-                emit(AgentEvent.Complete(
-                    result = result.evidence,
-                    durationMs = System.currentTimeMillis() - start,
-                    toolsUsed = result.report.finalExecution.steps.map { it.toolId },
-                ))
-            } else {
-                emit(AgentEvent.Failed(
-                    reason = result.report.terminalReason ?: result.report.status.name.lowercase(),
-                    recoverable = result.report.status == com.airi.assistant.agent.coding.CodingRepairStatus.EXHAUSTED,
-                    errorCode = "coding_${result.report.status.name.lowercase()}",
-                ))
-            }
-            return@flow
+        emit(AgentEvent.Progress("Preparing a bounded coding workspace…", stepName = "admission"))
+        val result = runtimeProvider().execute(input, context)
+        emit(AgentEvent.PartialResult(result.evidence, isFinal = false))
+        if (result.report.status == com.airi.assistant.agent.coding.CodingRepairStatus.SUCCEEDED) {
+            emit(AgentEvent.Complete(
+                result = result.evidence,
+                durationMs = System.currentTimeMillis() - start,
+                toolsUsed = result.report.finalExecution.steps.map { it.toolId },
+            ))
+        } else {
+            emit(AgentEvent.Failed(
+                reason = result.report.terminalReason ?: result.report.status.name.lowercase(),
+                recoverable = result.report.status == com.airi.assistant.agent.coding.CodingRepairStatus.EXHAUSTED,
+                errorCode = "coding_${result.report.status.name.lowercase()}",
+            ))
         }
-
-        emit(AgentEvent.Progress("Analyzing your coding request…", stepName = "analysis"))
-
-        val taskType = detectTaskType(input.lowercase())
-        emit(AgentEvent.Progress("Task identified: $taskType", stepName = "routing"))
-
-        // Build a structured coding prompt
-        val systemContext = buildCodeSystemPrompt(taskType, context)
-        val fullPrompt    = "$systemContext\n\nUser request: $input"
-
-        emit(AgentEvent.Progress("Generating $taskType response…", stepName = "generation"))
-
-        // The actual LLM call happens through HybridOrchestrator at the ViewModel layer.
-        // CodingAgent signals intent via a structured partial result that the orchestrator
-        // surfaces as a streaming response.
-        // In production: the orchestrator intercepts AgentEvent.Delegate and routes to LLM.
-        emit(AgentEvent.Delegate(
-            targetAgentId = "llm_backend",
-            subInput      = fullPrompt,
-            reason        = "Coding task requires LLM: $taskType"
-        ))
-
-        val durationMs = System.currentTimeMillis() - start
-        emit(AgentEvent.Complete(
-            result     = "[CodingAgent delegated to LLM — streaming response]",
-            durationMs = durationMs
-        ))
-    }
-
-    private fun detectTaskType(lower: String): String = when {
-        lower.contains("debug") || lower.contains("fix") || lower.contains("error") -> "debugging"
-        lower.contains("explain") || lower.contains("what does") -> "explanation"
-        lower.contains("refactor") || lower.contains("improve") -> "code review"
-        lower.contains("test") || lower.contains("unit test") -> "test generation"
-        lower.contains("write") || lower.contains("implement") || lower.contains("create") -> "code generation"
-        else -> "code assistance"
-    }
-
-    private fun buildCodeSystemPrompt(taskType: String, context: SubAgentContext): String {
-        val recentContext = if (context.recentTurns.isNotEmpty()) {
-            "\n\nRecent conversation context:\n" + context.recentTurns.takeLast(4).joinToString("\n")
-        } else ""
-        return """You are AIRI's expert coding assistant. Task type: $taskType.
-Provide clear, working, well-commented code. Explain your reasoning concisely.
-If debugging, identify the root cause first before providing a fix.
-If generating code, ask clarifying questions if the requirements are ambiguous.$recentContext"""
     }
 
     companion object { private const val TAG = "CodingAgent" }

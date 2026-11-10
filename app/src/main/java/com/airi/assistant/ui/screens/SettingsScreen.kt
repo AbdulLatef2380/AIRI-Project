@@ -85,6 +85,7 @@ fun SettingsScreen(
     val scope     = rememberCoroutineScope()
     val snackbar  = remember { SnackbarHostState() }
     val context   = LocalContext.current
+    var showSignOutConfirmation by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -447,12 +448,51 @@ fun SettingsScreen(
                     icon     = Icons.Outlined.Logout,
                     iconTint = SemanticError,
                     label    = stringResource(R.string.settings_logout),
-                    onClick  = { onLogout() }
+                    onClick  = { showSignOutConfirmation = true }
                 )
             }
 
             Spacer(Modifier.height(8.dp))
         }
+    }
+
+    if (showSignOutConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showSignOutConfirmation = false },
+            containerColor = AiriTheme.surface,
+            title = {
+                Text(
+                    text = stringResource(R.string.settings_logout_confirm_title),
+                    color = AiriTheme.onSurface,
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+            text = {
+                Text(
+                    text = stringResource(R.string.settings_logout_confirm_body),
+                    color = AiriTheme.onSurfaceVariant,
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { showSignOutConfirmation = false }) {
+                    Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showSignOutConfirmation = false
+                        onLogout()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SemanticError,
+                        contentColor = Color.White,
+                    ),
+                ) {
+                    Text(stringResource(R.string.settings_logout))
+                }
+            },
+        )
     }
 }
 // Reusable settings components

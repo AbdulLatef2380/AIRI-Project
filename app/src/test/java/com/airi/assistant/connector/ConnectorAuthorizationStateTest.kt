@@ -33,12 +33,36 @@ class ConnectorAuthorizationStateTest {
         assertEquals("identity_required", state.reasonCode)
     }
 
-    private class FixtureConnector(private val connected: Boolean, private val healthy: Boolean) : Connector {
+    @Test
+    fun explicit_provider_scopes_are_checked_instead_of_inferred_from_health() {
+        val profiles = InMemoryConnectorAccessProfileStore().apply { set("fixture", ConnectorAccessProfile.READ_WRITE) }
+        val action = ConnectorAgentAction(
+            "write",
+            "Write",
+            permission = ConnectorPermissionLevel.WRITE,
+            providerGrants = listOf(ConnectorProviderGrant(ConnectorProviderGrantKind.OAUTH_SCOPE, "repo:write")),
+        )
+        val state = ConnectorAuthorizationProjection.forAction(
+            FixtureConnector(connected = true, healthy = true, grantedScopes = setOf("repo:read")),
+            action,
+            profiles,
+        )
+        assertEquals(ConnectorAuthorizationState.AuthorizationStatus.SCOPE_REQUIRED, state.status)
+        assertEquals("oauth_scope_required", state.reasonCode)
+        assertFalse(state.isAuthorized)
+        assertTrue(state.reason!!.contains("repo:write"))
+    }
+
+    private class FixtureConnector(
+        private val connected: Boolean,
+        private val healthy: Boolean,
+        grantedScopes: Set<String>? = null,
+    ) : Connector {
         override val id = "fixture"
         override val name = "fixture"
         override val description = "fixture"
         override val type = ConnectorType.APP
-        private val flow = MutableStateFlow(ConnectorState(connected, healthy))
+        private val flow = MutableStateFlow(ConnectorState(connected, healthy, grantedScopes = grantedScopes))
         override fun meta() = ConnectorMeta(id, name, description, type)
         override fun state() = flow
         override suspend fun connect() = flow.value

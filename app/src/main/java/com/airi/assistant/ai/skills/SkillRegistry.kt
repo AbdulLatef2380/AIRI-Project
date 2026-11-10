@@ -47,6 +47,7 @@ class SkillRegistry(private val context: Context) {
     private val disabledSkillsPrefs by lazy {
         context.getSharedPreferences("airi_skill_toggles", Context.MODE_PRIVATE)
     }
+    private val catalogMutationLock = Any()
 
     init {
         // Register all known skills with the AiriSkillOrchestrator so it can
@@ -101,10 +102,12 @@ class SkillRegistry(private val context: Context) {
     }
 
     fun setSkillEnabled(skillName: String, enabled: Boolean) {
-        disabledSkillsPrefs.edit()
-            .putBoolean(skillName, enabled)
-            .putLong(CATALOG_VERSION_KEY, catalogVersion() + 1L)
-            .apply()
+        synchronized(catalogMutationLock) {
+            disabledSkillsPrefs.edit()
+                .putBoolean(skillName, enabled)
+                .putLong(CATALOG_VERSION_KEY, catalogVersion() + 1L)
+                .commit()
+        }
     }
 
     fun catalogVersion(): Long = maxOf(
@@ -113,12 +116,22 @@ class SkillRegistry(private val context: Context) {
     )
 
     fun snapshotForExecution(): SkillCatalogSnapshot {
-        val registered = getRegisteredSkillsForRouting()
-        return SkillCatalogSnapshot(
-            version = catalogVersion(),
-            skills = registered,
-            registeredIds = registered.map { it.skillId }.toSet(),
-        )
+        synchronized(catalogMutationLock) {
+            var registered = emptyList<AiriSkill>()
+            var version = catalogVersion()
+            for (attempt in 0 until 2) {
+                val before = catalogVersion()
+                registered = getRegisteredSkillsForRouting()
+                val after = catalogVersion()
+                version = after
+                if (before == after || attempt == 1) break
+            }
+            return SkillCatalogSnapshot(
+                version = version,
+                skills = registered,
+                registeredIds = registered.map { it.skillId }.toSet(),
+            )
+        }
     }
 
     fun getAvailableSkills(): List<AiriSkill> {

@@ -220,30 +220,30 @@ fun ChatScreen(
     val generationStoppedNotice by viewModel.generationStoppedNotice.collectAsStateWithLifecycle()
     val agentActivityEvents by AgentActivityBus.recentEvents.collectAsStateWithLifecycle()
     val lastExecutionError by viewModel.lastExecutionError.collectAsStateWithLifecycle()
-    val modelState    by viewModel.modelState.collectAsState()
+    val modelState    by viewModel.modelState.collectAsStateWithLifecycle()
     val capabilityDescriptor = remember(modelState) { viewModel.currentCapabilityDescriptor() }
-    val agentMode     by viewModel.agentMode.collectAsState()
-    val smartReplies  by viewModel.smartReplies.collectAsState()
-    val attachmentDispatchInFlight by viewModel.attachmentDispatchInFlight.collectAsState()
-    val longTextConversionInFlight by viewModel.longTextConversionInFlight.collectAsState()
-    val dailyCreditsRemaining  by viewModel.dailyCreditsRemaining.collectAsState()
+    val agentMode     by viewModel.agentMode.collectAsStateWithLifecycle()
+    val smartReplies  by viewModel.smartReplies.collectAsStateWithLifecycle()
+    val attachmentDispatchInFlight by viewModel.attachmentDispatchInFlight.collectAsStateWithLifecycle()
+    val longTextConversionInFlight by viewModel.longTextConversionInFlight.collectAsStateWithLifecycle()
+    val dailyCreditsRemaining  by viewModel.dailyCreditsRemaining.collectAsStateWithLifecycle()
     val isProPlan = ServiceLocator.subscriptionManager.isPro()
     // : real-time network state — drives offline banner
-    val isOnline      by viewModel.isOnline.collectAsState()
+    val isOnline      by viewModel.isOnline.collectAsStateWithLifecycle()
     // LiveVoiceService — voice mode state
-    val voiceModeActive    by viewModel.voiceModeActive.collectAsState()
+    val voiceModeActive    by viewModel.voiceModeActive.collectAsStateWithLifecycle()
     val snackbarHost  = remember { SnackbarHostState() }
-    val paywallTrigger        by viewModel.paywallTrigger.collectAsState()
-    val upgradePrompt         by viewModel.upgradePrompt.collectAsState()
-    val contextResetWarning   by viewModel.contextResetWarning.collectAsState()
-    val isSummarizing         by viewModel.isSummarizing.collectAsState()
-    val pendingSummary        by viewModel.pendingSummary.collectAsState()
-    val currentSessionId      by viewModel.currentSessionId.collectAsState()
-    val messageFocus          by viewModel.messageFocus.collectAsState()
-    val sessionLoadState      by viewModel.sessionLoadState.collectAsState()
-    val sessions              by viewModel.sessions.collectAsState()
-    val favoriteSessionIds    by viewModel.favoriteSessionIds.collectAsState()
-    val composerDrafts        by viewModel.composerDrafts.collectAsState()
+    val paywallTrigger        by viewModel.paywallTrigger.collectAsStateWithLifecycle()
+    val upgradePrompt         by viewModel.upgradePrompt.collectAsStateWithLifecycle()
+    val contextResetWarning   by viewModel.contextResetWarning.collectAsStateWithLifecycle()
+    val isSummarizing         by viewModel.isSummarizing.collectAsStateWithLifecycle()
+    val pendingSummary        by viewModel.pendingSummary.collectAsStateWithLifecycle()
+    val currentSessionId      by viewModel.currentSessionId.collectAsStateWithLifecycle()
+    val messageFocus          by viewModel.messageFocus.collectAsStateWithLifecycle()
+    val sessionLoadState      by viewModel.sessionLoadState.collectAsStateWithLifecycle()
+    val sessions              by viewModel.sessions.collectAsStateWithLifecycle()
+    val favoriteSessionIds    by viewModel.favoriteSessionIds.collectAsStateWithLifecycle()
+    val composerDrafts        by viewModel.composerDrafts.collectAsStateWithLifecycle()
     val currentComposerDraft = composerDrafts[currentSessionId]
     val currentSession = sessions.firstOrNull { it.id == currentSessionId }
     val generationBelongsToCurrentSession = agentState.isWorking &&
@@ -367,8 +367,8 @@ fun ChatScreen(
     var pendingCloudAttachmentDispatch by remember { mutableStateOf<(() -> Unit)?>(null) }
     var cloudAttachmentNames by remember { mutableStateOf("") }
     var cloudAttachmentProvider by remember { mutableStateOf("") }
-    val isPlanModeActive    by viewModel.isPlanModeActive.collectAsState()
-    val activeSkillCount    by viewModel.activeSkillCount.collectAsState()
+    val isPlanModeActive    by viewModel.isPlanModeActive.collectAsStateWithLifecycle()
+    val activeSkillCount    by viewModel.activeSkillCount.collectAsStateWithLifecycle()
     var voiceInput          by remember { mutableStateOf("") }
     var voiceChatInput      by remember { mutableStateOf("") }
     var partialVoiceInput   by remember { mutableStateOf("") }
@@ -386,8 +386,8 @@ fun ChatScreen(
             )
         )
     }
-    val isPanelVisible by agentPlanViewModel.isVisible.collectAsState()
-    val showPanel      by agentPlanViewModel.showPanel.collectAsState()
+    val isPanelVisible by agentPlanViewModel.isVisible.collectAsStateWithLifecycle()
+    val showPanel      by agentPlanViewModel.showPanel.collectAsStateWithLifecycle()
     val executionTrace by ExecutionStatusBus.trace.collectAsStateWithLifecycle()
 
     LaunchedEffect(voiceState) {
@@ -784,7 +784,7 @@ fun ChatScreen(
             snackbarHost.showSnackbar(if (success) context.getString(R.string.export_success) else context.getString(R.string.export_failed))
         }
     }
-    val plusPickerRequest by viewModel.pendingPlusPickerRequest.collectAsState()
+    val plusPickerRequest by viewModel.pendingPlusPickerRequest.collectAsStateWithLifecycle()
     LaunchedEffect(plusPickerRequest) {
         when (plusPickerRequest) {
             ChatViewModel.PlusPickerRequest.IMAGE     -> { imagePicker.launch("image/*");          viewModel.consumePlusPickerRequest() }
@@ -807,7 +807,7 @@ fun ChatScreen(
     // When the user taps "Edit" in the user bubble contextual menu, prefillInput()
     // sets pendingPrefill which is observed here and forwarded to AiriChatInputBar
     // via a shared mutableState key (externalInputText).
-    val pendingPrefill by viewModel.pendingPrefill.collectAsState()
+    val pendingPrefill by viewModel.pendingPrefill.collectAsStateWithLifecycle()
     var externalInputText by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(pendingPrefill) {
         val text = pendingPrefill
@@ -2018,8 +2018,8 @@ private fun AiriHistoryPanel(
     onNewChat: () -> Unit
 ) {
     val context = LocalContext.current
-    val sessions by viewModel.sessions.collectAsState()
-    val favoriteSessionIds by viewModel.favoriteSessionIds.collectAsState()
+    val sessions by viewModel.sessions.collectAsStateWithLifecycle()
+    val favoriteSessionIds by viewModel.favoriteSessionIds.collectAsStateWithLifecycle()
     var renameTarget by remember { mutableStateOf<com.airi.assistant.memory.dao.ChatSessionSummary?>(null) }
     var renameDraft by remember { mutableStateOf("") }
 
@@ -3016,7 +3016,7 @@ fun AiBubble(
 ) {
     val context   = LocalContext.current
     val haptic    = LocalHapticFeedback.current
-    val allTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsState()
+    val allTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsStateWithLifecycle()
     val trace = remember(traceId, allTraces) {
         if (traceId != null) allTraces.find { it.id == traceId } else null
     }
@@ -5307,9 +5307,9 @@ private fun DrawerActionItem(icon: androidx.compose.ui.graphics.vector.ImageVect
 
 @Composable
 private fun GenerationSettingsDialog(viewModel: ChatViewModel, onDismiss: () -> Unit) {
-    val temperature  by viewModel.temperature.collectAsState()
-    val maxTokens    by viewModel.maxTokens.collectAsState()
-    val systemPrompt by viewModel.systemPrompt.collectAsState()
+    val temperature  by viewModel.temperature.collectAsStateWithLifecycle()
+    val maxTokens    by viewModel.maxTokens.collectAsStateWithLifecycle()
+    val systemPrompt by viewModel.systemPrompt.collectAsStateWithLifecycle()
 
     AlertDialog(
         onDismissRequest = onDismiss,

@@ -18,7 +18,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -206,11 +206,11 @@ fun AiriApp() {
     val chatViewModel: ChatViewModel = viewModel()
     val agentViewModel: AgentViewModel = viewModel()
     val planViewModel: AgentPlanViewModel = viewModel()
-    val browserHandoff by BrowserUserTakeoverCoordinator.pending.collectAsState()
+    val browserHandoff by BrowserUserTakeoverCoordinator.pending.collectAsStateWithLifecycle()
     var browserHandoffUnavailable by remember { mutableStateOf(false) }
 
     // Part 5 §1: airi://agent/run/{id}. A run that no longer exists falls back to the run list.
-    val pendingRunId by com.airi.assistant.ui.run.AgentRunDeepLink.pending.collectAsState()
+    val pendingRunId by com.airi.assistant.ui.run.AgentRunDeepLink.pending.collectAsStateWithLifecycle()
     LaunchedEffect(pendingRunId) {
         val id = pendingRunId ?: return@LaunchedEffect
         val target = agentViewModel.traces.value.firstOrNull { it.id == id || it.traceId == id }
@@ -743,11 +743,11 @@ fun AiriApp() {
                     ) { entry ->
                         val runId = entry.arguments?.getString("runId").orEmpty()
                         val runViewModel: com.airi.assistant.ui.run.AgentRunViewModel = viewModel()
-                        val runAgentState by chatViewModel.agentState.collectAsState()
-                        val runTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsState()
-                        val chatMessages by chatViewModel.messages.collectAsState()
-                        val runGenerating by chatViewModel.isGenerating.collectAsState()
-                        val runDebugMode by agentViewModel.debugMode.collectAsState()
+                        val runAgentState by chatViewModel.agentState.collectAsStateWithLifecycle()
+                        val runTraces by com.airi.assistant.ai.agent.trace.AgentTraceManager.instance.traces.collectAsStateWithLifecycle()
+                        val chatMessages by chatViewModel.messages.collectAsStateWithLifecycle()
+                        val runGenerating by chatViewModel.isGenerating.collectAsStateWithLifecycle()
+                        val runDebugMode by agentViewModel.debugMode.collectAsStateWithLifecycle()
                         val runContext = androidx.compose.ui.platform.LocalContext.current
                         val feedbackStore = remember { com.airi.assistant.ui.run.RunFeedbackStore.from(runContext) }
                         val runTrace = runTraces.firstOrNull { it.id == runId || it.traceId == runId }

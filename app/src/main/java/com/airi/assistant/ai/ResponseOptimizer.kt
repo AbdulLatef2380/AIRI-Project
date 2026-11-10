@@ -381,9 +381,11 @@ object ResponseOptimizer {
      *
      * Smart replies are deliberately conservative. The official Smart Reply
      * pattern uses recent conversation context, confidence filtering, and no
-     * suggestions for unsupported/sensitive contexts. AIRI mirrors that
-     * contract locally: no user message means no chips, action/analysis turns
-     * are not casual reply conversations, and there is no length-only fallback.
+     * suggestions for unsupported/sensitive contexts. AIRI presents these as
+     * contextual follow-up actions: casual turns get conversational replies,
+     * while completed agent turns get useful next-step suggestions instead of
+     * being silently suppressed just because their query type is ACTION or
+     * ANALYTICAL.
      */
     fun generateSuggestions(
         userInput: String,
@@ -395,10 +397,6 @@ object ResponseOptimizer {
         val input = userInput.trim()
         val answer = response.trim()
         if (input.length < 3 || answer.length < 50) return emptyList()
-        // Smart replies are for casual conversational turns, not tool/action
-        // execution or analytical/creative deliverables.
-        if (queryType != QueryType.SIMPLE) return emptyList()
-
         val inputLower = input.lowercase(Locale.ROOT)
         val answerLower = answer.lowercase(Locale.ROOT)
         val contextLower = (recentContext.takeLast(10) + input + answer)
@@ -496,6 +494,30 @@ object ResponseOptimizer {
                     ar = listOf("وسّع التحليل بالأدلة والافتراضات والقيود المهمة", "استخرج أهم النتائج والخطوة العملية التالية", "حوّل التحليل إلى ملخص واضح يساعد على اتخاذ القرار"),
                     es = listOf("Más detalles", "¿Puntos clave?", "Resume la respuesta"),
                     zh = listOf("补充细节", "关键要点？", "总结回答"),
+                )
+
+            queryType == QueryType.ACTION ->
+                localized(
+                    en = listOf("Verify the completed result and report any remaining issue", "Apply the next safe improvement to this task", "Summarize what was completed and what remains"),
+                    ar = listOf("تحقق من النتيجة المنفذة وأبلغني بأي مشكلة متبقية", "طبّق التحسين الآمن التالي على هذه المهمة", "لخّص ما تم إنجازه وما تبقى من المهمة"),
+                    es = listOf("Verifica el resultado", "Aplica la siguiente mejora", "Resume lo completado"),
+                    zh = listOf("验证已完成的结果", "应用下一项安全改进", "总结已完成和剩余任务"),
+                )
+
+            queryType == QueryType.ANALYTICAL ->
+                localized(
+                    en = listOf("Extract the key findings and evidence", "List the assumptions, risks, and limitations", "Turn this analysis into an actionable plan"),
+                    ar = listOf("استخرج أهم النتائج والأدلة", "اذكر الافتراضات والمخاطر والقيود", "حوّل هذا التحليل إلى خطة قابلة للتنفيذ"),
+                    es = listOf("Extrae los hallazgos", "Enumera riesgos y límites", "Convierte el análisis en un plan"),
+                    zh = listOf("提取关键结论和证据", "列出假设、风险和限制", "把分析转成可执行计划"),
+                )
+
+            queryType == QueryType.CREATIVE ->
+                localized(
+                    en = listOf("Develop the strongest idea further", "Give me three practical variations", "Turn this into a polished final version"),
+                    ar = listOf("طوّر أقوى فكرة بمزيد من التفاصيل", "قدّم لي ثلاث صيغ عملية مختلفة", "حوّل هذا إلى نسخة نهائية متقنة"),
+                    es = listOf("Desarrolla la mejor idea", "Dame tres variaciones", "Crea una versión final"),
+                    zh = listOf("进一步发展最佳创意", "给出三个实用变体", "整理成最终版本"),
                 )
 
             // Arabic answers can be concise while still containing enough

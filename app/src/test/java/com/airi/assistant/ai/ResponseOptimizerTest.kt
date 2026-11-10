@@ -99,22 +99,24 @@ class ResponseOptimizerTest {
     }
 
     @Test
-    fun analyticalAndActionTurnsDoNotShowCasualSmartReplies() {
+    fun analyticalAndActionTurnsShowContextualFollowUpsNotCasualReplies() {
         val response = "تتضمن المقارنة عدة محاور مهمة، مثل الأداء والتكلفة والخصوصية، ولكل خيار نقاط قوة وضعف مختلفة."
-        assertTrue(
-            ResponseOptimizer.generateSuggestions(
-                userInput = "قارن بين الخيارين بالتفصيل",
-                response = response,
-                queryType = QueryType.ANALYTICAL,
-            ).isEmpty()
+        val analytical = ResponseOptimizer.generateSuggestions(
+            userInput = "قارن بين الخيارين بالتفصيل",
+            response = response,
+            queryType = QueryType.ANALYTICAL,
         )
-        assertTrue(
-            ResponseOptimizer.generateSuggestions(
-                userInput = "أرسل هذه الرسالة إلى البريد",
-                response = response,
-                queryType = QueryType.ACTION,
-            ).isEmpty()
+        assertEquals(3, analytical.size)
+        assertTrue(analytical.all { it.isNotBlank() })
+
+        val action = ResponseOptimizer.generateSuggestions(
+            userInput = "نفّذ هذه المهمة ثم أخبرني بالنتيجة",
+            response = response,
+            languageCode = "ar",
+            queryType = QueryType.ACTION,
         )
+        assertEquals(3, action.size)
+        assertTrue(action.any { it.contains("تحقق") || it.contains("لخّص") })
     }
 
     @Test

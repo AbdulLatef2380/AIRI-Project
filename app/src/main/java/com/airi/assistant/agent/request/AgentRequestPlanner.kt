@@ -50,14 +50,30 @@ object AgentRequestPlanner {
         Capability.TERMINAL_EXECUTE to "terminal_execute",
     )
 
+    /**
+     * Connector tools are generated from the live registry, so they cannot be kept in a
+     * static Capability -> tool-name map.  The canonical bridge names them as
+     * `connector_<runtime-connector-id>_<action>`; use the detector's explicit connector
+     * targets to retain only the requested connector family.
+     */
+    private fun isRequestedConnectorTool(
+        toolName: String,
+        connectorIds: Set<String>,
+    ): Boolean {
+        if (!toolName.startsWith("connector_")) return false
+        if ("*" in connectorIds) return true
+        return connectorIds.any { id -> toolName.startsWith("connector_${id.lowercase()}_") }
+    }
+
     fun plan(
         text: String,
         support: ModelToolSupport,
         availableTools: Set<String>,
     ): RequestPlan {
         val coding = CodingTaskDetector.detect(text)
+        val runtimeIntent = CapabilityIntentDetector.detect(text)
         val capabilities = buildSet {
-            addAll(CapabilityIntentDetector.detect(text).capabilities)
+            addAll(runtimeIntent.capabilities)
             if (coding != null) add(Capability.CODE_TASK)
         }
         val kind = when {
@@ -75,8 +91,22 @@ object AgentRequestPlanner {
             else -> RequestPlan.Confidence.LOW
         }
 
-        val wanted = capabilities.flatMap { toolsFor[it].orEmpty() }.toSet()
-        val required = capabilities.mapNotNull { requiredFor[it] }.toSet()
+        val staticWanted = capabilities.flatMap { toolsFor[it].orEmpty() }.toSet()
+        val connectorRequested = capabilities.contains(Capability.CONNECTOR_READ) ||
+            capabilities.contains(Capability.CONNECTOR_WRITE)
+        val wanted = buildSet {
+            addAll(staticWanted)
+            if (connectorRequested) {
+                addAll(availableTools.filter { isRequestedConnectorTool(it, runtimeIntent.connectorIds) })
+            }
+        }
+        val required = buildSet {
+            addAll(capabilities.mapNotNull { requiredFor[it] })
+            // A connector action is fulfilled by at least one matching live connector tool.
+            // Keep the concrete names out of requiredTools: a request may legitimately have
+            // several actions (for example Gmail list + read), while the absence of all matching
+            // tools must still be reported as an admission failure below.
+        }
         val blocked = linkedMapOf<String, RequestPlan.BlockReason>()
         val exposed = mutableListOf<String>()
 
@@ -90,9 +120,13 @@ object AgentRequestPlanner {
         }
         for (tool in required) if (tool !in availableTools) blocked[tool] = RequestPlan.BlockReason.NOT_AVAILABLE
 
+        val matchingConnectorTools = if (connectorRequested) {
+            availableTools.filter { isRequestedConnectorTool(it, runtimeIntent.connectorIds) }
+        } else emptyList()
         val unfulfillable = when {
             required.isNotEmpty() && !support.canCallTools -> RequestPlan.Unfulfillable.MODEL_HAS_NO_TOOLS
             required.any { it !in availableTools } -> RequestPlan.Unfulfillable.REQUIRED_TOOL_MISSING
+            connectorRequested && matchingConnectorTools.isEmpty() -> RequestPlan.Unfulfillable.REQUIRED_TOOL_MISSING
             else -> null
         }
         // Forcing is only possible where the provider carries tool declarations. Text-protocol models

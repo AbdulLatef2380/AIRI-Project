@@ -2306,8 +2306,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
             return false
         }
+        // One request-boundary classification is shared by diagnostics, capability assembly and
+        // planning. Re-running the detector later made it possible for those layers to observe
+        // different projections and, notably, dropped connector targets from the resolved record.
+        val detectedCapabilityIntent = com.airi.assistant.ai.CapabilityIntentDetector.detect(trimmedInput)
         val chatIntent = com.airi.assistant.domain.intent.CanonicalIntentClassifier.classify(trimmedInput)
-        val resolvedIntent = com.airi.assistant.domain.intent.ResolvedIntent.from(trimmedInput, chatIntent)
+        val resolvedIntent = com.airi.assistant.domain.intent.ResolvedIntent.from(
+            trimmedInput,
+            chatIntent,
+            detectedCapabilityIntent,
+        )
         val queryType = chatIntent.queryType
         val wordCount = trimmedInput.split(Regex("\\s+")).size
         Log.d("AIRI_INTENT", "type=${queryType.name} input_words=$wordCount")
@@ -2632,7 +2640,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // SkillToolBridge already handles these in ToolDispatcher — they just weren't
             // being advertised to the LLM in the system prompt (the gap that caused
             // skill_code_assistant, skill_research_agent, etc. to never be invoked).
-            val detectedCapabilityIntent = com.airi.assistant.ai.CapabilityIntentDetector.detect(trimmedInput)
             // ResolvedIntent is the single request-scoped contract shared by
             // classification, capability admission, and diagnostics. The
             // detector remains a pure candidate producer; downstream code uses

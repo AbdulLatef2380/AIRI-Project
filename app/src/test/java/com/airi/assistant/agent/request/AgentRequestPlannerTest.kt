@@ -59,6 +59,45 @@ class AgentRequestPlannerTest {
     }
 
     @Test
+    fun requestedGithubConnectorToolsAreRetainedByThePlanner() {
+        val plan = AgentRequestPlanner.plan(
+            "اقرأ مستودعاتي في GitHub",
+            ModelToolSupport.NATIVE,
+            setOf("connector_github_list_repos", "connector_google_gmail_list"),
+        )
+
+        assertEquals(RequestPlan.Kind.ACTION, plan.kind)
+        assertTrue("connector_github_list_repos" in plan.exposedTools)
+        assertTrue("connector_google_gmail_list" !in plan.exposedTools)
+        assertNull(plan.unfulfillable)
+    }
+
+    @Test
+    fun requestedGmailConnectorToolsAreRetainedForWriteRequestsWithoutOtherConnectors() {
+        val plan = AgentRequestPlanner.plan(
+            "أرسل رسالة عبر Gmail",
+            ModelToolSupport.NATIVE,
+            setOf("connector_google_gmail_send", "connector_github_create_issue"),
+        )
+
+        assertTrue("connector_google_gmail_send" in plan.exposedTools)
+        assertTrue("connector_github_create_issue" !in plan.exposedTools)
+        assertNull(plan.unfulfillable)
+    }
+
+    @Test
+    fun requestedConnectorWithNoMatchingRuntimeToolFailsClosed() {
+        val plan = AgentRequestPlanner.plan(
+            "اقرأ بريدي في Gmail",
+            ModelToolSupport.NATIVE,
+            setOf("connector_github_list_repos"),
+        )
+
+        assertEquals(RequestPlan.Unfulfillable.REQUIRED_TOOL_MISSING, plan.unfulfillable)
+        assertTrue(plan.exposedTools.isEmpty())
+    }
+
+    @Test
     fun explanationQuestionAboutCodeStaysChat() {
         val plan = AgentRequestPlanner.plan("كيف اكتب كود بايثون؟", ModelToolSupport.NATIVE, tools)
         assertEquals(RequestPlan.Kind.CHAT, plan.kind)

@@ -29,6 +29,7 @@ import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.PrivacyLevel
 import com.airi.assistant.execution.prefs.ExecModePreferences
+import com.airi.assistant.execution.accounting.TokenAccountant
 import com.airi.assistant.ui.theme.CosmicAccent
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
@@ -56,6 +57,7 @@ fun ExecutionModePanel(
     preferredProvider:      CloudProvider,
     cloudTokensUsed:        Int,
     cloudTokensCap:         Int,
+    historicalStats:        Map<String, TokenAccountant.HistoricalStats> = emptyMap(),
     onModeChange:           (ExecutionMode) -> Unit,
     onPrivacyChange:        (PrivacyLevel)  -> Unit,
     onInternetPermChange:   (Boolean)       -> Unit,
@@ -171,6 +173,7 @@ fun ExecutionModePanel(
                     Spacer(Modifier.height(12.dp))
                     CloudTokenUsageBar(used = cloudTokensUsed, cap = cloudTokensCap)
                 }
+                HistoricalModelUsage(stats = historicalStats)
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -370,6 +373,24 @@ private fun CloudProviderSelector(
                     fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun HistoricalModelUsage(stats: Map<String, TokenAccountant.HistoricalStats>) {
+    if (stats.isEmpty()) return
+    Spacer(Modifier.height(12.dp))
+    Text("Historical model usage", color = dimWhite(), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+    Spacer(Modifier.height(4.dp))
+    stats.values.sortedByDescending { it.totalTokens }.take(3).forEach { stat ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("${stat.providerId} · ${stat.modelId}", color = subtleWhite(), fontSize = 10.sp,
+                modifier = Modifier.weight(1f))
+            Text("${stat.totalTokens} tokens", color = dimWhite(), fontSize = 10.sp)
         }
     }
 }

@@ -185,7 +185,7 @@ class PreferenceCoordinator(
         execPrefs.preferredProvider        = CloudProvider.OPENAI
         execPrefs.internetPermissionGranted = false
         execPrefs.offlineFallbackEnabled   = true
-        execPrefs.maxDailyCloudTokens      = 50_000
+        execPrefs.maxDailyCloudTokens      = 0
 
         // ── Voice prefs ───────────────────────────────────────────────────────
         val std = VoicePreferencesStore.PersonalityPreset.STANDARD

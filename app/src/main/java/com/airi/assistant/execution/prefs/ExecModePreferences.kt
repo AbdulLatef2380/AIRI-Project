@@ -51,7 +51,7 @@ import com.airi.assistant.execution.router.RoutingPreferences
  *  - [CloudProvider.OPENAI]   — most widely configured in RemoteModelRegistry
  *  - internet permission = false — user must explicitly enable cloud
  *  - offline fallback = true  — always fall back to local when cloud fails
- *  - max cloud tokens per day = 50 000 (soft limit, UI-visible)
+ *  - max cloud tokens per day = 0 (unlimited by default; optional local advisory)
  */
 class ExecModePreferences(context: Context) : RoutingPreferences {
 
@@ -154,13 +154,12 @@ class ExecModePreferences(context: Context) : RoutingPreferences {
     // ── Cloud usage cap ───────────────────────────────────────────────────────
 
     /**
-     * Approximate daily cloud token budget. UI shows usage vs. this cap.
-     * Router uses this as a soft gate: when exceeded, HYBRID falls back to
-     * LOCAL rather than making additional cloud calls.
+     * Optional local advisory budget. It is never a provider quota and never
+     * silently blocks an explicitly selected CLOUD_ONLY mode.
      * 0 = unlimited.
      */
     override var maxDailyCloudTokens: Int
-        get() = prefs.getInt(KEY_MAX_CLOUD_TOKENS, 50_000)
+        get() = prefs.getInt(KEY_MAX_CLOUD_TOKENS, 0)
         set(value) {
             prefs.edit().putInt(KEY_MAX_CLOUD_TOKENS, value.coerceAtLeast(0)).apply()
         }
@@ -204,15 +203,13 @@ class ExecModePreferences(context: Context) : RoutingPreferences {
      * The effective execution mode after applying all safety gates:
      *  - If [PrivacyLevel.MAXIMUM] → always LOCAL_ONLY
      *  - If [internetPermissionGranted] is false → always LOCAL_ONLY
-     *  - If daily budget exhausted in CLOUD_ONLY → LOCAL_ONLY (if fallback) or CLOUD_ONLY (error)
+     *  - The local token budget is advisory and does not silently change CLOUD_ONLY.
      *  - Otherwise → user's chosen [executionMode]
      */
     override val effectiveMode: ExecutionMode
         get() {
             if (privacyLevel == PrivacyLevel.MAXIMUM) return ExecutionMode.LOCAL_ONLY
             if (!internetPermissionGranted) return ExecutionMode.LOCAL_ONLY
-            if (executionMode == ExecutionMode.CLOUD_ONLY &&
-                isCloudBudgetExhausted && offlineFallbackEnabled) return ExecutionMode.LOCAL_ONLY
             return executionMode
         }
 

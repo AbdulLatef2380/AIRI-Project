@@ -11,7 +11,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * Accurate, per-provider daily token accounting system.
+ * Accurate token accounting system with per-provider daily stats and provider/model historical totals.
  *
  * Tracks prompt tokens and completion tokens separately, per provider,
  * per calendar day. Resets automatically at midnight UTC.
@@ -47,6 +47,10 @@ class TokenAccountant(context: Context) {
 
     private val _stats = MutableStateFlow(loadAll())
     val stats: StateFlow<Map<CloudProvider, ProviderStats>> = _stats.asStateFlow()
+
+    private val _historicalStats = MutableStateFlow(loadHistoricalStats())
+    /** All-time totals keyed by a stable `provider:model` identity. */
+    val historicalStats: StateFlow<Map<String, HistoricalStats>> = _historicalStats.asStateFlow()
 
     private val _localStats = MutableStateFlow(loadLocalStats())
     val localStats: StateFlow<LocalStats> = _localStats.asStateFlow()
@@ -84,6 +88,18 @@ class TokenAccountant(context: Context) {
         }
     }
 
+    data class HistoricalStats(
+        val providerId: String,
+        val modelId: String,
+        val promptTokens: Long = 0L,
+        val completionTokens: Long = 0L,
+        val requestCount: Long = 0L,
+        val totalLatencyMs: Long = 0L,
+    ) {
+        val totalTokens: Long get() = promptTokens + completionTokens
+        val avgLatencyMs: Long get() = if (requestCount > 0) totalLatencyMs / requestCount else 0L
+    }
+
     // ── Local (on-device) stats ───────────────────────────────────────────────
 
     data class LocalStats(
@@ -110,7 +126,8 @@ class TokenAccountant(context: Context) {
         provider:         CloudProvider,
         promptTokens:     Int,
         completionTokens: Int,
-        latencyMs:        Long
+        latencyMs:        Long,
+        modelId:          String = "unknown"
     ) = mutex.withLock {
         val current = currentDayStats(provider)
         val updated = current.copy(
@@ -120,8 +137,18 @@ class TokenAccountant(context: Context) {
             totalLatencyMs   = current.totalLatencyMs   + latencyMs
         )
         persist(provider, updated)
+        val historical = currentHistoricalStats(provider, modelId).let {
+            it.copy(
+                promptTokens = it.promptTokens + promptTokens,
+                completionTokens = it.completionTokens + completionTokens,
+                requestCount = it.requestCount + 1L,
+                totalLatencyMs = it.totalLatencyMs + latencyMs,
+            )
+        }
+        persistHistorical(historical)
         _stats.value = loadAll()
-        Log.d(TAG, "${provider.name} +${promptTokens}p +${completionTokens}c total=${updated.totalTokens}")
+        _historicalStats.value = loadHistoricalStats()
+        Log.d(TAG, "${provider.name}/$modelId +${promptTokens}p +${completionTokens}c total=${updated.totalTokens}")
     }
 
     /**
@@ -197,6 +224,7 @@ class TokenAccountant(context: Context) {
 
     fun totalCloudTokensToday(): Long = _stats.value.values.sumOf { it.totalTokens }
     fun totalLocalTokensToday(): Long = _localStats.value.tokensGenerated
+    fun totalCloudTokensAllTime(): Long = _historicalStats.value.values.sumOf { it.totalTokens }
 
     // ── Internals ─────────────────────────────────────────────────────────────
 
@@ -223,6 +251,47 @@ class TokenAccountant(context: Context) {
             .putLong("${base}_latency",    stats.totalLatencyMs)
             .apply()
     }
+
+    private fun historicalKey(provider: CloudProvider, modelId: String): String =
+        "${provider.name.lowercase()}:${modelId.trim().ifBlank { "unknown" }}"
+
+    private fun currentHistoricalStats(provider: CloudProvider, modelId: String): HistoricalStats {
+        val key = historicalKey(provider, modelId)
+        val base = "history_$key"
+        return HistoricalStats(
+            providerId = provider.name.lowercase(),
+            modelId = modelId.trim().ifBlank { "unknown" },
+            promptTokens = prefs.getLong("${base}_prompt", 0L),
+            completionTokens = prefs.getLong("${base}_completion", 0L),
+            requestCount = prefs.getLong("${base}_requests", 0L),
+            totalLatencyMs = prefs.getLong("${base}_latency", 0L),
+        )
+    }
+
+    private fun persistHistorical(stats: HistoricalStats) {
+        val base = "history_${stats.providerId}:${stats.modelId}"
+        prefs.edit()
+            .putLong("${base}_prompt", stats.promptTokens)
+            .putLong("${base}_completion", stats.completionTokens)
+            .putLong("${base}_requests", stats.requestCount)
+            .putLong("${base}_latency", stats.totalLatencyMs)
+            .apply()
+    }
+
+    private fun loadHistoricalStats(): Map<String, HistoricalStats> =
+        prefs.all.keys
+            .asSequence()
+            .filter { it.startsWith("history_") && it.endsWith("_prompt") }
+            .map { it.removePrefix("history_").removeSuffix("_prompt") }
+            .mapNotNull { identity ->
+                val separator = identity.indexOf(':')
+                if (separator <= 0 || separator == identity.lastIndex) return@mapNotNull null
+                val provider = runCatching { CloudProvider.valueOf(identity.substring(0, separator).uppercase()) }
+                    .getOrNull() ?: return@mapNotNull null
+                val model = identity.substring(separator + 1)
+                historicalKey(provider, model) to currentHistoricalStats(provider, model)
+            }
+            .toMap()
 
     private fun loadAll(): Map<CloudProvider, ProviderStats> =
         CloudProvider.entries.associateWith { currentDayStats(it) }

@@ -164,12 +164,7 @@ return Selection(fallbacks,
             }
         }
 
-        // ── Rule 10: cloud budget exhausted ────────────────────────────────────
-        if (prefs.isCloudBudgetExhausted) {
-            return Selection(listOf(local), "Cloud daily budget exhausted", DecisionReason.CLOUD_BUDGET_EXHAUSTED)
-        }
-
-        // ── Rule 11: no network → local only (belt-and-suspenders) ────────────
+        // ── Rule 10: no network → local only (belt-and-suspenders) ────────────
         if (!signals.networkAvailable) {
             return Selection(listOf(local), "No network detected — local only", DecisionReason.NETWORK_UNAVAILABLE)
         }
@@ -198,15 +193,6 @@ return Selection(fallbacks,
         signals: DeviceSignals,
         prefs:   RoutingPreferences
     ): Boolean {
-        // Budget gate: if we're within 10% of the daily cloud token cap,
-        // stop preferring cloud and fall back to local to avoid quota exhaustion
-        // mid-session. The hard block is in effectiveMode; this is the soft
-        // preference shift that happens before the wall is hit.
-        if (prefs.isCloudBudgetExhausted) return false
-        val tokenCap = prefs.maxDailyCloudTokens
-        val tokensUsed = prefs.cloudTokensUsedToday
-        if (tokenCap > 0 && tokensUsed > tokenCap * 0.9) return false
-
         if (request.requiresLongContext)     return true
         if (request.requiresVision &&
             !request.requiresOffline)        return true

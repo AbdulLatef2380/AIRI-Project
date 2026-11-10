@@ -26,6 +26,7 @@ fun AIModelsSettingsScreen(
     onNavigate: (String) -> Unit
 ) {
     val executionMode     by viewModel.executionMode.collectAsState()
+    val historicalStats    by viewModel.tokenAccountant.historicalStats.collectAsState()
     val execPrefs         = remember { viewModel.getExecModePrefs() }
     var privacyLevel      by remember { mutableStateOf(execPrefs.privacyLevel) }
     var internetGranted   by remember { mutableStateOf(execPrefs.internetPermissionGranted) }
@@ -70,6 +71,7 @@ fun AIModelsSettingsScreen(
                 preferredProvider       = preferredProvider,
                 cloudTokensUsed         = execPrefs.cloudTokensUsedToday,
                 cloudTokensCap          = execPrefs.maxDailyCloudTokens,
+                historicalStats          = historicalStats,
                 onModeChange            = { viewModel.setExecutionMode(it) },
                 onPrivacyChange         = { privacyLevel = it; viewModel.setPrivacyLevel(it) },
                 onInternetPermChange    = { internetGranted = it; viewModel.grantInternetPermission(it) },

@@ -280,7 +280,8 @@ class CloudBackend(
                                 provider         = provider,
                                 promptTokens     = promptTok,
                                 completionTokens = compTok,
-                                latencyMs        = result.latencyMs
+                                latencyMs        = result.latencyMs,
+                                modelId          = executedModel,
                             )
                         }.onFailure { e ->
                             Log.w(TAG, "tokenAccountant.recordSuccess failed: ${e.message}")

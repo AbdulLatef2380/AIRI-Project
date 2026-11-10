@@ -76,11 +76,13 @@ object NetworkGuard {
             return Decision.Block(reason, BlockReason.NO_INTERNET_PERMISSION)
         }
 
-        // ── Rule 4: daily cloud budget (soft gate — HYBRID degrades to local) ─
+        // ── Rule 4: local budget is advisory, never a provider quota ───────────
+        // Provider-side rate limits and billing remain authoritative. AIRI's
+        // optional local counter is kept for visibility and hybrid preference
+        // only; it must not silently block an explicitly selected cloud mode.
         if (prefs.isCloudBudgetExhausted) {
-            val reason = "Daily cloud token budget exhausted (${prefs.cloudTokensUsedToday}/${prefs.maxDailyCloudTokens})"
-            log(EventSeverity.WARN, reason)
-            return Decision.Block(reason, BlockReason.BUDGET_EXHAUSTED)
+            Log.i(TAG, "NetworkGuard: local advisory budget reached " +
+                "(${prefs.cloudTokensUsedToday}/${prefs.maxDailyCloudTokens}); allowing cloud")
         }
 
         // ── Allowed ────────────────────────────────────────────────────────────

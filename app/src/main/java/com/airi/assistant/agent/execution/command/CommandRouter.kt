@@ -5,6 +5,7 @@ import com.airi.core.planning.PlanStep
 import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgentContext
 import com.airi.assistant.agent.subagent.SubAgentRegistry
+import com.airi.assistant.agent.subagent.SubAgentTraceAdapter
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.execution.ExecutionMode
 import com.airi.assistant.execution.prefs.ExecModePreferences
@@ -13,7 +14,7 @@ object CommandRouter {
 
     private const val TAG = "CommandRouter"
 
-    suspend fun execute(step: PlanStep): CommandResult {
+    suspend fun execute(step: PlanStep, traceContext: SubAgentContext? = null): CommandResult {
         Log.d(TAG, "Executing step: ${step.id} (${step::class.simpleName})")
 
         return when (step) {
@@ -72,7 +73,7 @@ object CommandRouter {
                 }
             }
 
-            is PlanStep.Custom -> executeCustom(step)
+            is PlanStep.Custom -> executeCustom(step, traceContext)
         }
     }
 
@@ -94,7 +95,7 @@ object CommandRouter {
     //           rather than failing the entire plan on an unroutable generic step.
     // ─────────────────────────────────────────────────────────────────────────
 
-    private suspend fun executeCustom(step: PlanStep.Custom): CommandResult {
+    private suspend fun executeCustom(step: PlanStep.Custom, traceContext: SubAgentContext?): CommandResult {
         Log.i(TAG, "Custom action dispatch: '${step.action}' params=${step.parameters}")
         val actionLower = step.action.lowercase().trim()
 
@@ -178,7 +179,7 @@ object CommandRouter {
                 append(step.parameters.entries.joinToString(" ") { (k, v) -> "$k:$v" })
             }
         }
-        val minimalContext = SubAgentContext(
+        val minimalContext = (traceContext ?: SubAgentContext(
             sessionId          = step.id,
             userId             = "command_router",
             worldState         = emptyMap(),
@@ -188,6 +189,11 @@ object CommandRouter {
             // Security gate: honour the user's execution-mode preference so that
             // LOCAL_ONLY mode cannot be bypassed by graph steps routed here.
             privacyLevel       = resolvePrivacyLevel()
+        )).copy(
+            dependencyResults = step.parameters,
+            parentId = traceContext?.parentId ?: step.id,
+            actionId = traceContext?.actionId?.ifBlank { "command:${step.id}" }
+                ?: "command:${step.id}",
         )
         val agent = SubAgentRegistry.route(routingInput, minimalContext)
         if (agent != null) {
@@ -195,18 +201,37 @@ object CommandRouter {
             var resultText = ""
             var failed     = false
             var failReason = ""
+            var terminalObserved = false
+            val traceAdapter = SubAgentTraceAdapter(minimalContext, agent.capability.agentId)
             runCatching {
                 agent.execute(routingInput, minimalContext).collect { event ->
+                    traceAdapter.accept(event)
                     when (event) {
-                        is AgentEvent.Complete     -> resultText = event.result
+                        is AgentEvent.Complete     -> {
+                            terminalObserved = true
+                            resultText = event.result
+                        }
                         is AgentEvent.PartialResult -> resultText += event.text
-                        is AgentEvent.Failed       -> { failed = true; failReason = event.reason }
+                        is AgentEvent.Failed       -> {
+                            terminalObserved = true
+                            failed = true
+                            failReason = event.reason
+                        }
                         else                       -> Unit
                     }
                 }
             }.onFailure { e ->
+                if (e is kotlinx.coroutines.CancellationException) {
+                    traceAdapter.cancelled()
+                    throw e
+                }
                 Log.e(TAG, "Custom:tier2 agent threw: ${e.message}")
                 failed = true; failReason = e.message ?: "agent exception"
+            }
+            if (!terminalObserved && !failed) {
+                traceAdapter.timedOut()
+                failed = true
+                failReason = "Agent stream ended without a terminal result"
             }
             return if (failed) CommandResult(false, failReason)
             else CommandResult(true, resultText.ifBlank { "custom:${step.action}:done" })

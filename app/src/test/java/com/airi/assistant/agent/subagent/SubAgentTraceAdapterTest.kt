@@ -110,4 +110,29 @@ class SubAgentTraceAdapterTest {
         assertEquals(1, trace.count { it.machineTag == "subagent_failed" })
         assertTrue(trace.none { it.machineTag == "subagent_completed" })
     }
+
+    @Test
+    fun cancellationAfterToolRequestClosesActionAndRejectsLateCompletion() {
+        val executionId = "exec-subagent-cancel-between"
+        ExecutionStatusBus.onGraphStarted("cancel-between", 1, executionId, "session-1")
+        val adapter = SubAgentTraceAdapter(
+            SubAgentContext(
+                sessionId = "session-1",
+                userId = "test",
+                executionId = executionId,
+                parentId = "step-1",
+                actionId = "subagent:step-1",
+            ),
+            "research_agent",
+        )
+
+        adapter.accept(AgentEvent.ToolCall("search", emptyMap()))
+        adapter.cancelled()
+        adapter.accept(AgentEvent.Complete("late", 20L))
+
+        val trace = ExecutionStatusBus.traceSnapshot(executionId)
+        assertEquals(1, trace.count { it.machineTag == "subagent_cancelled" })
+        assertTrue(trace.any { it.kind == ExecutionTraceKind.TOOL_CANCELLED && it.actionId?.contains(":search:") == true })
+        assertTrue(trace.none { it.machineTag == "subagent_completed" })
+    }
 }

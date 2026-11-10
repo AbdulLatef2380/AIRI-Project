@@ -541,7 +541,8 @@ class UnifiedCognitiveLoop {
             Log.d(TAG, "runNode: no agent for id=${node.id} action=${node.activeAction} — fallback to CommandRouter")
         }
         return CommandRouter.execute(
-            PlanStep.Custom(node.id, node.activeAction, node.activeParams, node.dependsOn, node.expectedOutcome)
+            PlanStep.Custom(node.id, node.activeAction, node.activeParams, node.dependsOn, node.expectedOutcome),
+            traceContext = context,
         )
     }
 

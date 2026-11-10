@@ -141,6 +141,73 @@ class ProductionAgentOrchestratorReliabilityTest {
         }
     }
 
+    @Test
+    fun delegateLifecycleIsRequestStartOutputAndTerminal() = runBlocking {
+        ExecutionStatusBus.reset()
+        val agent = TestAgent { _ ->
+            emit(AgentEvent.Delegate("llm_backend", "summarise safely"))
+            emit(AgentEvent.Complete("delegated result", durationMs = 7L))
+        }
+        val orchestrator = orchestratorFor(agent)
+
+        try {
+            val result = orchestrator.executePlan(
+                plan(id = "delegate-lifecycle-plan", tasks = listOf(task("delegate-task", "delegate")))
+            )
+
+            assertTrue(result is ProductionAgentOrchestrator.ExecutionResult.Success)
+            val trace = ExecutionStatusBus.traceSnapshot("delegate-lifecycle-plan")
+            val delegateEvents = trace.filter {
+                it.kind == com.airi.assistant.core.ExecutionTraceKind.TOOL_REQUESTED ||
+                    it.kind == com.airi.assistant.core.ExecutionTraceKind.TOOL_STARTED
+            }
+            assertTrue(delegateEvents.any { it.kind == com.airi.assistant.core.ExecutionTraceKind.TOOL_REQUESTED })
+            assertTrue(delegateEvents.any { it.kind == com.airi.assistant.core.ExecutionTraceKind.TOOL_STARTED })
+            assertTrue(trace.any { it.machineTag == "tool_output" })
+            assertTrue(trace.any { it.machineTag == "subagent_completed" })
+        } finally {
+            orchestrator.cancelAll()
+            ExecutionStatusBus.reset()
+        }
+    }
+
+    @Test
+    fun parallelSubAgentsHaveOwnedActionsAndTimeoutClosesPartialStream() = runBlocking {
+        ExecutionStatusBus.reset()
+        val agent = TestAgent { input ->
+            emit(AgentEvent.ToolCall("lookup", mapOf("input" to input)))
+            emit(AgentEvent.PartialResult("partial:$input"))
+            if (input == "timeout") {
+                kotlinx.coroutines.awaitCancellation()
+            } else {
+                emit(AgentEvent.Complete("done:$input", durationMs = 5L))
+            }
+        }
+        val orchestrator = orchestratorFor(agent)
+
+        try {
+            val result = orchestrator.executePlan(
+                plan(
+                    id = "parallel-timeout-plan",
+                    tasks = listOf(
+                        task("ok-task", "ok"),
+                        task("timeout-task", "timeout").copy(context = SubAgentContext.test().copy(timeoutMs = 20L)),
+                    ),
+                )
+            )
+
+            assertTrue(result is ProductionAgentOrchestrator.ExecutionResult.PartialFailure)
+            val trace = ExecutionStatusBus.traceSnapshot("parallel-timeout-plan")
+            val toolActions = trace.filter { it.kind == com.airi.assistant.core.ExecutionTraceKind.TOOL_REQUESTED }
+                .mapNotNull { it.actionId }
+            assertEquals(toolActions.size, toolActions.distinct().size)
+            assertTrue(trace.any { it.errorCode == "subagent_timeout" })
+        } finally {
+            orchestrator.cancelAll()
+            ExecutionStatusBus.reset()
+        }
+    }
+
     private fun orchestratorFor(agent: TestAgent) = ProductionAgentOrchestrator(
         agentCapabilities = { listOf(agent.capability) },
         routeAgent = { _, _ -> agent },

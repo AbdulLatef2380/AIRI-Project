@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.AiriTheme
-import com.airi.assistant.ui.theme.CosmicAccent
 import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.theme.NavIconActive
 import com.airi.assistant.ui.theme.NavIconInactive
@@ -116,9 +115,8 @@ private fun AiriNavTabItem(
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val exemptSkillsSelection = isSelected && item.tab == AiriNavTab.SKILLS
-    val iconTint = if (exemptSkillsSelection) CosmicAccent else AiriTheme.onSurfaceVariant
-    val labelColor = if (isSelected) NavIconActive else AiriTheme.onSurface.copy(alpha = 0.45f)
+    val iconTint = if (isSelected) AiriTheme.onSurface else AiriTheme.onSurfaceVariant
+    val labelColor = if (isSelected) AiriTheme.onSurface else AiriTheme.onSurface.copy(alpha = 0.45f)
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -136,7 +134,6 @@ private fun AiriNavTabItem(
                 .clip(RoundedCornerShape(12.dp))
                 .background(
                     when {
-                        exemptSkillsSelection -> CosmicAccent.copy(alpha = 0.18f)
                         isSelected -> AiriTheme.onSurface.copy(alpha = 0.08f)
                         else -> Color.Transparent
                     }

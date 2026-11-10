@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.ui.AiriRoute
-import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.ThemeMode
 import com.airi.assistant.ui.theme.ThemePreferences
 import com.airi.assistant.ui.viewmodel.ChatViewModel
@@ -100,8 +99,8 @@ fun CustomizationSettingsScreen(
                             onClick  = { themePrefs.mode = mode },
                             label    = { Text(label, fontSize = 12.sp) },
                             colors   = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
-                                selectedLabelColor     = CosmicAccent,
+                                selectedContainerColor = AiriTheme.onSurface.copy(alpha = 0.14f),
+                                selectedLabelColor     = AiriTheme.onSurface,
                                 containerColor         = AiriTheme.surfaceVariant,
                                 labelColor             = AiriTheme.onSurface.copy(alpha = 0.6f)
                             ),
@@ -109,7 +108,7 @@ fun CustomizationSettingsScreen(
                                 enabled             = true,
                                 selected            = themeMode == mode,
                                 borderColor         = AiriTheme.onSurface.copy(alpha = 0.1f),
-                                selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
+                                selectedBorderColor = AiriTheme.onSurfaceVariant
                             )
                         )
                     }
@@ -140,7 +139,7 @@ fun CustomizationSettingsScreen(
                     maxLines = 5,
                     modifier = Modifier.fillMaxWidth(),
                     colors   = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor   = CosmicAccent,
+                        focusedBorderColor   = AiriTheme.onSurfaceVariant,
                         unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.12f),
                         focusedTextColor     = AiriTheme.onSurface,
                         unfocusedTextColor   = AiriTheme.onSurface
@@ -171,8 +170,8 @@ fun CustomizationSettingsScreen(
                             },
                             label  = { Text(label, fontSize = 12.sp) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = CosmicAccent.copy(alpha = 0.2f),
-                                selectedLabelColor     = CosmicAccent,
+                                selectedContainerColor = AiriTheme.onSurface.copy(alpha = 0.14f),
+                                selectedLabelColor     = AiriTheme.onSurface,
                                 containerColor         = AiriTheme.surfaceVariant,
                                 labelColor             = AiriTheme.onSurface.copy(alpha = 0.6f)
                             ),
@@ -180,7 +179,7 @@ fun CustomizationSettingsScreen(
                                 enabled             = true,
                                 selected            = selected,
                                 borderColor         = AiriTheme.onSurface.copy(alpha = 0.1f),
-                                selectedBorderColor = CosmicAccent.copy(alpha = 0.4f)
+                                selectedBorderColor = AiriTheme.onSurfaceVariant
                             )
                         )
                     }
@@ -208,7 +207,7 @@ fun CustomizationSettingsScreen(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = CosmicAccent,
+                        focusedBorderColor = AiriTheme.onSurfaceVariant,
                         unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.12f),
                         focusedTextColor = AiriTheme.onSurface,
                         unfocusedTextColor = AiriTheme.onSurface
@@ -224,7 +223,7 @@ fun CustomizationSettingsScreen(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = CosmicAccent,
+                        focusedBorderColor = AiriTheme.onSurfaceVariant,
                         unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.12f),
                         focusedTextColor = AiriTheme.onSurface,
                         unfocusedTextColor = AiriTheme.onSurface

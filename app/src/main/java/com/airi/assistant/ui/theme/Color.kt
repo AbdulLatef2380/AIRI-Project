@@ -8,17 +8,18 @@ import androidx.compose.ui.graphics.Color
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Brand identity ────────────────────────────────────────────────────────────
-// Core violet — the AIRI signature color. Derived from a 290° hue with
-// high saturation, positioned between ultraviolet and indigo for distinctiveness.
-val CosmicAccent     = Color(0xFF4F8CFF)   // Neutral blue accent
-val CosmicAccentAlt  = Color(0xFF8DB5FF)   // Accessible light accent
-val CosmicAccentDark = Color(0xFF245FCC)   // Pressed state
-val CosmicGlow       = Color(0xFF4F8CFF)   // Accent glow
+// Neutral AIRI accent. Kept under the historical names for source compatibility,
+// but deliberately contains no hue so the first-run experience stays calm and
+// the user's light/dark choice controls contrast rather than branding colors.
+val CosmicAccent     = Color(0xFF8F8F8F)
+val CosmicAccentAlt  = Color(0xFFD1D1D1)
+val CosmicAccentDark = Color(0xFF5F5F5F)
+val CosmicGlow       = Color(0xFFAFAFAF)
 
 // ── Dark background ladder ────────────────────────────────────────────────────
 // Five-step depth system. Higher index = closer to user = lighter.
 val CosmicBlack      = Color(0xFF080808)   // Base layer
-val CosmicDarkBlue   = Color(0xFF101214)   // Nav bar, bottom anchors
+val CosmicDarkBlue   = Color(0xFF101010)   // Nav bar, bottom anchors
 
 val SurfaceBase      = Color(0xFF101112)   // Sheet backgrounds
 val SurfaceRaised    = Color(0xFF181A1C)   // Cards, chips, secondary elements
@@ -29,8 +30,8 @@ val SurfaceCard      = Color(0xFF151719)   // Card surfaces
 // ── Glass / translucent surfaces ─────────────────────────────────────────────
 val GlassWhite       = Color.White.copy(alpha = 0.06f)
 val GlassWhiteBorder = Color.White.copy(alpha = 0.08f)
-val GlassPurple      = CosmicAccent.copy(alpha = 0.08f)
-val GlassPurpleBorder= CosmicAccent.copy(alpha = 0.20f)
+val GlassPurple      = Color.White.copy(alpha = 0.06f)
+val GlassPurpleBorder= Color.White.copy(alpha = 0.18f)
 
 // ── Semantic feedback ─────────────────────────────────────────────────────────
 val SemanticSuccess  = Color(0xFF30D158)   // iOS-derived green — readable on dark
@@ -59,7 +60,7 @@ val DividerColor       = Color.White.copy(alpha = 0.07f)
 // ── Navigation ────────────────────────────────────────────────────────────────
 val NavBarBackground   = CosmicBlack
 val NavIconInactive    = Color.White.copy(alpha = 0.42f)
-val NavIconActive      = CosmicAccent
+val NavIconActive      = Color(0xFFD0D0D0)
 
 // ── Component-specific ────────────────────────────────────────────────────────
 val TokenBadgeColor    = CosmicAccent.copy(alpha = 0.90f)
@@ -69,14 +70,14 @@ val ModelPillBorder    = Color.White.copy(alpha = 0.10f)
 // ── Light-mode palette ───────────────────────────────────────────────────────
 // Explicit high-contrast tokens. Light mode must not inherit translucent
 // white-on-dark colors from the dark palette.
-val LightBackground     = Color(0xFFF6F7FB)
+val LightBackground     = Color(0xFFF5F5F5)
 val LightSurface        = Color(0xFFFFFFFF)
-val LightSurfaceRaised  = Color(0xFFEDEFF5)
+val LightSurfaceRaised  = Color(0xFFEAEAEA)
 val LightSurfaceCard    = Color(0xFFFFFFFF)
-val LightOnBackground   = Color(0xFF171923)
-val LightOnSurface      = Color(0xFF171923)
-val LightOnSurfaceMuted = Color(0xFF454858)
-val LightPrimary        = Color(0xFF245FCC)
-val LightSecondary      = Color(0xFF356FAE)
-val LightOutline        = Color(0xFF303342).copy(alpha = 0.28f)
-val LightDivider        = Color(0xFF303342).copy(alpha = 0.18f)
+val LightOnBackground   = Color(0xFF171717)
+val LightOnSurface      = Color(0xFF171717)
+val LightOnSurfaceMuted = Color(0xFF555555)
+val LightPrimary        = Color(0xFF4A4A4A)
+val LightSecondary      = Color(0xFF666666)
+val LightOutline        = Color(0xFF303030).copy(alpha = 0.28f)
+val LightDivider        = Color(0xFF303030).copy(alpha = 0.18f)

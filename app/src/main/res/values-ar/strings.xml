@@ -1557,6 +1557,15 @@
     <string name="connector_report_title">الإبلاغ عن مشكلة</string>
     <string name="connector_report_prompt">أخبرنا بما يحتاج إلى متابعة في %1$s.</string>
     <string name="connector_report_placeholder">صف المشكلة أو الاقتراح</string>
+    <string name="connector_report_category_label">ما الذي يحتاج إلى انتباه؟</string>
+    <string name="connector_report_category_connection">الاتصال</string>
+    <string name="connector_report_category_authorization">التفويض</string>
+    <string name="connector_report_category_tool">سلوك الأداة</string>
+    <string name="connector_report_category_other">أخرى</string>
+    <string name="connector_report_character_count">%1$d / 2000 حرف</string>
+    <string name="connector_report_diagnostics">سياق التشخيص: الحالة %1$s · المصادقة %2$s</string>
+    <string name="connector_report_privacy_note">تُحفظ نسخة محلية منقّحة على هذا الجهاز فقط؛ وتُنقّى الأسرار والمسارات.</string>
+    <string name="connector_report_saved">تم حفظ البلاغ محلياً للمراجعة.</string>
     <string name="connector_action_cancel">إلغاء</string>
     <string name="connector_action_send">إرسال</string>
     <string name="connector_status_connected_verified">متصل وتم التحقق منه</string>

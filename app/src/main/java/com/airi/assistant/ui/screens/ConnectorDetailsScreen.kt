@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -42,6 +43,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Divider
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -82,6 +84,7 @@ import com.airi.assistant.connector.ConnectorAuthMode
 import com.airi.assistant.connector.ConnectorAuthStrategies
 import com.airi.assistant.connector.ConnectorAvailability
 import com.airi.assistant.connector.ConnectorMeta
+import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.ui.components.ConnectorAccessProfileDialog
 import com.airi.assistant.ui.theme.AIRIShapes
 import com.airi.assistant.ui.theme.AIRIColors
@@ -142,7 +145,7 @@ fun ConnectorDetailsScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val disconnectedMessage = stringResource(R.string.connector_action_disconnect)
-    val feedbackSentMessage = stringResource(R.string.connector_action_send)
+    val feedbackSentMessage = stringResource(R.string.connector_report_saved)
     val locale = LocalConfiguration.current.locales[0]
     var showOverview by remember(connectorId) { mutableStateOf(false) }
     var showReport by remember(connectorId) { mutableStateOf(false) }
@@ -266,7 +269,16 @@ fun ConnectorDetailsScreen(
     }
 
     if (showOverview) ConnectorOverviewDialog(meta, definition, presentation, authStrategy.mode, state, row.state, onDismiss = { showOverview = false })
-    if (showReport) ConnectorReportDialog(context, meta.id, presentation.name, onDismiss = { showReport = false }, onSent = { showReport = false; scope.launch { snackbar.showSnackbar(feedbackSentMessage) } })
+    if (showReport) ConnectorReportDialog(
+        context = context,
+        connectorId = meta.id,
+        connectorName = presentation.name,
+        state = state,
+        runtimeState = row.state,
+        authMode = authStrategy.mode,
+        onDismiss = { showReport = false },
+        onSent = { showReport = false; scope.launch { snackbar.showSnackbar(feedbackSentMessage) } }
+    )
     if (showAccessProfile) {
         ConnectorAccessProfileDialog(
             title = stringResource(R.string.connectors_access_profile_title),
@@ -437,21 +449,67 @@ private fun OverviewBullet(text: String) {
 }
 
 @Composable
-private fun ConnectorReportDialog(context: Context, connectorId: String, connectorName: String, onDismiss: () -> Unit, onSent: () -> Unit) {
+private enum class ConnectorReportCategory {
+    CONNECTION, AUTHORIZATION, TOOL_BEHAVIOR, OTHER
+}
+
+@Composable
+private fun ConnectorReportDialog(
+    context: Context,
+    connectorId: String,
+    connectorName: String,
+    state: DetailConnectionState,
+    runtimeState: com.airi.assistant.connector.ConnectorState,
+    authMode: ConnectorAuthMode,
+    onDismiss: () -> Unit,
+    onSent: () -> Unit,
+) {
     var description by remember(connectorId) { mutableStateOf("") }
+    var category by remember(connectorId) { mutableStateOf(ConnectorReportCategory.CONNECTION) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.connector_report_title), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.connector_report_prompt, connectorName), color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+                Text(stringResource(R.string.connector_report_category_label), color = AiriTheme.onBackground, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                ) {
+                    listOf(
+                        ConnectorReportCategory.CONNECTION to R.string.connector_report_category_connection,
+                        ConnectorReportCategory.AUTHORIZATION to R.string.connector_report_category_authorization,
+                        ConnectorReportCategory.TOOL_BEHAVIOR to R.string.connector_report_category_tool,
+                        ConnectorReportCategory.OTHER to R.string.connector_report_category_other,
+                    ).forEach { (value, label) ->
+                        FilterChip(
+                            selected = category == value,
+                            onClick = { category = value },
+                            label = { Text(stringResource(label), fontSize = 11.sp) },
+                        )
+                    }
+                }
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it.take(2000) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 4,
                     placeholder = { Text(stringResource(R.string.connector_report_placeholder)) },
-                    supportingText = { Text("${description.length} / 2000") }
+                    supportingText = {
+                        Text(stringResource(R.string.connector_report_character_count, description.length))
+                    }
+                )
+                Text(
+                    stringResource(R.string.connector_report_diagnostics, state.displayLabel(), authMode.displayLabel()),
+                    color = AiriTheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                )
+                Text(
+                    stringResource(R.string.connector_report_privacy_note),
+                    color = AiriTheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    fontSize = 11.sp,
                 )
             }
         },
@@ -460,9 +518,16 @@ private fun ConnectorReportDialog(context: Context, connectorId: String, connect
             TextButton(
                 enabled = description.trim().length >= 8,
                 onClick = {
+                    val sanitizedDescription = PrivacyGuard.redactForTrace(description.trim()).take(2000)
                     context.getSharedPreferences("airi_user_reports", Context.MODE_PRIVATE).edit()
                         .putString("last_connector", connectorId)
-                        .putString("last_report", description.trim())
+                        .putString("last_report", sanitizedDescription)
+                        .putString("last_report_category", category.name)
+                        .putString("last_report_state", state.name)
+                        .putBoolean("last_report_connected", runtimeState.connected)
+                        .putBoolean("last_report_healthy", runtimeState.healthy)
+                        .putString("last_report_auth_mode", authMode.name)
+                        .putString("last_report_locale", java.util.Locale.getDefault().toLanguageTag())
                         .putLong("last_report_at", System.currentTimeMillis()).apply()
                     onSent()
                 }

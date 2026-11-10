@@ -1647,6 +1647,15 @@
     <string name="connector_report_title">Report a problem</string>
     <string name="connector_report_prompt">Tell us what needs attention in %1$s.</string>
     <string name="connector_report_placeholder">Describe the problem or suggestion</string>
+    <string name="connector_report_category_label">What needs attention?</string>
+    <string name="connector_report_category_connection">Connection</string>
+    <string name="connector_report_category_authorization">Authorization</string>
+    <string name="connector_report_category_tool">Tool behavior</string>
+    <string name="connector_report_category_other">Other</string>
+    <string name="connector_report_character_count">%1$d / 2000 characters</string>
+    <string name="connector_report_diagnostics">Diagnostic context: status %1$s · authentication %2$s</string>
+    <string name="connector_report_privacy_note">Only a redacted local copy is saved on this device; secrets and paths are filtered.</string>
+    <string name="connector_report_saved">Report saved locally for review.</string>
     <string name="connector_action_cancel">Cancel</string>
     <string name="connector_action_send">Send</string>
     <string name="connector_status_connected_verified">Connected and verified</string>

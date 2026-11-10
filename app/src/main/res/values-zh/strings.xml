@@ -2359,6 +2359,15 @@
     <string name="connector_report_title">Report a problem</string>
     <string name="connector_report_prompt">Tell us what needs attention in %1$s.</string>
     <string name="connector_report_placeholder">Describe the problem or suggestion</string>
+    <string name="connector_report_category_label">需要关注什么？</string>
+    <string name="connector_report_category_connection">连接</string>
+    <string name="connector_report_category_authorization">授权</string>
+    <string name="connector_report_category_tool">工具行为</string>
+    <string name="connector_report_category_other">其他</string>
+    <string name="connector_report_character_count">%1$d / 2000 个字符</string>
+    <string name="connector_report_diagnostics">诊断上下文：状态 %1$s · 身份验证 %2$s</string>
+    <string name="connector_report_privacy_note">仅在此设备上保存经过脱敏的本地副本；机密信息和路径会被过滤。</string>
+    <string name="connector_report_saved">报告已在本地保存，等待审核。</string>
     <string name="connector_action_cancel">Cancel</string>
     <string name="connector_action_send">Send</string>
     <string name="connector_status_connected_verified">Connected and verified</string>

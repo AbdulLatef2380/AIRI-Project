@@ -74,10 +74,10 @@ fun ConnectorAccessProfileDialog(
                         shape = RoundedCornerShape(16.dp),
                         border = BorderStroke(
                             width = if (isSelected) 1.5.dp else 1.dp,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else AiriTheme.outline,
+                            color = if (isSelected) AiriTheme.onSurfaceVariant else AiriTheme.outline,
                         ),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                            containerColor = if (isSelected) AiriTheme.onSurface.copy(alpha = 0.10f)
                             else AiriTheme.surfaceVariant,
                         ),
                     ) {
@@ -89,7 +89,7 @@ fun ConnectorAccessProfileDialog(
                             androidx.compose.material3.Icon(
                                 imageVector = icon,
                                 contentDescription = null,
-                                tint = if (isSelected) MaterialTheme.colorScheme.primary else AiriTheme.onSurfaceVariant,
+                                tint = AiriTheme.onSurfaceVariant,
                             )
                             Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
                                 Text(stringResource(labelId), color = AiriTheme.onSurface, style = MaterialTheme.typography.titleSmall)
@@ -110,6 +110,10 @@ fun ConnectorAccessProfileDialog(
             Button(
                 onClick = { onConfirm(selected) },
                 enabled = selected in choices,
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = AiriTheme.onSurface.copy(alpha = 0.12f),
+                    contentColor = AiriTheme.onSurface,
+                ),
             ) { Text(stringResource(R.string.connectors_access_profile_continue)) }
         },
         dismissButton = {

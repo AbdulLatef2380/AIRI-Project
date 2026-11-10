@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -39,6 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -73,12 +73,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -104,6 +102,17 @@ import java.util.Date
 import java.util.Locale
 
 private val providerTokenConnectorIds = setOf("gitlab", "linear", "slack", "discord", "asana", "todoist", "figma")
+
+private fun integrationIcon(id: String) = when {
+    id.contains("github") -> Icons.Outlined.Code
+    id.contains("google") || id.contains("calendar") -> Icons.Outlined.Link
+    id.contains("telegram") -> Icons.Outlined.Send
+    id.contains("microsoft") || id.contains("gmail") -> Icons.Outlined.Email
+    id.contains("drive") || id.contains("dropbox") || id.contains("box") -> Icons.Outlined.FolderOpen
+    id.contains("notion") || id.contains("mcp") || id.contains("n8n") -> Icons.Outlined.Extension
+    id.contains("slack") || id.contains("discord") -> Icons.Outlined.Forum
+    else -> Icons.Outlined.Settings
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -286,7 +295,7 @@ fun IntegrationsScreen(
                             Text(
                                 stringResource(R.string.connector_auth_context_targeted),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = AiriTheme.onSurfaceVariant,
                             )
                             androidx.compose.material3.OutlinedButton(
                                 onClick = { vm.beginConnectorAuthorization(initialConnectorId, context) },
@@ -385,7 +394,7 @@ fun IntegrationsScreen(
         ConnectorAccessProfileDialog(
             title = stringResource(R.string.connector_access_dialog_title, request.connectorId),
             description = stringResource(R.string.connector_access_dialog_description),
-            currentProfile = ConnectorAccessProfile.NOT_CONFIGURED,
+            currentProfile = request.currentProfile,
             availableProfiles = request.allowedProfiles,
             onConfirm = { profile -> vm.chooseAccessProfile(profile, context) },
             onDismiss = vm::cancelAccessProfileRequest,
@@ -402,7 +411,7 @@ private fun IntegrationCard(
     connectedAsLabelRes: Int? = null,
 ) {
     val ready = item.isReady
-    val borderColor = if (ready) Color(0xFF4ADE80).copy(alpha = 0.35f)
+    val borderColor = if (ready) SemanticSuccess.copy(alpha = 0.35f)
     else AiriTheme.outline
 
     Surface(
@@ -416,12 +425,6 @@ private fun IntegrationCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val iconResId: Int? = when (item.id) {
-                    "github"   -> com.airi.assistant.R.drawable.ic_integration_github
-                    "telegram" -> com.airi.assistant.R.drawable.ic_integration_telegram
-                    "google"   -> com.airi.assistant.R.drawable.ic_integration_google
-                    else       -> null
-                }
                 Box(
                     modifier = Modifier
                         .size(48.dp)
@@ -430,21 +433,7 @@ private fun IntegrationCard(
                         .border(0.5.dp, AiriTheme.onSurface.copy(alpha = 0.12f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (iconResId != null) {
-                        // Clip the brand-icon PNG itself to a circle as well so any
-                        // white square background (e.g. the Google "G" sheet) is
-                        // masked instead of bleeding into the dark surface.
-                        Image(
-                            painter = painterResource(id = iconResId),
-                            contentDescription = item.name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                        )
-                    } else {
-                        Text(item.emoji, fontSize = 24.sp)
-                    }
+                    Icon(integrationIcon(item.id), contentDescription = item.name, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -486,7 +475,7 @@ private fun IntegrationCard(
                         Icon(
                             Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = Color(0xFF4ADE80),
+                            tint = SemanticSuccess,
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(Modifier.width(6.dp))
@@ -497,7 +486,7 @@ private fun IntegrationCard(
                             Text(
                                 item.connectedAs,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = Color(0xFF4ADE80),
+                                color = SemanticSuccess,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
@@ -536,7 +525,8 @@ private fun IntegrationCard(
                     onClick  = onConnect,
                     modifier = Modifier.fillMaxWidth(),
                     colors   = ButtonDefaults.buttonColors(
-                        containerColor = CosmicAccent
+                        containerColor = AiriTheme.onSurface.copy(alpha = 0.12f),
+                        contentColor = AiriTheme.onSurface
                     ),
                     shape = AIRIShapes.md
                 ) {
@@ -616,13 +606,13 @@ private fun GithubProjectAuthorizationPanel(
                     Text(
                         statusLabel,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (state.runtimeReady) Color(0xFF4ADE80) else MaterialTheme.colorScheme.tertiary,
+                        color = if (state.runtimeReady) SemanticSuccess else AiriTheme.onSurfaceVariant,
                     )
                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                         Text(
                             "@${ready.session.accountLogin}",
                             style = MaterialTheme.typography.labelMedium,
-                            color = if (state.runtimeReady) Color(0xFF4ADE80) else AiriTheme.onSurfaceVariant,
+                            color = if (state.runtimeReady) SemanticSuccess else AiriTheme.onSurfaceVariant,
                         )
                     }
                     GithubProjectRepositoriesPanel(
@@ -674,7 +664,7 @@ private fun GithubProjectAuthorizationPanel(
                         enabled = !state.isLoading && authorizationState !is GithubAuthorizationState.AwaitingAuthorization &&
                             authorizationState !is GithubAuthorizationState.Exchanging,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+                        colors = ButtonDefaults.buttonColors(containerColor = AiriTheme.onSurface.copy(alpha = 0.12f), contentColor = AiriTheme.onSurface),
                         shape = AIRIShapes.md,
                     ) {
                         if (state.isLoading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -781,7 +771,7 @@ private fun GithubProjectRepositoriesPanel(
                     onClick = onSave,
                     enabled = state.hasUnsavedChanges && !state.isSaving,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+                    colors = ButtonDefaults.buttonColors(containerColor = AiriTheme.onSurface.copy(alpha = 0.12f), contentColor = AiriTheme.onSurface),
                     shape = AIRIShapes.md,
                 ) {
                     if (state.isSaving) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -814,7 +804,7 @@ private fun StatusBadge(readiness: IntegrationReadiness) {
     val ready = readiness == IntegrationReadiness.READY
     val authorizationRequired = readiness == IntegrationReadiness.AUTHORIZATION_REQUIRED
     val accent = when {
-        ready -> Color(0xFF4ADE80)
+        ready -> SemanticSuccess
         authorizationRequired -> MaterialTheme.colorScheme.tertiary
         else -> AiriTheme.onSurface.copy(alpha = 0.35f)
     }
@@ -915,7 +905,7 @@ private fun TokenDialog(
                             modifier = Modifier
                                 .size(20.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF6D28D9).copy(alpha = 0.5f)),
+                                .background(AiriTheme.onSurfaceVariant.copy(alpha = 0.45f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -965,10 +955,10 @@ private fun TokenDialog(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = AiriTheme.onSurface,
                             unfocusedTextColor = AiriTheme.onSurface,
-                            focusedBorderColor = Color(0xFF7C3AED),
+                            focusedBorderColor = AiriTheme.onSurfaceVariant,
                             unfocusedBorderColor = AiriTheme.onSurface.copy(alpha = 0.25f),
                             errorBorderColor = Color(0xFFFF6B6B),
-                            cursorColor = Color(0xFF7C3AED)
+                            cursorColor = AiriTheme.onSurfaceVariant
                         )
                     )
                 }
@@ -1006,7 +996,7 @@ private fun TokenDialog(
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp,
-                            color = Color(0xFF7C3AED)
+                            color = AiriTheme.onSurfaceVariant
                         )
                         Spacer(Modifier.width(10.dp))
                         Text(
@@ -1023,11 +1013,12 @@ private fun TokenDialog(
                 onClick = onConfirm,
                 enabled = !loading && token.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = CosmicAccent,
-                    disabledContainerColor = Color(0xFF6D28D9).copy(alpha = 0.35f)
+                    containerColor = AiriTheme.onSurface.copy(alpha = 0.12f),
+                    contentColor = AiriTheme.onSurface,
+                    disabledContainerColor = AiriTheme.onSurface.copy(alpha = 0.06f)
                 )
             ) {
-                Text(stringResource(R.string.integration_connect), color = AiriTheme.onBackground)
+                Text(stringResource(R.string.integration_connect), color = AiriTheme.onSurface)
             }
         },
         dismissButton = {

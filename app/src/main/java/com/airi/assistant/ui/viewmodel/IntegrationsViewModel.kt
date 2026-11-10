@@ -156,6 +156,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         val runtimeId: String,
         val surfaceIds: List<String>,
         val allowedProfiles: List<ConnectorAccessProfile>,
+        val currentProfile: ConnectorAccessProfile = ConnectorAccessProfile.NOT_CONFIGURED,
     )
 
     private val _accessProfileRequest = MutableStateFlow<AccessProfileRequest?>(null)
@@ -415,6 +416,11 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
                         runtimeId = result.runtimeId,
                         surfaceIds = result.surfaceIds,
                         allowedProfiles = ConnectorAccessProfile.selectableFor(permissions),
+                        currentProfile = result.surfaceIds
+                            .map { ServiceLocator.connectorAccessProfileStore.get(it) }
+                            .distinct()
+                            .singleOrNull()
+                            ?: ConnectorAccessProfile.NOT_CONFIGURED,
                     )
                 }
                 is ConnectorAuthorizationManager.StartResult.Ready -> refresh()

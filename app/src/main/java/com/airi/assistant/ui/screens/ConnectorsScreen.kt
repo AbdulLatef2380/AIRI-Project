@@ -46,6 +46,7 @@ import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.viewmodel.ConnectorsViewModel
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
+import coil.compose.AsyncImage
 private data class ConnectorTab(
     val type: ConnectorType,
     val labelResId: Int? = null,
@@ -448,12 +449,20 @@ private fun ConnectorCard(
                             .background(AiriTheme.onSurface.copy(alpha = 0.10f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            iconForId(row.meta.id),
-                            contentDescription = presentation.name,
-                            tint = AiriTheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        if (presentation.iconUrl != null) {
+                            AsyncImage(
+                                model = presentation.iconUrl,
+                                contentDescription = presentation.name,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        } else {
+                            Icon(
+                                iconForId(row.meta.id),
+                                contentDescription = presentation.name,
+                                tint = AiriTheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                     Column {
                         Text(

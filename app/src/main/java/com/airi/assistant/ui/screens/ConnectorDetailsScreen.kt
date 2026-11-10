@@ -75,6 +75,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.airi.assistant.R
 import com.airi.assistant.connector.ConnectorAccessProfile
 import com.airi.assistant.connector.ConnectorAuthMode
@@ -231,7 +232,7 @@ fun ConnectorDetailsScreen(
             verticalArrangement = Arrangement.spacedBy(AIRISpacing.md)
         ) {
             Spacer(Modifier.height(4.dp))
-            ConnectorHero(meta, presentation.description, state)
+            ConnectorHero(meta, presentation.iconUrl, presentation.description, state)
             ConnectorStatusPill(state, row.state.statusLine, row.state.errorMessage)
             CompactConnectorFacts(meta, presentation.category, authStrategy.mode, definition?.supportedPlatforms?.firstOrNull().orEmpty())
 
@@ -279,12 +280,20 @@ fun ConnectorDetailsScreen(
 }
 
 @Composable
-private fun ConnectorHero(meta: ConnectorMeta, description: String, state: DetailConnectionState) {
+private fun ConnectorHero(meta: ConnectorMeta, iconUrl: String?, description: String, state: DetailConnectionState) {
     val icon = connectorIcon(meta.id)
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Surface(modifier = Modifier.size(92.dp), shape = AIRIShapes.xl, color = AiriTheme.onSurface.copy(alpha = 0.10f)) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = meta.name, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(42.dp))
+                if (safeHttpsUri(iconUrl) != null) {
+                    AsyncImage(
+                        model = safeHttpsUri(iconUrl),
+                        contentDescription = meta.name,
+                        modifier = Modifier.padding(18.dp).fillMaxSize()
+                    )
+                } else {
+                    Icon(icon, contentDescription = meta.name, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(42.dp))
+                }
             }
         }
         Spacer(Modifier.height(14.dp))

@@ -2,6 +2,7 @@ package com.airi.assistant.ui.screens
 
 import com.airi.assistant.connector.ConnectorMeta
 import com.airi.assistant.connector.ConnectorType
+import com.airi.assistant.connector.OfficialConnectorCatalog
 import java.net.URI
 import java.util.Locale
 
@@ -148,14 +149,15 @@ fun ConnectorMeta.presentation(locale: Locale = Locale.getDefault()): ConnectorP
     } else if (this.tags.isNotEmpty()) {
         listOf(if (copy != null) "الوسوم: ${tags.joinToString()}" else "Declared tags: ${tags.joinToString()}")
     } else emptyList()
+    val declaredLimitations = OfficialConnectorCatalog.get(id)?.limitations.orEmpty()
     val limitations = if (copy != null) {
-        if (this.limitations.isNotEmpty()) {
+        if (declaredLimitations.isNotEmpty()) {
             listOf("يتطلب هذا الموصل إعداد حساب المزود والصلاحيات الموضحة قبل الاستخدام.")
         } else {
             emptyList()
         }
     } else {
-        this.limitations
+        declaredLimitations
     }
     val auth = authenticationType?.name?.let { raw ->
         if (copy == null) raw else when (raw) {

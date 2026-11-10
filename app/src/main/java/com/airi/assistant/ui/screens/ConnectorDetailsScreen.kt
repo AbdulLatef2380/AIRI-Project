@@ -75,7 +75,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
 import com.airi.assistant.R
 import com.airi.assistant.connector.ConnectorAccessProfile
 import com.airi.assistant.connector.ConnectorAuthMode
@@ -87,7 +86,6 @@ import com.airi.assistant.ui.theme.AIRIShapes
 import com.airi.assistant.ui.theme.AIRIColors
 import com.airi.assistant.ui.theme.AIRISpacing
 import com.airi.assistant.ui.theme.AiriTheme
-import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SemanticError
 import com.airi.assistant.ui.theme.SemanticSuccess
 import com.airi.assistant.ui.theme.SemanticWarn
@@ -213,12 +211,12 @@ fun ConnectorDetailsScreen(
                             active -> viewModel.disconnect(connectorId)
                             else -> onManageAuthorization(connectorId)
                         }
-                        if (active) scope.launch { snackbar.showSnackbar("Connector disconnected") }
+                        if (active) scope.launch { snackbar.showSnackbar(disconnectedMessage) }
                     },
                     enabled = state != DetailConnectionState.COMING_SOON,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp).height(52.dp),
                     shape = AIRIShapes.md,
-                    colors = ButtonDefaults.buttonColors(containerColor = if (active) AiriTheme.surfaceVariant else CosmicAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = if (active) AiriTheme.surfaceVariant else AiriTheme.onSurfaceVariant)
                 ) {
                     Icon(if (active) Icons.Outlined.Close else Icons.Outlined.CheckCircle, null)
                     Spacer(Modifier.width(8.dp))
@@ -233,7 +231,7 @@ fun ConnectorDetailsScreen(
             verticalArrangement = Arrangement.spacedBy(AIRISpacing.md)
         ) {
             Spacer(Modifier.height(4.dp))
-            ConnectorHero(meta, presentation.iconUrl, presentation.description, state)
+            ConnectorHero(meta, presentation.description, state)
             ConnectorStatusPill(state, row.state.statusLine, row.state.errorMessage)
             CompactConnectorFacts(meta, presentation.category, authStrategy.mode, definition?.supportedPlatforms?.firstOrNull().orEmpty())
 
@@ -281,13 +279,12 @@ fun ConnectorDetailsScreen(
 }
 
 @Composable
-private fun ConnectorHero(meta: ConnectorMeta, iconUrl: String?, description: String, state: DetailConnectionState) {
+private fun ConnectorHero(meta: ConnectorMeta, description: String, state: DetailConnectionState) {
     val icon = connectorIcon(meta.id)
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        Surface(modifier = Modifier.size(92.dp), shape = AIRIShapes.xl, color = CosmicAccent.copy(alpha = 0.12f)) {
+        Surface(modifier = Modifier.size(92.dp), shape = AIRIShapes.xl, color = AiriTheme.onSurface.copy(alpha = 0.10f)) {
             Box(contentAlignment = Alignment.Center) {
-                if (safeHttpsUri(iconUrl) != null) AsyncImage(model = safeHttpsUri(iconUrl), contentDescription = meta.name, modifier = Modifier.padding(18.dp).fillMaxSize())
-                else Icon(icon, contentDescription = meta.name, tint = CosmicAccent, modifier = Modifier.size(42.dp))
+                Icon(icon, contentDescription = meta.name, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(42.dp))
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -302,8 +299,8 @@ private fun ConnectorStatusPill(state: DetailConnectionState, runtimeStatus: Str
     val (label, color, icon) = when (state) {
         DetailConnectionState.CONNECTED -> Triple(stringResource(R.string.connector_status_connected_verified), SemanticSuccess, Icons.Outlined.CheckCircle)
         DetailConnectionState.NEEDS_ATTENTION -> Triple(stringResource(R.string.connector_status_needs_attention), SemanticWarn, Icons.Outlined.WarningAmber)
-        DetailConnectionState.AUTHORIZATION_REQUIRED -> Triple(stringResource(R.string.connector_status_authorization_required), CosmicAccent, Icons.Outlined.Security)
-        DetailConnectionState.CONFIGURATION_REQUIRED -> Triple(stringResource(R.string.connector_status_configuration_required), CosmicAccent, Icons.Outlined.Settings)
+        DetailConnectionState.AUTHORIZATION_REQUIRED -> Triple(stringResource(R.string.connector_status_authorization_required), AiriTheme.onSurfaceVariant, Icons.Outlined.Security)
+        DetailConnectionState.CONFIGURATION_REQUIRED -> Triple(stringResource(R.string.connector_status_configuration_required), AiriTheme.onSurfaceVariant, Icons.Outlined.Settings)
         DetailConnectionState.DISCONNECTED -> Triple(stringResource(R.string.connector_status_not_connected), AiriTheme.onSurfaceVariant, Icons.Outlined.Link)
         DetailConnectionState.COMING_SOON -> Triple(stringResource(R.string.connector_status_coming_soon), AiriTheme.onSurfaceVariant, Icons.Outlined.ErrorOutline)
     }
@@ -343,15 +340,15 @@ private fun ActionRow(title: String, subtitle: String, icon: androidx.compose.ui
         modifier = Modifier.fillMaxWidth().background(Color.Transparent).padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Surface(modifier = Modifier.size(38.dp), shape = AIRIShapes.sm, color = CosmicAccent.copy(alpha = 0.12f)) {
-            Box(contentAlignment = Alignment.Center) { Icon(icon, null, tint = CosmicAccent, modifier = Modifier.size(19.dp)) }
+        Surface(modifier = Modifier.size(38.dp), shape = AIRIShapes.sm, color = AiriTheme.onSurface.copy(alpha = 0.10f)) {
+            Box(contentAlignment = Alignment.Center) { Icon(icon, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(19.dp)) }
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(title, color = AiriTheme.onBackground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             Text(subtitle, color = AiriTheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1)
         }
-        TextButton(onClick = onClick) { Text(stringResource(R.string.connector_action_open), color = CosmicAccent, fontSize = 12.sp) }
+        TextButton(onClick = onClick) { Text(stringResource(R.string.connector_action_open), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp) }
     }
 }
 
@@ -425,7 +422,7 @@ private fun OverviewLine(label: String, value: String?) {
 @Composable
 private fun OverviewBullet(text: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.Top) {
-        Text("•", color = CosmicAccent, fontWeight = FontWeight.Bold)
+        Text("•", color = AiriTheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
         Text(text, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 17.sp)
     }
 }

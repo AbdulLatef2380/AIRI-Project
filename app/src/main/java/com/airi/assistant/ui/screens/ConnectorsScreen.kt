@@ -39,7 +39,6 @@ import com.airi.assistant.connector.ConnectorAvailability
 import com.airi.assistant.connector.ConnectorAuthStrategies
 import com.airi.assistant.connector.local.ContactsConnector
 import com.airi.assistant.execution.privacy.PrivacyGuard
-import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.theme.SemanticSuccess
 import com.airi.assistant.ui.theme.SemanticError
@@ -47,7 +46,6 @@ import androidx.compose.material3.MaterialTheme
 import com.airi.assistant.ui.viewmodel.ConnectorsViewModel
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
-import coil.compose.AsyncImage
 private data class ConnectorTab(
     val type: ConnectorType,
     val labelResId: Int? = null,
@@ -73,11 +71,18 @@ private fun iconForId(id: String): ImageVector = when {
     id.contains("mcp")       -> Icons.Outlined.Extension
     id.contains("github")    -> Icons.Outlined.Code
     id.contains("telegram")  -> Icons.Outlined.Send
+    id.contains("slack") || id.contains("discord") -> Icons.Outlined.Forum
     id.contains("google")    -> Icons.Outlined.Event
+    id.contains("gmail") || id.contains("mail") -> Icons.Outlined.Email
+    id.contains("drive") || id.contains("storage") -> Icons.Outlined.Cloud
     id.contains("zapier")    -> Icons.Outlined.AutoAwesome
     id.contains("ifttt")     -> Icons.Outlined.Bolt
     id.contains("n8n")       -> Icons.Outlined.AccountTree
     id.contains("notion")    -> Icons.Outlined.Description
+    id.contains("jira") || id.contains("linear") || id.contains("trello") -> Icons.Outlined.TaskAlt
+    id.contains("youtube") || id.contains("spotify") -> Icons.Outlined.PlayCircle
+    id.contains("maps") || id.contains("location") || id.contains("weather") -> Icons.Outlined.LocationOn
+    id.contains("web") || id.contains("browser") || id.contains("http") -> Icons.Outlined.Public
     else                     -> Icons.Outlined.Hub
 }
 
@@ -192,10 +197,10 @@ fun ConnectorsScreen(
                             modifier = Modifier
                                 .size(46.dp)
                                 .clip(AIRIShapes.md)
-                                .background(CosmicAccent.copy(alpha = 0.16f)),
+                                .background(AiriTheme.onSurface.copy(alpha = 0.10f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Outlined.Hub, null, tint = CosmicAccent, modifier = Modifier.size(25.dp))
+                            Icon(Icons.Outlined.Hub, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(25.dp))
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
@@ -212,7 +217,7 @@ fun ConnectorsScreen(
                         }
                         Text(
                             text = allItems.size.toString(),
-                            color = CosmicAccent,
+                            color = AiriTheme.onSurfaceVariant,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -237,16 +242,16 @@ fun ConnectorsScreen(
                     shape = AIRIShapes.pill,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Search),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = CosmicAccent,
+                        focusedBorderColor = AiriTheme.onSurfaceVariant,
                         unfocusedBorderColor = AiriTheme.outline,
-                        focusedLeadingIconColor = CosmicAccent,
+                        focusedLeadingIconColor = AiriTheme.onSurfaceVariant,
                         unfocusedLeadingIconColor = AiriTheme.onSurfaceVariant
                     )
                 )
             ScrollableTabRow(
                 selectedTabIndex = TABS.indexOfFirst { it.type == selectedTab }.coerceAtLeast(0),
                 containerColor   = AiriTheme.background,
-                contentColor     = CosmicAccent,
+                contentColor     = AiriTheme.onSurfaceVariant,
                 edgePadding      = 12.dp,
                 divider          = { Divider(color = AiriTheme.outline) }
             ) {
@@ -265,13 +270,13 @@ fun ConnectorsScreen(
                                     tab.icon,
                                     contentDescription = null,
                                     modifier = Modifier.size(14.dp),
-                                    tint = if (isSelected) CosmicAccent else AiriTheme.onSurface.copy(0.45f)
+                                    tint = if (isSelected) AiriTheme.onSurfaceVariant else AiriTheme.onSurface.copy(0.45f)
                                 )
                                 val label = tab.labelResId?.let { stringResource(it) } ?: tab.labelText ?: ""
                                 Text(
                                     label,
                                     fontSize = 12.sp,
-                                    color = if (isSelected) CosmicAccent else AiriTheme.onSurface.copy(0.45f)
+                                    color = if (isSelected) AiriTheme.onSurfaceVariant else AiriTheme.onSurface.copy(0.45f)
                                 )
                                 if (tabCount > 0) {
                                     Box(
@@ -279,7 +284,7 @@ fun ConnectorsScreen(
                                             .size(16.dp)
                                             .clip(CircleShape)
                                             .background(
-                                                if (isSelected) CosmicAccent.copy(0.25f)
+                                                if (isSelected) AiriTheme.onSurface.copy(0.16f)
                                                 else AiriTheme.onSurface.copy(0.08f)
                                             ),
                                         contentAlignment = Alignment.Center
@@ -287,7 +292,7 @@ fun ConnectorsScreen(
                             Text(
                                 tabCount.toString(),
                                             fontSize = 9.sp,
-                                            color = if (isSelected) CosmicAccent else AiriTheme.onSurface.copy(0.45f),
+                                            color = if (isSelected) AiriTheme.onSurfaceVariant else AiriTheme.onSurface.copy(0.45f),
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -300,7 +305,7 @@ fun ConnectorsScreen(
             ScrollableTabRow(
                 selectedTabIndex = categories.indexOf(selectedCategory).coerceAtLeast(0),
                 containerColor = AiriTheme.background,
-                contentColor = CosmicAccent,
+                contentColor = AiriTheme.onSurfaceVariant,
                 edgePadding = 12.dp,
                 divider = {}
             ) {
@@ -440,23 +445,15 @@ private fun ConnectorCard(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(AIRIShapes.sm)
-                            .background(CosmicAccent.copy(alpha = 0.15f)),
+                            .background(AiriTheme.onSurface.copy(alpha = 0.10f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (presentation.iconUrl != null) {
-                            AsyncImage(
-                                model = presentation.iconUrl,
-                                contentDescription = presentation.name,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        } else {
-                            Icon(
-                                iconForId(row.meta.id),
-                                contentDescription = presentation.name,
-                                tint = CosmicAccent,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        Icon(
+                            iconForId(row.meta.id),
+                            contentDescription = presentation.name,
+                            tint = AiriTheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                     Column {
                         Text(

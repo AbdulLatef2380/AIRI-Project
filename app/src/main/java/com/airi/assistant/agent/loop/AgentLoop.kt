@@ -320,6 +320,15 @@ the tool returns an actual error.
                     detail = effectiveTools.joinToString(",") { it.name }.take(400),
                 ),
             )
+            runtimeTrace?.intentStage(
+                executionId = executionId,
+                sessionId = sessionId,
+                stage = "STRUCTURED_TASK_UNDERSTOOD",
+                outcome = plan.understanding.taskType.name.lowercase(),
+                reason = "goal=${plan.understanding.userGoal}; outcome=${plan.understanding.requestedOutcome}; " +
+                    "confidence=${plan.understanding.confidence}; entities=" +
+                    plan.understanding.entities.keys.sorted().joinToString(",").ifBlank { "none" },
+            )
         }
         runtimeTrace?.intentStage(executionId, sessionId, "INTENT_RAW", "received")
         if (codeGate != null && codeGate.requirements.isNotEmpty()) {

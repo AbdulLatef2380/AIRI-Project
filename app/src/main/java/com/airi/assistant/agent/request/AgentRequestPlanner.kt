@@ -2,7 +2,6 @@ package com.airi.assistant.agent.request
 
 import com.airi.assistant.ai.CapabilityIntentDetector
 import com.airi.assistant.ai.CapabilityIntentDetector.Capability
-import com.airi.assistant.ai.CodingTaskDetector
 import com.airi.assistant.ai.QueryType
 import com.airi.assistant.execution.ExecutionRequest.ToolChoice
 
@@ -21,6 +20,7 @@ data class RequestPlan(
     /** Non-null when the request needs tools that cannot be offered; the UI must say so. */
     val unfulfillable: Unfulfillable?,
     val reason: String,
+    val understanding: StructuredTaskUnderstanding = StructuredTaskUnderstanding.understand(""),
 ) {
     enum class Kind { CHAT, ACTION, CODE_TASK }
     enum class Confidence { LOW, MEDIUM, HIGH }
@@ -70,14 +70,17 @@ object AgentRequestPlanner {
         support: ModelToolSupport,
         availableTools: Set<String>,
     ): RequestPlan {
-        val coding = CodingTaskDetector.detect(text)
+        val understanding = StructuredTaskUnderstanding.understand(text)
         val runtimeIntent = CapabilityIntentDetector.detect(text)
         val capabilities = buildSet {
+            addAll(understanding.requiredCapabilities)
             addAll(runtimeIntent.capabilities)
-            if (coding != null) add(Capability.CODE_TASK)
         }
         val kind = when {
-            Capability.CODE_TASK in capabilities -> RequestPlan.Kind.CODE_TASK
+            understanding.taskType == StructuredTaskUnderstanding.TaskType.CODE_GENERATION ||
+                understanding.taskType == StructuredTaskUnderstanding.TaskType.CODE_ANALYSIS ||
+                understanding.taskType == StructuredTaskUnderstanding.TaskType.CODE_EXECUTION ||
+                understanding.taskType == StructuredTaskUnderstanding.TaskType.FILE_CREATION -> RequestPlan.Kind.CODE_TASK
             capabilities.isNotEmpty() -> RequestPlan.Kind.ACTION
             else -> RequestPlan.Kind.CHAT
         }
@@ -86,8 +89,8 @@ object AgentRequestPlanner {
             RequestPlan.Kind.CHAT -> com.airi.assistant.ai.QueryClassifier.classifyQuery(text)
         }
         val confidence = when {
-            coding != null && coding.languages.isNotEmpty() -> RequestPlan.Confidence.HIGH
-            capabilities.isNotEmpty() -> RequestPlan.Confidence.MEDIUM
+            understanding.confidence >= 0.9 -> RequestPlan.Confidence.HIGH
+            understanding.confidence >= 0.65 || capabilities.isNotEmpty() -> RequestPlan.Confidence.MEDIUM
             else -> RequestPlan.Confidence.LOW
         }
 
@@ -146,7 +149,8 @@ object AgentRequestPlanner {
             requiredTools = required,
             toolChoice = choice,
             unfulfillable = unfulfillable,
-            reason = "kind=$kind capabilities=${capabilities.sorted()} support=$support exposed=${exposed.size} blocked=${blocked.size}",
+            reason = "kind=$kind goal=${understanding.userGoal} outcome=${understanding.requestedOutcome} capabilities=${capabilities.sorted()} support=$support exposed=${exposed.size} blocked=${blocked.size}",
+            understanding = understanding,
         )
     }
 }

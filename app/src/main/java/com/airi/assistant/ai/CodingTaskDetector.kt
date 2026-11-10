@@ -30,15 +30,16 @@ object CodingTaskDetector {
 
     private val creationVerbs = terms(
         "انشاء", "انشئ", "انشي", "انشىء", "اصنع", "صنع", "صمم", "تصميم", "برمج", "برمجة",
-        "اعمل", "عمل", "اكتب", "كتابة", "بناء", "طور", "تطوير", "جهز",
+        "اعمل", "عمل", "اكتب", "كتابة", "بناء", "ابن", "طور", "تطوير", "جهز", "ساعدني", "احتاج",
         "create", "build", "make", "write", "develop", "generate", "design", "implement",
     )
 
     private val codingNouns = terms(
-        "كود", "اكواد", "كودا", "برنامج", "برامج", "تطبيق", "تطبيقات", "سكربت", "سكريبت",
+        "كود", "اكواد", "كودا", "برنامج", "برامج", "برنامجا", "تطبيق", "تطبيقات", "تطبيقا", "سكربت", "سكريبت",
         "سكربتات", "شفرة", "شفره",
-        "code", "script", "program", "app", "application", "function", "class", "module", "bot",
-        "codes", "scripts", "programs", "apps",
+        "code", "script", "program", "app", "application", "function", "class", "module", "bot", "tool",
+        "codes", "scripts", "programs", "apps", "calculator", "حاسبة", "اله حاسبة", "آلة حاسبة",
+        "عمليات حسابية", "arithmetic",
     )
 
     private val languages = terms(

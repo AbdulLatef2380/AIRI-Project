@@ -448,7 +448,6 @@ private fun OverviewBullet(text: String) {
     }
 }
 
-@Composable
 private enum class ConnectorReportCategory {
     CONNECTION, AUTHORIZATION, TOOL_BEHAVIOR, OTHER
 }

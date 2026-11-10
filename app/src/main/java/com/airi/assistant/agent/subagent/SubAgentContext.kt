@@ -100,7 +100,7 @@ data class SubAgentContext(
      * Key = taskId of the dependency; Value = its result text.
      * Agents can reference these to chain results.
      */
-    val dependencyResults: Map<String, String> = emptyMap()
+    val dependencyResults: Map<String, String> = emptyMap(),
 
     // ── Trace ownership ─────────────────────────────────────────────────────
     /** Owning execution supplied by the orchestrator; never inferred from UI state. */

@@ -62,7 +62,7 @@ class CodingAgent(
             emit(AgentEvent.Progress("Preparing a bounded coding workspace…", stepName = "admission"))
             val result = runtime.execute(input, context)
             emit(AgentEvent.PartialResult(result.evidence, isFinal = false))
-            if (result.report.status == CodingAgentStatus.SUCCEEDED) {
+            if (result.report.status == com.airi.assistant.agent.coding.CodingRepairStatus.SUCCEEDED) {
                 emit(AgentEvent.Complete(
                     result = result.evidence,
                     durationMs = System.currentTimeMillis() - start,

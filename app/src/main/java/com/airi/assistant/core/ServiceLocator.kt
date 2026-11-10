@@ -67,6 +67,7 @@ import com.airi.assistant.sync.CloudSyncCoordinator
 import com.airi.assistant.telemetry.PrivacyTelemetryReporter
 import com.airi.assistant.telemetry.TelemetryConsentStore
 import com.airi.assistant.agent.coding.CodingAgentRuntime
+import com.airi.assistant.agent.coding.ProductionCodingRuntimeFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -179,9 +180,13 @@ object ServiceLocator {
         AgentSandbox(executionFirewall, scopedPermissionRegistry, privacyTelemetryReporter)
     }
 
-    /** Optional production coding runtime; null keeps the safe LLM-only fallback. */
+    /** Production coding runtime; construction is centralized and fail-closed. */
+    val codingAgentRuntime: CodingAgentRuntime by lazy {
+        ProductionCodingRuntimeFactory.create(requireContext(), agentSandbox)
+    }
+
     @Volatile
-    var codingAgentRuntimeProvider: () -> CodingAgentRuntime? = { null }
+    var codingAgentRuntimeProvider: () -> CodingAgentRuntime? = { codingAgentRuntime }
 
     // ── Crash / Runtime Reporting ─────────────────────────────────────────────
 

@@ -26,13 +26,14 @@ class CodingAgentRuntime(
     private val planner: CodingTaskPlanner,
     pipeline: ToolExecutionPipeline,
     private val repairPlanner: CodingRepairPlanner? = null,
-    maxRepairAttempts: Int = 3,
+    private val maxRepairAttempts: Int = 3,
     private val maxEvidenceChars: Int = 4_000,
 ) {
     private val orchestrator = CodingAgentOrchestrator(ToolPipelineCodingExecutor(pipeline))
 
     init {
         require(maxEvidenceChars > 0)
+        require(maxRepairAttempts > 0)
     }
 
     suspend fun execute(input: String, context: SubAgentContext): CodingRuntimeResult {

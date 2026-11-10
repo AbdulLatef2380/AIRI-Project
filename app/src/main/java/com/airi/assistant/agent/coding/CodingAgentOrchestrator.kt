@@ -129,7 +129,7 @@ class CodingAgentOrchestrator(
         require(maxEvidenceChars > 0)
     }
 
-    suspend fun execute(task: CodingTask): CodingAgentExecutionReport {
+    override suspend fun execute(task: CodingTask): CodingAgentExecutionReport {
         if (task.actions.isEmpty()) {
             return CodingAgentExecutionReport(
                 taskId = task.taskId,
@@ -172,7 +172,9 @@ class CodingAgentOrchestrator(
             }
 
             val step = when (outcome) {
-                is ExecutionOutcome.Success -> CodingStepEvidence(
+                is ExecutionOutcome.Success -> if (action.toolId == "run_tests" || action.toolId == "build") {
+                    validateVerification(action, outcome.text)
+                } else CodingStepEvidence(
                     action.stepId,
                     action.toolId,
                     "SUCCEEDED",
@@ -260,18 +262,47 @@ class CodingAgentOrchestrator(
                 val cwd = args["working_directory"] ?: "/"
                 val timeout = args["timeout_ms"]?.toLongOrNull() ?: if ("timeout_ms" in args) return "invalid_timeout_ms" else 120_000L
                 val output = args["output_chars"]?.toIntOrNull() ?: if ("output_chars" in args) return "invalid_output_chars" else 16_000
-                decisionReason(
-                    verificationPolicy.evaluate(
-                        toolId = action.toolId,
-                        command = command,
-                        workingDirectory = cwd,
-                        timeoutMs = timeout,
-                        outputChars = output,
-                        artifactPath = args["artifact_path"],
-                    ),
-                )
+                when (val decision = verificationPolicy.evaluate(
+                    toolId = action.toolId,
+                    command = command,
+                    workingDirectory = cwd,
+                    timeoutMs = timeout,
+                    outputChars = output,
+                    artifactPath = args["artifact_path"],
+                )) {
+                    is CodingVerificationPolicy.Decision.Allowed -> null
+                    is CodingVerificationPolicy.Decision.Denied -> decision.reason
+                }
             }
             else -> null
+        }
+    }
+
+    private fun validateVerification(action: CodingAction, output: String): CodingStepEvidence {
+        val exitCode = Regex("(?:exit_code|exit)\\s*=\\s*(-?\\d+)", RegexOption.IGNORE_CASE)
+            .find(output)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: if (output.contains("passed", ignoreCase = true)) 0 else 1
+        return when (val decision = verificationPolicy.validateResult(
+            CodingVerificationResult(
+                toolId = action.toolId,
+                exitCode = exitCode,
+                durationMs = 0L,
+                outputSummary = output,
+                artifactPath = action.arguments["artifact_path"],
+            ),
+        )) {
+            is CodingVerificationPolicy.Decision.Allowed -> CodingStepEvidence(
+                action.stepId,
+                action.toolId,
+                if (decision.value.passed) "SUCCEEDED" else "FAILED",
+                decision.value.outputSummary.take(maxEvidenceChars),
+            )
+            is CodingVerificationPolicy.Decision.Denied -> CodingStepEvidence(
+                action.stepId,
+                action.toolId,
+                "FAILED",
+                decision.reason,
+            )
         }
     }
 

@@ -190,7 +190,8 @@ object ChatExecutionTraceMapper {
             ExecutionTraceKind.REASONING_NOTE,
             ExecutionTraceKind.PLANNING,
             ExecutionTraceKind.STEP_STARTED,
-            ExecutionTraceKind.STEP_COMPLETED -> AgentStepType.TASK_STEP to (event.status == com.airi.assistant.core.ExecutionTraceStatus.COMPLETED)
+            ExecutionTraceKind.STEP_COMPLETED,
+            ExecutionTraceKind.COMPLETED -> AgentStepType.TASK_STEP to (event.status == com.airi.assistant.core.ExecutionTraceStatus.COMPLETED)
             ExecutionTraceKind.TOOL_REQUESTED,
             ExecutionTraceKind.TOOL_STARTED,
             ExecutionTraceKind.TOOL_OUTPUT,

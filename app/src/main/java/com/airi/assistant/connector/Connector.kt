@@ -122,8 +122,6 @@ data class ConnectorAgentParameter(
     val allowedValues: Set<String> = emptySet(),
     val minNumber: Double? = null,
     val maxNumber: Double? = null,
-    val minNumber: Double? = null,
-    val maxNumber: Double? = null,
     /** Schema for each array element, when [type] is array. */
     val items: ConnectorAgentParameter? = null,
     /** Named child properties, when [type] is object. */

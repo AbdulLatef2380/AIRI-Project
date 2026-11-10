@@ -13,6 +13,7 @@ data class ConnectorPresentation(
     val projectAccess: String,
     val modelDependency: String,
     val capabilities: List<String>,
+    val limitations: List<String>,
     val howToUse: String,
     val authentication: String,
     val iconUrl: String?
@@ -134,11 +135,28 @@ fun ConnectorMeta.presentation(locale: Locale = Locale.getDefault()): ConnectorP
                 "DESTRUCTIVE" -> if (copy != null) "حساس" else "Destructive"
                 else -> if (copy != null) "إداري" else "Admin"
             }
-            if (copy != null) "$permission: ${capability.description}" else "${capability.description} ($permission)"
+            if (copy != null) {
+                val localizedDescription = when (capability.permission) {
+                    com.airi.assistant.connector.ConnectorPermissionLevel.READ -> "قراءة البيانات المصرح بها"
+                    com.airi.assistant.connector.ConnectorPermissionLevel.WRITE -> "إنشاء أو تحديث البيانات بعد التأكيد"
+                    com.airi.assistant.connector.ConnectorPermissionLevel.DESTRUCTIVE -> "إجراء حساس يتطلب تأكيدًا مستقلًا"
+                    com.airi.assistant.connector.ConnectorPermissionLevel.ADMIN -> "إجراء إداري يتطلب صلاحية إضافية"
+                }
+                "$permission: $localizedDescription"
+            } else "${capability.description} ($permission)"
         }
     } else if (this.tags.isNotEmpty()) {
         listOf(if (copy != null) "الوسوم: ${tags.joinToString()}" else "Declared tags: ${tags.joinToString()}")
     } else emptyList()
+    val limitations = if (copy != null) {
+        if (this.limitations.isNotEmpty()) {
+            listOf("يتطلب هذا الموصل إعداد حساب المزود والصلاحيات الموضحة قبل الاستخدام.")
+        } else {
+            emptyList()
+        }
+    } else {
+        this.limitations
+    }
     val auth = authenticationType?.name?.let { raw ->
         if (copy == null) raw else when (raw) {
             "OAUTH2" -> "OAuth 2.0"
@@ -159,6 +177,7 @@ fun ConnectorMeta.presentation(locale: Locale = Locale.getDefault()): ConnectorP
         projectAccess = projectAccess,
         modelDependency = modelDependency,
         capabilities = capabilities,
+        limitations = limitations,
         howToUse = copy?.howToUse ?: "Use this connector only through its declared capabilities and permissions.",
         authentication = auth,
         iconUrl = iconUrl ?: officialIcons[id] ?: website?.let(::websiteFaviconUrl)

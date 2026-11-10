@@ -68,6 +68,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -141,6 +142,9 @@ fun ConnectorDetailsScreen(
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val disconnectedMessage = stringResource(R.string.connector_action_disconnect)
+    val feedbackSentMessage = stringResource(R.string.connector_action_send)
+    val locale = LocalConfiguration.current.locales[0]
     var showOverview by remember(connectorId) { mutableStateOf(false) }
     var showReport by remember(connectorId) { mutableStateOf(false) }
     var showMenu by remember(connectorId) { mutableStateOf(false) }
@@ -153,7 +157,7 @@ fun ConnectorDetailsScreen(
 
     val meta = row.meta
     val definition = remember(meta.id) { com.airi.assistant.connector.OfficialConnectorCatalog.get(meta.id) }
-    val presentation = remember(meta) { meta.presentation() }
+    val presentation = remember(meta, locale) { meta.presentation(locale) }
     val authStrategy = remember(meta) { ConnectorAuthStrategies.forMeta(meta) }
     val state = detailConnectionState(meta.availability, row.state.connected, row.state.healthy, authStrategy.mode)
     val active = state == DetailConnectionState.CONNECTED || state == DetailConnectionState.NEEDS_ATTENTION
@@ -174,11 +178,11 @@ fun ConnectorDetailsScreen(
                     if (active) {
                         Box {
                             IconButton(onClick = { showMenu = true }) {
-                                Icon(Icons.Outlined.MoreVert, contentDescription = "Connector options", tint = AiriTheme.onBackground)
+                                Icon(Icons.Outlined.MoreVert, contentDescription = stringResource(R.string.menu), tint = AiriTheme.onBackground)
                             }
                             DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                                 DropdownMenuItem(
-                                    text = { Text("Refresh connection") },
+                                    text = { Text(stringResource(R.string.connector_action_refresh)) },
                                     leadingIcon = { Icon(Icons.Outlined.Link, null) },
                                     onClick = {
                                         showMenu = false
@@ -186,12 +190,12 @@ fun ConnectorDetailsScreen(
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Disconnect") },
+                                    text = { Text(stringResource(R.string.connector_action_disconnect)) },
                                     leadingIcon = { Icon(Icons.Outlined.Close, null) },
                                     onClick = {
                                         showMenu = false
                                         viewModel.disconnect(connectorId)
-                                        scope.launch { snackbar.showSnackbar("Connector disconnected") }
+                                        scope.launch { snackbar.showSnackbar(disconnectedMessage) }
                                     }
                                 )
                             }
@@ -240,14 +244,14 @@ fun ConnectorDetailsScreen(
                 tonalElevation = 2.dp
             ) {
                 Column(Modifier.padding(AIRISpacing.lg), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Connector controls", color = AiriTheme.onBackground, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    ActionRow("Overview", "Identity, permissions, capabilities and requirements", Icons.Outlined.Security) { showOverview = true }
+                    Text(stringResource(R.string.connector_controls_title), color = AiriTheme.onBackground, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    ActionRow(stringResource(R.string.connector_overview_title), stringResource(R.string.connector_overview_identity), Icons.Outlined.Security) { showOverview = true }
                     Divider(color = AiriTheme.outline.copy(alpha = 0.35f))
                     if (state != DetailConnectionState.COMING_SOON) {
-                        ActionRow("Agent access", accessProfileLabel(selectedProfile), Icons.Outlined.Settings) { showAccessProfile = true }
+                        ActionRow(stringResource(R.string.connectors_access), accessProfileLabel(selectedProfile), Icons.Outlined.Settings) { showAccessProfile = true }
                         Divider(color = AiriTheme.outline.copy(alpha = 0.35f))
                     }
-                    ActionRow("Report a problem", "Send feedback about this connector", Icons.Outlined.ReportProblem) { showReport = true }
+                    ActionRow(stringResource(R.string.connector_report_title), stringResource(R.string.connector_report_placeholder), Icons.Outlined.ReportProblem) { showReport = true }
                 }
             }
 
@@ -255,7 +259,7 @@ fun ConnectorDetailsScreen(
                 OutlinedButton(onClick = { onManageAuthorization(connectorId) }, modifier = Modifier.fillMaxWidth(), shape = AIRIShapes.md) {
                     Icon(Icons.Outlined.Link, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Continue setup")
+                    Text(stringResource(R.string.connector_action_continue_setup))
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -263,7 +267,7 @@ fun ConnectorDetailsScreen(
     }
 
     if (showOverview) ConnectorOverviewDialog(meta, definition, presentation, authStrategy.mode, state, row.state, onDismiss = { showOverview = false })
-    if (showReport) ConnectorReportDialog(context, meta, onDismiss = { showReport = false }, onSent = { showReport = false; scope.launch { snackbar.showSnackbar("Thanks for the feedback") } })
+    if (showReport) ConnectorReportDialog(context, meta.id, presentation.name, onDismiss = { showReport = false }, onSent = { showReport = false; scope.launch { snackbar.showSnackbar(feedbackSentMessage) } })
     if (showAccessProfile) {
         ConnectorAccessProfileDialog(
             title = stringResource(R.string.connectors_access_profile_title),
@@ -296,12 +300,12 @@ private fun ConnectorHero(meta: ConnectorMeta, iconUrl: String?, description: St
 @Composable
 private fun ConnectorStatusPill(state: DetailConnectionState, runtimeStatus: String, error: String?) {
     val (label, color, icon) = when (state) {
-        DetailConnectionState.CONNECTED -> Triple("Connected and verified", SemanticSuccess, Icons.Outlined.CheckCircle)
-        DetailConnectionState.NEEDS_ATTENTION -> Triple("Needs attention", SemanticWarn, Icons.Outlined.WarningAmber)
-        DetailConnectionState.AUTHORIZATION_REQUIRED -> Triple("Authorization required", CosmicAccent, Icons.Outlined.Security)
-        DetailConnectionState.CONFIGURATION_REQUIRED -> Triple("Configuration required", CosmicAccent, Icons.Outlined.Settings)
-        DetailConnectionState.DISCONNECTED -> Triple("Not connected", AiriTheme.onSurfaceVariant, Icons.Outlined.Link)
-        DetailConnectionState.COMING_SOON -> Triple("Coming soon", AiriTheme.onSurfaceVariant, Icons.Outlined.ErrorOutline)
+        DetailConnectionState.CONNECTED -> Triple(stringResource(R.string.connector_status_connected_verified), SemanticSuccess, Icons.Outlined.CheckCircle)
+        DetailConnectionState.NEEDS_ATTENTION -> Triple(stringResource(R.string.connector_status_needs_attention), SemanticWarn, Icons.Outlined.WarningAmber)
+        DetailConnectionState.AUTHORIZATION_REQUIRED -> Triple(stringResource(R.string.connector_status_authorization_required), CosmicAccent, Icons.Outlined.Security)
+        DetailConnectionState.CONFIGURATION_REQUIRED -> Triple(stringResource(R.string.connector_status_configuration_required), CosmicAccent, Icons.Outlined.Settings)
+        DetailConnectionState.DISCONNECTED -> Triple(stringResource(R.string.connector_status_not_connected), AiriTheme.onSurfaceVariant, Icons.Outlined.Link)
+        DetailConnectionState.COMING_SOON -> Triple(stringResource(R.string.connector_status_coming_soon), AiriTheme.onSurfaceVariant, Icons.Outlined.ErrorOutline)
     }
     Surface(color = color.copy(alpha = 0.12f), shape = AIRIShapes.pill) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -318,9 +322,9 @@ private fun ConnectorStatusPill(state: DetailConnectionState, runtimeStatus: Str
 private fun CompactConnectorFacts(meta: ConnectorMeta, category: String, authMode: ConnectorAuthMode, platform: String) {
     Surface(modifier = Modifier.fillMaxWidth(), color = AiriTheme.surfaceVariant.copy(alpha = 0.65f), shape = AIRIShapes.md) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            Fact("Type", category.ifBlank { meta.type.name })
-            Fact("Access", authMode.displayLabel())
-            if (platform.isNotBlank()) Fact("Platform", platform)
+            Fact(stringResource(R.string.connector_fact_type), category.ifBlank { meta.type.name })
+            Fact(stringResource(R.string.connector_fact_access), authMode.displayLabel())
+            if (platform.isNotBlank()) Fact(stringResource(R.string.connector_fact_platform), platform)
         }
     }
 }
@@ -347,7 +351,7 @@ private fun ActionRow(title: String, subtitle: String, icon: androidx.compose.ui
             Text(title, color = AiriTheme.onBackground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             Text(subtitle, color = AiriTheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1)
         }
-        TextButton(onClick = onClick) { Text("Open", color = CosmicAccent, fontSize = 12.sp) }
+        TextButton(onClick = onClick) { Text(stringResource(R.string.connector_action_open), color = CosmicAccent, fontSize = 12.sp) }
     }
 }
 
@@ -365,29 +369,29 @@ private fun ConnectorOverviewDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Connector overview", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
-                IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, contentDescription = "Close") }
+                Text(stringResource(R.string.connector_overview_title), modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.close)) }
             }
         },
         text = {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.72f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OverviewBlock("Identity") {
-                    OverviewLine("Name", meta.name)
-                    OverviewLine("Provider", meta.provider)
-                    OverviewLine("Type", meta.type.name)
-                    OverviewLine("Category", presentation.category)
+                OverviewBlock(stringResource(R.string.connector_overview_identity)) {
+                    OverviewLine(stringResource(R.string.connector_overview_name), meta.name)
+                    OverviewLine(stringResource(R.string.connector_overview_provider), meta.provider)
+                    OverviewLine(stringResource(R.string.connector_overview_type), meta.type.name)
+                    OverviewLine(stringResource(R.string.connector_overview_category), presentation.category)
                 }
-                OverviewBlock("Runtime status") {
-                    OverviewLine("State", state.displayLabel())
-                    OverviewLine("Connected", if (runtimeState.connected) "Yes" else "No")
-                    OverviewLine("Healthy", if (runtimeState.healthy) "Yes" else "No")
-                    OverviewLine("Authentication", authMode.displayLabel())
+                OverviewBlock(stringResource(R.string.connector_overview_runtime_status)) {
+                    OverviewLine(stringResource(R.string.connector_overview_state), state.displayLabel())
+                    OverviewLine(stringResource(R.string.connector_overview_connected), if (runtimeState.connected) stringResource(R.string.yes) else stringResource(R.string.no))
+                    OverviewLine(stringResource(R.string.connector_overview_healthy), if (runtimeState.healthy) stringResource(R.string.yes) else stringResource(R.string.no))
+                    OverviewLine(stringResource(R.string.connector_overview_authentication), authMode.displayLabel())
                 }
-                if (meta.capabilities.isNotEmpty()) OverviewBlock("Supported capabilities") { meta.capabilities.forEach { OverviewBullet(it.description) } }
-                if (definition?.limitations?.isNotEmpty() == true) OverviewBlock("Requirements and limits") { definition.limitations.distinct().forEach { OverviewBullet(it) } }
-                if (authMode != ConnectorAuthMode.NONE) OverviewBlock("Declared permissions") { ConnectorAuthStrategies.forMeta(meta).requiredScopes.toList().forEach { OverviewBullet(it) } }
-                OverviewBlock("Official links") {
-                    listOf("Website" to meta.website, "Documentation" to meta.documentationUrl, "Privacy" to meta.privacyPolicyUrl).forEach { (label, value) ->
+                if (presentation.capabilities.isNotEmpty()) OverviewBlock(stringResource(R.string.connector_overview_supported_capabilities)) { presentation.capabilities.forEach { OverviewBullet(it) } }
+                if (presentation.limitations.isNotEmpty()) OverviewBlock(stringResource(R.string.connector_overview_requirements_limits)) { presentation.limitations.distinct().forEach { OverviewBullet(it) } }
+                if (authMode != ConnectorAuthMode.NONE) OverviewBlock(stringResource(R.string.connector_overview_declared_permissions)) { ConnectorAuthStrategies.forMeta(meta).requiredScopes.toList().forEach { OverviewBullet(it) } }
+                OverviewBlock(stringResource(R.string.connector_overview_official_links)) {
+                    listOf(stringResource(R.string.connector_link_website) to meta.website, stringResource(R.string.connector_link_documentation) to meta.documentationUrl, stringResource(R.string.connector_link_privacy) to meta.privacyPolicyUrl).forEach { (label, value) ->
                         safeHttpsUri(value)?.let { uri ->
                             val context = LocalContext.current
                             TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }) { Icon(Icons.Outlined.OpenInBrowser, null); Spacer(Modifier.width(6.dp)); Text(label) }
@@ -396,7 +400,7 @@ private fun ConnectorOverviewDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.connector_action_done)) } }
     )
 }
 
@@ -427,69 +431,72 @@ private fun OverviewBullet(text: String) {
 }
 
 @Composable
-private fun ConnectorReportDialog(context: Context, meta: ConnectorMeta, onDismiss: () -> Unit, onSent: () -> Unit) {
-    var description by remember(meta.id) { mutableStateOf("") }
+private fun ConnectorReportDialog(context: Context, connectorId: String, connectorName: String, onDismiss: () -> Unit, onSent: () -> Unit) {
+    var description by remember(connectorId) { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Report a problem", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.connector_report_title), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Tell us what needs attention in ${meta.name}.", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+                Text(stringResource(R.string.connector_report_prompt, connectorName), color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it.take(2000) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 4,
-                    placeholder = { Text("Describe the problem or suggestion") },
+                    placeholder = { Text(stringResource(R.string.connector_report_placeholder)) },
                     supportingText = { Text("${description.length} / 2000") }
                 )
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.connector_action_cancel)) } },
         confirmButton = {
             TextButton(
                 enabled = description.trim().length >= 8,
                 onClick = {
                     context.getSharedPreferences("airi_user_reports", Context.MODE_PRIVATE).edit()
-                        .putString("last_connector", meta.id)
+                        .putString("last_connector", connectorId)
                         .putString("last_report", description.trim())
                         .putLong("last_report_at", System.currentTimeMillis()).apply()
                     onSent()
                 }
-            ) { Text("Send") }
+            ) { Text(stringResource(R.string.connector_action_send)) }
         }
     )
 }
 
+@Composable
 private fun ConnectorAuthMode.displayLabel(): String = when (this) {
-    ConnectorAuthMode.OAUTH2_PKCE -> "OAuth 2.0"
-    ConnectorAuthMode.OAUTH2_CONFIDENTIAL -> "OAuth server"
-    ConnectorAuthMode.API_KEY -> "API key"
-    ConnectorAuthMode.PERSONAL_ACCESS_TOKEN -> "Access token"
-    ConnectorAuthMode.DEVICE_CODE -> "Device code"
-    ConnectorAuthMode.LOCAL_PERMISSION -> "Device permission"
-    ConnectorAuthMode.MCP_CONFIGURATION -> "MCP setup"
-    ConnectorAuthMode.WEBHOOK -> "Webhook"
-    ConnectorAuthMode.NONE -> "No sign-in"
-    ConnectorAuthMode.COMING_SOON -> "Not available"
+    ConnectorAuthMode.OAUTH2_PKCE -> stringResource(R.string.connector_auth_oauth)
+    ConnectorAuthMode.OAUTH2_CONFIDENTIAL -> stringResource(R.string.connector_auth_oauth_server)
+    ConnectorAuthMode.API_KEY -> stringResource(R.string.connector_auth_api_key)
+    ConnectorAuthMode.PERSONAL_ACCESS_TOKEN -> stringResource(R.string.connector_auth_access_token)
+    ConnectorAuthMode.DEVICE_CODE -> stringResource(R.string.connector_auth_device_code)
+    ConnectorAuthMode.LOCAL_PERMISSION -> stringResource(R.string.connector_auth_device_permission)
+    ConnectorAuthMode.MCP_CONFIGURATION -> stringResource(R.string.connector_auth_mcp_setup)
+    ConnectorAuthMode.WEBHOOK -> stringResource(R.string.connector_auth_webhook)
+    ConnectorAuthMode.NONE -> stringResource(R.string.connector_auth_none)
+    ConnectorAuthMode.COMING_SOON -> stringResource(R.string.connector_auth_not_available)
 }
 
+@Composable
 private fun DetailConnectionState.displayLabel(): String = when (this) {
-    DetailConnectionState.CONNECTED -> "Connected and verified"
-    DetailConnectionState.NEEDS_ATTENTION -> "Needs attention"
-    DetailConnectionState.AUTHORIZATION_REQUIRED -> "Authorization required"
-    DetailConnectionState.CONFIGURATION_REQUIRED -> "Configuration required"
-    DetailConnectionState.DISCONNECTED -> "Not connected"
-    DetailConnectionState.COMING_SOON -> "Coming soon"
+    DetailConnectionState.CONNECTED -> stringResource(R.string.connector_status_connected_verified)
+    DetailConnectionState.NEEDS_ATTENTION -> stringResource(R.string.connector_status_needs_attention)
+    DetailConnectionState.AUTHORIZATION_REQUIRED -> stringResource(R.string.connector_status_authorization_required)
+    DetailConnectionState.CONFIGURATION_REQUIRED -> stringResource(R.string.connector_status_configuration_required)
+    DetailConnectionState.DISCONNECTED -> stringResource(R.string.connector_status_not_connected)
+    DetailConnectionState.COMING_SOON -> stringResource(R.string.connector_status_coming_soon)
 }
 
+@Composable
 private fun primaryActionLabel(state: DetailConnectionState, strategy: com.airi.assistant.connector.ConnectorAuthStrategy): String = when (state) {
-    DetailConnectionState.CONNECTED -> "Disconnect connector"
-    DetailConnectionState.NEEDS_ATTENTION -> "Reconnect connector"
-    DetailConnectionState.AUTHORIZATION_REQUIRED -> if (strategy.mode == ConnectorAuthMode.MCP_CONFIGURATION) "Configure connector" else "Connect connector"
-    DetailConnectionState.CONFIGURATION_REQUIRED -> "Configure connector"
-    DetailConnectionState.DISCONNECTED -> if (strategy.mode == ConnectorAuthMode.MCP_CONFIGURATION) "Configure connector" else "Connect connector"
-    DetailConnectionState.COMING_SOON -> "Coming soon"
+    DetailConnectionState.CONNECTED -> stringResource(R.string.connector_state_disconnect)
+    DetailConnectionState.NEEDS_ATTENTION -> stringResource(R.string.connector_state_reconnect)
+    DetailConnectionState.AUTHORIZATION_REQUIRED -> if (strategy.mode == ConnectorAuthMode.MCP_CONFIGURATION) stringResource(R.string.connector_state_configure) else stringResource(R.string.connector_state_connect)
+    DetailConnectionState.CONFIGURATION_REQUIRED -> stringResource(R.string.connector_state_configure)
+    DetailConnectionState.DISCONNECTED -> if (strategy.mode == ConnectorAuthMode.MCP_CONFIGURATION) stringResource(R.string.connector_state_configure) else stringResource(R.string.connector_state_connect)
+    DetailConnectionState.COMING_SOON -> stringResource(R.string.connector_status_coming_soon)
 }
 
 private fun accessProfileLabel(profile: ConnectorAccessProfile): String = when (profile) {

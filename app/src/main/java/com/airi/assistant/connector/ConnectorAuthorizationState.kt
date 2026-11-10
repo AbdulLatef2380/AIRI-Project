@@ -41,6 +41,9 @@ object ConnectorAuthorizationProjection {
         val profile = profileStore.get(surfaceId)
         val connectorState = connector.stateForAction(action)
         val requiredScopes = action.requiredOAuthScopes
+        val grantedScopes = connectorState.grantedScopes
+        val missingScopes = grantedScopes?.let { requiredScopes - it }.orEmpty()
+        val scopesGranted = missingScopes.isEmpty()
         val identity = when {
             !connectorState.connected -> ConnectorAuthorizationState.IdentityState.SIGNED_OUT
             else -> ConnectorAuthorizationState.IdentityState.SIGNED_IN
@@ -49,13 +52,14 @@ object ConnectorAuthorizationProjection {
             surfaceId = surfaceId,
             profile = profile,
             requiredScopes = requiredScopes,
-            granted = profile != ConnectorAccessProfile.NOT_CONFIGURED,
-            authorized = connectorState.connected && connectorState.healthy &&
+            granted = profile != ConnectorAccessProfile.NOT_CONFIGURED && scopesGranted,
+            authorized = connectorState.connected && connectorState.healthy && scopesGranted &&
                 profile.permits(action.permission),
             reasonCode = when {
                 profile == ConnectorAccessProfile.NOT_CONFIGURED -> "profile_required"
                 !connectorState.connected -> "identity_required"
                 !connectorState.healthy -> "scope_or_health_required"
+                !scopesGranted -> "oauth_scope_required"
                 !profile.permits(action.permission) -> "permission_denied"
                 else -> null
             },
@@ -64,6 +68,7 @@ object ConnectorAuthorizationProjection {
             profile == ConnectorAccessProfile.NOT_CONFIGURED -> ConnectorAuthorizationState.AuthorizationStatus.PROFILE_REQUIRED
             !connectorState.connected -> ConnectorAuthorizationState.AuthorizationStatus.IDENTITY_REQUIRED
             !connectorState.healthy -> ConnectorAuthorizationState.AuthorizationStatus.SCOPE_REQUIRED
+            !scopesGranted -> ConnectorAuthorizationState.AuthorizationStatus.SCOPE_REQUIRED
             !profile.permits(action.permission) -> ConnectorAuthorizationState.AuthorizationStatus.BLOCKED
             else -> ConnectorAuthorizationState.AuthorizationStatus.AUTHORIZED
         }
@@ -71,11 +76,14 @@ object ConnectorAuthorizationProjection {
             connectorId = connector.id,
             identity = identity,
             requiredScopes = requiredScopes,
-            grantedScopes = if (connectorState.healthy) requiredScopes else emptySet(),
+            grantedScopes = grantedScopes ?: if (connectorState.healthy) requiredScopes else emptySet(),
             surfaces = listOf(surface),
             status = status,
             reasonCode = surface.reasonCode,
-            reason = connectorState.errorMessage ?: connectorState.statusLine.takeIf { it.isNotBlank() },
+            reason = when {
+                missingScopes.isNotEmpty() -> "Missing required OAuth scopes: ${missingScopes.sorted().joinToString(", ")}" 
+                else -> connectorState.errorMessage ?: connectorState.statusLine.takeIf { it.isNotBlank() }
+            },
         )
     }
 }

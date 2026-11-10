@@ -192,6 +192,8 @@ data class ConnectorState(
     val statusLine: String = "",
     val lastUpdatedMs: Long = 0L,
     val errorMessage: String? = null,
+    /** Provider-reported OAuth scopes; null means the provider did not expose them. */
+    val grantedScopes: Set<String>? = null,
 )
 
 /**

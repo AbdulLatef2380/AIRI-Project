@@ -30,5 +30,7 @@ class ModelFacingRepairContractTest {
             ModelFacingRepairContract.decide(request(ToolErrorCodes.AUTH_REQUIRED, ToolSchema.SideEffectPolicy.READ_ONLY)))
         assertEquals(ModelFacingRepairContract.Decision.EXPLAIN_PERMISSION,
             ModelFacingRepairContract.decide(request(ToolErrorCodes.PERMISSION_DENIED, ToolSchema.SideEffectPolicy.READ_ONLY)))
+        assertEquals(ModelFacingRepairContract.Decision.EXPLAIN_APPROVAL,
+            ModelFacingRepairContract.decide(request(ToolErrorCodes.APPROVAL_REQUIRED, ToolSchema.SideEffectPolicy.REQUIRES_USER_CONFIRMATION)))
     }
 }

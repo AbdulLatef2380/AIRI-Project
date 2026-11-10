@@ -11,6 +11,7 @@ object ModelFacingRepairContract {
         RETRY_READ_TRANSIENT,
         EXPLAIN_AUTH,
         EXPLAIN_PERMISSION,
+        EXPLAIN_APPROVAL,
         EXPLAIN_NOT_CONNECTED,
         STOP_UNCERTAIN_WRITE,
         STOP_FINAL,
@@ -37,7 +38,8 @@ object ModelFacingRepairContract {
                 if (request.sideEffectPolicy == ToolSchema.SideEffectPolicy.READ_ONLY) Decision.RETRY_READ_TRANSIENT
                 else Decision.STOP_UNCERTAIN_WRITE
             ToolErrorCodes.AUTH_REQUIRED -> Decision.EXPLAIN_AUTH
-            ToolErrorCodes.PERMISSION_DENIED, ToolErrorCodes.APPROVAL_REQUIRED -> Decision.EXPLAIN_PERMISSION
+            ToolErrorCodes.PERMISSION_DENIED -> Decision.EXPLAIN_PERMISSION
+            ToolErrorCodes.APPROVAL_REQUIRED -> Decision.EXPLAIN_APPROVAL
             ToolErrorCodes.NOT_CONNECTED -> Decision.EXPLAIN_NOT_CONNECTED
             ToolErrorCodes.EXECUTION_FAILED, ToolErrorCodes.CONNECTOR_FAILED ->
                 if (request.hasIdempotencyKey && request.sideEffectPolicy != ToolSchema.SideEffectPolicy.READ_ONLY) {
@@ -61,6 +63,7 @@ object ModelFacingRepairContract {
             Decision.RETRY_READ_TRANSIENT -> "The read-only tool failed transiently. Retry it once with the same validated arguments; do not perform a write."
             Decision.EXPLAIN_AUTH -> "The tool requires authorization. Stop tool execution and explain that the user must connect the service. Do not retry."
             Decision.EXPLAIN_PERMISSION -> "The tool is blocked by permission or approval policy. Stop and explain the required user action. Do not retry."
+            Decision.EXPLAIN_APPROVAL -> "The tool requires explicit user approval for this action. Stop and ask for approval before retrying."
             Decision.EXPLAIN_NOT_CONNECTED -> "The service is not connected. Stop and ask the user to connect it; do not claim the data is absent."
             Decision.STOP_UNCERTAIN_WRITE -> "A write may have reached the external service with an uncertain outcome. Do not retry. Explain the uncertainty and ask the user to verify."
             Decision.STOP_FINAL -> null

@@ -27,8 +27,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -58,6 +56,20 @@ import java.util.UUID
 import java.util.Locale
 
 private enum class ImportSource { STORAGE, GITHUB, AI }
+
+private fun skillIconFor(id: String): ImageVector = when {
+    id.contains("web") || id.contains("research") || id.contains("reader") -> Icons.Outlined.Language
+    id.contains("translate") -> Icons.Outlined.Translate
+    id.contains("code") || id.contains("github") -> Icons.Outlined.Code
+    id.contains("task") || id.contains("reminder") || id.contains("calendar") -> Icons.Outlined.EventNote
+    id.contains("memory") -> Icons.Outlined.Psychology
+    id.contains("document") || id.contains("pdf") -> Icons.Outlined.Description
+    id.contains("file") || id.contains("drive") -> Icons.Outlined.FolderOpen
+    id.contains("media") || id.contains("ocr") -> Icons.Outlined.Image
+    id.contains("gmail") -> Icons.Outlined.Email
+    id.contains("telegram") -> Icons.Outlined.Send
+    else -> Icons.Outlined.Extension
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -169,8 +181,8 @@ fun SkillManagerScreen(
                 },
                 actions = {
                     IconButton(onClick = { showAddMenu = true }) {
-                        Surface(shape = AIRIShapes.pill, color = CosmicAccent.copy(alpha = 0.14f)) {
-                            Icon(Icons.Default.Add, stringResource(R.string.cd_add_skill), tint = CosmicAccent, modifier = Modifier.padding(8.dp))
+                        Surface(shape = AIRIShapes.pill, color = AiriTheme.onSurface.copy(alpha = 0.10f)) {
+                            Icon(Icons.Default.Add, stringResource(R.string.cd_add_skill), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.padding(8.dp))
                         }
                     }
                     DropdownMenu(expanded = showAddMenu, onDismissRequest = { showAddMenu = false }) {
@@ -240,7 +252,7 @@ fun SkillManagerScreen(
                     leadingIcon = { Icon(Icons.Outlined.Search, null) },
                     trailingIcon = { if (searchQuery.isNotEmpty()) IconButton({ searchQuery = "" }) { Icon(Icons.Outlined.Close, stringResource(R.string.terminal_close_search_cd)) } },
                     placeholder = { Text(stringResource(R.string.skill_search_hint)) }, shape = AIRIShapes.lg,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = AiriTheme.outline, focusedContainerColor = AiriTheme.surface, unfocusedContainerColor = AiriTheme.surface)
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AiriTheme.onSurfaceVariant, unfocusedBorderColor = AiriTheme.outline, focusedContainerColor = AiriTheme.surface, unfocusedContainerColor = AiriTheme.surface)
                 )
                 Spacer(Modifier.height(10.dp))
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -281,7 +293,7 @@ fun SkillManagerScreen(
 @Composable
 private fun AddOption(icon: ImageVector, label: String, onClick: () -> Unit) {
     DropdownMenuItem(
-        leadingIcon = { Icon(icon, null, tint = CosmicAccent, modifier = Modifier.size(18.dp)) },
+        leadingIcon = { Icon(icon, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) },
         text = { Text(label, fontSize = 14.sp) },
         onClick = onClick
     )
@@ -297,23 +309,23 @@ private fun AddOption(icon: ImageVector, label: String, onClick: () -> Unit) {
  */
 @Composable
 private fun SkillHeroCard(total: Int, active: Int, connected: Int, onCreate: () -> Unit) {
-    Surface(shape = AIRIShapes.xl, color = AiriTheme.surface, tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.background(Brush.linearGradient(listOf(CosmicAccent.copy(0.20f), AiriTheme.surface, AiriTheme.surface))).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Surface(shape = AIRIShapes.xl, color = AiriTheme.surface, tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("✦", color = CosmicAccent, fontSize = 28.sp)
-                    Text(stringResource(R.string.skill_title), color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                    Icon(Icons.Outlined.Extension, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(25.dp))
+                    Text(stringResource(R.string.skill_title), color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 22.sp)
                     Text(stringResource(R.string.skill_no_skills_desc), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
-                Icon(Icons.Outlined.AutoAwesome, null, tint = CosmicAccent.copy(0.75f), modifier = Modifier.size(42.dp).padding(5.dp))
+                Icon(Icons.Outlined.Tune, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SkillStat(total.toString(), stringResource(R.string.skill_official_section), Modifier.weight(1f))
                 SkillStat(active.toString(), stringResource(R.string.skill_filter_connected), Modifier.weight(1f))
                 SkillStat(connected.toString(), stringResource(R.string.skill_connector_required), Modifier.weight(1f))
             }
-            Button(onClick = onCreate, modifier = Modifier.fillMaxWidth(), shape = AIRIShapes.lg, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)) {
-                Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.skill_create_button), fontWeight = FontWeight.Bold)
+            Button(onClick = onCreate, modifier = Modifier.fillMaxWidth(), shape = AIRIShapes.lg, colors = ButtonDefaults.buttonColors(containerColor = AiriTheme.onSurface.copy(alpha = 0.10f), contentColor = AiriTheme.onSurface)) {
+                Icon(Icons.Outlined.Add, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.skill_create_button), fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -327,13 +339,13 @@ private fun SkillHeroCard(total: Int, active: Int, connected: Int, onCreate: () 
 }
 
 @Composable private fun SkillFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    FilterChip(selected = selected, onClick = onClick, label = { Text(label, fontSize = 12.sp) }, leadingIcon = if (selected) ({ Icon(Icons.Outlined.Check, null, Modifier.size(14.dp)) }) else null, shape = AIRIShapes.pill, colors = FilterChipDefaults.filterChipColors(containerColor = AiriTheme.surface, labelColor = AiriTheme.onSurfaceVariant, selectedContainerColor = CosmicAccent.copy(0.16f), selectedLabelColor = CosmicAccent, selectedLeadingIconColor = CosmicAccent), border = FilterChipDefaults.filterChipBorder(true, selected, AiriTheme.outline, CosmicAccent.copy(0.5f)))
+    FilterChip(selected = selected, onClick = onClick, label = { Text(label, fontSize = 12.sp) }, leadingIcon = if (selected) ({ Icon(Icons.Outlined.Check, null, Modifier.size(14.dp)) }) else null, shape = AIRIShapes.pill, colors = FilterChipDefaults.filterChipColors(containerColor = AiriTheme.surface, labelColor = AiriTheme.onSurfaceVariant, selectedContainerColor = AiriTheme.onSurface.copy(alpha = 0.12f), selectedLabelColor = AiriTheme.onSurface, selectedLeadingIconColor = AiriTheme.onSurface), border = FilterChipDefaults.filterChipBorder(true, selected, AiriTheme.outline, AiriTheme.onSurfaceVariant))
 }
 
 @Composable private fun SkillSectionHeader(title: String, count: Int) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Text(title, color = AiriTheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Surface(shape = AIRIShapes.pill, color = CosmicAccent.copy(0.12f)) { Text(count.toString(), color = CosmicAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)) }
+        Surface(shape = AIRIShapes.pill, color = AiriTheme.onSurface.copy(alpha = 0.08f)) { Text(count.toString(), color = AiriTheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)) }
     }
 }
 
@@ -342,7 +354,7 @@ private fun SkillHeroCard(total: Int, active: Int, connected: Int, onCreate: () 
         Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Outlined.Extension, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(34.dp))
             Text(stringResource(R.string.skill_no_skills_desc), color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
-            TextButton(onClick = onCreate) { Text(stringResource(R.string.skill_create_button), color = CosmicAccent) }
+            TextButton(onClick = onCreate) { Text(stringResource(R.string.skill_create_button), color = AiriTheme.onSurfaceVariant) }
         }
     }
 }
@@ -351,12 +363,11 @@ private fun SkillHeroCard(total: Int, active: Int, connected: Int, onCreate: () 
     val entry = remember(info.id) { OfficialSkillLibrary.ALL.firstOrNull { it.manifest.id == info.id } }
     val presentation = entry?.manifest?.let { SkillPresentation.localized(it, locale) }
     val displayName = presentation?.name ?: info.name.split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-    val emoji = entry?.manifest?.iconEmoji?.ifBlank { "✦" } ?: "✦"
     val needsConnector = !info.isConnected
     Surface(shape = AIRIShapes.xl, color = AiriTheme.surface, tonalElevation = if (info.isEnabled) 3.dp else 1.dp, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.Top) {
-                Surface(shape = AIRIShapes.lg, color = if (info.isEnabled) CosmicAccent.copy(0.16f) else AiriTheme.onSurface.copy(0.07f), modifier = Modifier.size(50.dp)) { Box(contentAlignment = Alignment.Center) { Text(emoji, fontSize = 25.sp) } }
+                Surface(shape = AIRIShapes.lg, color = if (info.isEnabled) AiriTheme.onSurface.copy(alpha = 0.12f) else AiriTheme.onSurface.copy(0.07f), modifier = Modifier.size(50.dp)) { Box(contentAlignment = Alignment.Center) { Icon(skillIconFor(info.id), contentDescription = displayName, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(25.dp)) } }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -365,10 +376,10 @@ private fun SkillHeroCard(total: Int, active: Int, connected: Int, onCreate: () 
                     }
                     Text(presentation?.description ?: info.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
-                if (!needsConnector) Switch(checked = info.isEnabled, onCheckedChange = onToggle, colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = CosmicAccent, uncheckedThumbColor = AiriTheme.onSurfaceVariant, uncheckedTrackColor = AiriTheme.outline))
+                if (!needsConnector) Switch(checked = info.isEnabled, onCheckedChange = onToggle, colors = SwitchDefaults.colors(checkedThumbColor = AiriTheme.surface, checkedTrackColor = AiriTheme.onSurfaceVariant, uncheckedThumbColor = AiriTheme.onSurfaceVariant, uncheckedTrackColor = AiriTheme.outline))
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                Surface(shape = AIRIShapes.pill, color = if (info.executionKind == SkillRegistry.ExecutionKind.LOCAL) SemanticSuccess.copy(0.13f) else CosmicAccent.copy(0.13f)) { Text(stringResource(if (info.executionKind == SkillRegistry.ExecutionKind.LOCAL) R.string.skill_type_local else R.string.skill_type_cloud), color = if (info.executionKind == SkillRegistry.ExecutionKind.LOCAL) SemanticSuccess else CosmicAccent, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) }
+                Surface(shape = AIRIShapes.pill, color = AiriTheme.onSurface.copy(alpha = 0.07f)) { Text(stringResource(if (info.executionKind == SkillRegistry.ExecutionKind.LOCAL) R.string.skill_type_local else R.string.skill_type_cloud), color = AiriTheme.onSurfaceVariant, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) }
                 Text("v${info.version} · ${info.author}", color = AiriTheme.onSurfaceVariant.copy(0.75f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.weight(1f))
                 Icon(Icons.Outlined.ChevronLeft, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
@@ -380,12 +391,12 @@ private fun SkillHeroCard(total: Int, active: Int, connected: Int, onCreate: () 
 @Composable private fun SkillCard(skill: CustomSkill, onClick: () -> Unit, onDelete: () -> Unit) {
     Surface(shape = AIRIShapes.xl, color = AiriTheme.surface, tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(Modifier.padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(shape = AIRIShapes.lg, color = CosmicAccent.copy(0.14f), modifier = Modifier.size(48.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Extension, null, tint = CosmicAccent, modifier = Modifier.size(24.dp)) } }
+            Surface(shape = AIRIShapes.lg, color = AiriTheme.onSurface.copy(alpha = 0.09f), modifier = Modifier.size(48.dp)) { Box(contentAlignment = Alignment.Center) { Icon(skillIconFor(skill.id), skill.name, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(24.dp)) } }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(skill.name, color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(skill.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(skill.type.name, color = CosmicAccent, fontSize = 10.sp)
+                Text(skill.type.name, color = AiriTheme.onSurfaceVariant, fontSize = 10.sp)
             }
             IconButton(onClick = onDelete) { Icon(Icons.Outlined.DeleteOutline, stringResource(R.string.cd_delete), tint = SemanticError) }
         }

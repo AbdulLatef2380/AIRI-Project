@@ -16,10 +16,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Translate
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.EventNote
+import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,7 +51,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -55,7 +63,6 @@ import com.airi.assistant.ai.skills.SkillPresentation
 import com.airi.assistant.ai.skills.SkillRegistry
 import com.airi.assistant.ui.theme.AIRIShapes
 import com.airi.assistant.ui.theme.AiriTheme
-import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.SemanticSuccess
 import com.airi.assistant.ui.theme.SemanticWarn
 import kotlinx.coroutines.launch
@@ -91,19 +98,19 @@ fun SkillDetailsScreen(
             )
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Surface(shape = AIRIShapes.xl, color = AiriTheme.surface, tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.background(Brush.linearGradient(listOf(CosmicAccent.copy(0.20f), AiriTheme.surface))).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(shape = AIRIShapes.xl, color = AiriTheme.surface, tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.Top) {
-                        Surface(shape = AIRIShapes.lg, color = CosmicAccent.copy(0.18f), modifier = Modifier.size(68.dp)) { Box(contentAlignment = Alignment.Center) { Text(manifest.iconEmoji.ifBlank { "✦" }, fontSize = 34.sp) } }
+                        Surface(shape = AIRIShapes.lg, color = AiriTheme.onSurface.copy(alpha = 0.10f), modifier = Modifier.size(58.dp)) { Box(contentAlignment = Alignment.Center) { Icon(skillIconFor(skillId), presentation.name, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(28.dp)) } }
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text(presentation.name, color = AiriTheme.onSurface, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                            Text(presentation.description, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 19.sp)
+                            Text(presentation.name, color = AiriTheme.onSurface, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                            Text(presentation.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 2)
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DetailBadge(presentation.category, CosmicAccent)
+                        DetailBadge(presentation.category, AiriTheme.onSurfaceVariant)
                         DetailBadge("v${manifest.version}", AiriTheme.onSurfaceVariant)
                         if (!available) DetailBadge(stringResource(R.string.skill_connector_required), SemanticWarn)
                     }
@@ -111,62 +118,22 @@ fun SkillDetailsScreen(
             }
             Surface(shape = AIRIShapes.lg, color = AiriTheme.surface, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(stringResource(R.string.skill_how_works), color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                    Text(stringResource(R.string.skill_details_explanation), color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 19.sp)
-                    Text(stringResource(R.string.skill_details_memory, manifest.memoryAccess, manifest.modelAccess), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
-                    if (manifest.dependencies.isNotEmpty()) Text(stringResource(R.string.skill_details_requirements, manifest.dependencies.joinToString()), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
-                }
-            }
-            Surface(shape = AIRIShapes.lg, color = AiriTheme.surface, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.skill_details_security), color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                    val riskLabel = when (manifest.riskLevel) {
-                        com.airi.assistant.ai.skills.SkillRiskLevel.LOW -> stringResource(R.string.skill_risk_low)
-                        com.airi.assistant.ai.skills.SkillRiskLevel.MEDIUM -> stringResource(R.string.skill_risk_medium)
-                        com.airi.assistant.ai.skills.SkillRiskLevel.HIGH -> stringResource(R.string.skill_risk_high)
-                        com.airi.assistant.ai.skills.SkillRiskLevel.CRITICAL -> stringResource(R.string.skill_risk_critical)
-                    }
-                    Text(stringResource(R.string.skill_risk_level, riskLabel), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
-                    Text(stringResource(R.string.skill_details_permissions, manifest.permissions.joinToString().ifBlank { "—" }), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
-                    Text(stringResource(R.string.skill_details_tools, manifest.tools.map { it.name }.joinToString().ifBlank { "—" }), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
-                    if (manifest.requiresConfirmation) Text(stringResource(R.string.skill_requires_confirmation), color = SemanticWarn, fontSize = 12.sp)
-                    if (manifest.supportsStreaming) Text(stringResource(R.string.skill_supports_streaming), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
-                    if (manifest.supportsAttachments) Text(stringResource(R.string.skill_supports_attachments), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
-                }
-            }
-            Text(stringResource(R.string.skill_examples), color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            presentation.examples.forEach { example ->
-                Surface(shape = AIRIShapes.lg, color = AiriTheme.surface, modifier = Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(example, color = AiriTheme.onSurface, fontSize = 13.sp, lineHeight = 19.sp)
-                            Text(stringResource(R.string.skill_prompt_shortcut), color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
-                        }
-                        OutlinedButton(onClick = { onTry("/skill:${manifest.id} $example") }) {
-                            Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text(stringResource(R.string.skill_use_example), fontSize = 12.sp)
+                    Text(stringResource(R.string.skill_capabilities), color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    manifest.tools.take(4).forEach { tool ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Icon(Icons.Outlined.CheckCircle, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(17.dp))
+                            Text(tool.name, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, maxLines = 1)
                         }
                     }
-                }
-            }
-            Text(stringResource(R.string.skill_capabilities), color = AiriTheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            manifest.tools.forEach { tool ->
-                Surface(shape = AIRIShapes.lg, color = AiriTheme.surface, modifier = Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(15.dp), verticalAlignment = Alignment.Top) {
-                        Surface(shape = AIRIShapes.pill, color = CosmicAccent.copy(0.14f), modifier = Modifier.size(30.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.AutoAwesome, null, tint = CosmicAccent, modifier = Modifier.size(16.dp)) } }
-                        Spacer(Modifier.width(10.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(tool.name, color = AiriTheme.onSurface, fontWeight = FontWeight.SemiBold); Text(presentation.toolDescriptions[tool.name] ?: tool.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 17.sp) }
-                    }
+                    if (manifest.requiresConfirmation) Text(stringResource(R.string.skill_requires_confirmation), color = SemanticWarn, fontSize = 11.sp)
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = { if (!available) scope.launch { snackbar.showSnackbar(context.getString(R.string.skill_connect_required)) } else { enabled = !enabled; registry.setSkillEnabled(skillId, enabled); scope.launch { snackbar.showSnackbar(context.getString(if (enabled) R.string.skill_enabled else R.string.skill_enable)) } } }, modifier = Modifier.weight(1f), shape = AIRIShapes.lg, colors = ButtonDefaults.buttonColors(containerColor = if (enabled) SemanticSuccess else CosmicAccent)) {
+                Button(onClick = { if (!available) scope.launch { snackbar.showSnackbar(context.getString(R.string.skill_connect_required)) } else { enabled = !enabled; registry.setSkillEnabled(skillId, enabled); scope.launch { snackbar.showSnackbar(context.getString(if (enabled) R.string.skill_enabled else R.string.skill_enable)) } } }, modifier = Modifier.weight(1f), shape = AIRIShapes.lg, colors = ButtonDefaults.buttonColors(containerColor = AiriTheme.onSurface.copy(alpha = 0.12f), contentColor = AiriTheme.onSurface)) {
                     Icon(Icons.Outlined.CheckCircle, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(if (enabled) R.string.skill_enabled else R.string.skill_enable))
                 }
-                OutlinedButton(onClick = { onTry("/skill:${manifest.id} ") }, modifier = Modifier.weight(1f), shape = AIRIShapes.lg) { Icon(Icons.Outlined.PlayArrow, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.skill_try)) }
+                OutlinedButton(onClick = { onTry("/skill:${manifest.id} ") }, modifier = Modifier.weight(1f), shape = AIRIShapes.lg, colors = ButtonDefaults.outlinedButtonColors(contentColor = AiriTheme.onSurfaceVariant)) { Icon(Icons.Outlined.PlayArrow, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.skill_try)) }
             }
-            OutlinedButton(onClick = { onExplain("${context.getString(R.string.skill_request_explanation)}\n\n${context.getString(R.string.skill_explain_name_label)}: ${presentation.name}\n${context.getString(R.string.skill_explain_id_label)}: ${manifest.id}") }, modifier = Modifier.fillMaxWidth(), shape = AIRIShapes.lg) { Icon(Icons.Outlined.HelpOutline, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.skill_explain)) }
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -174,4 +141,18 @@ fun SkillDetailsScreen(
 
 @Composable private fun DetailBadge(text: String, color: Color) {
     Surface(shape = AIRIShapes.pill, color = color.copy(alpha = 0.13f)) { Text(text, color = color, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)) }
+}
+
+private fun skillIconFor(id: String) = when {
+    id.contains("web") || id.contains("research") || id.contains("reader") -> Icons.Outlined.Language
+    id.contains("translate") -> Icons.Outlined.Translate
+    id.contains("code") || id.contains("github") -> Icons.Outlined.Code
+    id.contains("task") || id.contains("reminder") || id.contains("calendar") -> Icons.Outlined.EventNote
+    id.contains("memory") -> Icons.Outlined.Psychology
+    id.contains("document") || id.contains("pdf") -> Icons.Outlined.Description
+    id.contains("file") || id.contains("drive") -> Icons.Outlined.FolderOpen
+    id.contains("media") || id.contains("ocr") -> Icons.Outlined.Image
+    id.contains("gmail") -> Icons.Outlined.Email
+    id.contains("telegram") -> Icons.Outlined.Send
+    else -> Icons.Outlined.Extension
 }

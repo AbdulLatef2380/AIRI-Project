@@ -164,17 +164,17 @@ fun SkillBuilderScreen(
         headers.addAll(preset.headers.map { it.copy(id = UUID.randomUUID().toString()) })
         if (headers.isEmpty()) headers.add(HeaderInput(UUID.randomUUID().toString(), "", ""))
         showTemplates = false
-        show("Template applied — update the endpoint and credentials before saving")
+        show(context.getString(R.string.skill_template_applied))
     }
 
     fun buildSkill(): CustomSkill? {
-        if (name.isBlank()) { show("Skill name is required"); return null }
-        if (description.trim().length < 10) { show("Description must contain at least 10 characters"); return null }
+        if (name.isBlank()) { show(context.getString(R.string.skill_name_required)); return null }
+        if (description.trim().length < 10) { show(context.getString(R.string.skill_description_length)); return null }
         if (!endpoint.trim().startsWith("https://") || !CustomSkillSecurity.isValidEndpoint(endpoint)) {
-            show("Endpoint must be a valid HTTPS URL on a public host (no local or private addresses)")
+            show(context.getString(R.string.skill_endpoint_invalid))
             return null
         }
-        if (bodyTemplate.isBlank()) { show("Body template cannot be empty"); return null }
+        if (bodyTemplate.isBlank()) { show(context.getString(R.string.skill_body_empty)); return null }
         return CustomSkill(
             id = existing?.id?.takeIf { it.matches(Regex("^[a-z][a-z0-9_-]{2,63}$")) }
                 ?: "custom_${UUID.randomUUID().toString().replace("-", "")}",
@@ -218,12 +218,12 @@ fun SkillBuilderScreen(
                 }
                 if (existing == null) AnalyticsService.skillCreated(skill.name)
                 snackbarHost.showSnackbar(
-                    message = if (existing == null) "Skill created successfully" else "Skill updated successfully",
+                    message = context.getString(if (existing == null) R.string.skill_created else R.string.skill_updated),
                     duration = SnackbarDuration.Short
                 )
                 onSaved()
             } catch (e: Exception) {
-                show("Failed to save skill: ${e.message ?: "Unknown error"}")
+                show(context.getString(R.string.skill_save_failed, e.message ?: context.getString(R.string.skill_unknown_error)))
             } finally {
                 isSaving = false
             }
@@ -310,17 +310,17 @@ fun SkillBuilderScreen(
         ) {
             if (circuitHealth == SkillCircuitBreaker.SkillHealth.OPEN) {
                 SkillHealthBanner(
-                    message = "This skill is temporarily disabled — it failed too many times. It will auto-recover after 60s.",
+                    message = stringResource(R.string.skill_health_disabled),
                     color = Color(0xFFFF6B6B)
                 )
             } else if (circuitHealth == SkillCircuitBreaker.SkillHealth.DEGRADED) {
                 SkillHealthBanner(
-                    message = "This skill has recent failures. It may be unstable.",
+                    message = stringResource(R.string.skill_health_unstable),
                     color = Color(0xFFFFA726)
                 )
             }
             SkillBuilderSection(
-                title = "Quick Templates",
+                title = stringResource(R.string.skill_quick_templates),
                 collapsible = true,
                 expanded = showTemplates,
                 onToggle = { showTemplates = !showTemplates }
@@ -526,7 +526,7 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
             ) {
                 Surface(shape = AIRIShapes.pill, color = statusColor.copy(alpha = 0.15f)) {
                     Text(
-                        text = if (result.success) "Connected" else "Failed",
+                        text = if (result.success) stringResource(R.string.skill_health_connected) else stringResource(R.string.skill_health_failed),
                         color = statusColor,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -534,7 +534,7 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
                     )
                 }
                 Text(
-                    text = if (result.success) "Skill responded successfully" else "Skill did not respond",
+                    text = if (result.success) stringResource(R.string.skill_response_success) else stringResource(R.string.skill_no_response),
                     color = AiriTheme.onSurfaceVariant,
                     fontSize = 13.sp
                 )
@@ -578,7 +578,7 @@ private fun TestResultDialog(result: TestResult, onDismiss: () -> Unit) {
                     )
                 }
                 Text(
-                    "Fix the error above, then test again before saving.",
+                    stringResource(R.string.skill_fix_error),
                     color = AiriTheme.onBackground.copy(alpha = 0.38f),
                     fontSize = 11.sp
                 )
@@ -673,7 +673,7 @@ private fun PresetCard(preset: SkillPreset, onClick: () -> Unit) {
         }
         Surface(shape = AIRIShapes.pill, color = CosmicAccent.copy(alpha = 0.15f)) {
             Text(
-                "Use",
+                stringResource(R.string.skill_apply_template),
                 color = CosmicAccent,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
@@ -712,7 +712,7 @@ private fun SkillBuilderSection(
             if (collapsible && onToggle != null) {
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    contentDescription = if (expanded) stringResource(R.string.skill_collapse) else stringResource(R.string.skill_expand),
                     tint = CosmicAccent.copy(alpha = 0.7f),
                     modifier = Modifier.size(20.dp)
                 )

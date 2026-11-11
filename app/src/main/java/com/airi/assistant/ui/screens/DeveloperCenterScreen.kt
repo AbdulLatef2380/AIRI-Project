@@ -50,7 +50,12 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeveloperCenterScreen(onBack: () -> Unit) {
-    val tabs = listOf("Runtime", "Connectors", "Memory", "Diagnostics", "Health", "Audit", "Profiler", "Database")
+    val tabs = listOf(
+        stringResource(R.string.dev_tab_runtime), stringResource(R.string.dev_tab_connectors),
+        stringResource(R.string.dev_tab_memory), stringResource(R.string.dev_tab_diagnostics),
+        stringResource(R.string.dev_tab_health), stringResource(R.string.dev_tab_audit),
+        stringResource(R.string.dev_tab_profiler), stringResource(R.string.dev_tab_database)
+    )
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
@@ -169,7 +174,7 @@ private fun ConnectorsTab() {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(entry.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AiriTheme.onBackground)
                         Text(
-                            if (entry.isConnected && entry.isHealthy) "Online" else (entry.errorMessage?.take(50) ?: if (entry.isConnected) "Needs attention" else "Offline"),
+                            if (entry.isConnected && entry.isHealthy) stringResource(R.string.dev_online) else (entry.errorMessage?.take(50) ?: if (entry.isConnected) stringResource(R.string.dev_needs_attention) else stringResource(R.string.dev_offline)),
                             fontSize = 11.sp,
                             color = if (entry.isConnected && entry.isHealthy) SemanticSuccess.copy(0.8f) else SemanticError.copy(0.7f)
                         )
@@ -249,7 +254,7 @@ private fun DiagnosticsTab() {
             Text(stringResource(R.string.developer_diagnostics), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
             if (running) Text(stringResource(R.string.developer_running), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
             else report?.let { r ->
-                Text(if (r.allPassed) " All passed" else " ${r.results.count { !it.passed }} failed",
+                Text(if (r.allPassed) stringResource(R.string.dev_all_passed) else stringResource(R.string.dev_failed_count, r.results.count { !it.passed }),
                     fontSize = 11.sp, color = if (r.allPassed) Color(0xFF30D158) else Color(0xFFFF453A))
             }
         }
@@ -360,7 +365,7 @@ private fun HealthTab() {
             }
         }
         Text(
-            "Last check: ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date(health.timestampMs))}",
+            stringResource(R.string.dev_last_check, java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date(health.timestampMs))),
             fontSize = 10.sp,
             color = AiriTheme.onSurfaceVariant.copy(alpha = 0.35f),
             fontFamily = FontFamily.Monospace,
@@ -457,9 +462,9 @@ private fun DatabaseLabTab() {
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        DevCard(title = "Database Lab") {
+        DevCard(title = stringResource(R.string.dev_database_lab)) {
             Text(
-                "Read-only inspection of AIRI's local Room database. Writes, migrations, backups, and arbitrary PRAGMA commands are blocked.",
+                stringResource(R.string.dev_database_description),
                 fontSize = 11.sp,
                 color = AiriTheme.onSurfaceVariant
             )
@@ -492,7 +497,7 @@ private fun DatabaseLabTab() {
 
         when (val result = execution) {
             is DatabaseLabManager.Execution.Success -> {
-                DevCard(title = "Result · ${result.result.rows.size} row(s) · ${result.result.elapsedMs}ms") {
+                DevCard(title = stringResource(R.string.dev_result_summary, result.result.rows.size, result.result.elapsedMs)) {
                     if (result.result.truncated) {
                         Text(stringResource(R.string.dev_result_limited), fontSize = 11.sp, color = Color(0xFFFFB340))
                     }
@@ -557,7 +562,7 @@ private fun ProfilerTab() {
     ) {
         // Latency summary card
         item {
-            DevCard("Inference Latency (all buckets)") {
+            DevCard(stringResource(R.string.dev_profiler_latency)) {
                 if (report.buckets.isEmpty()) {
                     Text(stringResource(R.string.dev_no_profiling_data),
                         fontSize = 11.sp, color = AiriTheme.onSurfaceVariant.copy(0.5f))
@@ -582,7 +587,7 @@ private fun ProfilerTab() {
 
         // Flow pressure card
         item {
-            DevCard("Flow Backpressure") {
+            DevCard(stringResource(R.string.dev_flow_backpressure)) {
                 DevRow(stringResource(R.string.dev_dropped_events), report.droppedEventCount.toString())
                 DevRow(stringResource(R.string.dev_pressure_warnings), report.flowPressureWarnings.toString())
                 DevRow(stringResource(R.string.dev_slow_calls), report.slowCallCount.toString())
@@ -593,7 +598,7 @@ private fun ProfilerTab() {
         val slowBuckets = report.buckets.filter { it.maxMs > 500 }
         if (slowBuckets.isNotEmpty()) {
             item {
-                DevCard("Slow Calls (max > 500ms)") {
+                DevCard(stringResource(R.string.dev_slow_calls_title)) {
                     slowBuckets.take(20).forEach { b ->
                         DevRow(b.key, "max ${b.maxMs}ms • avg ${b.avgMs}ms")
                     }

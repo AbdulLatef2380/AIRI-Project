@@ -111,7 +111,7 @@ private fun EventsTab() {
             verticalAlignment     = Alignment.CenterVertically
         ) {
             Text(
-                "${entries.size} events",
+                stringResource(R.string.obs_events_count, entries.size),
                 color    = AiriTheme.onBackground.copy(alpha = 0.4f),
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace
@@ -315,7 +315,7 @@ private fun LiveHubTab() {
         }
         if (snapshot.registeredAgents.isNotEmpty()) {
             item {
-                HubCard(title = "Registered Agents (${snapshot.registeredAgents.size})") {
+                HubCard(title = stringResource(R.string.obs_registered_agents, snapshot.registeredAgents.size)) {
                     snapshot.registeredAgents.forEach { cap ->
                         MetricRow(cap.displayName, cap.agentId, color = AiriTheme.onBackground.copy(alpha = 0.75f))
                     }
@@ -382,8 +382,8 @@ private fun GraphTab() {
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             StatusCountChip(stringResource(R.string.obs_done),    graph.doneNodes,    SemanticSuccess, Modifier.weight(1f))
-                            StatusCountChip(stringResource(R.string.obs_failed)),  graph.failedNodes,  SemanticError,   Modifier.weight(1f))
-                            StatusCountChip("Skipped", graph.skippedNodes, SemanticWarn,    Modifier.weight(1f))
+                            StatusCountChip(stringResource(R.string.obs_failed), graph.failedNodes, SemanticError, Modifier.weight(1f))
+                            StatusCountChip(stringResource(R.string.obs_skipped), graph.skippedNodes, SemanticWarn, Modifier.weight(1f))
                         }
                         Spacer(Modifier.height(8.dp))
                         LinearProgressIndicator(
@@ -460,7 +460,7 @@ private fun TracesTab() {
             verticalAlignment     = Alignment.CenterVertically
         ) {
             Text(
-                "${spans.size} completed spans · ${snapshot.activeSpanCount} active",
+                stringResource(R.string.obs_spans_count, spans.size, snapshot.activeSpanCount),
                 color      = AiriTheme.onBackground.copy(alpha = 0.4f),
                 fontSize   = 11.sp,
                 fontFamily = FontFamily.Monospace
@@ -552,7 +552,7 @@ private fun TraceSpanCard(span: TraceSpan) {
             if (span.parentSpanId != null) {
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "parent: ${span.parentSpanId}",
+                    stringResource(R.string.obs_parent, span.parentSpanId),
                     color      = AiriTheme.onBackground.copy(alpha = 0.25f),
                     fontSize   = 9.sp,
                     fontFamily = FontFamily.Monospace
@@ -618,7 +618,7 @@ private fun NetworkTab() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            "Network Traffic",
+            stringResource(R.string.obs_network_traffic),
             fontSize = 13.sp,
             fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
             color = CosmicAccent
@@ -626,13 +626,13 @@ private fun NetworkTab() {
         if (s == null) {
             Text(stringResource(R.string.loading), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
         } else {
-            NetworkStatRow("Total Requests", s.requestCount.toString())
-            NetworkStatRow("Errors", s.errorCount.toString())
-            NetworkStatRow("Avg Latency", "${s.avgLatencyMs} ms")
+            NetworkStatRow(stringResource(R.string.obs_total_requests), s.requestCount.toString())
+            NetworkStatRow(stringResource(R.string.obs_errors), s.errorCount.toString())
+            NetworkStatRow(stringResource(R.string.obs_avg_latency), "${s.avgLatencyMs} ms")
             val errorRate = if (s.requestCount > 0) {
                 "%.1f%%".format(s.errorCount * 100.0 / s.requestCount)
             } else "—"
-            NetworkStatRow("Error Rate", errorRate)
+            NetworkStatRow(stringResource(R.string.obs_error_rate), errorRate)
         }
     }
 }

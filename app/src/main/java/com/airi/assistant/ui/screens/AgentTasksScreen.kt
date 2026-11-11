@@ -939,7 +939,7 @@ private fun AddTaskDialog(
                     OutlinedTextField(value = connector, onValueChange = { connector = it }, label = { Text(stringResource(R.string.task_connector_optional)) }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = model, onValueChange = { model = it }, label = { Text(stringResource(R.string.task_model_optional)) }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = project, onValueChange = { project = it }, label = { Text(stringResource(R.string.task_project_optional)) }, modifier = Modifier.fillMaxWidth())
-                    Text("تُحفظ هذه الاختيارات مع المهمة وتُمرر إلى سياق Agent عند التشغيل.", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                    Text(stringResource(R.string.task_context_saved), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                 }
             }
         },

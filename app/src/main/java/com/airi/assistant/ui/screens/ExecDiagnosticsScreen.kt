@@ -215,17 +215,17 @@ private fun LiveTab(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         SettingsSurface {
-            SettingsCategoryHeader(icon = Icons.Outlined.MonitorHeart, title = "Active Execution")
+            SettingsCategoryHeader(icon = Icons.Outlined.MonitorHeart, title = stringResource(R.string.exec_active_execution))
             Spacer(Modifier.height(12.dp))
 
             ExRow(
-                label      = "Status",
+                label      = stringResource(R.string.exec_status),
                 value      = if (state.isStreaming) "STREAMING" else "IDLE",
                 valueColor = if (state.isStreaming) ExOk else exDim()
             )
             ExDivider()
             ExRow(
-                label      = "Backend",
+                label      = stringResource(R.string.exec_backend),
                 value      = state.activeBackend
                     .replace("_", " ")
                     .uppercase()
@@ -238,7 +238,7 @@ private fun LiveTab(
             }
             ExDivider()
             ExRow(
-                label      = "Origin",
+                label      = stringResource(R.string.exec_origin),
                 value      = state.activeOrigin.name,
                 valueColor = originColor(state.activeOrigin.name)
             )
@@ -248,12 +248,12 @@ private fun LiveTab(
                           state.lastStreamDurationMs > 0L
         if (hasTurnData) {
             SettingsSurface {
-                SettingsCategoryHeader(icon = Icons.Outlined.Speed, title = "Last Turn")
+                SettingsCategoryHeader(icon = Icons.Outlined.Speed, title = stringResource(R.string.exec_last_turn))
                 Spacer(Modifier.height(12.dp))
 
-                ExRow("Prompt Tokens",     state.lastPromptTokens.toString())
+                ExRow(stringResource(R.string.exec_prompt_tokens),     state.lastPromptTokens.toString())
                 ExDivider()
-                ExRow("Completion Tokens", state.lastCompletionTokens.toString())
+                ExRow(stringResource(R.string.exec_completion_tokens), state.lastCompletionTokens.toString())
                 ExDivider()
                 ExRow("Stream Duration",   formatMs(state.lastStreamDurationMs))
                 if (state.lastProviderLatencyMs > 0L) {
@@ -263,7 +263,7 @@ private fun LiveTab(
             }
         }
         SettingsSurface {
-            SettingsCategoryHeader(icon = Icons.Outlined.ShowChart, title = "Local Throughput")
+            SettingsCategoryHeader(icon = Icons.Outlined.ShowChart, title = stringResource(R.string.exec_local_throughput))
             Spacer(Modifier.height(8.dp))
             if (tokenRateHistory.isEmpty()) {
                 Box(
@@ -325,7 +325,7 @@ private fun LiveTab(
         }
         if (kvMax > 0) {
             SettingsSurface {
-                SettingsCategoryHeader(icon = Icons.Outlined.Memory, title = "Context Window")
+                SettingsCategoryHeader(icon = Icons.Outlined.Memory, title = stringResource(R.string.exec_context_window))
                 Spacer(Modifier.height(10.dp))
 
                 val kvPct = (kvUsed.toFloat() / kvMax.toFloat()).coerceIn(0f, 1f)
@@ -419,9 +419,9 @@ private fun BudgetTab(
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                ExRow("Prompt Tokens", pStats.promptTokens.toString())
+                ExRow(stringResource(R.string.exec_prompt_tokens), pStats.promptTokens.toString())
                 ExDivider()
-                ExRow("Completion Tokens", pStats.completionTokens.toString())
+                ExRow(stringResource(R.string.exec_completion_tokens), pStats.completionTokens.toString())
                 ExDivider()
                 ExRow("Request Count", pStats.requestCount.toString())
                 if (pStats.failureCount > 0) {

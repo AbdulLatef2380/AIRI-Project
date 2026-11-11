@@ -504,7 +504,7 @@ fun RefModelGroupAccordion(
                     }
                     Icon(
                         imageVector = if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                        contentDescription = if (isExpanded) stringResource(R.string.collapse) else stringResource(R.string.expand),
                         modifier = Modifier.size(20.dp),
                         tint = AiriTheme.onBackground.copy(alpha = 0.55f)
                     )
@@ -2435,8 +2435,8 @@ private fun EmbeddingModelSection(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         SectionHeader(
-            title    = "Embedding Model",
-            subtitle = "Enables semantic memory search. Recommended: bge-small-en-v1.5.Q8_0.gguf (~130 MB)"
+            title    = stringResource(R.string.embedding_model_title),
+            subtitle = stringResource(R.string.embedding_model_desc)
         )
 
         Surface(

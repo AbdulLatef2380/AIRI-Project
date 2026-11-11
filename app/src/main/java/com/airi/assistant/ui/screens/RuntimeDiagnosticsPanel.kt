@@ -24,6 +24,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 import com.airi.assistant.core.debug.*
 import com.airi.assistant.ui.theme.CosmicAccent
 
@@ -47,11 +49,11 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
     SettingsSurface {
         SettingsCategoryHeader(
             icon  = Icons.Outlined.MonitorHeart,
-            title = "Runtime Status"
+            title = stringResource(R.string.runtime_status)
         )
         Spacer(Modifier.height(12.dp))
         DiagRow(
-            label = "Effective Mode",
+            label = stringResource(R.string.runtime_effective_mode),
             value = diagnostics.effectiveMode,
             valueColor = when (diagnostics.effectiveMode) {
                 "FAST"     -> WarnColor
@@ -61,7 +63,7 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
             }
         )
         DiagRow(
-            label = "Mode Source",
+            label = stringResource(R.string.runtime_mode_source),
             value = when (diagnostics.modeSource) {
                 ModeSource.USER               -> "USER"
                 ModeSource.SUPERVISOR_THERMAL -> "SUPERVISOR — THERMAL"
@@ -77,7 +79,7 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
 
         DiagDivider()
         DiagRow(
-            label = "Thermal Status",
+            label = stringResource(R.string.runtime_thermal_status),
             value = diagnostics.thermalLevel.name + if (diagnostics.thermalRaw > 0)
                 " (raw=${diagnostics.thermalRaw})" else "",
             valueColor = when (diagnostics.thermalLevel) {
@@ -87,7 +89,7 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
             }
         )
         DiagRow(
-            label = "Available RAM",
+            label = stringResource(R.string.runtime_available_ram),
             value = "${diagnostics.availRamMb} MB" + if (diagnostics.isLowMemory) "  LOW" else "",
             valueColor = when {
                 diagnostics.isLowMemory         -> ErrorColor
@@ -102,7 +104,7 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
             if (diagnostics.kvMax > 0) (diagnostics.kvUsed * 100) / diagnostics.kvMax else 0
         }
         DiagRow(
-            label = "Context Usage",
+            label = stringResource(R.string.runtime_context_usage),
             value = if (diagnostics.kvMax > 0)
                 "${diagnostics.kvUsed} / ${diagnostics.kvMax} tokens ($kvPct%)"
             else "—",
@@ -114,12 +116,12 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
         )
 
         DiagDivider()
-        DiagRow(label = "Active Model", value = diagnostics.modelName)
-        DiagRow(label = "Quantization", value = diagnostics.modelQuant)
+        DiagRow(label = stringResource(R.string.runtime_active_model), value = diagnostics.modelName)
+        DiagRow(label = stringResource(R.string.runtime_quantization), value = diagnostics.modelQuant)
 
         DiagDivider()
         DiagRow(
-            label = "Generation State",
+            label = stringResource(R.string.runtime_generation_state),
             value = diagnostics.generationPhase.name,
             valueColor = when (diagnostics.generationPhase) {
                 GenerationPhase.IDLE      -> dimWhite()
@@ -130,19 +132,19 @@ fun RuntimeStatusPanel(diagnostics: RuntimeDiagnosticsState) {
             }
         )
         DiagRow(
-            label = "Throughput",
+            label = stringResource(R.string.runtime_throughput),
             value = if (diagnostics.tokensPerSec > 0f)
                 "%.1f t/s".format(diagnostics.tokensPerSec) else "—"
         )
 
         DiagDivider()
         DiagRow(
-            label = "Draft Model",
+            label = stringResource(R.string.runtime_draft_model),
             value = if (diagnostics.draftModelActive) "ACTIVE" else "INACTIVE",
             valueColor = if (diagnostics.draftModelActive) OkColor else subtleWhite()
         )
         DiagRow(
-            label = "GPU / Vulkan",
+            label = stringResource(R.string.runtime_gpu_vulkan),
             value = if (diagnostics.gpuVulkanActive) "ACTIVE" else "CPU only",
             valueColor = if (diagnostics.gpuVulkanActive) OkColor else subtleWhite()
         )
@@ -169,7 +171,7 @@ fun RuntimeWarningsPanel(warnings: List<String>) {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                "Runtime Warnings",
+                stringResource(R.string.runtime_warnings),
                 fontWeight = FontWeight.Bold,
                 color = if (hasCritical) ErrorColor else WarnColor,
                 fontSize = 13.sp

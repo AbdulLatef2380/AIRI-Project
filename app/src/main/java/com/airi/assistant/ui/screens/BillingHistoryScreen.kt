@@ -70,14 +70,14 @@ fun BillingHistoryScreen(
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     SummaryCard(
-                        label  = "Total Spent",
+                        label  = stringResource(R.string.credits_total_spent),
                         value  = "$${totalSpent / 100}.${"%02d".format(totalSpent % 100)}",
                         icon   = Icons.Default.AttachMoney,
                         color  = CosmicAccent,
                         modifier = Modifier.weight(1f)
                     )
                     SummaryCard(
-                        label  = "Credits Bought",
+                        label  = stringResource(R.string.credits_bought),
                         value  = "%,d".format(totalCredits),
                         icon   = Icons.Default.Bolt,
                         color  = SemanticSuccess,

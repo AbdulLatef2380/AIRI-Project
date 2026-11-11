@@ -351,7 +351,7 @@ fun IntegrationsScreen(
     if (dialog is IntegrationsViewModel.DialogState.Notion) {
         val state = dialog as IntegrationsViewModel.DialogState.Notion
         TokenDialog(
-            title = "Connect Notion",
+            title = stringResource(R.string.connect_notion),
             emoji = "",
             steps = listOf(
                 "Create an internal integration in the official Notion settings",
@@ -372,7 +372,7 @@ fun IntegrationsScreen(
     if (dialog is IntegrationsViewModel.DialogState.ProviderToken) {
         val state = dialog as IntegrationsViewModel.DialogState.ProviderToken
         TokenDialog(
-            title = "Connect ${state.provider}",
+            title = stringResource(R.string.connect_provider, state.provider),
             emoji = "",
             steps = listOf(
                 "Create the provider credential in the official ${state.provider} settings",

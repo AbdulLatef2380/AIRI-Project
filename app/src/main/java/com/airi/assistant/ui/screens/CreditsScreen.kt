@@ -89,10 +89,10 @@ fun CreditsScreen(onBack: () -> Unit) {
                 UsageAlertsCard(snapshot = snapshot)
             }
             item {
-                CreditsCard(title = "Today's Usage by Action", icon = Icons.Outlined.BarChart) {
+                CreditsCard(title = stringResource(R.string.credits_usage_by_action), icon = Icons.Outlined.BarChart) {
                     if (snapshot.perActionDay.isEmpty()) {
                         Text(
-                            "No actions recorded today yet.",
+                            stringResource(R.string.credits_no_actions),
                             fontSize = 13.sp, color = AiriTheme.onSurfaceVariant,
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
@@ -112,7 +112,7 @@ fun CreditsScreen(onBack: () -> Unit) {
                 }
             }
             item {
-                CreditsCard(title = "Token Usage Today", icon = Icons.Outlined.Token) {
+                CreditsCard(title = stringResource(R.string.credits_token_usage_today), icon = Icons.Outlined.Token) {
                     val activeProviders = tokenStats.filter { it.value.totalTokens > 0 }
                     if (activeProviders.isEmpty()) {
                         Text(
@@ -143,8 +143,8 @@ fun CreditsScreen(onBack: () -> Unit) {
                 }
             }
             item {
-                CreditsCard(title = "Lifetime Statistics", icon = Icons.Outlined.Timeline) {
-                    StatRow("Total credits consumed", snapshot.lifetimeTotal.toString())
+                CreditsCard(title = stringResource(R.string.credits_lifetime_stats), icon = Icons.Outlined.Timeline) {
+                    StatRow(stringResource(R.string.credits_total_consumed), snapshot.lifetimeTotal.toString())
                     Divider(color = AiriTheme.outline, modifier = Modifier.padding(vertical = 8.dp))
                     StatRow(
                         "Subscription tier",

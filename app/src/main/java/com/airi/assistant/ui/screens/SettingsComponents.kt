@@ -193,11 +193,11 @@ fun DefaultAssistantSection(activity: Activity?) {
 @Composable
 fun ObservabilitySection(onNavigate: (String) -> Unit) {
     SettingsSurface {
-        SettingsCategoryHeader(icon = Icons.Outlined.Analytics, title = "Observability")
+        SettingsCategoryHeader(icon = Icons.Outlined.Analytics, title = stringResource(R.string.settings_observability))
         Spacer(Modifier.height(8.dp))
         SettingsNavigationRow(
-            label    = "Observability Dashboard",
-            sublabel = "View agent execution logs and diagnostics"
+            label    = stringResource(R.string.settings_observability_dashboard),
+            sublabel = stringResource(R.string.settings_observability_desc)
         ) { onNavigate(AiriRoute.OBSERVABILITY) }
     }
 }
@@ -205,10 +205,10 @@ fun ObservabilitySection(onNavigate: (String) -> Unit) {
 @Composable
 fun SkillsSection(viewModel: ChatViewModel) {
     SettingsSurface {
-        SettingsCategoryHeader(icon = Icons.Outlined.Lightbulb, title = "Skills")
+        SettingsCategoryHeader(icon = Icons.Outlined.Lightbulb, title = stringResource(R.string.settings_skills))
         Spacer(Modifier.height(8.dp))
         Text(
-            text     = "Manage enabled skills and custom skill builders.",
+            text     = stringResource(R.string.settings_skills_desc),
             fontSize = 12.sp,
             color    = AiriTheme.onBackground.copy(alpha = 0.6f)
         )
@@ -222,18 +222,18 @@ fun SkillsSection(viewModel: ChatViewModel) {
 // screen is also updated to pass onNavigate.
 fun ApiKeysSection(onNavigate: (String) -> Unit = {}) {
     SettingsSurface {
-        SettingsCategoryHeader(icon = Icons.Outlined.Key, title = "API Keys")
+        SettingsCategoryHeader(icon = Icons.Outlined.Key, title = stringResource(R.string.settings_api_keys))
         Spacer(Modifier.height(4.dp))
         Text(
-            text      = "Add OpenAI, Anthropic, or Gemini keys to enable cloud models.",
+            text      = stringResource(R.string.settings_api_keys_desc),
             fontSize  = 12.sp,
             color     = AiriTheme.onSurfaceVariant,
             lineHeight = 17.sp
         )
         Spacer(Modifier.height(8.dp))
         SettingsNavigationRow(
-            label    = "Manage API Keys",
-            sublabel = "Add, edit, or remove cloud provider keys",
+            label    = stringResource(R.string.settings_manage_api_keys),
+            sublabel = stringResource(R.string.settings_manage_api_keys_desc),
             onClick  = { onNavigate(com.airi.assistant.ui.AiriRoute.MODEL_LIBRARY) }
         )
     }

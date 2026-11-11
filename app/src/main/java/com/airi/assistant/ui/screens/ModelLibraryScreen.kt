@@ -689,7 +689,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         modelId    = OpenRouterAdapter.MODEL_CODING,
         taskLabel  = "Coding & Debugging",
         taskIcon   = Icons.Outlined.Code,
-        description = "DeepSeek Coder — best free model for code generation, review, and debugging",
+        description = stringResource(R.string.model_library_deepseek_coder),
         contextLen = "16k"
     ),
     TaskModelEntry(
@@ -697,7 +697,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         modelId    = OpenRouterAdapter.MODEL_REASONING,
         taskLabel  = "Deep Reasoning",
         taskIcon   = Icons.Outlined.Psychology,
-        description = "DeepSeek R1 — chain-of-thought reasoning, math, and analytical tasks",
+        description = stringResource(R.string.model_library_deepseek_r1),
         contextLen = "64k"
     ),
     TaskModelEntry(
@@ -705,7 +705,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         modelId    = OpenRouterAdapter.DEFAULT_MODEL,
         taskLabel  = "General & Long Context",
         taskIcon   = Icons.Outlined.AutoAwesome,
-        description = "Gemini 2.0 Flash — default model, vision support, 1M token context window",
+        description = stringResource(R.string.model_library_gemini),
         contextLen = "1M"
     ),
     TaskModelEntry(
@@ -713,7 +713,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         modelId    = OpenRouterAdapter.MODEL_MULTILINGUAL,
         taskLabel  = "Arabic & Multilingual",
         taskIcon   = Icons.Outlined.Language,
-        description = "Qwen 2.5 72B — strong Arabic, Chinese, and multilingual reasoning",
+        description = stringResource(R.string.model_library_qwen),
         contextLen = "128k"
     ),
     TaskModelEntry(
@@ -721,7 +721,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         modelId    = OpenRouterAdapter.MODEL_FAST,
         taskLabel  = "Fast Responses",
         taskIcon   = Icons.Outlined.FlashOn,
-        description = "Llama 3.3 8B — fastest free model for simple questions and quick replies",
+        description = stringResource(R.string.model_library_llama),
         contextLen = "128k"
     )
 )

@@ -138,8 +138,8 @@ fun PrivacyDataSettingsScreen(
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
                 SettingsActionRow(
-                    label    = "Export all AIRI data",
-                    sublabel = "All non-archived chats and memory metadata; no API keys or tokens"
+                    label    = stringResource(R.string.export_all_data),
+                    sublabel = stringResource(R.string.privacy_export_desc)
                 ) { exportFullLauncher.launch("airi_full_export_${System.currentTimeMillis()}.json") }
                 Divider(
                     color    = AiriTheme.onBackground.copy(alpha = 0.06f),

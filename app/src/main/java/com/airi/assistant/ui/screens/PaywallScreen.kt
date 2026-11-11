@@ -303,7 +303,7 @@ fun PaywallScreen(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Text(
-                        text       = "What's included",
+                        text       = stringResource(R.string.paywall_included),
                         fontSize   = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color      = AiriTheme.onBackground.copy(alpha = 0.6f),
@@ -312,28 +312,28 @@ fun PaywallScreen(
 
                     BenefitRow(
                         icon        = Icons.Outlined.AllInclusive,
-                        title       = "Unlimited Messages",
-                        description = "Send as many messages as you need, every day"
+                        title       = stringResource(R.string.paywall_unlimited_messages),
+                        description = stringResource(R.string.paywall_unlimited_messages_desc)
                     )
                     BenefitRow(
                         icon        = Icons.Outlined.AutoAwesome,
-                        title       = "Unlimited Agent Execution",
-                        description = "Run AI agents without daily execution caps"
+                        title       = stringResource(R.string.paywall_unlimited_agent),
+                        description = stringResource(R.string.paywall_unlimited_agent_desc)
                     )
                     BenefitRow(
                         icon        = Icons.Outlined.AutoAwesome,
-                        title       = "Advanced AI Features",
-                        description = "Background agent, priority model access, and more"
+                        title       = stringResource(R.string.paywall_advanced),
+                        description = stringResource(R.string.paywall_advanced_desc)
                     )
                     BenefitRow(
                         icon        = Icons.Outlined.Lock,
-                        title       = "Complete Privacy",
-                        description = "All processing stays on your device, always"
+                        title       = stringResource(R.string.paywall_privacy),
+                        description = stringResource(R.string.paywall_privacy_desc)
                     )
                     BenefitRow(
                         icon        = Icons.Outlined.Bolt,
-                        title       = "Priority Performance",
-                        description = "Fastest response times with optimized inference"
+                        title       = stringResource(R.string.paywall_performance),
+                        description = stringResource(R.string.paywall_performance_desc)
                     )
                 }
                 Button(

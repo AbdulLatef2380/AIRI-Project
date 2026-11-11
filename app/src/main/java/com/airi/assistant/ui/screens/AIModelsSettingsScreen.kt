@@ -80,11 +80,11 @@ fun AIModelsSettingsScreen(
             )
 
             SettingsSurface {
-                SettingsCategoryHeader(icon = Icons.Outlined.Memory, title = "Local Model")
+                SettingsCategoryHeader(icon = Icons.Outlined.Memory, title = stringResource(R.string.local_model_title))
                 Spacer(Modifier.height(8.dp))
                 SettingsNavigationRow(
-                    label    = "Model Settings",
-                    sublabel = "Configure local LLM, sampling parameters, and performance mode"
+                    label    = stringResource(R.string.model_settings_title),
+                    sublabel = stringResource(R.string.local_model_desc)
                 ) { onNavigate(AiriRoute.MODELS) }
             }
 

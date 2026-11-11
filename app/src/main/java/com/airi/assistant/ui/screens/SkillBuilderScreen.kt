@@ -68,9 +68,9 @@ private data class SkillPreset(
 
 private val SKILL_PRESETS = listOf(
     SkillPreset(
-        label = "Send Message API",
+        label = stringResource(R.string.skill_template_send_label),
         name = "Send Message",
-        description = "Sends a message to an external messaging API",
+        description = stringResource(R.string.skill_template_send_desc),
         type = SkillType.API,
         method = "POST",
         endpoint = "https://api.example.com/messages",
@@ -81,9 +81,9 @@ private val SKILL_PRESETS = listOf(
         bodyTemplate = """{"message":"{{user_input}}","timestamp":"{{timestamp}}","user_id":"{{user_id}}"}"""
     ),
     SkillPreset(
-        label = "Webhook Trigger",
+        label = stringResource(R.string.skill_template_webhook_label),
         name = "Webhook Trigger",
-        description = "Triggers a webhook with user input and context",
+        description = stringResource(R.string.skill_template_webhook_desc),
         type = SkillType.WEBHOOK,
         method = "POST",
         endpoint = "https://hooks.example.com/trigger",
@@ -93,9 +93,9 @@ private val SKILL_PRESETS = listOf(
         bodyTemplate = """{"event":"airi_trigger","payload":{"input":"{{user_input}}","context":"{{conversation_context}}","goal":"{{agent_goal}}","ts":"{{timestamp}}"}}"""
     ),
     SkillPreset(
-        label = "Basic POST Request",
+        label = stringResource(R.string.skill_template_post_label),
         name = "Custom API Call",
-        description = "Makes a basic POST request to an API endpoint",
+        description = stringResource(R.string.skill_template_post_desc),
         type = SkillType.API,
         method = "POST",
         endpoint = "https://api.example.com/endpoint",

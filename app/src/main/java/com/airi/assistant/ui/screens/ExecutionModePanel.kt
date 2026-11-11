@@ -67,7 +67,7 @@ fun ExecutionModePanel(
     SettingsSurface {
         SettingsCategoryHeader(
             icon  = Icons.Outlined.Hub,
-            title = "Execution Mode"
+            title = stringResource(R.string.execution_mode)
         )
         Spacer(Modifier.height(12.dp))
         ExecutionMode.entries.forEach { mode ->
@@ -128,7 +128,7 @@ fun ExecutionModePanel(
                 Spacer(Modifier.height(12.dp))
 
                 // Provider preference
-                SettingsCategoryHeader(icon = Icons.Outlined.Cloud, title = "Preferred Provider")
+                SettingsCategoryHeader(icon = Icons.Outlined.Cloud, title = stringResource(R.string.preferred_provider))
                 Spacer(Modifier.height(8.dp))
                 CloudProviderSelector(
                     current    = preferredProvider,
@@ -179,7 +179,7 @@ fun ExecutionModePanel(
         Spacer(Modifier.height(12.dp))
         Divider(color = AiriTheme.onBackground.copy(alpha = 0.05f))
         Spacer(Modifier.height(12.dp))
-        SettingsCategoryHeader(icon = Icons.Outlined.Shield, title = "Privacy Level")
+        SettingsCategoryHeader(icon = Icons.Outlined.Shield, title = stringResource(R.string.privacy_level))
         Spacer(Modifier.height(8.dp))
         PrivacyLevel.entries.forEach { level ->
             PrivacyLevelOption(
@@ -409,7 +409,7 @@ private fun CloudTokenUsageBar(used: Int, cap: Int) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(stringResource(R.string.cloud_usage_label), color = dimWhite(), fontSize = 11.sp)
-            Text("$used / $cap tokens", color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.tokens_capacity, used, cap), color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(6.dp))
         Box(

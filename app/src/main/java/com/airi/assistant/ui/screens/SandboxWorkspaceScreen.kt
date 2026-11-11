@@ -289,7 +289,7 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                                             executionId = executionId,
                                             actionId = actionId,
                                             phase = "started",
-                                            message = "Sandbox command started",
+                                            message = context.getString(R.string.sandbox_started),
                                             category = ActivityCategory.SANDBOX,
                                         )
                                         execJob = scope.launch {
@@ -307,17 +307,17 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                                                     executionId = executionId,
                                                     actionId = actionId,
                                                     phase = if (success) "completed" else "failed",
-                                                    message = if (success) "Sandbox command completed" else "Sandbox command failed",
+                                                    message = context.getString(if (success) R.string.sandbox_completed else R.string.sandbox_failed),
                                                     category = ActivityCategory.SANDBOX,
                                                     severity = if (success) ActivitySeverity.INFO else ActivitySeverity.ERROR,
                                                 )
                                             } catch (_: kotlinx.coroutines.CancellationException) {
-                                                target.appendLog(SandboxLogEntry(level = "WARN", message = "Cancelled by user"))
+                                                target.appendLog(SandboxLogEntry(level = "WARN", message = context.getString(R.string.sandbox_cancelled_by_user)))
                                                 ExecutionTraceGateway.emitExecution(
                                                     executionId = executionId,
                                                     actionId = actionId,
                                                     phase = "cancelled",
-                                                    message = "Sandbox command cancelled",
+                                                    message = context.getString(R.string.sandbox_cancelled),
                                                     category = ActivityCategory.SANDBOX,
                                                     severity = ActivitySeverity.WARN,
                                                 )

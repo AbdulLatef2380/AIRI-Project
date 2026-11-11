@@ -78,10 +78,10 @@ fun AgentControlScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             AgentControlCard {
-                AgentSectionHeader(icon = Icons.Outlined.AutoAwesome, title = "Skills")
+                AgentSectionHeader(icon = Icons.Outlined.AutoAwesome, title = stringResource(R.string.agent_skills))
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text  = "Toggle skills on/off. Skills require connected integrations.",
+                    text  = stringResource(R.string.agent_skills_desc),
                     fontSize = 11.sp,
                     color = AiriTheme.outline,
                     modifier = Modifier.padding(bottom = 10.dp)
@@ -152,10 +152,10 @@ fun AgentControlScreen(
                 }
             }
             AgentControlCard {
-                AgentSectionHeader(icon = Icons.Outlined.Build, title = "Available Tools")
+                AgentSectionHeader(icon = Icons.Outlined.Build, title = stringResource(R.string.agent_available_tools))
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text  = "Tools are the low-level actions that skills use to call external services.",
+                    text  = stringResource(R.string.agent_tools_desc),
                     fontSize = 11.sp,
                     color = AiriTheme.outline,
                     modifier = Modifier.padding(bottom = 10.dp)
@@ -193,10 +193,10 @@ fun AgentControlScreen(
                 }
             }
             AgentControlCard {
-                AgentSectionHeader(icon = Icons.Outlined.Timeline, title = "Trace History")
+                AgentSectionHeader(icon = Icons.Outlined.Timeline, title = stringResource(R.string.agent_trace_history))
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text  = "How many past runs and events are kept for the agent log and the chat trace.",
+                    text  = stringResource(R.string.agent_trace_desc),
                     fontSize = 11.sp,
                     color = AiriTheme.outline,
                     modifier = Modifier.padding(bottom = 10.dp)
@@ -213,10 +213,10 @@ fun AgentControlScreen(
             }
             if (com.airi.assistant.BuildConfig.DEBUG) {
                 AgentControlCard {
-                    AgentSectionHeader(icon = Icons.Outlined.BugReport, title = "Debug Mode")
+                    AgentSectionHeader(icon = Icons.Outlined.BugReport, title = stringResource(R.string.agent_debug_mode))
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text  = "Shows the debug overlay and diagnostic banners in the chat screen. Execution traces are always recorded and are not affected by this switch. Exposes internal details; use only for troubleshooting.",
+                        text  = stringResource(R.string.agent_debug_desc),
                         fontSize = 11.sp,
                         color = AiriTheme.outline,
                         modifier = Modifier.padding(bottom = 10.dp)

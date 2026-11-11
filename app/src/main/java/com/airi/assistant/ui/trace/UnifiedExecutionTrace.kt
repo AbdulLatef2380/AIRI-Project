@@ -222,9 +222,10 @@ internal object UnifiedExecutionTraceProjector {
             )
         }.sortedBy { groupOrder(it.category) }
         val stateEvents = events.filterNot { it.orphaned }
-        // Orphaned events remain visible in the diagnostic event list/groups, but
-        // cannot contribute to execution counters, admission, or task-tree state.
-        val summary = summarize(stateEvents)
+        // Compatibility activity remains useful evidence in the visible summary.
+        // It must not admit an execution or enter the canonical task tree unless
+        // it is linked to structured state; those decisions use stateEvents below.
+        val summary = summarize(events)
         val fullTaskTree = buildTaskTree(stateEvents)
         val taskTreeNodeCount = fullTaskTree.sumOf { treeNodeCount(it) }
         val taskTree = limitTree(fullTaskTree, MAX_TREE_NODES)

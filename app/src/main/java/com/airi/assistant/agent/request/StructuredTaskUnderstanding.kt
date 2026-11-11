@@ -82,6 +82,11 @@ data class StructuredTaskUnderstanding(
             val capabilities = linkedSetOf<CapabilityIntentDetector.Capability>().apply {
                 addAll(runtime.capabilities)
                 if (coding != null) add(CapabilityIntentDetector.Capability.CODE_TASK)
+                // Testing a generated program is a terminal requirement even
+                // when the user does not name the terminal or a shell command.
+                if (coding != null && asksToTest) {
+                    add(CapabilityIntentDetector.Capability.TERMINAL_EXECUTE)
+                }
                 if (analysis && coding != null) add(CapabilityIntentDetector.Capability.CODE_TASK)
             }
             val type = when {

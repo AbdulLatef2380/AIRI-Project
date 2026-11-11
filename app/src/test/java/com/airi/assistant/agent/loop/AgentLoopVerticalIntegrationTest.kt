@@ -66,7 +66,12 @@ class AgentLoopVerticalIntegrationTest {
         assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
         assertEquals("The connector result was received.", result.finalAnswer)
         assertEquals(listOf("connector_vertical_read"), result.toolsInvoked)
-        assertEquals(1, connector.executeCalls)
+        assertEquals(
+            "Connector tool result: " + orchestrator.requests[1].conversationHistory
+                .filter { it.kind == "tool_result" }.joinToString { it.content },
+            1,
+            connector.executeCalls,
+        )
         assertEquals("execution-vertical", connector.lastInput?.executionId)
         assertEquals("trace-execution-vertical", connector.lastInput?.traceId)
         assertEquals("session-vertical", connector.lastInput?.sessionId)
@@ -189,7 +194,12 @@ class AgentLoopVerticalIntegrationTest {
             )
 
             assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
-            assertEquals(1, connector.executeCalls)
+            assertEquals(
+                "Batch connector tool results: " + orchestrator.requests[1].conversationHistory
+                    .filter { it.kind == "tool_result" }.joinToString { it.content },
+                1,
+                connector.executeCalls,
+            )
             assertEquals(2, orchestrator.requests.size)
             assertTrue(orchestrator.requests[1].conversationHistory.count { it.kind == "tool_result" } == 2)
             val batchTrace = ExecutionStatusBus.traceSnapshot("execution-batch-trace")
@@ -241,7 +251,12 @@ class AgentLoopVerticalIntegrationTest {
             )
 
             assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
-            assertEquals(1, connector.executeCalls)
+            assertEquals(
+                "Approval connector tool result: " + orchestrator.requests[1].conversationHistory
+                    .filter { it.kind == "tool_result" }.joinToString { it.content },
+                1,
+                connector.executeCalls,
+            )
             val approvalTrace = ExecutionStatusBus.traceSnapshot("execution-approval")
             val waiting = approvalTrace.single {
                 it.kind == ExecutionTraceKind.WAITING_FOR_APPROVAL && !it.actionId.isNullOrBlank()
@@ -277,8 +292,9 @@ class AgentLoopVerticalIntegrationTest {
 
         assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
         assertEquals(0, connector.executeCalls)
-        assertTrue(orchestrator.requests[1].conversationHistory.any {
-            it.kind == "tool_result" && it.content.contains("permission_denied")
+        val toolResults = orchestrator.requests[1].conversationHistory.filter { it.kind == "tool_result" }
+        assertTrue("Expected permission_denied, got: ${toolResults.map { it.content }}", toolResults.any {
+            it.content.contains("permission_denied")
         })
     }
 

@@ -3587,11 +3587,12 @@ private fun AttachmentChip(
     onRemove: () -> Unit,
     onPreview: () -> Unit,
 ) {
-    val accent = CosmicAccent
+    // Attachment cards are neutral document/media surfaces; the accent color is
+    // reserved for actions and must not make every file look like a primary CTA.
     val context = LocalContext.current
     val isImageAttachment = attachment.contentType == AttachmentPolicy.ContentType.IMAGE
-    val chipWidth = if (isImageAttachment) 112.dp else 88.dp
-    val chipHeight = if (isImageAttachment) 112.dp else 88.dp
+    val chipWidth = if (isImageAttachment) 132.dp else 112.dp
+    val chipHeight = if (isImageAttachment) 112.dp else 96.dp
     val typeLabel = when (attachment.contentType) {
         AttachmentPolicy.ContentType.IMAGE -> stringResource(R.string.attachment_type_image)
         AttachmentPolicy.ContentType.VIDEO -> stringResource(R.string.attachment_type_video)
@@ -3633,19 +3634,19 @@ private fun AttachmentChip(
     Box(
         modifier = Modifier
             .size(width = chipWidth, height = chipHeight)
-            .shadow(3.dp, AIRIShapes.md, ambientColor = accent.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.24f))
+            .shadow(2.dp, AIRIShapes.md, ambientColor = Color.Black.copy(alpha = 0.14f), spotColor = Color.Black.copy(alpha = 0.20f))
             .clip(AIRIShapes.md)
-            .background(AiriTheme.surfaceVariant.copy(alpha = 0.96f))
-            .border(1.dp, accent.copy(alpha = 0.30f), AIRIShapes.md)
+            .background(AiriTheme.surfaceVariant.copy(alpha = 0.98f))
+            .border(1.dp, AiriTheme.outline.copy(alpha = 0.65f), AIRIShapes.md)
             .clickable(onClick = onPreview)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(if (isImageAttachment) 76.dp else 54.dp)
-                .padding(horizontal = 8.dp, vertical = 7.dp)
+                .height(if (isImageAttachment) 82.dp else 68.dp)
+                .padding(horizontal = 6.dp, vertical = 6.dp)
                 .clip(AIRIShapes.sm)
-                .background(accent.copy(alpha = 0.12f)),
+                .background(AiriTheme.surface.copy(alpha = 0.72f)),
             contentAlignment = Alignment.Center
         ) {
             val fallback = when (attachment.contentType) {
@@ -3655,60 +3656,60 @@ private fun AttachmentChip(
                 AttachmentPolicy.ContentType.DOCUMENT -> Icons.Outlined.Article
                 AttachmentPolicy.ContentType.FILE -> Icons.Default.AttachFile
             }
-            Icon(fallback, contentDescription = typeLabel, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+            Icon(fallback, contentDescription = typeLabel, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(30.dp))
             val thumbModel: Any? = attachment.uri ?: attachment.bitmap
             if (attachment.isVisualImage && thumbModel != null) {
                 AsyncImage(
                     model = ImageRequest.Builder(context).data(thumbModel).crossfade(true).build(),
-                    contentDescription = attachment.safeDisplayName,
+                    contentDescription = typeLabel,
                     modifier = Modifier.matchParentSize(),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    // Show the complete image; cropping was the main reason the
+                    // previous card looked like a broken/partial attachment.
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
                 )
             }
             if (attachment.contentType == AttachmentPolicy.ContentType.VIDEO) {
-                Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.workspace_preview), tint = Color.White, modifier = Modifier.size(24.dp))
+                Surface(
+                    shape = CircleShape,
+                    color = AiriTheme.onSurface.copy(alpha = 0.78f),
+                    modifier = Modifier.size(34.dp),
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.workspace_preview), tint = AiriTheme.surface, modifier = Modifier.padding(7.dp))
+                }
             }
         }
-        Text(
-            attachment.safeDisplayName,
-            color = AiriTheme.onSurface,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, end = 8.dp, bottom = 7.dp)
-        )
         Surface(
-            shape = RoundedCornerShape(7.dp),
-            color = CosmicAccent.copy(alpha = 0.92f),
-            contentColor = Color.White,
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.38f)),
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 6.dp)
+            shape = AIRIShapes.sm,
+            color = AiriTheme.surface.copy(alpha = 0.96f),
+            contentColor = AiriTheme.onSurfaceVariant,
+            border = BorderStroke(1.dp, AiriTheme.outline.copy(alpha = 0.70f)),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 5.dp)
         ) {
             Text(
                 badgeLabel,
-                fontSize = 8.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.35.sp,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.25.sp,
                 maxLines = 1,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
             )
         }
-        IconButton(
-            onClick = onRemove,
-            enabled = isRemovalEnabled,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(6.dp)
-                .size(26.dp)
-                .background(AiriTheme.surface.copy(alpha = 0.92f), CircleShape),
-        ) {
-            Icon(
-                Icons.Default.Close,
-                contentDescription = stringResource(R.string.remove),
-                tint = AiriTheme.onBackground.copy(if (isRemovalEnabled) 0.7f else 0.3f),
-                modifier = Modifier.size(14.dp),
-            )
+        if (isRemovalEnabled) {
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(6.dp)
+                    .size(26.dp)
+                    .background(AiriTheme.surface.copy(alpha = 0.92f), CircleShape),
+            ) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = stringResource(R.string.remove),
+                    tint = AiriTheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
         }
     }
 }

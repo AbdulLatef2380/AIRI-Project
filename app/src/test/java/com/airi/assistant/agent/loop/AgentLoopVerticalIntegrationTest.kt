@@ -295,9 +295,10 @@ class AgentLoopVerticalIntegrationTest {
 
         assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
         assertEquals(0, connector.executeCalls)
-        assertTrue(orchestrator.requests[1].conversationHistory.all {
-            it.kind != "tool_result" || it.content.contains("Sandbox is required")
-        })
+        val toolResults = orchestrator.requests[1].conversationHistory.filter { it.kind == "tool_result" }
+        assertEquals(2, toolResults.size)
+        assertTrue(toolResults.all { it.content.startsWith("Error [") })
+        assertTrue(toolResults.any { it.content.contains("Sandbox is required") })
     }
 
     @Test

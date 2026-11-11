@@ -49,23 +49,31 @@ data class CodingRepairReport(
                 append("final_step=").append(step.stepId)
                     .append(" tool=").append(step.toolId)
                     .append(" status=").append(step.status)
-                if (step.evidence.isNotBlank()) append(" evidence=").append(step.evidence.take(500))
+                if (step.evidence.isNotBlank()) append(" evidence=").append(redact(step.evidence.take(500)))
                 append('\n')
             }
             attempts.forEach { attempt ->
                 append("attempt=").append(attempt.attempt)
                     .append(" task=").append(attempt.taskId)
                 attempt.failedStepId?.let { append(" failed_step=").append(it) }
-                attempt.failureReason?.let { append(" failure=").append(it.take(300)) }
+                attempt.failureReason?.let { append(" failure=").append(redact(it.take(300))) }
                 if (attempt.diffEvidence.isNotBlank()) {
-                    append(" diff=").append(attempt.diffEvidence.take(1_000))
+                    append(" diff=").append(redact(attempt.diffEvidence.take(1_000)))
                 }
                 if (attempt.verificationEvidence.isNotBlank()) {
-                    append(" verification=").append(attempt.verificationEvidence.take(1_000))
+                    append(" verification=").append(redact(attempt.verificationEvidence.take(1_000)))
                 }
                 append('\n')
             }
         }.take(maxChars)
+    }
+
+    private fun redact(value: String): String = SENSITIVE_VALUE.replace(value, "$1=[REDACTED]")
+
+    private companion object {
+        val SENSITIVE_VALUE = Regex(
+            "(?i)(api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret|authorization)\\s*[:=]\\s*[^\\s,;]+",
+        )
     }
 }
 
@@ -149,15 +157,10 @@ class CodingRepairLoop(
             if (runIndex >= maxAttempts) {
                 return CodingRepairReport(
                     status = CodingRepairStatus.EXHAUSTED,
-                    attempts = attempts + CodingRepairAttempt(
-                        attempt = runIndex,
-                        taskId = currentTask.taskId,
-                        failedStepId = failed?.stepId,
-                        failureReason = failureReason,
-                        repairTaskId = null,
-                        diffEvidence = "",
-                        verificationEvidence = verification,
-                    ),
+                    // The bounded terminal verification run is already represented by
+                    // the repair attempt that led to it; do not append bookkeeping past
+                    // the configured repair limit.
+                    attempts = attempts.toList(),
                     finalTaskId = currentTask.taskId,
                     finalExecution = execution,
                     terminalReason = "max_repair_attempts_reached",

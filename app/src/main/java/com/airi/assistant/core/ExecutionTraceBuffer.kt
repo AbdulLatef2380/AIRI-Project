@@ -107,7 +107,9 @@ class ExecutionTraceBuffer(
     fun snapshot(): List<ExecutionTraceEvent> = entries.toList()
 
     companion object {
-        const val DEFAULT_MAX_ENTRIES = 150
+        // Keep enough room for a 100-tool run (started + completed plus lifecycle
+        // evidence) while retaining a strict bounded buffer.
+        const val DEFAULT_MAX_ENTRIES = 256
         const val MAX_SUMMARY_CHARS = 240
         const val MAX_DETAIL_CHARS = 800
         const val MAX_ID_CHARS = 160

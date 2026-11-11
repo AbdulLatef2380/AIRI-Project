@@ -1,6 +1,5 @@
 package com.airi.assistant.agent.execution.command
 
-import android.util.Log
 import com.airi.core.planning.PlanStep
 import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgentContext
@@ -12,10 +11,8 @@ import com.airi.assistant.execution.prefs.ExecModePreferences
 
 object CommandRouter {
 
-    private const val TAG = "CommandRouter"
 
     suspend fun execute(step: PlanStep, traceContext: SubAgentContext? = null): CommandResult {
-        Log.d(TAG, "Executing step: ${step.id} (${step::class.simpleName})")
 
         return when (step) {
             is PlanStep.OpenApp -> {
@@ -96,7 +93,6 @@ object CommandRouter {
     // ─────────────────────────────────────────────────────────────────────────
 
     private suspend fun executeCustom(step: PlanStep.Custom, traceContext: SubAgentContext?): CommandResult {
-        Log.i(TAG, "Custom action dispatch: '${step.action}' params=${step.parameters}")
         val actionLower = step.action.lowercase().trim()
 
         // ── Tier 1: accessibility alias mapping ────────────────────────────────
@@ -167,7 +163,6 @@ object CommandRouter {
             else -> null
         }
         if (aliasResult != null) {
-            Log.i(TAG, "Custom:tier1 alias='${step.action}' success=${aliasResult.success}")
             return aliasResult
         }
 
@@ -197,7 +192,6 @@ object CommandRouter {
         )
         val agent = SubAgentRegistry.route(routingInput, minimalContext)
         if (agent != null) {
-            Log.i(TAG, "Custom:tier2 routing='${step.action}' → agent=${agent.capability.agentId}")
             var resultText = ""
             var failed     = false
             var failReason = ""
@@ -225,7 +219,6 @@ object CommandRouter {
                     traceAdapter.cancelled()
                     throw e
                 }
-                Log.e(TAG, "Custom:tier2 agent threw: ${e.message}")
                 failed = true; failReason = e.message ?: "agent exception"
             }
             if (!terminalObserved && !failed) {
@@ -244,7 +237,6 @@ object CommandRouter {
         // (critical steps) or continue (non-critical steps) based on this signal.
         // Returning success here was masking real routing failures and making the
         // execution log misleading — a step that does nothing should not report success.
-        Log.w(TAG, "Custom:tier3 UNKNOWN_ACTION='${step.action}' params=${step.parameters.keys} — no alias, no agent match")
         return CommandResult(false, "UNKNOWN_ACTION:${step.action}")
     }
 

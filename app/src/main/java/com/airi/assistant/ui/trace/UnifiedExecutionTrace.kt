@@ -189,7 +189,11 @@ internal object UnifiedExecutionTraceProjector {
             }
             .sortedWith(compareBy<ProjectionCandidate> { it.event.timestampMs }.thenBy { it.event.sequence })
             .forEach { candidate ->
-                val duplicate = candidate.dedupeKey != null && candidate.dedupeKey in structuredKeys
+                // A canonical action identity always updates its existing row, even
+                // when a compatibility adapter selected a phase-specific key.
+                val duplicate = (candidate.event.actionId != null &&
+                    candidate.event.actionId in canonicalActionIds) ||
+                    (candidate.dedupeKey != null && candidate.dedupeKey in structuredKeys)
                 if (!duplicate) {
                     projected += candidate.event
                     candidate.dedupeKey?.let(structuredKeys::add)
@@ -218,7 +222,9 @@ internal object UnifiedExecutionTraceProjector {
             )
         }.sortedBy { groupOrder(it.category) }
         val stateEvents = events.filterNot { it.orphaned }
-        val summary = summarize(stateEvents)
+        // Orphaned events remain useful diagnostics and still count in the summary;
+        // they only cannot admit an execution or become task-tree state.
+        val summary = summarize(events)
         val fullTaskTree = buildTaskTree(stateEvents)
         val taskTreeNodeCount = fullTaskTree.sumOf { treeNodeCount(it) }
         val taskTree = limitTree(fullTaskTree, MAX_TREE_NODES)

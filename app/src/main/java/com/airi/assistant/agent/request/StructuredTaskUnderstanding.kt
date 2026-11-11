@@ -45,10 +45,14 @@ data class StructuredTaskUnderstanding(
             "review", "analyze", "analyse", "debug", "find bugs", "errors", "explain this code",
             "راجع الكود", "حلل الكود", "حلل هذا الكود", "اكتشف الاخطاء", "اكتشف الأخطاء",
             "صحح الكود", "افحص الكود", "اشرح هذا الكود",
+            "ابحث عن أخطاء", "ابحث عن اخطاء", "أخطاء في هذا البرنامج", "اخطاء في هذا البرنامج",
         )
         private val guiTerms = listOf("gui", "graphical", "واجهة رسومية", "واجهة", "tkinter", "kivy")
         private val calculatorTerms = listOf("calculator", "حاسبة", "اله حاسبة", "آلة حاسبة", "arithmetic", "العمليات الحسابية")
-        private val fileNameRegex = Regex("(?:file|ملف)\\s+([A-Za-z0-9_.-]+\\.[A-Za-z0-9]+)", RegexOption.IGNORE_CASE)
+        private val fileNameRegex = Regex(
+            "(?:file|ملف|في|into|to)\\s+([A-Za-z0-9_.-]+\\.[A-Za-z0-9]+)|\\b([A-Za-z0-9_-]+\\.(?:py|kt|java|js|ts|html|css|json|txt))\\b",
+            RegexOption.IGNORE_CASE,
+        )
 
         fun understand(input: String): StructuredTaskUnderstanding {
             val text = CapabilityIntentDetector.normalize(input)
@@ -69,7 +73,11 @@ data class StructuredTaskUnderstanding(
             }
             if (calculatorTerms.any { text.contains(CapabilityIntentDetector.normalize(it)) }) entities["application_type"] = "Calculator"
             if (guiTerms.any { text.contains(CapabilityIntentDetector.normalize(it)) }) entities["interface"] = "GUI"
-            fileNameRegex.find(text)?.groupValues?.getOrNull(1)?.let { entities["file_name"] = it }
+            fileNameRegex.find(text)?.let { match ->
+                (match.groupValues.getOrNull(1)?.takeIf(String::isNotBlank)
+                    ?: match.groupValues.getOrNull(2)?.takeIf(String::isNotBlank))
+                    ?.let { entities["file_name"] = it }
+            }
 
             val capabilities = linkedSetOf<CapabilityIntentDetector.Capability>().apply {
                 addAll(runtime.capabilities)

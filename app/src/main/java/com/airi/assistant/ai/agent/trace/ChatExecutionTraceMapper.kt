@@ -66,7 +66,14 @@ object ChatExecutionTraceMapper {
                 stepIndex = previous.stepIndex,
                 lifecycleKinds = (previous.lifecycleKinds + step.lifecycleKinds).distinct(),
                 inputParams = if (step.inputParams.isNotEmpty()) step.inputParams else previous.inputParams,
-                outputSummary = step.outputSummary.ifBlank { previous.outputSummary },
+                // Terminal lifecycle events normally carry only a generic summary. Preserve
+                // bounded TOOL_OUTPUT evidence already observed for this action.
+                outputSummary = when {
+                    step.lifecycleKinds.any { it == ExecutionTraceKind.TOOL_OUTPUT } -> step.outputSummary
+                    previous.lifecycleKinds.any { it == ExecutionTraceKind.TOOL_OUTPUT } -> previous.outputSummary
+                    step.outputSummary.isNotBlank() -> step.outputSummary
+                    else -> previous.outputSummary
+                },
                 error = if (step.traceStatus == com.airi.assistant.core.ExecutionTraceStatus.COMPLETED) {
                     null
                 } else step.error ?: previous.error,
@@ -188,7 +195,6 @@ object ChatExecutionTraceMapper {
             ExecutionTraceKind.EXECUTION_STARTED,
             ExecutionTraceKind.PLAN_CREATED,
             ExecutionTraceKind.REASONING_NOTE,
-            ExecutionTraceKind.PLANNING,
             ExecutionTraceKind.STEP_STARTED,
             ExecutionTraceKind.STEP_COMPLETED,
             ExecutionTraceKind.COMPLETED -> AgentStepType.TASK_STEP to (event.status == com.airi.assistant.core.ExecutionTraceStatus.COMPLETED)

@@ -486,6 +486,9 @@ class UnifiedExecutionTraceProjectorTest {
             executionCompletedLabel = "Execution completed",
         )
 
+        assertTrue(result.events.all { it.orphaned })
+        assertFalse(result.admitted)
+        assertTrue(result.taskTree.isEmpty())
         assertEquals(1, result.summary.filesRead)
         assertEquals(1, result.summary.commandsExecuted)
         assertEquals(1, result.summary.searches)

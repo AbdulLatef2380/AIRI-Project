@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -124,9 +125,24 @@ class AgentRunScreensInstrumentedTest {
                 tag = language
                 dark = isDark
                 rule.waitForIdle()
-                onShot("run_${language}_${if (isDark) "dark" else "light"}", rule.onRoot().captureToImage().asAndroidBitmap())
+                onShot("run_${language}_${if (isDark) "dark" else "light"}", captureRootBitmap())
             }
         }
+    }
+
+    /** Compose's PixelCopy/window capture can transiently miss a frame on loaded emulators. */
+    private fun captureRootBitmap(): Bitmap {
+        var lastTimeout: ComposeTimeoutException? = null
+        repeat(3) { attempt ->
+            rule.waitForIdle()
+            try {
+                return rule.onRoot().captureToImage().asAndroidBitmap()
+            } catch (timeout: ComposeTimeoutException) {
+                lastTimeout = timeout
+                if (attempt < 2) Thread.sleep(250)
+            }
+        }
+        throw checkNotNull(lastTimeout)
     }
 
     private fun Bitmap.pixels(): IntArray = IntArray(width * height).also { getPixels(it, 0, width, 0, 0, width, height) }

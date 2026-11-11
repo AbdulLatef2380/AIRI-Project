@@ -79,7 +79,7 @@ class SandboxWorkspace(val goalId: String) {
         val normalised = normalisePath(path)
         synchronized(fileLock) { files[normalised] = content }
         log(ActionCategory.FILE_OP, actor, "write", mapOf("path" to normalised, "bytes" to content.length.toString()), "ok")
-        Log.d(TAG, "WORKSPACE_WRITE goal=$goalId path=$normalised bytes=${content.length}")
+        safeLog { Log.d(TAG, "WORKSPACE_WRITE goal=$goalId path=$normalised bytes=${content.length}") }
         return WorkspaceResult.Ok(content)
     }
 
@@ -172,7 +172,7 @@ class SandboxWorkspace(val goalId: String) {
             snapshots.addLast(snap)
         }
         log(ActionCategory.DECISION, "workspace", "snapshot", mapOf("snapId" to snap.id), "created")
-        Log.i(TAG, "AIRI WORKSPACE_SNAPSHOT goal=$goalId snapId=${snap.id} files=${snap.files.size}")
+        safeLog { Log.i(TAG, "AIRI WORKSPACE_SNAPSHOT goal=$goalId snapId=${snap.id} files=${snap.files.size}") }
         return snap
     }
 
@@ -196,7 +196,7 @@ class SandboxWorkspace(val goalId: String) {
         }
 
         log(ActionCategory.DECISION, "workspace", "rollback", mapOf("snapId" to snap.id), "restored")
-        Log.w(TAG, "AIRI WORKSPACE_ROLLBACK goal=$goalId snapId=${snap.id} files=${snap.files.size}")
+        safeLog { Log.w(TAG, "AIRI WORKSPACE_ROLLBACK goal=$goalId snapId=${snap.id} files=${snap.files.size}") }
         return true
     }
 
@@ -221,6 +221,11 @@ class SandboxWorkspace(val goalId: String) {
 
     private fun normalisePath(path: String): String =
         "/" + path.trimStart('/').replace("\\", "/")
+
+    /** Diagnostics must never prevent sandbox operations in JVM or host environments. */
+    private inline fun safeLog(write: () -> Int) {
+        runCatching(write)
+    }
 }
 
 data class WorkspaceSummary(

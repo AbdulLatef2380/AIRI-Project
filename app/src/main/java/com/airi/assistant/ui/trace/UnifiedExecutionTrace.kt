@@ -104,6 +104,12 @@ data class UnifiedExecutionTraceProjection(
  */
 internal object UnifiedExecutionTraceProjector {
     private const val MAX_TREE_NODES = 256
+    private val SUMMARY_EVIDENCE_CATEGORIES = setOf(
+        UnifiedTraceCategory.FILE,
+        UnifiedTraceCategory.COMMAND,
+        UnifiedTraceCategory.SEARCH,
+        UnifiedTraceCategory.MEMORY,
+    )
     private val FILE_EDIT_MARKERS = setOf(
         "file_created", "file_updated", "file_edited", "file_written",
         "create file", "edit file", "write file",
@@ -222,10 +228,15 @@ internal object UnifiedExecutionTraceProjector {
             )
         }.sortedBy { groupOrder(it.category) }
         val stateEvents = events.filterNot { it.orphaned }
-        // Compatibility activity remains useful evidence in the visible summary.
-        // It must not admit an execution or enter the canonical task tree unless
-        // it is linked to structured state; those decisions use stateEvents below.
-        val summary = summarize(events)
+        // A categorized file/command/search/memory activity is useful evidence
+        // for operational counters even when an older producer did not attach
+        // canonical trace identity. Generic orphan tool/model/task events are
+        // diagnostic-only and cannot inflate execution counters. Admission and
+        // the canonical tree always use stateEvents, never compatibility events.
+        val summaryEvidence = events.filterNot { event ->
+            event.orphaned && event.category !in SUMMARY_EVIDENCE_CATEGORIES
+        }
+        val summary = summarize(summaryEvidence)
         val fullTaskTree = buildTaskTree(stateEvents)
         val taskTreeNodeCount = fullTaskTree.sumOf { treeNodeCount(it) }
         val taskTree = limitTree(fullTaskTree, MAX_TREE_NODES)

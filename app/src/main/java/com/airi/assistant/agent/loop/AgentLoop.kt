@@ -785,8 +785,15 @@ the tool returns an actual error.
                                     )
                                 else -> {
                                     runtimeTrace?.dispatched(executionId, sessionId, request.toolName, "parallel_read_batch")
-                                    if (agentSandbox != null) {
-                                        agentSandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
+                                    val sandbox = agentSandbox
+                                    if (sandbox == null) {
+                                        ToolDispatcher.ToolResult.Error(
+                                            "Sandbox is required before parallel tool execution",
+                                            code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
+                                            provenance = com.airi.assistant.agent.loop.tool.ToolProvenance.SYSTEM,
+                                        )
+                                    } else {
+                                        sandbox.execute(agentId = SANDBOX_AGENT_ID) { ctx ->
                                             ctx.guardTool(request.toolName)
                                             dispatcher.execute(
                                                 request.toolName,
@@ -799,17 +806,6 @@ the tool returns an actual error.
                                                 messageId = messageId,
                                             )
                                         }
-                                    } else {
-                                        dispatcher.execute(
-                                            request.toolName,
-                                            validation.arguments?.canonical ?: request.arguments,
-                                            appContext,
-                                            executionId,
-                                            actionId = actionId,
-                                            traceId = traceId,
-                                            sessionId = sessionId,
-                                            messageId = messageId,
-                                        )
                                     }
                                 }
                             }

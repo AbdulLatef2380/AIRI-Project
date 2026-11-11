@@ -37,6 +37,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.UUID
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airi.assistant.R
 import com.airi.assistant.core.ServiceLocator
@@ -106,7 +107,15 @@ fun TerminalScreen(onBack: () -> Unit) {
     fun submitCommand() {
         val cmd = input.trim()
         if (cmd.isNotBlank()) {
-            scope.launch { runtime.execute(cmd) }
+            val executionId = "terminal-ui-${UUID.randomUUID().toString().take(8)}"
+            scope.launch {
+                runtime.execute(
+                    rawCommand = cmd,
+                    agentId = "terminal-ui",
+                    executionId = executionId,
+                    actionId = "terminal-command",
+                )
+            }
             historyIndex = -1
         }
         input = ""

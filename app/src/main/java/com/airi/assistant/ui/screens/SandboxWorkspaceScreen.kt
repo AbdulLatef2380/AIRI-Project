@@ -27,8 +27,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airi.assistant.R
 import com.airi.assistant.agent.sandbox.SandboxLogEntry
 import com.airi.assistant.agent.sandbox.SandboxSession
+import com.airi.assistant.core.ExecutionTraceGateway
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.security.CommandRedactor
+import com.airi.assistant.ui.activity.ActivityCategory
+import com.airi.assistant.ui.activity.ActivitySeverity
 import com.airi.assistant.ui.theme.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -249,9 +252,6 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                                     execJob?.cancel()
                                     execJob     = null
                                     isExecuting = false
-                                    session?.appendLog(
-                                        SandboxLogEntry(level = "WARN", message = "⊘ Cancelled by user")
-                                    )
                                     scope.launch { snackbar.showSnackbar(context.getString(R.string.sandbox_cancel_confirm)) }
                                 },
                                 shape = AIRIShapes.xs,
@@ -283,6 +283,15 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                                         val target = session ?: return@clickable
                                         commandInput = ""
                                         isExecuting  = true
+                                        val executionId = "sandbox-ui-${UUID.randomUUID().toString().take(8)}"
+                                        val actionId = "sandbox-command"
+                                        ExecutionTraceGateway.emitExecution(
+                                            executionId = executionId,
+                                            actionId = actionId,
+                                            phase = "started",
+                                            message = "Sandbox command started",
+                                            category = ActivityCategory.SANDBOX,
+                                        )
                                         execJob = scope.launch {
                                             try {
                                                 val result = executionGateway.execute(target, cmd, agentId = "sandbox-ui")
@@ -292,6 +301,27 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                                                     is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Completed -> "Completed: ${result.result}"
                                                 }
                                                 target.appendLog(SandboxLogEntry(message = CommandRedactor.redact(message)))
+                                                val success = result is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Completed &&
+                                                    result.result is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.Success
+                                                ExecutionTraceGateway.emitExecution(
+                                                    executionId = executionId,
+                                                    actionId = actionId,
+                                                    phase = if (success) "completed" else "failed",
+                                                    message = if (success) "Sandbox command completed" else "Sandbox command failed",
+                                                    category = ActivityCategory.SANDBOX,
+                                                    severity = if (success) ActivitySeverity.INFO else ActivitySeverity.ERROR,
+                                                )
+                                            } catch (_: kotlinx.coroutines.CancellationException) {
+                                                target.appendLog(SandboxLogEntry(level = "WARN", message = "Cancelled by user"))
+                                                ExecutionTraceGateway.emitExecution(
+                                                    executionId = executionId,
+                                                    actionId = actionId,
+                                                    phase = "cancelled",
+                                                    message = "Sandbox command cancelled",
+                                                    category = ActivityCategory.SANDBOX,
+                                                    severity = ActivitySeverity.WARN,
+                                                )
+                                                throw kotlinx.coroutines.CancellationException("Sandbox command cancelled")
                                             } finally {
                                                 isExecuting = false
                                                 execJob     = null

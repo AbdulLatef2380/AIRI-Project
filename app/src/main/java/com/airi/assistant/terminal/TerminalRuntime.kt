@@ -74,6 +74,7 @@ class TerminalRuntime(
     private val _isRunning = MutableStateFlow(false)
     val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
     @Volatile private var activeExecutionJob: Job? = null
+    @Volatile private var shutdownRequested = false
     private val commandInFlight = AtomicBoolean(false)
 
     private val scrollback = LinkedList<TerminalLine>()
@@ -133,6 +134,10 @@ class TerminalRuntime(
     ) {
         val command = rawCommand.trim()
         if (command.isBlank()) return
+        if (shutdownRequested) {
+            appendLine(TerminalLine(text = "Terminal runtime is shut down", isError = true))
+            return
+        }
         if (!commandInFlight.compareAndSet(false, true)) {
             appendLine(TerminalLine(text = "Permission denied: another terminal command is already running", isError = true))
             return
@@ -187,6 +192,14 @@ class TerminalRuntime(
 
         if (sandboxSession == null) {
             appendLine(TerminalLine(text = "Error: No sandbox session available", isError = true))
+            ExecutionTraceGateway.emitExecution(
+                executionId = executionId,
+                actionId = actionId ?: "terminal:${safeCommand.hashCode()}",
+                phase = "failed",
+                message = "Terminal failed: no sandbox session available",
+                category = ActivityCategory.SANDBOX,
+                severity = com.airi.assistant.ui.activity.ActivitySeverity.ERROR,
+            )
             _isRunning.value = false
             if (activeExecutionJob === executionJob) activeExecutionJob = null
             commandInFlight.set(false)
@@ -222,17 +235,50 @@ class TerminalRuntime(
                 is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.SecurityViolation -> {
                     appendLine(TerminalLine(text = "Security violation: ${result.reason}", isError = true))
                 }
+                }
             }
-            }
+            val terminalSucceeded = gatewayResult is TerminalExecutionGateway.Result.Completed &&
+                gatewayResult.result is com.airi.assistant.agent.sandbox.SandboxExecutor.ExecutionResult.Success
+            ExecutionTraceGateway.emitExecution(
+                executionId = executionId,
+                actionId = actionId ?: "terminal:${safeCommand.hashCode()}",
+                phase = if (terminalSucceeded) "completed" else "failed",
+                message = if (terminalSucceeded) "Terminal completed" else "Terminal failed",
+                category = ActivityCategory.SANDBOX,
+                severity = if (terminalSucceeded) {
+                    com.airi.assistant.ui.activity.ActivitySeverity.INFO
+                } else {
+                    com.airi.assistant.ui.activity.ActivitySeverity.ERROR
+                },
+            )
         } catch (_: CancellationException) {
             appendLine(TerminalLine(text = "Command cancelled", isError = true))
+            ExecutionTraceGateway.emitExecution(
+                executionId = executionId,
+                actionId = actionId ?: "terminal:${safeCommand.hashCode()}",
+                phase = "cancelled",
+                message = "Terminal command cancelled",
+                category = ActivityCategory.SANDBOX,
+                severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
+            )
             throw CancellationException("Terminal command cancelled")
         } catch (e: Exception) {
             appendLine(TerminalLine(text = "Error: ${e.message}", isError = true))
+            ExecutionTraceGateway.emitExecution(
+                executionId = executionId,
+                actionId = actionId ?: "terminal:${safeCommand.hashCode()}",
+                phase = "failed",
+                message = "Terminal failed",
+                category = ActivityCategory.SANDBOX,
+                severity = com.airi.assistant.ui.activity.ActivitySeverity.ERROR,
+            )
         } finally {
             if (activeExecutionJob === executionJob) activeExecutionJob = null
             _isRunning.value = false
             commandInFlight.set(false)
+            if (shutdownRequested) {
+                sandboxSessionId?.let(executionGateway::closeSession)
+            }
         }
     }
 
@@ -245,6 +291,7 @@ class TerminalRuntime(
 
     /** Releases the runtime-owned job and sandbox session when its UI/service owner dies. */
     fun shutdown() {
+        shutdownRequested = true
         activeExecutionJob?.cancel(CancellationException("Terminal runtime shut down"))
         activeExecutionJob = null
         activeSession?.let { executionGateway.closeSession(it.sandboxId) }

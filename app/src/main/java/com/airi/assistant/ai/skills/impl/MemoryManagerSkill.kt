@@ -82,6 +82,9 @@ class MemoryManagerSkill(private val context: Context) : AiriSkill {
                     ?: params["input"] as? String
                     ?: return SkillResult(false, "", "No content provided to save.", skillId)
                 try {
+                    if (skillCtx.sessionId.isBlank()) {
+                        return SkillResult(false, "", "A session is required for memory storage.", skillId)
+                    }
                     if (!manager.canStoreImportantMemory(content)) {
                         return SkillResult(
                             success = false,
@@ -94,7 +97,7 @@ class MemoryManagerSkill(private val context: Context) : AiriSkill {
                         role = "user",
                         content = content,
                         explicitlyRequested = true,
-                        sessionId = skillCtx.sessionId.ifBlank { "default" }
+                        sessionId = skillCtx.sessionId
                     )
                     SkillResult(
                         success     = true,
@@ -114,10 +117,12 @@ class MemoryManagerSkill(private val context: Context) : AiriSkill {
                 }
                 try {
                     val sessionId = skillCtx.sessionId
-                    val results = if (manager.isSemanticMemoryReady() && sessionId.isNotEmpty()) {
+                    val results = if (sessionId.isBlank()) {
+                        emptyList()
+                    } else if (manager.isSemanticMemoryReady()) {
                         manager.semanticSearch(sessionId, query, limit).map { it.message }
                     } else {
-                        manager.getRecentMessages(limit)
+                        manager.getRecentMessages(sessionId, limit.coerceIn(1, 200))
                     }
 
                     if (results.isEmpty()) {

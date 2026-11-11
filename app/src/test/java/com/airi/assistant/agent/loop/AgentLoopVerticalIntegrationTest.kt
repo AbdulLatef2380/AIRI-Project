@@ -275,6 +275,32 @@ class AgentLoopVerticalIntegrationTest {
     }
 
     @Test
+    fun parallelToolCallsFailClosedWhenSandboxIsMissing() = runBlocking {
+        val connector = RecordingConnector()
+        val fixture = fixture(connector)
+        val orchestrator = ScriptedOrchestrator(
+            "{\"tool_calls\":[" +
+                "{\"id\":\"first\",\"name\":\"connector_vertical_read\",\"args\":{}} ," +
+                "{\"id\":\"second\",\"name\":\"connector_vertical_read\",\"args\":{}}]}",
+            "The parallel request was blocked safely.",
+        )
+
+        val result = fixture.loop(orchestrator, sandbox = null).run(
+            input = "Read the source twice",
+            systemPrompt = "You are AIRI.",
+            tools = listOf(fixture.readSchema),
+            requestedExecutionId = "execution-parallel-no-sandbox",
+            onToken = {},
+        )
+
+        assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
+        assertEquals(0, connector.executeCalls)
+        assertTrue(orchestrator.requests[1].conversationHistory.all {
+            it.kind != "tool_result" || it.content.contains("Sandbox is required")
+        })
+    }
+
+    @Test
     fun unauthenticatedConnectorIsRejectedBeforeProviderInvocation() = runBlocking {
         val connector = RecordingConnector()
         val fixture = fixture(connector, granted = false)
@@ -336,6 +362,7 @@ class AgentLoopVerticalIntegrationTest {
         fun loop(
             orchestrator: AgentOrchestrator,
             runtimeTrace: UniversalRuntimeTraceRecorder? = null,
+            sandbox: AgentSandbox? = this.sandbox,
         ) = AgentLoop(
             orchestrator = orchestrator,
             dispatcher = dispatcher,

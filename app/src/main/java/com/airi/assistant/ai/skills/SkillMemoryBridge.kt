@@ -41,12 +41,12 @@ class SkillMemoryBridge(
      * Retrieve the most recent [limit] messages from the active session.
      */
     suspend fun getRecentMessages(limit: Int = 10): List<ChatMessage> {
-        if (!access.canRead) {
+        if (!access.canRead || sessionId.isBlank()) {
             Log.w(TAG, "[$skillId] READ denied — access=$access")
             return emptyList()
         }
         return try {
-            manager.getRecentMessages(limit)
+            manager.getRecentMessages(sessionId, limit.coerceIn(1, 200))
         } catch (e: Exception) {
             Log.e(TAG, "[$skillId] getRecentMessages failed: ${e.message}")
             emptyList()
@@ -63,10 +63,12 @@ class SkillMemoryBridge(
             return emptyList()
         }
         return try {
-            if (manager.isSemanticMemoryReady() && sessionId.isNotEmpty()) {
+            if (sessionId.isBlank()) {
+                emptyList()
+            } else if (manager.isSemanticMemoryReady()) {
                 manager.semanticSearch(sessionId, query, k).map { it.message }
             } else {
-                manager.getRecentMessages(k)
+                manager.getRecentMessages(sessionId, k.coerceIn(1, 200))
             }
         } catch (e: Exception) {
             Log.e(TAG, "[$skillId] search failed: ${e.message}")
@@ -83,12 +85,17 @@ class SkillMemoryBridge(
      * @param content The text to persist.
      */
     fun record(role: String = "skill", content: String) {
-        if (!access.canWrite) {
+        if (!access.canWrite || sessionId.isBlank()) {
             Log.w(TAG, "[$skillId] WRITE denied — access=$access")
             return
         }
         try {
-            manager.recordImportantMemory(role, "[$skillId] $content")
+            manager.recordImportantMemory(
+                role = role,
+                content = "[$skillId] $content",
+                explicitlyRequested = true,
+                sessionId = sessionId,
+            )
         } catch (e: Exception) {
             Log.e(TAG, "[$skillId] record failed: ${e.message}")
         }
@@ -101,7 +108,7 @@ class SkillMemoryBridge(
         role:    String = "skill",
         content: String
     ) {
-        if (!access.canWrite) {
+        if (!access.canWrite || sessionId.isBlank()) {
             Log.w(TAG, "[$skillId] WRITE denied — access=$access")
             return
         }
@@ -151,7 +158,8 @@ class SkillMemoryBridge(
             return ""
         }
         return try {
-            val messages = manager.getRecentMessages(limit)
+            if (sessionId.isBlank()) return ""
+            val messages = manager.getRecentMessages(sessionId, limit.coerceIn(1, 200))
             if (messages.isEmpty()) return ""
             buildString {
                 append("[Memory export for session $sessionId — ${messages.size} entries]\n")
@@ -177,7 +185,7 @@ class SkillMemoryBridge(
             return -1
         }
         return try {
-            manager.getRecentMessages(Int.MAX_VALUE).size
+            if (sessionId.isBlank()) 0 else manager.getRecentMessages(sessionId, 200).size
         } catch (e: Exception) {
             Log.e(TAG, "[$skillId] getMemoryCount failed: ${e.message}")
             -1
@@ -200,9 +208,15 @@ class SkillMemoryBridge(
             Log.w(TAG, "[$skillId] TAGGED_WRITE denied — requires FULL_ACCESS, got $access")
             return
         }
+        if (sessionId.isBlank()) return
         try {
             val tagged = "[FACT:$factType][$skillId] $content"
-            manager.recordImportantMemory("skill", tagged)
+            manager.recordImportantMemory(
+                role = "skill",
+                content = tagged,
+                explicitlyRequested = true,
+                sessionId = sessionId,
+            )
         } catch (e: Exception) {
             Log.e(TAG, "[$skillId] recordTaggedFact failed: ${e.message}")
         }

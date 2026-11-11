@@ -48,19 +48,19 @@ class AgentLifecycleTrackerPanelTest {
     fun rendersSummaryAndAllProjectionGroups() {
         setPanel(isWorking = false)
 
-        composeRule.onNodeWithText("Read 1 files", substring = true).assertIsDisplayed()
-        composeRule.onNodeWithText("2 tasks", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText(localized(R.string.agent_trace_summary_files, 1), substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText(localized(R.string.agent_trace_summary_tasks, 2), substring = true).assertIsDisplayed()
         composeRule.onNodeWithTag("agent-trace-summary").performClick()
-        assertGroupVisible("Files · 1. Expand group", index = 0)
-        assertGroupVisible("Commands · 1. Expand group", index = 1)
-        assertGroupVisible("Tools · 1. Expand group", index = 2)
-        assertGroupVisible("Search · 1. Expand group", index = 3)
-        assertGroupVisible("Memory · 1. Expand group", index = 4)
+        assertGroupVisible(groupDescription(R.string.agent_trace_group_files, 1), index = 0)
+        assertGroupVisible(groupDescription(R.string.agent_trace_group_commands, 1), index = 1)
+        assertGroupVisible(groupDescription(R.string.agent_trace_group_tools, 1), index = 2)
+        assertGroupVisible(groupDescription(R.string.agent_trace_group_search, 1), index = 3)
+        assertGroupVisible(groupDescription(R.string.agent_trace_group_memory, 1), index = 4)
         // PLAN and TASK are distinct projector categories but share the Tasks
         // presentation title, so each has its own one-event header.
         composeRule.onNodeWithTag("agent-trace-list")
             .performScrollToIndex(5)
-        composeRule.onAllNodesWithContentDescription("Tasks · 1. Expand group")
+        composeRule.onAllNodesWithContentDescription(groupDescription(R.string.agent_trace_group_tasks, 1))
             .assertCountEquals(2)
     }
 
@@ -85,7 +85,7 @@ class AgentLifecycleTrackerPanelTest {
             }
         }
 
-        assertTrue(composeRule.onAllNodesWithContentDescription("Tasks · 1. Expand group").fetchSemanticsNodes().isEmpty())
+        assertTrue(composeRule.onAllNodesWithContentDescription(groupDescription(R.string.agent_trace_group_tasks, 1)).fetchSemanticsNodes().isEmpty())
         composeRule.onNodeWithTag("agent-trace-summary").performClick()
         composeRule.onNodeWithText("Read the inbox").assertIsDisplayed()
         composeRule.onNodeWithText("Tool action").assertIsDisplayed()
@@ -98,9 +98,9 @@ class AgentLifecycleTrackerPanelTest {
 
         assertTrue(composeRule.onAllNodesWithText("Read file").fetchSemanticsNodes().isEmpty())
         composeRule.onNodeWithTag("agent-trace-summary").performClick()
-        composeRule.onNodeWithContentDescription("Files · 1. Expand group").performClick()
+        composeRule.onNodeWithContentDescription(groupDescription(R.string.agent_trace_group_files, 1)).performClick()
         composeRule.onNodeWithText("Read file").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Files · 1. Collapse group").performClick()
+        composeRule.onNodeWithContentDescription(groupDescription(R.string.agent_trace_group_files, 1, expanded = true)).performClick()
         assertTrue(composeRule.onAllNodesWithText("Read file").fetchSemanticsNodes().isEmpty())
     }
 
@@ -117,7 +117,7 @@ class AgentLifecycleTrackerPanelTest {
         }
 
         composeRule.onNodeWithTag("agent-trace-summary").performClick()
-        composeRule.onNodeWithContentDescription("Tools · 1. Expand group").performClick()
+        composeRule.onNodeWithContentDescription(groupDescription(R.string.agent_trace_group_tools, 1)).performClick()
         composeRule.onNodeWithText("Tool action").assertIsDisplayed()
         composeRule.onNodeWithText("Technical name").assertIsDisplayed()
         composeRule.onNodeWithText("skill_github_repository_read", substring = false).assertIsDisplayed()
@@ -155,7 +155,7 @@ class AgentLifecycleTrackerPanelTest {
         }
 
         composeRule.onNodeWithTag("agent-trace-summary").performClick()
-        assertGroupVisible("Files · 1. Expand group", index = 0)
+        assertGroupVisible(groupDescription(R.string.agent_trace_group_files, 1), index = 0)
     }
 
     @Test
@@ -173,7 +173,7 @@ class AgentLifecycleTrackerPanelTest {
         }
 
         composeRule.onNodeWithTag("agent-trace-summary").performClick()
-        composeRule.onNodeWithContentDescription("Tools · 1. Expand group").performClick()
+        composeRule.onNodeWithContentDescription(groupDescription(R.string.agent_trace_group_tools, 1)).performClick()
         composeRule.onNodeWithTag("agent-trace-technical-token", useUnmergedTree = true).assertIsDisplayed()
         composeRule.onNodeWithText("skill_github_repository_read", substring = false).assertIsDisplayed()
     }
@@ -194,9 +194,9 @@ class AgentLifecycleTrackerPanelTest {
             }
         }
 
-        composeRule.onNodeWithText("Read 1 files", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText(localized(R.string.agent_trace_summary_files, 1), substring = true).assertIsDisplayed()
         composeRule.onNodeWithTag("agent-trace-summary").performClick()
-        assertGroupVisible("Files · 1. Expand group", index = 0)
+        assertGroupVisible(groupDescription(R.string.agent_trace_group_files, 1), index = 0)
     }
 
     @Test
@@ -214,16 +214,16 @@ class AgentLifecycleTrackerPanelTest {
             }
         }
 
-        composeRule.onNodeWithText("Read 1000 files").assertIsDisplayed()
+        composeRule.onNodeWithText(localized(R.string.agent_trace_summary_files, 1_000)).assertIsDisplayed()
         composeRule.onNodeWithTag("agent-trace-summary").performClick()
-        assertGroupVisible("Files · 1000. Expand group", index = 0)
-        assertGroupVisible("Commands · 1000. Expand group", index = 1)
-        assertGroupVisible("Tools · 1000. Expand group", index = 2)
-        assertGroupVisible("Search · 1000. Expand group", index = 3)
-        assertGroupVisible("Memory · 1000. Expand group", index = 4)
+        assertGroupVisible(groupDescription(R.string.agent_trace_group_files, 1_000), index = 0)
+        assertGroupVisible(groupDescription(R.string.agent_trace_group_commands, 1_000), index = 1)
+        assertGroupVisible(groupDescription(R.string.agent_trace_group_tools, 1_000), index = 2)
+        assertGroupVisible(groupDescription(R.string.agent_trace_group_search, 1_000), index = 3)
+        assertGroupVisible(groupDescription(R.string.agent_trace_group_memory, 1_000), index = 4)
 
-        composeRule.onNodeWithContentDescription("Files · 1000. Expand group").performClick()
-        composeRule.onNodeWithContentDescription("Files · 1000. Collapse group").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(groupDescription(R.string.agent_trace_group_files, 1_000)).performClick()
+        composeRule.onNodeWithContentDescription(groupDescription(R.string.agent_trace_group_files, 1_000, expanded = true)).assertIsDisplayed()
         composeRule.onNodeWithTag("agent-trace-list").performScrollToIndex(1_000)
         composeRule.onNodeWithText("FILE event 999").assertIsDisplayed()
     }
@@ -244,7 +244,7 @@ class AgentLifecycleTrackerPanelTest {
         }
 
         composeRule.onNodeWithTag("agent-trace-summary").performClick()
-        composeRule.onNodeWithContentDescription("Files · 1. Expand group").performClick()
+        composeRule.onNodeWithContentDescription(groupDescription(R.string.agent_trace_group_files, 1)).performClick()
         composeRule.onNodeWithText("Read file").assertIsDisplayed()
         composeRule.runOnIdle {
             val current = fixtureProjection()
@@ -269,7 +269,7 @@ class AgentLifecycleTrackerPanelTest {
                 ),
             )
         }
-        composeRule.onNodeWithContentDescription("Files · 2. Collapse group").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(groupDescription(R.string.agent_trace_group_files, 2, expanded = true)).assertIsDisplayed()
         composeRule.onNodeWithText("Read streamed file").assertIsDisplayed()
     }
 
@@ -451,6 +451,14 @@ class AgentLifecycleTrackerPanelTest {
         composeRule.onNodeWithTag("agent-trace-list")
             .performScrollToIndex(index)
         composeRule.onNodeWithContentDescription(description).assertIsDisplayed()
+    }
+
+    private fun localized(resId: Int, vararg args: Any): String =
+        InstrumentationRegistry.getInstrumentation().targetContext.getString(resId, *args)
+
+    private fun groupDescription(titleRes: Int, count: Int, expanded: Boolean = false): String {
+        val actionRes = if (expanded) R.string.agent_trace_collapse_group else R.string.agent_trace_expand_group
+        return localized(R.string.agent_trace_group_count, localized(titleRes), count) + ". " + localized(actionRes)
     }
 
     private fun assertStatusVisible(status: String) {

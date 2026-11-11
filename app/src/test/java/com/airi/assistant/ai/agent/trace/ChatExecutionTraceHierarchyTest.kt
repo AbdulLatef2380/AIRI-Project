@@ -15,10 +15,10 @@ class ChatExecutionTraceHierarchyTest {
             messageId = 1L,
             userInput = "run",
             events = listOf(
-                ExecutionTraceEvent("exec", 4, 104, ExecutionTraceKind.COMPLETED, "done"),
-                ExecutionTraceEvent("exec", 1, 101, ExecutionTraceKind.EXECUTION_STARTED, "started"),
-                ExecutionTraceEvent("exec", 2, 102, ExecutionTraceKind.TOOL_REQUESTED, "requested", actionId = "a"),
-                ExecutionTraceEvent("exec", 3, 103, ExecutionTraceKind.TOOL_OUTPUT, "output", actionId = "a"),
+                ExecutionTraceEvent("exec", 4, 104, ExecutionTraceKind.COMPLETED, summary = "done"),
+                ExecutionTraceEvent("exec", 1, 101, ExecutionTraceKind.EXECUTION_STARTED, summary = "started"),
+                ExecutionTraceEvent("exec", 2, 102, ExecutionTraceKind.TOOL_REQUESTED, summary = "requested", actionId = "a"),
+                ExecutionTraceEvent("exec", 3, 103, ExecutionTraceKind.TOOL_OUTPUT, summary = "output", actionId = "a"),
             ),
             answerText = "done",
         ))
@@ -40,10 +40,10 @@ class ChatExecutionTraceHierarchyTest {
             messageId = 1L,
             userInput = "run",
             events = listOf(
-                ExecutionTraceEvent("exec", 1, 101, ExecutionTraceKind.TOOL_STARTED, "parent", actionId = "parent"),
-                ExecutionTraceEvent("exec", 2, 102, ExecutionTraceKind.TOOL_STARTED, "child", actionId = "child", parentId = "parent"),
-                ExecutionTraceEvent("exec", 3, 103, ExecutionTraceKind.TOOL_STARTED, "orphan", actionId = "orphan", parentId = "missing"),
-                ExecutionTraceEvent("exec", 4, 104, ExecutionTraceKind.COMPLETED, "done"),
+                ExecutionTraceEvent("exec", 1, 101, ExecutionTraceKind.TOOL_STARTED, summary = "parent", actionId = "parent"),
+                ExecutionTraceEvent("exec", 2, 102, ExecutionTraceKind.TOOL_STARTED, summary = "child", actionId = "child", parentId = "parent"),
+                ExecutionTraceEvent("exec", 3, 103, ExecutionTraceKind.TOOL_STARTED, summary = "orphan", actionId = "orphan", parentId = "missing"),
+                ExecutionTraceEvent("exec", 4, 104, ExecutionTraceKind.COMPLETED, summary = "done"),
             ),
             answerText = "done",
         ))
@@ -63,8 +63,8 @@ class ChatExecutionTraceHierarchyTest {
             messageId = 1L,
             userInput = "run",
             events = listOf(
-                ExecutionTraceEvent("exec", 1, 101, ExecutionTraceKind.VERIFICATION_STARTED, "checking", actionId = "verify"),
-                ExecutionTraceEvent("exec", 2, 102, ExecutionTraceKind.COMPLETED, "done"),
+                ExecutionTraceEvent("exec", 1, 101, ExecutionTraceKind.VERIFICATION_STARTED, summary = "checking", actionId = "verify"),
+                ExecutionTraceEvent("exec", 2, 102, ExecutionTraceKind.COMPLETED, summary = "done"),
             ),
             answerText = "done",
         ))

@@ -29,7 +29,7 @@ class ExecutionTraceArchiveTest {
 
     @Test
     fun eventJson_keepsNullOptionalFieldsNull() {
-        val event = ExecutionTraceEvent("e", 1, 1L, ExecutionTraceKind.PLANNING, "plan")
+        val event = ExecutionTraceEvent("e", 1, 1L, ExecutionTraceKind.PLANNING, summary = "plan")
         assertEquals(event, ExecutionTraceArchive.eventFromJson(ExecutionTraceArchive.eventToJson(event)))
     }
 
@@ -73,7 +73,7 @@ class ExecutionTraceArchiveTest {
     fun corruptPrimary_recoversValidatedBackupWithoutPublishingPartialData() {
         val file = File.createTempFile("execution_trace_archive_backup", ".json").apply { deleteOnExit() }
         val backup = File(file.parentFile, file.name + ".bak").apply { deleteOnExit() }
-        val event = ExecutionTraceEvent("exec-backup", 1, 10L, ExecutionTraceKind.COMPLETED, "backup")
+        val event = ExecutionTraceEvent("exec-backup", 1, 10L, ExecutionTraceKind.COMPLETED, summary = "backup")
         backup.writeText("[{\"messageId\":7,\"events\":[${ExecutionTraceArchive.eventToJson(event)}] }]")
         file.writeText("[{\"messageId\":7")
 
@@ -87,8 +87,8 @@ class ExecutionTraceArchiveTest {
     fun validArchive_isPreferredOverStaleTemporaryFile() {
         val file = File.createTempFile("execution_trace_archive_temp", ".json").apply { deleteOnExit() }
         val temp = File(file.parentFile, file.name + ".tmp").apply { deleteOnExit() }
-        val primary = ExecutionTraceEvent("exec-primary", 1, 1L, ExecutionTraceKind.COMPLETED, "primary")
-        val stale = ExecutionTraceEvent("exec-stale", 1, 2L, ExecutionTraceKind.COMPLETED, "stale")
+        val primary = ExecutionTraceEvent("exec-primary", 1, 1L, ExecutionTraceKind.COMPLETED, summary = "primary")
+        val stale = ExecutionTraceEvent("exec-stale", 1, 2L, ExecutionTraceKind.COMPLETED, summary = "stale")
         file.writeText("[{\"messageId\":1,\"events\":[${ExecutionTraceArchive.eventToJson(primary)}]}]")
         temp.writeText("[{\"messageId\":2,\"events\":[${ExecutionTraceArchive.eventToJson(stale)}]}]")
 
@@ -100,9 +100,9 @@ class ExecutionTraceArchiveTest {
     @Test
     fun deleteMessageAndSession_removeOnlyOwnedTraces() {
         val file = File.createTempFile("execution_trace_archive_delete", ".json").apply { deleteOnExit() }
-        val first = ExecutionTraceEvent("exec-1", 1, 1L, ExecutionTraceKind.COMPLETED, "one", sessionId = "session-a")
-        val second = ExecutionTraceEvent("exec-2", 1, 2L, ExecutionTraceKind.COMPLETED, "two", sessionId = "session-b")
-        val third = ExecutionTraceEvent("exec-3", 1, 3L, ExecutionTraceKind.COMPLETED, "three", sessionId = "session-a")
+        val first = ExecutionTraceEvent("exec-1", 1, 1L, ExecutionTraceKind.COMPLETED, summary = "one", sessionId = "session-a")
+        val second = ExecutionTraceEvent("exec-2", 1, 2L, ExecutionTraceKind.COMPLETED, summary = "two", sessionId = "session-b")
+        val third = ExecutionTraceEvent("exec-3", 1, 3L, ExecutionTraceKind.COMPLETED, summary = "three", sessionId = "session-a")
 
         ExecutionTraceArchive.attach(file)
         ExecutionTraceArchive.put(1L, listOf(first))

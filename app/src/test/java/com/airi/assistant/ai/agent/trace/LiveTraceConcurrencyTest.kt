@@ -119,7 +119,7 @@ class LiveTraceConcurrencyTest {
             event("exec", 2, ExecutionTraceKind.TOOL_STARTED, actionId = "tool"),
             event("exec", 3, ExecutionTraceKind.TOOL_OUTPUT, actionId = "tool"),
             event("exec", 4, ExecutionTraceKind.TIMED_OUT),
-        )
+        ))
 
         val action = trace.steps.single { it.actionId == "tool" }
         assertEquals(

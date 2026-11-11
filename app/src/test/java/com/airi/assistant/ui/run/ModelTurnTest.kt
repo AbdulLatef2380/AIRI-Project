@@ -172,9 +172,9 @@ class ModelTurnTest {
 
     @Test fun theMapperMergesTurnsBetweenWorkStepsInTimeOrder() {
         val events = listOf(
-            ExecutionTraceEvent("e1", 1, 100, ExecutionTraceKind.PLANNING, "Planning task"),
-            ExecutionTraceEvent("e1", 2, 300, ExecutionTraceKind.TOOL_COMPLETED, "Tool completed: write_file", machineTag = "tool_call"),
-            ExecutionTraceEvent("e1", 3, 500, ExecutionTraceKind.COMPLETED, "done"),
+            ExecutionTraceEvent("e1", 1, 100, ExecutionTraceKind.PLANNING, summary = "Planning task"),
+            ExecutionTraceEvent("e1", 2, 300, ExecutionTraceKind.TOOL_COMPLETED, summary = "Tool completed: write_file", machineTag = "tool_call"),
+            ExecutionTraceEvent("e1", 3, 500, ExecutionTraceKind.COMPLETED, summary = "done"),
         )
         val trace = ChatExecutionTraceMapper.toAgentTrace(
             executionId = "e1", sessionId = "s", messageId = 1, userInput = "x", events = events, answerText = "ok",
@@ -187,8 +187,8 @@ class ModelTurnTest {
 
     @Test fun turnsAreNotCountedAgainstTheWorkStepCap() {
         val events = (1..60).map {
-            ExecutionTraceEvent("e2", it.toLong(), it * 10L, ExecutionTraceKind.TOOL_COMPLETED, "Tool completed: read_file", machineTag = "tool_call")
-        } + ExecutionTraceEvent("e2", 61, 700, ExecutionTraceKind.COMPLETED, "done")
+            ExecutionTraceEvent("e2", it.toLong(), it * 10L, ExecutionTraceKind.TOOL_COMPLETED, summary = "Tool completed: read_file", machineTag = "tool_call")
+        } + ExecutionTraceEvent("e2", 61, 700, ExecutionTraceKind.COMPLETED, summary = "done")
         val trace = ChatExecutionTraceMapper.toAgentTrace(
             executionId = "e2", sessionId = "s", messageId = 1, userInput = "x", events = events, answerText = "ok",
             modelTurns = (1..20).map { record(it, it * 30L) },
@@ -200,8 +200,8 @@ class ModelTurnTest {
 
     @Test fun modelTurnsNeverClearAnUnrecoveredFailure() {
         val events = listOf(
-            ExecutionTraceEvent("e3", 1, 100, ExecutionTraceKind.TOOL_FAILED, "Tool failed: run_python", machineTag = "tool_call"),
-            ExecutionTraceEvent("e3", 2, 300, ExecutionTraceKind.COMPLETED, "done"),
+            ExecutionTraceEvent("e3", 1, 100, ExecutionTraceKind.TOOL_FAILED, summary = "Tool failed: run_python", machineTag = "tool_call"),
+            ExecutionTraceEvent("e3", 2, 300, ExecutionTraceKind.COMPLETED, summary = "done"),
         )
         val trace = ChatExecutionTraceMapper.toAgentTrace(
             executionId = "e3", sessionId = "s", messageId = 1, userInput = "x", events = events, answerText = "ok",

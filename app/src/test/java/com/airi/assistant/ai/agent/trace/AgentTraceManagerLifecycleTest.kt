@@ -231,7 +231,7 @@ class AgentTraceManagerLifecycleTest {
     fun mapper_failedExecutionIsMarkedUnsuccessful_andBlankInputsYieldNull() {
         val failed = ChatExecutionTraceMapper.toAgentTrace(
             "e", "s", 1L, "q",
-            listOf(ExecutionTraceEvent("e", 1, 1L, ExecutionTraceKind.FAILED, "boom")),
+            listOf(ExecutionTraceEvent("e", 1, 1L, ExecutionTraceKind.FAILED, summary = "boom")),
             "ignored",
         )
         assertFalse(requireNotNull(failed).success)
@@ -242,7 +242,7 @@ class AgentTraceManagerLifecycleTest {
             sessionId = "session-10",
             messageId = 22L,
             userInput = "q",
-            events = listOf(ExecutionTraceEvent("exec-10", 1, 1L, ExecutionTraceKind.COMPLETED, "done")),
+            events = listOf(ExecutionTraceEvent("exec-10", 1, 1L, ExecutionTraceKind.COMPLETED, summary = "done")),
             answerText = "done",
             traceId = "trace-10",
         )

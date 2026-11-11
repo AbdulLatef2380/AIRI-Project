@@ -75,10 +75,10 @@ class ChatExecutionTraceStepDetailTest {
     @Test
     fun toolLifecyclePhasesAreFoldedIntoOneNodeWithoutLosingSourceKinds() {
         val events = listOf(
-            ExecutionTraceEvent("exec-1", 1, 1_001L, ExecutionTraceKind.TOOL_REQUESTED, "requested", actionId = "a-1"),
-            ExecutionTraceEvent("exec-1", 2, 1_002L, ExecutionTraceKind.TOOL_STARTED, "started", actionId = "a-1"),
-            ExecutionTraceEvent("exec-1", 3, 1_003L, ExecutionTraceKind.TOOL_OUTPUT, "output", actionId = "a-1", outputSummary = "safe result"),
-            ExecutionTraceEvent("exec-1", 4, 1_004L, ExecutionTraceKind.TOOL_COMPLETED, "completed", actionId = "a-1"),
+            ExecutionTraceEvent("exec-1", 1, 1_001L, ExecutionTraceKind.TOOL_REQUESTED, summary = "requested", actionId = "a-1"),
+            ExecutionTraceEvent("exec-1", 2, 1_002L, ExecutionTraceKind.TOOL_STARTED, summary = "started", actionId = "a-1"),
+            ExecutionTraceEvent("exec-1", 3, 1_003L, ExecutionTraceKind.TOOL_OUTPUT, summary = "output", actionId = "a-1", outputSummary = "safe result"),
+            ExecutionTraceEvent("exec-1", 4, 1_004L, ExecutionTraceKind.TOOL_COMPLETED, summary = "completed", actionId = "a-1"),
             completed(5),
         )
         val step = map(events).steps.single()
@@ -99,8 +99,7 @@ class ChatExecutionTraceStepDetailTest {
     fun missingParentIsMarkedInsteadOfSilentlyBecomingRoot() {
         val trace = map(listOf(
             ExecutionTraceEvent(
-                "exec-1", 1, 1_001L, ExecutionTraceKind.TOOL_COMPLETED,
-                "Tool completed: read_file", actionId = "a-1", parentId = "missing-parent",
+                "exec-1", 1, 1_001L, ExecutionTraceKind.TOOL_COMPLETED, summary = "Tool completed: read_file", actionId = "a-1", parentId = "missing-parent",
             ),
             completed(2),
         ))

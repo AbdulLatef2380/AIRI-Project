@@ -31,7 +31,9 @@ class AgentFileCardExistingFileTest {
     @Test
     fun pathTraversalNamesProduceNoCard() {
         val d = dir()
-        File(d.parentFile, "outside.py").writeText("x = 1").also { it.deleteOnExit() }
+        val outside = File(d.parentFile, "outside.py")
+        outside.writeText("x = 1")
+        outside.deleteOnExit()
         assertNull(AgentFileCards.fromExistingFile("../outside.py", d))
         assertNull(AgentFileCards.fromExistingFile("sub/dir.py", d))
     }

@@ -207,8 +207,8 @@ private fun LiveHubTab() {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
-            HubCard(title = "Orchestrator & Voice") {
-                MetricRow("Orchestrator", snapshot.orchestratorState.name)
+            HubCard(title = stringResource(R.string.obs_orchestrator_voice)) {
+                MetricRow(stringResource(R.string.obs_orchestrator), snapshot.orchestratorState.name)
                 if (snapshot.orchestratorState.name == "RUNNING") {
                     Spacer(Modifier.height(4.dp))
                     LinearProgressIndicator(
@@ -219,29 +219,29 @@ private fun LiveHubTab() {
                     )
                 }
                 Spacer(Modifier.height(6.dp))
-                MetricRow("Voice state", snapshot.voiceState.name)
-                if (snapshot.lastSttLatencyMs > 0L) MetricRow("STT latency",    "${snapshot.lastSttLatencyMs}ms")
-                if (snapshot.lastTtsFirstByteMs > 0L) MetricRow("TTS first byte","${snapshot.lastTtsFirstByteMs}ms")
-                if (snapshot.perceivedLatencyMs > 0L) MetricRow("Perceived RTT", "${snapshot.perceivedLatencyMs}ms")
-                if (snapshot.sessionInterruptions > 0) MetricRow("Interruptions", "${snapshot.sessionInterruptions}")
-                if (snapshot.sessionVoiceErrors > 0)   MetricRow("Voice errors",  "${snapshot.sessionVoiceErrors}", color = SemanticWarn)
+                MetricRow(stringResource(R.string.obs_voice_state), snapshot.voiceState.name)
+                if (snapshot.lastSttLatencyMs > 0L) MetricRow(stringResource(R.string.obs_stt_latency),    "${snapshot.lastSttLatencyMs}ms")
+                if (snapshot.lastTtsFirstByteMs > 0L) MetricRow(stringResource(R.string.obs_tts_first_byte),"${snapshot.lastTtsFirstByteMs}ms")
+                if (snapshot.perceivedLatencyMs > 0L) MetricRow(stringResource(R.string.obs_perceived_rtt), "${snapshot.perceivedLatencyMs}ms")
+                if (snapshot.sessionInterruptions > 0) MetricRow(stringResource(R.string.obs_interruptions), "${snapshot.sessionInterruptions}")
+                if (snapshot.sessionVoiceErrors > 0)   MetricRow(stringResource(R.string.obs_voice_errors),  "${snapshot.sessionVoiceErrors}", color = SemanticWarn)
             }
         }
         item {
-            HubCard(title = "Session") {
+            HubCard(title = stringResource(R.string.obs_session)) {
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    StatusCountChip("Turns",   snapshot.sessionTotalTurns,     CosmicAccent,   Modifier.weight(1f))
-                    StatusCountChip("Tools",   snapshot.sessionTotalToolCalls,  SemanticSuccess, Modifier.weight(1f))
-                    StatusCountChip("Tokens",  snapshot.sessionTokensConsumed,  SemanticWarn,   Modifier.weight(1f))
+                    StatusCountChip(stringResource(R.string.obs_turns),   snapshot.sessionTotalTurns,     CosmicAccent,   Modifier.weight(1f))
+                    StatusCountChip(stringResource(R.string.obs_tools),   snapshot.sessionTotalToolCalls,  SemanticSuccess, Modifier.weight(1f))
+                    StatusCountChip(stringResource(R.string.obs_tokens),  snapshot.sessionTokensConsumed,  SemanticWarn,   Modifier.weight(1f))
                 }
             }
         }
         if (snapshot.agentExecutionCounts.isNotEmpty()) {
             item {
-                HubCard(title = "Agent Executions") {
+                HubCard(title = stringResource(R.string.obs_agent_executions)) {
                     snapshot.agentExecutionCounts.entries
                         .sortedByDescending { it.value }
                         .forEach { (agentId, count) ->
@@ -254,43 +254,43 @@ private fun LiveHubTab() {
         }
         if (snapshot.toolCallCounts.isNotEmpty()) {
             item {
-                HubCard(title = "Tool Calls") {
+                HubCard(title = stringResource(R.string.obs_tool_calls)) {
                     snapshot.toolCallCounts.entries
                         .sortedByDescending { it.value }
                         .take(12)
                         .forEach { (tool, count) ->
-                            MetricRow(tool, "$count calls")
+                            MetricRow(tool, stringResource(R.string.obs_calls, count))
                         }
                 }
             }
         }
         item {
-            HubCard(title = "Memory") {
+            HubCard(title = stringResource(R.string.obs_memory)) {
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    StatusCountChip("Episodic",  snapshot.episodicMemoryEntries,  CosmicAccent,    Modifier.weight(1f))
-                    StatusCountChip("Semantic",  snapshot.semanticMemoryEntries,  SemanticSuccess, Modifier.weight(1f))
-                    StatusCountChip("Long-term", snapshot.longTermMemoryEntries,  SemanticWarn,    Modifier.weight(1f))
+                    StatusCountChip(stringResource(R.string.obs_episodic),  snapshot.episodicMemoryEntries,  CosmicAccent,    Modifier.weight(1f))
+                    StatusCountChip(stringResource(R.string.obs_semantic),  snapshot.semanticMemoryEntries,  SemanticSuccess, Modifier.weight(1f))
+                    StatusCountChip(stringResource(R.string.obs_long_term), snapshot.longTermMemoryEntries,  SemanticWarn,    Modifier.weight(1f))
                 }
             }
         }
         item {
-            HubCard(title = "Durable Tasks") {
+            HubCard(title = stringResource(R.string.obs_durable_tasks)) {
                 Row(
                     modifier              = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    StatusCountChip("Active",    snapshot.durableTasksActive,    CosmicAccent,    Modifier.weight(1f))
-                    StatusCountChip("Done",      snapshot.durableTasksCompleted, SemanticSuccess, Modifier.weight(1f))
-                    StatusCountChip("Failed",    snapshot.durableTasksFailed,    SemanticError,   Modifier.weight(1f))
+                    StatusCountChip(stringResource(R.string.obs_active),    snapshot.durableTasksActive,    CosmicAccent,    Modifier.weight(1f))
+                    StatusCountChip(stringResource(R.string.obs_done),      snapshot.durableTasksCompleted, SemanticSuccess, Modifier.weight(1f))
+                    StatusCountChip(stringResource(R.string.obs_failed),     snapshot.durableTasksFailed,    SemanticError,   Modifier.weight(1f))
                 }
             }
         }
         if (snapshot.recentErrors.isNotEmpty()) {
             item {
-                HubCard(title = "Recent Errors") {
+                HubCard(title = stringResource(R.string.obs_recent_errors)) {
                     snapshot.recentErrors.takeLast(8).reversed().forEach { err ->
                         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(err.timestampMs))
                         Row(
@@ -365,7 +365,7 @@ private fun GraphTab() {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
-            HubCard(title = "Plan Graph") {
+            HubCard(title = stringResource(R.string.obs_plan_graph)) {
                 if (graph == null) {
                     Text(stringResource(R.string.observability_no_graph), color = AiriTheme.outline, fontSize = 12.sp)
                 } else {
@@ -381,8 +381,8 @@ private fun GraphTab() {
                             modifier              = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            StatusCountChip("Done",    graph.doneNodes,    SemanticSuccess, Modifier.weight(1f))
-                            StatusCountChip("Failed",  graph.failedNodes,  SemanticError,   Modifier.weight(1f))
+                            StatusCountChip(stringResource(R.string.obs_done),    graph.doneNodes,    SemanticSuccess, Modifier.weight(1f))
+                            StatusCountChip(stringResource(R.string.obs_failed)),  graph.failedNodes,  SemanticError,   Modifier.weight(1f))
                             StatusCountChip("Skipped", graph.skippedNodes, SemanticWarn,    Modifier.weight(1f))
                         }
                         Spacer(Modifier.height(8.dp))

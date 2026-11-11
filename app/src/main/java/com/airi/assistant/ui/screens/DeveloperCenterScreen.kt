@@ -102,10 +102,10 @@ private fun RuntimeTab() {
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
         DevCard(title = stringResource(R.string.dev_execution_bus)) {
-            DevRow("Stage",  busState.executionStage.name)
-            DevRow("Action", busState.currentAction.take(60).ifBlank { "—" })
-            DevRow("Goal",   busState.activeGoalDescription.take(60).ifBlank { "—" })
-            DevRow("Retries",busState.retryCount.toString())
+            DevRow(stringResource(R.string.dev_stage),  busState.executionStage.name)
+            DevRow(stringResource(R.string.dev_action), busState.currentAction.take(60).ifBlank { "—" })
+            DevRow(stringResource(R.string.dev_goal),   busState.activeGoalDescription.take(60).ifBlank { "—" })
+            DevRow(stringResource(R.string.dev_retries),busState.retryCount.toString())
         }
 
         DevCard(title = stringResource(R.string.dev_registered_agents, registeredAgents.size)) {
@@ -155,7 +155,7 @@ private fun ConnectorsTab() {
                             color = if (LlmCertPins.PINNING_ENABLED) SemanticSuccess.copy(0.8f) else AiriTheme.onSurfaceVariant
                         )
                     }
-                    Text("cert-pins", fontSize = 10.sp, color = AiriTheme.outline.copy(alpha = 0.25f), fontFamily = FontFamily.Monospace)
+                    Text(stringResource(R.string.dev_cert_pins), fontSize = 10.sp, color = AiriTheme.outline.copy(alpha = 0.25f), fontFamily = FontFamily.Monospace)
                 }
             }
         }
@@ -211,19 +211,19 @@ private fun MemoryTab() {
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
         DevCard(title = stringResource(R.string.dev_ai_memory)) {
-            DevRow("Messages stored", memoryCount?.toString() ?: "loading…")
-            DevRow("Sessions",        sessionCount?.toString() ?: "loading…")
-            DevRow("Semantic search", when (embeddingReady) {
-                true  -> " Active — embedding model loaded"
-                false -> " Inactive — no embedding model"
+            DevRow(stringResource(R.string.dev_messages_stored), memoryCount?.toString() ?: "loading…")
+            DevRow(stringResource(R.string.dev_sessions),        sessionCount?.toString() ?: "loading…")
+            DevRow(stringResource(R.string.dev_semantic_search), when (embeddingReady) {
+                true  -> stringResource(R.string.dev_embedding_active)
+                false -> stringResource(R.string.dev_embedding_inactive)
                 null  -> "loading…"
             })
         }
 
         DevCard(title = stringResource(R.string.dev_jvm_heap)) {
-            DevRow("Used",   "$usedMb MB ($usedPct%)")
-            DevRow("Max",    "$maxMb MB")
-            DevRow("Free",   "${runtime.freeMemory() / 1_048_576L} MB")
+            DevRow(stringResource(R.string.dev_used),   "$usedMb MB ($usedPct%)")
+            DevRow(stringResource(R.string.dev_max),    "$maxMb MB")
+            DevRow(stringResource(R.string.dev_free),   "${runtime.freeMemory() / 1_048_576L} MB")
             LinearProgressIndicator(
                 progress   = usedPct / 100f,
                 modifier   = Modifier.fillMaxWidth().padding(top = 6.dp),
@@ -292,11 +292,11 @@ private fun HealthTab() {
             }
         }
         DevCard(title = stringResource(R.string.dev_resources)) {
-            DevRow("Heap available",
+            DevRow(stringResource(R.string.dev_heap_available),
                 if (health.heapAvailableMb >= 0) "${health.heapAvailableMb} MB" else "—")
-            DevRow("Disk free",
+            DevRow(stringResource(R.string.dev_disk_free),
                 if (health.diskFreeMb >= 0) "${health.diskFreeMb} MB" else "—")
-            DevRow("Network", if (health.networkConnected) " Online" else " Offline")
+            DevRow(stringResource(R.string.dev_network), if (health.networkConnected) " Online" else " Offline")
             if (health.lowMemoryWarning) {
                 Text(stringResource(R.string.dev_low_heap), fontSize = 11.sp, color = SemanticError,
                     modifier = Modifier.padding(top = 4.dp))
@@ -308,14 +308,14 @@ private fun HealthTab() {
         }
         DevCard(title = stringResource(R.string.dev_session)) {
             val ageMin = health.sessionAgeMs / 60_000L
-            DevRow("Session age", "${ageMin} min")
+            DevRow(stringResource(R.string.dev_session_age), "${ageMin} min")
             if (health.sessionAgeWarning) {
                 Text(stringResource(R.string.dev_long_session), fontSize = 11.sp,
                     color = Color(0xFFFFB340), modifier = Modifier.padding(top = 2.dp))
             }
         }
         DevCard(title = stringResource(R.string.dev_coroutines)) {
-            DevRow("Live coroutines", health.liveCoroutineCount.toString())
+            DevRow(stringResource(R.string.dev_live_coroutines), health.liveCoroutineCount.toString())
             if (health.orphanCoroutineWarning) {
                 Text(stringResource(R.string.dev_potential_orphans, health.orphanKeys.take(3).joinToString()),
                     fontSize = 11.sp, color = SemanticError, modifier = Modifier.padding(top = 2.dp))
@@ -325,7 +325,7 @@ private fun HealthTab() {
             }
         }
         DevCard(title = stringResource(R.string.dev_agent_tasks)) {
-            DevRow("Stuck agents", health.stuckAgentCount.toString())
+            DevRow(stringResource(R.string.dev_stuck_agents), health.stuckAgentCount.toString())
             if (health.stuckAgentCount > 0) {
                 Text(stringResource(R.string.dev_stuck, health.stuckAgentIds.take(3).joinToString()),
                     fontSize = 11.sp, color = SemanticError, modifier = Modifier.padding(top = 2.dp))
@@ -347,12 +347,12 @@ private fun HealthTab() {
         val isEmergency = ServiceLocator.systemHealthCoordinator.isEmergency
         val budgetFraction = ServiceLocator.systemHealthCoordinator.contextBudgetFactor
         DevCard(title = stringResource(R.string.dev_thermal_throttle)) {
-            DevRow("Throttle level", throttleLevel.name)
-            DevRow("Context budget",  "${(budgetFraction * 100).toInt()}%")
-            DevRow("Emergency stop",  if (isEmergency) " YES" else " No")
+            DevRow(stringResource(R.string.dev_throttle_level), throttleLevel.name)
+            DevRow(stringResource(R.string.dev_context_budget),  "${(budgetFraction * 100).toInt()}%")
+            DevRow(stringResource(R.string.dev_emergency_stop),  if (isEmergency) " YES" else " No")
             if (isEmergency) {
                 Text(
-                    " Emergency throttle active — model execution paused",
+                    stringResource(R.string.dev_emergency_active),
                     fontSize = 11.sp,
                     color    = SemanticError,
                     modifier = Modifier.padding(top = 2.dp)
@@ -583,9 +583,9 @@ private fun ProfilerTab() {
         // Flow pressure card
         item {
             DevCard("Flow Backpressure") {
-                DevRow("Dropped events", report.droppedEventCount.toString())
-                DevRow("Pressure warnings", report.flowPressureWarnings.toString())
-                DevRow("Slow calls (>500ms)", report.slowCallCount.toString())
+                DevRow(stringResource(R.string.dev_dropped_events), report.droppedEventCount.toString())
+                DevRow(stringResource(R.string.dev_pressure_warnings), report.flowPressureWarnings.toString())
+                DevRow(stringResource(R.string.dev_slow_calls), report.slowCallCount.toString())
             }
         }
 

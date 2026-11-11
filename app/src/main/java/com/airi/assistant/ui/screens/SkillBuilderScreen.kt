@@ -326,7 +326,7 @@ fun SkillBuilderScreen(
                 onToggle = { showTemplates = !showTemplates }
             ) {
                 Text(
-                    "Start from a pre-built template to save time. You can edit everything after applying.",
+                    stringResource(R.string.skill_template_hint),
                     color = AiriTheme.onSurfaceVariant,
                     fontSize = 12.sp
                 )
@@ -335,19 +335,19 @@ fun SkillBuilderScreen(
                     PresetCard(preset = preset, onClick = { applyPreset(preset) })
                 }
             }
-            SkillBuilderSection("Details") {
+            SkillBuilderSection(stringResource(R.string.skill_details)) {
                 SkillTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = "Skill Name",
-                    helperText = "A short, descriptive name the AI will use to identify this skill (e.g. 'Send Slack Message')"
+                    label = stringResource(R.string.skill_name),
+                    helperText = stringResource(R.string.skill_name_help)
                 )
                 SkillTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = "Description",
+                    label = stringResource(R.string.skill_description),
                     minLines = 2,
-                    helperText = "Explain what this skill does. The AI uses this description to decide when to call it."
+                    helperText = stringResource(R.string.skill_description_help)
                 )
             }
             // SkillType.LOCAL is intentionally hidden from the chip row.
@@ -358,9 +358,9 @@ fun SkillBuilderScreen(
             // still load (they will surface the executor's rejection message
             // when triggered) and so the type is available for future on-device
             // skills without a data migration.
-            SkillBuilderSection("Skill Type") {
+            SkillBuilderSection(stringResource(R.string.skill_type)) {
                 Text(
-                    "API: Calls an external REST API. Webhook: Triggers an event endpoint.",
+                    stringResource(R.string.skill_type_help),
                     color = AiriTheme.onBackground.copy(alpha = 0.45f),
                     fontSize = 12.sp
                 )
@@ -381,16 +381,16 @@ fun SkillBuilderScreen(
                         }
                 }
             }
-            SkillBuilderSection("Request") {
+            SkillBuilderSection(stringResource(R.string.skill_request)) {
                 SkillTextField(
                     value = endpoint,
                     onValueChange = { endpoint = it },
-                    label = "Endpoint URL",
+                    label = stringResource(R.string.skill_endpoint),
                     keyboardType = KeyboardType.Uri,
-                    helperText = "The full URL this skill will call (e.g. https://api.example.com/action). Must start with https:// or http://."
+                    helperText = stringResource(R.string.skill_endpoint_help)
                 )
                 Text(
-                    "HTTP Method — choose how the request is sent:",
+                    stringResource(R.string.skill_http_method),
                     color = AiriTheme.onBackground.copy(alpha = 0.45f),
                     fontSize = 12.sp
                 )
@@ -410,30 +410,30 @@ fun SkillBuilderScreen(
                 }
                 if (method in listOf("GET", "HEAD")) {
                     Text(
-                        "GET/HEAD methods use READ_ONLY permission — POST/PUT/DELETE body fields will be ignored.",
+                        stringResource(R.string.skill_read_only_warning),
                         color = Color(0xFFFFA726).copy(alpha = 0.8f),
                         fontSize = 11.sp
                     )
                 }
             }
-            SkillBuilderSection("Headers") {
+            SkillBuilderSection(stringResource(R.string.skill_headers)) {
                 Text(
-                    "Add HTTP headers such as Authorization or API keys. Sensitive values (API keys, tokens) are encrypted before storage.",
+                    stringResource(R.string.skill_headers_help),
                     color = AiriTheme.onBackground.copy(alpha = 0.45f),
                     fontSize = 12.sp
                 )
                 HeaderEditor(headers)
             }
-            SkillBuilderSection("Body Template") {
+            SkillBuilderSection(stringResource(R.string.skill_body_template)) {
                 Text(
-                    "Write the JSON body to send with the request. Use template variables to inject dynamic values at runtime.",
+                    stringResource(R.string.skill_body_help),
                     color = AiriTheme.onBackground.copy(alpha = 0.45f),
                     fontSize = 12.sp
                 )
                 SkillTextField(
                     value = bodyTemplate,
                     onValueChange = { bodyTemplate = it },
-                    label = "JSON body template",
+                    label = stringResource(R.string.skill_json_body),
                     minLines = 8
                 )
                 TemplateVariablesHint()

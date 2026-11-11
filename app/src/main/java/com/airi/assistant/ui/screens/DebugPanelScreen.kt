@@ -90,22 +90,22 @@ fun DebugPanelScreen(
             }
         }
 
-        DebugSection("Last Generation") {
-            DebugRow("Model",           debugState.lastModelName)
-            DebugRow("Query Type",      debugState.lastQueryType)
-            DebugRow("First Token",     if (debugState.lastFirstTokenMs < 0) "-" else "${debugState.lastFirstTokenMs} ms")
-            DebugRow("Total Latency",   if (debugState.lastTotalLatencyMs < 0) "-" else "${debugState.lastTotalLatencyMs} ms")
-            DebugRow("P50 / P90",       "${debugState.p50LatencyMs} / ${debugState.p90LatencyMs} ms")
-            DebugRow("Tokens/sec",      if (debugState.lastTokensPerSec == 0f) "-" else "%.1f".format(debugState.lastTokensPerSec))
-            DebugBoolRow("Fast Path",   debugState.lastIsFastPath)
-            DebugBoolRow("Was Cut",     debugState.lastWasCut)
+        DebugSection(stringResource(R.string.debug_last_generation)) {
+            DebugRow(stringResource(R.string.debug_model),           debugState.lastModelName)
+            DebugRow(stringResource(R.string.debug_query_type),      debugState.lastQueryType)
+            DebugRow(stringResource(R.string.debug_first_token),     if (debugState.lastFirstTokenMs < 0) "-" else "${debugState.lastFirstTokenMs} ms")
+            DebugRow(stringResource(R.string.debug_total_latency),   if (debugState.lastTotalLatencyMs < 0) "-" else "${debugState.lastTotalLatencyMs} ms")
+            DebugRow(stringResource(R.string.debug_p50_p90),       "${debugState.p50LatencyMs} / ${debugState.p90LatencyMs} ms")
+            DebugRow(stringResource(R.string.debug_tokens_sec),      if (debugState.lastTokensPerSec == 0f) "-" else "%.1f".format(debugState.lastTokensPerSec))
+            DebugBoolRow(stringResource(R.string.debug_fast_path),   debugState.lastIsFastPath)
+            DebugBoolRow(stringResource(R.string.debug_was_cut),     debugState.lastWasCut)
         }
 
-        DebugSection("Voice") {
-            DebugRow("Current State", debugState.currentVoiceState)
+        DebugSection(stringResource(R.string.debug_voice)) {
+            DebugRow(stringResource(R.string.debug_current_state), debugState.currentVoiceState)
         }
 
-        DebugSection("Diagnostics") {
+        DebugSection(stringResource(R.string.debug_diagnostics)) {
             if (isRunning) {
                 CircularProgressIndicator(
                     color = CosmicAccent,

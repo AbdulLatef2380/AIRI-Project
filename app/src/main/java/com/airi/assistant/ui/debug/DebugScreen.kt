@@ -60,7 +60,7 @@ fun DebugScreen(onBack: () -> Unit) {
                 Icon(Icons.Default.BugReport, contentDescription = stringResource(R.string.debug_icon), tint = AiriTheme.onSurfaceVariant)
             }
             Text(
-                "Verification Layer",
+                stringResource(R.string.debug_verification_layer),
                 color = GREEN,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
@@ -115,18 +115,18 @@ fun DebugScreen(onBack: () -> Unit) {
             }
         }
 
-        Section("Runtime State") {
-            MetricRow("Query Type",    runtime.lastQueryType)
-            MetricRow("First Token",   if (runtime.firstTokenMs == 0L) "-" else "${runtime.firstTokenMs} ms")
-            MetricRow("Total Latency", if (runtime.totalLatencyMs == 0L) "-" else "${runtime.totalLatencyMs} ms")
-            MetricRow("P50 / P90",     "${runtime.p50LatencyMs} / ${runtime.p90LatencyMs} ms")
-            MetricRow("Tokens/sec",    if (runtime.tokensPerSecond == 0f) "-" else "%.1f".format(runtime.tokensPerSecond))
-            BoolRow("Fast Path",   runtime.fastPath,  positiveColor = GREEN)
-            BoolRow("Was Cut",     runtime.wasCut,    positiveColor = RED)
-            MetricRow("Voice State",   runtime.voiceState)
+        Section(stringResource(R.string.debug_runtime_state)) {
+            MetricRow(stringResource(R.string.debug_query_type),    runtime.lastQueryType)
+            MetricRow(stringResource(R.string.debug_first_token),   if (runtime.firstTokenMs == 0L) "-" else "${runtime.firstTokenMs} ms")
+            MetricRow(stringResource(R.string.debug_total_latency), if (runtime.totalLatencyMs == 0L) "-" else "${runtime.totalLatencyMs} ms")
+            MetricRow(stringResource(R.string.debug_p50_p90),     "${runtime.p50LatencyMs} / ${runtime.p90LatencyMs} ms")
+            MetricRow(stringResource(R.string.debug_tokens_sec),    if (runtime.tokensPerSecond == 0f) "-" else "%.1f".format(runtime.tokensPerSecond))
+            BoolRow(stringResource(R.string.debug_fast_path),   runtime.fastPath,  positiveColor = GREEN)
+            BoolRow(stringResource(R.string.debug_was_cut),     runtime.wasCut,    positiveColor = RED)
+            MetricRow(stringResource(R.string.debug_voice_state),   runtime.voiceState)
         }
 
-        Section("Event History (last ${events.size})") {
+        Section(stringResource(R.string.debug_event_history, events.size)) {
             if (events.isEmpty()) {
                 Text(stringResource(R.string.debug_no_events), color = LABEL, fontSize = 12.sp)
             } else {

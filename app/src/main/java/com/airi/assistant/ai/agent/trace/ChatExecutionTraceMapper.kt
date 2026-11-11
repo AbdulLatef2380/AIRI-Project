@@ -187,6 +187,9 @@ object ChatExecutionTraceMapper {
         event: ExecutionTraceEvent,
         outputByActionId: Map<String, ExecutionTraceEvent> = emptyMap(),
     ): AgentStep? {
+        // PLANNING is an internal admission gate; PLAN_CREATED remains the visible
+        // lifecycle evidence for the user-facing trace.
+        if (event.kind == ExecutionTraceKind.PLANNING) return null
         // The terminal execution record remains authoritative in AgentTrace metadata; keeping it
         // out of the work list avoids a duplicate "completed" row while all non-terminal lifecycle
         // evidence (including EXECUTION_STARTED) remains visible.
@@ -195,6 +198,7 @@ object ChatExecutionTraceMapper {
             ExecutionTraceKind.EXECUTION_STARTED,
             ExecutionTraceKind.PLAN_CREATED,
             ExecutionTraceKind.REASONING_NOTE,
+            ExecutionTraceKind.PLANNING,
             ExecutionTraceKind.STEP_STARTED,
             ExecutionTraceKind.STEP_COMPLETED,
             ExecutionTraceKind.COMPLETED -> AgentStepType.TASK_STEP to (event.status == com.airi.assistant.core.ExecutionTraceStatus.COMPLETED)

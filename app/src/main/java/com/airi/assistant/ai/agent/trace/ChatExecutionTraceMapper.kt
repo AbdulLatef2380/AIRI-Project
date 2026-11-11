@@ -231,9 +231,12 @@ object ChatExecutionTraceMapper {
         val toolName = if (event.machineTag == "tool_call") toolNameFrom(event.summary) else null
         // A successful tool event carries only `detail` (source and result length), which the old
         // mapping dropped; show it instead of repeating the "Tool completed" summary.
-        val outputEvidence = outputByActionId[event.actionId]?.outputSummary
-        val shownOutput = if (ok && toolName != null) {
-            outputEvidence?.takeIf { it.isNotBlank() }
+        val outputEvidence = event.outputSummary?.takeIf { it.isNotBlank() }
+            ?: outputByActionId[event.actionId]?.outputSummary?.takeIf { it.isNotBlank() }
+        val shownOutput = if (event.kind == ExecutionTraceKind.TOOL_OUTPUT) {
+            outputEvidence ?: event.summary
+        } else if (ok && toolName != null) {
+            outputEvidence
                 ?: event.detail?.takeIf { it.isNotBlank() }
                 ?: event.summary
         } else event.summary

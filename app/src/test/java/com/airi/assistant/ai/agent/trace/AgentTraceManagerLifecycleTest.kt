@@ -183,7 +183,15 @@ class AgentTraceManagerLifecycleTest {
         @Test
         fun mapper_buildsChatTraceFromTerminalEvents() {
         fun event(seq: Long, kind: ExecutionTraceKind, summary: String = "", detail: String? = null) =
-            ExecutionTraceEvent("exec-9", seq, 1_000L + seq, kind, summary = summary, detail = detail, actionId = if (kind == ExecutionTraceKind.TOOL_COMPLETED || kind == ExecutionTraceKind.TOOL_FAILED) "a$seq" else null, durationMs = 5L, parentId = "step-parent", inputParams = mapOf("query" to "safe"))
+            ExecutionTraceEvent(
+                "exec-9", seq, 1_000L + seq, kind, summary = summary, detail = detail,
+                actionId = when (kind) {
+                    ExecutionTraceKind.TOOL_STARTED, ExecutionTraceKind.TOOL_COMPLETED -> "action-success"
+                    ExecutionTraceKind.TOOL_FAILED -> "action-failed"
+                    else -> null
+                },
+                durationMs = 5L, parentId = "step-parent", inputParams = mapOf("query" to "safe"),
+            )
 
         val trace = ChatExecutionTraceMapper.toAgentTrace(
             executionId = "exec-9",

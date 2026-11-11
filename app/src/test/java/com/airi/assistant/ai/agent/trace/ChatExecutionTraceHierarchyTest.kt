@@ -24,12 +24,15 @@ class ChatExecutionTraceHierarchyTest {
         ))
 
         assertEquals(
-            listOf(1L, 2L, 3L),
+            listOf(1L, 3L),
             trace.steps.map { it.sequence },
         )
         assertTrue(trace.steps.any { it.lifecycleKinds.contains(ExecutionTraceKind.EXECUTION_STARTED) })
-        assertTrue(trace.steps.any { it.lifecycleKinds.contains(ExecutionTraceKind.TOOL_REQUESTED) })
-        assertTrue(trace.steps.any { it.lifecycleKinds.contains(ExecutionTraceKind.TOOL_OUTPUT) })
+        val action = trace.steps.single { it.actionId == "a" }
+        assertEquals(
+            listOf(ExecutionTraceKind.TOOL_REQUESTED, ExecutionTraceKind.TOOL_OUTPUT),
+            action.lifecycleKinds,
+        )
     }
 
     @Test

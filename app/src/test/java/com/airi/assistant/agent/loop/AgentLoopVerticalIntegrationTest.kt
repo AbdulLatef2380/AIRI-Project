@@ -26,6 +26,9 @@ import com.airi.assistant.execution.AgentOrchestrator
 import com.airi.assistant.execution.CompletionMetadata
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.ExecutionRequest
+import com.airi.assistant.security.AgentSandbox
+import com.airi.assistant.security.ExecutionFirewall
+import com.airi.assistant.security.ScopedPermissionRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
@@ -298,16 +301,21 @@ class AgentLoopVerticalIntegrationTest {
             if (granted) set("vertical", ConnectorAccessProfile.READ_ONLY)
         }
         val bridge = ConnectorToolBridge(registry, ConnectorRuntimeManager(registry, profiles), profiles)
+        val permissions = ScopedPermissionRegistry().apply {
+            grant("agent_loop", ScopedPermissionRegistry.AgentPermission.CALL_CONNECTOR_API)
+        }
         return Fixture(
             dispatcher = ToolDispatcher(connectorToolBridge = bridge),
             readSchema = bridge.asToolSchemas().singleOrNull()
                 ?: ToolSchema("connector_vertical_read", "Read vertical fixture"),
+            sandbox = AgentSandbox(ExecutionFirewall(permissions), permissions),
         )
     }
 
     private data class Fixture(
         val dispatcher: ToolDispatcher,
         val readSchema: ToolSchema,
+        val sandbox: AgentSandbox,
     ) {
         fun loop(
             orchestrator: AgentOrchestrator,
@@ -316,6 +324,7 @@ class AgentLoopVerticalIntegrationTest {
             orchestrator = orchestrator,
             dispatcher = dispatcher,
             appContext = ContextWrapper(null),
+            agentSandbox = sandbox,
             runtimeTrace = runtimeTrace,
         )
     }

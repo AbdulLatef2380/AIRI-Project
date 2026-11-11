@@ -92,7 +92,14 @@ class CodingToolBoundaryPolicy(
         val cwd = boundedPath(workingDirectory)
         if (cwd is Decision.Denied) return cwd
         val commandDecision = TerminalExecutionPolicy.evaluate(command)
-        if (!commandDecision.allowed) return Decision.Denied("terminal_denied:${commandDecision.reason}")
+        val approvalRequired = commandDecision.requiresApproval &&
+            commandDecision.reason == TerminalExecutionPolicy.APPROVAL_REQUIRED_REASON
+        if (!commandDecision.allowed && !approvalRequired) {
+            return Decision.Denied("terminal_denied:${commandDecision.reason}")
+        }
+        if (approvalRequired && !isBoundedApprovalCommand(command)) {
+            return Decision.Denied("terminal_denied:destructive_command_out_of_scope")
+        }
         if (timeoutMs !in 1..bounds.maxTerminalTimeoutMs) return Decision.Denied("terminal_timeout_limit_exceeded")
         if (outputChars !in 1..bounds.maxTerminalOutputChars) return Decision.Denied("terminal_output_limit_exceeded")
         return Decision.Allowed(
@@ -104,6 +111,25 @@ class CodingToolBoundaryPolicy(
                 requiresApproval = commandDecision.requiresApproval,
             ),
         )
+    }
+
+    /** Only simple relative-path mutations may reach the explicit approval gate. */
+    private fun isBoundedApprovalCommand(command: String): Boolean {
+        val argv = command.trim().split(Regex("\\s+")).filter(String::isNotBlank)
+        if (argv.size < 2 || argv.drop(1).any { it.startsWith("-") || !isWorkspaceRelativePath(it) }) return false
+        return when (argv.first()) {
+            "rm", "mkdir" -> true
+            "cp", "mv" -> argv.size == 3
+            else -> false
+        }
+    }
+
+    private fun isWorkspaceRelativePath(value: String): Boolean {
+        if (value.isBlank() || value.length > bounds.maxPathChars || value.startsWith('/') ||
+            value.contains('\\') || ':' in value || '\u0000' in value
+        ) return false
+        val normalized = value.removePrefix("./")
+        return normalized.isNotBlank() && normalized.split('/').none { it == ".." || it.isBlank() }
     }
 
     fun workspacePath(path: String): Decision<String> = boundedPath(path)

@@ -73,6 +73,21 @@ class ChatExecutionTraceStepDetailTest {
     }
 
     @Test
+    fun rawToolOutputPayloadIsRedactedBeforeItReachesTheTraceStep() {
+        val output = ExecutionTraceEvent(
+            executionId = "exec-1",
+            sequence = 1,
+            timestampMs = 1_001L,
+            kind = ExecutionTraceKind.TOOL_OUTPUT,
+            summary = "Tool output: read_file",
+            actionId = "action-2",
+            outputSummary = "api_key=TRACE_SECRET_SENTINEL_123",
+        )
+        val trace = map(listOf(output, toolDone(2, "read_file"), completed(3)))
+        assertFalse(trace.steps.single().outputSummary.contains("TRACE_SECRET_SENTINEL_123"))
+    }
+
+    @Test
     fun toolLifecyclePhasesAreFoldedIntoOneNodeWithoutLosingSourceKinds() {
         val events = listOf(
             ExecutionTraceEvent("exec-1", 1, 1_001L, ExecutionTraceKind.TOOL_REQUESTED, summary = "requested", actionId = "a-1"),

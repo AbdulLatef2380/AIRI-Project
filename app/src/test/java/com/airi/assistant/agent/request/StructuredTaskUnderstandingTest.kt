@@ -44,6 +44,7 @@ class StructuredTaskUnderstandingTest {
         val analysis = StructuredTaskUnderstanding.understand("راجع الكود وابحث عن أخطاء في هذا البرنامج")
         assertEquals(StructuredTaskUnderstanding.TaskType.CODE_ANALYSIS, analysis.taskType)
         assertEquals(StructuredTaskUnderstanding.RequestedOutcome.ANALYZE_AND_REPORT, analysis.requestedOutcome)
+        assertFalse(analysis.requiredCapabilities.contains(CapabilityIntentDetector.Capability.FILE_WRITE))
 
         val connector = StructuredTaskUnderstanding.understand("اعرض رسائل Gmail ومستودعاتي في GitHub")
         assertEquals(StructuredTaskUnderstanding.TaskType.CONNECTOR_OPERATION, connector.taskType)

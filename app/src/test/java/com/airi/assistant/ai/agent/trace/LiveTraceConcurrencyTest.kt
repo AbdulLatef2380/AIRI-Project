@@ -20,7 +20,7 @@ class LiveTraceConcurrencyTest {
     ) = ExecutionTraceEvent(
         executionId = executionId,
         sequence = sequence,
-        timestampMs = 10_000L + sequence,
+        timestampMs = System.currentTimeMillis() + sequence,
         kind = kind,
         summary = "$kind-$sequence",
         actionId = actionId,

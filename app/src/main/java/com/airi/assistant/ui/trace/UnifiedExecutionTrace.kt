@@ -222,9 +222,9 @@ internal object UnifiedExecutionTraceProjector {
             )
         }.sortedBy { groupOrder(it.category) }
         val stateEvents = events.filterNot { it.orphaned }
-        // Orphaned events remain useful diagnostics and still count in the summary;
-        // they only cannot admit an execution or become task-tree state.
-        val summary = summarize(events)
+        // Orphaned events remain visible in the diagnostic event list/groups, but
+        // cannot contribute to execution counters, admission, or task-tree state.
+        val summary = summarize(stateEvents)
         val fullTaskTree = buildTaskTree(stateEvents)
         val taskTreeNodeCount = fullTaskTree.sumOf { treeNodeCount(it) }
         val taskTree = limitTree(fullTaskTree, MAX_TREE_NODES)

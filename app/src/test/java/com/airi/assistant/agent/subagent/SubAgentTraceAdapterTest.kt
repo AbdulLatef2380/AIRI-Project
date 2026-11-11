@@ -133,6 +133,7 @@ class SubAgentTraceAdapterTest {
         val trace = ExecutionStatusBus.traceSnapshot(executionId)
         assertEquals(1, trace.count { it.machineTag == "subagent_cancelled" })
         assertTrue(trace.any { it.kind == ExecutionTraceKind.TOOL_CANCELLED && it.actionId?.contains(":search:") == true })
+        assertTrue(trace.none { it.kind == ExecutionTraceKind.TOOL_COMPLETED && it.actionId?.contains(":search:") == true })
         assertTrue(trace.none { it.machineTag == "subagent_completed" })
     }
 }

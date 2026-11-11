@@ -53,7 +53,7 @@ class RunTimelineModelTest {
         assertEquals("calculator.py", rows[0].subject)
         assertEquals("FILE", rows[0].category)
         assertEquals(StepStatus.DONE, rows[0].status)
-        assertEquals(2, buildDecisions(t).size)
+        assertEquals(1, buildDecisions(t).size)
     }
 
     @Test fun rowCountMatchesToolSteps() {

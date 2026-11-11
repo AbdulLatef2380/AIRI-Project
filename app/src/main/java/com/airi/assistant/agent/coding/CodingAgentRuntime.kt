@@ -86,6 +86,9 @@ class CodingAgentRuntime(
                 evidence = "coding_status=FAILED reason=runtime_failure",
             )
         }
+        if (report.finalExecution.status == CodingAgentStatus.CANCELLED) {
+            throw CancellationException("Coding task was cancelled")
+        }
         return CodingRuntimeResult(report, report.modelContext(maxEvidenceChars))
     }
 }

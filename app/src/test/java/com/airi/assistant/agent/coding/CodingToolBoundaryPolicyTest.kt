@@ -59,6 +59,12 @@ class CodingToolBoundaryPolicyTest {
         val approval = policy.terminalExecute("rm ./draft.txt", "/", 100, 20)
         assertTrue(approval is CodingToolBoundaryPolicy.Decision.Allowed)
         assertTrue((approval as CodingToolBoundaryPolicy.Decision.Allowed).value.requiresApproval)
+        assertDeniedPrefix("terminal_denied:") {
+            policy.terminalExecute("rm -rf ./draft.txt", "/", 100, 20)
+        }
+        assertDeniedPrefix("terminal_denied:") {
+            policy.terminalExecute("rm /etc/passwd", "/", 100, 20)
+        }
     }
 
     private fun assertDenied(expected: String, block: () -> CodingToolBoundaryPolicy.Decision<*>) {

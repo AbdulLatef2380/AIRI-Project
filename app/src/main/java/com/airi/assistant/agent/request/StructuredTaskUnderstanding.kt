@@ -85,8 +85,8 @@ data class StructuredTaskUnderstanding(
                 if (analysis && coding != null) add(CapabilityIntentDetector.Capability.CODE_TASK)
             }
             val type = when {
-                coding != null && analysis -> TaskType.CODE_ANALYSIS
                 coding != null && hasExecute -> TaskType.CODE_EXECUTION
+                analysis -> TaskType.CODE_ANALYSIS
                 coding != null && hasFile -> TaskType.FILE_CREATION
                 coding != null -> TaskType.CODE_GENERATION
                 hasFile -> TaskType.FILE_CREATION
@@ -98,8 +98,8 @@ data class StructuredTaskUnderstanding(
             }
             val outcome = when {
                 coding != null && hasExecute -> RequestedOutcome.CREATE_FILE_AND_VERIFY
+                analysis -> RequestedOutcome.ANALYZE_AND_REPORT
                 coding != null && hasFile -> RequestedOutcome.CREATE_FILE
-                coding != null && analysis -> RequestedOutcome.ANALYZE_AND_REPORT
                 coding != null -> RequestedOutcome.CREATE_AND_RETURN_CODE
                 hasExecute || hasConnector -> RequestedOutcome.EXECUTE_OPERATION
                 hasWeb -> RequestedOutcome.RESEARCH_AND_REPORT

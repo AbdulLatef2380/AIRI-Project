@@ -263,7 +263,19 @@ class ConnectorToolBridgeTest {
         } else buildList {
             add(ConnectorAgentAction("list_repos", "List repositories"))
             add(ConnectorAgentAction("create_issue", "Create issue", ConnectorPermissionLevel.WRITE))
-            if (includePush) add(ConnectorAgentAction("push", "Push file", ConnectorPermissionLevel.WRITE))
+            if (includePush) add(
+                ConnectorAgentAction(
+                    "push",
+                    "Push file",
+                    ConnectorPermissionLevel.WRITE,
+                    parameters = mapOf(
+                        "repo" to ConnectorAgentParameter(required = true, maxLength = 128),
+                        "path" to ConnectorAgentParameter(required = true, maxLength = 512),
+                        "content" to ConnectorAgentParameter(required = true, maxLength = 10_000),
+                        "message" to ConnectorAgentParameter(required = true, maxLength = 256),
+                    ),
+                ),
+            )
         }
         override suspend fun execute(input: ConnectorInput): ConnectorOutput {
             lastAction = input.action

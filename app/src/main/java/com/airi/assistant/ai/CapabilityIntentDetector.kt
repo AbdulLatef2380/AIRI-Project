@@ -90,6 +90,10 @@ object CapabilityIntentDetector {
         "اكتب ملف", "اكتب ملفا", "انشئ ملف", "انشئ ملفا", "سو ملف", "احفظ في ملف", "احفظه في ملف",
         "احفظ كملف", "احفظه كملف", "احفظ الكود في ملف", "اعطني ملف", "ولد ملف",
     )
+    private val explicitFileTarget = Regex(
+        "(?:احفظ(?:ه|ها)?|اكتب|save(?: it)?)\\s+(?:في|to|as)\\s+[\\p{L}\\p{N}_.-]+\\.[\\p{L}\\p{N}]{1,8}(?![\\p{L}\\p{N}_])",
+        RegexOption.IGNORE_CASE,
+    )
 
     private val connectorReadActions = normalizedTerms(
         "list", "show", "read", "check", "find", "search", "get", "access", "summarize",
@@ -288,7 +292,9 @@ object CapabilityIntentDetector {
         if (namesTerminal || asksToRunCommand) {
             capabilities += Capability.TERMINAL_EXECUTE
         }
-        if (fileWritePhrases.any { text.contains(it) }) capabilities += Capability.FILE_WRITE
+        if (fileWritePhrases.any { text.contains(it) } || explicitFileTarget.containsMatchIn(text)) {
+            capabilities += Capability.FILE_WRITE
+        }
         if (CodingTaskDetector.isCodingTask(text)) capabilities += Capability.CODE_TASK
         return Intent(capabilities, connectors)
     }

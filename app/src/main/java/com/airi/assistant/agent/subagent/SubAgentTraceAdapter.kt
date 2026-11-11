@@ -129,7 +129,7 @@ class SubAgentTraceAdapter(
         if (executionId.isBlank()) return
         if (terminal) return
         terminal = true
-        closeActiveActions(0L, failed = false)
+        closeActiveActions(0L, cancelled = true)
         ExecutionStatusBus.onSubAgentCancelled(
             executionId = executionId,
             actionId = rootActionId,
@@ -173,10 +173,23 @@ class SubAgentTraceAdapter(
         lastPublishedLength = partialText.length
     }
 
-    private fun closeActiveActions(durationMs: Long, failed: Boolean = false, errorCode: String? = null) {
+    private fun closeActiveActions(
+        durationMs: Long,
+        failed: Boolean = false,
+        cancelled: Boolean = false,
+        errorCode: String? = null,
+    ) {
         activeActions.toList().forEach { (actionId, toolName) ->
             if (failed) {
                 ExecutionStatusBus.onToolFailed(executionId, actionId, toolName, durationMs, errorCode = errorCode)
+            } else if (cancelled) {
+                ExecutionStatusBus.onToolCancelled(
+                    executionId = executionId,
+                    actionId = actionId,
+                    toolName = toolName,
+                    durationMs = durationMs,
+                    detail = "Sub-agent tool was cancelled.",
+                )
             } else {
                 ExecutionStatusBus.onToolCompleted(executionId, actionId, toolName, durationMs)
             }

@@ -44,7 +44,7 @@ import com.airi.assistant.telemetry.PrivacyTelemetryReporter
 class AgentSandbox(
     private val firewall: ExecutionFirewall,
     private val registry: ScopedPermissionRegistry,
-    private val telemetry: PrivacyTelemetryReporter
+    private val telemetry: PrivacyTelemetryReporter? = null
 ) {
 
     private val TAG = "AgentSandbox"
@@ -71,7 +71,7 @@ class AgentSandbox(
             if (!registry.check(agentId, perm)) {
                 val msg = "Sandbox denied: agent=$agentId missing permission=$perm"
                 LoggingService.warn(TAG, "AIRI SANDBOX_DENIED agent=$agentId perm=$perm")
-                telemetry.report(AgentTelemetryEvent.AgentFailed(agentId, "PERMISSION_DENIED_$perm"))
+                telemetry?.report(AgentTelemetryEvent.AgentFailed(agentId, "PERMISSION_DENIED_$perm"))
                 throw SandboxViolationException(msg)
             }
         }
@@ -92,19 +92,19 @@ class AgentSandbox(
             result
         } catch (e: ScopedPermissionRegistry.PermissionDeniedException) {
             LoggingService.warn(TAG, "AIRI SANDBOX_RUNTIME_VIOLATION agent=$agentId msg=${e.message}")
-            telemetry.report(AgentTelemetryEvent.AgentFailed(agentId, "RUNTIME_PERMISSION_DENIED"))
+            telemetry?.report(AgentTelemetryEvent.AgentFailed(agentId, "RUNTIME_PERMISSION_DENIED"))
             workspace.logError(agentId, "RUNTIME_PERMISSION_DENIED: ${e.message}")
             workspace.rollback(snap.id)
             throw SandboxViolationException("Runtime permission violation in agent=$agentId", e)
         } catch (e: ExecutionFirewall.UnknownToolException) {
             LoggingService.warn(TAG, "AIRI SANDBOX_UNKNOWN_TOOL agent=$agentId msg=${e.message}")
-            telemetry.report(AgentTelemetryEvent.AgentFailed(agentId, "UNKNOWN_TOOL"))
+            telemetry?.report(AgentTelemetryEvent.AgentFailed(agentId, "UNKNOWN_TOOL"))
             workspace.logError(agentId, "UNKNOWN_TOOL: ${e.message}")
             workspace.rollback(snap.id)
             throw SandboxViolationException("Unknown tool called by agent=$agentId", e)
         } catch (e: ExecutionFirewall.RateLimitException) {
             LoggingService.warn(TAG, "AIRI SANDBOX_RATE_LIMITED agent=$agentId msg=${e.message}")
-            telemetry.report(AgentTelemetryEvent.AgentFailed(agentId, "RATE_LIMITED"))
+            telemetry?.report(AgentTelemetryEvent.AgentFailed(agentId, "RATE_LIMITED"))
             workspace.logError(agentId, "RATE_LIMITED")
             workspace.rollback(snap.id)
             throw SandboxViolationException("Agent rate limit exceeded for agent=$agentId", e)

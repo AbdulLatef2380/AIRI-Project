@@ -11,14 +11,20 @@ import org.junit.Test
 
 class LiveTraceBridgeTest {
 
-    private fun ev(seq: Long, kind: ExecutionTraceKind, exec: String = "exec-1", summary: String = "s$seq") =
+    private fun ev(
+        seq: Long,
+        kind: ExecutionTraceKind,
+        exec: String = "exec-1",
+        summary: String = "s$seq",
+        actionId: String? = if (kind == ExecutionTraceKind.TOOL_COMPLETED) "read_file" else null,
+    ) =
         ExecutionTraceEvent(
             executionId = exec,
             sequence = seq,
             timestampMs = 1_000L + seq,
             kind = kind,
             summary = summary,
-            actionId = if (kind == ExecutionTraceKind.TOOL_COMPLETED) "read_file" else null,
+            actionId = actionId,
         )
 
     private val planning = ev(1, ExecutionTraceKind.PLANNING)
@@ -71,7 +77,12 @@ class LiveTraceBridgeTest {
         val manager = AgentTraceManager()
         val b = bridge(manager)
         b.handle(listOf(planning, toolDone))
-        b.handle(listOf(planning, toolDone, ev(3, ExecutionTraceKind.TOOL_COMPLETED), ev(4, ExecutionTraceKind.COMPLETED)))
+        b.handle(listOf(
+            planning,
+            toolDone,
+            ev(3, ExecutionTraceKind.TOOL_COMPLETED, actionId = "read_file:second"),
+            ev(4, ExecutionTraceKind.COMPLETED),
+        ))
         val only = manager.traces.value.single()
         assertEquals(2, only.steps.size)
         assertFalse(only.inProgress)

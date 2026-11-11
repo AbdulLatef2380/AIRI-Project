@@ -14,7 +14,7 @@ import org.junit.Test
 class ChatExecutionTraceSuccessRuleTest {
     private fun run(vararg kinds: ExecutionTraceKind): Boolean {
         val events = kinds.mapIndexed { i, kind ->
-            ExecutionTraceEvent("e", i + 1L, 1_000L + i, kind, "s", actionId = "a$i")
+            ExecutionTraceEvent("e", i + 1L, 1_000L + i, kind, summary = "s", actionId = "a$i")
         }
         return requireNotNull(
             ChatExecutionTraceMapper.toAgentTrace("e", "s", 1L, "q", events, "answer")

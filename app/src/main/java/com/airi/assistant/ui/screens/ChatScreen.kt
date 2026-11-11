@@ -3656,7 +3656,6 @@ private fun AttachmentChip(
                 AttachmentPolicy.ContentType.DOCUMENT -> Icons.Outlined.Article
                 AttachmentPolicy.ContentType.FILE -> Icons.Default.AttachFile
             }
-            Icon(fallback, contentDescription = typeLabel, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(30.dp))
             val thumbModel: Any? = attachment.uri ?: attachment.bitmap
             if (attachment.isVisualImage && thumbModel != null) {
                 AsyncImage(
@@ -3667,6 +3666,8 @@ private fun AttachmentChip(
                     // previous card looked like a broken/partial attachment.
                     contentScale = androidx.compose.ui.layout.ContentScale.Fit
                 )
+            } else {
+                Icon(fallback, contentDescription = typeLabel, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(30.dp))
             }
             if (attachment.contentType == AttachmentPolicy.ContentType.VIDEO) {
                 Surface(
@@ -3752,7 +3753,7 @@ private fun AttachmentPreviewDialog(attachment: ChatAttachment, onDismiss: () ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.attachment_preview_title), color = AiriTheme.onSurface, fontWeight = FontWeight.SemiBold)
-                        Text(attachment.safeDisplayName, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(detailType, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, stringResource(R.string.close), tint = AiriTheme.onSurface) }
                 }
@@ -3764,7 +3765,7 @@ private fun AttachmentPreviewDialog(attachment: ChatAttachment, onDismiss: () ->
                     if (attachment.isVisualImage && thumbModel != null) {
                         AsyncImage(
                             model = ImageRequest.Builder(context).data(thumbModel).crossfade(true).build(),
-                            contentDescription = attachment.safeDisplayName,
+                            contentDescription = typeLabel,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = androidx.compose.ui.layout.ContentScale.Fit
                         )

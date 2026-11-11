@@ -126,10 +126,10 @@ fun AgentPlanOverlay(
                 SignalMark(accent, stage == ExecutionStage.EXECUTING || stage == ExecutionStage.RECOVERING)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("AIRI  ·  $panelTitle", color = AiriTheme.onSurface.copy(alpha = 0.55f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                    Text(stringResource(R.string.agent_plan_header, panelTitle), color = AiriTheme.onSurface.copy(alpha = 0.55f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
                     Text(stageText, color = accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
-                Text("$completed/${steps.size}", color = AiriTheme.onSurface, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.agent_plan_progress, completed, steps.size), color = AiriTheme.onSurface, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(4.dp))
                 Icon(
                     imageVector = if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,

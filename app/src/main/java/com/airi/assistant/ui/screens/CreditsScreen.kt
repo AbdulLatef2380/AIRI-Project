@@ -302,7 +302,7 @@ private fun ActionUsageRow(action: ActionType, credits: Int, maxValue: Float) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(actionInfo.second, fontSize = 12.sp, color = AiriTheme.onBackground)
-                Text("$credits cr", fontSize = 12.sp, color = CosmicAccent, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.credits_short, credits.toString()), fontSize = 12.sp, color = CosmicAccent, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.height(4.dp))
             Box(

@@ -163,7 +163,7 @@ private fun BillingRecordRow(record: BillingRecord, dateFormat: SimpleDateFormat
             Column(horizontalAlignment = Alignment.End) {
                 Text(record.amountString, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
                 if (record.credits > 0) {
-                    Text("+${"%,d".format(record.credits)} cr", fontSize = 11.sp, color = SemanticSuccess)
+                    Text(stringResource(R.string.credits_short, "+${"%,d".format(record.credits)}"), fontSize = 11.sp, color = SemanticSuccess)
                 }
                 Spacer(Modifier.height(2.dp))
                 StatusBadge(record.status)

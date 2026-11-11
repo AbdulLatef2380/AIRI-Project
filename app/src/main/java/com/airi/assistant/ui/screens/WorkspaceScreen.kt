@@ -332,7 +332,7 @@ private fun ArtifactCard(
                 Spacer(Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(artifact.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
-                    Text("${artifact.type.name} · v${artifact.version} · ${artifact.sizeBytes / 1024}KB",
+                    Text(stringResource(R.string.workspace_artifact_version, artifact.type.name, artifact.version, artifact.sizeBytes / 1024),
                         fontSize = 11.sp, color = AiriTheme.onBackground.copy(0.4f))
                 }
                 IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {

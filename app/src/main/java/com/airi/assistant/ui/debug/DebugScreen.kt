@@ -57,7 +57,7 @@ fun DebugScreen(onBack: () -> Unit) {
             modifier = Modifier.fillMaxWidth()
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.BugReport, contentDescription = "debug", tint = AiriTheme.onSurfaceVariant)
+                Icon(Icons.Default.BugReport, contentDescription = stringResource(R.string.debug_icon), tint = AiriTheme.onSurfaceVariant)
             }
             Text(
                 "Verification Layer",
@@ -75,7 +75,7 @@ fun DebugScreen(onBack: () -> Unit) {
                 if (isRunning) {
                     CircularProgressIndicator(color = GREEN, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {
-                    Icon(Icons.Default.Refresh, contentDescription = "re-run", tint = AiriTheme.onSurfaceVariant)
+                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.debug_rerun), tint = AiriTheme.onSurfaceVariant)
                 }
             }
         }
@@ -200,10 +200,10 @@ private fun EventRow(event: VerificationEvent) {
             fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp))
         Text(event.queryType, color = LABEL, fontSize = 10.sp, fontFamily = MONO,
             modifier = Modifier.width(72.dp))
-        Text("${event.latencyMs}ms", color = AiriTheme.onBackground, fontSize = 10.sp, fontFamily = MONO,
+        Text(stringResource(R.string.debug_latency, event.latencyMs), color = AiriTheme.onBackground, fontSize = 10.sp, fontFamily = MONO,
             modifier = Modifier.width(56.dp))
         if (event.wasCut) {
-            Text("CUT", color = RED, fontSize = 9.sp, fontFamily = MONO, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.debug_cut), color = RED, fontSize = 9.sp, fontFamily = MONO, fontWeight = FontWeight.Bold)
         }
     }
 }

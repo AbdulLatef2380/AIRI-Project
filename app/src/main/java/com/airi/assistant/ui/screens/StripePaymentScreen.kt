@@ -285,7 +285,7 @@ private fun CreditPackCard(pack: CreditPackage, isSelected: Boolean, onClick: ()
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(pack.priceString, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = if (isSelected) CosmicAccent else AiriTheme.onBackground)
-                Text("${"%.1f".format(pack.costPer1kCents)}¢/1k", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                Text(stringResource(R.string.price_per_thousand, pack.costPer1kCents), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
             }
         }
     }

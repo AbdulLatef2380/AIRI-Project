@@ -78,7 +78,7 @@ fun ReportProblemScreen(onBack: () -> Unit) {
                     textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Right),
                     singleLine = false
                 )
-                Text("${description.length} / 2000", color = AiriTheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
+                Text(stringResource(R.string.report_char_count, description.length), color = AiriTheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
                 Button(
                     onClick = {
                         context.getSharedPreferences("airi_user_reports", android.content.Context.MODE_PRIVATE).edit()

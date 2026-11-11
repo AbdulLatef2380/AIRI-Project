@@ -667,7 +667,7 @@ private fun LibraryArtifactRow(artifact: ArtifactManager.Artifact) {
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(artifact.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
-                Text("${artifact.type.name} · ${artifact.sizeBytes / 1024} KB · v${artifact.version}", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                Text(stringResource(R.string.artifact_size_version, artifact.type.name, artifact.sizeBytes / 1024, artifact.version), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                 if (artifact.description.isNotBlank()) {
                     Text(artifact.description, fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, maxLines = 2)
                 }

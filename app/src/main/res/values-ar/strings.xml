@@ -2684,4 +2684,41 @@
     <string name="wake_sheet_share_screen">مشاركة الشاشة مع AIRI</string>
     <string name="screen_share_started">تم السماح بمشاركة الشاشة لهذه الجلسة.</string>
     <string name="cd_airi_generating_response">ينشئ AIRI رداً</string>
+
+    <string name="chat_biometric_enroll_hint">أضف بصمة أو قفل شاشة من الإعدادات لتفعيل هذا الوضع.</string>
+    <string name="chat_biometric_confirm_title">تأكيد تغيير الوضع</string>
+    <string name="chat_biometric_confirm_subtitle">يحتاج AIRI إلى التحقق من هويتك لتفعيل وضع الوكيل المستقل.</string>
+    <string name="chat_debug_context_compressed">تم ضغط السياق (تصحيح)</string>
+    <string name="chat_export_pdf">تصدير بصيغة PDF</string>
+    <string name="chat_export_markdown">تصدير بصيغة Markdown</string>
+    <string name="cd_selected_skill">المهارة المحددة: %1$s</string>
+    <string name="cd_remove_skill">إزالة %1$s</string>
+    <string name="cd_composer_utilities">أدوات صندوق الإدخال</string>
+    <string name="cd_composer_actions">إجراءات صندوق الإدخال</string>
+
+    <string name="paywall_purchase_success">تم تفعيل Premium! استمتع بالوصول غير المحدود.</string>
+    <string name="artifact_load_failed">تعذر تحميل هذا الملف الناتج.</string>
+    <string name="artifact_preview_title">معاينة — %1$s</string>
+    <string name="referral_share_whatsapp">مشاركة عبر WhatsApp</string>
+    <string name="referral_share_telegram">مشاركة عبر Telegram</string>
+    <string name="referral_link_copied">تم نسخ رابط الإحالة</string>
+    <string name="profile_value_copied">تم نسخ %1$s</string>
+    <string name="profile_copy_value_cd">نسخ %1$s</string>
+    <string name="history_new_chat">محادثة جديدة</string>
+    <string name="history_recent">المحادثات الأخيرة</string>
+    <string name="history_delete_title">حذف المحادثة؟</string>
+    <string name="history_delete_body">سيتم حذف هذه المحادثة ورسائلها نهائياً.</string>
+    <string name="history_delete_action">حذف</string>
+    <string name="history_rename_title">تغيير اسم المحادثة</string>
+    <string name="history_actions">إجراءات المحادثة</string>
+    <string name="history_pinned">مثبتة</string>
+    <string name="history_archive">أرشفة</string>
+    <string name="history_favorite">مفضلة</string>
+    <string name="history_add_favorite">إضافة إلى المفضلة</string>
+    <string name="history_share">مشاركة</string>
+    <string name="history_label">تسمية</string>
+
+    <string name="voice_ok_airi_title">حسناً AIRI</string>
+    <string name="voice_ok_airi_description">تحدث إلى AIRI دون لمس الجهاز. يتطلب ذلك تفعيل الميكروفون ونموذج كلمة التنبيه.</string>
+    <string name="voice_set_default_assistant">تعيين AIRI كمساعد الجهاز</string>
 </resources>

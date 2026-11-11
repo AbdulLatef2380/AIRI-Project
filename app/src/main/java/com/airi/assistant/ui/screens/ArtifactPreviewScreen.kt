@@ -107,7 +107,7 @@ fun ArtifactPreviewScreen(
     if (artifactContent == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             if (loadFailed) {
-                Text("Unable to load this artifact.", color = AiriTheme.onBackground)
+                Text(stringResource(R.string.artifact_load_failed), color = AiriTheme.onBackground)
             } else {
                 CircularProgressIndicator()
             }
@@ -126,14 +126,14 @@ fun ArtifactPreviewScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.Default.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.back),
                             tint = AiriTheme.onBackground
                         )
                     }
                 },
                 title = {
                     Text(
-                        text       = "Preview — $artifactType",
+                        text       = stringResource(R.string.artifact_preview_title, artifactType),
                         color      = AiriTheme.onBackground,
                         fontSize   = 16.sp,
                         fontWeight = FontWeight.SemiBold

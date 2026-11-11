@@ -21,3 +21,8 @@ jobs:
 
       - name: Run core verification
         run: python3 tools/verify_core_changes.py
+
+      - name: Verify UI localization guard
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_airi_ui_hardcoded_text_lint.py' -v
+          python3 -I scripts/airi_ui_hardcoded_text_lint.py

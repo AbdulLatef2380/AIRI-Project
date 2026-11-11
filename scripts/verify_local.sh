@@ -19,6 +19,8 @@ run python3 scripts/connector_lifecycle_static_scan.py
 run python3 scripts/runtime_state_simulation.py
 run python3 scripts/telemetry_privacy_scan.py
 run python3 scripts/airi_localization_health.py --strict
+run python3 -m unittest discover -s scripts -p 'test_airi_ui_hardcoded_text_lint.py' -v
+run python3 -I scripts/airi_ui_hardcoded_text_lint.py
 run python3 tools/verify_core_changes.py
 run python3 tools/airi_runtime_simulation.py
 

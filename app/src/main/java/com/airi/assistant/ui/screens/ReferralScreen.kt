@@ -98,12 +98,12 @@ fun ReferralScreen(onBack: () -> Unit) {
                 Text(stringResource(R.string.referral_bonus_available, bonus), color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
             }
 
-            ReferralButton(Icons.Outlined.Send, "Share on WhatsApp") {
+            ReferralButton(Icons.Outlined.Send, stringResource(R.string.referral_share_whatsapp)) {
                 shareToPackage(context, "com.whatsapp", shareText)
                 ReferralManager.onReferralSent("whatsapp", userId)
                 bonus = ReferralManager.getBonusMessages()
             }
-            ReferralButton(Icons.Outlined.Send, "Share on Telegram") {
+            ReferralButton(Icons.Outlined.Send, stringResource(R.string.referral_share_telegram)) {
                 shareToPackage(context, "org.telegram.messenger", shareText)
                 ReferralManager.onReferralSent("telegram", userId)
                 bonus = ReferralManager.getBonusMessages()
@@ -113,7 +113,7 @@ fun ReferralScreen(onBack: () -> Unit) {
                 clipboard.setPrimaryClip(ClipData.newPlainText("AIRI referral", shareText))
                 ReferralManager.onReferralSent("copy_link", userId)
                 bonus = ReferralManager.getBonusMessages()
-                scope.launch { snackbarHost.showSnackbar("Referral link copied") }
+                scope.launch { snackbarHost.showSnackbar(context.getString(R.string.referral_link_copied)) }
             }
 
             OutlinedTextField(

@@ -81,7 +81,7 @@ fun PaywallScreen(
         when (val state = billingState) {
             is BillingManager.BillingState.PurchaseSuccess -> {
                 AnalyticsService.subscribed("premium_monthly")
-                snackbarHost.showSnackbar("Premium activated! Enjoy unlimited access.")
+                snackbarHost.showSnackbar(context.getString(R.string.paywall_purchase_success))
                 onPurchaseSuccess()
             }
             is BillingManager.BillingState.Error -> {

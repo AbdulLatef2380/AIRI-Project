@@ -2749,4 +2749,41 @@
     <string name="wake_sheet_share_screen">Share screen with AIRI</string>
     <string name="screen_share_started">Screen sharing is enabled for this session.</string>
     <string name="cd_airi_generating_response">AIRI is generating a response</string>
+
+    <string name="chat_biometric_enroll_hint">Add a fingerprint or screen lock in Settings to enable this mode.</string>
+    <string name="chat_biometric_confirm_title">Confirm mode change</string>
+    <string name="chat_biometric_confirm_subtitle">AIRI needs to verify your identity to enable autonomous agent mode.</string>
+    <string name="chat_debug_context_compressed">Context compressed (debug)</string>
+    <string name="chat_export_pdf">Export as PDF</string>
+    <string name="chat_export_markdown">Export as Markdown</string>
+    <string name="cd_selected_skill">Selected skill %1$s</string>
+    <string name="cd_remove_skill">Remove %1$s</string>
+    <string name="cd_composer_utilities">Composer utilities</string>
+    <string name="cd_composer_actions">Composer actions</string>
+
+    <string name="paywall_purchase_success">Premium activated! Enjoy unlimited access.</string>
+    <string name="artifact_load_failed">Unable to load this artifact.</string>
+    <string name="artifact_preview_title">Preview — %1$s</string>
+    <string name="referral_share_whatsapp">Share on WhatsApp</string>
+    <string name="referral_share_telegram">Share on Telegram</string>
+    <string name="referral_link_copied">Referral link copied</string>
+    <string name="profile_value_copied">%1$s copied</string>
+    <string name="profile_copy_value_cd">Copy %1$s</string>
+    <string name="history_new_chat">New conversation</string>
+    <string name="history_recent">Recent conversations</string>
+    <string name="history_delete_title">Delete conversation?</string>
+    <string name="history_delete_body">This conversation and its messages will be permanently deleted.</string>
+    <string name="history_delete_action">Delete</string>
+    <string name="history_rename_title">Rename conversation</string>
+    <string name="history_actions">Conversation actions</string>
+    <string name="history_pinned">Pinned</string>
+    <string name="history_archive">Archive</string>
+    <string name="history_favorite">Favorite</string>
+    <string name="history_add_favorite">Add to favorites</string>
+    <string name="history_share">Share</string>
+    <string name="history_label">Rename</string>
+
+    <string name="voice_ok_airi_title">Ok Airi</string>
+    <string name="voice_ok_airi_description">Talk to AIRI without touching the device. Microphone access and a wake-word model are required.</string>
+    <string name="voice_set_default_assistant">Set AIRI as the device assistant</string>
 </resources>

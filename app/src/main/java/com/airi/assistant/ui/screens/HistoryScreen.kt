@@ -48,8 +48,8 @@ fun HistoryScreen(viewModel: ChatViewModel, onBack: () -> Unit, onSessionSelecte
         containerColor = AiriTheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("المحادثات", color = AiriTheme.onBackground, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End, fontWeight = FontWeight.SemiBold) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.Close, "إغلاق", tint = AiriTheme.onBackground) } },
+                title = { Text(stringResource(R.string.history_title), color = AiriTheme.onBackground, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End, fontWeight = FontWeight.SemiBold) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.Close, stringResource(R.string.close), tint = AiriTheme.onBackground) } },
                 actions = { Spacer(Modifier.size(48.dp)) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background)
             )
@@ -61,13 +61,13 @@ fun HistoryScreen(viewModel: ChatViewModel, onBack: () -> Unit, onSessionSelecte
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(Icons.Outlined.Add, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
-                Text("محادثة جديدة", color = CosmicAccent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.history_new_chat), color = CosmicAccent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.height(18.dp))
             if (sessions.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("لا توجد محادثات محفوظة", color = AiriTheme.onSurfaceVariant.copy(.55f), textAlign = TextAlign.Center) }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.history_no_sessions), color = AiriTheme.onSurfaceVariant.copy(.55f), textAlign = TextAlign.Center) }
             } else {
-                Text("المحادثات الأخيرة", color = AiriTheme.onSurfaceVariant.copy(.6f), fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), textAlign = TextAlign.End)
+                Text(stringResource(R.string.history_recent), color = AiriTheme.onSurfaceVariant.copy(.6f), fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), textAlign = TextAlign.End)
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
                     items(sessions, key = { it.id }) { session ->
                         HistorySessionItem(
@@ -80,7 +80,7 @@ fun HistoryScreen(viewModel: ChatViewModel, onBack: () -> Unit, onSessionSelecte
                             isFavorite = session.id in favoriteSessionIds,
                             onFavorite = { viewModel.setSessionFavorite(session.id, session.id !in favoriteSessionIds) },
                             onArchive = { viewModel.archiveSession(session.id) },
-                            onShare = { shareSession(context, session) }
+                            onShare = { shareSession(context, session, context.getString(R.string.history_share)) }
                         )
                     }
                 }
@@ -91,16 +91,16 @@ fun HistoryScreen(viewModel: ChatViewModel, onBack: () -> Unit, onSessionSelecte
     sessionToDelete?.let { session ->
         AlertDialog(
             onDismissRequest = { sessionToDelete = null }, containerColor = AiriTheme.surface,
-            title = { Text("حذف المحادثة؟", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
-            text = { Text("سيتم حذف المحادثة ورسائلها نهائياً.", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
-            confirmButton = { TextButton(onClick = { viewModel.deleteSession(session.id); sessionToDelete = null }) { Text("حذف", color = SemanticError) } },
+            title = { Text(stringResource(R.string.history_delete_title), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
+            text = { Text(stringResource(R.string.history_delete_body), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
+            confirmButton = { TextButton(onClick = { viewModel.deleteSession(session.id); sessionToDelete = null }) { Text(stringResource(R.string.history_delete_action), color = SemanticError) } },
             dismissButton = { TextButton(onClick = { sessionToDelete = null }) { Text(stringResource(R.string.cancel)) } }
         )
     }
     renameTarget?.let { session ->
         AlertDialog(
             onDismissRequest = { renameTarget = null }, containerColor = AiriTheme.surface,
-            title = { Text("تغيير اسم المحادثة", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
+            title = { Text(stringResource(R.string.history_rename_title), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
             text = { OutlinedTextField(value = renameDraft, onValueChange = { renameDraft = it.take(80) }, singleLine = true, label = { Text(stringResource(R.string.rename_chat_hint)) }, modifier = Modifier.fillMaxWidth()) },
             confirmButton = { TextButton(onClick = { viewModel.renameSession(session.id, renameDraft); renameTarget = null }) { Text(stringResource(R.string.rename_chat)) } },
             dismissButton = { TextButton(onClick = { renameTarget = null }) { Text(stringResource(R.string.cancel)) } }
@@ -115,23 +115,23 @@ internal fun HistorySessionItem(session: ChatSessionSummary, icon: ImageVector, 
     var actions by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().clip(AIRIShapes.md).background(if (actions) AiriTheme.surfaceVariant else AiriTheme.surface).combinedClickable(onClick = onSelect, onLongClick = { actions = !actions }).padding(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (session.isPinned) Icon(Icons.Filled.PushPin, "مثبتة", tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(15.dp))
+            if (session.isPinned) Icon(Icons.Filled.PushPin, stringResource(R.string.history_pinned), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(15.dp))
             Text(time.format(Date(session.updatedAt)), color = AiriTheme.onSurfaceVariant.copy(.55f), fontSize = 11.sp)
             Spacer(Modifier.weight(1f))
             Icon(icon, contentDescription = null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-            Text(session.title.ifBlank { "محادثة جديدة" }, color = AiriTheme.onBackground, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(session.title.ifBlank { stringResource(R.string.history_new_chat) }, color = AiriTheme.onBackground, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(4.dp))
-        Text(session.lastMessage.orEmpty().ifBlank { "لا توجد رسائل بعد" }, color = AiriTheme.onSurfaceVariant.copy(.55f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
+        Text(session.lastMessage.orEmpty().ifBlank { stringResource(R.string.history_no_messages) }, color = AiriTheme.onSurfaceVariant.copy(.55f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
         if (actions) {
             Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                ActionIcon(Icons.Outlined.DeleteOutline, "حذف", SemanticError, onDelete)
-                ActionIcon(Icons.Outlined.Archive, "أرشفة", AiriTheme.onSurfaceVariant, onArchive)
-                ActionIcon(Icons.Outlined.FavoriteBorder, if (isFavorite) "مفضلة" else "إضافة إلى المفضلة", CosmicAccent, onFavorite)
-                ActionIcon(Icons.Outlined.Share, "مشاركة", AiriTheme.onSurfaceVariant, onShare)
-                ActionIcon(Icons.Outlined.Edit, "تسمية", AiriTheme.onSurfaceVariant, onRename)
+                ActionIcon(Icons.Outlined.DeleteOutline, stringResource(R.string.history_delete_action), SemanticError, onDelete)
+                ActionIcon(Icons.Outlined.Archive, stringResource(R.string.history_archive), AiriTheme.onSurfaceVariant, onArchive)
+                ActionIcon(Icons.Outlined.FavoriteBorder, if (isFavorite) stringResource(R.string.history_favorite) else stringResource(R.string.history_add_favorite), CosmicAccent, onFavorite)
+                ActionIcon(Icons.Outlined.Share, stringResource(R.string.history_share), AiriTheme.onSurfaceVariant, onShare)
+                ActionIcon(Icons.Outlined.Edit, stringResource(R.string.history_label), AiriTheme.onSurfaceVariant, onRename)
                 ActionIcon(if (session.isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin, stringResource(R.string.pin_chat), CosmicAccent, onPin)
-                Text("إجراءات المحادثة", color = AiriTheme.onSurfaceVariant.copy(.55f), fontSize = 11.sp, modifier = Modifier.padding(end = 8.dp))
+                Text(stringResource(R.string.history_actions), color = AiriTheme.onSurfaceVariant.copy(.55f), fontSize = 11.sp, modifier = Modifier.padding(end = 8.dp))
             }
         }
     }
@@ -157,7 +157,7 @@ private fun ActionIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, la
     IconButton(onClick = onClick, modifier = Modifier.size(34.dp)) { Icon(icon, label, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
 }
 
-internal fun shareSession(context: Context, session: ChatSessionSummary) {
+internal fun shareSession(context: Context, session: ChatSessionSummary, chooserTitle: String) {
     val intent = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, "${session.title}\n\n${session.lastMessage.orEmpty()}") }
-    context.startActivity(Intent.createChooser(intent, "مشاركة المحادثة"))
+    context.startActivity(Intent.createChooser(intent, chooserTitle))
 }

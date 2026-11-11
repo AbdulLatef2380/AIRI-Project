@@ -80,7 +80,7 @@ fun ProfileScreen(
         if (value.isBlank()) return
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
-        scope.launch { snackbar.showSnackbar("$label copied") }
+        scope.launch { snackbar.showSnackbar(context.getString(R.string.profile_value_copied, label)) }
     }
 
     // ── Derived account data ─────────────────────────────────────────────────
@@ -594,7 +594,7 @@ private fun AccountInfoRow(
             } else if (value.isNotBlank() && value != "—") {
                 Icon(
                     imageVector = Icons.Outlined.ContentCopy,
-                    contentDescription = "Copy $label",
+                    contentDescription = stringResource(R.string.profile_copy_value_cd, label),
                     tint = AiriTheme.onSurfaceVariant.copy(0.45f),
                     modifier = Modifier.size(15.dp)
                 )

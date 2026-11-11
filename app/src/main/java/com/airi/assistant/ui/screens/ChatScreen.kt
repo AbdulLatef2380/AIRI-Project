@@ -284,13 +284,13 @@ fun ChatScreen(
             if (availability == BiometricGatekeeper.Availability.NOT_ENROLLED) {
                 // Device has no biometric enrolled — gate cannot proceed.
                 // Show snackbar prompting the user to enrol in Settings.
-                snackbarHost.showSnackbar("Add a fingerprint or screen lock in Settings to enable this mode.")
+                snackbarHost.showSnackbar(context.getString(R.string.chat_biometric_enroll_hint))
                 return@collect
             }
             val passed = BiometricGatekeeper.authenticate(
                 activity = activity,
-                title    = "Confirm Mode Change",
-                subtitle = "AIRI needs to verify your identity to enable autonomous agent mode."
+                title    = context.getString(R.string.chat_biometric_confirm_title),
+                subtitle = context.getString(R.string.chat_biometric_confirm_subtitle)
             )
             if (passed) viewModel.onBiometricSuccess(request)
         }
@@ -342,7 +342,7 @@ fun ChatScreen(
         // In debug builds only: show a brief non-intrusive snackbar so devs can still see it
         if (DebugOverlayPolicy.shouldShowDiagnostics(com.airi.assistant.BuildConfig.DEBUG, viewModel.isDebugModeEnabled())) {
             snackbarHost.showSnackbar(
-                message  = "Context compressed (debug)",
+                message  = context.getString(R.string.chat_debug_context_compressed),
                 duration = androidx.compose.material3.SnackbarDuration.Short
             )
         }
@@ -1196,9 +1196,9 @@ fun ChatScreen(
                 streamingText = if (chatSearchQuery.isBlank()) visibleStreamingText else "",
                 isGenerating  = generationBelongsToCurrentSession,
                 generationStoppedNotice = generationStoppedNotice,
-                // ChatMessageList keeps this as a stable internal discriminator;
-                // AiResponseTurn localizes the visible badge itself.
-                planLabel      = if (isProPlan) "Pro" else "Free",
+                // Keep the entitlement as a stable logical value; each child
+                // resolves the visible badge through the active locale.
+                isProPlan      = isProPlan,
                 executionError = visibleExecutionError,
                 inlineTraceExecutionId = agentState.executionId,
                 inlineTraceEntries = executionTrace.filter {
@@ -2180,7 +2180,7 @@ fun ChatMessageList(
     streamingText: String,
     isGenerating: Boolean,
     generationStoppedNotice: Boolean = false,
-    planLabel: String = "Free",
+    isProPlan: Boolean = false,
     executionError: ExecutionErrorProjection? = null,
     inlineTraceExecutionId: String = "",
     inlineTraceEntries: List<ExecutionTraceEvent> = emptyList(),
@@ -2446,7 +2446,7 @@ fun ChatMessageList(
                                 toolOutputs     = msg.outputPresentation.toolOutputs,
                                 fileCards       = msg.fileCards,
                                 agentTag        = msg.agentTag,
-                                planLabel       = planLabel,
+                                isProPlan       = isProPlan,
                                 traceId         = msg.traceId,
                                 hideAvatar      = hideAvatar,
                                 onShare         = onShareAiResponse,
@@ -3008,7 +3008,7 @@ fun AiBubble(
     toolOutputs: List<AssistantToolOutput> = emptyList(),
     fileCards: List<AgentFileCard> = emptyList(),
     agentTag: String? = null,
-    planLabel: String = "Free",
+    isProPlan: Boolean = false,
     traceId: String? = null,
     hideAvatar: Boolean = false,
     onShare: (String) -> Unit = {},
@@ -3127,10 +3127,10 @@ fun AiBubble(
                 ) {
                     Text(
                         text = stringResource(
-                            if (planLabel.equals("Pro", ignoreCase = true)) R.string.plan_pro_badge
+                            if (isProPlan) R.string.plan_pro_badge
                             else R.string.plan_free_badge
                         ),
-                        color = if (planLabel.equals("Pro", ignoreCase = true)) SemanticSuccess else AiriTheme.onSurfaceVariant,
+                        color = if (isProPlan) SemanticSuccess else AiriTheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
@@ -3222,14 +3222,14 @@ fun AiBubble(
                         Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
                         if (messageTarget.canPerform(ContentUnitAction.EXPORT_PDF)) {
                             DropdownMenuItem(
-                                text = { Text("Export as PDF", color = AiriTheme.onBackground) },
+                                text = { Text(stringResource(R.string.chat_export_pdf), color = AiriTheme.onBackground) },
                                 leadingIcon = { Icon(Icons.Outlined.PictureAsPdf, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
                                 onClick = { showContextMenu = false; performMessageAction(ContentUnitAction.EXPORT_PDF) }
                             )
                         }
                         if (messageTarget.canPerform(ContentUnitAction.EXPORT_MARKDOWN)) {
                             DropdownMenuItem(
-                                text = { Text("Export as Markdown", color = AiriTheme.onBackground) },
+                                text = { Text(stringResource(R.string.chat_export_markdown), color = AiriTheme.onBackground) },
                                 leadingIcon = { Icon(Icons.Outlined.Description, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
                                 onClick = { showContextMenu = false; performMessageAction(ContentUnitAction.EXPORT_MARKDOWN) }
                             )
@@ -3842,7 +3842,7 @@ private fun SkillDirectiveChip(
     val chipColor = if (isRemovalArmed) CosmicAccent.copy(alpha = 0.16f) else AiriTheme.onSurface.copy(alpha = 0.035f)
     val outlineColor = if (isRemovalArmed) CosmicAccent.copy(alpha = 0.75f) else AiriTheme.outline.copy(alpha = 0.55f)
     Surface(
-        modifier = Modifier.semantics { contentDescription = "Selected skill $skillName" },
+        modifier = Modifier.semantics { contentDescription = stringResource(R.string.cd_selected_skill, skillName) },
         shape = RoundedCornerShape(7.dp),
         color = chipColor,
         border = BorderStroke(if (isRemovalArmed) 1.dp else 0.75.dp, outlineColor)
@@ -3874,7 +3874,7 @@ private fun SkillDirectiveChip(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Close,
-                        contentDescription = "Remove $skillName",
+                        contentDescription = stringResource(R.string.cd_remove_skill, skillName),
                         tint = if (isRemovalArmed) CosmicAccent else AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(14.dp),
                     )
@@ -4700,7 +4700,7 @@ fun AiriChatInputBar(
                 // the action semantics or any runtime/security configuration.
                 val utilities = @Composable {
                     Row(
-                        modifier = Modifier.semantics { contentDescription = "Composer utilities" },
+                        modifier = Modifier.semantics { contentDescription = stringResource(R.string.cd_composer_utilities) },
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -4748,7 +4748,7 @@ fun AiriChatInputBar(
                 }
                 val actions = @Composable {
                     Row(
-                        modifier = Modifier.semantics { contentDescription = "Composer actions" },
+                        modifier = Modifier.semantics { contentDescription = stringResource(R.string.cd_composer_actions) },
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

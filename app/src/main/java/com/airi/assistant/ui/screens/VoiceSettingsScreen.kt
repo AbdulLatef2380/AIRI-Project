@@ -149,9 +149,9 @@ fun VoiceSettingsScreen(
                 ) {
                     Icon(Icons.Outlined.RecordVoiceOver, contentDescription = null, tint = AiriTheme.onSurfaceVariant)
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Ok Airi", color = AiriTheme.onBackground, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.voice_ok_airi_title), color = AiriTheme.onBackground, fontWeight = FontWeight.Bold)
                         Text(
-                            "تحدث إلى Airi دون لمس الجهاز. يتطلب تفعيل الميكروفون ونموذج كلمة التنبيه.",
+                            stringResource(R.string.voice_ok_airi_description),
                             color = AiriTheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             lineHeight = 17.sp
@@ -187,7 +187,7 @@ fun VoiceSettingsScreen(
                 ) {
                     Icon(Icons.Outlined.Assistant, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("تعيين AIRI كمساعد الجهاز")
+                    Text(stringResource(R.string.voice_set_default_assistant))
                 }
             }
             VoiceStatusCard(

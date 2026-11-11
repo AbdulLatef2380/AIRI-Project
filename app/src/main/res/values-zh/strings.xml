@@ -2409,4 +2409,41 @@
     <string name="wake_sheet_share_screen">与 AIRI 共享屏幕</string>
     <string name="screen_share_started">本次会话已允许共享屏幕。</string>
     <string name="cd_airi_generating_response">AIRI 正在生成回复</string>
+
+    <string name="chat_biometric_enroll_hint">请在设置中添加指纹或屏幕锁定，以启用此模式。</string>
+    <string name="chat_biometric_confirm_title">确认模式更改</string>
+    <string name="chat_biometric_confirm_subtitle">AIRI 需要验证你的身份才能启用自主代理模式。</string>
+    <string name="chat_debug_context_compressed">上下文已压缩（调试）</string>
+    <string name="chat_export_pdf">导出为 PDF</string>
+    <string name="chat_export_markdown">导出为 Markdown</string>
+    <string name="cd_selected_skill">已选择技能：%1$s</string>
+    <string name="cd_remove_skill">移除 %1$s</string>
+    <string name="cd_composer_utilities">输入框工具</string>
+    <string name="cd_composer_actions">输入框操作</string>
+
+    <string name="paywall_purchase_success">Premium 已启用，尽享无限访问。</string>
+    <string name="artifact_load_failed">无法加载此产物。</string>
+    <string name="artifact_preview_title">预览 — %1$s</string>
+    <string name="referral_share_whatsapp">通过 WhatsApp 分享</string>
+    <string name="referral_share_telegram">通过 Telegram 分享</string>
+    <string name="referral_link_copied">推荐链接已复制</string>
+    <string name="profile_value_copied">已复制%1$s</string>
+    <string name="profile_copy_value_cd">复制%1$s</string>
+    <string name="history_new_chat">新对话</string>
+    <string name="history_recent">最近对话</string>
+    <string name="history_delete_title">删除对话？</string>
+    <string name="history_delete_body">此对话及其消息将被永久删除。</string>
+    <string name="history_delete_action">删除</string>
+    <string name="history_rename_title">重命名对话</string>
+    <string name="history_actions">对话操作</string>
+    <string name="history_pinned">已置顶</string>
+    <string name="history_archive">归档</string>
+    <string name="history_favorite">收藏</string>
+    <string name="history_add_favorite">添加到收藏</string>
+    <string name="history_share">分享</string>
+    <string name="history_label">重命名</string>
+
+    <string name="voice_ok_airi_title">好的，AIRI</string>
+    <string name="voice_ok_airi_description">无需触碰设备即可与 AIRI 对话。需要启用麦克风并安装唤醒词模型。</string>
+    <string name="voice_set_default_assistant">将 AIRI 设为设备助手</string>
 </resources>

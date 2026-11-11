@@ -2426,4 +2426,41 @@
     <string name="wake_sheet_share_screen">Compartir pantalla con AIRI</string>
     <string name="screen_share_started">La pantalla se compartirá durante esta sesión.</string>
     <string name="cd_airi_generating_response">AIRI está generando una respuesta</string>
+
+    <string name="chat_biometric_enroll_hint">Añade una huella o un bloqueo de pantalla en Ajustes para activar este modo.</string>
+    <string name="chat_biometric_confirm_title">Confirmar cambio de modo</string>
+    <string name="chat_biometric_confirm_subtitle">AIRI necesita verificar tu identidad para activar el modo de agente autónomo.</string>
+    <string name="chat_debug_context_compressed">Contexto comprimido (depuración)</string>
+    <string name="chat_export_pdf">Exportar como PDF</string>
+    <string name="chat_export_markdown">Exportar como Markdown</string>
+    <string name="cd_selected_skill">Habilidad seleccionada: %1$s</string>
+    <string name="cd_remove_skill">Quitar %1$s</string>
+    <string name="cd_composer_utilities">Utilidades del compositor</string>
+    <string name="cd_composer_actions">Acciones del compositor</string>
+
+    <string name="paywall_purchase_success">Premium activado. Disfruta del acceso ilimitado.</string>
+    <string name="artifact_load_failed">No se pudo cargar este artefacto.</string>
+    <string name="artifact_preview_title">Vista previa — %1$s</string>
+    <string name="referral_share_whatsapp">Compartir por WhatsApp</string>
+    <string name="referral_share_telegram">Compartir por Telegram</string>
+    <string name="referral_link_copied">Enlace de referido copiado</string>
+    <string name="profile_value_copied">%1$s copiado</string>
+    <string name="profile_copy_value_cd">Copiar %1$s</string>
+    <string name="history_new_chat">Nueva conversación</string>
+    <string name="history_recent">Conversaciones recientes</string>
+    <string name="history_delete_title">¿Eliminar conversación?</string>
+    <string name="history_delete_body">Esta conversación y sus mensajes se eliminarán permanentemente.</string>
+    <string name="history_delete_action">Eliminar</string>
+    <string name="history_rename_title">Cambiar nombre de la conversación</string>
+    <string name="history_actions">Acciones de la conversación</string>
+    <string name="history_pinned">Fijada</string>
+    <string name="history_archive">Archivar</string>
+    <string name="history_favorite">Favorita</string>
+    <string name="history_add_favorite">Añadir a favoritos</string>
+    <string name="history_share">Compartir</string>
+    <string name="history_label">Cambiar nombre</string>
+
+    <string name="voice_ok_airi_title">Ok Airi</string>
+    <string name="voice_ok_airi_description">Habla con AIRI sin tocar el dispositivo. Se necesitan permisos de micrófono y un modelo de palabra de activación.</string>
+    <string name="voice_set_default_assistant">Establecer AIRI como asistente del dispositivo</string>
 </resources>

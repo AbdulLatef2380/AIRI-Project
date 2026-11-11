@@ -412,10 +412,12 @@ fun registerNativeApkVerification(variant: String) {
     }
 }
 
-// Part 5 §7.7: fails on any new hard-coded Text("...") in ui/ (legacy ones are frozen in a baseline).
+// Localization guard: fails on new hard-coded Compose text, accessibility
+// descriptions, Snackbar messages, or Toast messages in ui/ (legacy literals
+// are frozen in a reviewed baseline).
 tasks.register<Exec>("airiUiHardcodedTextLint") {
     group = "verification"
-    description = "Fails when a ui/ file gains a hard-coded Text(\"...\") literal beyond its baseline."
+    description = "Fails when ui/ gains a hard-coded user-facing literal beyond its localization baseline."
     workingDir = rootProject.projectDir
     commandLine("python3", "-I", "scripts/airi_ui_hardcoded_text_lint.py")
 }

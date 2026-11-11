@@ -56,6 +56,23 @@ class ChatComposerDraftPolicyTest {
     }
 
     @Test
+    fun removingSessionClearsTextAndAttachmentsTogether() {
+        val attachment = ChatAttachment(
+            kind = ChatAttachment.Kind.FILE,
+            displayName = "message.txt",
+            mimeType = "text/plain",
+        )
+        val drafts = mapOf(
+            "session-a" to ChatComposerDraft(
+                text = "stale pasted text",
+                attachments = listOf(attachment),
+            )
+        )
+        val result = ChatComposerDraftPolicy.removeSession(drafts, "session-a")
+        assertEquals(ChatComposerDraft(), ChatComposerDraftPolicy.current(result, "session-a"))
+    }
+
+    @Test
     fun emptyDraftIsNotRetained() {
         val drafts = ChatComposerDraftPolicy.replaceText(
             drafts = mapOf("session-a" to ChatComposerDraft(text = "temporary")),

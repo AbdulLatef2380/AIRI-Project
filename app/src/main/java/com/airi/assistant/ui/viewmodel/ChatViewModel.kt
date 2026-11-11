@@ -1076,6 +1076,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Clears the complete transient draft after the message has been accepted. */
+    fun clearCurrentComposerDraft() {
+        val sessionId = _currentSessionId.value
+        val draft = ChatComposerDraftPolicy.current(_composerDrafts.value, sessionId)
+        draft.attachments.forEach { attachment ->
+            attachment.uri?.let { ComposerTextFileStore.discardIfOwned(appContext, it) }
+        }
+        _composerDrafts.update { drafts ->
+            ChatComposerDraftPolicy.removeSession(drafts, sessionId)
+        }
+    }
+
     private fun removeComposerDraft(sessionId: String) {
         ChatComposerDraftPolicy.current(_composerDrafts.value, sessionId).attachments
             .forEach { attachment -> attachment.uri?.let { ComposerTextFileStore.discardIfOwned(appContext, it) } }

@@ -957,7 +957,7 @@ fun ChatScreen(
                                     attachments = toSend,
                                     cloudAttachmentConsent = true,
                                     onAccepted = {
-                                        viewModel.clearCurrentComposerAttachments()
+                                        viewModel.clearCurrentComposerDraft()
                                         onAccepted()
                                     },
                                     onRejected = { failure ->
@@ -993,9 +993,13 @@ fun ChatScreen(
                             cloudAttachmentNames = context.getString(R.string.attachment_cloud_long_text_label, text.length)
                             cloudAttachmentProvider = modelState.activeCloudProvider?.name.orEmpty()
                             pendingCloudAttachmentDispatch = {
-                                if (viewModel.sendMessage(text, cloudAttachmentConsent = true)) onAccepted()
+                                if (viewModel.sendMessage(text, cloudAttachmentConsent = true)) {
+                                    viewModel.clearCurrentComposerDraft()
+                                    onAccepted()
+                                }
                             }
                         } else if (viewModel.sendMessage(text)) {
+                            viewModel.clearCurrentComposerDraft()
                             onAccepted()
                         }
                     },
@@ -2652,6 +2656,29 @@ fun UserBubble(
             val expansionDescription = stringResource(
                 if (isExpanded) R.string.show_less else R.string.show_more
             )
+            val fileAttachments = attachments.filterNot { it.isVisualImage }
+            if (fileAttachments.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp),
+                    horizontalArrangement = ChatPresentationPolicy.userBubbleArrangement(),
+                ) {
+                    LazyRow(
+                        modifier = Modifier.widthIn(max = bubbleMaxWidth),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        items(fileAttachments, key = { it.uid }) { attachment ->
+                            AttachmentChip(
+                                attachment = attachment,
+                                isRemovalEnabled = false,
+                                onRemove = {},
+                                onPreview = { previewAttachment = attachment },
+                            )
+                        }
+                    }
+                }
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = ChatPresentationPolicy.userBubbleArrangement()
@@ -2685,23 +2712,6 @@ fun UserBubble(
                                 .clip(AIRIShapes.md).background(Color.Black.copy(alpha = 0.25f)),
                             contentScale = androidx.compose.ui.layout.ContentScale.Fit
                         )
-                        if (displayText.isNotBlank()) Spacer(Modifier.height(8.dp))
-                    }
-                    val fileAttachments = attachments.filterNot { it.isVisualImage }
-                    if (fileAttachments.isNotEmpty()) {
-                        LazyRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            items(fileAttachments, key = { it.uid }) { attachment ->
-                                AttachmentChip(
-                                    attachment = attachment,
-                                    isRemovalEnabled = false,
-                                    onRemove = {},
-                                    onPreview = { previewAttachment = attachment },
-                                )
-                            }
-                        }
                         if (displayText.isNotBlank()) Spacer(Modifier.height(8.dp))
                     }
                     if (displayText.isNotBlank() || imageUri == null) {

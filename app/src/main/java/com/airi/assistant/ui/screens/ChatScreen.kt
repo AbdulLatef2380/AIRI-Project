@@ -307,7 +307,7 @@ fun ChatScreen(
         val prompt = upgradePrompt ?: return@LaunchedEffect
         val result = snackbarHost.showSnackbar(
             message = prompt.message,
-            actionLabel = "Unlock",
+            actionLabel = context.getString(R.string.plan_upgrade_pro),
             withDismissAction = true,
             duration = SnackbarDuration.Short
         )
@@ -493,7 +493,7 @@ fun ChatScreen(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            scope.launch { snackbarHost.showSnackbar("تم السماح بمشاركة الشاشة مع Airi لهذه الجلسة") }
+            scope.launch { snackbarHost.showSnackbar(context.getString(R.string.screen_share_started)) }
         }
     }
 
@@ -866,7 +866,8 @@ fun ChatScreen(
                 onArchiveSession = { viewModel.archiveSession(currentSessionId) },
                 onRenameChat      = { title -> viewModel.renameCurrentSession(title) },
                 onNewChat         = { viewModel.clearMessages() },
-                planLabel          = if (isProPlan) "Pro" else "Free",
+                planLabel          = stringResource(if (isProPlan) R.string.plan_pro_badge else R.string.plan_free_badge),
+                isProPlan          = isProPlan,
                 onPointsClick     = { onNavigate(if (isProPlan) AiriRoute.PRO_PLAN else AiriRoute.FREE_PLAN) },
                 onSearchOpen      = { showChatSearch = true },
                 taskMetrics       = taskMetrics,
@@ -890,7 +891,7 @@ fun ChatScreen(
                     // turn below; do not render a second bottom-bar feed.
                 // A compact AgentStatusChip is shown here for 1–2 step executions.
                 // Attachment chips are now rendered inside the input pill (AiriChatInputBar).
-                // : "Compressing history…" chip shown while ConversationSummarizer runs.
+                // : stringResource(R.string.chat_compressing_history) chip shown while ConversationSummarizer runs.
                 // Non-blocking: chat remains usable. Chip auto-dismisses when done.
                 if (isSummarizing) {
                     Row(
@@ -915,7 +916,7 @@ fun ChatScreen(
                                     strokeWidth = 1.5.dp
                                 )
                                 Text(
-                                    "Compressing history…",
+                                    stringResource(R.string.chat_compressing_history),
                                     fontSize = 11.sp,
                                     color = AiriTheme.onSurfaceVariant
                                 )
@@ -1195,6 +1196,8 @@ fun ChatScreen(
                 streamingText = if (chatSearchQuery.isBlank()) visibleStreamingText else "",
                 isGenerating  = generationBelongsToCurrentSession,
                 generationStoppedNotice = generationStoppedNotice,
+                // ChatMessageList keeps this as a stable internal discriminator;
+                // AiResponseTurn localizes the visible badge itself.
                 planLabel      = if (isProPlan) "Pro" else "Free",
                 executionError = visibleExecutionError,
                 inlineTraceExecutionId = agentState.executionId,
@@ -1307,7 +1310,7 @@ fun ChatScreen(
                             modifier           = Modifier.size(16.dp)
                         )
                         Text(
-                            text     = "Offline — using local model only",
+                            text     = stringResource(R.string.chat_offline_local_only),
                             color    = AiriTheme.onBackground.copy(alpha = 0.75f),
                             fontSize = 12.sp
                         )
@@ -1349,7 +1352,7 @@ fun ChatScreen(
                                 modifier           = Modifier.size(16.dp)
                             )
                             Text(
-                                text     = "Context reset — conversation history cleared",
+                                text     = stringResource(R.string.chat_context_reset_conversation),
                                 color    = Color.White,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
@@ -1603,6 +1606,7 @@ private fun AiriChatTopBar(
     showOverflowActions: Boolean = true,
     dailyCreditsRemaining: Int = 200,
     planLabel: String = "Free",
+    isProPlan: Boolean = false,
     onHistoryOpen: () -> Unit,
     onExit: () -> Unit,
     onModelPickerOpen: () -> Unit,
@@ -1637,8 +1641,8 @@ private fun AiriChatTopBar(
                 modifier = Modifier
                     .padding(start = 12.dp)
                     .clip(AIRIShapes.pill)
-                    .background(if (planLabel == "Pro") SemanticSuccess.copy(alpha = 0.12f) else AiriTheme.surfaceVariant)
-                    .border(0.5.dp, if (planLabel == "Pro") SemanticSuccess.copy(alpha = 0.40f) else AiriTheme.outline, AIRIShapes.pill)
+                    .background(if (isProPlan) SemanticSuccess.copy(alpha = 0.12f) else AiriTheme.surfaceVariant)
+                    .border(0.5.dp, if (isProPlan) SemanticSuccess.copy(alpha = 0.40f) else AiriTheme.outline, AIRIShapes.pill)
                     .clickable { onPointsClick() }
                     .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
@@ -1647,7 +1651,7 @@ private fun AiriChatTopBar(
                         tint = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(11.dp))
                     Text(planLabel,
-                        color = if (planLabel == "Pro") SemanticSuccess else AiriTheme.onSurface,
+                        color = if (isProPlan) SemanticSuccess else AiriTheme.onSurface,
                         fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp)
                 }
             }
@@ -2282,7 +2286,7 @@ fun ChatMessageList(
                 modifier = Modifier.padding(horizontal = 28.dp)
             ) {
                 Text(
-                    text = "تعذر تحميل الجلسة",
+                    text = stringResource(R.string.chat_session_load_failed),
                     color = AiriTheme.onBackground,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 18.sp,
@@ -2297,7 +2301,7 @@ fun ChatMessageList(
                 )
                 Spacer(Modifier.height(16.dp))
                 TextButton(onClick = { onRetrySession(failure.sessionId) }) {
-                    Text("إعادة المحاولة")
+                    Text(stringResource(R.string.chat_retry))
                 }
             }
         }
@@ -2322,13 +2326,13 @@ fun ChatMessageList(
                 )
                 Spacer(Modifier.height(12.dp))
                 val greetings = listOf(
-                    "مرحباً، أنا AIRI. ماذا سنفعل اليوم؟",
-                    "أهلاً بك. ما الجديد الذي تريد إنجازه؟",
-                    "أنا هنا لمساعدتك — من أين نبدأ؟"
+                    stringResource(R.string.chat_greeting_one),
+                    stringResource(R.string.chat_greeting_two),
+                    stringResource(R.string.chat_greeting_three)
                 )
-                // The greeting is selected once when this screen enters composition;
-                // it never changes on a timer or while the user is reading it.
-                val greeting = remember { greetings.first() }
+                // Keep the greeting tied to the current resources so an in-place
+                // language change never leaves stale Arabic/English text behind.
+                val greeting = greetings.first()
                 Text(
                     text = greeting,
                     color = AiriTheme.onBackground.copy(alpha = 0.92f),
@@ -3122,7 +3126,10 @@ fun AiBubble(
                     border = BorderStroke(1.dp, AiriTheme.outline.copy(alpha = 0.55f)),
                 ) {
                     Text(
-                        text = if (planLabel.equals("Pro", ignoreCase = true)) "Pro" else "Free",
+                        text = stringResource(
+                            if (planLabel.equals("Pro", ignoreCase = true)) R.string.plan_pro_badge
+                            else R.string.plan_free_badge
+                        ),
                         color = if (planLabel.equals("Pro", ignoreCase = true)) SemanticSuccess else AiriTheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
@@ -3570,7 +3577,7 @@ private fun AiriThinkingRow(label: String) {
 @Composable
 private fun AiriThinkingDots() {
     Row(
-        modifier = Modifier.semantics { contentDescription = "AIRI is generating a response" }.padding(vertical = 7.dp),
+        modifier = Modifier.semantics { contentDescription = stringResource(R.string.cd_airi_generating_response) }.padding(vertical = 7.dp),
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -4967,14 +4974,14 @@ private fun WakeActionSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "مرحباً، أنا Airi",
+                text = stringResource(R.string.wake_sheet_greeting),
                 style = MaterialTheme.typography.headlineSmall,
                 color = AiriTheme.onSurface,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.End
             )
             Text(
-                text = "كيف تريدين أن أساعدك؟",
+                text = stringResource(R.string.wake_sheet_prompt),
                 color = AiriTheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.End
@@ -4986,12 +4993,12 @@ private fun WakeActionSheet(
             ) {
                 Icon(Icons.Outlined.Mic, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("الدردشة مع Airi")
+                Text(stringResource(R.string.wake_sheet_chat))
             }
             OutlinedButton(onClick = onShareScreen, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Outlined.ScreenShare, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("مشاركة الشاشة مع Airi")
+                Text(stringResource(R.string.wake_sheet_share_screen))
             }
             Spacer(Modifier.height(20.dp))
         }

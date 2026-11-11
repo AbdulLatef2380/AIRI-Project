@@ -2412,4 +2412,18 @@
     <string name="connector_state_disconnect">Desconectar conector</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
+    <string name="chat_compressing_history">Comprimiendo el historial de la conversación…</string>
+    <string name="chat_offline_local_only">Sin conexión — solo se usa el modelo local</string>
+    <string name="chat_context_reset_conversation">Contexto restablecido — se borró el historial de la conversación</string>
+    <string name="chat_session_load_failed">No se pudo cargar la conversación</string>
+    <string name="chat_retry">Reintentar</string>
+    <string name="chat_greeting_one">Hola, soy AIRI. ¿Qué haremos hoy?</string>
+    <string name="chat_greeting_two">Bienvenido. ¿Qué te gustaría conseguir?</string>
+    <string name="chat_greeting_three">Estoy aquí para ayudarte — ¿por dónde empezamos?</string>
+    <string name="wake_sheet_greeting">Hola, soy AIRI</string>
+    <string name="wake_sheet_prompt">¿Cómo quieres que te ayude?</string>
+    <string name="wake_sheet_chat">Chatear con AIRI</string>
+    <string name="wake_sheet_share_screen">Compartir pantalla con AIRI</string>
+    <string name="screen_share_started">La pantalla se compartirá durante esta sesión.</string>
+    <string name="cd_airi_generating_response">AIRI está generando una respuesta</string>
 </resources>

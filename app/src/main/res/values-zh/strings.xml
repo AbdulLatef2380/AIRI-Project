@@ -2395,4 +2395,18 @@
     <string name="connector_state_disconnect">断开连接器</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
+    <string name="chat_compressing_history">正在压缩对话历史记录…</string>
+    <string name="chat_offline_local_only">离线 — 仅使用本地模型</string>
+    <string name="chat_context_reset_conversation">上下文已重置 — 对话历史记录已清除</string>
+    <string name="chat_session_load_failed">无法加载对话</string>
+    <string name="chat_retry">重试</string>
+    <string name="chat_greeting_one">你好，我是 AIRI。今天我们做什么？</string>
+    <string name="chat_greeting_two">欢迎。你想完成什么？</string>
+    <string name="chat_greeting_three">我会帮助你 — 我们从哪里开始？</string>
+    <string name="wake_sheet_greeting">你好，我是 AIRI</string>
+    <string name="wake_sheet_prompt">你希望我如何帮助你？</string>
+    <string name="wake_sheet_chat">与 AIRI 聊天</string>
+    <string name="wake_sheet_share_screen">与 AIRI 共享屏幕</string>
+    <string name="screen_share_started">本次会话已允许共享屏幕。</string>
+    <string name="cd_airi_generating_response">AIRI 正在生成回复</string>
 </resources>

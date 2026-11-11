@@ -2670,4 +2670,18 @@
     <string name="agent_trace_execution_counts">%1$d خطوات · %2$d أدوات</string>
     <string name="agent_trace_event_output">الناتج: %1$s</string>
     <string name="agent_trace_event_source">المصدر: %1$s</string>
+    <string name="chat_compressing_history">جارٍ ضغط سجل المحادثة…</string>
+    <string name="chat_offline_local_only">غير متصل — يُستخدم النموذج المحلي فقط</string>
+    <string name="chat_context_reset_conversation">أُعيد ضبط السياق — مُسح سجل المحادثة</string>
+    <string name="chat_session_load_failed">تعذّر تحميل المحادثة</string>
+    <string name="chat_retry">إعادة المحاولة</string>
+    <string name="chat_greeting_one">مرحباً، أنا AIRI. ماذا سنفعل اليوم؟</string>
+    <string name="chat_greeting_two">أهلاً بك. ما الجديد الذي تريد إنجازه؟</string>
+    <string name="chat_greeting_three">أنا هنا لمساعدتك — من أين نبدأ؟</string>
+    <string name="wake_sheet_greeting">مرحباً، أنا AIRI</string>
+    <string name="wake_sheet_prompt">كيف تريد أن أساعدك؟</string>
+    <string name="wake_sheet_chat">الدردشة مع AIRI</string>
+    <string name="wake_sheet_share_screen">مشاركة الشاشة مع AIRI</string>
+    <string name="screen_share_started">تم السماح بمشاركة الشاشة لهذه الجلسة.</string>
+    <string name="cd_airi_generating_response">ينشئ AIRI رداً</string>
 </resources>

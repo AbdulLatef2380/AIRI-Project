@@ -2735,4 +2735,18 @@
     <string name="agent_trace_execution_counts">%1$d steps · %2$d tools</string>
     <string name="agent_trace_event_output">Output: %1$s</string>
     <string name="agent_trace_event_source">Source: %1$s</string>
+    <string name="chat_compressing_history">Compressing conversation history…</string>
+    <string name="chat_offline_local_only">Offline — using local model only</string>
+    <string name="chat_context_reset_conversation">Context reset — conversation history cleared</string>
+    <string name="chat_session_load_failed">Could not load conversation</string>
+    <string name="chat_retry">Retry</string>
+    <string name="chat_greeting_one">Hello, I’m AIRI. What shall we do today?</string>
+    <string name="chat_greeting_two">Welcome. What would you like to accomplish?</string>
+    <string name="chat_greeting_three">I’m here to help — where shall we start?</string>
+    <string name="wake_sheet_greeting">Hello, I’m AIRI</string>
+    <string name="wake_sheet_prompt">How would you like me to help?</string>
+    <string name="wake_sheet_chat">Chat with AIRI</string>
+    <string name="wake_sheet_share_screen">Share screen with AIRI</string>
+    <string name="screen_share_started">Screen sharing is enabled for this session.</string>
+    <string name="cd_airi_generating_response">AIRI is generating a response</string>
 </resources>

@@ -101,14 +101,14 @@ private fun RuntimeTab() {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-        DevCard(title = "Execution Bus") {
+        DevCard(title = stringResource(R.string.dev_execution_bus)) {
             DevRow("Stage",  busState.executionStage.name)
             DevRow("Action", busState.currentAction.take(60).ifBlank { "—" })
             DevRow("Goal",   busState.activeGoalDescription.take(60).ifBlank { "—" })
             DevRow("Retries",busState.retryCount.toString())
         }
 
-        DevCard(title = "Registered Agents (${registeredAgents.size})") {
+        DevCard(title = stringResource(R.string.dev_registered_agents, registeredAgents.size)) {
             registeredAgents.forEach { agent ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(vertical = 3.dp)) {
@@ -119,7 +119,7 @@ private fun RuntimeTab() {
             }
         }
 
-        DevCard(title = "Recent Activity") {
+        DevCard(title = stringResource(R.string.dev_recent_activity)) {
             events.take(10).forEach { event ->
                 Row(modifier = Modifier.padding(vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     ActivityFeedCategoryIcon(event.category, Modifier.size(14.dp))
@@ -210,7 +210,7 @@ private fun MemoryTab() {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-        DevCard(title = "AI Memory (Room Database)") {
+        DevCard(title = stringResource(R.string.dev_ai_memory)) {
             DevRow("Messages stored", memoryCount?.toString() ?: "loading…")
             DevRow("Sessions",        sessionCount?.toString() ?: "loading…")
             DevRow("Semantic search", when (embeddingReady) {
@@ -220,7 +220,7 @@ private fun MemoryTab() {
             })
         }
 
-        DevCard(title = "JVM Heap") {
+        DevCard(title = stringResource(R.string.dev_jvm_heap)) {
             DevRow("Used",   "$usedMb MB ($usedPct%)")
             DevRow("Max",    "$maxMb MB")
             DevRow("Free",   "${runtime.freeMemory() / 1_048_576L} MB")
@@ -284,69 +284,69 @@ private fun HealthTab() {
                 Box(modifier = Modifier.size(12.dp).clip(CircleShape)
                     .background(if (health.isHealthy) SemanticSuccess else SemanticError))
                 Text(
-                    if (health.isHealthy) "Runtime Healthy" else "Runtime Degraded",
+                    if (health.isHealthy) stringResource(R.string.dev_runtime_healthy) else stringResource(R.string.dev_runtime_degraded),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = if (health.isHealthy) SemanticSuccess else SemanticError
                 )
             }
         }
-        DevCard(title = "Resources") {
+        DevCard(title = stringResource(R.string.dev_resources)) {
             DevRow("Heap available",
                 if (health.heapAvailableMb >= 0) "${health.heapAvailableMb} MB" else "—")
             DevRow("Disk free",
                 if (health.diskFreeMb >= 0) "${health.diskFreeMb} MB" else "—")
             DevRow("Network", if (health.networkConnected) " Online" else " Offline")
             if (health.lowMemoryWarning) {
-                Text(" Low heap memory", fontSize = 11.sp, color = SemanticError,
+                Text(stringResource(R.string.dev_low_heap), fontSize = 11.sp, color = SemanticError,
                     modifier = Modifier.padding(top = 4.dp))
             }
             if (health.lowDiskWarning) {
-                Text(" Low disk space", fontSize = 11.sp, color = SemanticError,
+                Text(stringResource(R.string.dev_low_disk), fontSize = 11.sp, color = SemanticError,
                     modifier = Modifier.padding(top = 2.dp))
             }
         }
-        DevCard(title = "Session") {
+        DevCard(title = stringResource(R.string.dev_session)) {
             val ageMin = health.sessionAgeMs / 60_000L
             DevRow("Session age", "${ageMin} min")
             if (health.sessionAgeWarning) {
-                Text(" Long session — consider restarting", fontSize = 11.sp,
+                Text(stringResource(R.string.dev_long_session), fontSize = 11.sp,
                     color = Color(0xFFFFB340), modifier = Modifier.padding(top = 2.dp))
             }
         }
-        DevCard(title = "Coroutines") {
+        DevCard(title = stringResource(R.string.dev_coroutines)) {
             DevRow("Live coroutines", health.liveCoroutineCount.toString())
             if (health.orphanCoroutineWarning) {
-                Text(" Potential orphans: ${health.orphanKeys.take(3).joinToString()}",
+                Text(stringResource(R.string.dev_potential_orphans, health.orphanKeys.take(3).joinToString()),
                     fontSize = 11.sp, color = SemanticError, modifier = Modifier.padding(top = 2.dp))
             } else {
-                Text(" No orphan coroutines detected", fontSize = 11.sp, color = SemanticSuccess,
+                Text(stringResource(R.string.dev_no_orphans), fontSize = 11.sp, color = SemanticSuccess,
                     modifier = Modifier.padding(top = 2.dp))
             }
         }
-        DevCard(title = "Agent Tasks") {
+        DevCard(title = stringResource(R.string.dev_agent_tasks)) {
             DevRow("Stuck agents", health.stuckAgentCount.toString())
             if (health.stuckAgentCount > 0) {
-                Text(" Stuck: ${health.stuckAgentIds.take(3).joinToString()}",
+                Text(stringResource(R.string.dev_stuck, health.stuckAgentIds.take(3).joinToString()),
                     fontSize = 11.sp, color = SemanticError, modifier = Modifier.padding(top = 2.dp))
             } else {
-                Text(" All agents responding", fontSize = 11.sp, color = SemanticSuccess,
+                Text(stringResource(R.string.dev_all_agents), fontSize = 11.sp, color = SemanticSuccess,
                     modifier = Modifier.padding(top = 2.dp))
             }
         }
-        DevCard(title = "Event Bus") {
+        DevCard(title = stringResource(R.string.dev_event_bus)) {
             if (health.eventBusSaturated) {
-                Text(" Event bus saturated — drain rate lagging behind emit rate",
+                Text(stringResource(R.string.dev_bus_saturated),
                     fontSize = 11.sp, color = SemanticError)
             } else {
-                Text(" Event bus flowing normally", fontSize = 11.sp, color = SemanticSuccess)
+                Text(stringResource(R.string.dev_bus_normal), fontSize = 11.sp, color = SemanticSuccess)
             }
         }
         val throttleLevel by ServiceLocator.systemHealthCoordinator.throttleLevel
             .collectAsStateWithLifecycle()
         val isEmergency = ServiceLocator.systemHealthCoordinator.isEmergency
         val budgetFraction = ServiceLocator.systemHealthCoordinator.contextBudgetFactor
-        DevCard(title = "Thermal Throttle") {
+        DevCard(title = stringResource(R.string.dev_thermal_throttle)) {
             DevRow("Throttle level", throttleLevel.name)
             DevRow("Context budget",  "${(budgetFraction * 100).toInt()}%")
             DevRow("Emergency stop",  if (isEmergency) " YES" else " No")
@@ -467,8 +467,8 @@ private fun DatabaseLabTab() {
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
-                label = { Text("Read-only SQL") },
-                supportingText = { Text("SELECT, EXPLAIN QUERY PLAN SELECT, or limited schema PRAGMA; first 100 rows only.") },
+                label = { Text(stringResource(R.string.dev_readonly_sql)) },
+                supportingText = { Text(stringResource(R.string.dev_sql_hint)) },
                 textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
                 enabled = !running
             )
@@ -486,7 +486,7 @@ private fun DatabaseLabTab() {
                 modifier = Modifier.align(Alignment.End)
             ) {
                 if (running) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                else Text("Run read-only query")
+                else Text(stringResource(R.string.dev_run_query))
             }
         }
 
@@ -516,10 +516,10 @@ private fun DatabaseLabTab() {
                     }
                 }
             }
-            is DatabaseLabManager.Execution.Rejected -> DevCard(title = "Query blocked") {
+            is DatabaseLabManager.Execution.Rejected -> DevCard(title = stringResource(R.string.dev_query_blocked)) {
                 Text(result.reason, fontSize = 11.sp, color = SemanticError)
             }
-            is DatabaseLabManager.Execution.Failed -> DevCard(title = "Query failed") {
+            is DatabaseLabManager.Execution.Failed -> DevCard(title = stringResource(R.string.dev_query_failed)) {
                 Text(result.reason, fontSize = 11.sp, color = SemanticError)
             }
             null -> Unit

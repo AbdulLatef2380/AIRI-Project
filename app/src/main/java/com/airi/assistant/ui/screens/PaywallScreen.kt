@@ -344,7 +344,7 @@ fun PaywallScreen(
                             billingManager.launchPurchaseFlow(activity, annual = annualSelected)
                         } else {
                             scope.launch {
-                                snackbarHost.showSnackbar("Unable to open billing from this screen.")
+                                snackbarHost.showSnackbar(context.getString(R.string.paywall_billing_unavailable))
                             }
                         }
                     },
@@ -408,7 +408,7 @@ fun PaywallScreen(
                         scope.launch {
                             billingManager.restorePurchases()
                             if (billingState !is BillingManager.BillingState.PurchaseSuccess) {
-                                snackbarHost.showSnackbar("No active subscription found to restore.")
+                                snackbarHost.showSnackbar(context.getString(R.string.paywall_restore_empty))
                                 isRestoring = false
                             }
                         }

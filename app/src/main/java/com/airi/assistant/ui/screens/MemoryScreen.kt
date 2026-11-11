@@ -236,15 +236,15 @@ fun MemoryScreen(
         AlertDialog(
             onDismissRequest = { deletingKnowledge = null },
             containerColor = AiriTheme.surface,
-            title = { Text("حذف المعرفة؟", color = AiriTheme.onSurface, fontWeight = FontWeight.Bold) },
-            text = { Text("سيتم حذف المعرفة «${profile.name}» نهائياً من قائمة المعرفة.", color = AiriTheme.onSurfaceVariant) },
+            title = { Text(stringResource(R.string.knowledge_delete_title), color = AiriTheme.onSurface, fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.knowledge_delete_message, profile.name), color = AiriTheme.onSurfaceVariant) },
             confirmButton = {
                 Button(
                     onClick = { knowledgeManager.deleteKnowledge(profile.id); deletingKnowledge = null },
                     colors = ButtonDefaults.buttonColors(containerColor = SemanticError)
-                ) { Text("حذف") }
+                ) { Text(stringResource(R.string.knowledge_delete)) }
             },
-            dismissButton = { TextButton(onClick = { deletingKnowledge = null }) { Text("إلغاء") } }
+            dismissButton = { TextButton(onClick = { deletingKnowledge = null }) { Text(stringResource(R.string.knowledge_cancel)) } }
         )
     }
 
@@ -571,7 +571,7 @@ private fun KnowledgeProfilesDialog(
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onDismiss) { Icon(Icons.Outlined.ArrowBack, "رجوع", tint = AiriTheme.onBackground) }
-                    Text("المعرفة", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.knowledge_title), fontSize = 21.sp, fontWeight = FontWeight.Bold, color = AiriTheme.onBackground, modifier = Modifier.weight(1f))
                     IconButton(onClick = { creating = true }) { Icon(Icons.Outlined.Add, "إضافة معرفة", tint = AiriTheme.onSurfaceVariant) }
                 }
                 Divider(color = AiriTheme.outline)
@@ -588,12 +588,12 @@ private fun KnowledgeProfilesDialog(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Outlined.Lightbulb, null, tint = AiriTheme.onSurfaceVariant)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("معرفة مقترحة", color = CosmicAccent, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                                    Text("قيد الانتظار", color = CosmicAccent, fontSize = 12.sp)
+                                    Text(stringResource(R.string.knowledge_proposed), color = CosmicAccent, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                    Text(stringResource(R.string.knowledge_pending), color = CosmicAccent, fontSize = 12.sp)
                                 }
                                 Text(proposal.name, color = AiriTheme.onSurface, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                                 Text(proposal.usage, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                                Text("اضغط للمراجعة ثم القبول أو التجاهل", color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                                Text(stringResource(R.string.knowledge_review_hint), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
                             }
                         }
                     }
@@ -609,7 +609,7 @@ private fun KnowledgeProfilesDialog(
                                 Divider(color = AiriTheme.outline.copy(.6f))
                                 Text(profile.content, color = AiriTheme.onBackground.copy(.78f), fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                                    Text("استخدام المعرفة", color = AiriTheme.onSurfaceVariant, fontSize = 11.sp); Spacer(Modifier.width(8.dp)); Switch(profile.active, { onToggle(profile.id, it) })
+                                    Text(stringResource(R.string.knowledge_use), color = AiriTheme.onSurfaceVariant, fontSize = 11.sp); Spacer(Modifier.width(8.dp)); Switch(profile.active, { onToggle(profile.id, it) })
                                 }
                             }
                         }
@@ -641,7 +641,7 @@ private fun KnowledgeProposalDialog(
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "إغلاق", tint = AiriTheme.onBackground) }
-                    Text("المعرفة المقترحة", color = AiriTheme.onBackground, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.knowledge_proposed), color = AiriTheme.onBackground, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     IconButton(onClick = { editing = !editing }) { Icon(Icons.Outlined.Edit, "تعديل", tint = AiriTheme.onSurfaceVariant) }
                 }
                 Divider(color = AiriTheme.outline)
@@ -651,9 +651,9 @@ private fun KnowledgeProposalDialog(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.Schedule, null, tint = AiriTheme.onSurfaceVariant)
                                 Spacer(Modifier.width(8.dp))
-                                Text("بانتظار قبولك", color = Color(0xFFFFC857), fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.knowledge_waiting_acceptance), color = Color(0xFFFFC857), fontWeight = FontWeight.Bold)
                             }
-                            Text("هذه المعرفة ستصبح مرجعاً لـRAG وAgentLoop بعد قبولها فقط.", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+                            Text(stringResource(R.string.knowledge_rag_note), color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
                         }
                     }
                     if (editing) {
@@ -665,15 +665,15 @@ private fun KnowledgeProposalDialog(
                         KnowledgeDetailBlock("تستخدم عندما...", usage)
                         KnowledgeDetailBlock("المحتوى", content)
                     }
-                    Text("لن تُرسل المعرفة أو تُضاف إلى السياق قبل قرارك. بعد القبول تُحفظ محلياً وتدخل في الاسترجاع ضمن حدود الخصوصية والميزانية.", color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    Text(stringResource(R.string.knowledge_before_decision), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedButton(onClick = onReject, modifier = Modifier.weight(1f), shape = AIRIShapes.md) { Text("تجاهل") }
+                        OutlinedButton(onClick = onReject, modifier = Modifier.weight(1f), shape = AIRIShapes.md) { Text(stringResource(R.string.knowledge_dismiss)) }
                         Button(
                             onClick = { if (name.isNotBlank() && usage.isNotBlank() && content.isNotBlank()) onAccept(name.trim(), usage.trim(), content.trim()) },
                             enabled = name.isNotBlank() && usage.isNotBlank() && content.isNotBlank(),
                             modifier = Modifier.weight(1f), shape = AIRIShapes.md,
                             colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
-                        ) { Text("قبول وإضافة") }
+                        ) { Text(stringResource(R.string.knowledge_accept_add)) }
                     }
                 }
             }
@@ -700,12 +700,12 @@ private fun KnowledgeProfileDetailDialog(
                         IconButton(onClick = { menuOpen = true }) { Icon(Icons.Outlined.MoreVert, "المزيد", tint = AiriTheme.onBackground) }
                         DropdownMenu(menuOpen, { menuOpen = false }, modifier = Modifier.background(AiriTheme.surface)) {
                             DropdownMenuItem(
-                                text = { Text("تعديل") },
+                                text = { Text(stringResource(R.string.knowledge_edit)) },
                                 leadingIcon = { Icon(Icons.Outlined.Edit, null) },
                                 onClick = { menuOpen = false; onEdit(profile) }
                             )
                             DropdownMenuItem(
-                                text = { Text("حذف", color = SemanticError) },
+                                text = { Text(stringResource(R.string.knowledge_delete), color = SemanticError) },
                                 leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = AiriTheme.onSurfaceVariant) },
                                 onClick = { menuOpen = false; onDelete(profile) }
                             )
@@ -740,7 +740,7 @@ private fun KnowledgeEditorFields(title: String, name: String, usage: String, co
             KnowledgeField("اسم المعرفة", name, onName, "اسم واضح وقابل للبحث")
             KnowledgeField("تستخدم عندما...", usage, onUsage, "متى يحتاجها AIRI؟")
             KnowledgeField("المحتوى", content, onContent, "اكتب المعرفة هنا", 5)
-            Button(onClick = onSave, enabled = name.isNotBlank() && usage.isNotBlank() && content.isNotBlank(), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent), shape = AIRIShapes.md) { Text("حفظ المعرفة", fontWeight = FontWeight.Bold) }
+            Button(onClick = onSave, enabled = name.isNotBlank() && usage.isNotBlank() && content.isNotBlank(), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent), shape = AIRIShapes.md) { Text(stringResource(R.string.knowledge_save), fontWeight = FontWeight.Bold) }
         }
     }
 }
@@ -755,8 +755,8 @@ private fun KnowledgeProfileEditorDialog(profile: com.airi.assistant.knowledge.P
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "إلغاء", tint = AiriTheme.onBackground) }
-                    Text("تعديل المعرفة", color = AiriTheme.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { if (name.isNotBlank() && usage.isNotBlank() && content.isNotBlank()) onSave(profile.id, name, usage, content) }) { Text("حفظ", color = CosmicAccent, fontWeight = FontWeight.Bold) }
+                    Text(stringResource(R.string.knowledge_edit_title), color = AiriTheme.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { if (name.isNotBlank() && usage.isNotBlank() && content.isNotBlank()) onSave(profile.id, name, usage, content) }) { Text(stringResource(R.string.knowledge_save), color = CosmicAccent, fontWeight = FontWeight.Bold) }
                 }
                 Divider(color = AiriTheme.outline)
                 Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {

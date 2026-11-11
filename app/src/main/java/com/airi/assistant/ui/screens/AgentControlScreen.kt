@@ -62,7 +62,7 @@ fun AgentControlScreen(
                     IconButton(onClick = { onNavigate(com.airi.assistant.ui.AiriRoute.PLANNING_DASHBOARD) }) {
                         Icon(
                             Icons.Outlined.Timeline,
-                            contentDescription = "Planning Dashboard",
+                            contentDescription = stringResource(R.string.cd_planning_dashboard),
                             tint = AiriTheme.onSurfaceVariant)
                     }
                 }

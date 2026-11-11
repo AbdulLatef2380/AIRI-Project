@@ -49,7 +49,7 @@ import com.airi.assistant.R
 @Composable
 fun ObservabilityScreen(onBack: () -> Unit) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Events", "Live Hub", "Graph", "Traces", "Network")
+    val tabs = listOf(stringResource(R.string.obs_events_tab), stringResource(R.string.obs_live_hub), stringResource(R.string.obs_graph), stringResource(R.string.obs_traces), stringResource(R.string.obs_network))
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -432,17 +432,17 @@ private fun GraphNodeCard(node: com.airi.assistant.agent.planning.GoalNode) {
                 Text(status, color = fg, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             }
             Spacer(Modifier.height(4.dp))
-            Text("action: ${node.activeAction}", color = AiriTheme.onSurfaceVariant, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Text(stringResource(R.string.obs_action) + ": ${node.activeAction}", color = AiriTheme.onSurfaceVariant, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             if (node.dependsOn.isNotEmpty()) {
-                Text("depends: ${node.dependsOn.joinToString()}", color = AiriTheme.onSurfaceVariant, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                Text(stringResource(R.string.obs_depends) + ": ${node.dependsOn.joinToString()}", color = AiriTheme.onSurfaceVariant, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
             }
             if (node.failReason != null) {
-                Text("error: ${node.failReason}", color = SemanticError.copy(alpha = 0.8f), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                Text(stringResource(R.string.obs_error) + ": ${node.failReason}", color = SemanticError.copy(alpha = 0.8f), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
             }
             if (node.attempts > 0) {
-                Text("attempts: ${node.attempts}", color = AiriTheme.outline, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                Text(stringResource(R.string.obs_attempts) + ": ${node.attempts}", color = AiriTheme.outline, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
             }
-            Text("recovery: ${node.recoveryBranch::class.simpleName}", color = AiriTheme.outline, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+            Text(stringResource(R.string.obs_recovery) + ": ${node.recoveryBranch::class.simpleName}", color = AiriTheme.outline, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
         }
     }
 }

@@ -46,7 +46,7 @@ fun PlanningDashboardScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = AiriTheme.onBackground)
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back), tint = AiriTheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AiriTheme.background)

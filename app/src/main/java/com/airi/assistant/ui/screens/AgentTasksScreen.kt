@@ -904,41 +904,41 @@ private fun AddTaskDialog(
         titleContentColor = AiriTheme.onSurface,
         textContentColor = AiriTheme.onSurface,
         shape = AIRIShapes.xl,
-        title = { Text("جدول جديد", fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
+        title = { Text(stringResource(R.string.task_new_title), fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("العنوان") },
-                    placeholder = { Text("مثال: ملخص الأخبار الصباحي") }, modifier = Modifier.fillMaxWidth(), minLines = 1)
-                OutlinedTextField(value = prompt, onValueChange = { prompt = it }, label = { Text("الموجه") },
-                    placeholder = { Text("اكتب ما تريد من AIRI تنفيذه") }, modifier = Modifier.fillMaxWidth(), minLines = 3, maxLines = 5)
-                Text("الجدولة", fontWeight = FontWeight.SemiBold, color = AiriTheme.onSurface)
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text(stringResource(R.string.task_title)) },
+                    placeholder = { Text(stringResource(R.string.task_title_hint)) }, modifier = Modifier.fillMaxWidth(), minLines = 1)
+                OutlinedTextField(value = prompt, onValueChange = { prompt = it }, label = { Text(stringResource(R.string.task_prompt)) },
+                    placeholder = { Text(stringResource(R.string.task_prompt_hint)) }, modifier = Modifier.fillMaxWidth(), minLines = 3, maxLines = 5)
+                Text(stringResource(R.string.task_scheduling), fontWeight = FontWeight.SemiBold, color = AiriTheme.onSurface)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                     listOf(ScheduleRecurrence.ONCE to "بلا تكرار", ScheduleRecurrence.DAILY to "يومياً", ScheduleRecurrence.WEEKLY to "أسبوعياً", ScheduleRecurrence.MONTHLY to "شهرياً").forEach { (value, label) ->
                         FilterChip(selected = recurrence == value, onClick = { recurrence = value }, label = { Text(label, fontSize = 11.sp) })
                     }
                 }
                 if (recurrence != ScheduleRecurrence.ONCE) {
-                    OutlinedTextField(value = time, onValueChange = { if (it.length <= 5) time = it }, label = { Text("الوقت (24 ساعة)") },
+                    OutlinedTextField(value = time, onValueChange = { if (it.length <= 5) time = it }, label = { Text(stringResource(R.string.task_time_24h)) },
                         placeholder = { Text("09:00") }, modifier = Modifier.fillMaxWidth())
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text("طلبات الموافقة", color = AiriTheme.onSurface)
+                    Text(stringResource(R.string.task_approvals), color = AiriTheme.onSurface)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(if (approval == ApprovalMode.CONFIRM) "تأكيد" else "تخطي", fontSize = 12.sp, color = AiriTheme.onSurfaceVariant)
                         Switch(checked = approval == ApprovalMode.CONFIRM, onCheckedChange = { approval = if (it) ApprovalMode.CONFIRM else ApprovalMode.SKIP })
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text("يتطلب اتصالاً بالإنترنت", color = AiriTheme.onSurface)
+                    Text(stringResource(R.string.task_requires_network), color = AiriTheme.onSurface)
                     Switch(checked = requiresNetwork, onCheckedChange = { requiresNetwork = it })
                 }
                 TextButton(onClick = { advanced = !advanced }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (advanced) "إخفاء الإعدادات المتقدمة" else "الإعدادات المتقدمة")
                 }
                 if (advanced) {
-                    OutlinedTextField(value = connector, onValueChange = { connector = it }, label = { Text("الموصل (اختياري)") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = model, onValueChange = { model = it }, label = { Text("النموذج (اختياري)") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = project, onValueChange = { project = it }, label = { Text("المشروع المخصص (اختياري)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = connector, onValueChange = { connector = it }, label = { Text(stringResource(R.string.task_connector_optional)) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = model, onValueChange = { model = it }, label = { Text(stringResource(R.string.task_model_optional)) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = project, onValueChange = { project = it }, label = { Text(stringResource(R.string.task_project_optional)) }, modifier = Modifier.fillMaxWidth())
                     Text("تُحفظ هذه الاختيارات مع المهمة وتُمرر إلى سياق Agent عند التشغيل.", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                 }
             }
@@ -947,7 +947,7 @@ private fun AddTaskDialog(
             Button(enabled = title.isNotBlank() && prompt.isNotBlank(), onClick = {
                 onAdd(title.trim(), prompt.trim(), recurrence, time.trim(), requiresNetwork, approval,
                     connector.trim().takeIf { it.isNotBlank() }, model.trim().takeIf { it.isNotBlank() }, project.trim().takeIf { it.isNotBlank() })
-            }, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent), shape = AIRIShapes.md) { Text("حفظ الجدول") }
+            }, colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent), shape = AIRIShapes.md) { Text(stringResource(R.string.task_save_schedule)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant) } }
     )

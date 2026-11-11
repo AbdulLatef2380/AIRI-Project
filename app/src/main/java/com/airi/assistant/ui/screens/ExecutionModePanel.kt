@@ -381,7 +381,7 @@ private fun CloudProviderSelector(
 private fun HistoricalModelUsage(stats: Map<String, TokenAccountant.HistoricalStats>) {
     if (stats.isEmpty()) return
     Spacer(Modifier.height(12.dp))
-    Text("Historical model usage", color = dimWhite(), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+    Text(stringResource(R.string.exec_historical_usage), color = dimWhite(), fontSize = 11.sp, fontWeight = FontWeight.Medium)
     Spacer(Modifier.height(4.dp))
     stats.values.sortedByDescending { it.totalTokens }.take(3).forEach { stat ->
         Row(
@@ -390,7 +390,7 @@ private fun HistoricalModelUsage(stats: Map<String, TokenAccountant.HistoricalSt
         ) {
             Text("${stat.providerId} · ${stat.modelId}", color = subtleWhite(), fontSize = 10.sp,
                 modifier = Modifier.weight(1f))
-            Text("${stat.totalTokens} tokens", color = dimWhite(), fontSize = 10.sp)
+            Text(stringResource(R.string.exec_tokens, stat.totalTokens), color = dimWhite(), fontSize = 10.sp)
         }
     }
 }

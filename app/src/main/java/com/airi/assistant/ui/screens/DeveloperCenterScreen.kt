@@ -494,7 +494,7 @@ private fun DatabaseLabTab() {
             is DatabaseLabManager.Execution.Success -> {
                 DevCard(title = "Result · ${result.result.rows.size} row(s) · ${result.result.elapsedMs}ms") {
                     if (result.result.truncated) {
-                        Text("Result limited to 100 rows.", fontSize = 11.sp, color = Color(0xFFFFB340))
+                        Text(stringResource(R.string.dev_result_limited), fontSize = 11.sp, color = Color(0xFFFFB340))
                     }
                     Text(
                         result.result.columns.joinToString(" | "),
@@ -512,7 +512,7 @@ private fun DatabaseLabTab() {
                         )
                     }
                     if (result.result.rows.isEmpty()) {
-                        Text("The query completed without rows.", fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
+                        Text(stringResource(R.string.dev_no_rows), fontSize = 11.sp, color = AiriTheme.onSurfaceVariant)
                     }
                 }
             }

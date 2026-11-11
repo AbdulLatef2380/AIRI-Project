@@ -2583,4 +2583,21 @@
     <string name="cd_rerun">Re-run</string>
     <string name="debug_cut">CUT</string>
     <string name="unit_ms">ms</string>
+
+    <string name="community_url_hint">https://raw.githubusercontent.com/…/skill.json</string>
+    <string name="marketplace_repo_hint">https://github.com/user/skill-repo</string>
+    <string name="community_tier">%1$s Tier</string>
+    <string name="obs_error_count">%1$d error%2$s</string>
+    <string name="obs_runs_count">%1$d runs</string>
+    <string name="obs_latency_ms">%1$dms</string>
+    <string name="stripe_buy_pack">Buy %1$s — %2$s</string>
+    <string name="stripe_credits">%1$s credits</string>
+    <string name="terminal_matches">%1$d matches</string>
+    <string name="agent_plan_header">AIRI · %1$s</string>
+    <string name="agent_plan_progress">%1$d/%2$d</string>
+    <string name="ui_back">Back</string>
+    <string name="ui_close">Close</string>
+    <string name="ui_cancel">Cancel</string>
+    <string name="ui_copy_trace">Copy trace</string>
+    <string name="ui_share">Share</string>
 </resources>

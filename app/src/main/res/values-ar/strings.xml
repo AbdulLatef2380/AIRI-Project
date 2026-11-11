@@ -2841,4 +2841,21 @@
     <string name="cd_rerun">إعادة التشغيل</string>
     <string name="debug_cut">مقطوع</string>
     <string name="unit_ms">مللي ثانية</string>
+
+    <string name="community_url_hint">https://raw.githubusercontent.com/…/skill.json</string>
+    <string name="marketplace_repo_hint">https://github.com/user/skill-repo</string>
+    <string name="community_tier">%1$s فئة</string>
+    <string name="obs_error_count">%1$d خطأ%2$s</string>
+    <string name="obs_runs_count">%1$d تشغيلات</string>
+    <string name="obs_latency_ms">%1$d مللي ثانية</string>
+    <string name="stripe_buy_pack">شراء %1$s — %2$s</string>
+    <string name="stripe_credits">%1$s رصيد</string>
+    <string name="terminal_matches">%1$d تطابق</string>
+    <string name="agent_plan_header">AIRI · %1$s</string>
+    <string name="agent_plan_progress">%1$d/%2$d</string>
+    <string name="ui_back">رجوع</string>
+    <string name="ui_close">إغلاق</string>
+    <string name="ui_cancel">إلغاء</string>
+    <string name="ui_copy_trace">نسخ التتبع</string>
+    <string name="ui_share">مشاركة</string>
 </resources>

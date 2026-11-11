@@ -504,7 +504,7 @@ private fun GitHubImportTab(
         OutlinedTextField(
             value = repoUrl,
             onValueChange = { repoUrl = it },
-            placeholder = { Text("https://github.com/user/skill-repo") },
+            placeholder = { Text(stringResource(R.string.marketplace_repo_hint)) },
             modifier = Modifier.fillMaxWidth(),
             shape = AIRIShapes.md,
             singleLine = true,

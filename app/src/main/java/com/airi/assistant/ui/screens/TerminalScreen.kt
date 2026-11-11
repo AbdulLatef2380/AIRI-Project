@@ -228,7 +228,7 @@ fun TerminalScreen(onBack: () -> Unit) {
                                 modifier = Modifier.weight(1f)
                             )
                             if (searchQuery.isNotBlank()) {
-                                Text("${displayLines.size} matches", fontSize = 10.sp, color = TermComment, fontFamily = FontFamily.Monospace)
+                                Text(stringResource(R.string.terminal_matches, displayLines.size), fontSize = 10.sp, color = TermComment, fontFamily = FontFamily.Monospace)
                                 Spacer(Modifier.width(8.dp))
                                 IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(20.dp)) {
                                     Icon(Icons.Outlined.Close, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(14.dp))

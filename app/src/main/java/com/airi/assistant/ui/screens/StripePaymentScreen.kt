@@ -153,7 +153,7 @@ private fun CreditsTab(
                         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = AiriTheme.onSurface)
                         Spacer(Modifier.width(8.dp))
                     }
-                    Text("Buy ${selectedPack?.displayName ?: ""} — ${selectedPack?.priceString ?: ""}", fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.stripe_buy_pack, selectedPack?.displayName ?: "", selectedPack?.priceString ?: ""), fontWeight = FontWeight.SemiBold)
                 }
             }
 
@@ -278,7 +278,7 @@ private fun CreditPackCard(pack: CreditPackage, isSelected: Boolean, onClick: ()
                         Badge(containerColor = SemanticSuccess) { Text(it, color = AiriTheme.onSurface, fontSize = 9.sp) }
                     }
                 }
-                Text("${pack.totalCredits.toLocaleStr()} credits", fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
+                Text(stringResource(R.string.stripe_credits, pack.totalCredits.toLocaleStr()), fontSize = 13.sp, color = AiriTheme.onSurfaceVariant)
                 if (pack.bonusPercent > 0) {
                     Text(stringResource(R.string.payment_bonus_included, pack.bonusPercent), fontSize = 11.sp, color = SemanticSuccess)
                 }

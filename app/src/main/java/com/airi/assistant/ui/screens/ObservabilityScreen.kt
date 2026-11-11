@@ -346,11 +346,11 @@ private fun AgentMetricRow(agentId: String, executions: Int, errors: Int, lastLa
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(agentId, color = AiriTheme.onBackground.copy(alpha = 0.75f), fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-            if (errors > 0) Text("$errors error${if (errors > 1) "s" else ""}", color = SemanticError, fontSize = 9.sp)
+            if (errors > 0) Text(stringResource(R.string.obs_error_count, errors, if (errors > 1) "s" else ""), color = SemanticError, fontSize = 9.sp)
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text("$executions runs", color = CosmicAccent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-            if (lastLatencyMs != null) Text("${lastLatencyMs}ms", color = AiriTheme.outline, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+            Text(stringResource(R.string.obs_runs_count, executions), color = CosmicAccent, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            if (lastLatencyMs != null) Text(stringResource(R.string.obs_latency_ms, lastLatencyMs), color = AiriTheme.outline, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
         }
     }
 }

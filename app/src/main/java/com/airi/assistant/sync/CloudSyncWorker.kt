@@ -54,21 +54,35 @@ class CloudSyncWorker(
         }
 
         return try {
-            ServiceLocator.cloudSyncCoordinator.pull()
-            ServiceLocator.cloudSyncCoordinator.pullMemories(ServiceLocator.memoryManager)
-            ServiceLocator.cloudSyncCoordinator.pullTaskContinuity(ServiceLocator.durableTaskManager)
-            ServiceLocator.cloudSyncCoordinator.push()
-            ServiceLocator.cloudSyncCoordinator.pushMemories(ServiceLocator.memoryManager)
-            ServiceLocator.cloudSyncCoordinator.pushTaskContinuity(ServiceLocator.durableTaskManager)
+            suspend fun runOperation(
+                name: String,
+                operation: suspend () -> CloudSyncCoordinator.SyncResult,
+            ): Boolean = when (operation()) {
+                CloudSyncCoordinator.SyncResult.SUCCESS,
+                CloudSyncCoordinator.SyncResult.SKIPPED -> true
+                CloudSyncCoordinator.SyncResult.FAILED -> {
+                    LoggingService.warn(TAG, "AIRI CLOUD_SYNC_WORKER_RETRY operation=$name")
+                    false
+                }
+            }
+            if (!runOperation("profile_pull") { ServiceLocator.cloudSyncCoordinator.pull() }) return retryOrFailure()
+            if (!runOperation("memory_pull") { ServiceLocator.cloudSyncCoordinator.pullMemories(ServiceLocator.memoryManager) }) return retryOrFailure()
+            if (!runOperation("task_continuity_pull") { ServiceLocator.cloudSyncCoordinator.pullTaskContinuity(ServiceLocator.durableTaskManager) }) return retryOrFailure()
+            if (!runOperation("profile_push") { ServiceLocator.cloudSyncCoordinator.push() }) return retryOrFailure()
+            if (!runOperation("memory_push") { ServiceLocator.cloudSyncCoordinator.pushMemories(ServiceLocator.memoryManager) }) return retryOrFailure()
+            if (!runOperation("task_continuity_push") { ServiceLocator.cloudSyncCoordinator.pushTaskContinuity(ServiceLocator.durableTaskManager) }) return retryOrFailure()
             LoggingService.info(TAG, "AIRI CLOUD_SYNC_WORKER_OK")
             Result.success()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            Log.w(TAG, "CloudSyncWorker failed: ${e.message}")
+            Log.w(TAG, "CloudSyncWorker failed type=${e.javaClass.simpleName}")
             if (runAttemptCount < MAX_RETRIES) Result.retry() else Result.failure()
         }
     }
+
+    private fun retryOrFailure(): Result =
+        if (runAttemptCount < MAX_RETRIES) Result.retry() else Result.failure()
 
     companion object {
         private const val TAG          = "CloudSyncWorker"

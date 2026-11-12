@@ -81,6 +81,22 @@ fun interface ToolHandler {
     suspend fun execute(invocation: ValidatedAuthorizedInvocation): ToolHandlerResult
 }
 
+/** Stores terminal handler outcomes by request id so WorkManager/transport retries are replay-safe. */
+interface ToolInvocationLedger {
+    fun outcome(requestId: RequestId): ExecutionOutcome?
+    fun record(requestId: RequestId, outcome: ExecutionOutcome)
+}
+
+class InMemoryToolInvocationLedger : ToolInvocationLedger {
+    private val outcomes = ConcurrentHashMap<RequestId, ExecutionOutcome>()
+
+    override fun outcome(requestId: RequestId): ExecutionOutcome? = outcomes[requestId]
+
+    override fun record(requestId: RequestId, outcome: ExecutionOutcome) {
+        outcomes.putIfAbsent(requestId, outcome)
+    }
+}
+
 sealed interface ToolHandlerResult {
     data class Success(val text: String) : ToolHandlerResult
     data object Empty : ToolHandlerResult
@@ -103,8 +119,10 @@ class ToolExecutionPipeline(
     private val rateLimiter: ToolRateLimiter,
     private val sandbox: ToolSandbox,
     private val handler: ToolHandler,
+    private val invocationLedger: ToolInvocationLedger = InMemoryToolInvocationLedger(),
 ) {
     suspend fun execute(request: ToolRequest): ExecutionOutcome {
+        invocationLedger.outcome(request.requestId)?.let { return it }
         val spec = specs.find(request.toolId)
             ?: return ExecutionOutcome.Failure(request.requestId, request.generationId, "unknown_tool")
 
@@ -172,6 +190,7 @@ class ToolExecutionPipeline(
                 is ToolHandlerResult.Failure -> ExecutionOutcome.Failure(request.requestId, request.generationId, result.reason)
                 ToolHandlerResult.Timeout -> ExecutionOutcome.Timeout(request.requestId, request.generationId)
             }
+                .also { invocationLedger.record(request.requestId, it) }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
@@ -179,7 +198,7 @@ class ToolExecutionPipeline(
                 request.requestId,
                 request.generationId,
                 "handler_failed:${error::class.simpleName ?: "unknown"}",
-            )
+            ).also { invocationLedger.record(request.requestId, it) }
         }
     }
 

@@ -122,6 +122,23 @@ class ToolExecutionPipelineTest {
         assertFalse(outcome is ExecutionOutcome.Success)
     }
 
+    @Test
+    fun retryWithTheSameRequestIdReplaysTerminalOutcomeWithoutCallingSideEffectAgain() = runBlocking {
+        var handlerCalls = 0
+        val requestId = RequestId("stable-request")
+        val pipeline = pipeline(handler = ToolHandler {
+            handlerCalls++
+            ToolHandlerResult.Success("created-once")
+        })
+
+        val first = pipeline.execute(request(mapOf("count" to "1"), requestId = requestId))
+        val retry = pipeline.execute(request(mapOf("count" to "1"), requestId = requestId))
+
+        assertEquals(1, handlerCalls)
+        assertEquals(first, retry)
+        assertEquals("created-once", (retry as ExecutionOutcome.Success).text)
+    }
+
     private fun pipeline(
         authorizer: ToolAuthorizer = ToolAuthorizer { AuthorizationDecision.Allow },
         approvalTokens: ApprovalTokenStore = ApprovalTokenStore { _, _ -> false },
@@ -142,8 +159,9 @@ class ToolExecutionPipelineTest {
     private fun request(
         args: Map<String, String>,
         approvalToken: String? = null,
+        requestId: RequestId = RequestId.new(),
     ) = ToolRequest(
-        requestId = RequestId.new(),
+        requestId = requestId,
         generationId = 1L,
         principal = "test-agent",
         sessionId = "session-1",

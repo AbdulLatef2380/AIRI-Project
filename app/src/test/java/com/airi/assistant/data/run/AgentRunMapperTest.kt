@@ -4,6 +4,7 @@ import com.airi.assistant.ai.agent.trace.AgentStep
 import com.airi.assistant.ai.agent.trace.AgentStepType
 import com.airi.assistant.ai.agent.trace.AgentTrace
 import com.airi.assistant.core.AgentEvent
+import com.airi.assistant.core.ExecutionTraceKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -87,5 +88,22 @@ class AgentRunMapperTest {
         )
         assertEquals("FAILED", AgentRunMapper.toEvent(event).status)
         assertEquals("FAILED", AgentRunMapper.liveRun(event).status)
+    }
+
+    @Test fun failedTraceKindCannotBecomeCompletedWhenErrorCodeIsMissing() {
+        val event = AgentEvent(
+            eventId = "exec-2:failed",
+            executionId = "exec-2",
+            sessionId = "session-2",
+            sequence = 9,
+            timestampMs = 900,
+            type = AgentEvent.Type.FINAL,
+            title = "Execution failed",
+            traceKind = ExecutionTraceKind.FAILED,
+        )
+
+        val run = AgentRunMapper.liveRun(event)
+        assertEquals("FAILED", run.status)
+        assertEquals(900L, run.endedAtMs)
     }
 }

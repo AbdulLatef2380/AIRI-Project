@@ -160,13 +160,33 @@ object AgentRunMapper {
     fun liveRun(event: AgentEvent): AgentRunEntity = AgentRunEntity(
         id = traceIdForExecution(event.executionId),
         title = event.title.take(200),
-        status = when (event.type) {
-            AgentEvent.Type.FINAL -> if (event.errorCode == null) "COMPLETED" else "FAILED"
+        status = when {
+            event.traceKind in setOf(
+                ExecutionTraceKind.FAILED,
+                ExecutionTraceKind.TIMED_OUT,
+                ExecutionTraceKind.VERIFICATION_FAILED,
+                ExecutionTraceKind.APPROVAL_TIMEOUT,
+            ) -> "FAILED"
+            event.traceKind in setOf(
+                ExecutionTraceKind.CANCELLED,
+                ExecutionTraceKind.TOOL_CANCELLED,
+                ExecutionTraceKind.APPROVAL_CANCELLED,
+            ) -> "CANCELLED"
+            event.type == AgentEvent.Type.FINAL -> if (event.errorCode == null) "COMPLETED" else "FAILED"
             AgentEvent.Type.APPROVAL -> "WAITING_APPROVAL"
             else -> "RUNNING"
         },
         startedAtMs = event.timestampMs,
-        endedAtMs = event.takeIf { it.type == AgentEvent.Type.FINAL }?.timestampMs,
+        endedAtMs = event.takeIf {
+            it.type == AgentEvent.Type.FINAL ||
+                it.traceKind in setOf(
+                    ExecutionTraceKind.FAILED,
+                    ExecutionTraceKind.TIMED_OUT,
+                    ExecutionTraceKind.CANCELLED,
+                    ExecutionTraceKind.APPROVAL_TIMEOUT,
+                    ExecutionTraceKind.APPROVAL_CANCELLED,
+                )
+        }?.timestampMs,
         executionId = event.executionId,
         sessionId = event.sessionId,
     )

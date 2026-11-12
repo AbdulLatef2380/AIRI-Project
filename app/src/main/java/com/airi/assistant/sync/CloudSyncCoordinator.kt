@@ -73,6 +73,9 @@ class CloudSyncCoordinator(
 
     enum class SyncStatus { IDLE, SYNCING, SUCCESS, FAILED, DISABLED }
 
+    /** Result returned to WorkManager so a swallowed backend failure cannot be reported as success. */
+    enum class SyncResult { SUCCESS, SKIPPED, FAILED }
+
     private val _syncStatus = MutableStateFlow(SyncStatus.IDLE)
     val syncStatus: StateFlow<SyncStatus> = _syncStatus.asStateFlow()
 
@@ -94,13 +97,13 @@ class CloudSyncCoordinator(
      * Push the current local profile to Firestore.
      * No-op if sync is disabled, user is signed out, or Firestore unavailable.
      */
-    suspend fun push(prefs: UserPreferences = profileRepo.current) {
+    suspend fun push(prefs: UserPreferences = profileRepo.current): SyncResult {
         if (!prefs.cloudSyncEnabled) {
             _syncStatus.value = SyncStatus.DISABLED
-            return
+            return SyncResult.SKIPPED
         }
-        val uid = auth.currentUser?.uid ?: return
-        val db  = db ?: return
+        val uid = auth.currentUser?.uid ?: return SyncResult.SKIPPED
+        val db  = db ?: return SyncResult.SKIPPED
 
         _syncStatus.value = SyncStatus.SYNCING
 
@@ -115,27 +118,29 @@ class CloudSyncCoordinator(
                 .collection("sync_meta").document("device")
                 .set(mapOf(
                     "lastSyncMs" to System.currentTimeMillis(),
-                    "appVersion" to "1.0"
+                    "appVersion" to "1.0",
+                    "logicalOperationId" to CloudSyncOperationId.profile(uid, prefs.lastUpdatedAtMs),
                 ), SetOptions.merge())
                 .await()
 
             _lastSyncMs.value = System.currentTimeMillis()
             _syncStatus.value = SyncStatus.SUCCESS
             LoggingService.info(TAG, "AIRI CLOUD_SYNC_PUSH_OK uid=${uid.take(8)}…")
+            SyncResult.SUCCESS
         }.onFailure { e ->
             _syncStatus.value = SyncStatus.FAILED
-            LoggingService.warn(TAG, "AIRI CLOUD_SYNC_PUSH_FAILED: ${e.message}")
-        }
+            LoggingService.warn(TAG, "AIRI CLOUD_SYNC_PUSH_FAILED type=${e.javaClass.simpleName}")
+        }.getOrElse { SyncResult.FAILED }
     }
 
     /**
      * Pull remote profile and merge into local.
      */
-    suspend fun pull() {
+    suspend fun pull(): SyncResult {
         val prefs = profileRepo.current
-        if (!prefs.cloudSyncEnabled) return
-        val uid = auth.currentUser?.uid ?: return
-        val db  = db ?: return
+        if (!prefs.cloudSyncEnabled) return SyncResult.SKIPPED
+        val uid = auth.currentUser?.uid ?: return SyncResult.SKIPPED
+        val db  = db ?: return SyncResult.SKIPPED
 
         _syncStatus.value = SyncStatus.SYNCING
 
@@ -146,7 +151,7 @@ class CloudSyncCoordinator(
 
             if (!snap.exists()) {
                 _syncStatus.value = SyncStatus.SUCCESS
-                return
+                return@runCatching SyncResult.SUCCESS
             }
 
             val remote = documentToPrefs(snap.data ?: emptyMap(), prefs)
@@ -154,10 +159,11 @@ class CloudSyncCoordinator(
             _lastSyncMs.value = System.currentTimeMillis()
             _syncStatus.value  = SyncStatus.SUCCESS
             LoggingService.info(TAG, "AIRI CLOUD_SYNC_PULL_OK uid=${uid.take(8)}…")
+            SyncResult.SUCCESS
         }.onFailure { e ->
             _syncStatus.value = SyncStatus.FAILED
-            LoggingService.warn(TAG, "AIRI CLOUD_SYNC_PULL_FAILED: ${e.message}")
-        }
+            LoggingService.warn(TAG, "AIRI CLOUD_SYNC_PULL_FAILED type=${e.javaClass.simpleName}")
+        }.getOrElse { SyncResult.FAILED }
     }
 
     // ── Memory Sync: opt-in, durable outbox, idempotent tombstones ─────────
@@ -167,11 +173,11 @@ class CloudSyncCoordinator(
      * outbox is acknowledged only after commit succeeds, so offline/restarted
      * workers retry safely. Episodic chat rows never enter this path.
      */
-    suspend fun pushMemories(memoryManager: MemoryManager) {
+    suspend fun pushMemories(memoryManager: MemoryManager): SyncResult {
         val prefs = profileRepo.current
-        if (!prefs.cloudSyncEnabled || !prefs.enableLongTermMemory) return
-        val uid = auth.currentUser?.uid ?: return
-        val firestore = db ?: return
+        if (!prefs.cloudSyncEnabled || !prefs.enableLongTermMemory) return SyncResult.SKIPPED
+        val uid = auth.currentUser?.uid ?: return SyncResult.SKIPPED
+        val firestore = db ?: return SyncResult.SKIPPED
         _syncStatus.value = SyncStatus.SYNCING
         runCatching {
             var total = 0
@@ -179,6 +185,7 @@ class CloudSyncCoordinator(
                 val pending = memoryManager.pendingSyncMutations(MAX_MEMORY_BATCH)
                 if (pending.isEmpty()) break
                 val batch = firestore.batch()
+                val logicalOperationId = CloudSyncOperationId.memoryBatch(uid, pending)
                 var maxUpdated = 0L
                 pending.forEach { mutation ->
                     val ref = firestore.collection("users").document(uid)
@@ -197,24 +204,26 @@ class CloudSyncCoordinator(
                 memoryManager.acknowledgeSyncMutations(pending.map { it.id })
                 total += pending.size
                 if (maxUpdated > 0L) _lastMemorySyncMs.value = maxUpdated
+                LoggingService.info(TAG, "AIRI MEMORY_BATCH_COMMITTED operation=$logicalOperationId rows=${pending.size}")
             }
             firestore.collection("users").document(uid).collection("sync_meta").document("memory")
                 .set(mapOf("cursorUpdatedAtMs" to _lastMemorySyncMs.value,
                     "lastSyncMs" to System.currentTimeMillis()), SetOptions.merge()).await()
             _syncStatus.value = SyncStatus.SUCCESS
             LoggingService.info(TAG, "AIRI MEMORY_PUSH_OK uid=${uid.take(8)}… rows=$total")
+            SyncResult.SUCCESS
         }.onFailure { e ->
             _syncStatus.value = SyncStatus.FAILED
             LoggingService.warn(TAG, "AIRI MEMORY_PUSH_FAILED type=${e.javaClass.simpleName}")
-        }
+        }.getOrElse { SyncResult.FAILED }
     }
 
     /** Pulls owner-scoped memory documents and applies last-write-wins locally. */
-    suspend fun pullMemories(memoryManager: MemoryManager) {
+    suspend fun pullMemories(memoryManager: MemoryManager): SyncResult {
         val prefs = profileRepo.current
-        if (!prefs.cloudSyncEnabled || !prefs.enableLongTermMemory) return
-        val uid = auth.currentUser?.uid ?: return
-        val firestore = db ?: return
+        if (!prefs.cloudSyncEnabled || !prefs.enableLongTermMemory) return SyncResult.SKIPPED
+        val uid = auth.currentUser?.uid ?: return SyncResult.SKIPPED
+        val firestore = db ?: return SyncResult.SKIPPED
         _syncStatus.value = SyncStatus.SYNCING
         runCatching {
             val snap = firestore.collection("users").document(uid).collection("memory")
@@ -237,10 +246,11 @@ class CloudSyncCoordinator(
                 .get().await().getLong("cursorUpdatedAtMs")?.let { _lastMemorySyncMs.value = it }
             _syncStatus.value = SyncStatus.SUCCESS
             LoggingService.info(TAG, "AIRI MEMORY_PULL_OK uid=${uid.take(8)}… restored=$restored total=${snap.size()}")
+            SyncResult.SUCCESS
         }.onFailure { e ->
             _syncStatus.value = SyncStatus.FAILED
             LoggingService.warn(TAG, "AIRI MEMORY_PULL_FAILED type=${e.javaClass.simpleName}")
-        }
+        }.getOrElse { SyncResult.FAILED }
     }
 
     /**
@@ -249,17 +259,21 @@ class CloudSyncCoordinator(
      * a remote execution protocol: task input, result, checkpoints, approvals,
      * diagnostics, timeline text, artifacts, and secrets are never uploaded.
      */
-    suspend fun pushTaskContinuity(taskManager: DurableTaskManager) {
+    suspend fun pushTaskContinuity(taskManager: DurableTaskManager): SyncResult {
         val prefs = profileRepo.current
-        if (!prefs.cloudSyncEnabled || !prefs.taskContinuitySyncEnabled) return
-        val uid = auth.currentUser?.uid ?: return
-        val db = db ?: return
+        if (!prefs.cloudSyncEnabled || !prefs.taskContinuitySyncEnabled) return SyncResult.SKIPPED
+        val uid = auth.currentUser?.uid ?: return SyncResult.SKIPPED
+        val db = db ?: return SyncResult.SKIPPED
         val snapshots = taskManager.continuitySnapshots()
-        if (snapshots.isEmpty()) return
+        if (snapshots.isEmpty()) return SyncResult.SKIPPED
 
         _syncStatus.value = SyncStatus.SYNCING
         runCatching {
             val batch = db.batch()
+            val logicalOperationId = CloudSyncOperationId.taskContinuity(
+                uid,
+                snapshots.map { "${it.taskId}:${it.updatedAtMs}:${it.status.name}" },
+            )
             snapshots.forEach { snapshot ->
                 batch.set(
                     db.collection("users").document(uid)
@@ -270,11 +284,12 @@ class CloudSyncCoordinator(
             }
             batch.commit().await()
             _syncStatus.value = SyncStatus.SUCCESS
-            LoggingService.info(TAG, "AIRI TASK_CONTINUITY_PUSH_OK count=${snapshots.size}")
+            LoggingService.info(TAG, "AIRI TASK_CONTINUITY_PUSH_OK operation=$logicalOperationId count=${snapshots.size}")
+            SyncResult.SUCCESS
         }.onFailure { error ->
             _syncStatus.value = SyncStatus.FAILED
             LoggingService.warn(TAG, "AIRI TASK_CONTINUITY_PUSH_FAILED type=${error.javaClass.simpleName}")
-        }
+        }.getOrElse { SyncResult.FAILED }
     }
 
     /**
@@ -282,11 +297,11 @@ class CloudSyncCoordinator(
      * this device. Unknown tasks are deliberately ignored: continuity sync
      * cannot materialise a task without its local user-approved specification.
      */
-    suspend fun pullTaskContinuity(taskManager: DurableTaskManager) {
+    suspend fun pullTaskContinuity(taskManager: DurableTaskManager): SyncResult {
         val prefs = profileRepo.current
-        if (!prefs.cloudSyncEnabled || !prefs.taskContinuitySyncEnabled) return
-        val uid = auth.currentUser?.uid ?: return
-        val db = db ?: return
+        if (!prefs.cloudSyncEnabled || !prefs.taskContinuitySyncEnabled) return SyncResult.SKIPPED
+        val uid = auth.currentUser?.uid ?: return SyncResult.SKIPPED
+        val db = db ?: return SyncResult.SKIPPED
 
         _syncStatus.value = SyncStatus.SYNCING
         runCatching {
@@ -306,10 +321,11 @@ class CloudSyncCoordinator(
             }
             _syncStatus.value = SyncStatus.SUCCESS
             LoggingService.info(TAG, "AIRI TASK_CONTINUITY_PULL_OK merged=$merged ignored=$ignored")
+            SyncResult.SUCCESS
         }.onFailure { error ->
             _syncStatus.value = SyncStatus.FAILED
             LoggingService.warn(TAG, "AIRI TASK_CONTINUITY_PULL_FAILED type=${error.javaClass.simpleName}")
-        }
+        }.getOrElse { SyncResult.FAILED }
     }
 
     private fun continuityToDocument(snapshot: TaskContinuitySnapshot): Map<String, Any?> = mapOf(

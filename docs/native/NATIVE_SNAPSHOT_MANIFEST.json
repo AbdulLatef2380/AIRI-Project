@@ -1,0 +1,1407 @@
+{
+  "schema": 1,
+  "generated_by": "tools/native_snapshot_manifest.py",
+  "repository": "https://github.com/AbdulLatef2380/AIRI-Project.git",
+  "commit": "567798f29362cd760f7ab733f184f00a80e9912e",
+  "native_tree_sha256": "40aa7d5d854c64b7f278df35e961a0fde40cd291e7fd316d79f51c2a1f62d120",
+  "native_file_count": 276,
+  "toolchain": {
+    "ndk_version": "25.2.9519653",
+    "gradle_cmake_version": "3.22.1",
+    "cmake_minimum_version": "3.22.1",
+    "shared_library": "airi_native",
+    "shared_library_declared": true,
+    "release_abis": [
+      "arm64-v8a"
+    ],
+    "debug_abis": [
+      "x86_64"
+    ]
+  },
+  "jni_bridge": {
+    "source": "app/src/main/cpp/LlamaBridge.cpp",
+    "library": "airi_native"
+  },
+  "files": [
+    {
+      "path": "app/src/main/cpp/llama/common/common.h",
+      "sha256": "78aa240350889bfceaca18e614e4035b34f201e77295ef39be82bab1d30dd6cb",
+      "bytes": 43722
+    },
+    {
+      "path": "app/src/main/cpp/llama/common/sampling.cpp",
+      "sha256": "b2cf89b82f0d66af177a5b1c491a0d20fda40a3586ba1ccba42f4902992e2836",
+      "bytes": 31441
+    },
+    {
+      "path": "app/src/main/cpp/llama/common/sampling.h",
+      "sha256": "a916f29ae02c21a6a249b7167176bff5ed25f955410291fa220698002d45abee",
+      "bytes": 5275
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/include/ggml-alloc.h",
+      "sha256": "3793a2175be355619cc426982706b7fa94ad801b66d2aeef4b95e68c434ba0ef",
+      "bytes": 3624
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/include/ggml-backend.h",
+      "sha256": "f958619aa6b8eceeb0b888b5e5f460f3bf07be727a9b247d41f01acb8ebad109",
+      "bytes": 24944
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/include/ggml-cpp.h",
+      "sha256": "bc15ba002c68685df23faae42df0d2b3d58032011f88b649021ab92485862c72",
+      "bytes": 1652
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/include/ggml-cpu.h",
+      "sha256": "1aafe97e576ea38c0da57517fb2492955d0b69c1a799842481fc069d6d9d28ef",
+      "bytes": 7696
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/include/ggml-opt.h",
+      "sha256": "3586de1bc8a934b5c72339e2b6937b0641e8f149b512231e666f67de0736eea2",
+      "bytes": 14040
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/include/ggml.h",
+      "sha256": "bc33d2be555eb0450bec74f7e8dcc9e9c0a8a3f2ef050ee0ca2fd6487381915e",
+      "bytes": 107363
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/include/gguf.h",
+      "sha256": "657433f5d216c53c0801897ce59a1d4414af9b234fc885a7340275fac56af415",
+      "bytes": 10433
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-alloc.c",
+      "sha256": "19cbe4c28ccb011a33d5f25f151060a017d47067e5cb0d690354f1e5a2cbd097",
+      "bytes": 47815
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-backend-dl.cpp",
+      "sha256": "acd76df8b83bcdef6807bc7b0520f57b379d61b4ff1027c04aa4d140d16ad07f",
+      "bytes": 1051
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-backend-dl.h",
+      "sha256": "225bd83a197c4e8b5f985717176824d1144e2b74a79f04838f51b84115c14dc5",
+      "bytes": 791
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-backend-impl.h",
+      "sha256": "d9c62d72b13bff67ef7ada8feccf90c9cd1b6d176eae85df3ed1d4f3d2240e52",
+      "bytes": 13643
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-backend-meta.cpp",
+      "sha256": "1d90a291767a231ca9b6f43e6751419f5dfdd99cd0ea443a99ae601f328f1898",
+      "bytes": 96116
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-backend-reg.cpp",
+      "sha256": "eca86dde2743573487e91722bbb2e1b7501dff40a0c8e26114cf3ad6bb5d7f12",
+      "bytes": 17635
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-backend.cpp",
+      "sha256": "2036c858f5e93d68507558a3d02e86b82284a0c1c4403d23975640669e86ae26",
+      "bytes": 93333
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-common.h",
+      "sha256": "33667042e675da25d8ea0c6d5d0999506f1edfce2b7d97c2d78830ac5fb3fa46",
+      "bytes": 134777
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/amx/amx.cpp",
+      "sha256": "636d1e4b858a86ad6568100bbdb4bf9715d9dfb25d3831415d55e04e39acad86",
+      "bytes": 8265
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/amx/amx.h",
+      "sha256": "9d098ceee6a8114d4a660ff269064a27aa25b8a4f205d1e6984d17bec5104f0d",
+      "bytes": 202
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/amx/common.h",
+      "sha256": "c694f6bb066a820b717f986914b0d112dca0d8d3a1e239e958fce30c864751c3",
+      "bytes": 2675
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/amx/mmq.cpp",
+      "sha256": "b6f71742c4124dfc7c6162773983611dae4efbfd7edcdb0082deae6317cc5b9c",
+      "bytes": 108025
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/amx/mmq.h",
+      "sha256": "bd33d0713b12daf9eedea1619dd715619baaa36b98c44ec754d532909d80933a",
+      "bytes": 397
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/arch/arm/cpu-feats.cpp",
+      "sha256": "9c6f7e49fa52f6ffe45a6e5daf31052c039ff1744842dbb1a650fccc3c014432",
+      "bytes": 2387
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/arch/arm/quants.c",
+      "sha256": "482e10be16323fe854aad61e002585050cb5ca4ee0b3b0ed282eb316f9d1c569",
+      "bytes": 214221
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/arch/arm/repack.cpp",
+      "sha256": "e78f92ace462d2706ec81a6dcf770f602965018597638fc05b6839559bb93717",
+      "bytes": 252246
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/arch-fallback.h",
+      "sha256": "2b13e04ca28fc0634d4ae4e7151c6cd5f1389cf0a928ba202702d7316a4d118b",
+      "bytes": 21408
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/binary-ops.cpp",
+      "sha256": "2df261aadce36a20f5e3bf6961d4ca27b8c2d461afc41488361ee6ad09c1730d",
+      "bytes": 6709
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/binary-ops.h",
+      "sha256": "5915519c4e2227db28239b2a5d3b8a5f9022730cc0ddb7880b24748ee78cd1f9",
+      "bytes": 518
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/common.h",
+      "sha256": "db7c19747a28c819d18922aa43b91b224df3730e424e6d8a4cf4fd16bfb1db14",
+      "bytes": 2333
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/ggml-cpu-impl.h",
+      "sha256": "e7008069e3e46f1db5e3d2eaafb4ddec3c7d0ece5c0454f99c5a8e33a50f20ba",
+      "bytes": 13723
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/ggml-cpu.c",
+      "sha256": "996d496b7c016a5c4ed8be742ed9216ed138a55d7b7cb3462bdaaf2da704769c",
+      "bytes": 125467
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/ggml-cpu.cpp",
+      "sha256": "784da84368b93784c10f222e4bf40625bebff61956883ea580a7361c3df60b5b",
+      "bytes": 24128
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/hbm.cpp",
+      "sha256": "3c75b5aaf9b51d17060ecfb93cb5f8b22ce3974d7eff3d76dec2156d2f194b80",
+      "bytes": 2003
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/hbm.h",
+      "sha256": "340c84ac6a1c83d2218a15d6d71c1efb6ba1a5517162c2fde4baa0a9204af26b",
+      "bytes": 155
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/llamafile/sgemm.cpp",
+      "sha256": "9da93b2bf12129ee40a58492dc209c9ff3bbd66dbf9e96536edc42caf7305f51",
+      "bytes": 157720
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/llamafile/sgemm.h",
+      "sha256": "6ec12aa9244a8ffb13ae56b2e391f905b1d152ae25ff45da6a66e18daf650b3b",
+      "bytes": 524
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/ops.cpp",
+      "sha256": "b80e9ca5fffe05078d1de1686cbdeed7be86ce0d1ea1125cd76c56354780a9ee",
+      "bytes": 381953
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/ops.h",
+      "sha256": "bdf88f0b30756adc0f428f08e1ec48a294425e8fd58c5496cb759ecb5c6e267d",
+      "bytes": 9302
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/quants.c",
+      "sha256": "ac93fdaa58385f782c89c8191758b90cf03712516e9724adb31a345716237ad3",
+      "bytes": 43447
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/quants.h",
+      "sha256": "4481923bd237108a5b2de8bea61abfa266dc03b7b1abb66e7ec4b5f25e4e6ffc",
+      "bytes": 10434
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/repack.cpp",
+      "sha256": "b3a1d6953fc61f2a4088337384166fb5102db617afe37a4b92f7cf07992a9f8a",
+      "bytes": 195918
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/repack.h",
+      "sha256": "fe472315b4106400d7890fca308659c74bcdedad1b011a9ba60c02dcd5bef57b",
+      "bytes": 19905
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/simd-gemm.h",
+      "sha256": "8eeb9d1bcf7e9a0fab652c4d4879e57b34a62fb739e68d4536e8e95134600456",
+      "bytes": 7467
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/simd-mappings.h",
+      "sha256": "584a4b2cd7d47adecc13a9bc5e416a37dc30ca6af07552f3ef358d8bc90f0960",
+      "bytes": 54372
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/traits.cpp",
+      "sha256": "a85bd3ff50c91cb67d14221988544664dfe5975db0811b330dc4a2f385239de4",
+      "bytes": 1231
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/traits.h",
+      "sha256": "26e1b41879091a663325848aa82a4023b459fd1e688b3b0e2a9bde3e72a3a764",
+      "bytes": 1157
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/unary-ops.cpp",
+      "sha256": "e63b382766f1b8c5ded1577be9704e85cb4e9cd24584f3e1474911a40146df33",
+      "bytes": 11555
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/unary-ops.h",
+      "sha256": "280b7979055079d43bdde7790a7290bf04f75640481c59abc2364c46d6ac6d8e",
+      "bytes": 2442
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/vec.cpp",
+      "sha256": "c47ec8383b459978f8e639c140a3f916c549ec0b93fd9bca1dedd53f43716db3",
+      "bytes": 25300
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-cpu/vec.h",
+      "sha256": "ff40e8241c6f55d327500fffbead982a92c157dddbc9c9c330a7512d1b28832e",
+      "bytes": 67067
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-impl.h",
+      "sha256": "2ed56e264202906d107e26d08eabb242d3107b026ebfb78096fa1e5f94bdbbb8",
+      "bytes": 25604
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-opt.cpp",
+      "sha256": "e35fd27856e37f3611d3bc6f17ee963be51bfe92bec96fad0a9fa2c7ebbe9c46",
+      "bytes": 42081
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-quants.c",
+      "sha256": "62a1a886245c8a59af5f5bc8fe50ffdb71167fcd5a8321bc0aa67d6d55ad4b11",
+      "bytes": 222579
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-quants.h",
+      "sha256": "6da1216053846ed59970ff79e4c80f223b4d91048190fde73f1dc2d312d4a048",
+      "bytes": 9440
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-threading.cpp",
+      "sha256": "13a18d885393722b7c9f42d4cf8575a4d41699926d656f78a867fa4fac9dad20",
+      "bytes": 250
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml-threading.h",
+      "sha256": "9652729043ed91482392c1aa08af5d813190d0ace2e7982d2539d28240ab8d8b",
+      "bytes": 198
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml.c",
+      "sha256": "ce6eb89d94a181ae9b4e225e7c232a327797df2626fb2565a25ef972cd4ad4f4",
+      "bytes": 247978
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/ggml.cpp",
+      "sha256": "64e6b5c8d716ae8697e45481a7153540be01f721be2dc7e753aa47b36a69c753",
+      "bytes": 738
+    },
+    {
+      "path": "app/src/main/cpp/llama/ggml/src/gguf.cpp",
+      "sha256": "664fe9877c579bad8f0b10bb84625212b17a63b5a48c37797e79eaecd3e997c4",
+      "bytes": 53014
+    },
+    {
+      "path": "app/src/main/cpp/llama/include/llama-cpp.h",
+      "sha256": "c48fd31095d2403a3bf7cbe98333ba0e61a398ee6e83b56f9d8b7237143b9877",
+      "bytes": 900
+    },
+    {
+      "path": "app/src/main/cpp/llama/include/llama.h",
+      "sha256": "263ce59dfd82ab1f839cfe90fe4f77e01cd1ad9fe338f032438fb3609040653a",
+      "bytes": 82197
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-adapter.cpp",
+      "sha256": "320a927f1e93d423ccf10be5b7119160a8ce24b9a2977da09182e1b01849aaeb",
+      "bytes": 18198
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-adapter.h",
+      "sha256": "b63d8654358d6141fac1f45b1b56247d7c8360e609a55323d30e7dcb6a6ffc00",
+      "bytes": 2240
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-arch.cpp",
+      "sha256": "7cfc901fe38d9450fe6d7b24352186cd034da047ae52695bb663f112dc8fe181",
+      "bytes": 55346
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-arch.h",
+      "sha256": "045e68e3c408937c679bd9a9a55cf803573710bc2149c9ddbc6f262c7870bc97",
+      "bytes": 18239
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-batch.cpp",
+      "sha256": "085badedd63b3f3ed83275a1d277fa9ae0e355c333d0f7599ff78988c58904c0",
+      "bytes": 28955
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-batch.h",
+      "sha256": "1889f151701f241e0a1b35ba145d437ea20e3d4284179474a58fbbed751adb1f",
+      "bytes": 6470
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-chat.cpp",
+      "sha256": "6658a18f76ed1325c89f9ab81e0b90d66cf3eef08edfed12ea46167449674d3c",
+      "bytes": 41076
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-chat.h",
+      "sha256": "9156ddbeba4856ca5feee64b41c39e82861f7e7928e78598caed96b650daa5df",
+      "bytes": 2241
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-context.cpp",
+      "sha256": "b758e704ab2803782fc1bee97d0a805510392f152c4e4eed9112ec9231119e8b",
+      "bytes": 130447
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-context.h",
+      "sha256": "77e57e6e984925af1a05ccfb122284d70159f473559a7457d79f0bf0f71acef1",
+      "bytes": 11514
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-cparams.cpp",
+      "sha256": "95ab4b7b72851eb381a3d2ff2e9f18731103ba5f9f5f216882a034319e709297",
+      "bytes": 100
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-cparams.h",
+      "sha256": "6cf7323487b04843471729b0e73573c3fe31804c84d14b5736eeba09686229be",
+      "bytes": 1268
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-ext.h",
+      "sha256": "5224331e85e1975b42d35f55852667eccd6de5b86a852c3c3137a1a19c870c18",
+      "bytes": 1884
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-grammar.cpp",
+      "sha256": "47d400b872a08fc18d7457535eb647bb70b7836d8a80a940554e934b4b6532c0",
+      "bytes": 55708
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-grammar.h",
+      "sha256": "db730e5aff77f96274aba4a43670f036400d89c7ed44b6e98d3ced41c7b9d193",
+      "bytes": 6961
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-graph.cpp",
+      "sha256": "e010dfb85df9610e3d76f972277eec0bc87d216d98b5880a8932528661381b3f",
+      "bytes": 100887
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-graph.h",
+      "sha256": "9333d0e2ad745ec9b71245220febec436c095eb594aaf3900cca4c9ce6a0279a",
+      "bytes": 36167
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-hparams.cpp",
+      "sha256": "78b7ddb9cd64c7738ef409608e3cf7ff1a73b41bdfb5002130557c4ca4e26021",
+      "bytes": 6407
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-hparams.h",
+      "sha256": "e6bd8f23868a27167e1ad22b475f19c12e0832f92d6964b2f4ca23dfc942c2a4",
+      "bytes": 11592
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-impl.cpp",
+      "sha256": "b01ad5b5ec7b314a73205ff7a7168769d72bb2e200b87bc39c48dcb9dc712ee8",
+      "bytes": 6131
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-impl.h",
+      "sha256": "030aeb21350590c9d9a3992005f22523ba721022349674efa249fb071dfa960f",
+      "bytes": 2092
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-io.cpp",
+      "sha256": "80800a1835ecf4df2fef6cf711d2b005dab50ad9405d8963ac4cd2b6dae13f74",
+      "bytes": 380
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-io.h",
+      "sha256": "a172a8407fd17ec7d8159b535f3547075b511dd3931d3c0b087287b0974d994b",
+      "bytes": 788
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-kv-cache-iswa.cpp",
+      "sha256": "e3310094dafbda67725ca5f2a8d25802478ae8d70ca38d504ee5d846e40e2efd",
+      "bytes": 10245
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-kv-cache-iswa.h",
+      "sha256": "e71817c82a98905025c33f0f67aab7aa200f33444e2a2979888dd05a67e15777",
+      "bytes": 4116
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-kv-cache.cpp",
+      "sha256": "a89055974c5da0d152358a65aa0317a3797ebd07a322f2e9b6c57e8a09a2995b",
+      "bytes": 82728
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-kv-cache.h",
+      "sha256": "bee212356ce4ffed3ec04be8216d9d917e56d5422f29efcca01844f7cdeaa1d7",
+      "bytes": 13835
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-kv-cells.h",
+      "sha256": "10bdacec1d4f5db486b64d58db1fd818c3505d4ba9897a8f8b314ce8f70044d8",
+      "bytes": 13188
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-memory-hybrid-iswa.cpp",
+      "sha256": "9933aea4e18f668ebc1a033454f6b4ddc9e763f5e3f47831c921487c6f0f39c8",
+      "bytes": 9778
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-memory-hybrid-iswa.h",
+      "sha256": "a6e3346a5bcfb833be37fcfb2a3b8250293f6eb7c52073d9ebb942cb02951dbe",
+      "bytes": 4527
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-memory-hybrid.cpp",
+      "sha256": "34270ddefc776ee94b0c696b3bdb70549e38801b3492fded35023aa3a47b1e67",
+      "bytes": 9128
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-memory-hybrid.h",
+      "sha256": "207e813d9052d876beab97203332fd37b0cb0e375c40ea8743a9ded4775673df",
+      "bytes": 4344
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-memory-recurrent.cpp",
+      "sha256": "3d27feef01f7ef402fe79f15b79a3b531531299c1f9141d75e44028e936ca653",
+      "bytes": 38859
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-memory-recurrent.h",
+      "sha256": "16a8dc0ae1e9573bd285d8b3b4dd4c4c6381303293086f872fd0be0d1c780186",
+      "bytes": 5757
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-memory.cpp",
+      "sha256": "1bf48d324cfa5fa57d5c486ec17ddd12b844fc40ec82d72ba113a3fe76a1f2c6",
+      "bytes": 1534
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-memory.h",
+      "sha256": "921f11e74cc9fb78a649b7d2c56d901de8a09a9cedbe204842186c4f716a981c",
+      "bytes": 4515
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-mmap.cpp",
+      "sha256": "a60ef67fd300fcba1cd11fc1ebcaffa406271f0b950bcaf27b362e7464316673",
+      "bytes": 24968
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-mmap.h",
+      "sha256": "778d279d36bdbcf55b22480ebf8a4d16cc78db66780e33234ed08a496a66295d",
+      "bytes": 1663
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-model-loader.cpp",
+      "sha256": "e487eeb7849bcb5ff1be2c90c360cded0dad3af34b844150c711d6b779a8c4a6",
+      "bytes": 71419
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-model-loader.h",
+      "sha256": "0a1d00702ff57bd93feaa790737037384f8a930adfc97b3e49ad2260c567bea0",
+      "bytes": 7643
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-model-saver.cpp",
+      "sha256": "c127a9799cc379c4cbf88088cd138c3525f4696b7867ec868adbf88d9577d388",
+      "bytes": 21910
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-model-saver.h",
+      "sha256": "c46f2ed984b7e4bf9c0f0229ac6508f9412b0acb8bbb1428f3eb4405de04f8c4",
+      "bytes": 1312
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-model.cpp",
+      "sha256": "4fd19493a841ea0287d8e9402f87363e490cb26af90a21dc6a91c38f29ccefea",
+      "bytes": 129177
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-model.h",
+      "sha256": "a139e590d9f38ef8f030992ea99c710ed1cdffd9a259909aeec2fe5b831ee774",
+      "bytes": 22059
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-quant.cpp",
+      "sha256": "a0cc969d3aebdf7ec693ef7acd039d5d6e32c49d35ce6ab3740f3b3481671502",
+      "bytes": 59742
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-quant.h",
+      "sha256": "b3adf106d95b8934f690943f2921308b90be5b766c4c8ba250c792de56400201",
+      "bytes": 13
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-sampler.cpp",
+      "sha256": "a089065be4341707b09be1f66aef2f37a99fb7a32dd82360a5aaccdbd67a874e",
+      "bytes": 131830
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-sampler.h",
+      "sha256": "668d1a37d305fb81dece86405d49101e86dab6d7041f294c4d7688d59104c930",
+      "bytes": 854
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-vocab.cpp",
+      "sha256": "eda83141bc61c1e3515e4afd1d45c534632840ebc5b1d37fa67c6df7ee41cf8e",
+      "bytes": 166597
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama-vocab.h",
+      "sha256": "e1c5883a2e393ab4097f7c11f32588fe965b7ebf9793a758947ffa5e5032c18e",
+      "bytes": 6593
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/llama.cpp",
+      "sha256": "eff2d8dea05d4c93f5593428026b19466d5562bbcc2676abc31a0ae5e934428f",
+      "bytes": 58152
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/afmoe.cpp",
+      "sha256": "e1c698eaa232ed2dd21f9f397d0a22578e06094af31db77b5899e103504b0c00",
+      "bytes": 6738
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/apertus.cpp",
+      "sha256": "1dc6621c583751e5ec334bf36d7785854091c0a4c27c652526f47ad15835ab13",
+      "bytes": 3902
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/arcee.cpp",
+      "sha256": "030f74470bb618671f8d5a2d56b972d7e3e68256a34463843e2dbddc8b736160",
+      "bytes": 3528
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/arctic.cpp",
+      "sha256": "c2b307ae5679532e756f88162708cf0df603823aa41d82bdf63c56cbcfbfec8b",
+      "bytes": 3901
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/arwkv7.cpp",
+      "sha256": "e0d083e303ee63db0543f820332aa6b37cdb15be253f07e3759701b432007f9e",
+      "bytes": 2925
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/baichuan.cpp",
+      "sha256": "ce10198caf0ea4dd7b76359ac77022e5747f8571cfe7ac5204a006675aab3ab0",
+      "bytes": 3518
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/bailingmoe.cpp",
+      "sha256": "bd1552c9943cfffe48c50f10a7e5c0e156000c705f9a4769175886928c19fb30",
+      "bytes": 3921
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/bailingmoe2.cpp",
+      "sha256": "3f248d998d8fb92d34157de3c447a28d682476c3e0dcbe366464684219aaad7b",
+      "bytes": 4431
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/bert.cpp",
+      "sha256": "75075aaabb65104111a27b064d14da653caa8e45afdc3f7c0fb1ca9bc51fb5da",
+      "bytes": 6247
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/bitnet.cpp",
+      "sha256": "86448f36995e50cfc146351fefe795957b0f7fafcbfb35367be7c0303027c235",
+      "bytes": 3832
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/bloom.cpp",
+      "sha256": "b080eac0d28c84dcbde1e57d6a093aeafd63cede9c3e8c8a45d44e173d1e57cc",
+      "bytes": 2651
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/chameleon.cpp",
+      "sha256": "b5b3b078e089785cc7bac841a1d38ea131d437daed1a2024213e5bdcb8b0d1a5",
+      "bytes": 5090
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/chatglm.cpp",
+      "sha256": "dc2681fbfd93cb0de7c7f625e36a143e3f1e813907bea6b76cbba60c825e1c0f",
+      "bytes": 3241
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/codeshell.cpp",
+      "sha256": "ae374f0665f0189e56e342ccc6307e389da9b839b5fbe3714373467aa1ccee42",
+      "bytes": 3239
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/cogvlm.cpp",
+      "sha256": "220adc156ac81e755e1070f9de772e682aa106a9eabf0dd19df8c7d4d3904871",
+      "bytes": 3754
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/cohere2-iswa.cpp",
+      "sha256": "c293f42a949b805ded97f0c002430122b0e370b2b2b53f424d68563b835a1fa1",
+      "bytes": 3610
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/command-r.cpp",
+      "sha256": "04e4e90e3513d91d27d8b3de5dc50a0164e85e917db76d516fc212c4d96543eb",
+      "bytes": 3444
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/dbrx.cpp",
+      "sha256": "b9f5ebfe9f991277ceb794236cdfaa958d014487d1f25e1cddeda8246c119a17",
+      "bytes": 3301
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/deci.cpp",
+      "sha256": "80988c62fc0e6e264404317034245696a8836d50eefccb626fe14a589724d3c5",
+      "bytes": 4188
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/deepseek.cpp",
+      "sha256": "dcac26368525d8cb19239aeda30461e2f5efb6058607f34d502acfec165bb007",
+      "bytes": 4389
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/deepseek2.cpp",
+      "sha256": "43aad756c029cf25af391a88f64ec11b0af0ab51b3218bff153902c7bfc3279f",
+      "bytes": 13313
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/delta-net-base.cpp",
+      "sha256": "6aaa20f06384642acfab1353385768b32f9af76cdfd5d5cc45dabd325c550cf2",
+      "bytes": 17372
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/dots1.cpp",
+      "sha256": "75c0a3859e7f52f7161e3744ca46cdc532aedf33f50362dd570bb68b867bb4f2",
+      "bytes": 4389
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/dream.cpp",
+      "sha256": "ba3d73278ed49da95c5725d1af599df94ccfabb1ccd0e2d0cf8004676db27084",
+      "bytes": 2893
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/ernie4-5-moe.cpp",
+      "sha256": "72ce57abc63e154a86cdccdea84edf4261103f82b21838a12afff74ea5f516a3",
+      "bytes": 4910
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/ernie4-5.cpp",
+      "sha256": "7c84d1e2a6184902470670cee99bbd17c859304752e42dc7cd4d45a56b1f03d2",
+      "bytes": 2986
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/eurobert.cpp",
+      "sha256": "49eb4f356528588fa956113050a500bc057709e58b6a1ec12a2645c0383d193f",
+      "bytes": 2766
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/exaone-moe.cpp",
+      "sha256": "3e5731731cc21984d93666378ca194de2268ea35880a4104ad60d7253d6f9b44",
+      "bytes": 4902
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/exaone.cpp",
+      "sha256": "b58414e943b5b708f1864b52ad17861e9428cdd511739ae262e0571bf5def162",
+      "bytes": 3139
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/exaone4.cpp",
+      "sha256": "0fedaa1dfd5466bf7fe8ef038cf2091404777e267317d99b6c69371c4f09f559",
+      "bytes": 3871
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/falcon-h1.cpp",
+      "sha256": "63a40b3d77eede78551fc27758cefbd78f3b8d0b8c0e6960b453f1acf55bddac",
+      "bytes": 3473
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/falcon.cpp",
+      "sha256": "c6f7ba9d7344f2bf322a23bf3eebd591631593b03226e4d23aec832df1fe6cae",
+      "bytes": 3540
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/gemma-embedding.cpp",
+      "sha256": "f4ba6457bdb6c3826cce032abcd18490c3d55acbec4d763506739003357732d6",
+      "bytes": 3769
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/gemma.cpp",
+      "sha256": "5493981e6b1c702182a8ff29d1700a767f7bea824ecb572054e24041999dbf30",
+      "bytes": 3144
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/gemma2-iswa.cpp",
+      "sha256": "ef83c863b639f3d0a7db07cdca19459ab9a7b10f8db843d675ef6fe7b9a58954",
+      "bytes": 3798
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/gemma3.cpp",
+      "sha256": "8bf130e2f5ef30bdce3386cf63e156af40ed6cb1aa53d64bf7435f9bf5c85398",
+      "bytes": 4893
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/gemma3n-iswa.cpp",
+      "sha256": "e2b685bf332ea5d6fb6e3d7a70ba976a5d6e13f5169de82c5e0b29bcda75f676",
+      "bytes": 18793
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/gemma4-iswa.cpp",
+      "sha256": "3d66685c17dc53dff0c8b896a045fa9dcd43830332b65e79908ed4150b0416dc",
+      "bytes": 13757
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/glm4-moe.cpp",
+      "sha256": "6198f95646a62966df4b3b8b211f70fbeb8065a96c5fcceaca4095e89ae7ccfa",
+      "bytes": 6149
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/glm4.cpp",
+      "sha256": "d2a25a2c7d84ae29ce7be8ca68c43be4597e20465dbebe87d7478d0d112951c3",
+      "bytes": 4593
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/gpt2.cpp",
+      "sha256": "439ce85dd8023f095950f5abb669019eed834d740aeff074eb693d6b6bafca42",
+      "bytes": 2767
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/gptneox.cpp",
+      "sha256": "72d19c55480106174b10bcd537c74813ee94a36f2c7e0fccdca564c453ae4f46",
+      "bytes": 4389
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/granite-hybrid.cpp",
+      "sha256": "853b6d6fa8693ef6a870c0bf55ea777f559ba86b7fc9d98b9d1ba40de57d1852",
+      "bytes": 6310
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/granite.cpp",
+      "sha256": "8f428e80d2961f02455af8c65b94b4f3c2bc28500f40b07f91e59d86dc50ef6c",
+      "bytes": 5946
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/grok.cpp",
+      "sha256": "aa3960abdf58c8b7c8d6c40f6be83664817a815a099073f29859fe93d27c43ee",
+      "bytes": 4565
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/grovemoe.cpp",
+      "sha256": "f9a5f1ccae5575f690dbf4035c0477fce0f0795d5de90fd5450bc874962b6692",
+      "bytes": 4471
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/hunyuan-dense.cpp",
+      "sha256": "3f8391cb58f9de9565f2dcac0ff35b3e05bf13598989e8aa743289aaf0ad7e17",
+      "bytes": 3846
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/hunyuan-moe.cpp",
+      "sha256": "a2494593582905ff74f22442a46426a14463d928ffe5a34fcd1c3992a7520e6b",
+      "bytes": 4451
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/internlm2.cpp",
+      "sha256": "9afa4ffd471eee3e360c1914fb68b611e632458ca9b4e8681a8f3c3edeac3f3f",
+      "bytes": 3132
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/jais.cpp",
+      "sha256": "33b45f73f5ad57e3865f0e2eb3a6a8745607e144c4922829d49c53e95403775a",
+      "bytes": 2497
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/jais2.cpp",
+      "sha256": "812f07ea96465d6f29809af7766e7b3e4aa1ed4cfeeaa6943642210c1c3412c3",
+      "bytes": 3464
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/jamba.cpp",
+      "sha256": "9d70a3a2d85345f281400688c8fd680eec9bd0f24a8ed50745910f4b879cdd3a",
+      "bytes": 3115
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/kimi-linear.cpp",
+      "sha256": "85710fe0c621cb6281e55d517c82514f0d529bf404c4a68c747fb876b780a01e",
+      "bytes": 20063
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/lfm2.cpp",
+      "sha256": "1700ae736430900b762634ebd7a0b4377558a09b8c7536ee93fe1c2735e02056",
+      "bytes": 8709
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/llada-moe.cpp",
+      "sha256": "8886a076b986f200e627bb5667081e3861a5c60ea7c0f2621bc19d218fe8e57b",
+      "bytes": 3564
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/llada.cpp",
+      "sha256": "fd058a1c490c1e239f8080e0a1529b7f81116cece67b3cc2174cef622aab1df6",
+      "bytes": 3080
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/llama.cpp",
+      "sha256": "a4bd1048329fee59e93e0afd2fe3b4a451f61ed80bd6a671fb6f7bb60e87fbcc",
+      "bytes": 5517
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/llama4.cpp",
+      "sha256": "44e95414fe6c44259589f5d652efd70dfb15451df29d536096f0fefc0dfedae4",
+      "bytes": 6321
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/maincoder.cpp",
+      "sha256": "b5d234fb494a2544363a408a5a9732b418efedee6fb25a50251dd698f26fc3e1",
+      "bytes": 3398
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/mamba-base.cpp",
+      "sha256": "4619bdac5e88f964d22d4202ab257dfc0839e824840bec9746227bf569dfd253",
+      "bytes": 14625
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/mamba.cpp",
+      "sha256": "96ef4de19b06bdf4626dc52a7d446c05f00d87bd9414539e3b843b6f175acd3e",
+      "bytes": 1421
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/mimo2-iswa.cpp",
+      "sha256": "e4d709886373daeaf5cee34eb6a3551eb9fe6ac977532488261e1c638baa648f",
+      "bytes": 4450
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/minicpm3.cpp",
+      "sha256": "cb76f372959736d73df705209d8d1bfaa9d17cfda21671a8c707867058c818c1",
+      "bytes": 8095
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/minimax-m2.cpp",
+      "sha256": "738e2fb0c35bd3439ff58268f5ba91a2d191cafc352cd767ee5aceb86c7fa4d2",
+      "bytes": 4062
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/mistral3.cpp",
+      "sha256": "8c1db3075471e872b4510d22234b720021c0b5b0343c4f005c4f3fe008444612",
+      "bytes": 4812
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/models.h",
+      "sha256": "a172b7bd417e9c84a37c46c2e7a06651ed88ec936c50928902881aea2f4fb485",
+      "bytes": 25952
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/modern-bert.cpp",
+      "sha256": "4569d87e90f49b035249d64712dbfdd889d2358eba027bdc4cd0a97f472f9f40",
+      "bytes": 3259
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/mpt.cpp",
+      "sha256": "499c2906a3d19a6be59c08f797b201b1818e3072ab41c1cca532dc44d880e83c",
+      "bytes": 3504
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/nemotron-h.cpp",
+      "sha256": "2247f84e8decd8e23e1f9225f03cf44ada93e657abb4f2b3b15815bf93e2553f",
+      "bytes": 5198
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/nemotron.cpp",
+      "sha256": "be9d0f92b82bfbf695fb89798d17756e8172774ab625bba811772cc9ef8ee4c8",
+      "bytes": 3287
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/neo-bert.cpp",
+      "sha256": "59e2fb2206647a50be1c46f5c7265e24db72d562fbc81e50cc4fdee3ec3d9d94",
+      "bytes": 2969
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/olmo.cpp",
+      "sha256": "3eb0585808e62ffabc43d36dfc7eaab4c4f37b5a955da80ad621312df8dd19a6",
+      "bytes": 3072
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/olmo2.cpp",
+      "sha256": "e6a6c0e59e57a573279b70129b0c7012af84d328705f1085192f479991dc7e08",
+      "bytes": 5138
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/olmoe.cpp",
+      "sha256": "b6c4a8a0eb913a9d11f9419da771ae558a44177f2fc6562430e4d242d9c84535",
+      "bytes": 4035
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/openai-moe-iswa.cpp",
+      "sha256": "270a14b3f65e06a9d72c269451e5f39b52a9e4e0bdc4f05372941ec29a178496",
+      "bytes": 3606
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/openelm.cpp",
+      "sha256": "656b4d4e0e85103cc9c76e1bdccc367725f558111aedd9ad9ace9def603971da",
+      "bytes": 4142
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/orion.cpp",
+      "sha256": "15a23714b01662a64f0731ea1f3253d87f7a0f5db8dad152a239fc477f393344",
+      "bytes": 3157
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/paddleocr.cpp",
+      "sha256": "5d18b98459bcfb95a01792ea9f44c0d4e1e103d704771fd59d440c25e93ff165",
+      "bytes": 3314
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/pangu-embedded.cpp",
+      "sha256": "5086d220459fc592985fda41041c9ae6184728f227c411ada4dd0bc304bdb0ed",
+      "bytes": 3288
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/phi2.cpp",
+      "sha256": "396ba62d4578974ca34566ef89983805ca6249c8aab24ebf35c347db3e9bc422",
+      "bytes": 3501
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/phi3.cpp",
+      "sha256": "8dbd57c880aa67a17e710afa321e3c7ba5ef9ed53cca5bc93292424f93f4599d",
+      "bytes": 4537
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/plamo.cpp",
+      "sha256": "867b673aa26dad6463b70e25e3e7332fd6d5d850cdbb375771dec81f86af6aa8",
+      "bytes": 3084
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/plamo2.cpp",
+      "sha256": "9b4fa1ab08e3191a6d921363941a5e36ceb7c4d1417c02af3a633b65450069a6",
+      "bytes": 14434
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/plamo3.cpp",
+      "sha256": "1c5bc1036d1bf329b7195e07cae64d9a12829f8c50dc0b38af92aea49469d9fa",
+      "bytes": 4722
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/plm.cpp",
+      "sha256": "0ece5f4b85565d93ac00f588bca4360b76510deeaeb8b5214f1e1cd17a847662",
+      "bytes": 6791
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/qwen.cpp",
+      "sha256": "36ea5e9e77f022916fa04c17d06717aaf8b4b937acd41de7997359320e2e15ce",
+      "bytes": 3112
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/qwen2.cpp",
+      "sha256": "c709e77b6cc2902940eef1b2a5c5e4deb6488ccd5335cb4c91b8dbf389f86c1f",
+      "bytes": 3218
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/qwen2moe.cpp",
+      "sha256": "59fa8e6f1ef151ceac8ed7b13b8d429b2db5d2a1a7c5b088624fa28f07f6240c",
+      "bytes": 4382
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/qwen2vl.cpp",
+      "sha256": "0383a14cf414e2efcc8a332468f0859601362c5854a144285d42306635ce1acb",
+      "bytes": 3273
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/qwen3.cpp",
+      "sha256": "0efe0db2b5636addc8cef898597688c8c32da66040e24f18d2459a86e4a9af4f",
+      "bytes": 3578
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/qwen35.cpp",
+      "sha256": "4ee145ff28d97637e6873fb9c5b5ed0a8fff24c22d1f3e6114206a864811d336",
+      "bytes": 15205
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/qwen35moe.cpp",
+      "sha256": "3733f105e9bac7304139c001275839b2f92f07f5a1f7fadd88334359d2c2774f",
+      "bytes": 16915
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/qwen3moe.cpp",
+      "sha256": "03a681f37a154e5d204dbf30477930dcadd378bdfba7ab6dbf477614f722c1f2",
+      "bytes": 3988
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/qwen3next.cpp",
+      "sha256": "974bcfe0fc27f050be57bdba2405d79f991215a880cb9aa4cdbc920c5d130718",
+      "bytes": 23150
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/qwen3vl-moe.cpp",
+      "sha256": "349520a2dc1fb9dae3fe826d169ad0e181d2524e774d56781e16fa1b5cd24a98",
+      "bytes": 4223
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/qwen3vl.cpp",
+      "sha256": "2e3180d7d336060f5fc707265bdef263ab7bb9a54c85eec0ad0c7be1f61f99bb",
+      "bytes": 3943
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/refact.cpp",
+      "sha256": "95dc9d3c0b2875c01dea7d97e9bb7e6edc22422883e25b56aa2ac55eaf3a1184",
+      "bytes": 2492
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/rnd1.cpp",
+      "sha256": "7bbf016d1103f938c2258e4325f2b8d220151de0a4b023dfc51b35f614bbbe3a",
+      "bytes": 3770
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/rwkv6-base.cpp",
+      "sha256": "39b99e74a9e2dd0e4c9f9e9c1c9e050be30e1b7eaa27d5f88574ebe52a29f4ec",
+      "bytes": 8064
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/rwkv6.cpp",
+      "sha256": "a5aa3e6041c52c5c28a4bb46edc4d7014b03f58da784d283cd37ddeec4d43bf7",
+      "bytes": 3995
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/rwkv6qwen2.cpp",
+      "sha256": "0b1736c74051dea570e1d3b0f3e0501bf530b33ea04611cec1359cdb4eff1335",
+      "bytes": 2888
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/rwkv7-base.cpp",
+      "sha256": "b74cd5ab735a15c2554e41a4a8a305a89a192ed330280f01c2d78ca94225c603",
+      "bytes": 6913
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/rwkv7.cpp",
+      "sha256": "7253d6e97b7df5c3df393aabd3c4c5574b85903f248705288550cc0f81774ec8",
+      "bytes": 3756
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/seed-oss.cpp",
+      "sha256": "2ce7f9d4513263cc1afcd979e7382d766f2c96faeec85e80d9001331bd3760bc",
+      "bytes": 3313
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/smallthinker.cpp",
+      "sha256": "5e78cdfcb8f5f0a12c580a6d49fed10f80b20efa73554b1ade24909b669fb8c0",
+      "bytes": 4267
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/smollm3.cpp",
+      "sha256": "e1fc4b43d0263d10e140516900c45f642b0af3c5184c064fa38a855b7c52b003",
+      "bytes": 3589
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/stablelm.cpp",
+      "sha256": "be88fe618d8cb4ec7669f4082c573a8edc2859292cbab0d95a375d17e41c5d5d",
+      "bytes": 3986
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/starcoder.cpp",
+      "sha256": "aba0a50b6577326969c021146725d48e190a8d62372d0028542769731f7f0d82",
+      "bytes": 2764
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/starcoder2.cpp",
+      "sha256": "6812056fe762b810b2409972b48dac1913e443857584175bc2e153a04e70e750",
+      "bytes": 3254
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/step35-iswa.cpp",
+      "sha256": "f01153e06930c39b82169278a996f1cca7df1f8219f2f2ccbad19f286c0a5efc",
+      "bytes": 6973
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/t5.cpp",
+      "sha256": "4d458392089938f354798af3ed4455a68bc5c4274f65a3d73c4bd181f56717d5",
+      "bytes": 8819
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/t5encoder.cpp",
+      "sha256": "01f617e11ea9e3b652454b147c62e80535b0375d47d4bb5234c840005c75c40a",
+      "bytes": 161
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/wavtokenizer-dec.cpp",
+      "sha256": "56588a38d826a34ae403733bba649c3bfefd7befbeb12a1320634e448f34491c",
+      "bytes": 4632
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/models/xverse.cpp",
+      "sha256": "e170d5dbee9e09671b150059735be7a8faddb9bec19432cdf4016a28533bccff",
+      "bytes": 3087
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/unicode-data.cpp",
+      "sha256": "95170cd1c105a5b41a1b2dce73b0fae8ce8011ef7897600828bb2babe8b26e5d",
+      "bytes": 168374
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/unicode-data.h",
+      "sha256": "1854f4494e5666db6036f0bf4cf818e01588b40b48a89e3372e775c4d5174402",
+      "bytes": 630
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/unicode.cpp",
+      "sha256": "862f35e3f465cda7335fb25ce0568fe85f83539a5d49c85c91a2e28a42593f38",
+      "bytes": 49855
+    },
+    {
+      "path": "app/src/main/cpp/llama/src/unicode.h",
+      "sha256": "f1562388d5b9d2dac1152ad8eda56e0bcae25dd407cf15d9dd2e96fe0124f4e7",
+      "bytes": 3967
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/clip-graph.h",
+      "sha256": "bb6856cc06e5b6c3638a6920b3065758349c532a26dde1747fa504b0a518e398",
+      "bytes": 4111
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/clip-impl.h",
+      "sha256": "efd813a90674a8b72fe6bdfb73e17a6ddcc7dc7104c06b9593334c0a739f1037",
+      "bytes": 26194
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/clip-model.h",
+      "sha256": "4e8305cac2cd3517a6cb732be8c032ca9b5b255d0ca9311447d2e1e7ee15f1d0",
+      "bytes": 18342
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/clip.cpp",
+      "sha256": "b882fe9bd975fdf4037a7a1d4093cd985e782dba3f25df5aa67547754ed9dcc4",
+      "bytes": 97700
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/clip.h",
+      "sha256": "a73ef0f6043925a61b58a1acab752ed97f711334761bef93d5cc0db01e2b404f",
+      "bytes": 4573
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/debug/mtmd-debug.h",
+      "sha256": "003d582228a60d33fb6023359065dcd98b09f007adf649959492f51eb1ee2273",
+      "bytes": 2173
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/cogvlm.cpp",
+      "sha256": "6406a79c4b9bbf94e10daffe85c082ce50a7ea1c18bec4537a8930c0b7fa6431",
+      "bytes": 3027
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/conformer.cpp",
+      "sha256": "aa9bd64e773bb6b77320878aa55c12170df13357747b2275c74fd0c359e83041",
+      "bytes": 9666
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/deepseekocr.cpp",
+      "sha256": "9c61797f1d7df0b9d82aa355d9e935cf5bd0cb5cefe93fbba7ce4e00fdbc829f",
+      "bytes": 14164
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/dotsocr.cpp",
+      "sha256": "c0c35144bae11313473a95862458e645f9a7732386bd5cfe0bc2d4959fafbd54",
+      "bytes": 1699
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/gemma4a.cpp",
+      "sha256": "461d390af3176884d1f766dc43198597c5f2e132c9d698e992a5da75409b51e5",
+      "bytes": 12908
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/gemma4v.cpp",
+      "sha256": "7faea068d8755d2a56cb35b621df80ae8e8663d44f9d8a0fec84ac761ae48e00",
+      "bytes": 5436
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/glm4v.cpp",
+      "sha256": "049ab219de0ba99b62229414cc9d38122d0460bbf7f5d1fc2a7de0963f418059",
+      "bytes": 4588
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/hunyuanocr.cpp",
+      "sha256": "e9bb25da0ff8c41887d97dc37746ac8c0d356dbac8712ae5225bcf203b03dde8",
+      "bytes": 2996
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/internvl.cpp",
+      "sha256": "361a464d39ed77bccc8edd75b67334a17a77532c3130d8f6d002563a5962142e",
+      "bytes": 2561
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/kimik25.cpp",
+      "sha256": "4862eb83fa89fca0d365fb342c6ccc31405e97ec7e055f08b479b820b138f359",
+      "bytes": 3671
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/kimivl.cpp",
+      "sha256": "4b7b2598130afd9b15f3edcaf471eba9089d001cd7a6f4e4d33afd4ab3be5e38",
+      "bytes": 2090
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/llama4.cpp",
+      "sha256": "0697403992a6d9ef39c4f283ff8eb822e5dc00d7317eaedeebc15c2c9119b044",
+      "bytes": 3697
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/llava.cpp",
+      "sha256": "04f63874fa46454e9c8e76e037eb38f3d45d6b8b45eacf154a25c5060f1ecf38",
+      "bytes": 17485
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/minicpmv.cpp",
+      "sha256": "6cf42d66ca4daac7a2fb6f825afdc06b78e2c1dda9d48470d0faaf749b8d4e06",
+      "bytes": 4237
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/mobilenetv5.cpp",
+      "sha256": "52ad7007e5a9d6b3fd7c57d38fe4b7b307525853062aa5ab5731092b03d8c141",
+      "bytes": 16548
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/models.h",
+      "sha256": "c07e384269e898847f2c8ca3a14d5650187c0edb48fbd3e26215d7c7132c3605",
+      "bytes": 5924
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/nemotron-v2-vl.cpp",
+      "sha256": "0a6241340d7801a9b973c26e3e8ec9c3f29b9c661d3f802077218f9c135d9688",
+      "bytes": 1156
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/paddleocr.cpp",
+      "sha256": "f7aa6b5ca067eab54d25da240decf224c16b99251cd72972e57a8f7559f40939",
+      "bytes": 1766
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/pixtral.cpp",
+      "sha256": "11e30cb72e1c34e6c78bee0fe64f07be88082058ece1bb1057eb6daaa96d5fe8",
+      "bytes": 3568
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/qwen2vl.cpp",
+      "sha256": "bba7b1c8db541b2b02e799b946095394d467a12da9d5811f1dcc299ad91e5d1f",
+      "bytes": 6820
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/qwen3a.cpp",
+      "sha256": "8c68ccf6a2c03da47686217f87e332d310c5d3a8c4409238916803bbee7f1f4d",
+      "bytes": 2211
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/qwen3vl.cpp",
+      "sha256": "11eafa731e860e736c58661edcd4cea87710abb9f608590976e587e6b0d4201b",
+      "bytes": 7011
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/siglip.cpp",
+      "sha256": "f1400d3e33e1e8f50aa7ee3ef76af6e2eb69d0bbd69ab84870c469ffd3efdb89",
+      "bytes": 3317
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/step3vl.cpp",
+      "sha256": "02e7726e286650a9500ec9432ad3a43192620fd4cf42e1e918bff6c1e6918b5a",
+      "bytes": 2708
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/whisper-enc.cpp",
+      "sha256": "8cc10213aad202b449483d1111baac152ed4a66b4580188acb26a9276db2cf0d",
+      "bytes": 4725
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/yasa2.cpp",
+      "sha256": "7ed9ef51c4c53ef351badda04fe2c686ad10ba6bbc89bb96a14e63e2c605f10b",
+      "bytes": 8725
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/models/youtuvl.cpp",
+      "sha256": "d9f915d798575ea47d93d5b9101c3b9a135849473ab09c42d0bd0fd1d98a4117",
+      "bytes": 6827
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/mtmd-audio.h",
+      "sha256": "7a24ddd4ca28e17b1a10dfa54bb664759817f5de981e48216b6644c2486a71e3",
+      "bytes": 3836
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/mtmd-helper.cpp",
+      "sha256": "42b3550d099a4e2fe0d372225693533762d7ab63f1e849e9137630c52ae45ceb",
+      "bytes": 18986
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/mtmd-helper.h",
+      "sha256": "b5cbc1513e58f6ee0a6af71750ed28bc4d8f6a54f3e7fc911355680b40ba7f81",
+      "bytes": 4529
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/mtmd-image.cpp",
+      "sha256": "29a21971c7b82dc1489f1c8472caba628c4f134dfee75923a070c5589ec14b14",
+      "bytes": 60441
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/mtmd-image.h",
+      "sha256": "ab381efb15b9f1e5c96588f5b7ecfba27ec9b49e66a18899c78db5b7d13ab1e0",
+      "bytes": 8618
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/mtmd.cpp",
+      "sha256": "5350f6d530ed6815b0d41340f3f71f4cfcd25b4aed123bd4eec3a788c90d9ed3",
+      "bytes": 62257
+    },
+    {
+      "path": "app/src/main/cpp/llama/tools/mtmd/mtmd.h",
+      "sha256": "f989a20f31f79e19eb4a83faaed6add03aa81f6d4e58d1c4ade75f0fc01bedec",
+      "bytes": 13076
+    },
+    {
+      "path": "app/src/main/cpp/llama/vendor/miniaudio/miniaudio.h",
+      "sha256": "ac7af4de748b7e26b777f37e01cee313a308a7296a3eb080e2906b320cc55c89",
+      "bytes": 4108168
+    },
+    {
+      "path": "app/src/main/cpp/llama/vendor/sheredom/subprocess.h",
+      "sha256": "0bf208a408ba2c7e63739d62a0a492a13f90b0113214776835c855629ef90043",
+      "bytes": 36389
+    },
+    {
+      "path": "app/src/main/cpp/llama/vendor/stb/stb_image.h",
+      "sha256": "594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3",
+      "bytes": 283010
+    },
+    {
+      "path": "app/src/main/cpp/CMakeLists.txt",
+      "sha256": "85ac01c00c735686b060ec485ef8113ef40354a8a22352644bb056763149ba2b",
+      "bytes": 13735
+    },
+    {
+      "path": "app/src/main/cpp/LlamaBridge.cpp",
+      "sha256": "f53656a5e15d99a189548c81a7a1370b9e9283ff64512876b771bee61b6e5b89",
+      "bytes": 123518
+    }
+  ]
+}

@@ -197,10 +197,12 @@ android {
             // Keep debug builds unminified for readable stack traces.
             isMinifyEnabled = false
 
-            // CI instrumentation runs on an x86_64 emulator. Release artifacts remain
-            // arm64-v8a-only through the default configuration above.
+            // CI instrumentation runs on an x86_64 emulator. Clear the
+            // default arm64 filter so the declared Debug artifact is exactly
+            // the emulator ABI rather than an accidental fat APK.
             ndk {
-                abiFilters += "x86_64"
+                abiFilters.clear()
+                abiFilters.add("x86_64")
             }
         }
     }

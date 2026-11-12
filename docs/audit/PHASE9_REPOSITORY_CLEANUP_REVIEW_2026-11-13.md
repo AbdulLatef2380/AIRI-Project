@@ -9,6 +9,7 @@
 
 - تم فحص `docs/` و`reports/` و`attached_assets/` وتسجيل **387 ملفًا** في [manifest lineage](../REPOSITORY_DOCUMENT_LINEAGE.md).
 - تم إنشاء [فهرس التقارير العشرة](../REPORTS_INDEX.md) مع آخر commit وموضوعه لكل تقرير.
+- تم إنشاء [سجل archive والاحتفاظ](../archive/PHASE9_RETENTION_REGISTRY.md) الذي يحدد canonical المقترح والنسخ retained لكل مجموعة تكرار.
 - لم تُنقل ملفات `SKILL.md`؛ مواقعها الحالية تحت `skills/` بقيت دون تعديل.
 - `.gitignore` يغطي `__pycache__/` و`*.py[cod]` وGradle/build outputs. لا توجد إضافة جديدة مطلوبة في هذه الجولة؛ `.gitignore` لا يعالج بأثر رجعي الملف المتتبع.
 

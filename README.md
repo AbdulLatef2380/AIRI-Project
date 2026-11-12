@@ -87,6 +87,7 @@ python3 scripts/airi_core_health.py
 | [Manifest lineage](docs/REPOSITORY_DOCUMENT_LINEAGE.md) | المسارات canonical، مصدر الوثيقة، آخر commit، hashes التكرار، وقرار الاحتفاظ. |
 | [فهرس التقارير](docs/REPORTS_INDEX.md) | فهرس مستقل لعشرة تقارير مع lineage ونتيجة الفحص أو النطاق. |
 | [مراجعة نظافة المرحلة 9](docs/audit/PHASE9_REPOSITORY_CLEANUP_REVIEW_2026-11-13.md) | قرارات الاحتفاظ للتكرارات وJAR/ZIP/BIN وملف pyc المتتبع. |
+| [Archive registry](docs/archive/PHASE9_RETENTION_REGISTRY.md) | سجل canonical/retained للوثائق التاريخية والتكرارات دون حذف تلقائي. |
 | [التشغيل](docs/deployment/BUILD_AND_RELEASE.md) | إعادة إنتاج البنية والإصدارات وCI. |
 | [التجاري](docs/commercial/OVERVIEW.md) | تموضع المنتج، الترخيص، white-label، والعناية الواجبة. |
 

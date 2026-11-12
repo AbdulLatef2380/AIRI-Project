@@ -11,9 +11,11 @@ permissions:
 
 jobs:
   build:
+    name: Main CI and Release Verification
     runs-on: ubuntu-latest
     timeout-minutes: 75
     env:
+      TEST_TIER: main-ci
       RELEASE_SIGNING_READY: ${{ secrets.KEYSTORE_BASE64 != '' && secrets.STORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -50,10 +52,11 @@ jobs:
         sdkmanager --install "build-tools;36.0.0"
 
     - name: Grant execute permission
-      run: chmod +x gradlew .github/scripts/run-instrumentation.sh .github/scripts/set-emulator-locale.sh
+      run: chmod +x gradlew .github/scripts/run-instrumentation.sh .github/scripts/set-emulator-locale.sh scripts/phase7_test_matrix.py scripts/phase7_coverage_observability.py
 
     - name: Verify source contracts and localization
       run: |
+        python3 scripts/phase7_test_matrix.py --output phase7-test-matrix-report.json
         python3 tools/airi_runtime_simulation.py
         python3 tools/final_runtime_integration_audit.py
         python3 tools/stability/local_model_performance_sim.py
@@ -73,6 +76,14 @@ jobs:
         python3 -m unittest discover -s scripts -p 'test_airi_ui_hardcoded_text_lint.py' -v
         python3 -I scripts/airi_ui_hardcoded_text_lint.py
         git diff --check
+
+    - name: Upload Phase 7 inventory evidence
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: AIRI-Phase7-Static-Test-Evidence
+        path: phase7-test-matrix-report.json
+        if-no-files-found: warn
 
     - name: Build and test shared core
       run: ./gradlew :core-domain:desktopTest :core-domain:compileDebugKotlinAndroid --stacktrace
@@ -100,6 +111,7 @@ jobs:
       if: always()
       run: |
         mkdir -p ci-unit
+        python3 scripts/phase7_coverage_observability.py --root app/build --output ci-unit/phase7-coverage-report.json || true
         cp -R app/build/test-results ci-unit/test-results 2>/dev/null || true
         cp -R app/build/reports/tests ci-unit/tests-report 2>/dev/null || true
         cp -R app/build/reports/lint-results-debug.html ci-unit/lint-results-debug.html 2>/dev/null || true
@@ -151,7 +163,7 @@ jobs:
           '-Dkotlin.daemon.jvmargs=-Xmx1536m' \
           :app:assembleDebugAndroidTest --stacktrace
 
-    - name: Run Android instrumentation tests
+    - name: Run Extended Device instrumentation tests
       uses: reactivecircus/android-emulator-runner@v2
       timeout-minutes: 35
       env:
@@ -226,7 +238,7 @@ jobs:
         if-no-files-found: error
 
   instrumentation_matrix:
-    name: Instrumentation API ${{ matrix.api-level }} / ${{ matrix.locale }}
+    name: Extended Device API ${{ matrix.api-level }} / ${{ matrix.locale }}
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.job_timeout_minutes }}
     strategy:

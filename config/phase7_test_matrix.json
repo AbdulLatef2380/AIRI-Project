@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "statuses": ["PASS", "SKIP", "BLOCKED", "NOT_VERIFIED"],
+    "unknown_status_is_failure": true,
+    "missing_evidence_is_not_pass": true
+  },
+  "tiers": {
+    "fast-pr": "Static contracts and JVM/core-domain tests; no emulator required.",
+    "main-ci": "Android compilation, unit tests, lint, and release-source checks.",
+    "extended-device": "Android instrumentation, UI, migration, JNI, and native lifecycle tests.",
+    "release-verification": "Unsigned/signed packaging, artifact hashes, manifest and provider evidence."
+  },
+  "risks": [
+    {"id":"P0-AGENT-001","component":"AgentLoop","tier":"fast-pr","tests":["app/src/test/java/com/airi/assistant/agent/loop/AgentLoopVerticalIntegrationTest.kt","app/src/test/java/com/airi/assistant/agent/loop/ExecutionAdmissionTest.kt"],"evidence":"tools/final_runtime_integration_audit.py","status":"NOT_VERIFIED"},
+    {"id":"P0-ROUTE-001","component":"Tool Routing","tier":"fast-pr","tests":["app/src/test/java/com/airi/assistant/connector/ConnectorToolBridgeTest.kt","app/src/test/java/com/airi/assistant/execution/router/RoutingPolicyTest.kt"],"evidence":"tools/final_runtime_integration_audit.py","status":"NOT_VERIFIED"},
+    {"id":"P0-MEMORY-001","component":"Memory isolation","tier":"extended-device","tests":["app/src/androidTest/java/com/airi/assistant/memory/MemoryScopeTransactionTest.kt","app/src/androidTest/java/com/airi/assistant/workspace/ProjectResourceIsolationTest.kt"],"evidence":"app/build/reports/androidTests/connected/debug/index.html","status":"NOT_VERIFIED"},
+    {"id":"P0-CONNECTOR-001","component":"Connectors","tier":"fast-pr","tests":["app/src/test/java/com/airi/assistant/connector/ConnectorRuntimeManagerTest.kt","app/src/test/java/com/airi/assistant/connector/ConnectorAuthorizationStateTest.kt"],"evidence":"tools/final_runtime_integration_audit.py","status":"NOT_VERIFIED"},
+    {"id":"P1-STREAM-001","component":"Streaming","tier":"fast-pr","tests":["app/src/test/java/com/airi/assistant/execution/ExecutionIntegrityTest.kt","app/src/test/java/com/airi/assistant/ui/viewmodel/ReasoningStreamParserTest.kt"],"evidence":"app/build/test-results/testDebugUnitTest","status":"NOT_VERIFIED"},
+    {"id":"P1-INFERENCE-001","component":"Local inference","tier":"extended-device","tests":["app/src/androidTest/java/com/airi/assistant/ai/LlamaNativeSmokeTest.kt","app/src/test/java/com/airi/assistant/execution/cloud/NativeProviderPayloadContractTest.kt"],"evidence":"AIRI-Android-Instrumentation-Evidence artifact","status":"NOT_VERIFIED"},
+    {"id":"P1-TRACE-001","component":"Trace","tier":"fast-pr","tests":["app/src/test/java/com/airi/assistant/ai/agent/trace/ChatExecutionTraceHierarchyTest.kt","app/src/test/java/com/airi/assistant/core/UniversalRuntimeTraceTest.kt"],"evidence":"tools/verify_core_changes.py","status":"NOT_VERIFIED"},
+    {"id":"P0-SECURITY-001","component":"Security","tier":"fast-pr","tests":["app/src/test/java/com/airi/assistant/security/ExecutionFirewallTest.kt","app/src/test/java/com/airi/assistant/accessibility/security/UntrustedToolOutputTest.kt"],"evidence":"tools/security_scan.py","status":"NOT_VERIFIED"},
+    {"id":"P1-UI-001","component":"Android UI","tier":"extended-device","tests":["app/src/androidTest/java/com/airi/assistant/ui/activity/AgentLifecycleTrackerPanelTest.kt","app/src/androidTest/java/com/airi/assistant/ui/text/ContentAwareMessageAccessibilityTest.kt"],"evidence":"AIRI-Instrumentation-API*-* artifact","status":"NOT_VERIFIED"},
+    {"id":"P1-JNI-001","component":"JNI/native lifecycle","tier":"extended-device","tests":["app/src/androidTest/java/com/airi/assistant/ai/LlamaNativeSmokeTest.kt"],"evidence":"AIRI-Native-Smoke artifact or Android instrumentation report","status":"NOT_VERIFIED"},
+    {"id":"P1-RECOVERY-001","component":"Recovery/migrations","tier":"extended-device","tests":["app/src/androidTest/java/com/airi/assistant/memory/AiriDatabaseMigrationTest.kt","app/src/androidTest/java/com/airi/assistant/workspace/ProjectFileApprovalRecoveryTest.kt"],"evidence":"app/build/reports/androidTests/connected/debug/index.html","status":"NOT_VERIFIED"},
+    {"id":"P1-REMOTE-001","component":"Remote-control rules","tier":"fast-pr","tests":["scripts/airi_remote_control_health.py","scripts/airi_remote_control_security.py"],"evidence":"phase7 test report artifact","status":"NOT_VERIFIED"}
+  ]
+}

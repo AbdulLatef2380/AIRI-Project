@@ -1,0 +1,45 @@
+name: AIRI Fast PR Checks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fast-pr:
+    name: Fast PR / static and risk inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TEST_TIER: fast-pr
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Validate risk-linked test matrix
+        run: python3 scripts/phase7_test_matrix.py --output phase7-test-matrix-report.json
+      - name: Run deterministic source contracts
+        run: |
+          python3 tools/airi_runtime_simulation.py
+          python3 tools/final_runtime_integration_audit.py
+          python3 scripts/runtime_state_simulation.py
+          python3 scripts/telemetry_privacy_scan.py
+          python3 scripts/connector_lifecycle_static_scan.py
+          python3 tools/verify_core_changes.py
+          git diff --check
+      - name: Emit explicit coverage state
+        run: python3 scripts/phase7_coverage_observability.py --output phase7-coverage-report.json
+      - name: Upload Fast PR evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIRI-Fast-PR-Evidence
+          path: |
+            phase7-test-matrix-report.json
+            phase7-coverage-report.json
+          if-no-files-found: warn

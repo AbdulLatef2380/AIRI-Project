@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-12T22:33:40.063631+00:00",
+  "source": "config/phase7_test_matrix.json",
+  "policy": {
+    "statuses": [
+      "PASS",
+      "SKIP",
+      "BLOCKED",
+      "NOT_VERIFIED"
+    ],
+    "unknown_status_is_failure": true,
+    "missing_evidence_is_not_pass": true
+  },
+  "summary": {
+    "risk_count": 12,
+    "inventory_pass": 12,
+    "inventory_blocked": 0,
+    "runtime_not_verified": 12,
+    "errors": 0,
+    "warnings": 0
+  },
+  "errors": [],
+  "warnings": [],
+  "risks": [
+    {
+      "id": "P0-AGENT-001",
+      "component": "AgentLoop",
+      "tier": "fast-pr",
+      "declared_status": "NOT_VERIFIED",
+      "inventory": "PASS",
+      "runtime_evidence": "NOT_VERIFIED",
+      "tests": [
+        "app/src/test/java/com/airi/assistant/agent/loop/AgentLoopVerticalIntegrationTest.kt",
+        "app/src/test/java/com/airi/assistant/agent/loop/ExecutionAdmissionTest.kt"
+      ],
+      "missing_targets": [],
+      "evidence": "tools/final_runtime_integration_audit.py"
+    },
+    {
+      "id": "P0-ROUTE-001",
+      "component": "Tool Routing",
+      "tier": "fast-pr",
+      "declared_status": "NOT_VERIFIED",
+      "inventory": "PASS",
+      "runtime_evidence": "NOT_VERIFIED",
+      "tests": [
+        "app/src/test/java/com/airi/assistant/connector/ConnectorToolBridgeTest.kt",
+        "app/src/test/java/com/airi/assistant/execution/router/RoutingPolicyTest.kt"
+      ],
+      "missing_targets": [],
+      "evidence": "tools/final_runtime_integration_audit.py"
+    },
+    {
+      "id": "P0-MEMORY-001",
+      "component": "Memory isolation",
+      "tier": "extended-device",
+      "declared_status": "NOT_VERIFIED",
+      "inventory": "PASS",
+      "runtime_evidence": "NOT_VERIFIED",
+      "tests": [
+        "app/src/androidTest/java/com/airi/assistant/memory/MemoryScopeTransactionTest.kt",
+        "app/src/androidTest/java/com/airi/assistant/workspace/ProjectResourceIsolationTest.kt"
+      ],
+      "missing_targets": [],
+      "evidence": "app/build/reports/androidTests/connected/debug/index.html"
+    },
+    {
+      "id": "P0-CONNECTOR-001",
+      "component": "Connectors",
+      "tier": "fast-pr",
+      "declared_status": "NOT_VERIFIED",
+      "inventory": "PASS",
+      "runtime_evidence": "NOT_VERIFIED",
+      "tests": [
+        "app/src/test/java/com/airi/assistant/connector/ConnectorRuntimeManagerTest.kt",
+        "app/src/test/java/com/airi/assistant/connector/ConnectorAuthorizationStateTest.kt"
+      ],
+      "missing_targets": [],
+      "evidence": "tools/final_runtime_integration_audit.py"
+    },
+    {
+      "id": "P1-STREAM-001",
+      "component": "Streaming",
+      "tier": "fast-pr",
+      "declared_status": "NOT_VERIFIED",
+      "inventory": "PASS",
+      "runtime_evidence": "NOT_VERIFIED",
+      "tests": [
+        "app/src/test/java/com/airi/assistant/execution/ExecutionIntegrityTest.kt",
+        "app/src/test/java/com/airi/assistant/ui/viewmodel/ReasoningStreamParserTest.kt"
+      ],
+      "missing_targets": [],
+      "evidence": "app/build/test-results/testDebugUnitTest"
+    },
+    {
+      "id": "P1-INFERENCE-001",
+      "component": "Local inference",
+      "tier": "extended-device",
+      "declared_status": "NOT_VERIFIED",
+      "inventory": "PASS",
+      "runtime_evidence": "NOT_VERIFIED",
+      "tests": [
+        "app/src/androidTest/java/com/airi/assistant/ai/LlamaNativeSmokeTest.kt",
+        "app/src/test/java/com/airi/assistant/execution/cloud/NativeProviderPayloadContractTest.kt"
+      ],
+      "missing_targets": [],
+      "evidence": "AIRI-Android-Instrumentation-Evidence artifact"
+    },
+    {
+      "id": "P1-TRACE-001",
+      "component": "Trace",
+      "tier": "fast-pr",
+      "declared_status": "NOT_VERIFIED",
+      "inventory": "PASS",
+      "runtime_evidence": "NOT_VERIFIED",
+      "tests": [
+        "app/src/test/java/com/airi/assistant/ai/agent/trace/ChatExecutionTraceHierarchyTest.kt",
+        "app/src/test/java/com/airi/assistant/core/UniversalRuntimeTraceTest.kt"
+      ],
+      "missing_targets": [],
+      "evidence": "tools/verify_core_changes.py"
+    },
+    {
+      "id": "P0-SECURITY-001",
+      "component": "Security",
+      "tier": "fast-pr",
+      "declared_status": "NOT_VERIFIED",
+      "inventory": "PASS",
+      "runtime_evidence": "NOT_VERIFIED",
+      "tests": [
+        "app/src/test/java/com/airi/assistant/security/ExecutionFirewallTest.kt",
+        "app/src/test/java/com/airi/assistant/accessibility/security/UntrustedToolOutputTest.kt"
+      ],
+      "missing_targets": [],
+      "evidence": "tools/security_scan.py"
+    },
+    {
+      "id": "P1-UI-001",
+      "component": "Android UI",
+      "tier": "extended-device",
+      "declared_status": "NOT_VERIFIED",
+      "inventory": "PASS",
+      "runtime_evidence": "NOT_VERIFIED",
+      "tests": [
+        "app/src/androidTest/java/com/airi/assistant/ui/activity/AgentLifecycleTrackerPanelTest.kt",
+        "app/src/androidTest/java/com/airi/assistant/ui/text/ContentAwareMessageAccessibilityTest.kt"
+      ],
+      "missing_targets": [],
+      "evidence": "AIRI-Instrumentation-API*-* artifact"
+    },
+    {
+      "id": "P1-JNI-001",
+      "component": "JNI/native lifecycle",
+      "tier": "extended-device",
+      "declared_status": "NOT_VERIFIED",
+      "inventory": "PASS",
+      "runtime_evidence": "NOT_VERIFIED",
+      "tests": [
+        "app/src/androidTest/java/com/airi/assistant/ai/LlamaNativeSmokeTest.kt"
+      ],
+      "missing_targets": [],
+      "evidence": "AIRI-Native-Smoke artifact or Android instrumentation report"
+    },
+    {
+      "id": "P1-RECOVERY-001",
+      "component": "Recovery/migrations",
+      "tier": "extended-device",
+      "declared_status": "NOT_VERIFIED",
+      "inventory": "PASS",
+      "runtime_evidence": "NOT_VERIFIED",
+      "tests": [
+        "app/src/androidTest/java/com/airi/assistant/memory/AiriDatabaseMigrationTest.kt",
+        "app/src/androidTest/java/com/airi/assistant/workspace/ProjectFileApprovalRecoveryTest.kt"
+      ],
+      "missing_targets": [],
+      "evidence": "app/build/reports/androidTests/connected/debug/index.html"
+    },
+    {
+      "id": "P1-REMOTE-001",
+      "component": "Remote-control rules",
+      "tier": "fast-pr",
+      "declared_status": "NOT_VERIFIED",
+      "inventory": "PASS",
+      "runtime_evidence": "NOT_VERIFIED",
+      "tests": [
+        "scripts/airi_remote_control_health.py",
+        "scripts/airi_remote_control_security.py"
+      ],
+      "missing_targets": [],
+      "evidence": "phase7 test report artifact"
+    }
+  ]
+}

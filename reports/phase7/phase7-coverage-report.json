@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-12T22:33:40.099298+00:00",
+  "policy": {
+    "missing_report": "BLOCKED",
+    "no_global_threshold": true,
+    "changed_code_requires_mapping": true
+  },
+  "changed_files": [],
+  "reports": [],
+  "status": "BLOCKED",
+  "reason": "No JaCoCo XML report was produced by the selected test tier."
+}

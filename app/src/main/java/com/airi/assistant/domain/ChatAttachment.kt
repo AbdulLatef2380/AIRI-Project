@@ -2,6 +2,9 @@ package com.airi.assistant.domain
 
 import android.graphics.Bitmap
 import android.net.Uri
+import com.airi.assistant.attachments.AndroidAttachmentPayload
+import com.airi.core.attachments.AttachmentKind
+import com.airi.core.attachments.AttachmentMetadata
 import com.airi.core.attachments.AttachmentPolicy
 import java.util.UUID
 
@@ -38,6 +41,26 @@ data class ChatAttachment(
     val normalizedMimeType: String
         get() = AttachmentPolicy.normalizedMimeType(mimeType)
 
+    /** Android-only source handles kept outside the platform-neutral metadata. */
+    val androidPayload: AndroidAttachmentPayload
+        get() = AndroidAttachmentPayload(
+            sourceUri = uri,
+            capturedBitmap = bitmap,
+            persistedPath = persistedPath,
+        )
+
+    /** Safe projection used by persistence, prompts, and cross-platform code. */
+    val metadata: AttachmentMetadata
+        get() = AttachmentMetadata(
+            id = id,
+            kind = kind.toCoreKind(),
+            displayName = displayName,
+            mimeType = mimeType.orEmpty(),
+            sizeBytes = sizeBytes,
+            uid = uid,
+            fileName = fileName,
+        )
+
     val isVisualImage: Boolean
         get() = contentType == AttachmentPolicy.ContentType.IMAGE
 
@@ -57,5 +80,12 @@ data class ChatAttachment(
         bytes >= 1024L * 1024L -> "%.1f".format(bytes / (1024.0 * 1024.0)) + " MB"
         bytes >= 1024L -> "${bytes / 1024L} KB"
         else -> "$bytes B"
+    }
+
+    private fun Kind.toCoreKind(): AttachmentKind = when (this) {
+        Kind.IMAGE -> AttachmentKind.IMAGE
+        Kind.CAMERA -> AttachmentKind.CAMERA
+        Kind.VIDEO -> AttachmentKind.VIDEO
+        Kind.FILE -> AttachmentKind.FILE
     }
 }

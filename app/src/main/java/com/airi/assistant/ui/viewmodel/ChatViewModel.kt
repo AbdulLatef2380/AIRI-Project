@@ -6132,6 +6132,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     ): String? {
         val entries = org.json.JSONArray()
         attachments.forEach { attachment ->
+            val metadata = attachment.metadata
             val storedName = attachment.persistedPath
                 ?.let(::File)
                 ?.name
@@ -6140,10 +6141,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             entries.put(
                 org.json.JSONObject()
                     .put("file_name", storedName)
-                    .put("kind", attachment.kind.name)
-                    .put("display_name", attachment.safeDisplayName)
-                    .put("mime_type", attachment.normalizedMimeType)
-                    .put("size_bytes", attachment.sizeBytes ?: 0L)
+                    .put("kind", metadata.kind.name)
+                    .put("display_name", metadata.safeDisplayName)
+                    .put("mime_type", metadata.normalizedMimeType)
+                    .put("size_bytes", metadata.sizeBytes ?: 0L)
             )
         }
         return entries.takeIf { it.length() > 0 }?.toString()

@@ -124,6 +124,53 @@ class ExecutionStatusBusTest {
     }
 
     @Test
+    fun firstTerminalToolOutcomeWinsAndLateOppositeOutcomeIsRejected() {
+        val executionId = "out-of-order-terminal-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Terminal race", 1, executionId)
+        ExecutionStatusBus.onToolStarted(executionId, "tool-1", "write_file")
+
+        // Failure arrives first; a delayed success must not overwrite it.
+        ExecutionStatusBus.onToolFailed(
+            executionId = executionId,
+            actionId = "tool-1",
+            toolName = "write_file",
+            durationMs = 8L,
+            errorCode = "verification_failed",
+        )
+        val afterFailure = ExecutionStatusBus.traceSnapshot(executionId)
+        ExecutionStatusBus.onToolCompleted(executionId, "tool-1", "write_file", 9L)
+        ExecutionStatusBus.onToolFailed(
+            executionId = executionId,
+            actionId = "tool-1",
+            toolName = "write_file",
+            durationMs = 10L,
+            errorCode = "verification_failed",
+        )
+
+        assertEquals(afterFailure, ExecutionStatusBus.traceSnapshot(executionId))
+        assertEquals(1, afterFailure.count { it.kind == ExecutionTraceKind.TOOL_FAILED })
+        assertEquals(0, afterFailure.count { it.kind == ExecutionTraceKind.TOOL_COMPLETED })
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
+    fun duplicateGraphTerminalEventsDoNotChangeFinalTraceOrStatus() {
+        val executionId = "duplicate-graph-terminal-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Duplicate graph terminal", 1, executionId)
+        ExecutionStatusBus.onGraphCompleted(success = false, executionId = executionId)
+        val failed = ExecutionStatusBus.traceSnapshot(executionId)
+        ExecutionStatusBus.onGraphCompleted(success = true, executionId = executionId)
+        ExecutionStatusBus.onGraphCancelled(executionId)
+
+        assertEquals(failed, ExecutionStatusBus.traceSnapshot(executionId))
+        assertEquals(ExecutionStage.FAILED, ExecutionStatusBus.status.value.executionStage)
+        assertEquals(1, failed.count { it.kind == ExecutionTraceKind.FAILED })
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
     fun cancellationBetweenRequestAndStartRejectsTheLateStart() {
         val executionId = "request-cancel-gate-test"
         ExecutionStatusBus.reset()

@@ -338,6 +338,74 @@ class AgentLoopVerticalIntegrationTest {
         assertEquals(AgentLoop.TerminalState.CANCELLED, result.terminalState)
     }
 
+    @Test
+    fun cancellationAfterFirstTokenProducesCancelledTerminalStateWithoutSuccess() = runBlocking {
+        val fixture = fixture(RecordingConnector())
+        val result = fixture.loop(TokenThenCancellingOrchestrator()).run(
+            input = "Read the connected source",
+            systemPrompt = "You are AIRI.",
+            tools = listOf(fixture.readSchema),
+            requestedExecutionId = "execution-cancel-after-token",
+            onToken = {},
+        )
+
+        assertEquals(AgentLoop.TerminalState.CANCELLED, result.terminalState)
+        assertTrue(result.finalAnswer.isBlank())
+        assertEquals(
+            ExecutionTraceKind.CANCELLED,
+            ExecutionStatusBus.traceSnapshot("execution-cancel-after-token").last().kind,
+        )
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
+    fun cancellationDuringConnectorExecutionDoesNotPublishSuccessOrCompleteTool() = runBlocking {
+        val connector = RecordingConnector().apply { cancelOnExecute = true }
+        val fixture = fixture(connector)
+        val orchestrator = ScriptedOrchestrator(
+            "{\"tool_call\":{\"name\":\"connector_vertical_read\",\"args\":{}}}",
+        )
+
+        val result = fixture.loop(orchestrator).run(
+            input = "Read the connected source",
+            systemPrompt = "You are AIRI.",
+            tools = listOf(fixture.readSchema),
+            requestedExecutionId = "execution-cancel-during-tool",
+            onToken = {},
+        )
+
+        assertEquals(AgentLoop.TerminalState.CANCELLED, result.terminalState)
+        val trace = ExecutionStatusBus.traceSnapshot("execution-cancel-during-tool")
+        assertTrue(trace.any { it.kind == ExecutionTraceKind.TOOL_CANCELLED })
+        assertTrue(trace.none { it.kind == ExecutionTraceKind.TOOL_COMPLETED })
+        ExecutionStatusBus.reset()
+    }
+
+    @Test
+    fun malformedToolCallIsRepairedBeforeConnectorExecution() = runBlocking {
+        val connector = RecordingConnector()
+        val fixture = fixture(connector)
+        val orchestrator = ScriptedOrchestrator(
+            "{\"tool_call\":{\"name\":\"connector_vertical_read\",\"args\":{",
+            "{\"tool_call\":{\"name\":\"connector_vertical_read\",\"args\":{}}}",
+            "The repaired connector call completed.",
+        )
+
+        val result = fixture.loop(orchestrator).run(
+            input = "Read the connected source",
+            systemPrompt = "You are AIRI.",
+            tools = listOf(fixture.readSchema),
+            requestedExecutionId = "execution-malformed-repair",
+            onToken = {},
+        )
+
+        assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
+        assertEquals("The repaired connector call completed.", result.finalAnswer)
+        assertEquals(1, connector.executeCalls)
+        assertTrue(orchestrator.requests.size >= 3)
+        ExecutionStatusBus.reset()
+    }
+
     private fun fixture(connector: RecordingConnector, granted: Boolean = true): Fixture {
         val registry = ConnectorRegistry().apply { register(connector) }
         val profiles = InMemoryConnectorAccessProfileStore().apply {
@@ -401,6 +469,19 @@ class AgentLoopVerticalIntegrationTest {
         }
     }
 
+    private class TokenThenCancellingOrchestrator : AgentOrchestrator {
+        override suspend fun executeStream(
+            request: ExecutionRequest,
+            context: Context,
+            onToken: suspend (String) -> Unit,
+            onComplete: suspend (String, Long, ExecOrigin, CompletionMetadata) -> Unit,
+            onError: suspend (String, ExecOrigin) -> Unit,
+        ) {
+            onToken("partial")
+            throw CancellationException("cancel after first token")
+        }
+    }
+
     private class RecordingConnector : Connector {
         override val id = "vertical"
         override val name = "Vertical fixture"
@@ -409,6 +490,7 @@ class AgentLoopVerticalIntegrationTest {
         private val state = MutableStateFlow(ConnectorState(connected = true, healthy = true))
         var executeCalls = 0
         var lastInput: ConnectorInput? = null
+        var cancelOnExecute = false
         var output: ConnectorOutput = ConnectorOutput.Success("vertical-result")
 
         override fun meta() = ConnectorMeta(id, name, description, type)
@@ -421,6 +503,7 @@ class AgentLoopVerticalIntegrationTest {
         override suspend fun execute(input: ConnectorInput): ConnectorOutput {
             executeCalls++
             lastInput = input
+            if (cancelOnExecute) throw CancellationException("connector cancelled")
             return output
         }
     }

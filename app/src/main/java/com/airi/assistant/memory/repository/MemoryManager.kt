@@ -340,10 +340,12 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         if (ids.isNotEmpty()) syncDao.remove(ids)
     }
 
-    /** Applies a remote deletion without creating a second outbox mutation. */
-    internal suspend fun removeSyncedMemory(memoryId: Long) {
+    /** Applies a remote deletion only when it is not older than local state. */
+    internal suspend fun removeSyncedMemory(memoryId: Long, remoteUpdatedAtMs: Long) {
+        val local = dao.getMessageById(memoryId)
+        if (local != null && local.updatedAtMs > remoteUpdatedAtMs) return
         dao.deleteLongTermMemory(memoryId)
-        syncDao.removeForMemory(memoryId)
+        syncDao.removeForMemoryUpTo(memoryId, remoteUpdatedAtMs)
     }
 
     /** Inserts a server-owned row with its stable local id; never creates an outbox echo. */

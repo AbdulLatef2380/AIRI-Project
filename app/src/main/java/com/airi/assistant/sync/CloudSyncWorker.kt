@@ -77,17 +77,16 @@ class CloudSyncWorker(
             throw e
         } catch (e: Throwable) {
             Log.w(TAG, "CloudSyncWorker failed type=${e.javaClass.simpleName}")
-            if (runAttemptCount < MAX_RETRIES) Result.retry() else Result.failure()
+            if (CloudSyncRetryPolicy.shouldRetry(runAttemptCount)) Result.retry() else Result.failure()
         }
     }
 
     private fun retryOrFailure(): Result =
-        if (runAttemptCount < MAX_RETRIES) Result.retry() else Result.failure()
+        if (CloudSyncRetryPolicy.shouldRetry(runAttemptCount)) Result.retry() else Result.failure()
 
     companion object {
         private const val TAG          = "CloudSyncWorker"
         private const val WORK_NAME    = BackgroundWorkNames.CLOUD_SYNC
-        private const val MAX_RETRIES  = 3
         const val SYNC_PERIOD_HOURS    = 6L
 
         fun enqueue(context: Context) {

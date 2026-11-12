@@ -42,4 +42,13 @@ class CloudSyncOperationIdTest {
                 CloudSyncOperationId.memoryBatch("uid", newer),
         )
     }
+
+    @Test
+    fun ownerCoordinatesDoNotCollapseDistinctLongUidsToTheSameOperation() {
+        val prefix = "u".repeat(80)
+        val first = CloudSyncOperationId.profile("$prefix-a", 1L)
+        val second = CloudSyncOperationId.profile("$prefix-b", 1L)
+
+        assertFalse(first == second)
+    }
 }

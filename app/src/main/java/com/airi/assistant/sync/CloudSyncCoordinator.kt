@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.security.MessageDigest
 
 /**
  * CloudSyncCoordinator — bidirectional sync of user profile, preferences,
@@ -108,6 +109,13 @@ class CloudSyncCoordinator(
         _syncStatus.value = SyncStatus.SYNCING
 
         runCatching {
+            val logicalOperationId = CloudSyncOperationId.profile(uid, prefs.lastUpdatedAtMs)
+            val marker = operationMarker(db, uid, logicalOperationId)
+            if (marker.get().await().exists()) {
+                _lastSyncMs.value = System.currentTimeMillis()
+                _syncStatus.value = SyncStatus.SUCCESS
+                return@runCatching SyncResult.SUCCESS
+            }
             val doc = prefsToDocument(prefs)
             db.collection("users").document(uid)
                 .collection("profile").document("preferences")
@@ -119,9 +127,12 @@ class CloudSyncCoordinator(
                 .set(mapOf(
                     "lastSyncMs" to System.currentTimeMillis(),
                     "appVersion" to "1.0",
-                    "logicalOperationId" to CloudSyncOperationId.profile(uid, prefs.lastUpdatedAtMs),
+                    "logicalOperationId" to logicalOperationId,
                 ), SetOptions.merge())
                 .await()
+            check(commitAndVerifyMarker(marker, logicalOperationId, "profile")) {
+                "profile operation acknowledgement could not be verified"
+            }
 
             _lastSyncMs.value = System.currentTimeMillis()
             _syncStatus.value = SyncStatus.SUCCESS
@@ -184,23 +195,30 @@ class CloudSyncCoordinator(
             while (true) {
                 val pending = memoryManager.pendingSyncMutations(MAX_MEMORY_BATCH)
                 if (pending.isEmpty()) break
-                val batch = firestore.batch()
                 val logicalOperationId = CloudSyncOperationId.memoryBatch(uid, pending)
+                val marker = operationMarker(firestore, uid, logicalOperationId)
+                val markerAlreadyApplied = marker.get().await().exists()
                 var maxUpdated = 0L
-                pending.forEach { mutation ->
-                    val ref = firestore.collection("users").document(uid)
-                        .collection("memory").document(mutation.memoryId.toString())
-                    val memory = memoryManager.getMemoryForSync(mutation.memoryId)
-                    val document = if (mutation.operation == "DELETE_TOMBSTONE" || memory == null) {
-                        mapOf("memoryId" to mutation.memoryId, "deleted" to true,
-                            "updatedAtMs" to mutation.updatedAtMs)
-                    } else {
-                        maxUpdated = maxOf(maxUpdated, memory.updatedAtMs)
-                        memoryToDocument(memory) + mapOf("deleted" to false)
+                if (!markerAlreadyApplied) {
+                    val batch = firestore.batch()
+                    pending.forEach { mutation ->
+                        val ref = firestore.collection("users").document(uid)
+                            .collection("memory").document(mutation.memoryId.toString())
+                        val memory = memoryManager.getMemoryForSync(mutation.memoryId)
+                        val document = if (mutation.operation == "DELETE_TOMBSTONE" || memory == null) {
+                            mapOf("memoryId" to mutation.memoryId, "deleted" to true,
+                                "updatedAtMs" to mutation.updatedAtMs)
+                        } else {
+                            maxUpdated = maxOf(maxUpdated, memory.updatedAtMs)
+                            memoryToDocument(memory) + mapOf("deleted" to false)
+                        }
+                        batch.set(ref, document, SetOptions.merge())
                     }
-                    batch.set(ref, document, SetOptions.merge())
+                    batch.commit().await()
+                    check(commitAndVerifyMarker(marker, logicalOperationId, "memory")) {
+                        "memory operation acknowledgement could not be verified"
+                    }
                 }
-                batch.commit().await()
                 memoryManager.acknowledgeSyncMutations(pending.map { it.id })
                 total += pending.size
                 if (maxUpdated > 0L) _lastMemorySyncMs.value = maxUpdated
@@ -234,7 +252,10 @@ class CloudSyncCoordinator(
                 val memoryId = (data["memoryId"] as? Long)
                     ?: document.id.toLongOrNull() ?: return@forEach
                 if (data["deleted"] == true) {
-                    memoryManager.removeSyncedMemory(memoryId)
+                    memoryManager.removeSyncedMemory(
+                        memoryId = memoryId,
+                        remoteUpdatedAtMs = (data["updatedAtMs"] as? Long) ?: 0L,
+                    )
                 } else {
                     documentToMemory(data)?.let {
                         memoryManager.restoreSyncedMemory(it)
@@ -274,6 +295,11 @@ class CloudSyncCoordinator(
                 uid,
                 snapshots.map { "${it.taskId}:${it.updatedAtMs}:${it.status.name}" },
             )
+            val marker = operationMarker(db, uid, logicalOperationId)
+            if (marker.get().await().exists()) {
+                _syncStatus.value = SyncStatus.SUCCESS
+                return@runCatching SyncResult.SUCCESS
+            }
             snapshots.forEach { snapshot ->
                 batch.set(
                     db.collection("users").document(uid)
@@ -283,6 +309,9 @@ class CloudSyncCoordinator(
                 )
             }
             batch.commit().await()
+            check(commitAndVerifyMarker(marker, logicalOperationId, "task_continuity")) {
+                "task continuity operation acknowledgement could not be verified"
+            }
             _syncStatus.value = SyncStatus.SUCCESS
             LoggingService.info(TAG, "AIRI TASK_CONTINUITY_PUSH_OK operation=$logicalOperationId count=${snapshots.size}")
             SyncResult.SUCCESS
@@ -383,6 +412,41 @@ class CloudSyncCoordinator(
 
     private val _lastMemorySyncMs = MutableStateFlow(0L)
     val lastMemorySyncMs: StateFlow<Long> = _lastMemorySyncMs.asStateFlow()
+
+    /**
+     * Durable operation ledger. A marker is written only after the data write
+     * succeeds and is read back before local state is acknowledged. If the
+     * process dies between those steps, the next attempt can reconcile safely.
+     */
+    private fun operationMarker(
+        firestore: FirebaseFirestore,
+        uid: String,
+        operationId: String,
+    ) = firestore.collection("users").document(uid)
+        .collection("sync_meta").document("operations")
+        .collection("entries").document(markerKey(operationId))
+
+    private fun markerKey(operationId: String): String = MessageDigest
+        .getInstance("SHA-256")
+        .digest(operationId.toByteArray(Charsets.UTF_8))
+        .joinToString("") { byte -> "%02x".format(byte) }
+
+    private suspend fun commitAndVerifyMarker(
+        marker: com.google.firebase.firestore.DocumentReference,
+        operationId: String,
+        kind: String,
+    ): Boolean {
+        marker.set(
+            mapOf(
+                "operationId" to operationId,
+                "kind" to kind,
+                "committedAtMs" to System.currentTimeMillis(),
+            ),
+            SetOptions.merge(),
+        ).await()
+        val snapshot = marker.get().await()
+        return snapshot.exists() && snapshot.getString("operationId") == operationId
+    }
 
     private fun memoryToDocument(msg: ChatMessage): Map<String, Any?> = mapOf(
         "memoryId"     to msg.id,

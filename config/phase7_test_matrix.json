@@ -23,6 +23,6 @@
     {"id":"P1-UI-001","component":"Android UI","tier":"extended-device","tests":["app/src/androidTest/java/com/airi/assistant/ui/activity/AgentLifecycleTrackerPanelTest.kt","app/src/androidTest/java/com/airi/assistant/ui/text/ContentAwareMessageAccessibilityTest.kt"],"evidence":"AIRI-Instrumentation-API*-* artifact","status":"NOT_VERIFIED"},
     {"id":"P1-JNI-001","component":"JNI/native lifecycle","tier":"extended-device","tests":["app/src/androidTest/java/com/airi/assistant/ai/LlamaNativeSmokeTest.kt"],"evidence":"AIRI-Native-Smoke artifact or Android instrumentation report","status":"NOT_VERIFIED"},
     {"id":"P1-RECOVERY-001","component":"Recovery/migrations","tier":"extended-device","tests":["app/src/androidTest/java/com/airi/assistant/memory/AiriDatabaseMigrationTest.kt","app/src/androidTest/java/com/airi/assistant/workspace/ProjectFileApprovalRecoveryTest.kt"],"evidence":"app/build/reports/androidTests/connected/debug/index.html","status":"NOT_VERIFIED"},
-    {"id":"P1-REMOTE-001","component":"Remote-control rules","tier":"fast-pr","tests":["scripts/airi_remote_control_health.py","scripts/airi_remote_control_security.py"],"evidence":"phase7 test report artifact","status":"NOT_VERIFIED"}
+    {"id":"P1-REMOTE-001","component":"Remote-control rules","tier":"fast-pr","tests":["scripts/airi_remote_control_health.py","scripts/airi_remote_control_security.py"],"runtime_files":["phase7-remote-control-health.json","phase7-remote-control-security.json"],"evidence":"phase7 test report artifact","status":"NOT_VERIFIED"}
   ]
 }

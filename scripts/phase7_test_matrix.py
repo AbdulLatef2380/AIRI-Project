@@ -86,6 +86,27 @@ def runtime_status(test_paths: list[str], reports: list[dict], missing_reason: s
     return "PASS", {"reason": "Matched JUnit testcases completed without failures or errors", **detail}
 
 
+def runtime_files_status(root: Path, files: list[str]) -> tuple[str, dict]:
+    missing = [path for path in files if not (root / path).is_file()]
+    if missing:
+        return "NOT_VERIFIED", {"reason": "Declared runtime artifact is missing", "missing_files": missing}
+    failures = []
+    entries = 0
+    for relative in files:
+        try:
+            payload = json.loads((root / relative).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            return "BLOCKED", {"reason": "Runtime artifact is not valid JSON", "file": relative, "error": str(exc)}
+        rows = payload if isinstance(payload, list) else payload.get("checks", [])
+        entries += len(rows)
+        failures.extend(row for row in rows if row.get("status") not in {"PASS", "SOURCE_VERIFIED"})
+    if not entries:
+        return "NOT_VERIFIED", {"reason": "Runtime artifacts contain no checks", "files": files}
+    if failures:
+        return "BLOCKED", {"reason": "Runtime artifacts contain failed checks", "failed_checks": failures}
+    return "PASS", {"reason": "All declared runtime artifact checks passed", "files": files, "checks": entries}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--matrix", default="config/phase7_test_matrix.json")
@@ -127,7 +148,9 @@ def main() -> int:
         if status == "PASS":
             warnings.append(f"{rid}: PASS is only valid when the referenced runtime evidence is attached")
         runtime, runtime_detail = (
-            runtime_status(tests, reports, evidence_error)
+            runtime_files_status(ROOT / args.evidence_root, row["runtime_files"])
+            if row.get("runtime_files") and args.evidence_root and not missing
+            else runtime_status(tests, reports, evidence_error)
             if not missing
             else ("BLOCKED", {"reason": "Declared test target is missing", "matched_reports": []})
         )

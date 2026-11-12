@@ -210,6 +210,8 @@ jobs:
       if: always()
       run: |
         mkdir -p ci-phase7
+        cp phase7-remote-control-health.json app/build/ 2>/dev/null || true
+        cp phase7-remote-control-security.json app/build/ 2>/dev/null || true
         python3 scripts/phase7_test_matrix.py \
           --evidence-root app/build \
           --output ci-phase7/phase7-test-matrix-runtime-report.json

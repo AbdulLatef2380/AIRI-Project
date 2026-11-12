@@ -88,6 +88,7 @@ python3 scripts/airi_core_health.py
 | [فهرس التقارير](docs/REPORTS_INDEX.md) | فهرس مستقل لعشرة تقارير مع lineage ونتيجة الفحص أو النطاق. |
 | [مراجعة نظافة المرحلة 9](docs/audit/PHASE9_REPOSITORY_CLEANUP_REVIEW_2026-11-13.md) | قرارات الاحتفاظ للتكرارات وJAR/ZIP/BIN وملف pyc المتتبع. |
 | [Archive registry](docs/archive/PHASE9_RETENTION_REGISTRY.md) | سجل canonical/retained للوثائق التاريخية والتكرارات دون حذف تلقائي. |
+| [بوابة الإصدار — المرحلة 10](docs/product/AIRI_PHASE10_RELEASE_GATE_REPORT_2026-11-13.md) | فصل الأدلة المثبتة للـcandidate الحالي عن بوابات CI والتوقيع والجهاز والمزود والقانون. |
 | [التشغيل](docs/deployment/BUILD_AND_RELEASE.md) | إعادة إنتاج البنية والإصدارات وCI. |
 | [التجاري](docs/commercial/OVERVIEW.md) | تموضع المنتج، الترخيص، white-label، والعناية الواجبة. |
 

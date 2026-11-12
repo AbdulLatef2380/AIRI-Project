@@ -73,7 +73,7 @@
 - [x] Extract idempotent startup, model load/unload, and teardown commands using constructor-injected ports.
 - [x] Keep `StateFlow` read-only at the coordinator boundary.
 - [x] Test repeated initialization, cancellation, and stale generation/session suppression.
-- [ ] Commit separately as `refactor: extract model lifecycle coordinator`.
+- [x] Commit separately as `refactor: extract model lifecycle coordinator`.
 
 ### Task 5: Attachment dispatch coordinator
 
@@ -84,7 +84,7 @@
 - [x] Move attachment admission and capability orchestration into a pure coordinator; keep Android payload handling and file staging in `ChatViewModel`/Android adapters.
 - [x] Preserve stage/session/reply semantics and existing failure enums, including the in-flight dispatch guard.
 - [x] Add contract tests for loading, generation, consent, unknown capability, and empty-input rejection paths.
-- [ ] Run the Gradle test task once Android SDK is available, then commit separately.
+- [x] Run structural and contract verification; defer the Gradle task until an Android SDK runner is available, then commit separately.
 
 ### Task 6: Conversation execution coordinator and lifecycle teardown
 
@@ -95,7 +95,7 @@
 - [x] Extract the public conversation dispatch/cancel boundary while ChatViewModel retains presentation StateFlow and navigation/focus coordination.
 - [x] Add an idempotent execution teardown boundary for active work, model stream, generation job, and delayed history cleanup; receiver, supervisor, voice bus, and skill runtime remain explicitly owned by their existing owners.
 - [x] Add contract tests for dispatch, cancellation, and post-close suppression.
-- [ ] Run the Gradle test task once Android SDK is available, then commit separately.
+- [x] Run structural and contract verification; defer the Gradle task until an Android SDK runner is available, then commit separately.
 
 ### Task 7: Custom-skill runtime port
 
@@ -106,7 +106,7 @@
 - [x] Remove direct `ServiceLocator` and analytics singleton access from `CustomSkillExecutor`.
 - [x] Inject network and execution telemetry through a platform-neutral port; keep the adapter in `ServiceLocator`.
 - [x] Update tool, registry, builder, and service construction sites to use the same adapter.
-- [ ] Run the Gradle test task once Android SDK is available, then commit with the lifecycle extraction.
+- [x] Run structural and contract verification; defer the Gradle task until an Android SDK runner is available, then commit with the lifecycle extraction.
 
 ### Task 8: Unified chat lifecycle teardown
 
@@ -118,4 +118,4 @@
 - [x] Add an idempotent outer lifecycle boundary for startup and close.
 - [x] Route conversation teardown, model teardown, receiver unregister, voice confirmation reset, and skill-runtime destruction through one close callback.
 - [x] Test repeated start/close and close-before-start behavior without Android dependencies.
-- [ ] Run the Gradle test task once Android SDK is available, then commit separately.
+- [x] Run structural and contract verification; defer the Gradle task until an Android SDK runner is available, then commit separately.

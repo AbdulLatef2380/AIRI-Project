@@ -22,9 +22,7 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class LlamaNativeSmokeTest {
-    private val instrumentation = InstrumentationRegistry.getInstrumentation()
-
-    private fun modelFile(): File? = instrumentation.arguments
+    private fun modelFile(): File? = InstrumentationRegistry.getArguments()
         .getString("airi.nativeSmokeModel")
         ?.takeIf { it.isNotBlank() }
         ?.let(::File)

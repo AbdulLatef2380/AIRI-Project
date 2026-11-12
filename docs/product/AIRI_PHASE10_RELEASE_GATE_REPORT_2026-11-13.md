@@ -1,6 +1,7 @@
 # AIRI — Phase 10 Release Gate Report
 
-**Candidate commit:** `c8137192` (`main` = `origin/main`)
+**Source candidate baseline:** `c8137192` (آخر commit قبل توثيق بوابة الإصدار؛ لم يتغير كود التطبيق بعده)
+**Evidence/documentation commit:** `b66732b6` (documentation-only; تحقق من `HEAD` قبل البناء)
 **Classification:** `INTERNAL_CANDIDATE / EXTERNAL_GATES_REQUIRED`
 **Commercial status:** `NOT COMMERCIAL_RELEASE_READY`
 **Generated:** 13 نوفمبر 2026
@@ -11,7 +12,7 @@
 
 | البند | الحالة | الدليل / السبب |
 |---|---|---|
-| Release candidate commit ثابت | `PASS` | `main` و`origin/main` عند `c8137192`; working tree نظيف أثناء الفحص. |
+| Release candidate source ثابت | `PASS` | `c8137192` هو baseline المصدر؛ commit `b66732b6` أضاف التوثيق والحارس فقط، ولا يغير كود التطبيق. |
 | Core/cross-platform/security static gates | `PASS` | `scripts/airi_core_health.py`, `scripts/airi_cross_platform_health.py`, `tools/security_scan.py`. |
 | SBOM CycloneDX وSPDX | `PASS` | JSON صالح وموجود في `docs/supply-chain/`. |
 | THIRD_PARTY_NOTICES | `PASS` | الملف موجود وغير فارغ. |

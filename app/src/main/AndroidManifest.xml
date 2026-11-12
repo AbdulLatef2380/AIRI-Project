@@ -116,7 +116,8 @@
 
             <!-- OAuth callback deep-link — receives airi://oauth/callback?code=...
                  Used by future OAuth providers (Slack, Discord, Notion, Google Drive).
-                 MainActivity routes this to IntegrationsViewModel.handleOAuthCallback(). -->
+                 MainActivity validates and exchanges this before publishing a
+                 non-sensitive completion signal. -->
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -124,7 +125,7 @@
                 <data
                     android:scheme="airi"
                     android:host="oauth"
-                    android:pathPrefix="/callback" />
+                    android:path="/callback" />
             </intent-filter>
 
             <!-- Long-task notification deep link: airi://agent/run/{id} opens the run screen. -->

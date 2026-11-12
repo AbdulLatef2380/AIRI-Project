@@ -27,6 +27,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.airi.assistant.ui.AiriApp
 import com.airi.assistant.core.ServiceLocator
+import com.airi.assistant.connector.oauth.OAuthCallbackUriPolicy
 import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.ui.theme.AiriTheme
@@ -151,8 +152,7 @@ class MainActivity : ComponentActivity() {
      */
     private fun dispatchOAuthCallback(intent: Intent) {
         val data = intent.data ?: return
-        if (data.scheme != "airi" || data.host != "oauth") return
-        if (data.pathSegments.firstOrNull() != "callback") return
+        if (!OAuthCallbackUriPolicy.accepts(data.scheme, data.host, data.path, data.fragment)) return
 
         lifecycleScope.launch {
             val state = data.getQueryParameter("state").orEmpty()
@@ -169,25 +169,20 @@ class MainActivity : ComponentActivity() {
                         authorizationCode = data.getQueryParameter("code").orEmpty(),
                     )
                 }
-                if (result is com.airi.assistant.connector.app.github.GithubAuthorizationResult.Failure) {
-                    Log.w(TAG, "GitHub OAuth callback rejected code=${result.failure.code}")
-                }
                 // MainActivity owns the one-time callback consumption and code
-                // exchange. Notify UI projections only after that work; the
-                // subscriber must not consume the callback a second time.
+                // exchange. Publish only a non-sensitive completion signal;
+                // authorization code and state must never enter an event bus,
+                // trace, analytics stream, or log.
                 com.airi.assistant.domain.event.EventBus.emitSync(
-                    com.airi.assistant.domain.event.AppEvent.OAuthCallbackReceived(
-                        code = data.getQueryParameter("code").orEmpty(),
-                        state = state,
+                    com.airi.assistant.domain.event.AppEvent.OAuthCallbackCompleted(
                         provider = "github",
                     )
                 )
                 return@launch
             }
-            val result = ServiceLocator.connectorAuthorizationManager.completeOAuth(data)
-            if (result is com.airi.assistant.connector.ConnectorAuthorizationManager.CompletionResult.Failed) {
-                android.util.Log.w("AIRI_OAUTH", "OAuth callback rejected code=${result.code}")
-            }
+            // Failure details remain in the typed result/UI state only. Never
+            // log provider error codes or redirect parameters from this path.
+            ServiceLocator.connectorAuthorizationManager.completeOAuth(data)
         }
     }
 

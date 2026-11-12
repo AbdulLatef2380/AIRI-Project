@@ -50,7 +50,7 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
      * Generated fresh on each ViewModel instantiation. When a future browser
      * OAuth flow (e.g. Slack, Google Drive, Discord) is initiated, this token
      * is passed as the `state` parameter in the authorization URL. On callback
-     * reception (via [AppEvent.OAuthCallbackReceived]), the incoming `state`
+     * reception through the one-use OAuth callback registry, the incoming `state`
      * must match [oauthStateToken] or the callback is rejected as CSRF.
      *
      * GitHub uses its project-scoped coordinator; Telegram uses a credential
@@ -824,18 +824,9 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         _googleFeedback.value = null
     }
 
-    /**
-     * Handle an OAuth callback received from [AppEvent.OAuthCallbackReceived].
-     *
-     * SECURITY: Validates the `state` parameter to prevent CSRF.
-     * Only called from callers that subscribe to [EventBus.events].
-     */
-    fun handleOAuthCallback(code: String, state: String) {
-        // MainActivity owns state consumption and code exchange. Refresh only
-        // the UI projection; never consume or exchange the callback twice.
-        // A provider denial has no authorization code but still has a valid
-        // state, so it must refresh the visible failure state as well.
-        if (state.isBlank()) return
+    /** Refreshes the UI after MainActivity completes a one-use OAuth callback. */
+    fun handleOAuthCallbackCompleted(provider: String) {
+        if (provider != "github") return
         refreshGithubProjectAuthorizationState()
     }
 
@@ -849,9 +840,9 @@ class IntegrationsViewModel(application: Application) : AndroidViewModel(applica
         // Subscribe to OAuth deep-link callbacks from MainActivity
         viewModelScope.launch {
             com.airi.assistant.domain.event.EventBus.events.collect { event ->
-                if (event is com.airi.assistant.domain.event.AppEvent.OAuthCallbackReceived) {
+                if (event is com.airi.assistant.domain.event.AppEvent.OAuthCallbackCompleted) {
                     if (event.provider == "github") {
-                        handleOAuthCallback(code = event.code, state = event.state)
+                        handleOAuthCallbackCompleted(event.provider)
                     }
                 }
             }

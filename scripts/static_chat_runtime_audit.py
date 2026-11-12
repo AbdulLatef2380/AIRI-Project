@@ -46,7 +46,7 @@ check("agent loop registers execution ownership", "ExecutionStatusBus.onGraphSta
 check("single-pass success completes status", "ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)" in text["loop"])
 check("single-pass failure completes status", "ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)" in text["loop"])
 check("unsupported attachment has translated message", "attachment_unsupported_content" in text["strings"] and "UNSUPPORTED_CONTENT" in text["chat"])
-check("attachment is cleared only after acceptance", "viewModel.clearCurrentComposerAttachments()" in text["chat"] and "onRejected = { failure" in text["chat"])
+check("attachment is cleared only after acceptance", "viewModel.clearCurrentComposerDraft()" in text["chat"] and "onRejected = { failure" in text["chat"])
 check("agent loop still receives full tools for non-simple turns", "allActiveTools" in text["vm"] and "else {\n                allActiveTools" in text["vm"])
 check("execution request has native inline attachment contract", "inlineDataParts" in text["execution_request"])
 check("Gemini serializes native inline data", "inline_data" in text["gemini"] and "req.inlineDataParts" in text["gemini"])

@@ -114,14 +114,10 @@ sealed class AppEvent(
     ) : AppEvent()
 
     // ── OAuth Deep-Link Events ─────────────────────────────────────────────────
-    // Fired by MainActivity.onNewIntent ONLY after the inbound `state` value
-    // has been validated against OAuthStateRegistry (CSRF protection).
-    // `provider` is the registry-bound provider id; empty for legacy token-paste
-    // flows. New subscribers MUST gate on provider.isNotEmpty().
-
-    class OAuthCallbackReceived(
-        val code:     String,
-        val state:    String,
-        val provider: String = ""   // "" = legacy paste-token; non-empty = CSRF-validated OAuth
+    // Redirect parameters are deliberately absent: code/state never cross the
+    // event bus, trace, analytics, or logging boundaries.
+    /** Non-sensitive signal emitted after the callback has been consumed and exchanged. */
+    class OAuthCallbackCompleted(
+        val provider: String,
     ) : AppEvent()
 }

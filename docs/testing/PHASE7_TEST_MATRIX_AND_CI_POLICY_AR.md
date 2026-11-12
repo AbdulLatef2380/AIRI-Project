@@ -41,6 +41,8 @@ python3 scripts/phase7_environment_gates.py --output phase7-environment-gates-re
 
 عند إنتاج JaCoCo XML، يسجل التقرير counters الخاصة بـline وbranch وmethod/function دون وضع threshold عام. عند غياب XML تكون الحالة `BLOCKED`، وليس `0%` أو `PASS`. أما changed-code coverage فتظل `NOT_VERIFIED` ما لم توجد خريطة موثوقة بين ملفات التغيير وcounter report.
 
+تُعرّف خريطة المكونات في [`config/phase7_coverage_components.json`](../../config/phase7_coverage_components.json)، ويجمع المدقق counters على مستوى classes المطابقة لمسارات المصدر. يسجل التقرير صراحةً حالة كل مكوّن، و`SKIP` عند عدم وجود ملفات متغيرة، و`NOT_VERIFIED` للـtrend حتى يُمرر تاريخ artifacts فعلي.
+
 Trend تُقرأ من artifacts المتعاقبة في CI، ولا تُبنى من قيم مخترعة محليًا. المقارنة المطلوبة مستقبلًا هي: تغير coverage للمكونات المتأثرة فقط، عدد الاختبارات، وعدد PASS/SKIP/BLOCKED/NOT_VERIFIED.
 
 Baseline الحالي محفوظ في `reports/phase7/`: inventory المصفوفة مكتمل (12/12 targets موجودة)، بينما التنفيذ runtime وJaCoCo مصنفان `NOT_VERIFIED`/`BLOCKED` لأنهما يحتاجان CI أو Android SDK.

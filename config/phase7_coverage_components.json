@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "components": {
+    "AgentLoop": ["com/airi/assistant/agent/loop/"],
+    "Tool Routing": ["com/airi/assistant/execution/router/", "com/airi/assistant/connector/"],
+    "Memory isolation": ["com/airi/assistant/memory/", "com/airi/assistant/workspace/"],
+    "Connectors": ["com/airi/assistant/connector/"],
+    "Streaming": ["com/airi/assistant/execution/", "com/airi/assistant/ui/viewmodel/"],
+    "Local inference": ["com/airi/assistant/ai/", "com/airi/assistant/execution/cloud/"],
+    "Trace": ["com/airi/assistant/ai/agent/trace/", "com/airi/assistant/core/", "com/airi/assistant/ui/trace/"],
+    "Security": ["com/airi/assistant/security/", "com/airi/assistant/accessibility/security/"],
+    "Android UI": ["com/airi/assistant/ui/"],
+    "JNI/native lifecycle": ["com/airi/assistant/ai/", "com/airi/assistant/native/"],
+    "Recovery/migrations": ["com/airi/assistant/memory/", "com/airi/assistant/workspace/"],
+    "Remote-control rules": ["com/airi/core/remote/"]
+  }
+}

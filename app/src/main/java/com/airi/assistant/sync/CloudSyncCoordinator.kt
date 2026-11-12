@@ -289,7 +289,7 @@ class CloudSyncCoordinator(
         if (snapshots.isEmpty()) return SyncResult.SKIPPED
 
         _syncStatus.value = SyncStatus.SYNCING
-        runCatching {
+        return runCatching {
             val batch = db.batch()
             val logicalOperationId = CloudSyncOperationId.taskContinuity(
                 uid,
@@ -333,7 +333,7 @@ class CloudSyncCoordinator(
         val db = db ?: return SyncResult.SKIPPED
 
         _syncStatus.value = SyncStatus.SYNCING
-        runCatching {
+        return runCatching {
             val documents = db.collection("users").document(uid)
                 .collection("task_continuity")
                 .limit(MAX_TASK_CONTINUITY_PULL.toLong())

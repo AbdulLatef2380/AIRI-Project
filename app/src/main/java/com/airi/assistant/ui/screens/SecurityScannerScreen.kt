@@ -40,6 +40,7 @@ import kotlinx.coroutines.withContext
 fun SecurityScannerScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope   = rememberCoroutineScope()
+    val tlsPinsLabel = stringResource(R.string.security_tls_pins)
 
     data class ScanResult(val label: String, val passed: Boolean, val detail: String)
 
@@ -93,7 +94,7 @@ fun SecurityScannerScreen(onBack: () -> Unit) {
                     val pins = com.airi.assistant.connector.api.LlmCertPins.pins
                     val hasPlaceholders = pins.values.flatten().any { it.contains("PLACEHOLDER") || it.length < 40 }
                     scanResults += ScanResult(
-                        label  = stringResource(R.string.security_tls_pins),
+                        label  = tlsPinsLabel,
                         passed = !hasPlaceholders,
                         detail = if (hasPlaceholders) "Placeholder pins detected — cloud calls may fail" else "Production pins set"
                     )

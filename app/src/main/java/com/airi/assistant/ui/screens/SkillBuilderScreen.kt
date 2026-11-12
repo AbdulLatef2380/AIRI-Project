@@ -56,9 +56,9 @@ import java.util.UUID
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
 private data class SkillPreset(
-    val label: String,
+    val labelRes: Int,
     val name: String,
-    val description: String,
+    val descriptionRes: Int,
     val type: SkillType,
     val method: String,
     val endpoint: String,
@@ -68,9 +68,9 @@ private data class SkillPreset(
 
 private val SKILL_PRESETS = listOf(
     SkillPreset(
-        label = stringResource(R.string.skill_template_send_label),
+        labelRes = R.string.skill_template_send_label,
         name = "Send Message",
-        description = stringResource(R.string.skill_template_send_desc),
+        descriptionRes = R.string.skill_template_send_desc,
         type = SkillType.API,
         method = "POST",
         endpoint = "https://api.example.com/messages",
@@ -81,9 +81,9 @@ private val SKILL_PRESETS = listOf(
         bodyTemplate = """{"message":"{{user_input}}","timestamp":"{{timestamp}}","user_id":"{{user_id}}"}"""
     ),
     SkillPreset(
-        label = stringResource(R.string.skill_template_webhook_label),
+        labelRes = R.string.skill_template_webhook_label,
         name = "Webhook Trigger",
-        description = stringResource(R.string.skill_template_webhook_desc),
+        descriptionRes = R.string.skill_template_webhook_desc,
         type = SkillType.WEBHOOK,
         method = "POST",
         endpoint = "https://hooks.example.com/trigger",
@@ -93,9 +93,9 @@ private val SKILL_PRESETS = listOf(
         bodyTemplate = """{"event":"airi_trigger","payload":{"input":"{{user_input}}","context":"{{conversation_context}}","goal":"{{agent_goal}}","ts":"{{timestamp}}"}}"""
     ),
     SkillPreset(
-        label = stringResource(R.string.skill_template_post_label),
+        labelRes = R.string.skill_template_post_label,
         name = "Custom API Call",
-        description = stringResource(R.string.skill_template_post_desc),
+        descriptionRes = R.string.skill_template_post_desc,
         type = SkillType.API,
         method = "POST",
         endpoint = "https://api.example.com/endpoint",
@@ -155,7 +155,7 @@ fun SkillBuilderScreen(
 
     fun applyPreset(preset: SkillPreset) {
         name = preset.name
-        description = preset.description
+        description = context.getString(preset.descriptionRes)
         endpoint = preset.endpoint
         method = preset.method
         type = preset.type
@@ -668,8 +668,8 @@ private fun PresetCard(preset: SkillPreset, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(preset.label, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Text(preset.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+            Text(stringResource(preset.labelRes), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text(stringResource(preset.descriptionRes), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
         }
         Surface(shape = AIRIShapes.pill, color = CosmicAccent.copy(alpha = 0.15f)) {
             Text(

@@ -2140,7 +2140,7 @@ private fun AiriHistoryPanel(
                                 onFavorite = { viewModel.setSessionFavorite(session.id, session.id !in favoriteSessionIds) },
                                 onArchive = { viewModel.archiveSession(session.id) },
                                 icon = historySessionIcon(viewModel.sessionIconKey(session)),
-                                onShare = { shareSession(context, session) }
+                                onShare = { shareSession(context, session, context.getString(R.string.history_share)) }
                             )
                     }
                 }
@@ -3576,8 +3576,9 @@ private fun AiriThinkingRow(label: String) {
 
 @Composable
 private fun AiriThinkingDots() {
+    val generatingDescription = stringResource(R.string.cd_airi_generating_response)
     Row(
-        modifier = Modifier.semantics { contentDescription = stringResource(R.string.cd_airi_generating_response) }.padding(vertical = 7.dp),
+        modifier = Modifier.semantics { contentDescription = generatingDescription }.padding(vertical = 7.dp),
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -3839,10 +3840,11 @@ private fun SkillDirectiveChip(
     isRemovalArmed: Boolean,
     onRemove: () -> Unit,
 ) {
+    val selectedSkillDescription = stringResource(R.string.cd_selected_skill, skillName)
     val chipColor = if (isRemovalArmed) CosmicAccent.copy(alpha = 0.16f) else AiriTheme.onSurface.copy(alpha = 0.035f)
     val outlineColor = if (isRemovalArmed) CosmicAccent.copy(alpha = 0.75f) else AiriTheme.outline.copy(alpha = 0.55f)
     Surface(
-        modifier = Modifier.semantics { contentDescription = stringResource(R.string.cd_selected_skill, skillName) },
+        modifier = Modifier.semantics { contentDescription = selectedSkillDescription },
         shape = RoundedCornerShape(7.dp),
         color = chipColor,
         border = BorderStroke(if (isRemovalArmed) 1.dp else 0.75.dp, outlineColor)
@@ -4674,6 +4676,8 @@ fun AiriChatInputBar(
             val attachmentDescription = stringResource(R.string.attach)
             val voiceInputDescription = stringResource(R.string.voice_input)
             val connectorsDescription = stringResource(R.string.connectors_title)
+            val composerUtilitiesDescription = stringResource(R.string.cd_composer_utilities)
+            val composerActionsDescription = stringResource(R.string.cd_composer_actions)
             val mainActionDescription = stringResource(
                 when (mainAction) {
                     ChatMainAction.SEND -> R.string.send
@@ -4698,9 +4702,9 @@ fun AiriChatInputBar(
                 // while attachment and microphone stay on the opposite side.
                 // The pair order mirrors with the app language, without changing
                 // the action semantics or any runtime/security configuration.
-                val utilities = @Composable {
+                val utilities: @Composable () -> Unit = {
                     Row(
-                        modifier = Modifier.semantics { contentDescription = stringResource(R.string.cd_composer_utilities) },
+                        modifier = Modifier.semantics { contentDescription = composerUtilitiesDescription },
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -4746,9 +4750,9 @@ fun AiriChatInputBar(
                         }
                     }
                 }
-                val actions = @Composable {
+                val actions: @Composable () -> Unit = {
                     Row(
-                        modifier = Modifier.semantics { contentDescription = stringResource(R.string.cd_composer_actions) },
+                        modifier = Modifier.semantics { contentDescription = composerActionsDescription },
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

@@ -1,6 +1,7 @@
 package com.airi.assistant.terminal
 
 import android.util.Log
+import com.airi.assistant.agent.loop.AgentLoopExecutionContext
 import com.airi.assistant.agent.sandbox.SandboxLogEntry
 import com.airi.assistant.agent.sandbox.SandboxManager
 import com.airi.assistant.agent.sandbox.SandboxSession
@@ -208,7 +209,25 @@ class TerminalRuntime(
 
         try {
             val gatewayResult = withContext(Dispatchers.IO) {
-                executionGateway.execute(sandboxSession, command, agentId)
+                executionGateway.execute(
+                    sandboxSession,
+                    TerminalExecutionRequest(
+                        command = command,
+                        context = AgentLoopExecutionContext(
+                            taskId = "terminal-$agentId",
+                            missionId = "terminal-$agentId",
+                            projectId = null,
+                            runId = executionId ?: "terminal-run",
+                            stepId = actionId ?: "terminal-command",
+                            agentId = agentId,
+                            sourceSessionId = activeSession?.sessionId ?: "terminal-session"
+                        ),
+                        executionId = executionId ?: "terminal-${safeCommand.hashCode()}",
+                        actionId = actionId ?: "terminal-${safeCommand.hashCode()}",
+                        traceId = executionId ?: "terminal-trace",
+                        messageId = actionId ?: "terminal-message"
+                    )
+                )
             }
 
             when (gatewayResult) {

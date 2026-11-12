@@ -679,7 +679,7 @@ private data class TaskModelEntry(
     val modelId:    String,
     val taskLabel:  String,
     val taskIcon:   ImageVector,
-    val description: String,
+    val descriptionRes: Int,
     val contextLen: String
 )
 
@@ -689,7 +689,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         modelId    = OpenRouterAdapter.MODEL_CODING,
         taskLabel  = "Coding & Debugging",
         taskIcon   = Icons.Outlined.Code,
-        description = stringResource(R.string.model_library_deepseek_coder),
+        descriptionRes = R.string.model_library_deepseek_coder,
         contextLen = "16k"
     ),
     TaskModelEntry(
@@ -697,7 +697,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         modelId    = OpenRouterAdapter.MODEL_REASONING,
         taskLabel  = "Deep Reasoning",
         taskIcon   = Icons.Outlined.Psychology,
-        description = stringResource(R.string.model_library_deepseek_r1),
+        descriptionRes = R.string.model_library_deepseek_r1,
         contextLen = "64k"
     ),
     TaskModelEntry(
@@ -705,7 +705,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         modelId    = OpenRouterAdapter.DEFAULT_MODEL,
         taskLabel  = "General & Long Context",
         taskIcon   = Icons.Outlined.AutoAwesome,
-        description = stringResource(R.string.model_library_gemini),
+        descriptionRes = R.string.model_library_gemini,
         contextLen = "1M"
     ),
     TaskModelEntry(
@@ -713,7 +713,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         modelId    = OpenRouterAdapter.MODEL_MULTILINGUAL,
         taskLabel  = "Arabic & Multilingual",
         taskIcon   = Icons.Outlined.Language,
-        description = stringResource(R.string.model_library_qwen),
+        descriptionRes = R.string.model_library_qwen,
         contextLen = "128k"
     ),
     TaskModelEntry(
@@ -721,7 +721,7 @@ private val OPENROUTER_TASK_MODELS = listOf(
         modelId    = OpenRouterAdapter.MODEL_FAST,
         taskLabel  = "Fast Responses",
         taskIcon   = Icons.Outlined.FlashOn,
-        description = stringResource(R.string.model_library_llama),
+        descriptionRes = R.string.model_library_llama,
         contextLen = "128k"
     )
 )
@@ -747,7 +747,7 @@ private fun OpenRouterTaskModelCard(entry: TaskModelEntry) {
                     Spacer(Modifier.width(6.dp))
                     InfoBadge(entry.contextLen)
                 }
-                Text(entry.description, color = AiriTheme.onSurfaceVariant,
+                Text(stringResource(entry.descriptionRes), color = AiriTheme.onSurfaceVariant,
                     fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Surface(

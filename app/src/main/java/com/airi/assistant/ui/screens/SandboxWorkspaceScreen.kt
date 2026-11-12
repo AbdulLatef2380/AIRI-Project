@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airi.assistant.R
+import com.airi.assistant.agent.loop.AgentLoopExecutionContext
 import com.airi.assistant.agent.sandbox.SandboxLogEntry
 import com.airi.assistant.agent.sandbox.SandboxSession
 import com.airi.assistant.core.ExecutionTraceGateway
@@ -294,7 +295,25 @@ fun SandboxWorkspaceScreen(onBack: () -> Unit) {
                                         )
                                         execJob = scope.launch {
                                             try {
-                                                val result = executionGateway.execute(target, cmd, agentId = "sandbox-ui")
+                                                val result = executionGateway.execute(
+                                                    target,
+                                                    com.airi.assistant.terminal.TerminalExecutionRequest(
+                                                        command = cmd,
+                                                        context = AgentLoopExecutionContext(
+                                                            taskId = "sandbox-ui",
+                                                            missionId = "sandbox-ui",
+                                                            projectId = null,
+                                                            runId = executionId,
+                                                            stepId = actionId,
+                                                            agentId = "sandbox-ui",
+                                                            sourceSessionId = target.sessionId
+                                                        ),
+                                                        executionId = executionId,
+                                                        actionId = actionId,
+                                                        traceId = executionId,
+                                                        messageId = actionId
+                                                    )
+                                                )
                                                 val message = when (result) {
                                                     is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Disabled -> result.reason
                                                     is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Denied -> "Denied: ${result.reason}"

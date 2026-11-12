@@ -30,6 +30,9 @@ jobs:
           python3 scripts/runtime_state_simulation.py
           python3 scripts/telemetry_privacy_scan.py
           python3 scripts/connector_lifecycle_static_scan.py
+          python3 scripts/airi_remote_control_health.py --json fast-pr-remote-control-health.json
+          python3 scripts/airi_remote_control_security.py --json fast-pr-remote-control-security.json
+          python3 scripts/airi_firestore_rules_test.py --json fast-pr-firestore-rules.json
           python3 tools/verify_core_changes.py
           git diff --check
       - name: Emit explicit coverage state
@@ -42,4 +45,7 @@ jobs:
           path: |
             phase7-test-matrix-report.json
             phase7-coverage-report.json
+            fast-pr-remote-control-health.json
+            fast-pr-remote-control-security.json
+            fast-pr-firestore-rules.json
           if-no-files-found: warn

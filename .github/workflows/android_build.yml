@@ -63,6 +63,9 @@ jobs:
         python3 scripts/connector_lifecycle_static_scan.py
         python3 scripts/runtime_state_simulation.py
         python3 scripts/telemetry_privacy_scan.py
+        python3 scripts/airi_remote_control_health.py --json phase7-remote-control-health.json
+        python3 scripts/airi_remote_control_security.py --json phase7-remote-control-security.json
+        python3 scripts/airi_firestore_rules_test.py --json phase7-firestore-rules.json
         python3 scripts/verify_google_oauth_config.py --config app/google-services.json
         python3 -m unittest discover -s scripts -p 'test_google_oauth_config.py' -v
         if [ -n "${OPENAI_API_KEY:-}" ] || [ -n "${GEMINI_API_KEY:-}" ]; then
@@ -82,7 +85,11 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: AIRI-Phase7-Static-Test-Evidence
-        path: phase7-test-matrix-report.json
+        path: |
+          phase7-test-matrix-report.json
+          phase7-remote-control-health.json
+          phase7-remote-control-security.json
+          phase7-firestore-rules.json
         if-no-files-found: warn
 
     - name: Build and test shared core

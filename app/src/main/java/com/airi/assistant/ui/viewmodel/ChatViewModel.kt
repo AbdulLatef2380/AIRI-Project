@@ -912,8 +912,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     )
 
+    private val modelLifecycleCoordinator = ModelLifecycleCoordinator(
+        onStart = { _modelState.value = modelController.createInitialModelState() },
+        onStop = { runtimeSupervisor.stop() },
+    )
+
     init {
-        _modelState.value = modelController.createInitialModelState()
+        modelLifecycleCoordinator.startOnce()
     }
 
     private fun persistRegistry() = modelController.persistRegistry()
@@ -1721,7 +1726,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         activeGenerationJob = null
         clearHistoryJob?.cancel()
         super.onCleared()
-        runtimeSupervisor.stop()
+        modelLifecycleCoordinator.stopOnce()
         RuntimeEventLog.clear()
         runCatching { appContext.unregisterReceiver(downloadCompleteReceiver) }
         runCatching { ServiceLocator.skillRuntime.destroy() }

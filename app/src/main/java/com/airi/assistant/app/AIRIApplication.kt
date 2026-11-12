@@ -57,6 +57,13 @@ class AIRIApplication : Application() {
             ServiceLocator.context = applicationContext
             LoggingService.info(TAG, " ServiceLocator initialized")
 
+            // Secret providers must never observe the process before the
+            // Keystore-backed broker is ready. This is synchronous by design:
+            // a cold-start race must fail closed, not enter the broker's test
+            // in-memory default and persist a credential in the wrong store.
+            ServiceLocator.secretVault
+            LoggingService.info(TAG, " SecretVault initialized")
+
             // Durable agent-log traces and per-message execution traces (file-backed,
             // loaded lazily off the main thread; failures never affect startup).
             runCatching {
@@ -250,7 +257,6 @@ class AIRIApplication : Application() {
                     ServiceLocator.networkService
                     ServiceLocator.executionHistoryStore
                     ServiceLocator.subscriptionManager
-                    ServiceLocator.secretVault
                     AiriDatabase.getDatabase(applicationContext)
                     ServiceLocator.sessionManager
                     ServiceLocator.userProfileRepository

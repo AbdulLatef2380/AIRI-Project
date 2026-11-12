@@ -85,8 +85,12 @@ object FirebaseCrashReporter {
      * Called on sign-out and account deletion so nothing about the old account is sent later.
      */
     fun clearUserData() {
+        // A deletion/sign-out boundary must also close the in-process gate.
+        // The next crash must not be uploaded under the previous session.
+        collectionEnabled = false
         runCatching {
             val crashlytics = FirebaseCrashlytics.getInstance()
+            crashlytics.setCrashlyticsCollectionEnabled(false)
             crashlytics.setUserId("")
             crashlytics.deleteUnsentReports()
         }.onFailure { e ->

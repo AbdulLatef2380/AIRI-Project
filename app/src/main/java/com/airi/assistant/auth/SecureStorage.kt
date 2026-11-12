@@ -79,11 +79,22 @@ class SecureStorage(context: Context) {
 
     private fun publishIntegrationConnections() {
         _integrationConnections.value = IntegrationConnections(
-            github = prefs.getBoolean(KEY_GITHUB_CONNECTED, false),
-            google = prefs.getBoolean(KEY_GOOGLE_CONNECTED, false),
-            telegram = prefs.getBoolean(KEY_TELEGRAM_CONNECTED, false)
+            github = safeRead(false) { prefs.getBoolean(KEY_GITHUB_CONNECTED, false) },
+            google = safeRead(false) { prefs.getBoolean(KEY_GOOGLE_CONNECTED, false) },
+            telegram = safeRead(false) { prefs.getBoolean(KEY_TELEGRAM_CONNECTED, false) }
         )
     }
+
+    /**
+     * Keystore keys can be invalidated by lock-screen/restore transitions. A
+     * credential store must fail closed in that state: callers see no secret
+     * and the app remains usable instead of crashing during cold start.
+     */
+    private inline fun <T> safeRead(default: T, read: () -> T): T =
+        runCatching { read() }.getOrElse {
+            Log.e("SecureStorage", "Encrypted store read unavailable; denying credential access")
+            default
+        }
 
     /**
      * Safe writer for EncryptedSharedPreferences:
@@ -112,7 +123,7 @@ class SecureStorage(context: Context) {
     fun saveGithubToken(token: String) =
         prefs.edit().safePutString(KEY_GITHUB_TOKEN, token).apply()
 
-    fun getGithubToken(): String? = prefs.getString(KEY_GITHUB_TOKEN, null)
+    fun getGithubToken(): String? = safeRead(null) { prefs.getString(KEY_GITHUB_TOKEN, null) }
 
     fun saveGithubConnected(connected: Boolean, username: String = "") {
         prefs.edit()
@@ -123,16 +134,16 @@ class SecureStorage(context: Context) {
         publishIntegrationConnections()
     }
 
-    fun isGithubConnected(): Boolean = prefs.getBoolean(KEY_GITHUB_CONNECTED, false)
-    fun getGithubUsername(): String = prefs.getString(KEY_GITHUB_USERNAME, "") ?: ""
-    fun getGithubUpdated(): Long = prefs.getLong(KEY_GITHUB_UPDATED, 0L)
+    fun isGithubConnected(): Boolean = safeRead(false) { prefs.getBoolean(KEY_GITHUB_CONNECTED, false) }
+    fun getGithubUsername(): String = safeRead("") { prefs.getString(KEY_GITHUB_USERNAME, "") ?: "" }
+    fun getGithubUpdated(): Long = safeRead(0L) { prefs.getLong(KEY_GITHUB_UPDATED, 0L) }
 
     // ─── Telegram ──────────────────────────────────────────────────────────────
 
     fun saveTelegramToken(token: String) =
         prefs.edit().safePutString(KEY_TELEGRAM_TOKEN, token).apply()
 
-    fun getTelegramToken(): String? = prefs.getString(KEY_TELEGRAM_TOKEN, null)
+    fun getTelegramToken(): String? = safeRead(null) { prefs.getString(KEY_TELEGRAM_TOKEN, null) }
 
     fun clearTelegramToken() = prefs.edit().remove(KEY_TELEGRAM_TOKEN).apply()
 
@@ -145,9 +156,9 @@ class SecureStorage(context: Context) {
         publishIntegrationConnections()
     }
 
-    fun isTelegramConnected(): Boolean = prefs.getBoolean(KEY_TELEGRAM_CONNECTED, false)
-    fun getTelegramUsername(): String = prefs.getString(KEY_TELEGRAM_USERNAME, "") ?: ""
-    fun getTelegramUpdated(): Long = prefs.getLong(KEY_TELEGRAM_UPDATED, 0L)
+    fun isTelegramConnected(): Boolean = safeRead(false) { prefs.getBoolean(KEY_TELEGRAM_CONNECTED, false) }
+    fun getTelegramUsername(): String = safeRead("") { prefs.getString(KEY_TELEGRAM_USERNAME, "") ?: "" }
+    fun getTelegramUpdated(): Long = safeRead(0L) { prefs.getLong(KEY_TELEGRAM_UPDATED, 0L) }
 
     // ─── Google ────────────────────────────────────────────────────────────────
 
@@ -164,10 +175,10 @@ class SecureStorage(context: Context) {
     fun clearGoogleIdToken() =
         prefs.edit().remove(KEY_GOOGLE_ID_TOKEN).apply()
 
-    fun getGoogleIdToken(): String? = prefs.getString(KEY_GOOGLE_ID_TOKEN, null)
-    fun isGoogleConnected(): Boolean = prefs.getBoolean(KEY_GOOGLE_CONNECTED, false)
-    fun getGoogleEmail(): String? = prefs.getString(KEY_GOOGLE_EMAIL, null)
-    fun getGoogleUpdated(): Long = prefs.getLong(KEY_GOOGLE_UPDATED, 0L)
+    fun getGoogleIdToken(): String? = safeRead(null) { prefs.getString(KEY_GOOGLE_ID_TOKEN, null) }
+    fun isGoogleConnected(): Boolean = safeRead(false) { prefs.getBoolean(KEY_GOOGLE_CONNECTED, false) }
+    fun getGoogleEmail(): String? = safeRead(null) { prefs.getString(KEY_GOOGLE_EMAIL, null) }
+    fun getGoogleUpdated(): Long = safeRead(0L) { prefs.getLong(KEY_GOOGLE_UPDATED, 0L) }
 
     /** Persist only the granted scope names per Google product surface, never short-lived bearer tokens. */
     fun saveGoogleSurfaceScopes(surfaceId: String, scopes: Set<String>): Boolean {
@@ -179,9 +190,11 @@ class SecureStorage(context: Context) {
     }
 
     fun getGoogleSurfaceScopes(surfaceId: String): Set<String> =
-        if (surfaceId.isBlank()) emptySet() else prefs.getStringSet(googleSurfaceScopesKey(surfaceId), emptySet()).orEmpty().toSet()
+        if (surfaceId.isBlank()) emptySet() else safeRead(emptySet<String>()) {
+            prefs.getStringSet(googleSurfaceScopesKey(surfaceId), emptySet()).orEmpty().toSet()
+        }
 
-    fun getGoogleSurfaceGrants(): Map<String, Set<String>> = prefs.all.keys
+    fun getGoogleSurfaceGrants(): Map<String, Set<String>> = safeRead(emptySet<String>()) { prefs.all.keys }
         .filter { it.startsWith(KEY_GOOGLE_SURFACE_SCOPES_PREFIX) }
         .mapNotNull { key ->
             val surfaceId = key.removePrefix(KEY_GOOGLE_SURFACE_SCOPES_PREFIX).takeIf(String::isNotBlank)
@@ -209,7 +222,7 @@ class SecureStorage(context: Context) {
         prefs.edit().safePutString(llmKeyPrefName(provider), key).apply()
 
     fun getLlmKey(provider: String): String? =
-        prefs.getString(llmKeyPrefName(provider), null)
+        safeRead(null) { prefs.getString(llmKeyPrefName(provider), null) }
 
     fun clearLlmKey(provider: String) =
         prefs.edit().remove(llmKeyPrefName(provider)).apply()
@@ -222,7 +235,7 @@ class SecureStorage(context: Context) {
     fun saveDeviceFingerprint(fp: String) =
         prefs.edit().safePutString(KEY_DEVICE_FP, fp).apply()
 
-    fun getDeviceFingerprint(): String? = prefs.getString(KEY_DEVICE_FP, null)
+    fun getDeviceFingerprint(): String? = safeRead(null) { prefs.getString(KEY_DEVICE_FP, null) }
 
     fun clearDeviceFingerprint() =
         prefs.edit().remove(KEY_DEVICE_FP).apply()
@@ -230,7 +243,7 @@ class SecureStorage(context: Context) {
     fun saveInstallUuid(uuid: String) =
         prefs.edit().safePutString(KEY_INSTALL_UUID, uuid).apply()
 
-    fun getInstallUuid(): String? = prefs.getString(KEY_INSTALL_UUID, null)
+    fun getInstallUuid(): String? = safeRead(null) { prefs.getString(KEY_INSTALL_UUID, null) }
 
     // ─── Generic integration token store (Notion + future integrations) ─
 
@@ -248,7 +261,7 @@ class SecureStorage(context: Context) {
      * Retrieve the stored token for the given integration, or null if not set.
      */
     fun getIntegrationToken(integrationId: String): String? =
-        prefs.getString(integrationTokenKey(integrationId), null)
+        safeRead(null) { prefs.getString(integrationTokenKey(integrationId), null) }
 
     /**
      * Clear the stored token for the given integration (disconnect).

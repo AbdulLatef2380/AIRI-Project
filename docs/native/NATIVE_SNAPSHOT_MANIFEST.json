@@ -2,7 +2,7 @@
   "schema": 1,
   "generated_by": "tools/native_snapshot_manifest.py",
   "repository": "https://github.com/AbdulLatef2380/AIRI-Project.git",
-  "commit": "567798f29362cd760f7ab733f184f00a80e9912e",
+  "commit": "5e3c51c89333912e45eab0f0d57b7897f9096a53",
   "native_tree_sha256": "40aa7d5d854c64b7f278df35e961a0fde40cd291e7fd316d79f51c2a1f62d120",
   "native_file_count": 276,
   "toolchain": {

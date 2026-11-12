@@ -372,7 +372,7 @@ private fun TrustScoreTab(skill: CommunitySkill?, hub: CommunitySkillHub) {
                         Text(skill.name, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = AiriTheme.onBackground)
                         Text(breakdown.tier.description, fontSize = 13.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 18.sp)
                         Spacer(Modifier.height(4.dp))
-                        Text("${breakdown.tier.emoji} " + stringResource(R.string.community_tier, breakdown.tier.label)), fontWeight = FontWeight.SemiBold, color = tierColor(breakdown.tier))
+                        Text("${breakdown.tier.emoji} " + stringResource(R.string.community_tier, breakdown.tier.label), fontWeight = FontWeight.SemiBold, color = tierColor(breakdown.tier))
                     }
                     Spacer(Modifier.width(16.dp))
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {

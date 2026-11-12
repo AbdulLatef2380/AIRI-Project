@@ -71,7 +71,10 @@ def main() -> int:
         "schema": 1,
         "generated_by": "tools/native_snapshot_manifest.py",
         "repository": git_value(root, "remote", "get-url", "origin"),
-        "commit": git_value(root, "rev-parse", "HEAD"),
+        # Use the last commit that changed the native snapshot, not repository
+        # HEAD. Otherwise a docs/test-only commit makes the committed manifest
+        # self-referential and fail its own CI comparison.
+        "commit": git_value(root, "log", "-1", "--format=%H", "--", *[p.as_posix() for p in NATIVE_ROOTS]),
         "native_tree_sha256": tree.hexdigest(),
         "native_file_count": len(entries),
         "toolchain": config,

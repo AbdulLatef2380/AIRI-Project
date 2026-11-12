@@ -251,16 +251,16 @@ dependencies {
     implementation(libs.androidx.core.ktx)
 
     // Testing
-    testImplementation("junit:junit:4.13.2")
+    testImplementation(libs.junit)
     // Android framework org.json methods are stubs in local JVM tests.
     // Use the JVM implementation so manifest round-trip tests execute real JSON.
-    testImplementation("org.json:json:20240303")
+    testImplementation(libs.json.jvm)
     // AndroidX Test 1.7.x is the stable line for current Android releases,
     // including API 35. The older 1.5.x runner crashed before discovering
     // instrumentation tests on the API 35 emulator.
-    androidTestImplementation("androidx.test.ext:junit:1.3.0")
-    androidTestImplementation("androidx.test:core:1.7.0")
-    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation("androidx.room:room-testing:${libs.versions.room.get()}")
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
@@ -268,7 +268,7 @@ dependencies {
 
     // Compose
     implementation(platform(libs.androidx.compose.bom))
-    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
@@ -280,9 +280,8 @@ dependencies {
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)
     // lifecycle-runtime-compose provides LocalLifecycleOwner for Compose DisposableEffect.
-    // Declared as a literal coordinate (not via version catalog) so that PR branches
-    // with older libs.versions.toml that predate the catalog entry do not break.
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    // Declared in the version catalog so the lifecycle version is centrally pinned.
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
@@ -301,7 +300,7 @@ dependencies {
     // Crashlytics auto-collection is DISABLED via manifest meta-data
     // (firebase_crashlytics_collection_enabled = false) and enabled at runtime
     // only after the user grants telemetry consent in OnboardingScreen.
-    implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
+    implementation(platform(libs.firebase.bom))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-analytics")
@@ -313,34 +312,34 @@ dependencies {
 
     // Play Integrity API — verifies APK authenticity and device integrity.
     // Used by PlayIntegrityVerifier.kt at startup + before high-trust actions.
-    implementation("com.google.android.play:integrity:1.3.0")
+    implementation(libs.play.integrity)
 
     // Coroutines bridge for Firebase/Play-Services Tasks (.await() extension)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+    implementation(libs.kotlinx.coroutines.play.services)
 
     // Biometric auth (BiometricPrompt)
-    implementation("androidx.biometric:biometric:1.1.0")
+    implementation(libs.androidx.biometric)
 
     // Google Identity: Credential Manager authenticates the app identity;
     // AuthorizationClient remains separate for per-surface Workspace consent.
-    implementation("com.google.android.gms:play-services-auth:20.7.0")
-    implementation("androidx.credentials:credentials:1.3.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    implementation(libs.play.services.auth)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
 
     // On-device Latin OCR for PDF/image attachments; no network call is required.
-    implementation("com.google.mlkit:text-recognition:16.0.0")
+    implementation(libs.mlkit.text.recognition)
     // Arabic OCR fallback; language data is bundled under assets/tessdata.
-    implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
+    implementation(libs.tesseract4android)
 
     // Secure Storage (EncryptedSharedPreferences)
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation(libs.androidx.security.crypto)
 
     // WorkManager (background agent)
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Google Play Billing
-    implementation("com.android.billingclient:billing-ktx:6.2.1")
+    implementation(libs.billing)
 
     // ── Voice (fully offline, no Google APIs) ────────────────────────────
     // Vosk = on-device speech-to-text (Apache 2.0). Models are NOT shipped
@@ -359,7 +358,7 @@ dependencies {
 
     // Accompanist permissions — runtime permission helpers for Compose (OnboardingScreen).
     // Version 0.32.0 is compatible with Compose BOM 2023.10.01 (Compose 1.5.x).
-    implementation("com.google.accompanist:accompanist-permissions:0.32.0")
+    implementation(libs.accompanist.permissions)
 
     // Picovoice Porcupine = on-device wake-word ("Hey AIRI"). Requires
     // (a) a Picovoice AccessKey supplied via PICOVOICE_ACCESS_KEY (gradle
@@ -378,8 +377,8 @@ dependencies {
     // app/src/main/assets/voice/hey_airi.tflite by OpenWakeWordEngine.kt.
     // When the asset is absent the engine returns ready=false and the
     // existing Porcupine path is used as a fallback. See HotwordService.kt.
-    implementation("org.tensorflow:tensorflow-lite:2.14.0")
-    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
+    implementation(libs.tensorflow.lite)
+    implementation(libs.tensorflow.lite.support)
 }
 
 // Performance verification belongs in device benchmarks and CI test reports.

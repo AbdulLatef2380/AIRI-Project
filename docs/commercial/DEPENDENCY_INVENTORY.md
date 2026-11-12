@@ -11,10 +11,13 @@
 | `androidx.biometric:biometric` | `1.1.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.compose.material3:material3` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.compose.material:material-icons-extended` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `androidx.compose.ui:ui-test-junit4` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.compose.ui:ui-text-google-fonts` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.compose.ui:ui-tooling-preview` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.compose.ui:ui` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.core:core-ktx` | `1.12.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `androidx.credentials:credentials-play-services-auth` | `1.3.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `androidx.credentials:credentials` | `1.3.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.lifecycle:lifecycle-runtime-compose` | `2.7.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.lifecycle:lifecycle-runtime-ktx` | `2.7.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.lifecycle:lifecycle-viewmodel-compose` | `2.7.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
@@ -25,27 +28,30 @@
 | `androidx.room:room-runtime` | `2.8.4` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.room:room-testing` | `${libs.versions.room.get()}` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.security:security-crypto` | `1.1.0-alpha06` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
-| `androidx.test.ext:junit` | `1.1.5` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
-| `androidx.test:core` | `1.5.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
-| `androidx.test:runner` | `1.5.2` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `androidx.test.ext:junit` | `1.3.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `androidx.test:core` | `1.7.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `androidx.test:runner` | `1.7.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `androidx.work:work-runtime-ktx` | `2.9.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `com.alphacephei:vosk-android` | `0.3.47` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `com.android.billingclient:billing-ktx` | `6.2.1` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `com.google.accompanist:accompanist-permissions` | `0.32.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `com.google.android.gms:play-services-auth` | `20.7.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `com.google.android.libraries.identity.googleid:googleid` | `1.1.1` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `com.google.android.play:integrity` | `1.3.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `com.google.code.gson:gson` | `2.10.1` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `com.google.firebase:firebase-analytics` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `com.google.firebase:firebase-auth` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
-| `com.google.firebase:firebase-bom` | `32.8.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `com.google.firebase:firebase-crashlytics` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `com.google.firebase:firebase-crashlytics-ndk` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `com.google.firebase:firebase-firestore` | `BOM-managed` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `com.google.mlkit:text-recognition` | `16.0.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `com.squareup.okhttp3:okhttp` | `4.12.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `cz.adaptech.tesseract4android:tesseract4android` | `4.9.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `io.coil-kt:coil-compose` | `2.6.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `junit:junit` | `4.13.2` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `org.jetbrains.kotlinx:kotlinx-coroutines-android` | `1.7.3` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `org.jetbrains.kotlinx:kotlinx-coroutines-play-services` | `1.7.3` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
+| `org.json:json` | `20240303` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `org.tensorflow:tensorflow-lite-support` | `0.4.4` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 | `org.tensorflow:tensorflow-lite` | `2.14.0` | Declared Gradle dependency | Review upstream license, notices and redistribution terms before distribution |
 
@@ -55,7 +61,6 @@
 |---|---|---|
 | llama.cpp via JNI/CMake | Native/runtime component | Confirm source, license notice, model or access-key terms before redistribution |
 | Picovoice Porcupine runtime | Native/runtime component | Confirm source, license notice, model or access-key terms before redistribution |
-| TensorFlow Lite runtime | Native/runtime component | Confirm source, license notice, model or access-key terms before redistribution |
 
 ## Reproduction
 

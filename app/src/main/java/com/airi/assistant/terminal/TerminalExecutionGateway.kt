@@ -3,6 +3,7 @@ package com.airi.assistant.terminal
 import com.airi.assistant.agent.sandbox.SandboxExecutor
 import com.airi.assistant.agent.sandbox.SandboxManager
 import com.airi.assistant.agent.sandbox.SandboxSession
+import com.airi.assistant.agent.sandbox.ShellExecutionPermit
 import com.airi.assistant.domain.terminal.TerminalExecutionPolicy
 import com.airi.assistant.security.CommandRedactor
 import com.airi.assistant.security.PermissionGovernanceLayer
@@ -30,15 +31,18 @@ class TerminalExecutionGateway(
     fun closeSession(id: String) = sandboxManager.closeSession(id)
 
     /** Execute one agent request in a task-owned ephemeral workspace. */
-    suspend fun executeForAgent(command: String, agentId: String, seedFilesFrom: java.io.File? = null): Result {
-        val session = createSession("agent:$agentId")
+    suspend fun executeForAgent(request: TerminalExecutionRequest, seedFilesFrom: java.io.File? = null): Result {
+        if (!request.isStructurallyValid()) {
+            return Result.Denied("Terminal request has incomplete or invalid execution correlation")
+        }
+        val session = createSession("agent:${request.context.agentId}:${request.context.taskId}")
             ?: return Result.Denied("Could not allocate an agent workspace")
         return try {
             // Report د-2: files saved by write_file live in another folder. The task workspace gets
             // a bounded COPY of them, so `cat`/`grep` can read what the agent wrote. The copy is
             // thrown away with the workspace; the originals are never exposed to the command.
             seedFilesFrom?.let { copySeedFiles(it, session.workspaceDir) }
-            execute(session, command, agentId)
+            execute(session, request)
         } finally {
             closeSession(session.sessionId)
         }
@@ -62,9 +66,11 @@ class TerminalExecutionGateway(
 
     suspend fun execute(
         session: SandboxSession,
-        command: String,
-        agentId: String = "terminal"
+        request: TerminalExecutionRequest
     ): Result {
+        if (!request.isStructurallyValid()) {
+            return Result.Denied("Terminal request has incomplete or invalid execution correlation")
+        }
         if (!sandboxManager.ownsSession(session)) {
             return Result.Denied("Sandbox session is not owned by the active sandbox manager")
         }
@@ -72,18 +78,18 @@ class TerminalExecutionGateway(
             return Result.Denied("Sandbox session is unavailable")
         }
         try {
-            val policy = TerminalExecutionPolicy.evaluate(command)
+            val policy = TerminalExecutionPolicy.evaluate(request.command)
             if (!policy.allowed) return Result.Disabled(policy.reason, policy.requiresApproval)
 
             val decision = runCatching {
                 governance.evaluate(
                     actionType = "terminal_execute",
-                    actionDesc = CommandRedactor.redact(command),
-                    agentId = agentId,
+                    actionDesc = "${CommandRedactor.redact(request.command)} [${request.correlationLabel()}]",
+                    agentId = request.context.agentId,
                     // Governance receives only the redacted representation;
                     // the raw command remains inside the bounded executor and
                     // is never copied into audit/policy payloads.
-                    payload = CommandRedactor.redact(command)
+                    payload = "${CommandRedactor.redact(request.command)} [${request.correlationLabel()}]"
                 )
             }.getOrElse { return Result.Denied("Terminal governance failed closed") }
             if (!decision.allowed) return Result.Denied(decision.reason)
@@ -92,8 +98,9 @@ class TerminalExecutionGateway(
                 SandboxExecutor(session).execute(
                     SandboxExecutor.SandboxTask(
                         type = SandboxExecutor.TaskType.SHELL_COMMAND,
-                        command = command
-                    )
+                        command = request.command
+                    ),
+                    permit = ShellExecutionPermit.gateway()
                 )
             )
         } finally {

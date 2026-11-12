@@ -3,6 +3,7 @@ package com.airi.assistant.agent.coding
 import android.content.Context
 import com.airi.assistant.agent.sandbox.SandboxExecutor
 import com.airi.assistant.agent.sandbox.SandboxManager
+import com.airi.assistant.agent.sandbox.ShellExecutionPermit
 import com.airi.assistant.agent.subagent.SubAgentContext
 import com.airi.assistant.domain.execution.ExecutionOutcome
 import com.airi.assistant.domain.tool.ArgumentSpec
@@ -253,6 +254,7 @@ private class ProductionCodingToolHandler(
                     command = command,
                     timeoutMs = args["timeout_ms"]?.toLongOrNull() ?: 120_000L,
                 ),
+                permit = ShellExecutionPermit.authorizedTool(),
             )
             when (result) {
                 is SandboxExecutor.ExecutionResult.Success -> ToolHandlerResult.Success("exit_code=${result.exitCode} ${result.output.take(16_000)}")

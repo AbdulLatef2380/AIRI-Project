@@ -61,7 +61,15 @@ class SandboxExecutor(private val session: SandboxSession) {
         data class SecurityViolation(val reason: String) : ExecutionResult()
     }
 
-    suspend fun execute(task: SandboxTask): ExecutionResult = withContext(Dispatchers.IO) {
+    suspend fun execute(task: SandboxTask, permit: ShellExecutionPermit? = null): ExecutionResult = withContext(Dispatchers.IO) {
+        if (task.type == TaskType.SHELL_COMMAND) {
+            if (permit == null) {
+                return@withContext ExecutionResult.SecurityViolation(
+                    "SHELL_COMMAND requires a gateway or authorized tool execution permit"
+                )
+            }
+            return@withContext executeApprovedShell(task)
+        }
         if (task.timeoutMs <= 0L) return@withContext ExecutionResult.SecurityViolation("Timeout must be positive")
         session.appendLog(SandboxLogEntry(message = "EXEC ${task.type} → ${CommandRedactor.redact(task.command).take(80)}"))
         val result = withTimeoutOrNull(task.timeoutMs.coerceAtMost(MAX_TIMEOUT_MS)) {
@@ -76,6 +84,23 @@ class SandboxExecutor(private val session: SandboxSession) {
         session.appendLog(SandboxLogEntry(
             level = if (result is ExecutionResult.Success) "INFO" else "ERROR",
             // Never put command output in the activity log; it may contain user data.
+            message = "RESULT type=${result::class.simpleName}"
+        ))
+        result
+    }
+
+    /** Execute a shell task after the owning policy layer has issued a permit. */
+    internal suspend fun executeApprovedShell(task: SandboxTask): ExecutionResult = withContext(Dispatchers.IO) {
+        if (task.type != TaskType.SHELL_COMMAND) {
+            return@withContext ExecutionResult.SecurityViolation("Approved shell entry point requires SHELL_COMMAND")
+        }
+        if (task.timeoutMs <= 0L) return@withContext ExecutionResult.SecurityViolation("Timeout must be positive")
+        session.appendLog(SandboxLogEntry(message = "EXEC ${task.type} → ${CommandRedactor.redact(task.command).take(80)}"))
+        val result = withTimeoutOrNull(task.timeoutMs.coerceAtMost(MAX_TIMEOUT_MS)) {
+            executeShell(task)
+        } ?: ExecutionResult.Timeout
+        session.appendLog(SandboxLogEntry(
+            level = if (result is ExecutionResult.Success) "INFO" else "ERROR",
             message = "RESULT type=${result::class.simpleName}"
         ))
         result
@@ -315,5 +340,21 @@ class SandboxExecutor(private val session: SandboxSession) {
         private const val OUTPUT_LIMIT_BYTES = 256 * 1024  // 256 KiB
         private const val MAX_FILE_BYTES = 256 * 1024
         private const val MAX_TIMEOUT_MS = 120_000L
+    }
+}
+
+/**
+ * Capability proving that a shell request already passed its owning policy
+ * layer. The constructor is private so callers cannot forge one from a raw
+ * command; only the gateway, the validated coding pipeline, and tests can
+ * obtain the internal factories.
+ */
+class ShellExecutionPermit private constructor(private val authority: Authority) {
+    private enum class Authority { GATEWAY, AUTHORIZED_TOOL, TEST }
+
+    internal companion object {
+        fun gateway(): ShellExecutionPermit = ShellExecutionPermit(Authority.GATEWAY)
+        fun authorizedTool(): ShellExecutionPermit = ShellExecutionPermit(Authority.AUTHORIZED_TOOL)
+        fun forTest(): ShellExecutionPermit = ShellExecutionPermit(Authority.TEST)
     }
 }

@@ -118,7 +118,8 @@ class SandboxExecutorSecurityTest {
                     type = SandboxExecutor.TaskType.SHELL_COMMAND,
                     command = "cat ${fifo.name}",
                     timeoutMs = 250L,
-                )
+                ),
+                permit = ShellExecutionPermit.forTest(),
             )
             val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L
 

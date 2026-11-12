@@ -23,6 +23,7 @@ import com.airi.assistant.domain.customskill.SkillType
 import com.airi.assistant.marketplace.GitHubSkillImporter
 import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.core.ExecutionTraceGateway
+import com.airi.assistant.agent.loop.AgentLoopExecutionContext
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.domain.tool.TypedArgumentContract
 import java.time.LocalDateTime
@@ -98,6 +99,7 @@ class ToolDispatcher(
         traceId: String? = null,
         sessionId: String? = null,
         messageId: String? = null,
+        durableExecutionContext: AgentLoopExecutionContext? = null,
     ): ToolResult {
         val schema = BuiltinTools.ALL.firstOrNull { it.name == toolName }
             ?: skillToolBridge?.asToolSchemas()?.firstOrNull { it.name == toolName }
@@ -390,9 +392,37 @@ class ToolDispatcher(
             "terminal_execute" -> {
                 val command = args["command"]?.trim().orEmpty()
                 if (command.isBlank()) return ToolResult.Error("Missing command", code = ToolErrorCodes.INVALID_ARGUMENT)
+                val execution = durableExecutionContext
+                    ?: return ToolResult.Error(
+                        "Terminal execution requires a durable task correlation context.",
+                        code = ToolErrorCodes.PERMISSION_DENIED,
+                    )
+                val terminalExecutionId = executionId?.takeIf { it.isNotBlank() }
+                    ?: return ToolResult.Error("Missing execution correlation", code = ToolErrorCodes.PERMISSION_DENIED)
+                val terminalActionId = actionId?.takeIf { it.isNotBlank() }
+                    ?: return ToolResult.Error("Missing action correlation", code = ToolErrorCodes.PERMISSION_DENIED)
+                val terminalTraceId = traceId?.takeIf { it.isNotBlank() }
+                    ?: return ToolResult.Error("Missing trace correlation", code = ToolErrorCodes.PERMISSION_DENIED)
+                val terminalSessionId = sessionId?.takeIf { it.isNotBlank() }
+                    ?: return ToolResult.Error("Missing session correlation", code = ToolErrorCodes.PERMISSION_DENIED)
+                if (execution.sourceSessionId != terminalSessionId) {
+                    return ToolResult.Error(
+                        "Terminal session correlation does not match the durable task owner.",
+                        code = ToolErrorCodes.PERMISSION_DENIED,
+                    )
+                }
+                val terminalMessageId = messageId?.takeIf { it.isNotBlank() }
+                    ?: return ToolResult.Error("Missing message correlation", code = ToolErrorCodes.PERMISSION_DENIED)
                 when (val result = com.airi.assistant.core.ServiceLocator.terminalExecutionGateway
                     .executeForAgent(
-                        command, agentId,
+                        request = com.airi.assistant.terminal.TerminalExecutionRequest(
+                            command = command,
+                            context = execution,
+                            executionId = terminalExecutionId,
+                            actionId = terminalActionId,
+                            traceId = terminalTraceId,
+                            messageId = terminalMessageId,
+                        ),
                         seedFilesFrom = java.io.File(context.filesDir, AgentFileWriter.DIRECTORY_NAME),
                     )) {
                     is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Disabled ->

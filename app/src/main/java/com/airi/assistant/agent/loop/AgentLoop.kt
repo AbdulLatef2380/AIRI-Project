@@ -1331,7 +1331,18 @@ the tool returns an actual error.
                         if (agentSandbox != null) {
                             agentSandbox.execute(agentId = SANDBOX_AGENT_ID, goalId = durableExecutionContext?.taskId.orEmpty()) { ctx ->
                                 ctx.guardTool(toolName)
-                                dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId, traceId = traceId, sessionId = sessionId, messageId = messageId)
+                                dispatcher.execute(
+                                    toolName,
+                                    toolArgs,
+                                    appContext,
+                                    executionId,
+                                    SANDBOX_AGENT_ID,
+                                    actionId = toolStepId,
+                                    traceId = traceId,
+                                    sessionId = sessionId,
+                                    messageId = messageId,
+                                    durableExecutionContext = durableExecutionContext,
+                                )
                             }
                         } else {
                             ToolDispatcher.ToolResult.Error(

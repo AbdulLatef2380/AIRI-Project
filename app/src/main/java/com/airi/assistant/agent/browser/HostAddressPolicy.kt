@@ -48,6 +48,14 @@ object HostAddressPolicy {
 
     fun isBlockedAddress(address: InetAddress): Boolean = isBlockedBytes(address.address)
 
+    /** Rejects an empty or mixed public/private DNS answer; never return only the public subset. */
+    fun validateResolvedAddresses(hostname: String, addresses: List<InetAddress>): List<InetAddress> {
+        if (isBlockedHost(hostname) || addresses.isEmpty() || addresses.any(::isBlockedAddress)) {
+            throw UnknownHostException("Blocked non-public address")
+        }
+        return addresses.toList()
+    }
+
     // ── IPv4 ────────────────────────────────────────────────────────────────
 
     /** A host whose last label is all digits or `0x...` is read as IPv4 by inet_aton-style parsers. */
@@ -166,10 +174,7 @@ object HostAddressPolicy {
         override fun lookup(hostname: String): List<InetAddress> {
             if (isBlockedHost(hostname)) throw UnknownHostException("Blocked non-public host")
             val addresses = Dns.SYSTEM.lookup(hostname)
-            if (addresses.isEmpty() || addresses.any { isBlockedAddress(it) }) {
-                throw UnknownHostException("Blocked non-public address")
-            }
-            return addresses
+            return validateResolvedAddresses(hostname, addresses)
         }
     }
 }

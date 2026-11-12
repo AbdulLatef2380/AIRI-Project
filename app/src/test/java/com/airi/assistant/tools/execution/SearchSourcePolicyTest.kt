@@ -32,4 +32,16 @@ class SearchSourcePolicyTest {
                 is SearchSourcePolicy.Decision.Blocked
         )
     }
+
+    @Test
+    fun blocksObfuscatedPrivateAndMetadataUrlsAndCredentials() {
+        listOf(
+            "https://2130706433/private", "https://0x7f000001/", "https://[::ffff:127.0.0.1]/",
+            "https://[fe80::1]/", "https://169.254.169.254/latest/meta-data/",
+            "https://metadata.google.internal/computeMetadata/v1/",
+            "https://user:password@example.com/private", "ftp://example.com/file",
+        ).forEach { url ->
+            assertTrue("expected blocked: $url", SearchSourcePolicy.evaluateRead(url) is SearchSourcePolicy.Decision.Blocked)
+        }
+    }
 }

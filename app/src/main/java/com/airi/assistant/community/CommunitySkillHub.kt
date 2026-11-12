@@ -3,6 +3,8 @@ package com.airi.assistant.community
 import android.content.Context
 import android.util.Log
 import com.airi.assistant.marketplace.MarketplaceSkill
+import com.airi.assistant.tools.execution.SearchSourcePolicy
+import com.airi.assistant.agent.browser.HostAddressPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +17,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.ByteArrayOutputStream
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -42,10 +45,14 @@ class CommunitySkillHub(private val context: Context) {
         private const val TAG        = "CommunitySkillHub"
         private const val PREFS_NAME = "airi_community_skills"
         private const val KEY_SKILLS = "community_skills_v1"
+        private const val MAX_MANIFEST_BYTES = 1_048_576L
     }
 
     private val prefs  = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val client = OkHttpClient.Builder()
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .dns(HostAddressPolicy.PublicOnlyDns)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
@@ -63,18 +70,27 @@ class CommunitySkillHub(private val context: Context) {
     suspend fun importFromUrl(url: String): ImportResult = withContext(Dispatchers.IO) {
         _isLoading.value = true
         try {
-            if (!url.startsWith("https://")) {
+            val allowedUrl = allowlistedHttpsUrl(url)
+            if (allowedUrl == null) {
                 return@withContext ImportResult.Error("URL must use HTTPS for security.")
             }
-            val request  = Request.Builder().url(url).get().build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext ImportResult.Error("Download failed: HTTP ${response.code}")
+            val request  = Request.Builder().url(allowedUrl).get().build()
+            client.newCall(request).execute().use { response ->
+                if (response.isRedirect) {
+                    return@withContext ImportResult.Error("Skill import redirects are not followed; use the final public HTTPS URL.")
+                }
+                if (!response.isSuccessful) {
+                    return@withContext ImportResult.Error("Download failed: HTTP ${response.code}")
+                }
+                if ((response.body?.contentLength() ?: -1L) > MAX_MANIFEST_BYTES) {
+                    return@withContext ImportResult.Error("Skill manifest exceeds the size limit.")
+                }
+                val json = readBoundedManifest(response.body)
+                    ?: return@withContext ImportResult.Error("Skill manifest is empty or exceeds the size limit.")
+                importFromJson(json, sourceUrl = allowedUrl)
             }
-            val json = response.body?.string() ?: return@withContext ImportResult.Error("Empty response")
-            importFromJson(json, sourceUrl = url)
         } catch (e: Exception) {
-            ImportResult.Error("Import failed: ${e.message}")
+            ImportResult.Error("Import failed; the source could not be fetched safely.")
         } finally {
             _isLoading.value = false
         }
@@ -82,6 +98,9 @@ class CommunitySkillHub(private val context: Context) {
 
     suspend fun importFromJson(jsonString: String, sourceUrl: String? = null): ImportResult = withContext(Dispatchers.IO) {
         try {
+            if (jsonString.toByteArray(Charsets.UTF_8).size > MAX_MANIFEST_BYTES) {
+                return@withContext ImportResult.Error("Skill manifest exceeds the size limit.")
+            }
             val json = runCatching { JSONObject(jsonString) }.getOrElse {
                 return@withContext ImportResult.Error("Invalid JSON: ${it.message}")
             }
@@ -105,7 +124,7 @@ class CommunitySkillHub(private val context: Context) {
                     isVerified  = false
                 ),
                 rawJson     = jsonString,
-                sourceUrl   = sourceUrl,
+                sourceUrl   = sanitizeSourceReference(sourceUrl),
                 importedAtMs = System.currentTimeMillis()
             )
             val updated = (_skills.value + skill).distinctBy { it.id }
@@ -120,7 +139,7 @@ class CommunitySkillHub(private val context: Context) {
     suspend fun importFromFile(file: File): ImportResult = withContext(Dispatchers.IO) {
         try {
             val content = file.readText(Charsets.UTF_8)
-            importFromJson(content, sourceUrl = file.absolutePath)
+            importFromJson(content, sourceUrl = null)
         } catch (e: Exception) {
             ImportResult.Error("File read error: ${e.message}")
         }
@@ -182,7 +201,8 @@ class CommunitySkillHub(private val context: Context) {
         if (endpoint.isBlank()) {
             return@withContext SandboxTestResult(true, "No endpoint — prompt-only skill, auto-passed.")
         }
-        if (!endpoint.startsWith("https://")) {
+        val allowedEndpoint = allowlistedHttpsUrl(endpoint)
+        if (allowedEndpoint == null) {
             return@withContext SandboxTestResult(false, "Endpoint must use HTTPS.")
         }
 
@@ -191,16 +211,19 @@ class CommunitySkillHub(private val context: Context) {
                 put("action",  "ping")
                 put("sandbox", true)
             }.toString().toRequestBody("application/json".toMediaType())
-            val request  = Request.Builder().url(endpoint).post(testPayload)
+            val request  = Request.Builder().url(allowedEndpoint).post(testPayload)
                 .header("X-AIRI-Sandbox", "true").build()
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) {
-                SandboxTestResult(true, "Endpoint responded with HTTP ${response.code} ")
-            } else {
-                SandboxTestResult(false, "Endpoint returned HTTP ${response.code} ${response.message}")
+            client.newCall(request).execute().use { response ->
+                if (response.isRedirect) {
+                    SandboxTestResult(false, "Endpoint redirects are not followed; configure the final public HTTPS endpoint.")
+                } else if (response.isSuccessful) {
+                    SandboxTestResult(true, "Endpoint responded with HTTP ${response.code} ")
+                } else {
+                    SandboxTestResult(false, "Endpoint returned HTTP ${response.code}")
+                }
             }
         } catch (e: Exception) {
-            SandboxTestResult(false, "Endpoint unreachable: ${e.message}")
+            SandboxTestResult(false, "Endpoint could not be reached safely.")
         }
     }
 
@@ -221,6 +244,39 @@ class CommunitySkillHub(private val context: Context) {
 
     private fun securityScan(jsonString: String): List<String> =
         SkillSecurityScanner.scan(jsonString)
+
+    private fun allowlistedHttpsUrl(raw: String): String? {
+        if (!raw.trim().startsWith("https://", ignoreCase = true)) return null
+        return (SearchSourcePolicy.evaluateRead(raw) as? SearchSourcePolicy.Decision.ReadAllowed)
+            ?.normalizedUrl
+    }
+
+    private fun sanitizeSourceReference(raw: String?): String? = runCatching {
+        val uri = raw?.let { java.net.URI(it) } ?: return null
+        if (uri.scheme?.lowercase() !in setOf("http", "https") || uri.host.isNullOrBlank()) return null
+        val scheme = uri.scheme.lowercase()
+        val defaultPort = if (scheme == "https") 443 else 80
+        val port = uri.port.takeIf { it >= 0 && it != defaultPort }
+            ?.let { ":$it" }.orEmpty()
+        "$scheme://${uri.host}$port"
+    }.getOrNull()
+
+    private fun readBoundedManifest(body: okhttp3.ResponseBody?): String? {
+        body ?: return null
+        if (body.contentLength() > MAX_MANIFEST_BYTES) return null
+        val output = ByteArrayOutputStream()
+        body.byteStream().use { input ->
+            val buffer = ByteArray(8_192)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                if (output.size().toLong() + count > MAX_MANIFEST_BYTES) return null
+                output.write(buffer, 0, count)
+            }
+        }
+        if (output.size() == 0) return null
+        return output.toByteArray().toString(Charsets.UTF_8)
+    }
 
     // ── Persistence ───────────────────────────────────────────────────────────
 
@@ -255,6 +311,7 @@ class CommunitySkillHub(private val context: Context) {
     )
 
     data class SandboxTestResult(val passed: Boolean, val message: String)
+
 }
 
 /**

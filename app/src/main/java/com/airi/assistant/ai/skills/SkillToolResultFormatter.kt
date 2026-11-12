@@ -1,14 +1,12 @@
 package com.airi.assistant.ai.skills
 
+import com.airi.assistant.security.UntrustedContentEnvelope
+
 /** Formats a bounded, explicit skill-result envelope for the agent conversation. */
 object SkillToolResultFormatter {
     private const val MAX_TOTAL_CHARS = 12_000
     private const val MAX_FIELD_CHARS = 4_000
-    private val secretKey = Regex("(?i)(token|secret|password|authorization|api[_-]?key|webhook|credential)")
-    private val bearerSecret = Regex("(?i)\\bBearer\\s+[^\\s,;]+")
-    private val secretAssignment = Regex(
-        "(?i)([\\\"']?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|authorization|webhook[_-]?key|credential)[\\\"']?\\s*[:=]\\s*[\\\"']?)[^\\\"'\\s,;}{]+"
-    )
+    private val secretKey = Regex("(?i)(token|secret|password|authorization|api(?:[_-]|\\s)?key|webhook|credential)")
     private val iftttWebhookSecret = Regex("(?i)(https?://maker\\.ifttt\\.com/trigger/[^/\\s\\\"<>]+/with/key/)[^/?#\\s\\\"<>]+")
 
     fun format(result: SkillResult): String = buildString {
@@ -36,10 +34,7 @@ object SkillToolResultFormatter {
         result.executionMs.takeIf { it > 0 }?.let { appendLine("execution_ms=$it") }
     }.take(MAX_TOTAL_CHARS)
 
-    private fun safe(value: String): String = value
-        .replace("\u0000", "")
-        .replace(bearerSecret) { "Bearer [REDACTED]" }
-        .replace(secretAssignment) { "${it.groupValues[1]}[REDACTED]" }
+    private fun safe(value: String): String = UntrustedContentEnvelope.redactSensitiveValues(value)
         .replace(iftttWebhookSecret) { "${it.groupValues[1]}[REDACTED]" }
         .take(MAX_FIELD_CHARS)
 }

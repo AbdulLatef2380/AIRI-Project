@@ -9,6 +9,7 @@ import com.airi.assistant.ai.skills.SkillResult
 import com.airi.assistant.ai.skills.SkillToolDefinition
 import com.airi.assistant.ai.skills.SkillParamDef
 import com.airi.assistant.tools.execution.SearchTool
+import com.airi.assistant.security.UntrustedContentEnvelope
 
 class WebsiteReaderSkill(private val context: Context) : AiriSkill {
 
@@ -65,6 +66,7 @@ class WebsiteReaderSkill(private val context: Context) : AiriSkill {
         }
 
         val maxChars = (params["maxChars"] as? String)?.toIntOrNull() ?: 4000
+        val sourceHost = runCatching { java.net.URI(url).host?.take(253) }.getOrNull() ?: "external page"
         val tool = SearchTool(context)
 
         return try {
@@ -72,27 +74,27 @@ class WebsiteReaderSkill(private val context: Context) : AiriSkill {
             if (jina.success && jina.content.isNotBlank()) {
                 SkillResult(
                     success     = true,
-                    data        = "Content from $url:\n\n${jina.content}",
+                    data        = UntrustedContentEnvelope.wrap("website-reader", "Source host: $sourceHost\n${jina.content}", maxChars),
                     skillName   = skillId,
                     executionMs = System.currentTimeMillis() - start,
-                    metadata    = mapOf("url" to url, "source" to "jina_reader", "chars" to "${jina.content.length}")
+                    metadata    = mapOf("source_host" to sourceHost, "source" to "jina_reader", "chars" to "${jina.content.length}")
                 )
             } else {
                 val direct = tool.fetchPageContent(url)
                 if (direct.success && direct.content.isNotBlank()) {
                     SkillResult(
                         success     = true,
-                        data        = "Content from $url:\n\n${direct.content.take(maxChars)}",
+                        data        = UntrustedContentEnvelope.wrap("website-reader", "Source host: $sourceHost\n${direct.content.take(maxChars)}", maxChars),
                         skillName   = skillId,
                         executionMs = System.currentTimeMillis() - start,
-                        metadata    = mapOf("url" to url, "source" to "direct_fetch")
+                        metadata    = mapOf("source_host" to sourceHost, "source" to "direct_fetch")
                     )
                 } else {
-                    SkillResult(false, "", "Could not fetch content from: $url", skillId)
+                    SkillResult(false, "", "Could not fetch content from the requested URL.", skillId)
                 }
             }
         } catch (e: Exception) {
-            SkillResult(false, "", "Failed to read website: ${e.message}", skillId)
+            SkillResult(false, "", "Failed to read website safely.", skillId)
         }
     }
 

@@ -4,6 +4,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.net.InetAddress
+import java.net.UnknownHostException
 
 /** Report 3, S6: numeric IPv4 spellings, IPv6 ranges and reserved blocks. */
 class HostAddressPolicyTest {
@@ -51,5 +52,27 @@ class HostAddressPolicyTest {
         assertTrue(HostAddressPolicy.isBlockedAddress(InetAddress.getByName("::1")))
         assertTrue(HostAddressPolicy.isBlockedAddress(InetAddress.getByName("fd00::1")))
         assertFalse(HostAddressPolicy.isBlockedAddress(InetAddress.getByName("8.8.8.8")))
+    }
+
+    @Test
+    fun rejectsMixedPublicAndPrivateDnsAnswersInsteadOfSelectingThePublicAddress() {
+        val public = InetAddress.getByName("8.8.8.8")
+        val private = InetAddress.getByName("169.254.169.254")
+
+        try {
+            HostAddressPolicy.validateResolvedAddresses("attacker.example", listOf(public, private))
+            throw AssertionError("mixed DNS answer must fail closed")
+        } catch (_: UnknownHostException) {
+            // Expected: a single private answer blocks the whole host resolution.
+        }
+        assertTrue(HostAddressPolicy.validateResolvedAddresses("attacker.example", listOf(public)).single() == public)
+    }
+
+    @Test
+    fun rejectsNumericAndObfuscatedMetadataTargets() {
+        listOf(
+            "169.254.169.254", "2852039166", "0xa9fea9fe", "0251.0376.0251.0376",
+            "[fe80::a9fe:a9fe]", "metadata.google.internal", "metadata.azure.internal",
+        ).forEach { assertTrue("expected SSRF target blocked: $it", blocked(it)) }
     }
 }

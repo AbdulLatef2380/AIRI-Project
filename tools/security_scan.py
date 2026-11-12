@@ -14,6 +14,16 @@ SOURCE_ROOT = ROOT / "app/src/main"
 MANIFEST = SOURCE_ROOT / "AndroidManifest.xml"
 VIEW_MODEL = SOURCE_ROOT / "java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt"
 ATTACHMENT_POLICY = ROOT / "core-domain/src/commonMain/kotlin/com/airi/core/attachments/AttachmentPolicy.kt"
+UNTRUSTED_ENVELOPE = SOURCE_ROOT / "java/com/airi/assistant/security/UntrustedContentEnvelope.kt"
+PROMPT_SERVICE = SOURCE_ROOT / "java/com/airi/assistant/domain/prompt/PromptService.kt"
+COMMUNITY_SKILLS = SOURCE_ROOT / "java/com/airi/assistant/community/CommunitySkillHub.kt"
+CUSTOM_SKILL_EXECUTOR = SOURCE_ROOT / "java/com/airi/assistant/domain/customskill/CustomSkillExecutor.kt"
+CUSTOM_SKILL_SECURITY = SOURCE_ROOT / "java/com/airi/assistant/domain/customskill/CustomSkillSecurity.kt"
+SANDBOX_EXECUTOR = SOURCE_ROOT / "java/com/airi/assistant/agent/sandbox/SandboxExecutor.kt"
+SANDBOX_ISOLATION = SOURCE_ROOT / "java/com/airi/assistant/agent/sandbox/SandboxIsolationPolicy.kt"
+DOCUMENT_AGENT = SOURCE_ROOT / "java/com/airi/assistant/agent/subagent/impl/DocumentProcessorAgent.kt"
+WEBSITE_READER = SOURCE_ROOT / "java/com/airi/assistant/ai/skills/impl/WebsiteReaderSkill.kt"
+SKILL_RESULT_FORMATTER = SOURCE_ROOT / "java/com/airi/assistant/ai/skills/SkillToolResultFormatter.kt"
 ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
 
 HIGH_CONFIDENCE_SECRET_PATTERNS = {
@@ -99,6 +109,16 @@ def firebase_client_config_check() -> tuple[str, bool, str]:
 def source_checks() -> list[tuple[str, bool, str]]:
     view_model = VIEW_MODEL.read_text(encoding="utf-8")
     policy = ATTACHMENT_POLICY.read_text(encoding="utf-8")
+    envelope = UNTRUSTED_ENVELOPE.read_text(encoding="utf-8")
+    prompt = PROMPT_SERVICE.read_text(encoding="utf-8")
+    community = COMMUNITY_SKILLS.read_text(encoding="utf-8")
+    custom_skill = CUSTOM_SKILL_EXECUTOR.read_text(encoding="utf-8")
+    custom_skill_security = CUSTOM_SKILL_SECURITY.read_text(encoding="utf-8")
+    sandbox = SANDBOX_EXECUTOR.read_text(encoding="utf-8")
+    isolation = SANDBOX_ISOLATION.read_text(encoding="utf-8")
+    document = DOCUMENT_AGENT.read_text(encoding="utf-8")
+    website_reader = WEBSITE_READER.read_text(encoding="utf-8")
+    skill_formatter = SKILL_RESULT_FORMATTER.read_text(encoding="utf-8")
     return [
         (
             "Private attachment persistence",
@@ -119,6 +139,46 @@ def source_checks() -> list[tuple[str, bool, str]]:
             "No source URI persistence",
             "source URIs and absolute paths" in view_model and "attachmentMetadataJson" in view_model,
             "message metadata stores generated local names rather than picker URIs",
+        ),
+        (
+            "Untrusted content is structurally encoded and bounded",
+            "MAX_CONTENT_CHARS" in envelope and '"content"' in envelope and "redactCredentials" in envelope,
+            "external/document/RAG text uses bounded JSON encoding with credential redaction",
+        ),
+        (
+            "Prompt injection has no policy authority",
+            "SECURITY BOUNDARY — NON-TRUSTED CONTENT" in prompt and "bypass approval" in prompt and "runtime permission" in prompt,
+            "system prompt explicitly rejects authority-bearing instructions from untrusted data",
+        ),
+        (
+            "Community skill fetches are public-host and redirect guarded",
+            ".followRedirects(false)" in community and ".followSslRedirects(false)" in community and "HostAddressPolicy.PublicOnlyDns" in community and "SearchSourcePolicy.evaluateRead" in community and "sourceUrl   = sanitizeSourceReference(sourceUrl)" in community and "sourceUrl = file.absolutePath" not in community,
+            "skill imports and ping requests deny redirects, resolve only public hosts, and persist only sanitized source provenance",
+        ),
+        (
+            "Custom skill requests refuse redirects and recheck resolved hosts",
+            ".followRedirects(false)" in custom_skill and ".followSslRedirects(false)" in custom_skill and "HostAddressPolicy.PublicOnlyDns" in custom_skill and "queryNames.none(::isSensitiveName)" in custom_skill_security and "uri.userInfo == null" in custom_skill_security,
+            "dynamic endpoints reject credential query names and URL user-info, cannot follow redirects, and resolve only public addresses",
+        ),
+        (
+            "Policy-only terminal is blocked in release builds",
+            "SandboxIsolationPolicy.mayExecuteShell(BuildConfig.DEBUG)" in sandbox and "OS_SANDBOX_AVAILABLE: Boolean = false" in isolation,
+            "release shell remains disabled until OS-level isolation is implemented",
+        ),
+        (
+            "Document extraction uses untrusted-content envelope",
+            "UntrustedContentEnvelope.wrap(\"user-attachment\"" in document,
+            "extracted PDF/text content is separated from instructions before synthesis",
+        ),
+        (
+            "Website results omit raw URL credentials",
+            '"source_host" to sourceHost' in website_reader and '"url" to url' not in website_reader and "Could not fetch content from the requested URL" in website_reader,
+            "website result metadata retains only the host and suppresses raw error/URL values",
+        ),
+        (
+            "All skill-result fields share credential redaction",
+            "UntrustedContentEnvelope.redactSensitiveValues(value)" in skill_formatter,
+            "data, errors, metadata, and nested tool outputs use the central credential redactor",
         ),
     ]
 

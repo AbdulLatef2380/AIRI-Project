@@ -27,6 +27,11 @@ import java.util.concurrent.TimeUnit
 class CustomSkillExecutor(private val context: Context) {
 
     private val client = OkHttpClient.Builder()
+        // A custom skill endpoint is user-installed and untrusted. Refuse all
+        // redirects rather than forwarding its configured headers/body to a new
+        // host or relying on a redirect's DNS resolution as an authorization.
+        .followRedirects(false)
+        .followSslRedirects(false)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
@@ -121,7 +126,7 @@ class CustomSkillExecutor(private val context: Context) {
         val result = executionSemaphore.withPermit {
             try {
                 withTimeout(EXECUTION_TIMEOUT_MS) {
-                    executeWithRetry(skill, method, requestBody, sanitizedUrl)
+                    executeWithRetry(skill, method, requestBody)
                 }
             } catch (e: TimeoutCancellationException) {
                 SkillCircuitBreaker.recordFailure(skill.id)
@@ -148,8 +153,7 @@ class CustomSkillExecutor(private val context: Context) {
     private suspend fun executeWithRetry(
         skill: CustomSkill,
         method: String,
-        requestBody: okhttp3.RequestBody?,
-        sanitizedUrl: String
+        requestBody: okhttp3.RequestBody?
     ): SkillResult {
         val maxAttempts = 3
         var lastNetworkError: Exception? = null
@@ -204,6 +208,14 @@ class CustomSkillExecutor(private val context: Context) {
                         LoggingService.info(TAG, "Skill '${skill.name}' succeeded status=$code attempt=${attempt + 1}${if (wasTruncated) " [truncated]" else ""}")
                         LoggingService.debug(TAG, "Normalized response: ${output.toJsonString().take(500)}")
                         return SkillResult(true, output.toJsonString(), null, skill.name)
+                    }
+
+                    // Redirects are disabled above. Never retry a side-effecting
+                    // request merely because its endpoint asked us to follow a hop.
+                    if (code in 300..399) {
+                        SkillCircuitBreaker.recordFailure(skill.id)
+                        AnalyticsService.skillFailed(skill.name, "redirect_blocked")
+                        return SkillResult(false, "", "Endpoint redirects are not followed.", skill.name)
                     }
 
                     // ── 4xx: client error — do not retry ─────────────────────

@@ -61,4 +61,24 @@ class SkillToolResultFormatterTest {
         assertFalse(text.contains("ifttt-secret"))
         assertTrue(text.contains("[REDACTED]"))
     }
+
+    @Test
+    fun redactsProviderKeysAndUrlQueryTokensAcrossResultFields() {
+        val providerKey = listOf("sk-proj-", "ABCDEFGHIJK123456789").joinToString("")
+        val text = SkillToolResultFormatter.format(
+            SkillResult(
+                success = true,
+                data = "provider response $providerKey",
+                metadata = mapOf(
+                    "source_url" to "https://example.com/?access_token=query_secret_value",
+                    "api key" to "metadata_only_secret_value",
+                ),
+                toolOutputs = listOf(SkillResult.ToolOutput("http", "password is natural_secret_value")),
+            )
+        )
+        assertFalse(text.contains(providerKey))
+        assertFalse(text.contains("query_secret_value"))
+        assertFalse(text.contains("natural_secret_value"))
+        assertFalse(text.contains("metadata_only_secret_value"))
+    }
 }

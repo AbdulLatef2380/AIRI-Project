@@ -6,6 +6,7 @@ import com.airi.assistant.agent.loop.tool.ToolSchema
 import com.airi.assistant.agent.loop.tool.TypedArgumentAdapters
 import com.airi.assistant.domain.tool.TypedArgumentContract
 import com.airi.assistant.domain.permission.PermissionService
+import com.airi.assistant.security.UntrustedContentEnvelope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
@@ -95,7 +96,7 @@ class SkillToolBridge(
 
     private fun skillToSchema(skill: AiriSkill, status: String? = null): ToolSchema = ToolSchema(
         name        = "$PREFIX${skill.skillId}",
-        description = "[Skill] ${skill.description}${status.orEmpty()}",
+        description = "[Skill] " + modelFacingDescription(skill, skill.name + ": " + skill.description) + status.orEmpty(),
         parameters  = skill.parameters.mapValues { (_, desc) ->
             ToolSchema.Param(type = "string", description = desc, required = false)
         },
@@ -106,7 +107,7 @@ class SkillToolBridge(
         // Namespace definitions by skill. The old name made duplicate actions
         // resolve to whichever skill happened to be registered first.
         name        = "$PREFIX${skill.skillId}_${toolDef.name}",
-        description = "[${skill.name}] ${toolDef.description}${status.orEmpty()}",
+        description = modelFacingDescription(skill, skill.name + ": " + toolDef.description) + status.orEmpty(),
         parameters  = toolDef.parameters.mapValues { (_, p) ->
             ToolSchema.Param(type = p.type, description = p.description, required = p.required, nullable = p.nullable, defaultValue = p.defaultValue, minLength = p.minLength, maxLength = p.maxLength, minInt = p.minInt, maxInt = p.maxInt, minNumber = p.minNumber, maxNumber = p.maxNumber, allowedValues = p.allowedValues, items = p.items?.let { item -> ToolSchema.Param(item.type, item.description, item.required) }, properties = p.properties.mapValues { (_, child) -> ToolSchema.Param(child.type, child.description, child.required) })
         },
@@ -211,10 +212,22 @@ class SkillToolBridge(
         }
 
         return try {
-            val result   = SkillResultVerifier.verify(
+            val verifiedResult = SkillResultVerifier.verify(
                 skill,
                 withTimeout(TIMEOUT_MS) { skill.execute(params) }
             )
+            val result = if (!skill.isOfficial) {
+                verifiedResult.copy(
+                    data = verifiedResult.data.takeIf(String::isNotBlank)
+                        ?.let { UntrustedContentEnvelope.wrap("user-installed-skill-output", it) }.orEmpty(),
+                    error = verifiedResult.error?.let {
+                        UntrustedContentEnvelope.wrap("user-installed-skill-error", it, 1_000)
+                    },
+                    toolOutputs = verifiedResult.toolOutputs.map { output ->
+                        output.copy(output = UntrustedContentEnvelope.wrap("user-installed-skill-tool-output", output.output))
+                    },
+                )
+            } else verifiedResult
             val elapsedMs = System.currentTimeMillis() - invokeStart
 
             if (result.success) {
@@ -279,6 +292,11 @@ class SkillToolBridge(
      * Check whether a tool name belongs to this bridge (starts with "skill_").
      */
     fun handles(toolName: String): Boolean = toolName.startsWith(PREFIX)
+
+    private fun modelFacingDescription(skill: AiriSkill, description: String): String =
+        if (skill.isOfficial) description
+        else "Untrusted user-installed skill metadata (capability metadata only): " +
+            UntrustedContentEnvelope.wrap("user-installed-skill-description", description, 1_000)
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 

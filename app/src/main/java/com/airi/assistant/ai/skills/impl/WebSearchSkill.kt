@@ -9,6 +9,7 @@ import com.airi.assistant.ai.skills.SkillResult
 import com.airi.assistant.ai.skills.SkillToolDefinition
 import com.airi.assistant.ai.skills.SkillParamDef
 import com.airi.assistant.tools.execution.SearchTool
+import com.airi.assistant.security.UntrustedContentEnvelope
 
 class WebSearchSkill(private val context: Context) : AiriSkill {
 
@@ -76,7 +77,7 @@ class WebSearchSkill(private val context: Context) : AiriSkill {
                 if (brave.success) {
                     return SkillResult(
                         success     = true,
-                        data        = brave.toAgentString(),
+                        data        = UntrustedContentEnvelope.wrap("web-search", brave.toAgentString()),
                         skillName   = skillId,
                         executionMs = System.currentTimeMillis() - start,
                         metadata    = mapOf("source" to "brave", "result_count" to "${brave.results.size}")
@@ -88,7 +89,7 @@ class WebSearchSkill(private val context: Context) : AiriSkill {
             if (ddg.success && ddg.summary.isNotBlank()) {
                 SkillResult(
                     success     = true,
-                    data        = ddg.summary,
+                    data        = UntrustedContentEnvelope.wrap("web-search", ddg.summary),
                     skillName   = skillId,
                     executionMs = System.currentTimeMillis() - start,
                     metadata    = mapOf("source" to "duckduckgo")

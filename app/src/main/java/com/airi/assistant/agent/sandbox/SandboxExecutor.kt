@@ -1,6 +1,7 @@
 package com.airi.assistant.agent.sandbox
 
 import android.util.Log
+import com.airi.assistant.BuildConfig
 import com.airi.assistant.security.CommandRedactor
 import com.airi.assistant.domain.terminal.TerminalExecutionPolicy
 import kotlinx.coroutines.CancellationException
@@ -68,6 +69,9 @@ class SandboxExecutor(private val session: SandboxSession) {
                     "SHELL_COMMAND requires a gateway or authorized tool execution permit"
                 )
             }
+            if (!SandboxIsolationPolicy.mayExecuteShell(BuildConfig.DEBUG)) {
+                return@withContext ExecutionResult.SecurityViolation(SandboxIsolationPolicy.RELEASE_BLOCK_REASON)
+            }
             return@withContext executeApprovedShell(task)
         }
         if (task.timeoutMs <= 0L) return@withContext ExecutionResult.SecurityViolation("Timeout must be positive")
@@ -91,6 +95,9 @@ class SandboxExecutor(private val session: SandboxSession) {
 
     /** Execute a shell task after the owning policy layer has issued a permit. */
     internal suspend fun executeApprovedShell(task: SandboxTask): ExecutionResult = withContext(Dispatchers.IO) {
+        if (!SandboxIsolationPolicy.mayExecuteShell(BuildConfig.DEBUG)) {
+            return@withContext ExecutionResult.SecurityViolation(SandboxIsolationPolicy.RELEASE_BLOCK_REASON)
+        }
         if (task.type != TaskType.SHELL_COMMAND) {
             return@withContext ExecutionResult.SecurityViolation("Approved shell entry point requires SHELL_COMMAND")
         }
@@ -237,7 +244,7 @@ class SandboxExecutor(private val session: SandboxSession) {
                             if (n > remaining) {
                                 if (remaining > 0) output.write(buf, 0, remaining)
                                 output.write("\n[output truncated at $OUTPUT_LIMIT_BYTES bytes]".toByteArray(Charsets.UTF_8))
-                                runCatching { proc.destroyForcibly() }
+                                ProcessTreeTerminator.terminate(proc)
                                 break
                             }
                             output.write(buf, 0, n)
@@ -258,7 +265,7 @@ class SandboxExecutor(private val session: SandboxSession) {
                     }
                 } finally {
                     // Runs on normal exit, exception, AND coroutine cancellation.
-                    runCatching { proc.destroyForcibly() }
+                    ProcessTreeTerminator.terminate(proc)
                 }
             }
         } catch (e: CancellationException) {

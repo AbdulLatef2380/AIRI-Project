@@ -70,8 +70,14 @@ class SandboxExecutorSecurityTest {
         val root = Files.createTempDirectory("airi-sandbox-").toFile()
         try {
             val executor = SandboxExecutor(SandboxSession("test", "test", root))
-            val traversal = executor.execute(SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "cat ../secret.txt"))
-            val destructive = executor.execute(SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "rm -rf ./output"))
+            val traversal = executor.execute(
+                SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "cat ../secret.txt"),
+                permit = ShellExecutionPermit.forTest(),
+            )
+            val destructive = executor.execute(
+                SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "rm -rf ./output"),
+                permit = ShellExecutionPermit.forTest(),
+            )
             assertTrue(traversal is SandboxExecutor.ExecutionResult.SecurityViolation)
             assertTrue(destructive is SandboxExecutor.ExecutionResult.SecurityViolation)
         } finally {
@@ -85,13 +91,16 @@ class SandboxExecutorSecurityTest {
         try {
             val executor = SandboxExecutor(SandboxSession("test", "test", root))
             val injection = executor.execute(
-                SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "echo safe; touch escaped")
+                SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "echo safe; touch escaped"),
+                permit = ShellExecutionPermit.forTest(),
             )
             val absoluteRead = executor.execute(
-                SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "cat /etc/passwd")
+                SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "cat /etc/passwd"),
+                permit = ShellExecutionPermit.forTest(),
             )
             val networkGit = executor.execute(
-                SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "git clone https://example.invalid/repo")
+                SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, "git clone https://example.invalid/repo"),
+                permit = ShellExecutionPermit.forTest(),
             )
             assertTrue(injection is SandboxExecutor.ExecutionResult.SecurityViolation)
             assertTrue(absoluteRead is SandboxExecutor.ExecutionResult.SecurityViolation)
@@ -141,6 +150,31 @@ class SandboxExecutorSecurityTest {
             session.endUse()
             session.release()
             assertTrue(!root.exists())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun grantedPermitDoesNotBypassArgumentAndTraversalPolicies() = runBlocking {
+        val root = Files.createTempDirectory("airi-sandbox-").toFile()
+        try {
+            val executor = SandboxExecutor(SandboxSession("test", "test", root))
+            val attacks = listOf(
+                "echo safe; touch escaped",
+                "cat ./../outside.txt",
+                "git status --work-tree=/tmp",
+                "find . -exec cat secret.txt",
+                "awk BEGIN{system(1)}",
+            )
+            attacks.forEach { command ->
+                val result = executor.execute(
+                    SandboxExecutor.SandboxTask(SandboxExecutor.TaskType.SHELL_COMMAND, command),
+                    permit = ShellExecutionPermit.forTest(),
+                )
+                assertTrue("expected security refusal: $command, got $result", result is SandboxExecutor.ExecutionResult.SecurityViolation)
+            }
+            assertTrue(!java.io.File(root, "escaped").exists())
         } finally {
             root.deleteRecursively()
         }

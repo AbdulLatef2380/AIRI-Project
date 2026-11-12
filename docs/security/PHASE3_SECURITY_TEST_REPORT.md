@@ -62,3 +62,7 @@ The exact Gradle invocation remains subject to the repository's Android SDK/CI e
 ## Release decision
 
 **Not releasable under the Phase 3 criteria at baseline.** The repository has meaningful fail-closed controls and deterministic tests, but the P0/P1 open findings and the missing Firebase/device evidence prevent a security closure claim.
+
+## Phase 3.4 follow-up
+
+The working-tree implementation and evidence limitations for prompt injection, SSRF, terminal policy, and process cleanup are tracked separately in [PHASE_3_4_REDTEAM_REPORT.md](PHASE_3_4_REDTEAM_REPORT.md). That follow-up is not a release closure: the Android SDK was unavailable for targeted Gradle tests, and model/provider, DNS-rebinding, Android process/FD, and OS-isolation evidence remains pending. The release shell block is enforced until OS-level isolation is supplied.

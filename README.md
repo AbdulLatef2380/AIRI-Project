@@ -84,6 +84,9 @@ python3 scripts/airi_core_health.py
 | [handoff النشر](docs/product/RELEASE_PUBLICATION_HANDOFF.md) | مسار التوقيع والجهاز والمزود والقانون والمتجر، دون ادعاء أنها مكتملة. |
 | [سجل التدقيق](docs/product/RELEASE_AUDIT_REGISTER.md) | أدلة build/privacy/runtime ونتيجة تحقيق هوية التوقيع. |
 | [جاهزية المرحلة 8](docs/product/AIRI_PHASE8_RELEASE_READINESS.md) | عقود حذف البيانات، التحديث/الرجوع، الأداء، ومصفوفة بوابات الجهاز. |
+| [Manifest lineage](docs/REPOSITORY_DOCUMENT_LINEAGE.md) | المسارات canonical، مصدر الوثيقة، آخر commit، hashes التكرار، وقرار الاحتفاظ. |
+| [فهرس التقارير](docs/REPORTS_INDEX.md) | فهرس مستقل لعشرة تقارير مع lineage ونتيجة الفحص أو النطاق. |
+| [مراجعة نظافة المرحلة 9](docs/audit/PHASE9_REPOSITORY_CLEANUP_REVIEW_2026-11-13.md) | قرارات الاحتفاظ للتكرارات وJAR/ZIP/BIN وملف pyc المتتبع. |
 | [التشغيل](docs/deployment/BUILD_AND_RELEASE.md) | إعادة إنتاج البنية والإصدارات وCI. |
 | [التجاري](docs/commercial/OVERVIEW.md) | تموضع المنتج، الترخيص، white-label، والعناية الواجبة. |
 

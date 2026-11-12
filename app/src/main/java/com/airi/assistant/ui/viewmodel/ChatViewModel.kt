@@ -914,6 +914,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val modelLifecycleCoordinator = ModelLifecycleCoordinator(
         onStart = { _modelState.value = modelController.createInitialModelState() },
+        onLoad = { model -> modelController.loadModel(model) },
+        onUnload = { ModelManager.unload() },
         onStop = { runtimeSupervisor.stop() },
     )
     private val attachmentDispatchCoordinator = AttachmentDispatchCoordinator()
@@ -1432,7 +1434,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         loadInitialSession()
         val savedModel = ModelRegistry.getById(_modelState.value.selectedModelId)
         if (savedModel != null && File(savedModel.path).exists()) {
-            modelController.loadModel(savedModel)
+            modelLifecycleCoordinator.loadModel(savedModel)
         }
         // Restore cloud readiness on startup — if a remote model was active
         // in the previous session, re-enable cloud inference immediately so
@@ -1603,7 +1605,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (event is com.airi.assistant.domain.event.AppEvent.LowMemoryPressure) {
                     if (event.severity == "CRITICAL") {
                         Log.w("AIRI_MEMORY", "Critical memory pressure: releasing native models")
-                        runCatching { llamaManager.unloadModel() }
+                        runCatching { modelLifecycleCoordinator.unloadModel() }
                             .onSuccess { Log.i("AIRI_MEMORY", "Inference model released under memory pressure") }
                             .onFailure { error ->
                                 Log.w("AIRI_MEMORY", "Inference release failed: ${error.javaClass.simpleName}")
@@ -5800,7 +5802,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         ModelRegistry.addModel(model)
                         persistRegistry()
                         refreshModelList()
-                        modelController.loadModel(model)
+                        modelLifecycleCoordinator.loadModel(model)
                     }
                     else -> {
                         file.delete()
@@ -5830,7 +5832,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun selectModel(modelId: String) {
         val model = ModelRegistry.getById(modelId) ?: return
         Log.i("AIRI", "MODEL_ACTIVATED name=${model.name} id=${model.id} type=${model.type.label} path=${model.path}")
-        modelController.loadModel(model)
+        modelLifecycleCoordinator.loadModel(model)
     }
 
     // ── Chat history import (mirror of export) ────────────────────────────────
@@ -5932,7 +5934,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         ModelRegistry.addModel(model)
         persistRegistry()
         refreshModelList()
-        modelController.loadModel(model)
+        modelLifecycleCoordinator.loadModel(model)
     }
 
     private var activeCatalogDownloadFileName: String? = null
@@ -6004,7 +6006,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         ModelRegistry.addModel(model)
         persistRegistry()
         refreshModelList()
-        modelController.loadModel(model)
+        modelLifecycleCoordinator.loadModel(model)
     }
 
     fun startDefaultModelDownload() {

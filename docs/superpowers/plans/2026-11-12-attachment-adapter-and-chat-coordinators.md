@@ -70,9 +70,9 @@
 - Create: `app/src/test/java/com/airi/assistant/ui/viewmodel/ModelLifecycleCoordinatorTest.kt`
 - Modify: `ChatViewModel.kt` only after the contract test is green.
 
-- [ ] Extract idempotent startup, model load/unload, and teardown commands using constructor-injected ports.
-- [ ] Keep `StateFlow` read-only at the coordinator boundary.
-- [ ] Test repeated initialization, cancellation, and stale generation/session suppression.
+- [x] Extract idempotent startup, model load/unload, and teardown commands using constructor-injected ports.
+- [x] Keep `StateFlow` read-only at the coordinator boundary.
+- [x] Test repeated initialization, cancellation, and stale generation/session suppression.
 - [ ] Commit separately as `refactor: extract model lifecycle coordinator`.
 
 ### Task 5: Attachment dispatch coordinator
@@ -96,3 +96,14 @@
 - [x] Add an idempotent execution teardown boundary for active work, model stream, generation job, and delayed history cleanup; receiver, supervisor, voice bus, and skill runtime remain explicitly owned by their existing owners.
 - [x] Add contract tests for dispatch, cancellation, and post-close suppression.
 - [ ] Run the Gradle test task once Android SDK is available, then commit separately.
+
+### Task 7: Custom-skill runtime port
+
+**Files:**
+- Create: `app/src/main/java/com/airi/assistant/domain/customskill/CustomSkillRuntimePort.kt`
+- Modify: `CustomSkillExecutor.kt`, `SkillService.kt`, and Android composition-root adapters.
+
+- [x] Remove direct `ServiceLocator` and analytics singleton access from `CustomSkillExecutor`.
+- [x] Inject network and execution telemetry through a platform-neutral port; keep the adapter in `ServiceLocator`.
+- [x] Update tool, registry, builder, and service construction sites to use the same adapter.
+- [ ] Run the Gradle test task once Android SDK is available, then commit with the lifecycle extraction.

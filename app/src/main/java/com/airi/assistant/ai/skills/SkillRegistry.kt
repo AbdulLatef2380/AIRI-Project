@@ -43,7 +43,9 @@ class SkillRegistry(private val context: Context) {
     private val customSkillRepository = CustomSkillRepository.shared(context)
 
     /** Shared executor instance for custom-skill adapters returned from [getAvailableSkills]. */
-    private val customSkillExecutor by lazy { CustomSkillExecutor(context) }
+    private val customSkillExecutor by lazy {
+        CustomSkillExecutor(context, ServiceLocator.customSkillRuntimePort)
+    }
 
     private val disabledSkillsPrefs by lazy {
         context.getSharedPreferences("airi_skill_toggles", Context.MODE_PRIVATE)

@@ -236,7 +236,7 @@ fun SkillBuilderScreen(
         isTesting = true
         scope.launch {
             try {
-                val executor = CustomSkillExecutor(context)
+                val executor = CustomSkillExecutor(context, ServiceLocator.customSkillRuntimePort)
                 val result = executor.execute(
                     skill,
                     mapOf(

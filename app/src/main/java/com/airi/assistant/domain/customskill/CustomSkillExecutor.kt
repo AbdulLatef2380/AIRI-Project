@@ -3,8 +3,6 @@ package com.airi.assistant.domain.customskill
 import android.content.Context
 import com.airi.assistant.ai.skills.SkillAuditLogger
 import com.airi.assistant.ai.skills.SkillResult
-import com.airi.assistant.analytics.AnalyticsService
-import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.error.AppError
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.logging.LoggingService
@@ -24,7 +22,10 @@ import java.net.SocketTimeoutException
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-class CustomSkillExecutor(private val context: Context) {
+class CustomSkillExecutor(
+    private val context: Context,
+    private val runtime: CustomSkillRuntimePort,
+) {
 
     private val client = OkHttpClient.Builder()
         // A custom skill endpoint is user-installed and untrusted. Refuse all
@@ -58,7 +59,7 @@ class CustomSkillExecutor(private val context: Context) {
         if (!CustomSkillSecurity.isValidEndpoint(skill.config.endpoint)) {
             val error = AppError.PolicyViolation("INVALID_CUSTOM_SKILL_URL", "Custom skill endpoint must be a valid HTTPS URL on a public host.")
             AppErrorHandler.log(error)
-            AnalyticsService.skillFailed(skill.name, "invalid_url")
+            runtime.skillFailed(skill.name, "invalid_url")
             return@withContext SkillResult(false, "", AppErrorHandler.toUserMessage(error), skill.name)
         }
 
@@ -67,17 +68,16 @@ class CustomSkillExecutor(private val context: Context) {
             val remaining = SkillCircuitBreaker.remainingCooldownSeconds(skill.id)
             val msg = "Skill '${skill.name}' is temporarily disabled after repeated failures. " +
                     "It will be available again in ${remaining}s."
-            AnalyticsService.skillFailed(skill.name, "circuit_open")
+            runtime.skillFailed(skill.name, "circuit_open")
             return@withContext SkillResult(false, SkillExecutionOutput.failure(msg).toJsonString(), msg, skill.name)
         }
 
         // ── Guard: network ────────────────────────────────────────────────────
-        val networkService = runCatching { ServiceLocator.networkService }.getOrNull()
-        val isOnline = networkService?.isOnline() ?: true
+        val isOnline = runtime.isOnline()
         if (!isOnline) {
             val error = AppError.NetworkUnavailable("Custom skill '${skill.name}' requires an internet connection.")
             AppErrorHandler.log(error)
-            AnalyticsService.skillFailed(skill.name, "offline")
+            runtime.skillFailed(skill.name, "offline")
             return@withContext SkillResult(false, "", AppErrorHandler.toUserMessage(error), skill.name)
         }
 
@@ -85,7 +85,7 @@ class CustomSkillExecutor(private val context: Context) {
         // Max 60 calls per skill per rolling minute. In-memory; resets on process restart.
         if (!checkRateLimit(skill.id)) {
             val msg = "Rate limit exceeded for '${skill.name}' — max $RATE_LIMIT_MAX_CALLS requests/min. Please wait a moment."
-            AnalyticsService.skillFailed(skill.name, "rate_limited")
+            runtime.skillFailed(skill.name, "rate_limited")
             LoggingService.warn(TAG, "Rate limit triggered for skill '${skill.name}' (id=${skill.id})")
             return@withContext SkillResult(false, SkillExecutionOutput.failure(msg).toJsonString(), msg, skill.name)
         }
@@ -98,7 +98,7 @@ class CustomSkillExecutor(private val context: Context) {
         when (val permCheck = SkillPermissionEnforcer.check(permission, method, isOnline)) {
             is SkillPermissionEnforcer.PermissionCheckResult.Denied -> {
                 LoggingService.warn(TAG, "Permission denied for '${skill.name}': ${permCheck.reason}")
-                AnalyticsService.skillFailed(skill.name, "permission_denied")
+                runtime.skillFailed(skill.name, "permission_denied")
                 return@withContext SkillResult(
                     false,
                     SkillExecutionOutput.failure(permCheck.reason).toJsonString(),
@@ -130,7 +130,7 @@ class CustomSkillExecutor(private val context: Context) {
                 }
             } catch (e: TimeoutCancellationException) {
                 SkillCircuitBreaker.recordFailure(skill.id)
-                AnalyticsService.skillFailed(skill.name, "timeout_cancelled")
+                runtime.skillFailed(skill.name, "timeout_cancelled")
                 LoggingService.error(TAG, "Skill '${skill.name}' execution TIMED OUT after ${EXECUTION_TIMEOUT_MS}ms")
                 val msg = "Skill execution timed out after 30 seconds. Check the endpoint and try again."
                 SkillResult(false, SkillExecutionOutput.failure(msg).toJsonString(), msg, skill.name)
@@ -204,7 +204,7 @@ class CustomSkillExecutor(private val context: Context) {
                             }
                             output = output.copy(data = truncatedData)
                         }
-                        AnalyticsService.skillExecuted(skill.name)
+                        runtime.skillExecuted(skill.name)
                         LoggingService.info(TAG, "Skill '${skill.name}' succeeded status=$code attempt=${attempt + 1}${if (wasTruncated) " [truncated]" else ""}")
                         LoggingService.debug(TAG, "Normalized response: ${output.toJsonString().take(500)}")
                         return SkillResult(true, output.toJsonString(), null, skill.name)
@@ -214,7 +214,7 @@ class CustomSkillExecutor(private val context: Context) {
                     // request merely because its endpoint asked us to follow a hop.
                     if (code in 300..399) {
                         SkillCircuitBreaker.recordFailure(skill.id)
-                        AnalyticsService.skillFailed(skill.name, "redirect_blocked")
+                        runtime.skillFailed(skill.name, "redirect_blocked")
                         return SkillResult(false, "", "Endpoint redirects are not followed.", skill.name)
                     }
 
@@ -223,7 +223,7 @@ class CustomSkillExecutor(private val context: Context) {
                         val message = "HTTP $code: ${responseBody.take(300)}"
                         val output = SkillExecutionOutput.failure(message)
                         SkillCircuitBreaker.recordFailure(skill.id)
-                        AnalyticsService.skillFailed(skill.name, "http_$code")
+                        runtime.skillFailed(skill.name, "http_$code")
                         LoggingService.warn(TAG, "Skill '${skill.name}' client error status=$code (not retrying)")
                         return SkillResult(false, output.toJsonString(), message, skill.name)
                     }
@@ -233,7 +233,7 @@ class CustomSkillExecutor(private val context: Context) {
                     LoggingService.warn(TAG, "Skill '${skill.name}' server error status=$code attempt=${attempt + 1}")
                     if (attempt == maxAttempts - 1) {
                         SkillCircuitBreaker.recordFailure(skill.id)
-                        AnalyticsService.skillFailed(skill.name, "http_$code")
+                        runtime.skillFailed(skill.name, "http_$code")
                         val output = SkillExecutionOutput.failure(serverError)
                         return SkillResult(false, output.toJsonString(), serverError, skill.name)
                     }
@@ -245,7 +245,7 @@ class CustomSkillExecutor(private val context: Context) {
                 if (attempt == maxAttempts - 1) {
                     logCrashlytics("Custom skill socket timeout: ${skill.name}", e)
                     SkillCircuitBreaker.recordFailure(skill.id)
-                    AnalyticsService.skillFailed(skill.name, "socket_timeout")
+                    runtime.skillFailed(skill.name, "socket_timeout")
                     LoggingService.error(TAG, "Skill '${skill.name}' exhausted retries (socket timeout)", e)
                     val msg = "Connection timed out after $maxAttempts attempts. Check the endpoint and your connection."
                     return SkillResult(false, SkillExecutionOutput.failure(msg).toJsonString(), msg, skill.name)
@@ -257,7 +257,7 @@ class CustomSkillExecutor(private val context: Context) {
                 if (attempt == maxAttempts - 1) {
                     logCrashlytics("Custom skill IO error: ${skill.name}", e)
                     SkillCircuitBreaker.recordFailure(skill.id)
-                    AnalyticsService.skillFailed(skill.name, "io_error")
+                    runtime.skillFailed(skill.name, "io_error")
                     LoggingService.error(TAG, "Skill '${skill.name}' exhausted retries (IO error)", e)
                     val error = AppErrorHandler.capture(e, "CustomSkillExecutor[${skill.name}]")
                     val msg = AppErrorHandler.toUserMessage(error)
@@ -268,7 +268,7 @@ class CustomSkillExecutor(private val context: Context) {
                 logCrashlytics("Custom skill failed: ${skill.name}", e)
                 SkillCircuitBreaker.recordFailure(skill.id)
                 val error = AppErrorHandler.capture(e, "CustomSkillExecutor[${skill.name}]")
-                AnalyticsService.skillFailed(skill.name, "exception")
+                runtime.skillFailed(skill.name, "exception")
                 LoggingService.error(TAG, "Skill '${skill.name}' non-retryable error", e)
                 val msg = AppErrorHandler.toUserMessage(error)
                 return SkillResult(false, SkillExecutionOutput.failure(msg).toJsonString(), msg, skill.name)

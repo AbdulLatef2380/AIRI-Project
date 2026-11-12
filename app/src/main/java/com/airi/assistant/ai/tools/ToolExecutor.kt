@@ -51,7 +51,10 @@ class ToolExecutor(
                 .firstOrNull { customSkillToolName(it) == toolCall.toolName }
                 ?: return ToolResult(false, "", "Custom skill '${toolCall.toolName}' is not available.")
             return try {
-                val result = SkillService(context).executeCustomSkill(customSkill, toolCall.params)
+                val result = SkillService(
+                    context,
+                    ServiceLocator.customSkillRuntimePort,
+                ).executeCustomSkill(customSkill, toolCall.params)
                 ToolResult(result.success, result.data, result.error)
             } catch (e: Exception) {
                 val error = AppErrorHandler.capture(e, "ToolExecutor[${toolCall.toolName}]")

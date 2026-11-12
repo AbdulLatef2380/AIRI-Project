@@ -14,6 +14,7 @@ import com.airi.assistant.analytics.AnalyticsService
 import com.airi.assistant.domain.customskill.CustomSkill
 import com.airi.assistant.domain.customskill.CustomSkillExecutor
 import com.airi.assistant.domain.customskill.CustomSkillRepository
+import com.airi.assistant.domain.customskill.CustomSkillRuntimePort
 import com.airi.assistant.domain.error.AppError
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.event.AppEvent
@@ -26,7 +27,10 @@ import com.airi.assistant.domain.policy.PolicyEngine
 import com.airi.assistant.domain.policy.UnifiedPolicyGate
 import com.airi.assistant.execution.privacy.PrivacyGuard
 
-class SkillService(private val context: Context) {
+class SkillService(
+    private val context: Context,
+    private val customSkillRuntime: CustomSkillRuntimePort,
+) {
 
     companion object {
         private const val TAG = "SkillService"
@@ -47,7 +51,7 @@ class SkillService(private val context: Context) {
     private val skillExecutor         = SkillExecutor(context)
     private val skillRegistry         = SkillRegistry.shared(context)
     private val toolExecutor          = ToolExecutor(context)
-    private val customSkillExecutor   = CustomSkillExecutor(context)
+    private val customSkillExecutor   = CustomSkillExecutor(context, customSkillRuntime)
     private val customSkillRepository = CustomSkillRepository.shared(context)
     private val outcomeScorer         = SkillOutcomeScorer.getInstance(context)
 

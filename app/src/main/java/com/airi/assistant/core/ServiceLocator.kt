@@ -52,6 +52,7 @@ import com.airi.assistant.domain.policy.UnifiedPolicyGate
 import com.airi.assistant.domain.skill.SkillManagerBackend
 import com.airi.assistant.domain.skill.SkillService
 import com.airi.assistant.domain.auth.DataDeletionCoordinator
+import com.airi.assistant.domain.customskill.CustomSkillRuntimePort
 import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.memory.rag.RagRetriever
 import com.airi.assistant.memory.repository.MemoryManager
@@ -80,6 +81,22 @@ object ServiceLocator {
 
     fun init(context: Context) {
         appContext = context.applicationContext
+    }
+
+    /** Android adapter for the platform-neutral custom-skill execution port. */
+    val customSkillRuntimePort: CustomSkillRuntimePort by lazy {
+        object : CustomSkillRuntimePort {
+            override fun isOnline(): Boolean =
+                runCatching { networkService.isOnline() }.getOrDefault(true)
+
+            override fun skillExecuted(skillName: String) {
+                com.airi.assistant.analytics.AnalyticsService.skillExecuted(skillName)
+            }
+
+            override fun skillFailed(skillName: String, reason: String) {
+                com.airi.assistant.analytics.AnalyticsService.skillFailed(skillName, reason)
+            }
+        }
     }
 
     var context: Context?
@@ -221,7 +238,7 @@ object ServiceLocator {
     // agentService removed — AgentService.handle() had 0 live callers after agent-first migration
 
     val skillService: SkillService by lazy {
-        SkillService(requireContext())
+        SkillService(requireContext(), customSkillRuntimePort)
     }
 
     val promptService: PromptService by lazy {

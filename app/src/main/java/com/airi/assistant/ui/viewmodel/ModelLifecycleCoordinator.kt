@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.viewmodel
 
+import com.airi.assistant.ai.ModelInfo
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -11,6 +12,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 internal class ModelLifecycleCoordinator(
     private val onStart: () -> Unit,
+    private val onLoad: (ModelInfo) -> Unit,
+    private val onUnload: () -> Unit,
     private val onStop: () -> Unit,
 ) {
     private val started = AtomicBoolean(false)
@@ -27,5 +30,13 @@ internal class ModelLifecycleCoordinator(
         if (stopped.compareAndSet(false, true) && started.get()) {
             onStop()
         }
+    }
+
+    fun loadModel(model: ModelInfo) {
+        if (started.get() && !stopped.get()) onLoad(model)
+    }
+
+    fun unloadModel() {
+        if (started.get() && !stopped.get()) onUnload()
     }
 }

@@ -141,7 +141,7 @@ internal class CustomSkillTool(
     context: Context,
     private val skill: CustomSkill
 ) : Tool {
-    private val executor = CustomSkillExecutor(context)
+    private val executor = CustomSkillExecutor(context, ServiceLocator.customSkillRuntimePort)
     val skillName: String = skill.name
     override val name: String = customSkillToolName(skill)
     override val description: String = "Custom ${skill.type.name.lowercase()} skill: ${skill.description}"

@@ -52,6 +52,15 @@ def main() -> int:
             "changed_code_requires_mapping": True,
         },
         "changed_files": git_changed(args.base),
+        "components": {
+            row["component"]: {
+                "status": "NOT_VERIFIED",
+                "tier": row["tier"],
+                "risk_ids": [row["id"]],
+                "reason": "No trusted component-level coverage mapping is available yet.",
+            }
+            for row in json.loads((ROOT / "config/phase7_test_matrix.json").read_text(encoding="utf-8")).get("risks", [])
+        },
         "reports": [],
     }
     if not report_files:

@@ -1,12 +1,110 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-11-12T22:33:40.099298+00:00",
+  "generated_at": "2026-11-12T22:35:56.579791+00:00",
   "policy": {
     "missing_report": "BLOCKED",
     "no_global_threshold": true,
     "changed_code_requires_mapping": true
   },
   "changed_files": [],
+  "components": {
+    "AgentLoop": {
+      "status": "NOT_VERIFIED",
+      "tier": "fast-pr",
+      "risk_ids": [
+        "P0-AGENT-001"
+      ],
+      "reason": "No trusted component-level coverage mapping is available yet."
+    },
+    "Tool Routing": {
+      "status": "NOT_VERIFIED",
+      "tier": "fast-pr",
+      "risk_ids": [
+        "P0-ROUTE-001"
+      ],
+      "reason": "No trusted component-level coverage mapping is available yet."
+    },
+    "Memory isolation": {
+      "status": "NOT_VERIFIED",
+      "tier": "extended-device",
+      "risk_ids": [
+        "P0-MEMORY-001"
+      ],
+      "reason": "No trusted component-level coverage mapping is available yet."
+    },
+    "Connectors": {
+      "status": "NOT_VERIFIED",
+      "tier": "fast-pr",
+      "risk_ids": [
+        "P0-CONNECTOR-001"
+      ],
+      "reason": "No trusted component-level coverage mapping is available yet."
+    },
+    "Streaming": {
+      "status": "NOT_VERIFIED",
+      "tier": "fast-pr",
+      "risk_ids": [
+        "P1-STREAM-001"
+      ],
+      "reason": "No trusted component-level coverage mapping is available yet."
+    },
+    "Local inference": {
+      "status": "NOT_VERIFIED",
+      "tier": "extended-device",
+      "risk_ids": [
+        "P1-INFERENCE-001"
+      ],
+      "reason": "No trusted component-level coverage mapping is available yet."
+    },
+    "Trace": {
+      "status": "NOT_VERIFIED",
+      "tier": "fast-pr",
+      "risk_ids": [
+        "P1-TRACE-001"
+      ],
+      "reason": "No trusted component-level coverage mapping is available yet."
+    },
+    "Security": {
+      "status": "NOT_VERIFIED",
+      "tier": "fast-pr",
+      "risk_ids": [
+        "P0-SECURITY-001"
+      ],
+      "reason": "No trusted component-level coverage mapping is available yet."
+    },
+    "Android UI": {
+      "status": "NOT_VERIFIED",
+      "tier": "extended-device",
+      "risk_ids": [
+        "P1-UI-001"
+      ],
+      "reason": "No trusted component-level coverage mapping is available yet."
+    },
+    "JNI/native lifecycle": {
+      "status": "NOT_VERIFIED",
+      "tier": "extended-device",
+      "risk_ids": [
+        "P1-JNI-001"
+      ],
+      "reason": "No trusted component-level coverage mapping is available yet."
+    },
+    "Recovery/migrations": {
+      "status": "NOT_VERIFIED",
+      "tier": "extended-device",
+      "risk_ids": [
+        "P1-RECOVERY-001"
+      ],
+      "reason": "No trusted component-level coverage mapping is available yet."
+    },
+    "Remote-control rules": {
+      "status": "NOT_VERIFIED",
+      "tier": "fast-pr",
+      "risk_ids": [
+        "P1-REMOTE-001"
+      ],
+      "reason": "No trusted component-level coverage mapping is available yet."
+    }
+  },
   "reports": [],
   "status": "BLOCKED",
   "reason": "No JaCoCo XML report was produced by the selected test tier."

@@ -51,14 +51,26 @@ def junit_evidence(root: Path) -> tuple[list[dict], str | None]:
 
 def runtime_status(test_paths: list[str], reports: list[dict], missing_reason: str | None) -> tuple[str, dict]:
     stems = [Path(path).stem for path in test_paths]
-    matched = [
-        report for report in reports
-        if any(stem in " ".join(report.get("identities", [])) for stem in stems)
-    ]
+    matched_by_stem = {
+        stem: [
+            report for report in reports
+            if stem in " ".join(report.get("identities", []))
+        ]
+        for stem in stems
+    }
+    matched = [report for reports_for_stem in matched_by_stem.values() for report in reports_for_stem]
+    matched = list({report["path"]: report for report in matched}.values())
     if missing_reason:
         return "NOT_VERIFIED", {"reason": missing_reason, "matched_reports": []}
     if not matched:
         return "NOT_VERIFIED", {"reason": "No JUnit testcase matched the declared target classes", "matched_reports": []}
+    missing_stems = [stem for stem, reports_for_stem in matched_by_stem.items() if not reports_for_stem]
+    if missing_stems:
+        return "NOT_VERIFIED", {
+            "reason": "Runtime evidence is incomplete for declared target classes",
+            "missing_targets": missing_stems,
+            "matched_reports": [report["path"] for report in matched],
+        }
     failures = sum(report.get("failures", 0) for report in matched)
     errors = sum(report.get("errors", 0) for report in matched)
     tests = sum(report.get("tests", 0) for report in matched)

@@ -67,6 +67,26 @@ class Phase7RuntimeEvidenceTest(unittest.TestCase):
             )
             self.assertEqual(status, "NOT_VERIFIED")
 
+    def test_partial_target_evidence_is_not_verified(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_report(
+                root,
+                "TEST-FooTest.xml",
+                '<testsuite><testcase classname="com.airi.FooTest" name="works"/></testsuite>',
+            )
+            reports, error = module.junit_evidence(root)
+            status, detail = module.runtime_status(
+                [
+                    "app/src/test/java/com/airi/FooTest.kt",
+                    "app/src/test/java/com/airi/BarTest.kt",
+                ],
+                reports,
+                error,
+            )
+            self.assertEqual(status, "NOT_VERIFIED")
+            self.assertEqual(detail["missing_targets"], ["BarTest"])
+
 
 if __name__ == "__main__":
     unittest.main()

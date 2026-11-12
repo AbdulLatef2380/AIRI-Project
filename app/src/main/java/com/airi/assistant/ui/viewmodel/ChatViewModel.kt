@@ -916,6 +916,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         onStart = { _modelState.value = modelController.createInitialModelState() },
         onStop = { runtimeSupervisor.stop() },
     )
+    private val attachmentDispatchCoordinator = AttachmentDispatchCoordinator()
+
+    private val conversationExecutionCoordinator = ConversationExecutionCoordinator(
+        execute = { command ->
+            sendMessageCommand(command.input, command.cloudAttachmentConsent)
+        },
+        cancelExecution = { clearQueuedRequest ->
+            cancelGenerationInternal(clearQueuedRequest)
+        },
+        teardown = {
+            _isCancelled.set(true)
+            hybridOrchestrator.cancel()
+            llamaManager.cancelStream()
+            activeGenerationJob?.cancel(CancellationException("ChatViewModel cleared"))
+            activeGenerationId = 0L
+            activeGenerationJob = null
+            clearHistoryJob?.cancel()
+        },
+    )
 
     init {
         modelLifecycleCoordinator.startOnce()
@@ -1299,6 +1318,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun cancelGeneration(clearQueuedRequest: Boolean = true) {
+        conversationExecutionCoordinator.cancel(clearQueuedRequest)
+    }
+
+    private fun cancelGenerationInternal(clearQueuedRequest: Boolean = true) {
         val generationId = activeGenerationId
         if (generationBusy() && cancellationRequested.compareAndSet(false, true)) {
             // An explicit stop must never turn into an automatic continuation.
@@ -1718,13 +1741,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         ServiceLocator.voiceConfirmationGate = null   // V2: do not keep a dead ViewModel reachable
         com.airi.assistant.accessibility.security.ScreenReadConsent.approver = null   // P4
-        _isCancelled.set(true)
-        hybridOrchestrator.cancel()
-        llamaManager.cancelStream()
-        activeGenerationJob?.cancel(CancellationException("ChatViewModel cleared"))
-        activeGenerationId = 0L
-        activeGenerationJob = null
-        clearHistoryJob?.cancel()
+        conversationExecutionCoordinator.closeOnce()
         super.onCleared()
         modelLifecycleCoordinator.stopOnce()
         RuntimeEventLog.clear()
@@ -2182,7 +2199,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return InputDirectives(remaining, skillIds.distinct(), knowledgeId)
     }
 
-    fun sendMessage(input: String, cloudAttachmentConsent: Boolean = false): Boolean {
+    fun sendMessage(input: String, cloudAttachmentConsent: Boolean = false): Boolean =
+        conversationExecutionCoordinator.dispatch(
+            ConversationExecutionCoordinator.Command(input, cloudAttachmentConsent)
+        )
+
+    private fun sendMessageCommand(input: String, cloudAttachmentConsent: Boolean): Boolean {
         if (generationBusy()) {
             queuedComposerRequest = QueuedComposerRequest(
                 input = input,
@@ -4574,28 +4596,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             cancelGeneration(clearQueuedRequest = false)
             return
         }
-        if (attachments.any {
-                AttachmentDispatchPolicy.payloadTransportFailure(
-                    it.contentType, it.normalizedMimeType, it.safeDisplayName
-                ) != null
-            }) {
-            onRejected(AttachmentDispatchFailure.UNSUPPORTED_CONTENT)
-            return
-        }
         if (_attachmentDispatchInFlight.value) {
             onRejected(AttachmentDispatchFailure.GENERATION_IN_PROGRESS)
             return
         }
-
         _generationStoppedNotice.value = false
         val localAllowed = execModePrefs.effectiveMode != ExecutionMode.CLOUD_ONLY
         val cloudAllowed = execModePrefs.effectiveMode != ExecutionMode.LOCAL_ONLY
         val cloudCanReceiveAttachments = cloudAllowed && _modelState.value.isCloudReady &&
             _modelState.value.activeCloudProvider != null
-        AttachmentDispatchPolicy.cloudConsentFailure(cloudCanReceiveAttachments, cloudAttachmentConsent)?.let { failure ->
-            onRejected(failure)
-            return
-        }
         val localVisionReady = localAllowed && _modelState.value.capabilities.vision &&
             runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
         val cloudProvider = _modelState.value.activeCloudProvider
@@ -4604,45 +4613,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         val cloudVisionReady = cloudAllowed && _modelState.value.isCloudReady &&
             cloudDescriptor?.isReady(com.airi.assistant.execution.Capability.VISION) == true
-        val visionReady = localVisionReady || cloudVisionReady
-        val preflightFailure = AttachmentDispatchPolicy.preflight(
-            modelLoading = _modelState.value.isModelLoading,
-            generationInProgress = activeGenerationId != 0L || _agentState.value.isWorking,
-            hasVisualImage = attachments.any { it.isVisualImage },
-            visionReady = visionReady,
-        )
-        if (preflightFailure != null) {
-            onRejected(preflightFailure)
-            return
-        }
-        val unsupportedPayload = attachments.firstNotNullOfOrNull { attachment ->
-            AttachmentDispatchPolicy.payloadTransportFailure(
-                attachment.contentType, attachment.normalizedMimeType, attachment.safeDisplayName
-            )
-        }
-        if (unsupportedPayload != null) {
-            onRejected(unsupportedPayload)
-            return
-        }
-        val visualImageCount = attachments.count { it.isVisualImage }
-        val imageRoute = AttachmentDispatchPolicy.imageRoute(
-            imageCount = visualImageCount,
-            localVisionReady = localVisionReady,
-            cloudVisionReady = cloudVisionReady,
-            cloudMaxImages = cloudDescriptor?.limits?.maxImages ?: 0,
-        )
-        if (visualImageCount > 0 && imageRoute == null) {
-            onRejected(
-                if (visualImageCount > 1) AttachmentDispatchFailure.MULTI_IMAGE_UNSUPPORTED
-                else AttachmentDispatchFailure.VISION_UNAVAILABLE
-            )
-            return
-        }
 
-        // Final capability admission happens before any attachment is copied or
-        // reaches a local/cloud executor. Evaluate every policy-allowed runtime:
-        // a local text-only model must not hide a compatible cloud vision model
-        // in HYBRID/CLOUD mode, while UNKNOWN remains fail-closed.
+        // Final capability admission happens before Android staging. The
+        // coordinator is pure; Uri/Bitmap copying and execution remain below.
         val candidateDescriptors = buildList {
             val state = _modelState.value
             val local = ModelRegistry.getById(state.selectedModelId)
@@ -4659,57 +4632,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 ModelCapabilityEngine.fromCloud(state.activeCloudProvider, state.cloudModelName)
             )
         }
-        if (candidateDescriptors.isEmpty()) {
-            onRejected(AttachmentDispatchFailure.CAPABILITY_UNKNOWN)
-            return
-        }
-        val incompatible = attachments.firstNotNullOfOrNull { attachment ->
-            val requirement = when (attachment.contentType) {
-                AttachmentPolicy.ContentType.IMAGE -> AttachmentRequirement.IMAGE
-                AttachmentPolicy.ContentType.VIDEO -> AttachmentRequirement.VIDEO
-                AttachmentPolicy.ContentType.TEXT -> AttachmentRequirement.TEXT
-                AttachmentPolicy.ContentType.DOCUMENT, AttachmentPolicy.ContentType.FILE ->
-                    if (attachment.normalizedMimeType.equals("application/pdf", ignoreCase = true))
-                        AttachmentRequirement.PDF else AttachmentRequirement.DOCUMENT
-            }
-            val results = candidateDescriptors.map { descriptor ->
-                ModelCapabilityEngine.check(
-                    descriptor = descriptor,
-                    requirement = requirement,
-                    mimeType = attachment.normalizedMimeType,
-                    sizeBytes = attachment.sizeBytes,
-                    count = attachments.count { it.contentType == attachment.contentType }
-                )
-            }
-            val extractedTextAllowed = (attachment.isTextual || AttachmentContentExtractor.supports(
-                attachment.normalizedMimeType,
-                attachment.safeDisplayName,
-            )) && candidateDescriptors.any { descriptor ->
-                ModelCapabilityEngine.check(
-                    descriptor = descriptor,
-                    requirement = AttachmentRequirement.TEXT,
-                    mimeType = "text/plain",
-                    sizeBytes = attachment.sizeBytes,
-                ).decision == CompatibilityDecision.ALLOW
-            }
-            if (results.any {
-                    it.decision == CompatibilityDecision.ALLOW ||
-                        it.decision == CompatibilityDecision.ALLOW_WITH_WARNING
-                } || extractedTextAllowed
-            ) null else results.first()
-        }
-        if (incompatible != null) {
-            Log.w("AIRI_CAPABILITY", "blocked attachment capability=${incompatible.capability} status=${incompatible.status} candidates=${candidateDescriptors.size}")
-            onRejected(
-                when (incompatible.status) {
-                    com.airi.assistant.execution.CapabilityStatus.UNKNOWN -> AttachmentDispatchFailure.CAPABILITY_UNKNOWN
-                    else -> if (incompatible.capability == com.airi.assistant.execution.Capability.IMAGE_UNDERSTANDING) AttachmentDispatchFailure.VISION_UNAVAILABLE else AttachmentDispatchFailure.CAPABILITY_UNAVAILABLE
-                }
+        val admission = attachmentDispatchCoordinator.admit(
+            AttachmentDispatchCoordinator.Request(
+                attachments = attachments,
+                modelLoading = _modelState.value.isModelLoading,
+                generationInProgress = activeGenerationId != 0L || _agentState.value.isWorking,
+                localAllowed = localAllowed,
+                cloudAllowed = cloudAllowed,
+                cloudCanReceiveAttachments = cloudCanReceiveAttachments,
+                cloudAttachmentConsent = cloudAttachmentConsent,
+                localVisionReady = localVisionReady,
+                cloudVisionReady = cloudVisionReady,
+                cloudDescriptor = cloudDescriptor,
+                cloudProvider = cloudProvider,
+                candidateDescriptors = candidateDescriptors,
+                sessionId = _currentSessionId.value,
             )
-            return
+        )
+        val admissionAccepted = when (admission) {
+            is AttachmentDispatchCoordinator.Decision.Accepted -> admission
+            is AttachmentDispatchCoordinator.Decision.Rejected -> {
+                onRejected(admission.failure)
+                return
+            }
         }
-
-        val sessionAtDispatch = _currentSessionId.value
+        val imageRoute = admissionAccepted.imageRoute
+        val visionReady = admissionAccepted.visionReady
+        val sessionAtDispatch = admissionAccepted.sessionId
         if (sessionAtDispatch.isBlank()) {
             onRejected(AttachmentDispatchFailure.SESSION_CHANGED)
             return

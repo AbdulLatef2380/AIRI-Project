@@ -78,21 +78,21 @@
 ### Task 5: Attachment dispatch coordinator
 
 **Files:**
-- Create: `AttachmentDispatchCoordinator.kt` and its tests.
-- Modify: `ChatViewModel.kt` after contract tests.
+- Create: `app/src/main/java/com/airi/assistant/ui/viewmodel/AttachmentDispatchCoordinator.kt` and its tests.
+- Modify: `app/src/main/java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt` after contract tests.
 
-- [ ] Move only attachment admission/staging orchestration; keep Android payload handling in the adapter.
-- [ ] Preserve stage/session/reply semantics and existing failure enums.
-- [ ] Test picker, camera, multi-image, size, consent, cancellation, and session-change paths.
-- [ ] Commit separately.
+- [x] Move attachment admission and capability orchestration into a pure coordinator; keep Android payload handling and file staging in `ChatViewModel`/Android adapters.
+- [x] Preserve stage/session/reply semantics and existing failure enums, including the in-flight dispatch guard.
+- [x] Add contract tests for loading, generation, consent, unknown capability, and empty-input rejection paths.
+- [ ] Run the Gradle test task once Android SDK is available, then commit separately.
 
 ### Task 6: Conversation execution coordinator and lifecycle teardown
 
 **Files:**
-- Create: `ConversationExecutionCoordinator.kt` and tests.
-- Modify: `ChatViewModel.kt` and composition root wiring.
+- Create: `app/src/main/java/com/airi/assistant/ui/viewmodel/ConversationExecutionCoordinator.kt` and tests.
+- Modify: `app/src/main/java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt` and composition root wiring.
 
-- [ ] Extract send/execution commands while ChatViewModel retains presentation StateFlow and navigation/focus coordination.
-- [ ] Add explicit teardown for receiver, supervisor, voice bus, and execution bridges.
-- [ ] Test repeated initialization, collector/receiver uniqueness, cancellation, `onCleared`, and stale-state suppression.
-- [ ] Run full local verification and commit separately.
+- [x] Extract the public conversation dispatch/cancel boundary while ChatViewModel retains presentation StateFlow and navigation/focus coordination.
+- [x] Add an idempotent execution teardown boundary for active work, model stream, generation job, and delayed history cleanup; receiver, supervisor, voice bus, and skill runtime remain explicitly owned by their existing owners.
+- [x] Add contract tests for dispatch, cancellation, and post-close suppression.
+- [ ] Run the Gradle test task once Android SDK is available, then commit separately.

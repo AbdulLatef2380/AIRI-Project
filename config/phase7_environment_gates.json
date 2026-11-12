@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "gates": [
+    {"id":"process-death-restart","tier":"extended-device","status":"BLOCKED","requires":["Android emulator","adb process stop/start","persisted session fixture"],"evidence":"instrumentation artifact with process recreation log","reason":"Not executable in the current Sandbox; no process-death proof is inferred from JVM lifecycle tests."},
+    {"id":"migration","tier":"extended-device","status":"NOT_VERIFIED","requires":["Android SDK","Room migration test execution"],"evidence":"AIRI-Android-Instrumentation-Evidence artifact","reason":"Test target exists but runtime execution must be reported by CI."},
+    {"id":"corruption-recovery","tier":"extended-device","status":"NOT_VERIFIED","requires":["Android SDK","corrupted persistence fixture"],"evidence":"AIRI-Android-Instrumentation-Evidence artifact","reason":"Trace archive corruption is covered on JVM; persistence corruption still requires device execution."},
+    {"id":"firebase-emulator-rules","tier":"extended-device","status":"BLOCKED","requires":["Node dependencies","Firebase emulator binary"],"evidence":"remote-control-tests test:rules artifact","reason":"Source rules checks pass; emulator execution is not available in this Sandbox."},
+    {"id":"sandbox-provider","tier":"extended-device","status":"BLOCKED","requires":["temporary provider account","sandbox credentials","network approval"],"evidence":"provider sandbox artifact","reason":"No external provider account is authorized; deterministic fake providers remain the PR-safe path."},
+    {"id":"ui-scroll-rtl-accessibility-font-states","tier":"extended-device","status":"NOT_VERIFIED","requires":["Android emulator","instrumentation runner","locale matrix"],"evidence":"AIRI-Instrumentation-API*-* artifact","reason":"UI targets exist, but runtime evidence must come from instrumentation."},
+    {"id":"jni-native-resource-lifecycle","tier":"extended-device","status":"NOT_VERIFIED","requires":["native library","compatible model fixture","Android emulator"],"evidence":"native smoke instrumentation artifact","reason":"JNI smoke target exists; model-dependent execution is not performed in Sandbox."}
+  ]
+}

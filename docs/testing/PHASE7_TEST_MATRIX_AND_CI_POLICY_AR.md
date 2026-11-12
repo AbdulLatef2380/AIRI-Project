@@ -9,6 +9,7 @@
 ```bash
 python3 scripts/phase7_test_matrix.py --output phase7-test-matrix-report.json
 python3 scripts/phase7_coverage_observability.py --output phase7-coverage-report.json
+python3 scripts/phase7_environment_gates.py --output phase7-environment-gates-report.json
 ```
 
 ## سياسة الحالات
@@ -42,6 +43,8 @@ python3 scripts/phase7_coverage_observability.py --output phase7-coverage-report
 Trend تُقرأ من artifacts المتعاقبة في CI، ولا تُبنى من قيم مخترعة محليًا. المقارنة المطلوبة مستقبلًا هي: تغير coverage للمكونات المتأثرة فقط، عدد الاختبارات، وعدد PASS/SKIP/BLOCKED/NOT_VERIFIED.
 
 Baseline الحالي محفوظ في `reports/phase7/`: inventory المصفوفة مكتمل (12/12 targets موجودة)، بينما التنفيذ runtime وJaCoCo مصنفان `NOT_VERIFIED`/`BLOCKED` لأنهما يحتاجان CI أو Android SDK.
+
+وتحفظ `config/phase7_environment_gates.json` البنود التي لا يجوز إسقاطها أو عدّها ناجحة بسبب غياب البيئة: process death/restart، Firebase emulator، sandbox provider بحساب مؤقت، وJNI أو UI device evidence. لكل بند status وسبب واحتياج ودليل متوقع؛ لذلك تكون النتيجة `BLOCKED` أو `NOT_VERIFIED` بدل نجاح صامت.
 
 ## فجوات مقصودة وحالات BLOCKED
 

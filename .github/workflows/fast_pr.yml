@@ -23,6 +23,8 @@ jobs:
           python-version: '3.x'
       - name: Validate risk-linked test matrix
         run: python3 scripts/phase7_test_matrix.py --output phase7-test-matrix-report.json
+      - name: Classify environment-dependent gates
+        run: python3 scripts/phase7_environment_gates.py --output phase7-environment-gates-report.json
       - name: Run deterministic source contracts
         run: |
           python3 tools/airi_runtime_simulation.py
@@ -45,6 +47,7 @@ jobs:
           path: |
             phase7-test-matrix-report.json
             phase7-coverage-report.json
+            phase7-environment-gates-report.json
             fast-pr-remote-control-health.json
             fast-pr-remote-control-security.json
             fast-pr-firestore-rules.json

@@ -57,6 +57,7 @@ jobs:
     - name: Verify source contracts and localization
       run: |
         python3 scripts/phase7_test_matrix.py --output phase7-test-matrix-report.json
+        python3 scripts/phase7_environment_gates.py --output phase7-environment-gates-report.json
         python3 tools/airi_runtime_simulation.py
         python3 tools/final_runtime_integration_audit.py
         python3 tools/stability/local_model_performance_sim.py
@@ -87,6 +88,7 @@ jobs:
         name: AIRI-Phase7-Static-Test-Evidence
         path: |
           phase7-test-matrix-report.json
+          phase7-environment-gates-report.json
           phase7-remote-control-health.json
           phase7-remote-control-security.json
           phase7-firestore-rules.json

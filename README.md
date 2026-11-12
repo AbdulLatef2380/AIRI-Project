@@ -83,6 +83,7 @@ python3 scripts/airi_core_health.py
 | [حالة الإغلاق](docs/product/AIRI_FINAL_CLOSURE_STATUS.md) | خريطة الحالة المختصرة والدليل الداخلي والحواجز الخارجية. |
 | [handoff النشر](docs/product/RELEASE_PUBLICATION_HANDOFF.md) | مسار التوقيع والجهاز والمزود والقانون والمتجر، دون ادعاء أنها مكتملة. |
 | [سجل التدقيق](docs/product/RELEASE_AUDIT_REGISTER.md) | أدلة build/privacy/runtime ونتيجة تحقيق هوية التوقيع. |
+| [جاهزية المرحلة 8](docs/product/AIRI_PHASE8_RELEASE_READINESS.md) | عقود حذف البيانات، التحديث/الرجوع، الأداء، ومصفوفة بوابات الجهاز. |
 | [التشغيل](docs/deployment/BUILD_AND_RELEASE.md) | إعادة إنتاج البنية والإصدارات وCI. |
 | [التجاري](docs/commercial/OVERVIEW.md) | تموضع المنتج، الترخيص، white-label، والعناية الواجبة. |
 

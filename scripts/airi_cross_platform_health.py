@@ -72,16 +72,23 @@ def project_source_roots(repo: Path) -> list[Path]:
     return sorted({path.parent for path in common_source_roots(repo)})
 
 
+def without_kotlin_comments(content: str) -> str:
+    """Remove comments before token checks; documentation must not be an API use."""
+    content = re.sub(r"/\*.*?\*/", "", content, flags=re.DOTALL)
+    return re.sub(r"//[^\n]*", "", content)
+
+
 def scan_common_sources(repo: Path, findings: list[Finding]) -> tuple[set[str], set[str]]:
     expected: set[str] = set()
     actual: set[str] = set()
     for source_root in common_source_roots(repo):
         for path in kotlin_files(source_root):
             content = path.read_text(encoding="utf-8", errors="replace")
+            scan_content = without_kotlin_comments(content)
             relative = path.relative_to(repo).as_posix()
             expected.update(EXPECT_DECLARATION.findall(content))
             for name, pattern in FORBIDDEN_COMMON_PATTERNS.items():
-                if pattern.search(content):
+                if pattern.search(scan_content):
                     findings.append(Finding("ERROR", name, relative, "Forbidden in commonMain."))
     for source_root in project_source_roots(repo):
         if source_root.name == "commonMain":

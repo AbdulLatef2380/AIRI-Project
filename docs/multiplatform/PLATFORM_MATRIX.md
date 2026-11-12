@@ -21,7 +21,7 @@
 | attachments acquisition | `IMPLEMENTED` Android picker/content resolver | `EXTERNAL_VERIFICATION_REQUIRED` | `EXTERNAL_VERIFICATION_REQUIRED` | `PLANNED` | Desktop يضم adapter للـnative picker، لكن اختيار ملف تفاعلي وفحص العرض يحتاج قبول OS. |
 | artifacts | `IMPLEMENTED` Android | `PLANNED` | `PLANNED` | `PLANNED` | save/open/delete مع permission audit. |
 | persistence | `RUNTIME_VERIFIED` لRoom migrations المحددة | `BUILDS` لسجل جلسة محلي محدود | `RUNTIME_VERIFIED` لسجل جلسة محلي محدود | `ARCHITECTED` | Windows يبني ويختبر adapter السجل؛ Linux يكتب ويعيد تحميل سجل رسائل محلي بعد إعادة التشغيل؛ لا يمثل ذلك repository أو migration أو encryption نهائياً. |
-| scheduling | `IMPLEMENTED` Android عبر WorkManager؛ التشغيل OS الفعلي `EXTERNAL_VERIFICATION_REQUIRED` | `PLANNED` | `PLANNED` | `PLANNED` | wake/retry/cancel semantics على OS/browser. |
+| scheduling | `IMPLEMENTED` Android عبر WorkManager؛ التشغيل OS الفعلي `EXTERNAL_VERIFICATION_REQUIRED` | `PLANNED` | `PLANNED` | `PLANNED` | wake/retry/cancel semantics على OS/browser؛ راجع [مصفوفة قبول الجدولة](../product/AIRI_SCHEDULE_ACCEPTANCE_MATRIX.md). |
 | voice STT/TTS | `IMPLEMENTED` Android؛ mic/devices `EXTERNAL_VERIFICATION_REQUIRED` | `PLANNED` | `PLANNED` | `PLANNED` | permission، capture، transcription/synthesis، cancellation. |
 | notifications | `IMPLEMENTED` Android | `PLANNED` | `PLANNED` | `PLANNED` | opt-in، delivery، interaction. |
 | authentication OAuth/PKCE | `IMPLEMENTED` Android؛ real IdP `EXTERNAL_VERIFICATION_REQUIRED` | `ARCHITECTED` | `ARCHITECTED` | `ARCHITECTED` | state/PKCE/callback/logout with approved IdP. |

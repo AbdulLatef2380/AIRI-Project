@@ -21,6 +21,9 @@
 
 | المستند | الغرض |
 |---|---|
+| [مصفوفة قدرات المنتج](../product/AIRI_PRODUCT_CAPABILITY_MATRIX.md) | مصدر الحقيقة لحالة كل قدرة وما يجوز عرضه في الإصدار. |
+| [دليل Desktop للمرحلة 8](DESKTOP_PHASE8_EVIDENCE.md) | ما تم إثباته فعلاً وما بقي Prototype/Planned. |
+| [مصفوفة قبول الجدولة](../product/AIRI_SCHEDULE_ACCEPTANCE_MATRIX.md) | فصل عقود WorkManager المحلية عن اختبار Doze/reboot/device الخارجي. |
 | [فحص تبعيات المنصة](PLATFORM_DEPENDENCY_SCAN.md) | جرد مواضع Android/native في المصدر. |
 | [رسم التبعيات](PLATFORM_DEPENDENCY_GRAPH.md) | تصور اتجاهات التبعيات ومخاطر النقل. |
 | [البنية المستهدفة](CROSS_PLATFORM_ARCHITECTURE.md) | حدود modules وعقود مستقبلية، لا implementation مُعلن. |

@@ -938,8 +938,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         },
     )
 
+    private val chatLifecycleCoordinator = ChatLifecycleCoordinator(
+        onStart = { modelLifecycleCoordinator.startOnce() },
+        onClose = {
+            ServiceLocator.voiceConfirmationGate = null
+            com.airi.assistant.accessibility.security.ScreenReadConsent.approver = null
+            conversationExecutionCoordinator.closeOnce()
+            modelLifecycleCoordinator.stopOnce()
+            RuntimeEventLog.clear()
+            runCatching { appContext.unregisterReceiver(downloadCompleteReceiver) }
+            runCatching { ServiceLocator.skillRuntime.destroy() }
+        },
+    )
+
     init {
-        modelLifecycleCoordinator.startOnce()
+        chatLifecycleCoordinator.startOnce()
     }
 
     private fun persistRegistry() = modelController.persistRegistry()
@@ -1741,14 +1754,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         VoskModelManager.installed.value.isNotEmpty()
 
     override fun onCleared() {
-        ServiceLocator.voiceConfirmationGate = null   // V2: do not keep a dead ViewModel reachable
-        com.airi.assistant.accessibility.security.ScreenReadConsent.approver = null   // P4
-        conversationExecutionCoordinator.closeOnce()
+        chatLifecycleCoordinator.closeOnce()
         super.onCleared()
-        modelLifecycleCoordinator.stopOnce()
-        RuntimeEventLog.clear()
-        runCatching { appContext.unregisterReceiver(downloadCompleteReceiver) }
-        runCatching { ServiceLocator.skillRuntime.destroy() }
     }
 
     // ── Session Management ────────────────────────────────────────────────────

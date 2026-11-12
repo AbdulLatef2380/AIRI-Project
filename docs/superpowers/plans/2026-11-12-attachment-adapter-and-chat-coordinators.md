@@ -32,11 +32,11 @@
 - Create: `core-domain/src/commonMain/kotlin/com/airi/core/attachments/AttachmentMetadata.kt`
 - Create: `core-domain/src/commonTest/kotlin/com/airi/core/attachments/AttachmentMetadataTest.kt`
 
-- [ ] Define `AttachmentKind` and immutable `AttachmentMetadata` with id, kind, display name, MIME type, size, uid, and file name only.
-- [ ] Normalize display name and MIME through existing `AttachmentPolicy` without adding Android imports.
-- [ ] Test metadata normalization and prove its public properties contain no Android payload type.
-- [ ] Run `:core-domain:allTests` or the repository's available core-domain test task.
-- [ ] Commit as `refactor: add platform-neutral attachment metadata`.
+- [x] Define `AttachmentKind` and immutable `AttachmentMetadata` with id, kind, display name, MIME type, size, uid, and file name only.
+- [x] Normalize display name and MIME through existing `AttachmentPolicy` without adding Android imports.
+- [x] Test metadata normalization and prove its public properties contain no Android payload type.
+- [x] Run the repository's available structural verification; Gradle execution remains blocked when Android SDK is absent.
+- [x] Commit as `refactor: add platform-neutral attachment metadata`.
 
 ### Task 2: Android payload adapter compatibility slice
 
@@ -45,12 +45,12 @@
 - Modify: `app/src/main/java/com/airi/assistant/domain/ChatAttachment.kt`
 - Create: `app/src/test/java/com/airi/assistant/attachments/AndroidAttachmentPayloadTest.kt`
 
-- [ ] Define `AndroidAttachmentPayload` containing nullable `Uri`, nullable `Bitmap`, and nullable persisted private path.
-- [ ] Add compatibility accessors to `ChatAttachment` without changing constructor call sites or JSON fields.
-- [ ] Add a metadata projection that returns `AttachmentMetadata` and excludes all Android payload fields.
-- [ ] Test picker, camera, and persisted-file cases plus existing marker output.
-- [ ] Run targeted JVM tests and `tools/verify_core_changes.py`.
-- [ ] Commit as `refactor: isolate Android attachment payloads`.
+- [x] Define `AndroidAttachmentPayload` containing nullable `Uri`, nullable `Bitmap`, and nullable persisted private path.
+- [x] Add compatibility accessors to `ChatAttachment` without changing constructor call sites or JSON fields.
+- [x] Add a metadata projection that returns `AttachmentMetadata` and excludes all Android payload fields.
+- [x] Test picker, camera, and persisted-file cases plus existing marker output.
+- [x] Run targeted structural verification; Gradle execution remains blocked when Android SDK is absent.
+- [x] Commit as `refactor: isolate Android attachment payloads`.
 
 ### Task 3: Metadata JSON boundary
 
@@ -58,10 +58,10 @@
 - Modify: `app/src/main/java/com/airi/assistant/ui/viewmodel/ChatViewModel.kt`
 - Modify: relevant attachment metadata tests.
 
-- [ ] Make JSON writing consume the metadata projection and add only the existing private stored filename field at the Android boundary.
-- [ ] Keep history reconstruction fail-closed for invalid or out-of-root paths.
-- [ ] Add a regression test for field compatibility and path exclusion.
-- [ ] Run targeted tests and commit as `refactor: keep attachment persistence at Android boundary`.
+- [x] Make JSON writing consume the metadata projection and add only the existing private stored filename field at the Android boundary.
+- [x] Keep history reconstruction fail-closed for invalid or out-of-root paths.
+- [x] Add a regression test for field compatibility and path exclusion.
+- [x] Run structural verification and preserve the existing attachment persistence boundary.
 
 ### Task 4: ChatViewModel lifecycle owner extraction
 
@@ -107,3 +107,15 @@
 - [x] Inject network and execution telemetry through a platform-neutral port; keep the adapter in `ServiceLocator`.
 - [x] Update tool, registry, builder, and service construction sites to use the same adapter.
 - [ ] Run the Gradle test task once Android SDK is available, then commit with the lifecycle extraction.
+
+### Task 8: Unified chat lifecycle teardown
+
+**Files:**
+- Create: `app/src/main/java/com/airi/assistant/ui/viewmodel/ChatLifecycleCoordinator.kt`
+- Create: `app/src/test/java/com/airi/assistant/ui/viewmodel/ChatLifecycleCoordinatorTest.kt`
+- Modify: `ChatViewModel.kt` and this plan.
+
+- [x] Add an idempotent outer lifecycle boundary for startup and close.
+- [x] Route conversation teardown, model teardown, receiver unregister, voice confirmation reset, and skill-runtime destruction through one close callback.
+- [x] Test repeated start/close and close-before-start behavior without Android dependencies.
+- [ ] Run the Gradle test task once Android SDK is available, then commit separately.

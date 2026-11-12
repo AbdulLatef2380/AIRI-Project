@@ -108,7 +108,7 @@ class CloudSyncCoordinator(
 
         _syncStatus.value = SyncStatus.SYNCING
 
-        runCatching {
+        return runCatching {
             val logicalOperationId = CloudSyncOperationId.profile(uid, prefs.lastUpdatedAtMs)
             val marker = operationMarker(db, uid, logicalOperationId)
             if (marker.get().await().exists()) {
@@ -155,7 +155,7 @@ class CloudSyncCoordinator(
 
         _syncStatus.value = SyncStatus.SYNCING
 
-        runCatching {
+        return runCatching {
             val snap = db.collection("users").document(uid)
                 .collection("profile").document("preferences")
                 .get().await()
@@ -190,7 +190,7 @@ class CloudSyncCoordinator(
         val uid = auth.currentUser?.uid ?: return SyncResult.SKIPPED
         val firestore = db ?: return SyncResult.SKIPPED
         _syncStatus.value = SyncStatus.SYNCING
-        runCatching {
+        return runCatching {
             var total = 0
             while (true) {
                 val pending = memoryManager.pendingSyncMutations(MAX_MEMORY_BATCH)
@@ -243,7 +243,7 @@ class CloudSyncCoordinator(
         val uid = auth.currentUser?.uid ?: return SyncResult.SKIPPED
         val firestore = db ?: return SyncResult.SKIPPED
         _syncStatus.value = SyncStatus.SYNCING
-        runCatching {
+        return runCatching {
             val snap = firestore.collection("users").document(uid).collection("memory")
                 .limit(MAX_MEMORY_PULL.toLong()).get().await()
             var restored = 0

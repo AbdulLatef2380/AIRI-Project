@@ -173,7 +173,7 @@ object AgentRunMapper {
                 ExecutionTraceKind.APPROVAL_CANCELLED,
             ) -> "CANCELLED"
             event.type == AgentEvent.Type.FINAL -> if (event.errorCode == null) "COMPLETED" else "FAILED"
-            AgentEvent.Type.APPROVAL -> "WAITING_APPROVAL"
+            event.type == AgentEvent.Type.APPROVAL -> "WAITING_APPROVAL"
             else -> "RUNNING"
         },
         startedAtMs = event.timestampMs,

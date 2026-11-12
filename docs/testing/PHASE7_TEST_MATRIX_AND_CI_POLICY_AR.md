@@ -8,6 +8,7 @@
 
 ```bash
 python3 scripts/phase7_test_matrix.py --output phase7-test-matrix-report.json
+python3 scripts/phase7_test_matrix.py --evidence-root app/build --output phase7-test-matrix-runtime-report.json
 python3 scripts/phase7_coverage_observability.py --output phase7-coverage-report.json
 python3 scripts/phase7_environment_gates.py --output phase7-environment-gates-report.json
 ```

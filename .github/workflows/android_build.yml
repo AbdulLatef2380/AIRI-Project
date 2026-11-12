@@ -205,6 +205,27 @@ jobs:
         path: ci-instrumentation/
         if-no-files-found: warn
 
+    - name: Aggregate Phase 7 runtime evidence
+      if: always()
+      run: |
+        mkdir -p ci-phase7
+        python3 scripts/phase7_test_matrix.py \
+          --evidence-root app/build \
+          --output ci-phase7/phase7-test-matrix-runtime-report.json
+        python3 scripts/phase7_coverage_observability.py \
+          --root app/build \
+          --output ci-phase7/phase7-coverage-runtime-report.json
+        python3 scripts/phase7_environment_gates.py \
+          --output ci-phase7/phase7-environment-gates-runtime-report.json
+
+    - name: Upload Phase 7 runtime evidence
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: AIRI-Phase7-Runtime-Evidence
+        path: ci-phase7/
+        if-no-files-found: warn
+
     - name: Verify native library output
       run: |
         if ! find app/build -name "libairi_native.so" | grep -q .; then

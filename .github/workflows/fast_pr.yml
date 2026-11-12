@@ -23,6 +23,8 @@ jobs:
           python-version: '3.x'
       - name: Validate risk-linked test matrix
         run: python3 scripts/phase7_test_matrix.py --output phase7-test-matrix-report.json
+      - name: Test runtime evidence classifier
+        run: python3 -m unittest scripts/test_phase7_test_matrix.py -v
       - name: Classify environment-dependent gates
         run: python3 scripts/phase7_environment_gates.py --output phase7-environment-gates-report.json
       - name: Run deterministic source contracts

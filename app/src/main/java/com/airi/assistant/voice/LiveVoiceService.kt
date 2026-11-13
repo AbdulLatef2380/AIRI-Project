@@ -17,8 +17,11 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.core.VoiceManager
+import com.airi.assistant.execution.CloudProvider
+import com.airi.assistant.execution.security.SecureApiKeyStore
 import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.voice.realtime.LocalVoicePipeline
+import com.airi.assistant.voice.realtime.RealtimeProviderFactory
 import com.airi.assistant.voice.realtime.RealtimeVoiceProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -91,6 +94,9 @@ class LiveVoiceService : Service() {
 
         fun startRealtimeDuplex(systemPrompt: String, apiKey: String, voiceId: String = "alloy") =
             this@LiveVoiceService.startRealtimeDuplex(systemPrompt, apiKey, voiceId)
+
+        fun startConfiguredRealtimeDuplex(systemPrompt: String, voiceId: String = "alloy") =
+            this@LiveVoiceService.startConfiguredRealtimeDuplex(systemPrompt, voiceId)
 
         fun stopRealtimeDuplex() = this@LiveVoiceService.stopRealtimeDuplex()
     }
@@ -218,13 +224,8 @@ class LiveVoiceService : Service() {
      */
     private fun restoreProviderPreference() {
         val requested = VoicePreferencesStore.load(this).cloudVoiceProvider
-        // Realtime providers define a transport contract but are not yet connected
-        // to microphone capture and AudioTrack playback in this service. Keep the
-        // operational path local until that end-to-end transport is implemented.
-        if (requested != "LOCAL") {
-            Log.w(TAG, "Realtime provider '$requested' is not enabled in the live pipeline; using local voice")
-        }
-        realtimeProvider = LocalVoicePipeline
+        realtimeProvider = RealtimeProviderFactory.create(requested)
+        Log.i(TAG, "AIRI VOICE_PROVIDER_SELECTED requested=$requested active=${realtimeProvider.name}")
     }
 
     override fun onDestroy() {
@@ -251,6 +252,9 @@ class LiveVoiceService : Service() {
      */
     fun requestListen() {
         listenRequestedByUser = true
+        // ACTION_START_LISTEN can arrive before onBind after process recreation;
+        // refresh the persisted selection so it cannot silently fall back local.
+        restoreProviderPreference()
         val current = session.state.value
         Log.d(TAG, "requestListen current=$current")
         if (current == VoicePipelineState.IDLE || current == VoicePipelineState.INTERRUPTED) {
@@ -259,6 +263,13 @@ class LiveVoiceService : Service() {
                 Log.w(TAG, "AIRI AUDIOFOCUS_REQUEST_FAILED — not starting STT")
                 AgentActivityBus.emit("Audio focus denied — another app is using audio",
                     com.airi.assistant.ui.activity.ActivityCategory.VOICE)
+                return
+            }
+            // A selected cloud provider owns both microphone capture and
+            // speaker playback. Do not start the local VoiceManager as a
+            // competing AudioRecord owner.
+            if (realtimeProvider !== LocalVoicePipeline) {
+                startConfiguredRealtimeDuplex(systemPrompt = "")
                 return
             }
             val sessionId = session.beginSession()
@@ -313,6 +324,31 @@ class LiveVoiceService : Service() {
     }
 
     /** Start the provider-backed PCM duplex path after a provider is selected. */
+    fun startConfiguredRealtimeDuplex(systemPrompt: String, voiceId: String = "alloy") {
+        val requested = VoicePreferencesStore.load(this).cloudVoiceProvider
+        val provider = RealtimeProviderFactory.create(requested)
+        if (provider === LocalVoicePipeline) {
+            Log.i(TAG, "AIRI REALTIME_CONFIGURED_LOCAL")
+            return
+        }
+        val cloudProvider = when (provider) {
+            is com.airi.assistant.voice.realtime.GeminiLiveProvider -> CloudProvider.GEMINI
+            is com.airi.assistant.voice.realtime.OpenAIRealtimeProvider -> CloudProvider.OPENAI
+            else -> null
+        }
+        val apiKey = cloudProvider?.let { SecureApiKeyStore(applicationContext).getKey(it) }
+        if (apiKey.isNullOrBlank()) {
+            val reason = "missing_${requested.trim().lowercase()}_realtime_key"
+            Log.w(TAG, "AIRI REALTIME_CONFIGURED_REJECTED reason=$reason")
+            listenRequestedByUser = false
+            abandonAudioFocus()
+            AgentActivityBus.emit("Realtime voice is not configured", com.airi.assistant.ui.activity.ActivityCategory.VOICE)
+            return
+        }
+        realtimeProvider = provider
+        startRealtimeDuplex(systemPrompt, apiKey, voiceId)
+    }
+
     fun startRealtimeDuplex(systemPrompt: String, apiKey: String, voiceId: String = "alloy") {
         if (realtimeProvider === LocalVoicePipeline || !realtimeProvider.supportsBidirectionalStreaming) {
             Log.w(TAG, "AIRI REALTIME_DUPLEX_REJECTED provider=${realtimeProvider.name}")

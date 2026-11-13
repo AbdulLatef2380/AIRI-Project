@@ -72,4 +72,19 @@ class VoiceCapabilityPolicyTest {
         assertFalse(withoutTransport.liveDuplexReady)
         assertTrue(withTransport.liveDuplexReady)
     }
+
+    @Test
+    fun realtimeTransportDoesNotRequireLocalSpeechModel() {
+        val snapshot = VoiceCapabilityPolicy.snapshot(
+            wakeWordConfigured = false,
+            activeSpeechModelReady = false,
+            microphoneGranted = true,
+            textToSpeechReady = true,
+            localInferenceReady = false,
+            cloudInferenceReady = false,
+            realtimeTransportReady = true
+        )
+
+        assertTrue(snapshot.liveDuplexReady)
+    }
 }

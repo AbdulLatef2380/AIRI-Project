@@ -140,6 +140,7 @@ import com.airi.assistant.ai.LanguagePolicy
 import com.airi.assistant.voice.VoskModelManager
 import com.airi.assistant.voice.VoiceCapabilityPolicy
 import com.airi.assistant.voice.VoicePreferencesStore
+import com.airi.assistant.voice.realtime.RealtimeProviderFactory
 import com.airi.assistant.voice.PorcupineEngine
 import com.airi.assistant.voice.OpenWakeWordEngine
 import com.airi.assistant.product.AiriIdentityProfile
@@ -990,12 +991,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Single readiness projection consumed by voice UI and future foreground services.
      * STT remains local (Vosk), while the response model may be local or cloud-backed.
-     * Live duplex stays false until a realtime PCM transport is actually wired.
+     * Live duplex is advertised only when the selected realtime transport and
+     * its encrypted provider credential are available.
      */
     val voiceCapability: StateFlow<VoiceCapabilityPolicy.Snapshot> = combine(
         _modelState,
         VoicePreferencesStore.snapshotFlow
-    ) { model, _ ->
+    ) { model, preferences ->
+        val realtimeProvider = preferences?.cloudVoiceProvider
+        val realtimeTransportReady = when (realtimeProvider?.trim()?.uppercase()) {
+            "GEMINI", "GEMINI_LIVE", "GOOGLE" ->
+                SecureApiKeyStore(appContext).hasKey(CloudProvider.GEMINI)
+            "OPENAI", "OPENAI_REALTIME" ->
+                SecureApiKeyStore(appContext).hasKey(CloudProvider.OPENAI)
+            else -> false
+        } && RealtimeProviderFactory.isCloud(realtimeProvider)
         VoiceCapabilityPolicy.snapshot(
             wakeWordConfigured = PorcupineEngine.status(appContext).ready ||
                 OpenWakeWordEngine.status(appContext).ready,
@@ -1006,7 +1016,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             textToSpeechReady = true,
             localInferenceReady = model.isModelReady,
             cloudInferenceReady = model.isCloudReady,
-            realtimeTransportReady = false
+            realtimeTransportReady = realtimeTransportReady
         )
     }.stateIn(
         viewModelScope,
@@ -1016,7 +1026,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Toggle the in-chat voice mode. Chat owns this foreground-only interaction
-     * until LiveVoiceService is bound end-to-end to the screen and its state.
+     * until the screen binds to LiveVoiceService; configured realtime sessions
+     * are started through the service binder so AudioRecord ownership remains
+     * singular.
      */
     fun toggleVoiceMode() {
         val context = appContext

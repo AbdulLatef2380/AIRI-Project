@@ -11,6 +11,7 @@ import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.airi.assistant.voice.realtime.Pcm16Resampler
 import com.airi.assistant.voice.realtime.RealtimeVoiceProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -153,14 +154,19 @@ class RealtimeAudioTransport(
 
     private fun startInputCollector() {
         inputJob = transportScope.launch(Dispatchers.IO) {
-            val samplesPerFrame = (provider.inputSampleRateHz / 50).coerceAtLeast(160)
+            // Capture at a stable Android/Vosk-compatible rate, then explicitly
+            // resample for providers such as OpenAI Realtime (24 kHz input).
+            val samplesPerFrame = (CAPTURE_SAMPLE_RATE_HZ / 50).coerceAtLeast(160)
             val buffer = ShortArray(samplesPerFrame)
             try {
                 while (isActive && !stopped.get()) {
                     val record = audioRecord ?: break
                     val count = record.read(buffer, 0, buffer.size, AudioRecord.READ_BLOCKING)
                     if (count <= 0) continue
-                    provider.sendAudioChunk(if (count == buffer.size) buffer.copyOf() else buffer.copyOf(count))
+                    val captured = if (count == buffer.size) buffer.copyOf() else buffer.copyOf(count)
+                    provider.sendAudioChunk(
+                        Pcm16Resampler.resample(captured, CAPTURE_SAMPLE_RATE_HZ, provider.inputSampleRateHz)
+                    )
                     listener.onInputFrame(count)
                 }
             } catch (cancelled: CancellationException) {
@@ -207,9 +213,9 @@ class RealtimeAudioTransport(
     }
 
     @SuppressLint("MissingPermission")
-    private fun createAudioRecord(sampleRate: Int): AudioRecord? {
+    private fun createAudioRecord(@Suppress("UNUSED_PARAMETER") sampleRate: Int): AudioRecord? {
         val min = AudioRecord.getMinBufferSize(
-            sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
+            CAPTURE_SAMPLE_RATE_HZ, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
         )
         if (min <= 0) return null
         return runCatching {
@@ -217,12 +223,12 @@ class RealtimeAudioTransport(
                 .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
                 .setAudioFormat(
                     AudioFormat.Builder()
-                        .setSampleRate(sampleRate)
+                        .setSampleRate(CAPTURE_SAMPLE_RATE_HZ)
                         .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                         .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
                         .build()
                 )
-                .setBufferSizeInBytes((min * 2).coerceAtLeast(sampleRate / 5 * 2))
+                .setBufferSizeInBytes((min * 2).coerceAtLeast(CAPTURE_SAMPLE_RATE_HZ / 5 * 2))
                 .build()
                 .takeIf { it.state == AudioRecord.STATE_INITIALIZED }
         }.getOrElse {
@@ -305,5 +311,6 @@ class RealtimeAudioTransport(
 
     private companion object {
         const val TAG = "AIRI_REALTIME_AUDIO"
+        const val CAPTURE_SAMPLE_RATE_HZ = 16_000
     }
 }

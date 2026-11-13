@@ -305,7 +305,12 @@ enum class ExecutionStage {
 }
 
 enum class LoadErrorType {
-    NONE, FILE_NOT_FOUND, INVALID_FORMAT, UNSUPPORTED_ARCHITECTURE, TOO_SMALL, INSUFFICIENT_RAM, OUT_OF_MEMORY, LOAD_FAILED
+    NONE, FILE_NOT_FOUND, INVALID_FORMAT, UNKNOWN_ARCHITECTURE, UNSUPPORTED_ARCHITECTURE,
+    TOO_SMALL, INSUFFICIENT_RAM, OUT_OF_MEMORY, IMPORT_CANCELLED, LOAD_FAILED
+}
+
+enum class ModelImportStage {
+    IDLE, COPYING, VALIDATING, IMPORTED, FAILED, CANCELLED
 }
 
 enum class AgentMode(val label: String, val prompt: String) {
@@ -324,6 +329,9 @@ data class ModelUiState(
     val loadError: String? = null,
     val loadErrorType: LoadErrorType = LoadErrorType.NONE,
     val loadProgress: Int = -1,
+    val importStage: ModelImportStage = ModelImportStage.IDLE,
+    val importProgress: Int = -1,
+    val importRecommendation: String? = null,
     val downloadedModelAvailable: Boolean = false,
     val downloadedModelPath: String = "",
     val availableModels: List<ModelInfo> = emptyList(),
@@ -827,6 +835,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // Extracted from ChatViewModel in iewModel decomposition.
     // State ownership stays here (_modelState); ModelController mutates via .value.
     private val _modelState = MutableStateFlow(ModelUiState())   // placeholder until modelController init
+    private var modelImportJob: Job? = null
+    private var modelImportRequestId: Long = 0L
 
     // : Tracks whether an embedding model is loaded (drives EmbeddingModelSection UI)
     private val _embeddingModelReady = MutableStateFlow(false)
@@ -5795,23 +5805,58 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // ── Model import / selection ──────────────────────────────────────────────
 
     fun importModel(uri: Uri) {
+        modelImportJob?.cancel()
+        val requestId = ++modelImportRequestId
         val previousState = _modelState.value
-        _modelState.update { it.copy(isModelLoading = true, loadError = null, loadErrorType = LoadErrorType.NONE, loadProgress = 0) }
-        viewModelScope.launch {
+        _modelState.update {
+            it.copy(
+                isModelLoading = true,
+                loadError = null,
+                loadErrorType = LoadErrorType.NONE,
+                loadProgress = -1,
+                importStage = ModelImportStage.COPYING,
+                importProgress = -1,
+                importRecommendation = null,
+            )
+        }
+        modelImportJob = viewModelScope.launch {
             try {
                 val copy = withContext(Dispatchers.IO) { FileUtils.copyModelFromSaf(appContext, uri) }
                 val file = copy.file
+                if (requestId != modelImportRequestId) {
+                    file.delete()
+                    return@launch
+                }
                 Log.i("AIRI_MODEL", "IMPORT SUCCESS path=${file.absolutePath} sourceBytes=${copy.sourceSizeBytes} copiedBytes=${copy.copiedBytes}")
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_IMPORT", true, "path=${file.absolutePath} copied=${copy.copiedBytes}")
                 val model = modelController.createModelFromFile(file, ModelSource.LOCAL_FILE, "custom")
+                if (requestId != modelImportRequestId) {
+                    file.delete()
+                    return@launch
+                }
+                _modelState.update { it.copy(importStage = ModelImportStage.VALIDATING, importProgress = 100) }
                 when (val v = ModelValidator.validate(file, appContext, model.ramRequiredMb)) {
                     is ValidationResult.Valid -> {
+                        if (requestId != modelImportRequestId) {
+                            file.delete()
+                            return@launch
+                        }
                         ModelRegistry.addModel(model)
                         persistRegistry()
                         refreshModelList()
+                        _modelState.update {
+                            it.copy(
+                                importStage = ModelImportStage.IMPORTED,
+                                importRecommendation = null,
+                            )
+                        }
                         modelLifecycleCoordinator.loadModel(model)
                     }
                     else -> {
+                        if (requestId != modelImportRequestId) {
+                            file.delete()
+                            return@launch
+                        }
                         file.delete()
                         val (msg, type) = modelController.validationMessage(v)
                         _modelState.value = ModelLoadRequestPolicy.rejectBeforeUnload(
@@ -5819,10 +5864,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             message = msg,
                             errorType = type,
                             availableModels = ModelManager.getAllModels()
+                        ).copy(
+                            importStage = ModelImportStage.FAILED,
+                            importProgress = -1,
+                            importRecommendation = appContext.getString(R.string.model_import_review_file),
                         )
                     }
                 }
+            } catch (e: CancellationException) {
+                if (requestId != modelImportRequestId) return@launch
+                Log.i("AIRI_MODEL", "IMPORT CANCELLED")
+                _modelState.update {
+                    it.copy(
+                        isModelLoading = false,
+                        loadProgress = -1,
+                        loadError = appContext.getString(R.string.model_import_cancelled),
+                        loadErrorType = LoadErrorType.IMPORT_CANCELLED,
+                        importStage = ModelImportStage.CANCELLED,
+                        importProgress = -1,
+                        importRecommendation = appContext.getString(R.string.model_import_cancelled_recommendation),
+                    )
+                }
             } catch (e: Exception) {
+                if (requestId != modelImportRequestId) return@launch
                 Log.e("AIRI_MODEL", "IMPORT FAILED: ${e.message}", e)
                 com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_IMPORT", false, e.message ?: "unknown")
                 val msg = AppErrorHandler.capture(e, "importModel").message
@@ -5831,9 +5895,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     message = msg,
                     errorType = LoadErrorType.LOAD_FAILED,
                     availableModels = ModelManager.getAllModels()
+                ).copy(
+                    importStage = ModelImportStage.FAILED,
+                    importProgress = -1,
+                    importRecommendation = appContext.getString(R.string.model_import_retry_recommendation),
                 )
             }
         }
+    }
+
+    fun cancelModelImport() {
+        modelImportJob?.cancel()
     }
 
     fun selectModel(modelId: String) {

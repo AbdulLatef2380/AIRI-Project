@@ -56,11 +56,11 @@ class ModelValidatorTest {
     }
 
     @Test
-    fun rejectsUnknownArchitectureInsteadOfPassingItToNativeLoader() {
+    fun marksUnknownArchitectureAsNotVerifiedInsteadOfCallingItUnsupported() {
         val file = fixture(version = 3, size = 64, architecture = null)
 
         assertEquals(
-            ValidationResult.UnsupportedArchitecture("unknown"),
+            ValidationResult.UnknownArchitecture("unknown"),
             ModelValidator.validate(file, null, 0)
         )
     }

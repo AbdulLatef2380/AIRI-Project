@@ -117,6 +117,15 @@
     <string name="voice_input">语音输入</string>
     <string name="send">发送</string>
     <string name="model_error">模型错误</string>
+    <string name="model_architecture_not_verified">AIRI 目前无法验证此模型的架构。</string>
+    <string name="model_import_cancelled">模型导入已取消。</string>
+    <string name="model_import_cancelled_recommendation">部分文件已删除。准备好后，你可以重新选择模型。</string>
+    <string name="model_import_review_file">请检查文件并选择完整且可读的 GGUF 模型，然后重试。</string>
+    <string name="model_import_retry_recommendation">请检查存储访问权限和可用空间，然后重新导入。</string>
+    <string name="model_import_copying">正在将模型复制到 AIRI…</string>
+    <string name="model_import_validating">正在检查 GGUF 文件…</string>
+    <string name="model_import_copying_short">复制中</string>
+    <string name="model_import_validating_short">检查中</string>
     <string name="model_ready_status">● %1$s</string>
     <string name="model_loading_status">○ 正在加载…</string>
     <string name="model_none_status">○ 无模型</string>

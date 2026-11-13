@@ -202,6 +202,15 @@
     <string name="voice_input">إدخال صوتي</string>
     <string name="send">إرسال</string>
     <string name="model_error">خطأ في النموذج</string>
+    <string name="model_architecture_not_verified">تعذّر على AIRI التحقق من بنية هذا النموذج حتى الآن.</string>
+    <string name="model_import_cancelled">تم إلغاء استيراد النموذج.</string>
+    <string name="model_import_cancelled_recommendation">تم حذف الملف الجزئي. يمكنك اختيار النموذج مجددًا عندما تكون مستعدًا.</string>
+    <string name="model_import_review_file">راجع الملف واختر نموذج GGUF كاملاً وقابلاً للقراءة ثم حاول مجددًا.</string>
+    <string name="model_import_retry_recommendation">تحقق من صلاحية الوصول إلى التخزين والمساحة المتاحة، ثم أعد محاولة الاستيراد.</string>
+    <string name="model_import_copying">جارٍ نسخ النموذج إلى AIRI…</string>
+    <string name="model_import_validating">جارٍ فحص ملف GGUF…</string>
+    <string name="model_import_copying_short">جارٍ النسخ</string>
+    <string name="model_import_validating_short">جارٍ الفحص</string>
     <string name="model_ready_status">● %1$s</string>
     <string name="model_loading_status">○ جارٍ التحميل…</string>
     <string name="model_none_status">○ لا يوجد نموذج</string>

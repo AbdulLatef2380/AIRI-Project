@@ -10,9 +10,13 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -59,6 +63,7 @@ import com.airi.assistant.ui.theme.CosmicAccent
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.ChatViewModel
 import com.airi.assistant.ui.viewmodel.LoadErrorType
+import com.airi.assistant.ui.viewmodel.ModelImportStage
 import com.airi.assistant.ui.viewmodel.ModelUiState
 import com.google.gson.Gson
 import java.io.File
@@ -331,7 +336,8 @@ fun ModelSettingsScreen(
                     state = modelState,
                     onPickModel = {
                         modelPicker.launch(arrayOf("application/octet-stream", "application/x-gguf", "*/*"))
-                    }
+                    },
+                    onCancel = viewModel::cancelModelImport,
                 )
             }
             // Full cloud provider catalog: free Groq, Gemini, OpenRouter,
@@ -1545,22 +1551,41 @@ private fun DetailRow(label: String, value: String) {
 }
 
 @Composable
-fun ImportModelCard(state: ModelUiState, onPickModel: () -> Unit) {
+fun ImportModelCard(
+    state: ModelUiState,
+    onPickModel: () -> Unit,
+    onCancel: () -> Unit = {},
+) {
     ModelCard(
         icon = "G",
         title = stringResource(R.string.add_local_gguf_model),
         subtitle = stringResource(R.string.choose_gguf_file),
         metaItems = emptyList(),
         type = null,
-        status = if (state.isModelLoading) stringResource(R.string.loading) else stringResource(R.string.import_action),
+        status = when (state.importStage) {
+            ModelImportStage.COPYING -> stringResource(R.string.model_import_copying_short)
+            ModelImportStage.VALIDATING -> stringResource(R.string.model_import_validating_short)
+            else -> if (state.isModelLoading) stringResource(R.string.loading) else stringResource(R.string.import_action)
+        },
         error = state.loadError,
+        recommendation = state.importRecommendation,
         errorType = state.loadErrorType,
-        loadProgress = state.loadProgress,
+        loadProgress = if (state.importStage == ModelImportStage.COPYING || state.importStage == ModelImportStage.VALIDATING) {
+            state.importProgress
+        } else {
+            state.loadProgress
+        },
         isLoadingThis = state.isModelLoading,
+        loadingLabel = when (state.importStage) {
+            ModelImportStage.COPYING -> stringResource(R.string.model_import_copying)
+            ModelImportStage.VALIDATING -> stringResource(R.string.model_import_validating)
+            else -> stringResource(R.string.loading_model_memory)
+        },
         actionText = stringResource(R.string.import_gguf),
         actionEnabled = !state.isModelLoading,
         extraLabel = null,
         onAction = onPickModel,
+        onCancel = onCancel,
         onDelete = null
     )
 }
@@ -1636,13 +1661,16 @@ fun ModelCard(
     type: ModelType?,
     status: String,
     error: String?,
+    recommendation: String? = null,
     errorType: LoadErrorType,
     loadProgress: Int,
     isLoadingThis: Boolean,
+    loadingLabel: String? = null,
     actionText: String,
     actionEnabled: Boolean = true,
     extraLabel: String?,
     onAction: () -> Unit,
+    onCancel: (() -> Unit)? = null,
     onDelete: (() -> Unit)?,
     onSettings: (() -> Unit)? = null
 ) {
@@ -1662,7 +1690,12 @@ fun ModelCard(
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .animateContentSize(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (type != null) TypeAvatar(type = type) else StaticAvatar(icon = icon)
                 Spacer(Modifier.width(12.dp))
@@ -1712,6 +1745,9 @@ fun ModelCard(
                 )
                 isLoadingThis -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
+            if (isLoadingThis) {
+                Text(loadingLabel ?: stringResource(R.string.loading_model_memory), style = MaterialTheme.typography.bodySmall)
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1722,15 +1758,30 @@ fun ModelCard(
                     label = status,
                     tone = when (status) {
                         stringResource(R.string.active), stringResource(R.string.downloaded) -> ChipTone.SUCCESS
-                        stringResource(R.string.loading), stringResource(R.string.loading_ellipsis) -> ChipTone.WARNING
+                        stringResource(R.string.loading),
+                        stringResource(R.string.loading_ellipsis),
+                        stringResource(R.string.model_import_copying_short),
+                        stringResource(R.string.model_import_validating_short) -> ChipTone.WARNING
                         else -> ChipTone.NEUTRAL
                     }
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    onDelete?.let {
-                        OutlinedButton(onClick = it, enabled = !isLoadingThis) { Text(stringResource(R.string.delete)) }
+                    if (isLoadingThis) {
+                        if (onCancel != null) {
+                            OutlinedButton(onClick = onCancel) {
+                                Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(stringResource(R.string.cancel))
+                            }
+                        } else {
+                            Button(onClick = {}, enabled = false) { Text(actionText) }
+                        }
+                    } else {
+                        onDelete?.let {
+                            OutlinedButton(onClick = it) { Text(stringResource(R.string.delete)) }
+                        }
+                        Button(onClick = onAction, enabled = actionEnabled) { Text(actionText) }
                     }
-                    Button(onClick = onAction, enabled = actionEnabled) { Text(actionText) }
                 }
             }
 
@@ -1753,14 +1804,47 @@ fun ModelCard(
             }
 
             error?.let {
-                Text(
-                    it,
-                    color = when (errorType) {
-                        LoadErrorType.INSUFFICIENT_RAM -> CosmicAccent
-                        else -> SemanticError
-                    },
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        it,
+                        color = when (errorType) {
+                            LoadErrorType.INSUFFICIENT_RAM,
+                            LoadErrorType.UNKNOWN_ARCHITECTURE -> CosmicAccent
+                            else -> SemanticError
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+            AnimatedVisibility(
+                visible = !recommendation.isNullOrBlank(),
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AIRIShapes.md,
+                    color = CosmicAccentAlt.copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, CosmicAccent.copy(alpha = 0.16f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Lightbulb,
+                            contentDescription = null,
+                            tint = CosmicAccentAlt,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            recommendation.orEmpty(),
+                            color = AiriTheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
             }
         }
     }

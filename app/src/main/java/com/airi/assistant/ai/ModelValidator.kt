@@ -15,6 +15,7 @@ sealed class ValidationResult {
     object InvalidFormat : ValidationResult()
     object MalformedMetadata : ValidationResult()
     object TooSmall : ValidationResult()
+    data class UnknownArchitecture(val architecture: String) : ValidationResult()
     data class UnsupportedArchitecture(val architecture: String) : ValidationResult()
     data class InsufficientRam(val requiredMb: Long, val availableMb: Long) : ValidationResult()
 }
@@ -42,6 +43,9 @@ object ModelValidator {
             is HeaderResult.Valid -> Unit
         }
         val architecture = detectArchitecture(file)
+        if (architecture == UNKNOWN_ARCHITECTURE) {
+            return ValidationResult.UnknownArchitecture(architecture)
+        }
         if (architecture !in SUPPORTED_ARCHS) {
             return ValidationResult.UnsupportedArchitecture(architecture)
         }
@@ -141,9 +145,9 @@ object ModelValidator {
             Regex(
                 "\\b(qwen3vl|qwen2vl|qwen3|qwen2|qwen|llama4|llama|gemma3|gemma2|gemma|mixtral|mistral|phi3|deepseek2?|starcoder2|command-r)\\b",
                 RegexOption.IGNORE_CASE
-            ).find(candidate)?.value?.lowercase() ?: "unknown"
+            ).find(candidate)?.value?.lowercase() ?: UNKNOWN_ARCHITECTURE
         } catch (e: Exception) {
-            "unknown"
+            UNKNOWN_ARCHITECTURE
         }
     }
 
@@ -153,4 +157,6 @@ object ModelValidator {
         am.getMemoryInfo(memInfo)
         return memInfo.availMem / (1024L * 1024L)
     }
+
+    private const val UNKNOWN_ARCHITECTURE = "unknown"
 }

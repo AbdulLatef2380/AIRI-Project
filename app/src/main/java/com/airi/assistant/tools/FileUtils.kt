@@ -8,6 +8,8 @@ import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 data class ModelImportCopyResult(
     val file: File,
@@ -19,11 +21,11 @@ object FileUtils {
     private const val TAG = "AIRI_STORAGE"
     private const val MIN_GGUF_HEADER_BYTES = 8L
 
-    fun copyToInternalStorage(context: Context, uri: Uri): String {
+    suspend fun copyToInternalStorage(context: Context, uri: Uri): String {
         return copyModelFromSaf(context, uri).file.absolutePath
     }
 
-    fun copyModelFromSaf(context: Context, uri: Uri): ModelImportCopyResult {
+    suspend fun copyModelFromSaf(context: Context, uri: Uri): ModelImportCopyResult {
         persistReadPermission(context, uri)
         val resolver = context.contentResolver
         val originalName = queryDisplayName(context, uri)
@@ -53,6 +55,7 @@ object FileUtils {
                 FileOutputStream(tempFile, false).use { output ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                     while (true) {
+                        currentCoroutineContext().ensureActive()
                         val read = input.read(buffer)
                         if (read == -1) break
                         output.write(buffer, 0, read)

@@ -404,6 +404,8 @@ internal class ModelController(
         is ValidationResult.InvalidExtension -> "امتداد الملف غير مدعوم. اختر ملف نموذج بامتداد ‎.gguf‎." to LoadErrorType.INVALID_FORMAT
         is ValidationResult.InvalidFormat   -> "Invalid file format"             to LoadErrorType.INVALID_FORMAT
         is ValidationResult.MalformedMetadata -> "ملف GGUF تالف أو غير مكتمل (بياناته الوصفية غير صالحة)" to LoadErrorType.INVALID_FORMAT
+        is ValidationResult.UnknownArchitecture ->
+            appContext.getString(com.airi.assistant.R.string.model_architecture_not_verified) to LoadErrorType.UNKNOWN_ARCHITECTURE
         is ValidationResult.UnsupportedArchitecture ->
             appContext.getString(com.airi.assistant.R.string.model_unsupported_architecture, result.architecture) to LoadErrorType.UNSUPPORTED_ARCHITECTURE
         is ValidationResult.TooSmall        -> "File too small"              to LoadErrorType.TOO_SMALL

@@ -212,6 +212,15 @@
     <string name="voice_input">Voice input</string>
     <string name="send">Send</string>
     <string name="model_error">Model error</string>
+    <string name="model_architecture_not_verified">AIRI could not verify this model architecture yet.</string>
+    <string name="model_import_cancelled">Model import was cancelled.</string>
+    <string name="model_import_cancelled_recommendation">The partial file was removed. You can choose the model again whenever you are ready.</string>
+    <string name="model_import_review_file">Review the file and choose a complete, readable GGUF model before trying again.</string>
+    <string name="model_import_retry_recommendation">Check storage access and available space, then try the import again.</string>
+    <string name="model_import_copying">Copying model into AIRI…</string>
+    <string name="model_import_validating">Checking the GGUF file…</string>
+    <string name="model_import_copying_short">Copying</string>
+    <string name="model_import_validating_short">Checking</string>
     <string name="model_ready_status">● %1$s</string>
     <string name="model_loading_status">○ Loading…</string>
     <string name="model_none_status">○ No model</string>

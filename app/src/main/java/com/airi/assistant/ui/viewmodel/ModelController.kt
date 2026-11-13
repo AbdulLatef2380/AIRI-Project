@@ -135,7 +135,7 @@ internal class ModelController(
                             selectedModelSize = previousState.selectedModelSize,
                             isModelLoading = false,
                             isModelReady = false,
-                            loadError = "Could not copy model into app storage",
+                            loadError = "تعذّر نسخ النموذج إلى مساحة AIRI الداخلية. تحقق من المساحة والصلاحيات ثم أعد المحاولة.",
                             loadErrorType = LoadErrorType.LOAD_FAILED,
                             loadProgress = -1,
                             availableModels = ModelManager.getAllModels(),
@@ -197,12 +197,18 @@ internal class ModelController(
                     )
                     autoLoadVisionProjectorIfPresent(nativeModel)
                 } else {
-                    val message = "Model failed to load: ${llamaManager.getLastLoadFailure() ?: "unknown"}"
+                    val failure = llamaManager.getLastLoadFailure() ?: "unknown"
+                    val outOfMemory = failure.startsWith("OUT_OF_MEMORY")
+                    val message = if (outOfMemory) {
+                        "لا توجد ذاكرة كافية لتشغيل هذا النموذج. أغلق التطبيقات الأخرى أو اختر نموذجًا أصغر."
+                    } else {
+                        "تعذّر تحميل النموذج: $failure"
+                    }
                     modelState.value = ModelLoadRequestPolicy.restoreSelectionAfterLoadFailure(
                         previous = previousState,
                         failed = modelState.value,
                         message = message,
-                        errorType = LoadErrorType.LOAD_FAILED,
+                        errorType = if (outOfMemory) LoadErrorType.OUT_OF_MEMORY else LoadErrorType.LOAD_FAILED,
                         availableModels = ModelManager.getAllModels()
                     )
                 }
@@ -223,6 +229,11 @@ internal class ModelController(
             }
             if (!sourceCanonical.isFile || !sourceCanonical.canRead()) return@withContext null
             val targetDir = File(appContext.filesDir, "imported_models").apply { mkdirs() }
+            val requiredBytes = sourceCanonical.length() + 64L * 1024L * 1024L
+            if (targetDir.usableSpace > 0L && targetDir.usableSpace < requiredBytes) {
+                Log.e(TAG, "MODEL_IMPORT_FAILED source=${source.path} reason=insufficient_storage free=${targetDir.usableSpace} required=$requiredBytes")
+                return@withContext null
+            }
             val stableName = "${source.nameWithoutExtension}_${source.length()}_${source.path.hashCode().toUInt().toString(16)}.gguf"
             val target = File(targetDir, stableName)
             if (!target.exists() || target.length() != source.length()) {
@@ -389,7 +400,10 @@ internal class ModelController(
 
     internal fun validationMessage(result: ValidationResult): Pair<String, LoadErrorType> = when (result) {
         is ValidationResult.FileNotFound    -> "File not found"                  to LoadErrorType.FILE_NOT_FOUND
+        is ValidationResult.Unreadable      -> "لا يمكن قراءة ملف النموذج أو انتهت صلاحية الوصول إليه" to LoadErrorType.FILE_NOT_FOUND
+        is ValidationResult.InvalidExtension -> "امتداد الملف غير مدعوم. اختر ملف نموذج بامتداد ‎.gguf‎." to LoadErrorType.INVALID_FORMAT
         is ValidationResult.InvalidFormat   -> "Invalid file format"             to LoadErrorType.INVALID_FORMAT
+        is ValidationResult.MalformedMetadata -> "ملف GGUF تالف أو غير مكتمل (بياناته الوصفية غير صالحة)" to LoadErrorType.INVALID_FORMAT
         is ValidationResult.UnsupportedArchitecture ->
             appContext.getString(com.airi.assistant.R.string.model_unsupported_architecture, result.architecture) to LoadErrorType.UNSUPPORTED_ARCHITECTURE
         is ValidationResult.TooSmall        -> "File too small"              to LoadErrorType.TOO_SMALL

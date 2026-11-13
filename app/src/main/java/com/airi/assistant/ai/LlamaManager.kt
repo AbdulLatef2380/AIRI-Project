@@ -613,6 +613,18 @@ class LlamaManager(private val context: Context) {
                 if (isCurrentLifecycle(generation)) {
                     withContext(Dispatchers.Main) { onReady(isLoaded) }
                 }
+            } catch (e: OutOfMemoryError) {
+                // A valid GGUF can still exceed the device's native/JVM budget.
+                // Surface a retryable failure instead of allowing the coroutine
+                // to terminate without clearing the visible loading state.
+                lastLoadFailure = "OUT_OF_MEMORY: ${e.message ?: "insufficient memory for model runtime"}"
+                Log.e(TAG, "LOAD FAILED: $lastLoadFailure", e)
+                isLoaded = false
+                loadedModelPath = null
+                invalidateSession()
+                if (isCurrentLifecycle(generation)) {
+                    withContext(Dispatchers.Main) { onReady(false) }
+                }
             } catch (e: Exception) {
                 lastLoadFailure = "${e.javaClass.simpleName}: ${e.message}"
                 Log.e(TAG, "LOAD FAILED: $lastLoadFailure", e)

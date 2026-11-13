@@ -10,7 +10,10 @@ import java.nio.ByteOrder
 sealed class ValidationResult {
     object Valid : ValidationResult()
     object FileNotFound : ValidationResult()
+    object Unreadable : ValidationResult()
+    object InvalidExtension : ValidationResult()
     object InvalidFormat : ValidationResult()
+    object MalformedMetadata : ValidationResult()
     object TooSmall : ValidationResult()
     data class UnsupportedArchitecture(val architecture: String) : ValidationResult()
     data class InsufficientRam(val requiredMb: Long, val availableMb: Long) : ValidationResult()
@@ -18,7 +21,7 @@ sealed class ValidationResult {
 
 object ModelValidator {
     private val GGUF_MAGIC = byteArrayOf(0x47, 0x47, 0x55, 0x46)
-    private const val MIN_HEADER_BYTES = 8L
+    private const val MIN_HEADER_BYTES = 24L
     private const val TAG = "AIRI_MODEL"
 
     data class Inspection(
@@ -30,8 +33,14 @@ object ModelValidator {
 
     fun validate(file: File, context: Context?, ramRequiredMb: Int = 0): ValidationResult {
         if (!file.exists()) return ValidationResult.FileNotFound
+        if (!file.isFile || !file.canRead()) return ValidationResult.Unreadable
+        if (!file.name.lowercase().endsWith(".gguf")) return ValidationResult.InvalidExtension
         if (file.length() < MIN_HEADER_BYTES) return ValidationResult.TooSmall
-        if (!hasSupportedGgufHeader(file)) return ValidationResult.InvalidFormat
+        when (readHeader(file)) {
+            HeaderResult.InvalidFormat -> return ValidationResult.InvalidFormat
+            HeaderResult.Malformed -> return ValidationResult.MalformedMetadata
+            is HeaderResult.Valid -> Unit
+        }
         val architecture = detectArchitecture(file)
         if (architecture !in SUPPORTED_ARCHS) {
             return ValidationResult.UnsupportedArchitecture(architecture)
@@ -48,7 +57,10 @@ object ModelValidator {
     /** Conservative estimate used only when a local model has no catalog RAM metadata. */
     fun estimateRequiredRamMb(fileSizeBytes: Long): Int {
         val fileSizeMb = fileSizeBytes.coerceAtLeast(0L).toDouble() / (1024.0 * 1024.0)
-        val estimate = kotlin.math.ceil(fileSizeMb * 1.25 + 512.0)
+        // mmap streams weights from storage, but llama.cpp still allocates
+        // metadata, scratch buffers and KV cache. Keep enough headroom to fail
+        // gracefully instead of allowing Android to kill the process mid-load.
+        val estimate = kotlin.math.ceil(fileSizeMb * 1.40 + 768.0)
         return estimate.coerceIn(512.0, Int.MAX_VALUE.toDouble()).toInt()
     }
 
@@ -61,16 +73,40 @@ object ModelValidator {
         return Inspection(file.length(), version, architecture, readable)
     }
 
-    private fun hasSupportedGgufHeader(file: File): Boolean {
+    private sealed class HeaderResult {
+        data class Valid(val version: Int, val tensorCount: Long, val metadataCount: Long) : HeaderResult()
+        object InvalidFormat : HeaderResult()
+        object Malformed : HeaderResult()
+    }
+
+    private fun readHeader(file: File): HeaderResult {
         return try {
-            val header = ByteArray(8)
-            file.inputStream().use { it.read(header) }
-            if (!header.copyOfRange(0, 4).contentEquals(GGUF_MAGIC)) return false
+            val header = ByteArray(24)
+            file.inputStream().use { input ->
+                var offset = 0
+                while (offset < header.size) {
+                    val read = input.read(header, offset, header.size - offset)
+                    if (read <= 0) return HeaderResult.Malformed
+                    offset += read
+                }
+            }
+            if (!header.copyOfRange(0, 4).contentEquals(GGUF_MAGIC)) {
+                return HeaderResult.InvalidFormat
+            }
             val version = ByteBuffer.wrap(header, 4, 4).order(ByteOrder.LITTLE_ENDIAN).int
-            // GGUF v2 and v3 are the versions supported by current llama.cpp.
-            version == 2 || version == 3
+            if (version !in 2..3) return HeaderResult.InvalidFormat
+            val tensorCount = ByteBuffer.wrap(header, 8, 8).order(ByteOrder.LITTLE_ENDIAN).long
+            val metadataCount = ByteBuffer.wrap(header, 16, 8).order(ByteOrder.LITTLE_ENDIAN).long
+            // Reject impossible counts before llama.cpp parses attacker-controlled
+            // lengths. These bounds cover practical models and avoid integer or
+            // allocation hazards from malformed/truncated files.
+            if (tensorCount !in 1..1_000_000L || metadataCount !in 0..1_000_000L) {
+                return HeaderResult.Malformed
+            }
+            HeaderResult.Valid(version, tensorCount, metadataCount)
         } catch (e: Exception) {
-            false
+            Log.w(TAG, "GGUF_HEADER_READ_FAILED path=${file.absolutePath} reason=${e.message}")
+            HeaderResult.Malformed
         }
     }
 

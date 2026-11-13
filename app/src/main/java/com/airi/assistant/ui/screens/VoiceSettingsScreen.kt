@@ -49,7 +49,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun VoiceSettingsScreen(
     onBack: () -> Unit,
-    onNavigateToPersonalization: () -> Unit = {}
+    onNavigateToPersonalization: () -> Unit = {},
+    onNavigateToHealth: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -138,6 +139,24 @@ fun VoiceSettingsScreen(
                     }
                     Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = AiriTheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp))
+                }
+            }
+            Surface(
+                shape = AIRIShapes.md,
+                color = AiriTheme.surfaceVariant,
+                modifier = Modifier.fillMaxWidth().clickable { onNavigateToHealth() }
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(Icons.Outlined.MonitorHeart, null, tint = AiriTheme.onSurfaceVariant)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.voice_health_title), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.voice_health_summary), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    }
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = AiriTheme.onSurfaceVariant)
                 }
             }
             Surface(

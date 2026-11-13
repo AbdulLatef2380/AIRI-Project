@@ -451,6 +451,7 @@ class LiveVoiceService : Service() {
             override fun onWakeWordDetected() {
                 Log.d(TAG, "onWakeWordDetected → LISTENING")
                 val sessionId = if (session.currentSessionId == 0L) {
+                    VoiceHealthTracker.sessionStarted()
                     session.beginSession()
                 } else {
                     session.onListenStart()
@@ -531,6 +532,7 @@ class LiveVoiceService : Service() {
                     return
                 }
                 session.onTurnComplete()
+                VoiceHealthTracker.sessionCompleted()
                 updateNotification(VoicePipelineState.IDLE)
                 Log.d(TAG, "AIRI TTS_DONE — auto-rearming STT")
                 requestListen()
@@ -554,6 +556,8 @@ class LiveVoiceService : Service() {
 
             override fun onError(error: String) {
                 Log.w(TAG, "VoiceManager error: $error")
+                VoiceHealthTracker.error(error)
+                VoiceFeedbackPlayer.playError(applicationContext)
                 val shouldRecover = session.onError(error)
                 if (shouldRecover && listenRequestedByUser) {
                     recoveryJob?.cancel()

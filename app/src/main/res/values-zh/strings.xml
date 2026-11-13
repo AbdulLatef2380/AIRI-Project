@@ -2815,4 +2815,31 @@
     <string name="agent_debug_desc">在聊天界面显示调试层和诊断提示。</string>
     <string name="credits_no_actions">今天尚未记录任何操作。</string>
     <string name="credits_total_consumed">消耗的总积分</string>
+
+    <!-- P3 Voice experience -->
+    <string name="voice_response_style_title">语音回复风格</string>
+    <string name="voice_response_style_description">选择 AIRI 对长回复进行朗读的长度。</string>
+    <string name="voice_response_style_concise">简洁</string>
+    <string name="voice_response_style_balanced">平衡</string>
+    <string name="voice_response_style_detailed">详细</string>
+    <string name="voice_alert_sounds_title">提示音</string>
+    <string name="voice_alert_sounds_description">AIRI 就绪或出现语音错误时播放短提示音。</string>
+    <string name="voice_alert_sounds_off">关闭</string>
+    <string name="voice_alert_sounds_subtle">轻柔</string>
+    <string name="voice_alert_sounds_distinct">明显</string>
+    <string name="voice_health_title">语音健康</string>
+    <string name="voice_health_open">打开语音健康</string>
+    <string name="voice_health_summary">此设备的聚合语音诊断，不会保存转写内容。</string>
+    <string name="voice_health_sessions">会话</string>
+    <string name="voice_health_completed">已完成</string>
+    <string name="voice_health_wake_detections">唤醒检测</string>
+    <string name="voice_health_errors">错误</string>
+    <string name="voice_health_avg_latency">平均首个音频</string>
+    <string name="voice_health_last_latency">最近首个音频</string>
+    <string name="voice_health_last_error">最近错误</string>
+    <string name="voice_health_reset">重置诊断</string>
+    <string name="voice_health_not_available">尚未测量</string>
+    <string name="voice_preset_serious">严肃</string>
+    <string name="voice_preset_serious_description">适合重要回答的沉稳严肃语气。</string>
+    <string name="voice_health_battery">电池</string>
 </resources>

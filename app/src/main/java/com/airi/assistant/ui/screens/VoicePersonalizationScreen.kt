@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.airi.assistant.ui.theme.*
 import com.airi.assistant.voice.VoiceLocalePolicy
 import com.airi.assistant.voice.VoicePreferencesStore
+import com.airi.assistant.voice.VoiceExperiencePolicy
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
@@ -54,6 +55,8 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
     var selectedPreset by remember { mutableStateOf(stored.preset) }
     var voiceEnabled   by remember { mutableStateOf(stored.voiceEnabled) }
     var hotwordEnabled by remember { mutableStateOf(stored.hotwordEnabled) }
+    var responseStyle  by remember { mutableStateOf(stored.responseStyle) }
+    var alertSounds    by remember { mutableStateOf(stored.alertSounds) }
 
     // Available on-device TTS voices for the app language. Network-only voices are never
     // presented as an offline option.
@@ -109,7 +112,9 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
             voiceName      = selectedVoice,
             preset         = selectedPreset,
             voiceEnabled   = voiceEnabled,
-            hotwordEnabled = hotwordEnabled
+            hotwordEnabled = hotwordEnabled,
+            responseStyle  = responseStyle,
+            alertSounds    = alertSounds
         )
         scope.launch { snackbar.showSnackbar(context.getString(R.string.voice_preferences_saved)) }
     }
@@ -321,6 +326,40 @@ fun VoicePersonalizationScreen(onBack: () -> Unit) {
                 }
             }
             item {
+                VoiceCard(title = stringResource(R.string.voice_response_style_title)) {
+                    Text(
+                        stringResource(R.string.voice_response_style_description),
+                        fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 17.sp
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    VoiceExperiencePolicy.ResponseStyle.entries.forEach { style ->
+                        ChoiceRow(
+                            label = stringResource(responseStyleLabel(style)),
+                            selected = responseStyle == style,
+                            onClick = { responseStyle = style }
+                        )
+                        Spacer(Modifier.height(6.dp))
+                    }
+                }
+            }
+            item {
+                VoiceCard(title = stringResource(R.string.voice_alert_sounds_title)) {
+                    Text(
+                        stringResource(R.string.voice_alert_sounds_description),
+                        fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 17.sp
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    VoiceExperiencePolicy.AlertSounds.entries.forEach { sounds ->
+                        ChoiceRow(
+                            label = stringResource(alertSoundsLabel(sounds)),
+                            selected = alertSounds == sounds,
+                            onClick = { alertSounds = sounds }
+                        )
+                        Spacer(Modifier.height(6.dp))
+                    }
+                }
+            }
+            item {
                 Button(
                     onClick  = ::previewVoice,
                     enabled  = ttsReady,
@@ -356,6 +395,7 @@ private fun voicePresetLabelResource(preset: VoicePreferencesStore.PersonalityPr
     VoicePreferencesStore.PersonalityPreset.CALM -> R.string.voice_preset_calm
     VoicePreferencesStore.PersonalityPreset.ENERGETIC -> R.string.voice_preset_energetic
     VoicePreferencesStore.PersonalityPreset.FORMAL -> R.string.voice_preset_formal
+    VoicePreferencesStore.PersonalityPreset.SERIOUS -> R.string.voice_preset_serious
     VoicePreferencesStore.PersonalityPreset.PLAYFUL -> R.string.voice_preset_playful
 }
 
@@ -365,7 +405,22 @@ private fun voicePresetDescriptionResource(preset: VoicePreferencesStore.Persona
     VoicePreferencesStore.PersonalityPreset.CALM -> R.string.voice_preset_calm_description
     VoicePreferencesStore.PersonalityPreset.ENERGETIC -> R.string.voice_preset_energetic_description
     VoicePreferencesStore.PersonalityPreset.FORMAL -> R.string.voice_preset_formal_description
+    VoicePreferencesStore.PersonalityPreset.SERIOUS -> R.string.voice_preset_serious_description
     VoicePreferencesStore.PersonalityPreset.PLAYFUL -> R.string.voice_preset_playful_description
+}
+
+@androidx.annotation.StringRes
+private fun responseStyleLabel(style: VoiceExperiencePolicy.ResponseStyle): Int = when (style) {
+    VoiceExperiencePolicy.ResponseStyle.CONCISE -> R.string.voice_response_style_concise
+    VoiceExperiencePolicy.ResponseStyle.BALANCED -> R.string.voice_response_style_balanced
+    VoiceExperiencePolicy.ResponseStyle.DETAILED -> R.string.voice_response_style_detailed
+}
+
+@androidx.annotation.StringRes
+private fun alertSoundsLabel(sounds: VoiceExperiencePolicy.AlertSounds): Int = when (sounds) {
+    VoiceExperiencePolicy.AlertSounds.OFF -> R.string.voice_alert_sounds_off
+    VoiceExperiencePolicy.AlertSounds.SUBTLE -> R.string.voice_alert_sounds_subtle
+    VoiceExperiencePolicy.AlertSounds.DISTINCT -> R.string.voice_alert_sounds_distinct
 }
 
 @Composable
@@ -403,6 +458,23 @@ private fun VoiceOption(name: String, locale: String, isSelected: Boolean, onCli
         if (isSelected) {
             Icon(Icons.Filled.CheckCircle, null, tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         }
+    }
+}
+
+@Composable
+private fun ChoiceRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AIRIShapes.sm)
+            .background(if (selected) CosmicAccent.copy(0.12f) else AiriTheme.onSurface.copy(alpha = 0.03f))
+            .border(0.5.dp, if (selected) CosmicAccent.copy(0.4f) else AiriTheme.outline, AIRIShapes.sm)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, modifier = Modifier.weight(1f), fontSize = 13.sp, color = AiriTheme.onBackground)
+        if (selected) Icon(Icons.Filled.CheckCircle, null, tint = CosmicAccent, modifier = Modifier.size(18.dp))
     }
 }
 

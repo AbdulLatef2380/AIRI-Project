@@ -24,6 +24,8 @@ object VoicePreferencesStore {
     private const val KEY_HOTWORD_ENABLED = "hotword_enabled"
     private const val KEY_CLOUD_PROVIDER = "cloud_voice_provider"
     private const val KEY_WAKE_WORD_SENSITIVITY = "wake_word_sensitivity"
+    private const val KEY_RESPONSE_STYLE = "voice_response_style"
+    private const val KEY_ALERT_SOUNDS = "voice_alert_sounds"
     private const val LEGACY_PREFS_NAME = "airi_voice"
     private const val LEGACY_HOTWORD_ENABLED = "ok_airi_enabled"
     private const val LEGACY_VOICE_ENABLED = "voice_enabled"
@@ -40,6 +42,7 @@ object VoicePreferencesStore {
         CALM(0.85f, 0.85f),
         ENERGETIC(1.10f, 1.20f),
         FORMAL(0.90f, 0.90f),
+        SERIOUS(0.82f, 0.88f),
         PLAYFUL(1.20f, 1.10f)
     }
 
@@ -51,7 +54,9 @@ object VoicePreferencesStore {
         val voiceEnabled: Boolean,
         val hotwordEnabled: Boolean,
         val cloudVoiceProvider: String = "LOCAL",
-        val wakeWordSensitivity: Float = WakeWordSensitivityPolicy.DEFAULT
+        val wakeWordSensitivity: Float = WakeWordSensitivityPolicy.DEFAULT,
+        val responseStyle: VoiceExperiencePolicy.ResponseStyle = VoiceExperiencePolicy.ResponseStyle.BALANCED,
+        val alertSounds: VoiceExperiencePolicy.AlertSounds = VoiceExperiencePolicy.AlertSounds.SUBTLE
     )
 
     private val _snapshot = MutableStateFlow<Snapshot?>(null)
@@ -85,6 +90,8 @@ object VoicePreferencesStore {
         val wakeSensitivity = WakeWordSensitivityPolicy.clamp(
             prefs.getFloat(KEY_WAKE_WORD_SENSITIVITY, WakeWordSensitivityPolicy.DEFAULT)
         )
+        val responseStyle = VoiceExperiencePolicy.parseResponseStyle(prefs.getString(KEY_RESPONSE_STYLE, null))
+        val alertSounds = VoiceExperiencePolicy.parseAlertSounds(prefs.getString(KEY_ALERT_SOUNDS, null))
         // One-time compatibility migration. Existing installations keep their wake-word
         // and provider choices while all future readers use this store only.
         if (!prefs.contains(KEY_HOTWORD_ENABLED) || !prefs.contains(KEY_CLOUD_PROVIDER)) {
@@ -94,7 +101,7 @@ object VoicePreferencesStore {
                 .putString(KEY_CLOUD_PROVIDER, cloudProvider)
                 .apply()
         }
-        return Snapshot(pitch, rate, voice, preset, voiceEnabled, hotwordEnabled, cloudProvider, wakeSensitivity).also {
+        return Snapshot(pitch, rate, voice, preset, voiceEnabled, hotwordEnabled, cloudProvider, wakeSensitivity, responseStyle, alertSounds).also {
             _snapshot.value = it
         }
     }
@@ -108,7 +115,9 @@ object VoicePreferencesStore {
         voiceEnabled:   Boolean,
         hotwordEnabled: Boolean,
         cloudVoiceProvider: String = (_snapshot.value?.cloudVoiceProvider ?: "LOCAL"),
-        wakeWordSensitivity: Float = (_snapshot.value?.wakeWordSensitivity ?: WakeWordSensitivityPolicy.DEFAULT)
+        wakeWordSensitivity: Float = (_snapshot.value?.wakeWordSensitivity ?: WakeWordSensitivityPolicy.DEFAULT),
+        responseStyle: VoiceExperiencePolicy.ResponseStyle = (_snapshot.value?.responseStyle ?: VoiceExperiencePolicy.ResponseStyle.BALANCED),
+        alertSounds: VoiceExperiencePolicy.AlertSounds = (_snapshot.value?.alertSounds ?: VoiceExperiencePolicy.AlertSounds.SUBTLE)
     ) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putFloat(KEY_PITCH, pitch)
@@ -119,8 +128,10 @@ object VoicePreferencesStore {
             .putBoolean(KEY_HOTWORD_ENABLED, hotwordEnabled)
             .putString(KEY_CLOUD_PROVIDER, cloudVoiceProvider)
             .putFloat(KEY_WAKE_WORD_SENSITIVITY, WakeWordSensitivityPolicy.clamp(wakeWordSensitivity))
+            .putString(KEY_RESPONSE_STYLE, responseStyle.name)
+            .putString(KEY_ALERT_SOUNDS, alertSounds.name)
             .apply()
-        _snapshot.value = Snapshot(pitch, rate, voiceName, preset, voiceEnabled, hotwordEnabled, cloudVoiceProvider, WakeWordSensitivityPolicy.clamp(wakeWordSensitivity))
+        _snapshot.value = Snapshot(pitch, rate, voiceName, preset, voiceEnabled, hotwordEnabled, cloudVoiceProvider, WakeWordSensitivityPolicy.clamp(wakeWordSensitivity), responseStyle, alertSounds)
     }
 
     /** Update runtime switches without overwriting the user's TTS personalization. */
@@ -129,17 +140,22 @@ object VoicePreferencesStore {
         voiceEnabled: Boolean? = null,
         hotwordEnabled: Boolean? = null,
         cloudVoiceProvider: String? = null,
-        wakeWordSensitivity: Float? = null
+        wakeWordSensitivity: Float? = null,
+        responseStyle: VoiceExperiencePolicy.ResponseStyle? = null,
+        alertSounds: VoiceExperiencePolicy.AlertSounds? = null
     ): Snapshot {
         val current = _snapshot.value ?: load(context)
         val next = current.copy(
             voiceEnabled = voiceEnabled ?: current.voiceEnabled,
             hotwordEnabled = hotwordEnabled ?: current.hotwordEnabled,
             cloudVoiceProvider = cloudVoiceProvider ?: current.cloudVoiceProvider,
-            wakeWordSensitivity = wakeWordSensitivity ?: current.wakeWordSensitivity
+            wakeWordSensitivity = wakeWordSensitivity ?: current.wakeWordSensitivity,
+            responseStyle = responseStyle ?: current.responseStyle,
+            alertSounds = alertSounds ?: current.alertSounds
         )
         save(context, next.pitch, next.rate, next.voiceName, next.preset,
-            next.voiceEnabled, next.hotwordEnabled, next.cloudVoiceProvider, next.wakeWordSensitivity)
+            next.voiceEnabled, next.hotwordEnabled, next.cloudVoiceProvider, next.wakeWordSensitivity,
+            next.responseStyle, next.alertSounds)
         return next
     }
 

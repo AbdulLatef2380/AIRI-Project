@@ -12,7 +12,9 @@ object SpeechTextPreprocessor {
     private val url = Regex("https?://\\S+|www\\.\\S+", RegexOption.IGNORE_CASE)
     private val repeatedWhitespace = Regex("[ \\t]{2,}")
 
-    fun prepare(input: String): String {
+    fun prepare(input: String): String = prepare(input, VoiceExperiencePolicy.ResponseStyle.DETAILED)
+
+    fun prepare(input: String, style: VoiceExperiencePolicy.ResponseStyle): String {
         if (input.isBlank()) return ""
         var text = input
             .replace(fencedCode, " ")
@@ -25,6 +27,23 @@ object SpeechTextPreprocessor {
         // Do not vocalize hidden/system-like prefixes that may appear in a
         // provider response. Keep the user's actual content untouched.
         text = text.replace(Regex("(?im)^\\s*(result|output|assistant)\\s*:\\s*"), "")
-        return text.trim()
+        return summarizeForSpeech(text.trim(), style)
+    }
+
+    /**
+     * Keeps speech responsive without changing the visible chat response.
+     * We select complete leading sentences and never cut inside a word.
+     */
+    fun summarizeForSpeech(input: String, style: VoiceExperiencePolicy.ResponseStyle): String {
+        if (input.length <= style.maxSpeechCharacters) return input
+        val sentences = input
+            .split(Regex("(?<=[.!?؟。])\\s+|\\n+"))
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        val selected = sentences.take(style.maxSentences).joinToString(" ")
+        if (selected.isNotBlank() && selected.length <= style.maxSpeechCharacters) {
+            return "$selected …"
+        }
+        return input.take(style.maxSpeechCharacters).substringBeforeLast(' ').trimEnd() + " …"
     }
 }

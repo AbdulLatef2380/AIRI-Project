@@ -102,7 +102,13 @@ class IncrementalTtsEngine(private val context: Context) {
         playerJob = scope.launch {
             for (sentence in sentenceChannel) {
                 if (stopped.get()) break
-                if (ttsReady) tts?.speak(sentence, TextToSpeech.QUEUE_ADD, null, UUID.randomUUID().toString())
+                if (ttsReady) {
+                    val style = VoicePreferencesStore.load(context).responseStyle
+                    val speakable = SpeechTextPreprocessor.prepare(sentence, style)
+                    if (speakable.isNotBlank()) {
+                        tts?.speak(speakable, TextToSpeech.QUEUE_ADD, null, UUID.randomUUID().toString())
+                    }
+                }
             }
             if (_state.value == TtsState.SPEAKING) { _state.value = TtsState.IDLE; abandonFocus() }
         }

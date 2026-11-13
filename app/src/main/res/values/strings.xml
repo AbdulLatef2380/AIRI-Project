@@ -3159,4 +3159,31 @@
     <string name="agent_debug_desc">Shows the debug overlay and diagnostic banners in the chat screen.</string>
     <string name="credits_no_actions">No actions recorded today yet.</string>
     <string name="credits_total_consumed">Total credits consumed</string>
+
+    <!-- P3 Voice experience -->
+    <string name="voice_response_style_title">Response style</string>
+    <string name="voice_response_style_description">Choose how much of a long answer AIRI reads aloud.</string>
+    <string name="voice_response_style_concise">Concise</string>
+    <string name="voice_response_style_balanced">Balanced</string>
+    <string name="voice_response_style_detailed">Detailed</string>
+    <string name="voice_alert_sounds_title">Alert sounds</string>
+    <string name="voice_alert_sounds_description">Use a short sound when AIRI is ready or reports a voice error.</string>
+    <string name="voice_alert_sounds_off">Off</string>
+    <string name="voice_alert_sounds_subtle">Subtle</string>
+    <string name="voice_alert_sounds_distinct">Distinct</string>
+    <string name="voice_health_title">Voice Health</string>
+    <string name="voice_health_open">Open Voice Health</string>
+    <string name="voice_health_summary">Aggregate voice diagnostics from this device. Transcripts are never stored.</string>
+    <string name="voice_health_sessions">Sessions</string>
+    <string name="voice_health_completed">Completed</string>
+    <string name="voice_health_wake_detections">Wake detections</string>
+    <string name="voice_health_errors">Errors</string>
+    <string name="voice_health_avg_latency">Average first audio</string>
+    <string name="voice_health_last_latency">Last first audio</string>
+    <string name="voice_health_last_error">Last error</string>
+    <string name="voice_health_reset">Reset diagnostics</string>
+    <string name="voice_health_not_available">Not measured yet</string>
+    <string name="voice_preset_serious">Serious</string>
+    <string name="voice_preset_serious_description">A measured, serious delivery for important answers.</string>
+    <string name="voice_health_battery">Battery</string>
 </resources>

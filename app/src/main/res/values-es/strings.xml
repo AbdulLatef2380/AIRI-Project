@@ -2832,4 +2832,31 @@
     <string name="agent_debug_desc">Muestra la superposición de depuración y los avisos de diagnóstico en el chat.</string>
     <string name="credits_no_actions">Aún no se han registrado acciones hoy.</string>
     <string name="credits_total_consumed">Total de créditos consumidos</string>
+
+    <!-- P3 Voice experience -->
+    <string name="voice_response_style_title">Estilo de respuesta</string>
+    <string name="voice_response_style_description">Elige cuánto de una respuesta larga lee AIRI en voz alta.</string>
+    <string name="voice_response_style_concise">Concisa</string>
+    <string name="voice_response_style_balanced">Equilibrada</string>
+    <string name="voice_response_style_detailed">Detallada</string>
+    <string name="voice_alert_sounds_title">Sonidos de alerta</string>
+    <string name="voice_alert_sounds_description">Usa un sonido corto cuando AIRI está listo o informa de un error de voz.</string>
+    <string name="voice_alert_sounds_off">Desactivados</string>
+    <string name="voice_alert_sounds_subtle">Sutiles</string>
+    <string name="voice_alert_sounds_distinct">Distintos</string>
+    <string name="voice_health_title">Salud de voz</string>
+    <string name="voice_health_open">Abrir salud de voz</string>
+    <string name="voice_health_summary">Diagnóstico de voz agregado de este dispositivo. Nunca se guardan transcripciones.</string>
+    <string name="voice_health_sessions">Sesiones</string>
+    <string name="voice_health_completed">Completadas</string>
+    <string name="voice_health_wake_detections">Detecciones de activación</string>
+    <string name="voice_health_errors">Errores</string>
+    <string name="voice_health_avg_latency">Primer audio medio</string>
+    <string name="voice_health_last_latency">Último primer audio</string>
+    <string name="voice_health_last_error">Último error</string>
+    <string name="voice_health_reset">Restablecer diagnóstico</string>
+    <string name="voice_health_not_available">Aún no medido</string>
+    <string name="voice_preset_serious">Serio</string>
+    <string name="voice_preset_serious_description">Una voz medida y seria para respuestas importantes.</string>
+    <string name="voice_health_battery">Batería</string>
 </resources>

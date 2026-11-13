@@ -282,6 +282,8 @@ class HotwordService : Service() {
             }
             lastWakeAtMs = now
         }
+        VoiceHealthTracker.wakeDetected()
+        VoiceFeedbackPlayer.playReady(this)
         Log.i(TAG, "Hotword detected: engine=$engine")
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)

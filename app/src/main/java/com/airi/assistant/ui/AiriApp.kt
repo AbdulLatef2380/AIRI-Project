@@ -91,6 +91,7 @@ import com.airi.assistant.ui.screens.PermissionsScreen
 import com.airi.assistant.ui.screens.ArtifactPreviewScreen
 import com.airi.assistant.ui.screens.UpdateScreen
 import com.airi.assistant.ui.screens.VoicePersonalizationScreen
+import com.airi.assistant.ui.screens.VoiceHealthScreen
 import com.airi.assistant.ui.screens.WelcomeScreen
 import com.airi.assistant.ui.screens.WorkspaceScreen
 import androidx.compose.ui.platform.LocalContext
@@ -158,6 +159,7 @@ object AiriRoute {
     const val PERMISSIONS_SCREEN     = "screen_permissions"
     const val UPDATE_SCREEN          = "screen_update"
     const val VOICE_PERSONALIZATION  = "screen_voice_personalization"
+    const val VOICE_HEALTH           = "screen_voice_health"
     const val LIBRARY                = "screen_library"
 
     // ──  routes ────────────────────────────────────────────────────────
@@ -445,12 +447,19 @@ fun AiriApp() {
                             onBack = { navController.popBackStack() },
                             onNavigateToPersonalization = {
                                 navController.navigate(AiriRoute.VOICE_PERSONALIZATION) { launchSingleTop = true }
+                            },
+                            onNavigateToHealth = {
+                                navController.navigate(AiriRoute.VOICE_HEALTH) { launchSingleTop = true }
                             }
                         )
                     }
 
                     composable(AiriRoute.VOICE_PERSONALIZATION) {
                         VoicePersonalizationScreen(onBack = { navController.popBackStack() })
+                    }
+
+                    composable(AiriRoute.VOICE_HEALTH) {
+                        VoiceHealthScreen(onBack = { navController.popBackStack() })
                     }
 
                     composable(AiriRoute.REPORT_PROBLEM) {

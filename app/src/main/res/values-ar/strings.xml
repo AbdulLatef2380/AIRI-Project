@@ -3094,4 +3094,31 @@
     <string name="agent_debug_desc">يعرض طبقة التصحيح ولافتات التشخيص في شاشة المحادثة.</string>
     <string name="credits_no_actions">لم تُسجل أي إجراءات اليوم بعد.</string>
     <string name="credits_total_consumed">إجمالي الرموز المستهلكة</string>
+
+    <!-- P3 Voice experience -->
+    <string name="voice_response_style_title">أسلوب الرد الصوتي</string>
+    <string name="voice_response_style_description">اختر مقدار الرد الطويل الذي يقرأه AIRI بصوت عالٍ.</string>
+    <string name="voice_response_style_concise">موجز</string>
+    <string name="voice_response_style_balanced">متوازن</string>
+    <string name="voice_response_style_detailed">مفصل</string>
+    <string name="voice_alert_sounds_title">أصوات التنبيه</string>
+    <string name="voice_alert_sounds_description">استخدم نغمة قصيرة عندما يصبح AIRI جاهزاً أو يواجه خطأ صوتياً.</string>
+    <string name="voice_alert_sounds_off">إيقاف</string>
+    <string name="voice_alert_sounds_subtle">هادئة</string>
+    <string name="voice_alert_sounds_distinct">واضحة</string>
+    <string name="voice_health_title">صحة الصوت</string>
+    <string name="voice_health_open">فتح صحة الصوت</string>
+    <string name="voice_health_summary">تشخيصات صوتية مجمعة من هذا الجهاز. لا يتم حفظ النصوص المنطوقة.</string>
+    <string name="voice_health_sessions">الجلسات</string>
+    <string name="voice_health_completed">المكتملة</string>
+    <string name="voice_health_wake_detections">اكتشافات التنبيه</string>
+    <string name="voice_health_errors">الأخطاء</string>
+    <string name="voice_health_avg_latency">متوسط أول صوت</string>
+    <string name="voice_health_last_latency">آخر أول صوت</string>
+    <string name="voice_health_last_error">آخر خطأ</string>
+    <string name="voice_health_reset">إعادة ضبط التشخيص</string>
+    <string name="voice_health_not_available">لم يتم القياس بعد</string>
+    <string name="voice_preset_serious">جاد</string>
+    <string name="voice_preset_serious_description">نبرة هادئة وجادة للإجابات المهمة.</string>
+    <string name="voice_health_battery">البطارية</string>
 </resources>

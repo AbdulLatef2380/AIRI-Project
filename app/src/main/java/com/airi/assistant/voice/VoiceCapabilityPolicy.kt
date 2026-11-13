@@ -1,7 +1,7 @@
 package com.airi.assistant.voice
 
 /** A truthful capability projection for the Voice Settings surface. */
-internal object VoiceCapabilityPolicy {
+object VoiceCapabilityPolicy {
     data class Snapshot(
         val wakeWordReady: Boolean,
         val speechRecognitionReady: Boolean,

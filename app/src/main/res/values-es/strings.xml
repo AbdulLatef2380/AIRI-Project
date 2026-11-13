@@ -733,6 +733,10 @@
     <string name="voice_status_live_duplex">Dúplex de voz en directo</string>
     <string name="voice_status_ready">Disponible</string>
     <string name="voice_status_unavailable">No disponible</string>
+    <string name="voice_wake_sensitivity_title">Sensibilidad de activación</string>
+    <string name="voice_wake_sensitivity_description">Ajusta cuánta confianza necesita la palabra de activación.</string>
+    <string name="voice_wake_sensitivity_low">Baja</string>
+    <string name="voice_wake_sensitivity_high">Alta</string>
     <string name="vosk_download_failed_generic">No se pudo descargar el modelo de voz. Comprueba tu conexión y vuelve a intentarlo.</string>
     <string name="installed_models_section">Modelos instalados</string>
     <string name="vosk_active_badge">Activo</string>

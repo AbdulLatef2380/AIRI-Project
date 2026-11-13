@@ -32,6 +32,7 @@ import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -111,12 +112,15 @@ class VoiceManager(
     interface VoiceListener {
         fun onWakeWordDetected()
         fun onSpeechResult(text: String)
+        fun onSpeechResult(text: String, generation: Long) = onSpeechResult(text)
         fun onError(error: String)
         fun onSpeakingStarted()           = Unit
         fun onSpeakingDone()              = Unit
         fun onListeningStarted()          = Unit
+        fun onListeningStarted(generation: Long) = onListeningStarted()
         fun onListeningStopped()          = Unit
         fun onPartialResult(text: String) = Unit
+        fun onPartialResult(text: String, generation: Long) = onPartialResult(text)
         /**
          * Fired on the MAIN thread when full-duplex VAD confirms user speech
          * during TTS playback. TTS has ALREADY been stopped and the VAD
@@ -198,6 +202,8 @@ class VoiceManager(
     @Volatile private var sttModel: Model? = null
     @Volatile private var sttJob: Job? = null
     @Volatile private var sttActive = false
+    private val sttGeneration = AtomicLong(0L)
+    val currentSttGeneration: Long get() = sttGeneration.get()
     @Volatile private var platformRecognizer: SpeechRecognizer? = null
 
     // ─────────────────────────────────────────────────────────────────────
@@ -644,8 +650,9 @@ class VoiceManager(
             listener.onError("stt_unavailable"); return
         }
 
+        val generation = sttGeneration.incrementAndGet()
         sttActive = true
-        listener.onListeningStarted()
+        listener.onListeningStarted(generation)
         com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "LISTENING")
         com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "LISTENING") }
 
@@ -664,14 +671,14 @@ class VoiceManager(
                 sttEngine = engine
                 engine.start(
                     scope     = sttScope,
-                    onPartial = { p -> postToMain { listener.onPartialResult(p) } },
+                    onPartial = { p -> postToMain { listener.onPartialResult(p, generation) } },
                     onFinal   = { text ->
                         sttActive = false
                         sttEngine?.release(); sttEngine = null
                         VoiceCaptureArbiter.release(microphoneOwner)
                         postToMain {
                             listener.onListeningStopped()
-                            if (text.isNotBlank()) listener.onSpeechResult(text)
+                            if (text.isNotBlank()) listener.onSpeechResult(text, generation)
                             else listener.onError("stt_empty_result")
                         }
                         com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
@@ -721,8 +728,9 @@ class VoiceManager(
 
     private fun startPlatformSpeechToText() {
         if (isDestroyed) { VoiceCaptureArbiter.release(microphoneOwner); return }
+        val generation = sttGeneration.incrementAndGet()
         sttActive = true
-        listener.onListeningStarted()
+        listener.onListeningStarted(generation)
         com.airi.assistant.core.analytics.ProofLogger.log("VOICE_STATE", "LISTENING")
         com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "LISTENING") }
 
@@ -748,7 +756,7 @@ class VoiceManager(
                 override fun onPartialResults(r: Bundle?) {
                     val text = r?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull().orEmpty()
-                    if (text.isNotBlank()) listener.onPartialResult(text)
+                    if (text.isNotBlank()) listener.onPartialResult(text, generation)
                 }
                 override fun onResults(r: Bundle?) {
                     val text = r?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
@@ -758,7 +766,7 @@ class VoiceManager(
                     if (platformRecognizer === rec) platformRecognizer = null
                     VoiceCaptureArbiter.release(microphoneOwner)
                     listener.onListeningStopped()
-                    if (text.isNotBlank()) listener.onSpeechResult(text)
+                    if (text.isNotBlank()) listener.onSpeechResult(text, generation)
                     else listener.onError("stt_empty_result")
                     com.airi.assistant.core.debug.RuntimeStore.update { copy(voiceState = "IDLE") }
                 }

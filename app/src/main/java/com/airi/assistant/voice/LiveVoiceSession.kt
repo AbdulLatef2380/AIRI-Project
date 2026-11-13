@@ -77,6 +77,18 @@ class LiveVoiceSession(
      */
     val pendingTranscript: StateFlow<String?> = _pendingTranscript.asStateFlow()
 
+    // Realtime assistant output is observable UI data, not a new user prompt.
+    private val _assistantTranscript = MutableStateFlow<String?>(null)
+    val assistantTranscript: StateFlow<String?> = _assistantTranscript.asStateFlow()
+
+    fun emitAssistantTranscript(text: String) {
+        if (text.isNotBlank()) _assistantTranscript.value = text
+    }
+
+    fun clearAssistantTranscript() {
+        _assistantTranscript.value = null
+    }
+
     /** Emit a transcript that no agent claimed. See [pendingTranscript]. */
     fun emitPendingTranscript(text: String) {
         _pendingTranscript.value = text
@@ -123,6 +135,7 @@ class LiveVoiceSession(
         currentSessionId = id
         recoveryAttempts = 0
         _partialTranscript.value = ""
+        _assistantTranscript.value = null
         _metrics.value = SessionMetrics()
         _latency.value = LatencySnapshot()
         transitionTo(VoicePipelineState.LISTENING)
@@ -137,6 +150,7 @@ class LiveVoiceSession(
     fun endSession() {
         val endedSessionId = currentSessionId
         _partialTranscript.value = ""
+        _assistantTranscript.value = null
         recoveryAttempts = 0
         transitionTo(VoicePipelineState.IDLE)
         currentSessionId = 0L

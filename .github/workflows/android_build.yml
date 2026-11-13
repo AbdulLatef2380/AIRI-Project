@@ -75,7 +75,7 @@ jobs:
           echo '{"status":"SKIP","detail":"OPENAI_API_KEY and GEMINI_API_KEY are not configured"}'
         fi
         python3 tools/verify_core_changes.py
-        python3 scripts/airi_localization_health.py | tee phase7-localization-review.txt
+        python3 scripts/airi_localization_health.py --strict | tee phase7-localization-review.txt
         python3 scripts/airi_release_health.py
         python3 -m unittest discover -s scripts -p 'test_airi_ui_hardcoded_text_lint.py' -v
         python3 -I scripts/airi_ui_hardcoded_text_lint.py

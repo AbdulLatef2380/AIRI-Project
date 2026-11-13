@@ -733,6 +733,10 @@
     <string name="voice_status_live_duplex">实时语音双工</string>
     <string name="voice_status_ready">可用</string>
     <string name="voice_status_unavailable">不可用</string>
+    <string name="voice_wake_sensitivity_title">唤醒灵敏度</string>
+    <string name="voice_wake_sensitivity_description">调整唤醒词所需的识别置信度。</string>
+    <string name="voice_wake_sensitivity_low">低</string>
+    <string name="voice_wake_sensitivity_high">高</string>
     <string name="vosk_download_failed_generic">无法下载语音模型。请检查网络连接后重试。</string>
     <string name="installed_models_section">已安装模型</string>
     <string name="vosk_active_badge">活跃</string>

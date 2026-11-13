@@ -8,7 +8,6 @@ import androidx.core.content.ContextCompat
 import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
 import com.airi.assistant.agent.subagent.SubAgentContext
 import com.airi.assistant.agent.subagent.SubAgentRegistry
-import com.airi.assistant.agent.subagent.WriteApprovalRequired
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -23,17 +22,14 @@ import kotlinx.coroutines.withContext
  *     ↓
  *   VoiceAgentRouter.route(text, voiceSessionId)
  *     ↓
- *   SubAgentRegistry.route()        ← keyword scoring + canHandle() gate
- *     ↓ (matched)
- *   ProductionAgentOrchestrator.executeSingle()   ← read-only/direct agent calls
+ *   SubAgentRegistry.route()        ← keyword scoring + canHandle() hint
  *     ↓
- *   LiveVoiceService speaks the handled response through its session-owned TTS.
+ *   VoiceRouteResult.Fallback       ← every intent enters the canonical path
  *     ↓
- *   VoiceRouteResult.Handled(text, agentId)
+ *   ChatViewModel → AgentLoop       ← admission, tools, sandbox, approval and trace
  *
- *   Data-changing agents return Fallback instead of executing here. Their transcript is
- *   handled by the canonical ChatViewModel → AgentLoop path, which owns request-scoped
- *   ToolDispatcher/Sandbox/Terminal admission and confirmation.
+ *   This router never executes an agent. The registry result is only a routing
+ *   hint; execution authority belongs to the request-scoped AgentLoop.
  *
  *   ── OR ──
  *
@@ -109,53 +105,14 @@ class VoiceAgentRouter(
 
         Log.i(TAG, "AIRI VOICE_ROUTE_MATCH agent=${agent.capability.agentId}")
 
-        // Data-changing voice requests must use the canonical ChatViewModel → AgentLoop
-        // path.  The direct sub-agent path below does not own the request-scoped
-        // ToolDispatcher/Sandbox/Terminal admission context, so executing a write here
-        // would be a policy bypass even when a UI confirmation gate is available.
-        // Returning Fallback preserves the transcript and lets the canonical pipeline
-        // perform confirmation, capability admission, sandboxing, terminal policy and trace.
-        if (agent is WriteApprovalRequired && agent.requiresWriteApproval(trimmed)) {
-            Log.i(TAG, "AIRI VOICE_ROUTE_CANONICAL_REQUIRED agent=${agent.capability.agentId}")
-            return VoiceRouteResult.Fallback
-        }
-
-        // ── Execute via orchestrator ───────────────────────────────────────────
-        return try {
-            val result = withContext(Dispatchers.IO) {
-                orchestrator.executeSingle(trimmed, ctx) { event ->
-                    Log.v(TAG, "AIRI VOICE_AGENT_EVENT type=${event::class.simpleName}")
-                }
-            }
-
-            when (result) {
-                is ProductionAgentOrchestrator.ExecutionResult.Success -> {
-                    val text = result.finalResult.trim()
-                    if (text.isNotBlank()) {
-                        Log.i(TAG, "AIRI VOICE_ROUTE_HANDLED " +
-                                "agent=${agent.capability.agentId} " +
-                                "chars=${text.length} " +
-                                "durationMs=${result.durationMs}")
-                        VoiceRouteResult.Handled(text, agent.capability.agentId)
-                    } else {
-                        // Agent returned empty result — fall through to LLM
-                        Log.d(TAG, "AIRI VOICE_ROUTE_EMPTY_RESULT " +
-                                "agent=${agent.capability.agentId} — fallback")
-                        VoiceRouteResult.Fallback
-                    }
-                }
-
-                is ProductionAgentOrchestrator.ExecutionResult.PartialFailure -> {
-                    Log.w(TAG, "AIRI VOICE_ROUTE_PARTIAL_FAILURE " +
-                            "errors=${result.taskErrors.size}")
-                    VoiceRouteResult.Fallback
-                }
-            }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "AIRI VOICE_ROUTE_EXCEPTION ${e.javaClass.simpleName}")
-            VoiceRouteResult.Fallback
-        }
+        // Every voice transcript, including read-only agent intents, must enter
+        // the canonical ChatViewModel → AgentLoop path. The old direct
+        // orchestrator call bypassed request-scoped capability admission,
+        // ToolDispatcher, trace ownership and the common cancellation/approval
+        // contract. Agent lookup remains a routing hint; it is never authority
+        // to execute a tool.
+        Log.i(TAG, "AIRI VOICE_ROUTE_CANONICAL_REQUIRED agent=${agent.capability.agentId}")
+        return VoiceRouteResult.Fallback
     }
 
     // ─────────────────────────────────────────────────────────────────────────

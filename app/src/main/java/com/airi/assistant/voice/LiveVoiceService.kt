@@ -119,6 +119,7 @@ class LiveVoiceService : Service() {
     @Volatile var realtimeProvider: RealtimeVoiceProvider = LocalVoicePipeline
     @Volatile private var realtimeTransport: RealtimeAudioTransport? = null
     @Volatile private var listenRequestedByUser = false
+    @Volatile private var activeSttGeneration: Long = 0L
     private var recoveryJob: Job? = null
     private var routeJob: Job? = null
 
@@ -276,7 +277,9 @@ class LiveVoiceService : Service() {
             updateNotification(VoicePipelineState.LISTENING)
             sttStartEpochMs = System.currentTimeMillis()
             Log.i(TAG, "AIRI VOICE_LISTEN_BEGIN session=$sessionId")
+            activeSttGeneration = 0L
             voiceManager.startSpeechToText()
+            activeSttGeneration = voiceManager.currentSttGeneration
         }
     }
 
@@ -380,7 +383,11 @@ class LiveVoiceService : Service() {
 
                 override fun onResponseText(text: String) {
                     if (session.isActive(sessionId)) {
-                        serviceScope.launch { ServiceLocator.voiceTranscriptBus.emit(text) }
+                        // Realtime providers already render audio through AudioTrack.
+                        // Their text event is assistant output and must never be
+                        // published on the user-input transcript bus, otherwise
+                        // ChatViewModel would submit the assistant reply again.
+                        session.emitAssistantTranscript(text)
                     }
                 }
 
@@ -466,11 +473,32 @@ class LiveVoiceService : Service() {
                 sttStartEpochMs = System.currentTimeMillis()
             }
 
+            override fun onListeningStarted(generation: Long) {
+                activeSttGeneration = generation
+                sttStartEpochMs = System.currentTimeMillis()
+            }
+
             override fun onPartialResult(text: String) {
                 session.onPartialTranscript(text)
             }
 
+            override fun onPartialResult(text: String, generation: Long) {
+                if (generation != activeSttGeneration) {
+                    Log.w(TAG, "AIRI VOICE_STALE_PARTIAL_IGNORED generation=$generation active=$activeSttGeneration")
+                    return
+                }
+                session.onPartialTranscript(text)
+            }
+
             override fun onSpeechResult(text: String) {
+                onSpeechResult(text, activeSttGeneration)
+            }
+
+            override fun onSpeechResult(text: String, generation: Long) {
+                if (generation != activeSttGeneration) {
+                    Log.w(TAG, "AIRI VOICE_STALE_RESULT_IGNORED generation=$generation active=$activeSttGeneration")
+                    return
+                }
                 val sessionId = session.currentSessionId
                 if (sessionId == 0L || !session.isActive(sessionId)) {
                     Log.w(TAG, "AIRI VOICE_STALE_RESULT_IGNORED reason=no_active_session")

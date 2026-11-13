@@ -252,6 +252,9 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
+    // Voice policy/transport tests use kotlin.test annotations and assertions.
+    // Keep this explicit instead of relying on an incidental transitive classpath.
+    testImplementation(kotlin("test"))
     // Android framework org.json methods are stubs in local JVM tests.
     // Use the JVM implementation so manifest round-trip tests execute real JSON.
     testImplementation(libs.json.jvm)

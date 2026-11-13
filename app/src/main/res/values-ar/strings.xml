@@ -2064,6 +2064,10 @@
     <string name="voice_enabled_description">اسمح لـAIRI بالاستماع والتحدث عند استخدام وضع الصوت.</string>
     <string name="voice_wake_word_title">اكتشاف كلمة التنبيه</string>
     <string name="voice_wake_word_description">استمع لكلمة التنبيه المُعدّة ما دام وضع الصوت مفعّلاً.</string>
+    <string name="voice_wake_sensitivity_title">حساسية كلمة التنبيه</string>
+    <string name="voice_wake_sensitivity_description">القيم الأعلى تلتقط العبارة بسهولة أكبر، لكنها قد تزيد التنشيط الخاطئ.</string>
+    <string name="voice_wake_sensitivity_low">تنشيط خاطئ أقل</string>
+    <string name="voice_wake_sensitivity_high">التقاط أسهل</string>
     <string name="input_plan">خطة</string>
     <string name="input_plan_active">الخطة مفعّلة</string>
     <string name="input_tools">الأدوات</string>

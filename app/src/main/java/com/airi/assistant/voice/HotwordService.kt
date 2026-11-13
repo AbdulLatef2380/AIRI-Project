@@ -109,6 +109,7 @@ class HotwordService : Service() {
 
         val frameLength = OpenWakeWordEngine.frameSamples
         val sampleRate  = OpenWakeWordEngine.sampleRate
+        val detectionThreshold = OpenWakeWordEngine.threshold(this)
 
         val minBuf = AudioRecord.getMinBufferSize(
             sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
@@ -168,7 +169,7 @@ class HotwordService : Service() {
                     try {
                         interpreter.run(input, output)
                         val score = output[0][0]
-                        if (score >= OpenWakeWordEngine.threshold) {
+                        if (score >= detectionThreshold) {
                             Log.i(TAG, "AIRI OWW_DETECTION score=$score")
                             fireWake(engine = "openWakeWord")
                         }
@@ -203,7 +204,7 @@ class HotwordService : Service() {
             ai.picovoice.porcupine.Porcupine.Builder()
                 .setAccessKey(accessKey)
                 .setKeywordPath(ppnFile.absolutePath)
-                .setSensitivity(0.6f)
+                .setSensitivity(VoicePreferencesStore.load(this).wakeWordSensitivity)
                 .build(applicationContext)
         } catch (t: Throwable) {
             Log.w(TAG, "Porcupine init failed: ${t.message}", t)

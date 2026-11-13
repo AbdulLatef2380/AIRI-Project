@@ -23,6 +23,7 @@ object VoicePreferencesStore {
     private const val KEY_VOICE_ENABLED  = "voice_enabled"
     private const val KEY_HOTWORD_ENABLED = "hotword_enabled"
     private const val KEY_CLOUD_PROVIDER = "cloud_voice_provider"
+    private const val KEY_WAKE_WORD_SENSITIVITY = "wake_word_sensitivity"
     private const val LEGACY_PREFS_NAME = "airi_voice"
     private const val LEGACY_HOTWORD_ENABLED = "ok_airi_enabled"
     private const val LEGACY_VOICE_ENABLED = "voice_enabled"
@@ -49,7 +50,8 @@ object VoicePreferencesStore {
         val preset: PersonalityPreset,
         val voiceEnabled: Boolean,
         val hotwordEnabled: Boolean,
-        val cloudVoiceProvider: String = "LOCAL"
+        val cloudVoiceProvider: String = "LOCAL",
+        val wakeWordSensitivity: Float = WakeWordSensitivityPolicy.DEFAULT
     )
 
     private val _snapshot = MutableStateFlow<Snapshot?>(null)
@@ -80,6 +82,9 @@ object VoicePreferencesStore {
         } else {
             legacy.getString(KEY_CLOUD_PROVIDER, "LOCAL") ?: "LOCAL"
         }
+        val wakeSensitivity = WakeWordSensitivityPolicy.clamp(
+            prefs.getFloat(KEY_WAKE_WORD_SENSITIVITY, WakeWordSensitivityPolicy.DEFAULT)
+        )
         // One-time compatibility migration. Existing installations keep their wake-word
         // and provider choices while all future readers use this store only.
         if (!prefs.contains(KEY_HOTWORD_ENABLED) || !prefs.contains(KEY_CLOUD_PROVIDER)) {
@@ -89,7 +94,7 @@ object VoicePreferencesStore {
                 .putString(KEY_CLOUD_PROVIDER, cloudProvider)
                 .apply()
         }
-        return Snapshot(pitch, rate, voice, preset, voiceEnabled, hotwordEnabled, cloudProvider).also {
+        return Snapshot(pitch, rate, voice, preset, voiceEnabled, hotwordEnabled, cloudProvider, wakeSensitivity).also {
             _snapshot.value = it
         }
     }
@@ -102,7 +107,8 @@ object VoicePreferencesStore {
         preset:         PersonalityPreset,
         voiceEnabled:   Boolean,
         hotwordEnabled: Boolean,
-        cloudVoiceProvider: String = (_snapshot.value?.cloudVoiceProvider ?: "LOCAL")
+        cloudVoiceProvider: String = (_snapshot.value?.cloudVoiceProvider ?: "LOCAL"),
+        wakeWordSensitivity: Float = (_snapshot.value?.wakeWordSensitivity ?: WakeWordSensitivityPolicy.DEFAULT)
     ) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putFloat(KEY_PITCH, pitch)
@@ -112,8 +118,9 @@ object VoicePreferencesStore {
             .putBoolean(KEY_VOICE_ENABLED, voiceEnabled)
             .putBoolean(KEY_HOTWORD_ENABLED, hotwordEnabled)
             .putString(KEY_CLOUD_PROVIDER, cloudVoiceProvider)
+            .putFloat(KEY_WAKE_WORD_SENSITIVITY, WakeWordSensitivityPolicy.clamp(wakeWordSensitivity))
             .apply()
-        _snapshot.value = Snapshot(pitch, rate, voiceName, preset, voiceEnabled, hotwordEnabled, cloudVoiceProvider)
+        _snapshot.value = Snapshot(pitch, rate, voiceName, preset, voiceEnabled, hotwordEnabled, cloudVoiceProvider, WakeWordSensitivityPolicy.clamp(wakeWordSensitivity))
     }
 
     /** Update runtime switches without overwriting the user's TTS personalization. */
@@ -121,16 +128,18 @@ object VoicePreferencesStore {
         context: Context,
         voiceEnabled: Boolean? = null,
         hotwordEnabled: Boolean? = null,
-        cloudVoiceProvider: String? = null
+        cloudVoiceProvider: String? = null,
+        wakeWordSensitivity: Float? = null
     ): Snapshot {
         val current = _snapshot.value ?: load(context)
         val next = current.copy(
             voiceEnabled = voiceEnabled ?: current.voiceEnabled,
             hotwordEnabled = hotwordEnabled ?: current.hotwordEnabled,
-            cloudVoiceProvider = cloudVoiceProvider ?: current.cloudVoiceProvider
+            cloudVoiceProvider = cloudVoiceProvider ?: current.cloudVoiceProvider,
+            wakeWordSensitivity = wakeWordSensitivity ?: current.wakeWordSensitivity
         )
         save(context, next.pitch, next.rate, next.voiceName, next.preset,
-            next.voiceEnabled, next.hotwordEnabled, next.cloudVoiceProvider)
+            next.voiceEnabled, next.hotwordEnabled, next.cloudVoiceProvider, next.wakeWordSensitivity)
         return next
     }
 

@@ -17,7 +17,6 @@ object OpenWakeWordEngine {
     private const val LEGACY_MODEL    = "hey_airi.tflite"
     private const val FRAME_SAMPLES = 1280          // 80 ms at 16 kHz
     private const val SAMPLE_RATE   = 16_000
-    private const val THRESHOLD     = 0.5f          // detection sensitivity
 
     data class Status(
         val ready:        Boolean,
@@ -55,8 +54,13 @@ object OpenWakeWordEngine {
     /** Required sample rate in Hz. */
     val sampleRate: Int get() = SAMPLE_RATE
 
-    /** Detection threshold (0..1). Higher = fewer false positives, lower recall. */
-    val threshold: Float get() = THRESHOLD
+    /** Default detection threshold retained for callers without a preference context. */
+    val threshold: Float get() = WakeWordSensitivityPolicy.openWakeWordThreshold(WakeWordSensitivityPolicy.DEFAULT)
+
+    /** Detection threshold derived from the user's shared wake-word sensitivity. */
+    fun threshold(context: Context): Float = WakeWordSensitivityPolicy.openWakeWordThreshold(
+        VoicePreferencesStore.load(context).wakeWordSensitivity
+    )
 
     fun normalizeFrame(frame: ShortArray): FloatArray {
         return FloatArray(frame.size) { i -> frame[i] / 32768f }

@@ -41,6 +41,8 @@ import com.airi.assistant.voice.PorcupineEngine
 import com.airi.assistant.voice.VoiceCapabilityPolicy
 import com.airi.assistant.voice.VoskModelManager
 import com.airi.assistant.voice.HotwordService
+import com.airi.assistant.voice.WakeWordSensitivityPolicy
+import com.airi.assistant.voice.VoicePreferencesStore
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,6 +70,7 @@ fun VoiceSettingsScreen(
     var showKey         by remember { mutableStateOf(false) }
     val voicePrefs = remember { VoicePreferencesStore.load(context) }
     var okAiriEnabled by remember { mutableStateOf(voicePrefs.hotwordEnabled) }
+    var wakeSensitivity by remember { mutableFloatStateOf(voicePrefs.wakeWordSensitivity) }
     val microphonePermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -171,6 +174,39 @@ fun VoiceSettingsScreen(
                             }
                         }
                     )
+                }
+            }
+            Surface(
+                shape = AIRIShapes.md,
+                color = AiriTheme.surfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.voice_wake_sensitivity_title), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.voice_wake_sensitivity_description), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                        }
+                        Text("${(wakeSensitivity * 100).toInt()}%", color = CosmicAccent, fontWeight = FontWeight.Bold)
+                    }
+                    Slider(
+                        value = wakeSensitivity,
+                        onValueChange = {
+                            wakeSensitivity = WakeWordSensitivityPolicy.clamp(it)
+                            VoicePreferencesStore.updateFlags(context, wakeWordSensitivity = wakeSensitivity)
+                        },
+                        valueRange = WakeWordSensitivityPolicy.MIN..WakeWordSensitivityPolicy.MAX,
+                        steps = 16,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(stringResource(R.string.voice_wake_sensitivity_low), color = AiriTheme.onSurfaceVariant, fontSize = 10.sp)
+                        Text(stringResource(R.string.voice_wake_sensitivity_high), color = AiriTheme.onSurfaceVariant, fontSize = 10.sp)
+                    }
                 }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

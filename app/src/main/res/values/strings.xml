@@ -2189,6 +2189,10 @@
     <string name="voice_enabled_description">Allow AIRI to listen and speak when voice mode is used.</string>
     <string name="voice_wake_word_title">Wake-word detection</string>
     <string name="voice_wake_word_description">Listen for the configured wake word while voice mode is enabled.</string>
+    <string name="voice_wake_sensitivity_title">Wake-word sensitivity</string>
+    <string name="voice_wake_sensitivity_description">Higher values detect the phrase more easily but may increase false activations.</string>
+    <string name="voice_wake_sensitivity_low">Fewer false activations</string>
+    <string name="voice_wake_sensitivity_high">Easier detection</string>
     <string name="input_plan">Plan</string>
     <string name="input_plan_active">Plan active</string>
     <string name="input_tools">Tools</string>

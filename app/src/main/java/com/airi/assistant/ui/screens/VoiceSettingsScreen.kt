@@ -66,15 +66,15 @@ fun VoiceSettingsScreen(
     val owwStatus by remember { mutableStateOf(OpenWakeWordEngine.status(context)) }
     var accessKeyInput  by remember { mutableStateOf("") }
     var showKey         by remember { mutableStateOf(false) }
-    val voicePrefs = remember { context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE) }
-    var okAiriEnabled by remember { mutableStateOf(voicePrefs.getBoolean("ok_airi_enabled", false)) }
+    val voicePrefs = remember { VoicePreferencesStore.load(context) }
+    var okAiriEnabled by remember { mutableStateOf(voicePrefs.hotwordEnabled) }
     val microphonePermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted && okAiriEnabled) HotwordService.start(context)
         else if (!granted) {
             okAiriEnabled = false
-            voicePrefs.edit().putBoolean("ok_airi_enabled", false).apply()
+            VoicePreferencesStore.updateFlags(context, hotwordEnabled = false)
         }
     }
     val assistantRoleLauncher = rememberLauncherForActivityResult(
@@ -161,7 +161,7 @@ fun VoiceSettingsScreen(
                         checked = okAiriEnabled,
                         onCheckedChange = { enabled ->
                             okAiriEnabled = enabled
-                            voicePrefs.edit().putBoolean("ok_airi_enabled", enabled).apply()
+                            VoicePreferencesStore.updateFlags(context, hotwordEnabled = enabled)
                             if (!enabled) {
                                 HotwordService.stop(context)
                             } else if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {

@@ -62,6 +62,8 @@ class GeminiLiveProvider(
     override val name: String = "Gemini Live ($model)"
     override val endpointDescription: String = endpoint
     override val supportsBidirectionalStreaming: Boolean = true
+    override val inputSampleRateHz: Int = 16_000
+    override val outputSampleRateHz: Int = 24_000
     override val expectedLatencyMs: IntRange = 300..600
     override val isConnected: Boolean get() = connected.get()
 

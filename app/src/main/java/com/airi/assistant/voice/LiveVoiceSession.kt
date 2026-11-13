@@ -130,12 +130,17 @@ class LiveVoiceSession(
         return id
     }
 
+    /** True only while [sessionId] is the currently active voice session. */
+    fun isActive(sessionId: Long): Boolean = sessionId > 0L && currentSessionId == sessionId
+
     /** End the current session. Returns to IDLE and clears partial transcript. */
     fun endSession() {
+        val endedSessionId = currentSessionId
         _partialTranscript.value = ""
         recoveryAttempts = 0
         transitionTo(VoicePipelineState.IDLE)
-        logger("I", "AIRI VOICE_SESSION_END id=$currentSessionId " +
+        currentSessionId = 0L
+        logger("I", "AIRI VOICE_SESSION_END id=$endedSessionId " +
                 "turns=${_metrics.value.completedTurns} " +
                 "interruptions=${_metrics.value.interruptionCount}")
     }
@@ -150,17 +155,21 @@ class LiveVoiceSession(
     }
 
     /** Call on each STT partial result. */
-    fun onPartialTranscript(text: String) {
+    fun onPartialTranscript(text: String, sessionId: Long = currentSessionId): Boolean {
+        if (!isActive(sessionId) || _state.value != VoicePipelineState.LISTENING) return false
         _partialTranscript.value = text
+        return true
     }
 
     /**
      * Call when STT emits the final result for this turn.
      * Clears partial transcript (replaced by the confirmed final text).
      */
-    fun onSpeechResult(text: String) {
+    fun onSpeechResult(text: String, sessionId: Long = currentSessionId): Boolean {
+        if (!isActive(sessionId) || _state.value != VoicePipelineState.LISTENING) return false
         _partialTranscript.value = text
         transitionTo(VoicePipelineState.THINKING)
+        return true
     }
 
     /**
@@ -169,6 +178,11 @@ class LiveVoiceSession(
      */
     fun onResponseStreaming(sttToFirstTokenMs: Long) {
         _latency.value = _latency.value.copy(lastSttToFirstTokenMs = sttToFirstTokenMs)
+        transitionTo(VoicePipelineState.STREAMING_RESPONSE)
+    }
+
+    /** Call when a cloud realtime provider emits the first output PCM frame. */
+    fun onRealtimeResponseStarted() {
         transitionTo(VoicePipelineState.STREAMING_RESPONSE)
     }
 
@@ -266,7 +280,8 @@ class LiveVoiceSession(
         if (next == VoicePipelineState.IDLE || next == VoicePipelineState.RECOVERING) return true
         return when (previous) {
             VoicePipelineState.IDLE -> next == VoicePipelineState.LISTENING
-            VoicePipelineState.LISTENING -> next == VoicePipelineState.THINKING
+            VoicePipelineState.LISTENING -> next == VoicePipelineState.THINKING ||
+                next == VoicePipelineState.STREAMING_RESPONSE
             VoicePipelineState.THINKING -> next == VoicePipelineState.STREAMING_RESPONSE
             VoicePipelineState.STREAMING_RESPONSE -> next == VoicePipelineState.INTERRUPTED
             VoicePipelineState.INTERRUPTED -> next == VoicePipelineState.LISTENING

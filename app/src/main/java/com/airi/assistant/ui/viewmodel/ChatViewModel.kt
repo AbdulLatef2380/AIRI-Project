@@ -138,6 +138,10 @@ import com.airi.assistant.execution.router.RuntimeRouter
 import com.airi.assistant.execution.security.SecureApiKeyStore
 import com.airi.assistant.ai.LanguagePolicy
 import com.airi.assistant.voice.VoskModelManager
+import com.airi.assistant.voice.VoiceCapabilityPolicy
+import com.airi.assistant.voice.VoicePreferencesStore
+import com.airi.assistant.voice.PorcupineEngine
+import com.airi.assistant.voice.OpenWakeWordEngine
 import com.airi.assistant.product.AiriIdentityProfile
 import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.ui.activity.ActivityEvent
@@ -962,6 +966,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     init {
+        VoicePreferencesStore.load(appContext)
         chatLifecycleCoordinator.startOnce()
     }
 
@@ -981,6 +986,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _voiceModeActive = MutableStateFlow(false)
     val voiceModeActive: StateFlow<Boolean> = _voiceModeActive.asStateFlow()
+
+    /**
+     * Single readiness projection consumed by voice UI and future foreground services.
+     * STT remains local (Vosk), while the response model may be local or cloud-backed.
+     * Live duplex stays false until a realtime PCM transport is actually wired.
+     */
+    val voiceCapability: StateFlow<VoiceCapabilityPolicy.Snapshot> = combine(
+        _modelState,
+        VoicePreferencesStore.snapshotFlow
+    ) { model, _ ->
+        VoiceCapabilityPolicy.snapshot(
+            wakeWordConfigured = PorcupineEngine.status(appContext).ready ||
+                OpenWakeWordEngine.status(appContext).ready,
+            activeSpeechModelReady = VoskModelManager.isReady(appContext),
+            microphoneGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                appContext, android.Manifest.permission.RECORD_AUDIO
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED,
+            textToSpeechReady = true,
+            localInferenceReady = model.isModelReady,
+            cloudInferenceReady = model.isCloudReady,
+            realtimeTransportReady = false
+        )
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        VoiceCapabilityPolicy.snapshot(false, false, false)
+    )
 
     /**
      * Toggle the in-chat voice mode. Chat owns this foreground-only interaction

@@ -32,4 +32,44 @@ class VoiceCapabilityPolicyTest {
         assertFalse(unavailable.voiceActivityDetectionReady)
         assertFalse(unavailable.liveDuplexReady)
     }
+
+    @Test
+    fun cloudInferenceCanBeReadyWithoutLocalInference() {
+        val snapshot = VoiceCapabilityPolicy.snapshot(
+            wakeWordConfigured = false,
+            activeSpeechModelReady = true,
+            microphoneGranted = true,
+            textToSpeechReady = true,
+            localInferenceReady = false,
+            cloudInferenceReady = true
+        )
+
+        assertTrue(snapshot.inferenceReady)
+        assertTrue(snapshot.cloudInferenceReady)
+        assertFalse(snapshot.localInferenceReady)
+        assertFalse(snapshot.liveDuplexReady)
+    }
+
+    @Test
+    fun liveDuplexRequiresRealtimeTransportNotJustVoiceComponents() {
+        val withoutTransport = VoiceCapabilityPolicy.snapshot(
+            wakeWordConfigured = true,
+            activeSpeechModelReady = true,
+            microphoneGranted = true,
+            textToSpeechReady = true,
+            localInferenceReady = true,
+            realtimeTransportReady = false
+        )
+        val withTransport = VoiceCapabilityPolicy.snapshot(
+            wakeWordConfigured = true,
+            activeSpeechModelReady = true,
+            microphoneGranted = true,
+            textToSpeechReady = true,
+            localInferenceReady = true,
+            realtimeTransportReady = true
+        )
+
+        assertFalse(withoutTransport.liveDuplexReady)
+        assertTrue(withTransport.liveDuplexReady)
+    }
 }

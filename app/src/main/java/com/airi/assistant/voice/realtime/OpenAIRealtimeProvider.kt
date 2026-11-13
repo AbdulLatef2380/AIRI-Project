@@ -5,12 +5,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.WebSocket
@@ -84,6 +86,8 @@ class OpenAIRealtimeProvider(
     override val endpointDescription: String =
         "wss://api.openai.com/v1/realtime?model=$modelId"
     override val supportsBidirectionalStreaming: Boolean = true
+    override val inputSampleRateHz: Int = 24_000
+    override val outputSampleRateHz: Int = 24_000
     override val expectedLatencyMs: IntRange = 200..500
 
     // ── Channels → hot Flows ──────────────────────────────────────────────────
@@ -116,6 +120,7 @@ class OpenAIRealtimeProvider(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var webSocket: WebSocket? = null
     private var connectTimeMs: Long = 0L
+    @Volatile private var connectResult: CompletableDeferred<RealtimeVoiceProvider.ConnectResult>? = null
 
     // Stored at connect() for use in session.update
     @Volatile private var sessionInstructions: String = ""
@@ -137,6 +142,8 @@ class OpenAIRealtimeProvider(
     ): RealtimeVoiceProvider.ConnectResult {
         if (_connected.get()) return RealtimeVoiceProvider.ConnectResult.Success
         _phase.value = Phase.CONNECTING
+        val ready = CompletableDeferred<RealtimeVoiceProvider.ConnectResult>()
+        connectResult = ready
         sessionInstructions = systemPrompt
         sessionVoice        = voiceId.ifBlank { "nova" }
 
@@ -155,6 +162,7 @@ class OpenAIRealtimeProvider(
                 _phase.value = Phase.CONNECTED
                 Log.i(TAG, "AIRI OPENAI_REALTIME_CONNECTED latency=${System.currentTimeMillis() - connectTimeMs}ms")
                 sendSessionUpdate(ws)
+                ready.complete(RealtimeVoiceProvider.ConnectResult.Success)
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
@@ -167,22 +175,27 @@ class OpenAIRealtimeProvider(
                 Log.e(TAG, "WebSocket failure: $msg")
                 _connected.set(false)
                 _phase.value = Phase.ERROR
+                ready.complete(RealtimeVoiceProvider.ConnectResult.Failure(msg, code))
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 Log.i(TAG, "WebSocket closed: $code $reason")
                 _connected.set(false)
                 _phase.value = Phase.DISCONNECTED
+                ready.complete(RealtimeVoiceProvider.ConnectResult.Failure("WebSocket closed: $code $reason", code))
             }
         }
 
         webSocket = httpClient.newWebSocket(request, listener)
-        return RealtimeVoiceProvider.ConnectResult.Success
+        return withTimeoutOrNull(15_000L) { ready.await() }
+            ?: RealtimeVoiceProvider.ConnectResult.Failure("Timed out waiting for OpenAI Realtime connection")
     }
 
     override suspend fun disconnect() {
         webSocket?.close(1000, "AIRI disconnect")
         webSocket = null
+        connectResult?.complete(RealtimeVoiceProvider.ConnectResult.Failure("Disconnected"))
+        connectResult = null
         _connected.set(false)
         _phase.value = Phase.DISCONNECTED
         Log.i(TAG, "OpenAI Realtime disconnected")

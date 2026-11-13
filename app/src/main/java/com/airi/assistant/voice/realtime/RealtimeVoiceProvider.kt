@@ -47,6 +47,12 @@ interface RealtimeVoiceProvider {
      */
     val supportsBidirectionalStreaming: Boolean
 
+    /** PCM-16 mono sample rate expected for microphone input. */
+    val inputSampleRateHz: Int
+
+    /** PCM-16 mono sample rate emitted in [audioResponseFlow]. */
+    val outputSampleRateHz: Int
+
     /**
      * Estimated round-trip latency class for UX calibration.
      */
@@ -162,6 +168,8 @@ object LocalVoicePipeline : RealtimeVoiceProvider {
     override val name                        = "local"
     override val endpointDescription         = "Vosk STT + Android TTS (on-device)"
     override val supportsBidirectionalStreaming = false
+    override val inputSampleRateHz          = 16_000
+    override val outputSampleRateHz         = 24_000
     override val expectedLatencyMs           = 80..250
     override val isConnected                 = true
 

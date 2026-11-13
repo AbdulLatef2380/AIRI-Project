@@ -6,17 +6,34 @@ internal object VoiceCapabilityPolicy {
         val wakeWordReady: Boolean,
         val speechRecognitionReady: Boolean,
         val voiceActivityDetectionReady: Boolean,
+        val textToSpeechReady: Boolean,
+        val localInferenceReady: Boolean,
+        val cloudInferenceReady: Boolean,
+        val realtimeTransportReady: Boolean,
         val liveDuplexReady: Boolean
-    )
+    ) {
+        val inferenceReady: Boolean
+            get() = localInferenceReady || cloudInferenceReady
+    }
 
     fun snapshot(
         wakeWordConfigured: Boolean,
         activeSpeechModelReady: Boolean,
-        microphoneGranted: Boolean
+        microphoneGranted: Boolean,
+        textToSpeechReady: Boolean = false,
+        localInferenceReady: Boolean = activeSpeechModelReady,
+        cloudInferenceReady: Boolean = false,
+        realtimeTransportReady: Boolean = false
     ): Snapshot = Snapshot(
         wakeWordReady = wakeWordConfigured,
         speechRecognitionReady = activeSpeechModelReady,
         voiceActivityDetectionReady = microphoneGranted,
-        liveDuplexReady = false
+        textToSpeechReady = textToSpeechReady,
+        localInferenceReady = localInferenceReady,
+        cloudInferenceReady = cloudInferenceReady,
+        realtimeTransportReady = realtimeTransportReady,
+        liveDuplexReady = microphoneGranted && activeSpeechModelReady &&
+            textToSpeechReady && (localInferenceReady || cloudInferenceReady) &&
+            realtimeTransportReady
     )
 }

@@ -22,6 +22,10 @@ object VoicePreferencesStore {
     private const val KEY_PRESET     = "tts_preset"
     private const val KEY_VOICE_ENABLED  = "voice_enabled"
     private const val KEY_HOTWORD_ENABLED = "hotword_enabled"
+    private const val KEY_CLOUD_PROVIDER = "cloud_voice_provider"
+    private const val LEGACY_PREFS_NAME = "airi_voice"
+    private const val LEGACY_HOTWORD_ENABLED = "ok_airi_enabled"
+    private const val LEGACY_VOICE_ENABLED = "voice_enabled"
 
     /**
      * Stable preference identifiers and acoustic values only.
@@ -44,7 +48,8 @@ object VoicePreferencesStore {
         val voiceName: String,
         val preset: PersonalityPreset,
         val voiceEnabled: Boolean,
-        val hotwordEnabled: Boolean
+        val hotwordEnabled: Boolean,
+        val cloudVoiceProvider: String = "LOCAL"
     )
 
     private val _snapshot = MutableStateFlow<Snapshot?>(null)
@@ -59,9 +64,32 @@ object VoicePreferencesStore {
         val preset  = runCatching {
             PersonalityPreset.valueOf(prefs.getString(KEY_PRESET, PersonalityPreset.STANDARD.name)!!)
         }.getOrDefault(PersonalityPreset.STANDARD)
-        val voiceEnabled   = prefs.getBoolean(KEY_VOICE_ENABLED, false)
-        val hotwordEnabled = prefs.getBoolean(KEY_HOTWORD_ENABLED, false)
-        return Snapshot(pitch, rate, voice, preset, voiceEnabled, hotwordEnabled).also {
+        val legacy = context.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
+        val voiceEnabled = if (prefs.contains(KEY_VOICE_ENABLED)) {
+            prefs.getBoolean(KEY_VOICE_ENABLED, false)
+        } else {
+            legacy.getBoolean(LEGACY_VOICE_ENABLED, false)
+        }
+        val hotwordEnabled = if (prefs.contains(KEY_HOTWORD_ENABLED)) {
+            prefs.getBoolean(KEY_HOTWORD_ENABLED, false)
+        } else {
+            legacy.getBoolean(LEGACY_HOTWORD_ENABLED, false)
+        }
+        val cloudProvider = if (prefs.contains(KEY_CLOUD_PROVIDER)) {
+            prefs.getString(KEY_CLOUD_PROVIDER, "LOCAL") ?: "LOCAL"
+        } else {
+            legacy.getString(KEY_CLOUD_PROVIDER, "LOCAL") ?: "LOCAL"
+        }
+        // One-time compatibility migration. Existing installations keep their wake-word
+        // and provider choices while all future readers use this store only.
+        if (!prefs.contains(KEY_HOTWORD_ENABLED) || !prefs.contains(KEY_CLOUD_PROVIDER)) {
+            prefs.edit()
+                .putBoolean(KEY_VOICE_ENABLED, voiceEnabled)
+                .putBoolean(KEY_HOTWORD_ENABLED, hotwordEnabled)
+                .putString(KEY_CLOUD_PROVIDER, cloudProvider)
+                .apply()
+        }
+        return Snapshot(pitch, rate, voice, preset, voiceEnabled, hotwordEnabled, cloudProvider).also {
             _snapshot.value = it
         }
     }
@@ -73,7 +101,8 @@ object VoicePreferencesStore {
         voiceName:      String,
         preset:         PersonalityPreset,
         voiceEnabled:   Boolean,
-        hotwordEnabled: Boolean
+        hotwordEnabled: Boolean,
+        cloudVoiceProvider: String = (_snapshot.value?.cloudVoiceProvider ?: "LOCAL")
     ) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putFloat(KEY_PITCH, pitch)
@@ -82,8 +111,27 @@ object VoicePreferencesStore {
             .putString(KEY_PRESET, preset.name)
             .putBoolean(KEY_VOICE_ENABLED, voiceEnabled)
             .putBoolean(KEY_HOTWORD_ENABLED, hotwordEnabled)
+            .putString(KEY_CLOUD_PROVIDER, cloudVoiceProvider)
             .apply()
-        _snapshot.value = Snapshot(pitch, rate, voiceName, preset, voiceEnabled, hotwordEnabled)
+        _snapshot.value = Snapshot(pitch, rate, voiceName, preset, voiceEnabled, hotwordEnabled, cloudVoiceProvider)
+    }
+
+    /** Update runtime switches without overwriting the user's TTS personalization. */
+    fun updateFlags(
+        context: Context,
+        voiceEnabled: Boolean? = null,
+        hotwordEnabled: Boolean? = null,
+        cloudVoiceProvider: String? = null
+    ): Snapshot {
+        val current = _snapshot.value ?: load(context)
+        val next = current.copy(
+            voiceEnabled = voiceEnabled ?: current.voiceEnabled,
+            hotwordEnabled = hotwordEnabled ?: current.hotwordEnabled,
+            cloudVoiceProvider = cloudVoiceProvider ?: current.cloudVoiceProvider
+        )
+        save(context, next.pitch, next.rate, next.voiceName, next.preset,
+            next.voiceEnabled, next.hotwordEnabled, next.cloudVoiceProvider)
+        return next
     }
 
     /**

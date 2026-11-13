@@ -88,6 +88,11 @@ class LiveVoiceService : Service() {
         fun setRealtimeProvider(provider: RealtimeVoiceProvider?) {
             this@LiveVoiceService.realtimeProvider = provider ?: LocalVoicePipeline
         }
+
+        fun startRealtimeDuplex(systemPrompt: String, apiKey: String, voiceId: String = "alloy") =
+            this@LiveVoiceService.startRealtimeDuplex(systemPrompt, apiKey, voiceId)
+
+        fun stopRealtimeDuplex() = this@LiveVoiceService.stopRealtimeDuplex()
     }
 
     private val binder = LocalBinder()
@@ -106,8 +111,10 @@ class LiveVoiceService : Service() {
     private val incrementalTts by lazy { IncrementalTtsEngine(applicationContext) }
 
     @Volatile var realtimeProvider: RealtimeVoiceProvider = LocalVoicePipeline
+    @Volatile private var realtimeTransport: RealtimeAudioTransport? = null
     @Volatile private var listenRequestedByUser = false
     private var recoveryJob: Job? = null
+    private var routeJob: Job? = null
 
     // ── Audio focus () ─────────────────────────────────────────────────
 
@@ -210,8 +217,7 @@ class LiveVoiceService : Service() {
      * persisted selection — even after process death and recreation.
      */
     private fun restoreProviderPreference() {
-        val requested = getSharedPreferences("airi_voice", Context.MODE_PRIVATE)
-            .getString("cloud_voice_provider", "LOCAL") ?: "LOCAL"
+        val requested = VoicePreferencesStore.load(this).cloudVoiceProvider
         // Realtime providers define a transport contract but are not yet connected
         // to microphone capture and AudioTrack playback in this service. Keep the
         // operational path local until that end-to-end transport is implemented.
@@ -224,6 +230,10 @@ class LiveVoiceService : Service() {
     override fun onDestroy() {
         Log.i(TAG, "LiveVoiceService onDestroy")
         abandonAudioFocus()
+        routeJob?.cancel()
+        routeJob = null
+        realtimeTransport?.destroy()
+        realtimeTransport = null
         session.endSession()
         voiceManager.destroy()
         serviceScope.cancel()
@@ -251,9 +261,10 @@ class LiveVoiceService : Service() {
                     com.airi.assistant.ui.activity.ActivityCategory.VOICE)
                 return
             }
-            session.onListenStart()
+            val sessionId = session.beginSession()
             updateNotification(VoicePipelineState.LISTENING)
             sttStartEpochMs = System.currentTimeMillis()
+            Log.i(TAG, "AIRI VOICE_LISTEN_BEGIN session=$sessionId")
             voiceManager.startSpeechToText()
         }
     }
@@ -263,6 +274,9 @@ class LiveVoiceService : Service() {
         listenRequestedByUser = false
         recoveryJob?.cancel()
         recoveryJob = null
+        routeJob?.cancel()
+        routeJob = null
+        stopRealtimeDuplex()
         abandonAudioFocus()
         voiceManager.stopAll()
         session.endSession()
@@ -272,6 +286,9 @@ class LiveVoiceService : Service() {
     private fun pauseForFocusLoss() {
         recoveryJob?.cancel()
         recoveryJob = null
+        routeJob?.cancel()
+        routeJob = null
+        stopRealtimeDuplex()
         voiceManager.stopAll()
         session.endSession()
         updateNotification(VoicePipelineState.IDLE)
@@ -293,6 +310,69 @@ class LiveVoiceService : Service() {
 
     fun interruptSpeaking() {
         voiceManager.stopSpeaking()
+    }
+
+    /** Start the provider-backed PCM duplex path after a provider is selected. */
+    fun startRealtimeDuplex(systemPrompt: String, apiKey: String, voiceId: String = "alloy") {
+        if (realtimeProvider === LocalVoicePipeline || !realtimeProvider.supportsBidirectionalStreaming) {
+            Log.w(TAG, "AIRI REALTIME_DUPLEX_REJECTED provider=${realtimeProvider.name}")
+            return
+        }
+        stopRealtimeDuplex()
+        voiceManager.stopAll()
+        val sessionId = session.beginSession()
+        val transport = RealtimeAudioTransport(
+            context = applicationContext,
+            provider = realtimeProvider,
+            parentScope = serviceScope,
+            listener = object : RealtimeAudioTransport.Listener {
+                override fun onStarted() {
+                    updateNotification(VoicePipelineState.LISTENING)
+                    Log.i(TAG, "AIRI REALTIME_DUPLEX_READY session=$sessionId")
+                }
+
+                override fun onOutputFrame(samples: Int) {
+                    if (session.isActive(sessionId)) {
+                        session.onRealtimeResponseStarted()
+                        updateNotification(VoicePipelineState.STREAMING_RESPONSE)
+                    }
+                }
+
+                override fun onTranscript(text: String) {
+                    Log.d(TAG, "AIRI REALTIME_TRANSCRIPT chars=${text.length}")
+                }
+
+                override fun onResponseText(text: String) {
+                    if (session.isActive(sessionId)) {
+                        serviceScope.launch { ServiceLocator.voiceTranscriptBus.emit(text) }
+                    }
+                }
+
+                override fun onError(reason: String) {
+                    Log.w(TAG, "AIRI REALTIME_DUPLEX_ERROR reason=$reason")
+                    if (session.isActive(sessionId)) session.endSession()
+                }
+
+                override fun onStopped() {
+                    if (session.isActive(sessionId)) session.endSession()
+                    updateNotification(VoicePipelineState.IDLE)
+                }
+            }
+        )
+        realtimeTransport = transport
+        serviceScope.launch {
+            val result = transport.start(systemPrompt, apiKey, voiceId)
+            if (result !is RealtimeVoiceProvider.ConnectResult.Success) {
+                if (session.isActive(sessionId)) session.endSession()
+                if (realtimeTransport === transport) realtimeTransport = null
+            }
+        }
+    }
+
+    fun stopRealtimeDuplex() {
+        val transport = realtimeTransport ?: return
+        realtimeTransport = null
+        serviceScope.launch { transport.stopAndDisconnect() }
     }
 
     // ── Audio focus helpers ───────────────────────────────────────────────────
@@ -334,9 +414,15 @@ class LiveVoiceService : Service() {
 
             override fun onWakeWordDetected() {
                 Log.d(TAG, "onWakeWordDetected → LISTENING")
-                session.onListenStart()
+                val sessionId = if (session.currentSessionId == 0L) {
+                    session.beginSession()
+                } else {
+                    session.onListenStart()
+                    session.currentSessionId
+                }
                 sttStartEpochMs = System.currentTimeMillis()
                 updateNotification(VoicePipelineState.LISTENING)
+                Log.i(TAG, "AIRI VOICE_WAKE_SESSION session=$sessionId")
             }
 
             override fun onListeningStarted() {
@@ -348,16 +434,33 @@ class LiveVoiceService : Service() {
             }
 
             override fun onSpeechResult(text: String) {
+                val sessionId = session.currentSessionId
+                if (sessionId == 0L || !session.isActive(sessionId)) {
+                    Log.w(TAG, "AIRI VOICE_STALE_RESULT_IGNORED reason=no_active_session")
+                    return
+                }
                 val sttMs = System.currentTimeMillis() - sttStartEpochMs
                 session.recordSttLatency(sttMs)
-                session.onSpeechResult(text)
+                if (!session.onSpeechResult(text, sessionId)) {
+                    Log.w(TAG, "AIRI VOICE_STALE_RESULT_IGNORED session=$sessionId")
+                    return
+                }
                 thinkingStartEpochMs = System.currentTimeMillis()
                 updateNotification(VoicePipelineState.THINKING)
                 Log.d(TAG, "AIRI STT_RESULT sttLatency=${sttMs}ms chars=${text.length}")
 
-                serviceScope.launch {
-                    when (val r = voiceAgentRouter.route(text, session.currentSessionId)) {
+                routeJob?.cancel()
+                routeJob = serviceScope.launch {
+                    if (!session.isActive(sessionId)) {
+                        Log.i(TAG, "AIRI VOICE_ROUTE_CANCELLED session=$sessionId")
+                        return@launch
+                    }
+                    when (val r = voiceAgentRouter.route(text, sessionId)) {
                         is VoiceAgentRouter.VoiceRouteResult.Handled -> {
+                            if (!session.isActive(sessionId)) {
+                                Log.i(TAG, "AIRI VOICE_SPEAK_CANCELLED session=$sessionId")
+                                return@launch
+                            }
                             val ttfb = System.currentTimeMillis() - thinkingStartEpochMs
                             session.recordTtsFirstByteLatency(ttfb)
                             session.onResponseStreaming(ttfb)
@@ -366,6 +469,10 @@ class LiveVoiceService : Service() {
                             Log.i(TAG, "AIRI VOICE_AGENT_SPOKE agent=${r.agentId} ttfb=${ttfb}ms")
                         }
                         VoiceAgentRouter.VoiceRouteResult.Fallback -> {
+                            if (!session.isActive(sessionId)) {
+                                Log.i(TAG, "AIRI VOICE_FALLBACK_CANCELLED session=$sessionId")
+                                return@launch
+                            }
                             Log.d(TAG, "AIRI VOICE_LLM_DISPATCH chars=${text.length}")
                             session.emitPendingTranscript(text)
                             ServiceLocator.voiceTranscriptBus.emit(text)
@@ -383,6 +490,10 @@ class LiveVoiceService : Service() {
             }
 
             override fun onSpeakingDone() {
+                if (session.currentSessionId == 0L) {
+                    Log.i(TAG, "AIRI VOICE_TTS_DONE_IGNORED reason=no_active_session")
+                    return
+                }
                 session.onTurnComplete()
                 updateNotification(VoicePipelineState.IDLE)
                 Log.d(TAG, "AIRI TTS_DONE — auto-rearming STT")
@@ -416,7 +527,10 @@ class LiveVoiceService : Service() {
                         Log.i(TAG, "Recovery attempt ${session.recoveryAttempts}")
                         voiceManager.stopAll()
                         delay(200L)
-                        session.onRecoverySuccess()
+                        // Recovery must invalidate the old STT callbacks before reopening
+                        // AudioRecord.  Calling onRecoverySuccess() alone leaves the state
+                        // at LISTENING, so requestListen() would intentionally no-op.
+                        session.endSession()
                         requestListen()
                     }
                 } else {

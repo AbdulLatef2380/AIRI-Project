@@ -25,11 +25,15 @@ import kotlinx.coroutines.withContext
  *     ↓
  *   SubAgentRegistry.route()        ← keyword scoring + canHandle() gate
  *     ↓ (matched)
- *   ProductionAgentOrchestrator.executeSingle()   ← real tool calls
+ *   ProductionAgentOrchestrator.executeSingle()   ← read-only/direct agent calls
  *     ↓
  *   LiveVoiceService speaks the handled response through its session-owned TTS.
  *     ↓
  *   VoiceRouteResult.Handled(text, agentId)
+ *
+ *   Data-changing agents return Fallback instead of executing here. Their transcript is
+ *   handled by the canonical ChatViewModel → AgentLoop path, which owns request-scoped
+ *   ToolDispatcher/Sandbox/Terminal admission and confirmation.
  *
  *   ── OR ──
  *
@@ -105,28 +109,15 @@ class VoiceAgentRouter(
 
         Log.i(TAG, "AIRI VOICE_ROUTE_MATCH agent=${agent.capability.agentId}")
 
-        // ── V2: side-effect admission ─────────────────────────────────────────
-        // Chat blocks data-changing tools unless a task-owned approval exists
-        // (AgentLoopSideEffectPolicy). This path reaches sub-agents directly, so it needs
-        // its own gate: writes either get explicit approval or fall back to the chat
-        // pipeline, which enforces the policy. Never executes silently.
+        // Data-changing voice requests must use the canonical ChatViewModel → AgentLoop
+        // path.  The direct sub-agent path below does not own the request-scoped
+        // ToolDispatcher/Sandbox/Terminal admission context, so executing a write here
+        // would be a policy bypass even when a UI confirmation gate is available.
+        // Returning Fallback preserves the transcript and lets the canonical pipeline
+        // perform confirmation, capability admission, sandboxing, terminal policy and trace.
         if (agent is WriteApprovalRequired && agent.requiresWriteApproval(trimmed)) {
-            val gate = confirmationGateProvider()
-            if (gate == null) {
-                Log.w(TAG, "AIRI VOICE_ROUTE_WRITE_BLOCKED agent=${agent.capability.agentId} reason=no_confirmation_gate")
-                return VoiceRouteResult.Fallback
-            }
-            val approved = try {
-                gate("Confirm action", agent.describeWrite(trimmed))
-            } catch (e: Exception) {
-                Log.w(TAG, "AIRI VOICE_ROUTE_CONFIRM_ERROR ${e.javaClass.simpleName}")
-                false
-            }
-            if (!approved) {
-                Log.i(TAG, "AIRI VOICE_ROUTE_WRITE_DECLINED agent=${agent.capability.agentId}")
-                return VoiceRouteResult.Handled("Okay, I won't do that.", agent.capability.agentId)
-            }
-            Log.i(TAG, "AIRI VOICE_ROUTE_WRITE_APPROVED agent=${agent.capability.agentId}")
+            Log.i(TAG, "AIRI VOICE_ROUTE_CANONICAL_REQUIRED agent=${agent.capability.agentId}")
+            return VoiceRouteResult.Fallback
         }
 
         // ── Execute via orchestrator ───────────────────────────────────────────

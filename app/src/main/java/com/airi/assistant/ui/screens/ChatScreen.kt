@@ -17,6 +17,7 @@ import android.media.projection.MediaProjectionManager
 import androidx.compose.runtime.DisposableEffect
 import com.airi.assistant.voice.VoskEngine
 import com.airi.assistant.voice.VoskModelManager
+import com.airi.assistant.voice.VoicePreferencesStore
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -221,6 +222,7 @@ fun ChatScreen(
     val agentActivityEvents by AgentActivityBus.recentEvents.collectAsStateWithLifecycle()
     val lastExecutionError by viewModel.lastExecutionError.collectAsStateWithLifecycle()
     val modelState    by viewModel.modelState.collectAsStateWithLifecycle()
+    val voiceCapability by viewModel.voiceCapability.collectAsStateWithLifecycle()
     val capabilityDescriptor = remember(modelState) { viewModel.currentCapabilityDescriptor() }
     val agentMode     by viewModel.agentMode.collectAsStateWithLifecycle()
     val smartReplies  by viewModel.smartReplies.collectAsStateWithLifecycle()
@@ -622,14 +624,14 @@ fun ChatScreen(
         }
     }
 
-    val voicePrefs = remember { context.getSharedPreferences("airi_voice", android.content.Context.MODE_PRIVATE) }
+    val voicePrefs by VoicePreferencesStore.snapshotFlow.collectAsState()
     LaunchedEffect(voiceChatInput) {
         val input = voiceChatInput
         if (input.isNotBlank() && (modelState.isModelReady || modelState.isCloudReady) && !agentState.isWorking) {
             voiceChatInput = ""
             voiceState = VoiceSessionState.IDLE
             viewModel.sendMessage(input)
-            if (liveChatActiveRef.value || voicePrefs.getBoolean("voice_enabled", false)) {
+            if (liveChatActiveRef.value || voicePrefs?.voiceEnabled == true) {
                 speakNextResponse = true
             }
         }
@@ -1079,7 +1081,8 @@ fun ChatScreen(
                         // Realtime providers remain isolated until their PCM transport is wired end-to-end;
                         // the UI must never claim a cloud session when it is using local recognition.
                         when {
-                            !VoskModelManager.isReady(context) -> onNavigate(AiriRoute.VOICE_SETTINGS)
+                            !voiceCapability.speechRecognitionReady -> onNavigate(AiriRoute.VOICE_SETTINGS)
+                            !voiceCapability.inferenceReady -> onNavigate(AiriRoute.MODELS)
                             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
                                 == PackageManager.PERMISSION_GRANTED -> {
                                 viewModel.toggleVoiceMode()

@@ -32,6 +32,7 @@ import com.airi.assistant.domain.growth.ReferralManager
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.voice.HotwordService
+import com.airi.assistant.voice.VoicePreferencesStore
 import com.airi.assistant.R
 import kotlinx.coroutines.launch
 
@@ -51,8 +52,7 @@ class MainActivity : ComponentActivity() {
         }
         // Resume the opt-in wake-word listener after process recreation. The
         // service still validates the microphone permission and model locally.
-        if (getSharedPreferences("airi_voice", Context.MODE_PRIVATE)
-                .getBoolean("ok_airi_enabled", false) &&
+        if (VoicePreferencesStore.load(this).hotwordEnabled &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
                 PackageManager.PERMISSION_GRANTED) {
             HotwordService.start(this)

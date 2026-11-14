@@ -152,6 +152,10 @@ object ConversationResponseCompositionPlanner {
                 add(ResponseSectionKind.CHART)
             }
             ResponseLane.MAP -> add(ResponseSectionKind.MAP)
+            ResponseLane.DOCUMENT -> {
+                add(ResponseSectionKind.ANSWER)
+                add(ResponseSectionKind.ARTIFACTS)
+            }
             ResponseLane.ARTIFACT -> add(ResponseSectionKind.ARTIFACTS)
             ResponseLane.MEDIA -> add(ResponseSectionKind.MEDIA)
             ResponseLane.WORKSPACE -> {

@@ -37,6 +37,9 @@ import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.AIRIShapes
 import com.airi.assistant.ui.theme.AiriTheme
+import com.airi.assistant.ui.generative.GenerativeUiAction
+import com.airi.assistant.ui.generative.GenerativeUiCompiler
+import com.airi.assistant.ui.generative.GenerativeUiRenderer
 
 /** Routes assistant content to shared presentation primitives across all providers. */
 @Composable
@@ -48,6 +51,7 @@ fun ContentAwareMessageRenderer(
     toolOutputs: List<AssistantToolOutput> = emptyList(),
     onContentAction: (ContentTarget, ContentUnitAction) -> Unit,
     onCopyResult: ((String) -> Boolean)? = null,
+    onGenerativeUiAction: (GenerativeUiAction) -> Unit = {},
 ) {
     val resolvedMessageId = messageId.ifBlank {
         remember { "message-${text.hashCode().toUInt().toString(16)}" }
@@ -56,41 +60,51 @@ fun ContentAwareMessageRenderer(
     val plan = remember(text, isStreaming, resolvedMessageId, toolOutputs) {
         contentSession.plan(text, isStreaming, toolOutputs)
     }
+    val compiledUi = remember(text, isStreaming) {
+        if (isStreaming) null else GenerativeUiCompiler.compile(text)
+    }
     Column(modifier = modifier.fillMaxWidth()) {
-        plan.units.forEach { unit ->
-            key(unit.id) {
-                val target = unit.toContentTarget(plan.messageId)
-                when (unit.kind) {
-                    ContentUnitKind.PROSE -> BidiAwareMarkdownRenderer(
-                        text = unit.source,
-                        modifier = Modifier.fillMaxWidth(),
-                        isStreaming = isStreaming,
-                    )
-                    ContentUnitKind.CODE,
-                    ContentUnitKind.STRUCTURED_DATA -> BidiAwareMarkdownRenderer(
-                        text = fencedUnit(unit),
-                        modifier = Modifier.fillMaxWidth(),
-                        isStreaming = isStreaming,
-                        codeTargets = listOf(target),
-                        onCopyCodeResult = onCopyResult,
-                        onContentAction = onContentAction,
-                    )
-                    ContentUnitKind.TABLE -> MarkdownTableRenderer(
-                        text = unit.source,
-                        modifier = Modifier.fillMaxWidth(),
-                        tableTarget = target,
+        if (compiledUi != null) {
+            compiledUi.surroundingText.takeIf(String::isNotBlank)?.let { surrounding ->
+                BidiAwareMarkdownRenderer(text = surrounding, modifier = Modifier.fillMaxWidth(), isStreaming = isStreaming)
+            }
+            GenerativeUiRenderer(compiled = compiledUi, onAction = onGenerativeUiAction)
+        } else {
+            plan.units.forEach { unit ->
+                key(unit.id) {
+                    val target = unit.toContentTarget(plan.messageId)
+                    when (unit.kind) {
+                        ContentUnitKind.PROSE -> BidiAwareMarkdownRenderer(
+                            text = unit.source,
+                            modifier = Modifier.fillMaxWidth(),
+                            isStreaming = isStreaming,
+                        )
+                        ContentUnitKind.CODE,
+                        ContentUnitKind.STRUCTURED_DATA -> BidiAwareMarkdownRenderer(
+                            text = fencedUnit(unit),
+                            modifier = Modifier.fillMaxWidth(),
+                            isStreaming = isStreaming,
+                            codeTargets = listOf(target),
+                            onCopyCodeResult = onCopyResult,
+                            onContentAction = onContentAction,
+                        )
+                        ContentUnitKind.TABLE -> MarkdownTableRenderer(
+                            text = unit.source,
+                            modifier = Modifier.fillMaxWidth(),
+                            tableTarget = target,
+                            onContentAction = onContentAction,
+                        )
+                    }
+                }
+            }
+            plan.toolOutputs.forEach { output ->
+                key(output.id) {
+                    ToolOutputCard(
+                        output = output,
+                        target = output.toContentTarget(plan.messageId),
                         onContentAction = onContentAction,
                     )
                 }
-            }
-        }
-        plan.toolOutputs.forEach { output ->
-            key(output.id) {
-                ToolOutputCard(
-                    output = output,
-                    target = output.toContentTarget(plan.messageId),
-                    onContentAction = onContentAction,
-                )
             }
         }
     }

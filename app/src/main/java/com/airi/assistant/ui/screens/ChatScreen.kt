@@ -2470,6 +2470,9 @@ fun ChatMessageList(
                                 onExportMarkdown = onExportMarkdown,
                                 initialFeedback = msg.feedback,
                                 onOpenRun       = onOpenRun,
+                                onInteractiveAction = { action ->
+                                    viewModel.sendMessage(action.prompt)
+                                },
                             )
                         }
                     }
@@ -3028,6 +3031,7 @@ fun AiBubble(
     onFeedback: (liked: Boolean) -> Unit = {},
     onExportPdf: (String) -> Unit = {},
     onExportMarkdown: (String) -> Unit = {},
+    onInteractiveAction: (com.airi.assistant.ui.generative.GenerativeUiAction) -> Unit = {},
     /** Opens the run screen for a trace id. When null, the legacy expandable badge is shown. */
     onOpenRun: ((String) -> Unit)? = null,
 ) {
@@ -3186,6 +3190,7 @@ fun AiBubble(
                                         ).show()
                                         copied
                                     },
+                                    onGenerativeUiAction = onInteractiveAction,
                                 )
                             }
                             if (isSelectingText) SelectionContainer { renderContent() } else renderContent()

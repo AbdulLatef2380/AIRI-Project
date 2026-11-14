@@ -1230,6 +1230,7 @@ fun ChatScreen(
                     voiceManager.speak(text)
                 },
                 onSuggestionClick  = { suggestion -> viewModel.sendMessage(suggestion) },
+                onInteractiveAction = { action -> viewModel.sendMessage(action.prompt) },
                 profileDisplayName = profileDisplayName,
                 onEditMessage      = { text -> viewModel.prefillInput(text) },
                 onDeleteMessage    = { message ->
@@ -2200,6 +2201,7 @@ fun ChatMessageList(
     onShareAiResponse: (String) -> Unit = {},
     onSpeak: (String) -> Unit = {},
     onSuggestionClick: (String) -> Unit = {},
+    onInteractiveAction: (com.airi.assistant.ui.generative.GenerativeUiAction) -> Unit = {},
     profileDisplayName: String = "",
     onEditMessage: (String) -> Unit = {},
     onDeleteMessage: (ChatMessage) -> Unit = {},
@@ -2470,9 +2472,7 @@ fun ChatMessageList(
                                 onExportMarkdown = onExportMarkdown,
                                 initialFeedback = msg.feedback,
                                 onOpenRun       = onOpenRun,
-                                onInteractiveAction = { action ->
-                                    viewModel.sendMessage(action.prompt)
-                                },
+                                onInteractiveAction = onInteractiveAction,
                             )
                         }
                     }

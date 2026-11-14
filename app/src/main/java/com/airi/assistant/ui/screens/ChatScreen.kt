@@ -2404,6 +2404,14 @@ fun ChatMessageList(
                                     AiStreamingBubble(
                                         text = streamingText,
                                         messageId = "streaming-${messages.lastOrNull { it.isUser }?.uid ?: "active"}",
+                                        conversationContext = AssistantConversationContext(
+                                            messageCount = messages.size,
+                                            totalChars = messages.sumOf { it.text.length },
+                                            hasAttachments = messages.any { it.attachments.isNotEmpty() || it.fileCards.isNotEmpty() },
+                                            hasToolOutputs = messages.any { it.toolOutputs.isNotEmpty() },
+                                            hasRemoteSources = messages.any { it.execOrigin != com.airi.assistant.execution.ExecOrigin.NONE || !it.executionSource.isNullOrBlank() },
+                                            hasSkillsOrConnectors = messages.any { !it.agentTag.isNullOrBlank() },
+                                        ),
                                         onShare = onShareAiResponse,
                                     )
                                 },
@@ -3526,6 +3534,7 @@ private fun ExecutionErrorBubble(error: ExecutionErrorProjection) {
 fun AiStreamingBubble(
     text: String,
     messageId: String = "streaming-active",
+    conversationContext: AssistantConversationContext = AssistantConversationContext(),
     onShare: (String) -> Unit = {},
 ) {
     val handleContentAction = rememberContentUnitActionHandler(onShare)

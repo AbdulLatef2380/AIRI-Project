@@ -32,12 +32,9 @@ object VoiceCapabilityPolicy {
         localInferenceReady = localInferenceReady,
         cloudInferenceReady = cloudInferenceReady,
         realtimeTransportReady = realtimeTransportReady,
-        // Cloud realtime owns STT and TTS on its duplex socket; it must not be
-        // blocked by the optional local Vosk model. Local voice still requires
-        // its local inference backend; ordinary cloud inference is not a
-        // bidirectional audio transport.
-        liveDuplexReady = microphoneGranted && textToSpeechReady &&
-            (if (realtimeTransportReady) true
-             else activeSpeechModelReady && localInferenceReady)
+        // Live duplex is a bidirectional audio transport capability. Local
+        // speech recognition/TTS components alone do not provide that
+        // transport, so the realtime channel must be explicitly ready.
+        liveDuplexReady = microphoneGranted && textToSpeechReady && realtimeTransportReady
     )
 }

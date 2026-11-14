@@ -35,11 +35,11 @@ object SpeechTextPreprocessor {
      * We select complete leading sentences and never cut inside a word.
      */
     fun summarizeForSpeech(input: String, style: VoiceExperiencePolicy.ResponseStyle): String {
-        if (input.length <= style.maxSpeechCharacters) return input
         val sentences = input
             .split(Regex("(?<=[.!?؟。])\\s+|\\n+"))
             .map { it.trim() }
             .filter { it.isNotBlank() }
+        if (input.length <= style.maxSpeechCharacters && sentences.size <= style.maxSentences) return input
         val selected = sentences.take(style.maxSentences).joinToString(" ")
         if (selected.isNotBlank() && selected.length <= style.maxSpeechCharacters) {
             return "$selected …"

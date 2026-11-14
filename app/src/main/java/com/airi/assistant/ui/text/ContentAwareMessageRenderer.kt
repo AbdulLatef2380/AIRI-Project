@@ -60,8 +60,12 @@ fun ContentAwareMessageRenderer(
     val plan = remember(text, isStreaming, resolvedMessageId, toolOutputs) {
         contentSession.plan(text, isStreaming, toolOutputs)
     }
+    val presentation = remember(text, isStreaming) {
+        AssistantResponsePresentationPolicy.plan(text, isStreaming)
+    }
     val compiledUi = remember(text, isStreaming) {
-        if (isStreaming) null else GenerativeUiCompiler.compile(text)
+        if (isStreaming) null
+        else GenerativeUiCompiler.compile(text)?.takeIf { presentation.supportsGenerativeUi }
     }
     Column(modifier = modifier.fillMaxWidth()) {
         if (compiledUi != null) {

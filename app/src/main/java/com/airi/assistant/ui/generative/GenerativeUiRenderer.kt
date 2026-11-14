@@ -151,6 +151,7 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
 private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiAction) -> Unit) {
     val values = remember(block.id) { mutableStateMapOf<String, String>() }
     var submitted by remember(block.id) { mutableStateOf(false) }
+    var dispatched by remember(block.id) { mutableStateOf(false) }
     val missingRequired = block.fields.any { it.required && values[it.id].orEmpty().isBlank() }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
@@ -169,8 +170,14 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
         }
         Button(
             onClick = {
-                if (missingRequired) submitted = true else onAction(GenerativeUiAction(block.actionId, values.toMap()))
+                if (missingRequired) {
+                    submitted = true
+                } else if (!dispatched) {
+                    dispatched = true
+                    onAction(GenerativeUiAction(block.actionId, values.toMap()))
+                }
             },
+            enabled = !dispatched,
             modifier = Modifier.align(Alignment.End),
             shape = AIRIShapes.md,
         ) { Text(block.submitLabel) }
@@ -179,11 +186,18 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
 
 @Composable
 private fun ActionsBlock(block: GenerativeUiBlock.Actions, onAction: (GenerativeUiAction) -> Unit) {
+    var dispatched by remember(block.id) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
         block.options.forEach { option ->
             Button(
-                onClick = { onAction(GenerativeUiAction(option.id, mapOf("prompt" to option.prompt))) },
+                onClick = {
+                    if (!dispatched) {
+                        dispatched = true
+                        onAction(GenerativeUiAction(option.id, mapOf("prompt" to option.prompt)))
+                    }
+                },
+                enabled = !dispatched,
                 modifier = Modifier.fillMaxWidth(),
                 shape = AIRIShapes.md,
             ) { Text(option.label) }

@@ -70,7 +70,7 @@ data class GenerativeUiAction(val id: String, val fields: Map<String, String> = 
                 append(" ")
                 append(key)
                 append("=")
-                append(value.take(MAX_ACTION_VALUE_CHARS))
+                append(value.replace(Regex("[\\r\\n]+"), " ").replace("]", "}").take(MAX_ACTION_VALUE_CHARS))
             }
         }
 }

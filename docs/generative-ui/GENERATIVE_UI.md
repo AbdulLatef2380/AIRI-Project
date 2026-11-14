@@ -12,7 +12,7 @@ The model emits at most one fenced block:
 ```
 ```
 
-The compiler accepts only four block types:
+The compiler accepts only five block types:
 
 - `stat`: one value with optional supporting text.
 - `bar_chart`: equal-length labels and numeric values.
@@ -21,6 +21,8 @@ The compiler accepts only four block types:
 - `actions`: bounded quick-action buttons whose prompts return through the normal agent dispatch path.
 
 The Android renderer owns layout, color, typography, scrolling, and accessibility semantics. The model cannot provide executable code, HTML, CSS, JavaScript, arbitrary URLs, or arbitrary layout instructions. Invalid schemas are discarded and the original message is rendered through the existing Markdown path.
+
+The complete lifecycle is: model response → bounded compiler → native Compose renderer → one-shot action dispatch → `ConversationExecutionCoordinator` → AgentLoop/tool/connector/terminal policy → `ExecutionStatusBus` and `UniversalRuntimeTrace` → persisted assistant turn. A UI action never calls a connector, terminal, sandbox, or live provider directly; it re-enters the same policy-controlled conversation path as typed input.
 
 Form actions are converted to an explicit `[AIRI_UI_ACTION:<id>]` prompt and sent through the existing ChatViewModel dispatch path. They do not bypass tools, permissions, or approval flows.
 

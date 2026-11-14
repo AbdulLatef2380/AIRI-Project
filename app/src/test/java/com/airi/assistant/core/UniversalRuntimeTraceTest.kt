@@ -147,6 +147,21 @@ class UniversalRuntimeTraceTest {
     }
 
     @Test
+    fun uiProjectionKeepsExecutionAndSessionCorrelationWithoutPayload() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        recorder.begin("exec-ui", "session-ui", "model", "provider", "test", "private input", emptyList())
+
+        recorder.uiProjection("exec-ui", "session-ui", "schema_candidate")
+
+        val event = recorder.events.last { it.eventType == UniversalTraceEventType.UI_PROJECTION_COMPLETED }
+        assertEquals("exec-ui", event.executionId)
+        assertEquals("session-ui", event.sessionId)
+        assertEquals("ChatViewModel", event.component)
+        assertEquals("schema_candidate", event.outcome)
+        assertFalse(event.attributes.values.any { it.contains("private input") })
+    }
+
+    @Test
     fun toolSchemaHashIsStableAndDoesNotContainDescriptionOrArguments() {
         val tool = ToolSchema(
             name = "safe_read",

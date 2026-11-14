@@ -1,10 +1,10 @@
 package com.airi.assistant.agent.learning
 
 import android.content.Context
+import com.airi.assistant.core.ExecutionTraceGateway
 import android.content.SharedPreferences
 import android.util.Log
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -184,7 +184,7 @@ class AdaptiveIntelligenceEngine(private val context: Context) {
         prefs.edit().clear().apply()
         _routingHints.value = RoutingHints()
         Log.i(TAG, "All adaptive intelligence data cleared")
-        AgentActivityBus.emit("Adaptive intelligence data cleared", ActivityCategory.SYSTEM)
+        ExecutionTraceGateway.emit("Adaptive intelligence data cleared", ActivityCategory.SYSTEM)
     }
 
     /** Export a privacy-safe summary (no raw text, only aggregate stats). */

@@ -1,12 +1,12 @@
 package com.airi.assistant.workspace
 
 import android.content.Context
+import com.airi.assistant.core.ExecutionTraceGateway
 import android.util.Log
 import com.airi.assistant.memory.dao.ArtifactDao
 import com.airi.assistant.memory.entity.ArtifactEntity
 import com.airi.assistant.agent.durable.DurableTaskManager
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -153,7 +153,7 @@ class ArtifactManager(
         artifacts[id] = artifact
         publishAll()
         artifactDao?.insert(artifact.toEntity())
-        AgentActivityBus.emit(
+        ExecutionTraceGateway.emit(
             "${type.emoji} Artifact created: $name (${file.length() / 1024}KB)",
             ActivityCategory.SANDBOX,
             machineTag = "file_created",
@@ -194,7 +194,7 @@ class ArtifactManager(
         artifacts[id] = artifact
         publishAll()
         artifactDao?.insert(artifact.toEntity())
-        AgentActivityBus.emit("Artifact created: $safeName (${file.length() / 1024}KB)", ActivityCategory.SANDBOX, machineTag = "file_created")
+        ExecutionTraceGateway.emit("Artifact created: $safeName (${file.length() / 1024}KB)", ActivityCategory.SANDBOX, machineTag = "file_created")
         artifact
     }
 
@@ -225,7 +225,7 @@ class ArtifactManager(
         artifacts[id] = updated
         publishAll()
         artifactDao?.update(updated.toEntity())
-        AgentActivityBus.emit(
+        ExecutionTraceGateway.emit(
             "Artifact updated: ${updated.name}",
             ActivityCategory.SANDBOX,
             machineTag = "file_created",
@@ -252,7 +252,7 @@ class ArtifactManager(
         artifacts[id] = updated
         publishAll()
         artifactDao?.update(updated.toEntity())
-        AgentActivityBus.emit("Artifact updated: ${updated.name}", ActivityCategory.SANDBOX, machineTag = "file_created")
+        ExecutionTraceGateway.emit("Artifact updated: ${updated.name}", ActivityCategory.SANDBOX, machineTag = "file_created")
         updated
     }
 

@@ -1,9 +1,9 @@
 package com.airi.assistant.agent.sandbox
 
 import android.content.Context
+import com.airi.assistant.core.ExecutionTraceGateway
 import android.util.Log
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -46,17 +46,17 @@ class SandboxManager(private val context: Context) {
             }
             SandboxSession(id, label, dir).also { sessions[it.sessionId] = it; publishSessions() }
         }
-        AgentActivityBus.emit("Sandbox session created: $label", ActivityCategory.SANDBOX)
+        ExecutionTraceGateway.emit("Sandbox session created: $label", ActivityCategory.SANDBOX)
         return session
     }
 
     private suspend fun execute(label: String, task: SandboxExecutor.SandboxTask): SandboxExecutor.ExecutionResult {
         val session = createSession(label) ?: return SandboxExecutor.ExecutionResult.Failure("Could not allocate session")
-        AgentActivityBus.emit("Sandbox task: ${task.type} — ${task.command.take(50)}", ActivityCategory.SANDBOX)
+        ExecutionTraceGateway.emit("Sandbox task: ${task.type} — ${task.command.take(50)}", ActivityCategory.SANDBOX)
         if (!session.beginUse()) return SandboxExecutor.ExecutionResult.Failure("Sandbox session is unavailable")
         return try {
             SandboxExecutor(session).execute(task).also {
-                AgentActivityBus.emit("Sandbox complete: ${it::class.simpleName}", ActivityCategory.SANDBOX)
+                ExecutionTraceGateway.emit("Sandbox complete: ${it::class.simpleName}", ActivityCategory.SANDBOX)
             }
         } finally {
             session.endUse()
@@ -77,7 +77,7 @@ class SandboxManager(private val context: Context) {
             sessions.remove(id)?.release()
             publishSessions()
         }
-        AgentActivityBus.emit("Sandbox session closed: $id", ActivityCategory.SANDBOX)
+        ExecutionTraceGateway.emit("Sandbox session closed: $id", ActivityCategory.SANDBOX)
     }
 
     fun closeAll() {

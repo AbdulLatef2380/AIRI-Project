@@ -1,10 +1,10 @@
 package com.airi.assistant.connector.app
 
 import android.util.Log
+import com.airi.assistant.core.ExecutionTraceGateway
 import com.airi.assistant.auth.SecureStorage
 import com.airi.assistant.connector.*
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -115,7 +115,7 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
                     statusLine  = "Connected as $display",
                     lastUpdatedMs = System.currentTimeMillis()
                 )
-                AgentActivityBus.emit("Telegram connected as $display", ActivityCategory.CONNECTOR)
+                ExecutionTraceGateway.emit("Telegram connected as $display", ActivityCategory.CONNECTOR)
                 Log.i(TAG, "AIRI TELEGRAM_CONNECTED bot=$display")
             } else {
                 val desc = me.optString("description", "Auth failed")
@@ -175,7 +175,7 @@ class TelegramConnector(private val secureStorage: SecureStorage) : Connector {
                     "Unknown action '${input.action}'. Available: send_message, get_updates, get_chat_info, status"
                 )
             }
-            AgentActivityBus.emit("Telegram: ${input.action}", ActivityCategory.CONNECTOR)
+            ExecutionTraceGateway.emit("Telegram: ${input.action}", ActivityCategory.CONNECTOR)
             ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
         } catch (e: Exception) {
             Log.e(TAG, "Telegram execute failed", e)

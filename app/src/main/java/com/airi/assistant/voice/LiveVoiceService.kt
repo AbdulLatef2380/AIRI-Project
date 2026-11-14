@@ -1,6 +1,7 @@
 package com.airi.assistant.voice
 
 import android.app.Notification
+import com.airi.assistant.core.ExecutionTraceGateway
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -19,7 +20,6 @@ import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.core.VoiceManager
 import com.airi.assistant.execution.CloudProvider
 import com.airi.assistant.execution.security.SecureApiKeyStore
-import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.voice.realtime.LocalVoicePipeline
 import com.airi.assistant.voice.realtime.RealtimeProviderFactory
 import com.airi.assistant.voice.realtime.RealtimeVoiceProvider
@@ -262,7 +262,7 @@ class LiveVoiceService : Service() {
             val focusGranted = requestAudioFocus()
             if (!focusGranted) {
                 Log.w(TAG, "AIRI AUDIOFOCUS_REQUEST_FAILED — not starting STT")
-                AgentActivityBus.emit("Audio focus denied — another app is using audio",
+                ExecutionTraceGateway.emit("Audio focus denied — another app is using audio",
                     com.airi.assistant.ui.activity.ActivityCategory.VOICE)
                 return
             }
@@ -345,7 +345,7 @@ class LiveVoiceService : Service() {
             Log.w(TAG, "AIRI REALTIME_CONFIGURED_REJECTED reason=$reason")
             listenRequestedByUser = false
             abandonAudioFocus()
-            AgentActivityBus.emit("Realtime voice is not configured", com.airi.assistant.ui.activity.ActivityCategory.VOICE)
+            ExecutionTraceGateway.emit("Realtime voice is not configured", com.airi.assistant.ui.activity.ActivityCategory.VOICE)
             return
         }
         realtimeProvider = provider
@@ -571,7 +571,7 @@ class LiveVoiceService : Service() {
                 session.onBargeIn()
                 updateNotification(VoicePipelineState.INTERRUPTED)
                 interruptController.onVadSpeechDetected()
-                AgentActivityBus.emit("Barge-in via VAD", com.airi.assistant.ui.activity.ActivityCategory.VOICE)
+                ExecutionTraceGateway.emit("Barge-in via VAD", com.airi.assistant.ui.activity.ActivityCategory.VOICE)
                 serviceScope.launch {
                     val interruptMs = System.currentTimeMillis() - interruptStart
                     session.recordInterruptionLatency(interruptMs)

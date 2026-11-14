@@ -1,12 +1,12 @@
 package com.airi.assistant.agent.execution.runtime
 
 import android.util.Log
+import com.airi.assistant.core.ExecutionTraceGateway
 import com.airi.core.planning.ActionPlan
 import com.airi.core.planning.PlanStep
 import com.airi.assistant.agent.subagent.SubAgentContext
 import com.airi.assistant.core.ExecutionStatusBus
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -124,7 +124,7 @@ class AdaptiveGraphEngine(
             Log.i(TAG, "Restored checkpoint: ${completedIds.size} completed nodes")
         }
 
-        AgentActivityBus.emit("Graph execution started: ${plan.intent.take(60)}", ActivityCategory.ORCHESTRATION)
+        ExecutionTraceGateway.emit("Graph execution started: ${plan.intent.take(60)}", ActivityCategory.ORCHESTRATION)
         ExecutionStatusBus.onGraphStarted(
             goalDescription = plan.intent,
             totalNodes = nodes.size,
@@ -136,7 +136,7 @@ class AdaptiveGraphEngine(
             _engineState.value = EngineState.COMPLETED
             ExecutionStatusBus.onGraphCompleted(success = result.success, executionId = executionId)
             checkpointStore.clear(plan.intent)
-            AgentActivityBus.emit("Graph completed ", ActivityCategory.ORCHESTRATION)
+            ExecutionTraceGateway.emit("Graph completed ", ActivityCategory.ORCHESTRATION)
             result
         } catch (e: CancellationException) {
             _engineState.value = EngineState.IDLE
@@ -146,7 +146,7 @@ class AdaptiveGraphEngine(
             _engineState.value = EngineState.FAILED
             ExecutionStatusBus.onGraphCompleted(success = false, executionId = executionId)
             Log.e(TAG, "Graph execution failed: ${e.message}")
-            AgentActivityBus.emit("Graph failed: ${e.message?.take(60)}", ActivityCategory.ORCHESTRATION)
+            ExecutionTraceGateway.emit("Graph failed: ${e.message?.take(60)}", ActivityCategory.ORCHESTRATION)
             GraphExecutionResult(success = false, output = e.message ?: "Error", completedNodes = completedIds.size)
         }
     }
@@ -232,7 +232,7 @@ class AdaptiveGraphEngine(
         var lastResult: NodeResult = NodeResult(node.nodeId, false, "Not executed", 0)
         repeat(node.maxRetries + 1) { attempt ->
             if (attempt > 0) {
-                AgentActivityBus.emit("Retrying node '${node.label}' (attempt ${attempt + 1})", ActivityCategory.ORCHESTRATION)
+                ExecutionTraceGateway.emit("Retrying node '${node.label}' (attempt ${attempt + 1})", ActivityCategory.ORCHESTRATION)
                 delay(500L * attempt)
             }
             ExecutionStatusBus.onNodeRunning(nodeId = node.nodeId, nodeLabel = node.label, executionId = executionId)
@@ -246,7 +246,7 @@ class AdaptiveGraphEngine(
 
             if (lastResult.success) {
                 ExecutionStatusBus.onNodeCompleted(nodeId = node.nodeId, nodesCompleted = completedIds.size + 1, executionId = executionId)
-                AgentActivityBus.emit(" ${node.label} (${lastResult.durationMs}ms)", ActivityCategory.ORCHESTRATION)
+                ExecutionTraceGateway.emit(" ${node.label} (${lastResult.durationMs}ms)", ActivityCategory.ORCHESTRATION)
                 return lastResult
             }
             ExecutionStatusBus.onNodeRecovering(node.nodeId, lastResult.output, attempt + 1, executionId)
@@ -270,7 +270,7 @@ class AdaptiveGraphEngine(
     ): Boolean {
         if (failedNode.maxRetries <= 0) return false
         _engineState.value = EngineState.RECOVERING
-        AgentActivityBus.emit("Self-correcting after '${failedNode.label}' failure…", ActivityCategory.ORCHESTRATION)
+        ExecutionTraceGateway.emit("Self-correcting after '${failedNode.label}' failure…", ActivityCategory.ORCHESTRATION)
 
         // Insert a diagnostic + repair node dynamically
         val correctionNode = GraphNode(

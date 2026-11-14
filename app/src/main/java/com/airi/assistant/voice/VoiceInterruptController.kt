@@ -1,8 +1,8 @@
 package com.airi.assistant.voice
 
 import android.util.Log
+import com.airi.assistant.core.ExecutionTraceGateway
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -36,14 +36,14 @@ class VoiceInterruptController(
         interruptJob = scope.launch {
             Log.i(TAG, "BARGE-IN detected — stopping AIRI output")
             _isInterrupting.value = true
-            AgentActivityBus.emit("Barge-in detected — stopping output", ActivityCategory.VOICE)
+            ExecutionTraceGateway.emit("Barge-in detected — stopping output", ActivityCategory.VOICE)
             try {
                 onStopTts?.invoke()
                 onCancelGeneration?.invoke()
                 delay(180L)
                 onTransitionTo?.invoke(VoicePipelineState.LISTENING)
                 onRearmStt?.invoke()
-                AgentActivityBus.emit("Re-armed after barge-in", ActivityCategory.VOICE)
+                ExecutionTraceGateway.emit("Re-armed after barge-in", ActivityCategory.VOICE)
             } finally {
                 _isInterrupting.value = false
                 interruptInFlight.set(false)

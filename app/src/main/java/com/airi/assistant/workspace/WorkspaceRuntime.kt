@@ -1,12 +1,12 @@
 package com.airi.assistant.workspace
 
 import android.content.Context
+import com.airi.assistant.core.ExecutionTraceGateway
 import android.content.SharedPreferences
 import android.util.Log
 import com.airi.assistant.agent.durable.DurableTaskManager
 import com.airi.assistant.agent.sandbox.SandboxManager
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -74,7 +74,7 @@ class WorkspaceRuntime(
         )
         sessions[session.sessionId] = session
         setActive(session.sessionId)
-        AgentActivityBus.emit("Workspace created", ActivityCategory.SANDBOX)
+        ExecutionTraceGateway.emit("Workspace created", ActivityCategory.SANDBOX)
         Log.i(TAG, "Workspace created id=${session.sessionId} nameChars=${name.length}")
         return session
     }
@@ -97,7 +97,7 @@ class WorkspaceRuntime(
             _activeSession.value = sessions.values.maxByOrNull { it.updatedAtMs }
         }
         publishAndPersist()
-        AgentActivityBus.emit("Workspace closed", ActivityCategory.SANDBOX)
+        ExecutionTraceGateway.emit("Workspace closed", ActivityCategory.SANDBOX)
     }
 
     fun closeAll() {

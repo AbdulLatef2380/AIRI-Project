@@ -266,7 +266,7 @@ class HybridOrchestrator(
                 // non-intrusive notice that cloud failed and local model is being used.
                 if (allBackends[idx - 1].origin == com.airi.assistant.execution.ExecOrigin.CLOUD
                     && backend.origin == com.airi.assistant.execution.ExecOrigin.LOCAL) {
-                    com.airi.assistant.ui.activity.AgentActivityBus.emit(
+                    com.airi.assistant.core.ExecutionTraceGateway.emit(
                         com.airi.assistant.ui.activity.ActivityEvent(
                             message  = "Cloud model unavailable — using local model",
                             detail   = lastError.take(80),

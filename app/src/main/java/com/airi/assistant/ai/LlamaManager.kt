@@ -414,7 +414,7 @@ class LlamaManager(private val context: Context) {
         // P1-D: Emit CONTEXT_RESET (not SYSTEM) so the ChatViewModel observer
         // can surface the warning banner and snackbar to the user.
         runCatching {
-            com.airi.assistant.ui.activity.AgentActivityBus.emit(
+            com.airi.assistant.core.ExecutionTraceGateway.emit(
                 message  = context.getString(R.string.activity_context_window_compacted),
                 category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
                 severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
@@ -547,7 +547,7 @@ class LlamaManager(private val context: Context) {
                 // P1-D: Model swap destroys the previous KV cache and resets the context.
                 // Emit CONTEXT_RESET so the observer in ChatViewModel surfaces the banner.
                 runCatching {
-                    com.airi.assistant.ui.activity.AgentActivityBus.emit(
+                    com.airi.assistant.core.ExecutionTraceGateway.emit(
                         message  = context.getString(R.string.activity_model_reloaded_context_reset),
                         category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
                         severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
@@ -594,7 +594,7 @@ class LlamaManager(private val context: Context) {
                     com.airi.assistant.domain.verification.VerificationTracker.recordCheck("MODEL_LOAD", true, "path=${modelFile.absolutePath}")
                     // P1-D: Also emit on the legacy load path.
                     runCatching {
-                        com.airi.assistant.ui.activity.AgentActivityBus.emit(
+                        com.airi.assistant.core.ExecutionTraceGateway.emit(
                             message  = context.getString(R.string.activity_model_reloaded_context_reset),
                             category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
                             severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
@@ -702,7 +702,7 @@ class LlamaManager(private val context: Context) {
                 if (hadLoadedModel) {
                     // P1-D: Surface a reset only when a real loaded model/KV context existed.
                     runCatching {
-                        com.airi.assistant.ui.activity.AgentActivityBus.emit(
+                        com.airi.assistant.core.ExecutionTraceGateway.emit(
                             message  = context.getString(R.string.activity_model_unloaded_context_cleared),
                             category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
                             severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,

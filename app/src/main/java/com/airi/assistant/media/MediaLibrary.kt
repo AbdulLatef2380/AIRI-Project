@@ -1,9 +1,9 @@
 package com.airi.assistant.media
 
 import android.content.Context
+import com.airi.assistant.core.ExecutionTraceGateway
 import android.util.Log
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.workspace.ArtifactManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -118,7 +118,7 @@ class MediaLibrary(private val context: Context) {
             sourceUri   = sourceFile.absolutePath
         )
         commit(item)
-        AgentActivityBus.emit("${type.emoji} Media imported: ${item.name} (${kb(dest.length())}KB)", ActivityCategory.MEMORY)
+        ExecutionTraceGateway.emit("${type.emoji} Media imported: ${item.name} (${kb(dest.length())}KB)", ActivityCategory.MEMORY)
         Log.i(TAG, "AIRI MEDIA_IMPORTED id=${item.id} type=${type.name} size=${dest.length()}")
         item
     }

@@ -1,9 +1,9 @@
 package com.airi.assistant.connector
 
 import com.airi.assistant.agent.durable.DurableTaskManager
+import com.airi.assistant.core.ExecutionTraceGateway
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.ActivitySeverity
-import com.airi.assistant.ui.activity.AgentActivityBus
 
 /**
  * Executes a previously approved connector continuation on a fresh coroutine
@@ -65,13 +65,13 @@ class ApprovalContinuationRuntime(
         )
         if (succeeded) {
             durableTaskManager.markStepCompleted(continuation.taskId, continuation.stepId)
-            AgentActivityBus.emit(
+            ExecutionTraceGateway.emit(
                 "Approved ${invocation.connectorId} action completed",
                 ActivityCategory.CONNECTOR
             )
         } else {
             durableTaskManager.markStepFailed(continuation.taskId, continuation.stepId, outcome)
-            AgentActivityBus.emit(
+            ExecutionTraceGateway.emit(
                 "Approved ${invocation.connectorId} action did not complete",
                 ActivityCategory.CONNECTOR,
                 ActivitySeverity.WARN

@@ -1,13 +1,13 @@
 package com.airi.assistant.security
 
 import android.util.Base64
+import com.airi.assistant.core.ExecutionTraceGateway
 import android.util.Log
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.ActivitySeverity
 import com.airi.assistant.agent.durable.ApprovalGrantScope
 import com.airi.assistant.agent.durable.DurableTaskManager
 import com.airi.assistant.agent.durable.TaskApprovalStatus
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -110,7 +110,7 @@ class PermissionGovernanceLayer(
         // governance evaluations within the past RATE_WINDOW_MS.
         if (!checkRateLimit(agentId)) {
             Log.w(TAG, "AIRI GOVERNANCE_RATE_LIMITED agent=$agentId action=$actionType")
-            AgentActivityBus.emit(
+            ExecutionTraceGateway.emit(
                 "Rate limit exceeded [$agentId]: $actionDesc — pausing autonomous actions",
                 ActivityCategory.SYSTEM,
                 ActivitySeverity.WARN
@@ -131,7 +131,7 @@ class PermissionGovernanceLayer(
                 riskLevel = RiskLevel.CRITICAL,
                 reason    = "Action '${actionType}' is blocked by governance policy"
             )
-            AgentActivityBus.emit(
+            ExecutionTraceGateway.emit(
                 "Blocked [$agentId]: $actionDesc",
                 ActivityCategory.SYSTEM,
                 ActivitySeverity.ERROR
@@ -148,7 +148,7 @@ class PermissionGovernanceLayer(
             firewall.allows(agentId, actionType)
         }.getOrElse { ex ->
             Log.e(TAG, "FIREWALL_EXCEPTION agent=$agentId action=$actionType decision=DENY causeType=${ex::class.simpleName}")
-            AgentActivityBus.emit(
+            ExecutionTraceGateway.emit(
                 "Firewall exception — action denied [$agentId]: $actionDesc",
                 ActivityCategory.SYSTEM,
                 ActivitySeverity.ERROR
@@ -157,7 +157,7 @@ class PermissionGovernanceLayer(
         }
 
         if (!firewallPass) {
-            AgentActivityBus.emit(
+            ExecutionTraceGateway.emit(
                 "Firewall blocked [$agentId]: $actionDesc",
                 ActivityCategory.SYSTEM,
                 ActivitySeverity.WARN
@@ -167,7 +167,7 @@ class PermissionGovernanceLayer(
 
         // High-risk actions are allowed but logged with WARNING
         if (risk == RiskLevel.HIGH) {
-            AgentActivityBus.emit(
+            ExecutionTraceGateway.emit(
                 "High-risk action [$agentId]: $actionDesc",
                 ActivityCategory.SYSTEM,
                 ActivitySeverity.WARN
@@ -325,7 +325,7 @@ class PermissionGovernanceLayer(
         )
         pending[approval.id] = approval
         publishPending()
-        AgentActivityBus.emit("Awaiting approval: $description", ActivityCategory.SYSTEM, ActivitySeverity.WARN)
+        ExecutionTraceGateway.emit("Awaiting approval: $description", ActivityCategory.SYSTEM, ActivitySeverity.WARN)
         return approval.id
     }
 
@@ -351,7 +351,7 @@ class PermissionGovernanceLayer(
         }
         publishPending()
         val message = if (approved) "Action approved: $approvalId" else "Approval expired or unavailable: $approvalId"
-        AgentActivityBus.emit(message, ActivityCategory.SYSTEM, if (approved) ActivitySeverity.INFO else ActivitySeverity.WARN)
+        ExecutionTraceGateway.emit(message, ActivityCategory.SYSTEM, if (approved) ActivitySeverity.INFO else ActivitySeverity.WARN)
         return approved
     }
 
@@ -373,7 +373,7 @@ class PermissionGovernanceLayer(
             } ?: true
         }
         publishPending()
-        if (denied) AgentActivityBus.emit("Action denied: $approvalId", ActivityCategory.SYSTEM, ActivitySeverity.WARN)
+        if (denied) ExecutionTraceGateway.emit("Action denied: $approvalId", ActivityCategory.SYSTEM, ActivitySeverity.WARN)
         return denied
     }
 

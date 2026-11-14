@@ -144,7 +144,6 @@ import com.airi.assistant.voice.realtime.RealtimeProviderFactory
 import com.airi.assistant.voice.PorcupineEngine
 import com.airi.assistant.voice.OpenWakeWordEngine
 import com.airi.assistant.product.AiriIdentityProfile
-import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.ui.activity.ActivityEvent
 import com.airi.assistant.core.ExecutionTraceEvent
 import com.airi.assistant.core.ExecutionTraceArchive
@@ -582,7 +581,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "tools=${event.toolNames.joinToString(",").take(96)}"
         )
         com.airi.assistant.ui.activity.RuntimeTraceActivityMapper.map(event)?.let { activityEvent ->
-            com.airi.assistant.ui.activity.AgentActivityBus.emit(activityEvent)
+            com.airi.assistant.core.ExecutionTraceGateway.emit(activityEvent)
         }
     }
     /**
@@ -1852,7 +1851,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (hadMessages && !generationRunning) {
                 val reason = "New conversation started — previous context has been cleared."
                 _contextResetWarning.value = reason
-                AgentActivityBus.emit(
+                ExecutionTraceGateway.emit(
                     message  = "Context reset: new session",
                     category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
                     severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,
@@ -2057,7 +2056,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (switchingSessions) {
                 val reason = "Switched to a different session — active context has been replaced."
                 _contextResetWarning.value = reason
-                AgentActivityBus.emit(
+                ExecutionTraceGateway.emit(
                     message  = "Context reset: session switched",
                     category = com.airi.assistant.ui.activity.ActivityCategory.CONTEXT_RESET,
                     severity = com.airi.assistant.ui.activity.ActivitySeverity.WARN,

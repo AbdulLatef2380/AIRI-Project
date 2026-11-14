@@ -1,8 +1,8 @@
 package com.airi.assistant.connector
 
 import com.airi.assistant.ui.activity.ActivityCategory
+import com.airi.assistant.core.ExecutionTraceGateway
 import com.airi.assistant.ui.activity.ActivitySeverity
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -95,7 +95,7 @@ class ConnectorHealthMonitor(private val registry: ConnectorRegistry) {
         val previous = lastOfflineNotice[entry.connectorId] ?: 0L
         if (entry.errorMessage != null && now - previous >= 300_000L) {
             lastOfflineNotice[entry.connectorId] = now
-            AgentActivityBus.emit(
+            ExecutionTraceGateway.emit(
                 "Connector '${entry.name}' unavailable: ${entry.errorMessage.take(60)}",
                 ActivityCategory.CONNECTOR,
                 ActivitySeverity.WARN,

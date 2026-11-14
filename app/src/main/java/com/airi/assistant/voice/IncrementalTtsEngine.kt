@@ -1,6 +1,7 @@
 package com.airi.assistant.voice
 
 import android.content.Context
+import com.airi.assistant.core.ExecutionTraceGateway
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -8,7 +9,6 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -60,7 +60,7 @@ class IncrementalTtsEngine(private val context: Context) {
         _state.value = TtsState.SPEAKING
         requestAudioFocus()
         startPlayer()
-        AgentActivityBus.emit("Streaming TTS audio", ActivityCategory.VOICE)
+        ExecutionTraceGateway.emit("Streaming TTS audio", ActivityCategory.VOICE)
     }
 
     fun onToken(chunk: String) {

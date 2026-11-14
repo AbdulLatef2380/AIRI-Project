@@ -1,7 +1,7 @@
 package com.airi.assistant.agent.multiagent
 
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
+import com.airi.assistant.core.ExecutionTraceGateway
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -34,7 +34,7 @@ object SharedCognitiveBus {
     fun publish(message: AgentMessage) {
         scope.launch {
             _messages.emit(message)
-            AgentActivityBus.emit(
+            ExecutionTraceGateway.emit(
                 message  = "[${message.fromAgentId}→${message.topic}] ${message.summary.take(60)}",
                 category = ActivityCategory.ORCHESTRATION
             )

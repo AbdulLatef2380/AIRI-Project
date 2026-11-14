@@ -1,11 +1,11 @@
 package com.airi.assistant.connector.app
 
 import android.util.Log
+import com.airi.assistant.core.ExecutionTraceGateway
 import com.airi.assistant.connector.*
 import com.airi.assistant.connector.oauth.OAuthStateRegistry
 import com.airi.assistant.domain.release.ReleaseScopePolicy
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -160,7 +160,7 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
             val user = apiGet("/user")
             val email = user.optJSONObject("user")?.optString("email") ?: "unknown"
             _state.value = ConnectorState(true, true, "Connected as $email", System.currentTimeMillis())
-            AgentActivityBus.emit("Zapier connected as $email", ActivityCategory.CONNECTOR)
+            ExecutionTraceGateway.emit("Zapier connected as $email", ActivityCategory.CONNECTOR)
         } catch (e: Exception) {
             _state.value = ConnectorState(false, statusLine = "Connection failed: ${e.message}", errorMessage = e.message)
         }
@@ -202,7 +202,7 @@ class ZapierConnector(private val authManager: ConnectorAuthManager) : Connector
                 "status"       -> return@withContext ConnectorOutput.Success(_state.value.statusLine)
                 else           -> return@withContext ConnectorOutput.Failure("unknown_action", "Unknown action: ${input.action}")
             }
-            AgentActivityBus.emit("Zapier: ${input.action}", ActivityCategory.CONNECTOR)
+            ExecutionTraceGateway.emit("Zapier: ${input.action}", ActivityCategory.CONNECTOR)
             ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
         } catch (e: Exception) {
             Log.e(TAG, "ZAPIER_EXECUTION_FAILURE action=${input.action} causeType=${e::class.simpleName}")

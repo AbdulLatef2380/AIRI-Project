@@ -63,4 +63,27 @@ class ExecutionTraceGatewayTest {
 
         assertEquals(2, count)
     }
+
+    @Test
+    fun `legacy emission overload uses the gateway and preserves ownership metadata`() {
+        ExecutionTraceGateway.resetForTests()
+        val events = mutableListOf<ActivityEvent>()
+        val emit: (ActivityEvent) -> Unit = { events += it }
+
+        assertTrue(ExecutionTraceGateway.emit(
+            message = "connector completed",
+            category = ActivityCategory.CONNECTOR,
+            executionId = "exec-legacy",
+            actionId = "action-legacy",
+            parentId = "step-1",
+            machineTag = "connector_completed",
+            emit = emit,
+        ))
+
+        assertEquals(1, events.size)
+        assertEquals("exec-legacy", events.single().executionId)
+        assertEquals("action-legacy", events.single().metadata.actionId)
+        assertEquals("step-1", events.single().metadata.parentId)
+        assertEquals("connector_completed", events.single().machineTag)
+    }
 }

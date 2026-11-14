@@ -1,10 +1,10 @@
 package com.airi.assistant.connector.app
 
 import android.util.Log
+import com.airi.assistant.core.ExecutionTraceGateway
 import com.airi.assistant.connector.*
 import com.airi.assistant.domain.release.ReleaseScopePolicy
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -122,7 +122,7 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
         }
         // IFTTT doesn't have a simple status API — a 200 on the maker page confirms the key works
         _state.value = ConnectorState(true, true, "Connected (key: ••••${key.takeLast(4)})", System.currentTimeMillis())
-        AgentActivityBus.emit("IFTTT connected with webhook key", ActivityCategory.CONNECTOR)
+        ExecutionTraceGateway.emit("IFTTT connected with webhook key", ActivityCategory.CONNECTOR)
         _state.value
     }
 
@@ -177,7 +177,7 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
                         value2 = input.params["value2"],
                         value3 = input.params["value3"]
                     )
-                    AgentActivityBus.emit("IFTTT: ${input.action}", ActivityCategory.CONNECTOR)
+                    ExecutionTraceGateway.emit("IFTTT: ${input.action}", ActivityCategory.CONNECTOR)
                     ConnectorOutput.Success(text, durationMs = System.currentTimeMillis() - startedAt)
                 } catch (e: CancellationException) {
                     throw e
@@ -194,7 +194,7 @@ class IftttConnector(private val authManager: ConnectorAuthManager) : Connector 
                 "status"       -> return@withContext ConnectorOutput.Success(_state.value.statusLine)
                 else           -> return@withContext ConnectorOutput.Failure("unknown_action", "Unknown action: ${input.action}")
             }
-            AgentActivityBus.emit("IFTTT: ${input.action}", ActivityCategory.CONNECTOR)
+            ExecutionTraceGateway.emit("IFTTT: ${input.action}", ActivityCategory.CONNECTOR)
             ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
         } catch (e: CancellationException) {
             throw e

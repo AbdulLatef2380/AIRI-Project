@@ -1,12 +1,12 @@
 package com.airi.assistant.connector.app
 
 import android.util.Log
+import com.airi.assistant.core.ExecutionTraceGateway
 import com.airi.assistant.connector.*
 import com.airi.assistant.agent.durable.ApprovalContinuation
 import com.airi.assistant.agent.durable.DurableTaskManager
 import com.airi.assistant.agent.durable.ResumableConnectorInvocation
 import com.airi.assistant.ui.activity.ActivityCategory
-import com.airi.assistant.ui.activity.AgentActivityBus
 import com.airi.assistant.vault.SecretVault
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -243,7 +243,7 @@ class GitHubConnector(
                             message = "GitHub mutation was not queued because its continuation failed validation"
                         )
                     }
-                    AgentActivityBus.emit("GitHub action awaiting approval", ActivityCategory.CONNECTOR)
+                    ExecutionTraceGateway.emit("GitHub action awaiting approval", ActivityCategory.CONNECTOR)
                     return@withContext ConnectorOutput.ApprovalRequired(
                         approvalId = approval.id,
                         taskId = execution.taskId,
@@ -347,7 +347,7 @@ class GitHubConnector(
             "status" -> return ConnectorOutput.Success(_state.value.statusLine)
             else -> return ConnectorOutput.Failure("unknown_action", "Unknown action: ${input.action}")
         }
-        AgentActivityBus.emit("GitHub: ${input.action}", ActivityCategory.CONNECTOR)
+        ExecutionTraceGateway.emit("GitHub: ${input.action}", ActivityCategory.CONNECTOR)
         ConnectorOutput.Success(result, durationMs = System.currentTimeMillis() - t0)
         } catch (e: GitHubApiHttpException) {
             GitHubApiFailurePolicy.map(e.statusCode, e.rateLimitRemaining, input.action)

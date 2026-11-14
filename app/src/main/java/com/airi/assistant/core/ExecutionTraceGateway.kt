@@ -22,6 +22,37 @@ object ExecutionTraceGateway {
     private val lock = Any()
     private val emittedKeys = LinkedHashSet<String>()
 
+    /**
+     * Compatibility surface for legacy producers. Keeping the old call shape
+     * here lets runtime owners migrate to the single boundary without
+     * duplicating ActivityEvent construction or changing user-visible text.
+     */
+    fun emit(
+        message: String,
+        category: ActivityCategory,
+        severity: ActivitySeverity = ActivitySeverity.INFO,
+        detail: String? = null,
+        executionId: String? = null,
+        machineTag: String? = null,
+        actionId: String? = null,
+        parentId: String? = null,
+        emit: (ActivityEvent) -> Unit = AgentActivityBus::emit,
+    ): Boolean = emitExecution(
+        executionId = executionId,
+        actionId = actionId,
+        phase = machineTag ?: "legacy_event",
+        message = message,
+        category = category,
+        severity = severity,
+        detail = detail,
+        machineTag = machineTag,
+        parentId = parentId,
+        emit = emit,
+    )
+
+    /** Routes an already-shaped legacy event through the same boundary. */
+    fun emit(event: ActivityEvent): Boolean = emitActivity(event)
+
     fun emitExecution(
         executionId: String?,
         actionId: String? = null,

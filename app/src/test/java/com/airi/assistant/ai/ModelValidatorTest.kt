@@ -67,7 +67,7 @@ class ModelValidatorTest {
 
     @Test
     fun customModelRamEstimateIncludesWeightAndRuntimeHeadroom() {
-        assertEquals(512, ModelValidator.estimateRequiredRamMb(0))
+        assertEquals(768, ModelValidator.estimateRequiredRamMb(0))
         assertEquals(
             1485,
             ModelValidator.estimateRequiredRamMb(512L * 1024L * 1024L)

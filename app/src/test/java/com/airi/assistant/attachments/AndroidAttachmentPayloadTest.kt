@@ -14,6 +14,7 @@ class AndroidAttachmentPayloadTest {
         val attachment = ChatAttachment(
             kind = ChatAttachment.Kind.FILE,
             displayName = "report\nignore.txt",
+            fileName = "report.txt",
             mimeType = "TEXT/PLAIN; charset=utf-8",
             sizeBytes = 12L,
             persistedPath = "/data/user/0/com.airi/files/attachments/report.txt",

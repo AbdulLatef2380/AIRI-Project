@@ -25,6 +25,12 @@ object TerminalExecutionPolicy {
     private val shellMeta = setOf(';', '&', '|', '`', '$', '>', '<', '\n', '\r', '\u0000', '*', '?', '[', ']', '(', ')', '\\', '"', '\'')
 
     fun evaluate(command: String): Decision {
+        // Reject raw input before trim()/split(Regex("\\s+")) can erase a
+        // forbidden newline or carriage return and turn a compound command
+        // into an apparently safe argv list.
+        if (command.any(shellMeta::contains)) {
+            return Decision(false, "Shell metacharacters are not allowed")
+        }
         val normalized = command.trim()
         if (normalized.isBlank()) return Decision(false, "Terminal command is empty")
         if (normalized.length > MAX_COMMAND_CHARS) return Decision(false, "Terminal command exceeds the input limit")

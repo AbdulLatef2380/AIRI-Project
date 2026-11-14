@@ -13,7 +13,12 @@ class VoiceExperiencePolicyTest {
 
     @Test
     fun longSpeechIsCondensedAtSentenceBoundaries() {
-        val input = "First sentence. Second sentence. Third sentence. Fourth sentence."
+        val input = listOf(
+            "First sentence.",
+            "Second sentence ${"b".repeat(260)}.",
+            "Third sentence ${"c".repeat(260)}.",
+            "Fourth sentence ${"d".repeat(260)}.",
+        ).joinToString(" ")
         val result = SpeechTextPreprocessor.summarizeForSpeech(
             input,
             VoiceExperiencePolicy.ResponseStyle.CONCISE

@@ -340,22 +340,26 @@ class AgentLoopVerticalIntegrationTest {
 
     @Test
     fun cancellationAfterFirstTokenProducesCancelledTerminalStateWithoutSuccess() = runBlocking {
-        val fixture = fixture(RecordingConnector())
-        val result = fixture.loop(TokenThenCancellingOrchestrator()).run(
-            input = "Read the connected source",
-            systemPrompt = "You are AIRI.",
-            tools = listOf(fixture.readSchema),
-            requestedExecutionId = "execution-cancel-after-token",
-            onToken = {},
-        )
-
-        assertEquals(AgentLoop.TerminalState.CANCELLED, result.terminalState)
-        assertTrue(result.finalAnswer.isBlank())
-        assertEquals(
-            ExecutionTraceKind.CANCELLED,
-            ExecutionStatusBus.traceSnapshot("execution-cancel-after-token").last().kind,
-        )
         ExecutionStatusBus.reset()
+        try {
+            val fixture = fixture(RecordingConnector())
+            val result = fixture.loop(TokenThenCancellingOrchestrator()).run(
+                input = "Read my GitHub repositories",
+                systemPrompt = "You are AIRI.",
+                tools = listOf(fixture.readSchema),
+                requestedExecutionId = "execution-cancel-after-token",
+                onToken = {},
+            )
+
+            assertEquals(AgentLoop.TerminalState.CANCELLED, result.terminalState)
+            assertTrue(result.finalAnswer.isBlank())
+            assertEquals(
+                ExecutionTraceKind.CANCELLED,
+                ExecutionStatusBus.traceSnapshot("execution-cancel-after-token").last().kind,
+            )
+        } finally {
+            ExecutionStatusBus.reset()
+        }
     }
 
     @Test

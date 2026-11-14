@@ -13,7 +13,7 @@ object UntrustedContentEnvelope {
     fun wrap(source: String, content: String, maxChars: Int = 4_000): String {
         if (maxChars <= 0 || content.isEmpty()) return ""
         val safeSource = source
-            .filter { it.isLetterOrDigit() || it in setOf('_', '-', '.', ':') }
+            .filter { it.isLetterOrDigit() || it in setOf('_', '-', '.') }
             .take(MAX_SOURCE_CHARS)
             .ifBlank { "external" }
         val bounded = redactCredentials(

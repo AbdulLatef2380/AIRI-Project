@@ -42,12 +42,21 @@ enum class AssistantWorkKind {
 }
 
 data class AssistantConversationContext(
+    val latestUserText: String = "",
     val messageCount: Int = 0,
     val totalChars: Int = 0,
     val hasAttachments: Boolean = false,
     val hasToolOutputs: Boolean = false,
     val hasRemoteSources: Boolean = false,
     val hasSkillsOrConnectors: Boolean = false,
+    val hasFiles: Boolean = false,
+    val hasImages: Boolean = false,
+    val hasAudio: Boolean = false,
+    val hasVideo: Boolean = false,
+    val hasPresentation: Boolean = false,
+    val hasWebsite: Boolean = false,
+    val hasApplication: Boolean = false,
+    val hasGame: Boolean = false,
     val sessionAgeHours: Int? = null,
 )
 
@@ -61,6 +70,8 @@ data class AssistantResponsePresentation(
     val workKind: AssistantWorkKind,
     val isLongRunningConversation: Boolean,
     val hasExecutionContext: Boolean,
+    /** Full AIRI composition contract used by native surfaces and future clients. */
+    val composition: ResponseComposition,
 )
 
 object AssistantResponsePresentationPolicy {
@@ -81,6 +92,30 @@ object AssistantResponsePresentationPolicy {
         val hasCode = analysis.containsCode
         val workKind = workKind(normalized)
         val longRunning = context.messageCount >= 20 || context.totalChars >= 12_000 || context.sessionAgeHours?.let { it >= 4 } == true
+        val composition = ConversationResponseCompositionPlanner.plan(
+            ResponseRequestProfile(
+                userText = context.latestUserText,
+                answerText = text,
+                messageCount = context.messageCount,
+                totalChars = context.totalChars,
+                sessionAgeHours = context.sessionAgeHours,
+                isStreaming = isStreaming,
+                evidence = ResponseEvidence(
+                    hasAttachments = context.hasAttachments,
+                    hasToolResults = context.hasToolOutputs,
+                    hasRemoteSources = context.hasRemoteSources,
+                    hasSkillsOrConnectors = context.hasSkillsOrConnectors,
+                    hasFiles = context.hasFiles,
+                    hasImages = context.hasImages,
+                    hasAudio = context.hasAudio,
+                    hasVideo = context.hasVideo,
+                    hasPresentation = context.hasPresentation,
+                    hasWebsite = context.hasWebsite,
+                    hasApplication = context.hasApplication,
+                    hasGame = context.hasGame,
+                ),
+            ),
+        )
 
         val style = when {
             hasMap -> AssistantResponseStyle.MAP_OR_ROUTE
@@ -125,6 +160,7 @@ object AssistantResponsePresentationPolicy {
             workKind = workKind,
             isLongRunningConversation = longRunning,
             hasExecutionContext = context.hasToolOutputs || context.hasRemoteSources || context.hasSkillsOrConnectors,
+            composition = composition,
         )
     }
 

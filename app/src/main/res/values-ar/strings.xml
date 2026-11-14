@@ -2449,6 +2449,9 @@
     <string name="assistant_tool_output_label">نتيجة الأداة · %1$s · الخطوة %2$d</string>
     <string name="assistant_tool_output_show">إظهار نتيجة الأداة</string>
     <string name="assistant_tool_output_hide">إخفاء نتيجة الأداة</string>
+    <string name="generative_ui_edge">%1$s إلى %2$s%3$s</string>
+    <string name="generative_ui_edge_label_suffix"> · %1$s</string>
+    <string name="generative_ui_required_fields">أكمل الحقول المطلوبة قبل الإرسال.</string>
     <string name="artifact_saved">تم حفظ المحتوى</string>
     <string name="artifact_save_failed">تعذر حفظ المحتوى</string>
     <string name="artifact_share_failed">تعذر فتح المشاركة</string>

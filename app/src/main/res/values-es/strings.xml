@@ -2087,6 +2087,9 @@
     <string name="assistant_tool_output_label">Salida de herramienta · %1$s · paso %2$d</string>
     <string name="assistant_tool_output_show">Mostrar salida de herramienta</string>
     <string name="assistant_tool_output_hide">Ocultar salida de herramienta</string>
+    <string name="generative_ui_edge">%1$s a %2$s%3$s</string>
+    <string name="generative_ui_edge_label_suffix"> · %1$s</string>
+    <string name="generative_ui_required_fields">Completa los campos obligatorios antes de enviar.</string>
     <string name="artifact_save_failed">No se pudo guardar el contenido</string>
     <string name="artifact_saved">Contenido guardado</string>
     <string name="artifact_share">Compartir contenido</string>

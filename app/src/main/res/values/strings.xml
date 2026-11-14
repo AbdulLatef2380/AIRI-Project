@@ -2553,6 +2553,9 @@
     <string name="assistant_tool_output_label">Tool output · %1$s · step %2$d</string>
     <string name="assistant_tool_output_show">Show tool output</string>
     <string name="assistant_tool_output_hide">Hide tool output</string>
+    <string name="generative_ui_edge">%1$s → %2$s%3$s</string>
+    <string name="generative_ui_edge_label_suffix"> · %1$s</string>
+    <string name="generative_ui_required_fields">Complete the required fields before submitting.</string>
     <string name="artifact_save">Save content</string>
     <string name="artifact_saved">Content saved</string>
     <string name="artifact_save_failed">Could not save content</string>

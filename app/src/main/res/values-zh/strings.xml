@@ -2086,6 +2086,9 @@
     <string name="assistant_tool_output_label">工具输出 · %1$s · 步骤 %2$d</string>
     <string name="assistant_tool_output_show">显示工具输出</string>
     <string name="assistant_tool_output_hide">隐藏工具输出</string>
+    <string name="generative_ui_edge">%1$s 到 %2$s%3$s</string>
+    <string name="generative_ui_edge_label_suffix"> · %1$s</string>
+    <string name="generative_ui_required_fields">提交前请填写必填字段。</string>
     <string name="artifact_save_failed">无法保存内容</string>
     <string name="artifact_saved">内容已保存</string>
     <string name="artifact_share">分享内容</string>

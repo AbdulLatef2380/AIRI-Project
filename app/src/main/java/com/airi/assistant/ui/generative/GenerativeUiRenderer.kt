@@ -32,6 +32,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.airi.assistant.R
 import com.airi.assistant.ui.theme.AIRIShapes
 import com.airi.assistant.ui.theme.AiriTheme
 
@@ -142,7 +144,8 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
         selected?.let { node ->
             Text(node.description ?: node.label, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
             connected.forEach { edge ->
-                Text("${edge.from} → ${edge.to}${edge.label?.let { " · $it" }.orEmpty()}", color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
+                val suffix = edge.label?.let { stringResource(R.string.generative_ui_edge_label_suffix, it) }.orEmpty()
+                Text(stringResource(R.string.generative_ui_edge, edge.from, edge.to, suffix), color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
             }
         }
     }
@@ -167,7 +170,7 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
             )
         }
         if (submitted && missingRequired) {
-            Text("أكمل الحقول المطلوبة قبل الإرسال", color = Color(0xFFFFB4AB), fontSize = 12.sp)
+            Text(stringResource(R.string.generative_ui_required_fields), color = Color(0xFFFFB4AB), fontSize = 12.sp)
         }
         Button(
             onClick = {

@@ -1,8 +1,9 @@
 package com.airi.assistant.ui.generative
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,15 +11,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -75,18 +79,23 @@ private fun StatBlock(block: GenerativeUiBlock.Stat) {
 @Composable
 private fun BarChartBlock(block: GenerativeUiBlock.BarChart) {
     val max = block.values.maxOfOrNull { kotlin.math.abs(it) }?.coerceAtLeast(1f) ?: 1f
+    var selectedIndex by remember(block.id) { mutableIntStateOf(-1) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
         block.labels.forEachIndexed { index, label ->
             val value = block.values[index]
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(label, color = AiriTheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.size(width = 76.dp, height = 24.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { selectedIndex = index },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(label, color = if (selectedIndex == index) AiriTheme.onBackground else AiriTheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.size(width = 76.dp, height = 24.dp))
                 Canvas(
                     modifier = Modifier.weight(1f).height(22.dp).semantics { contentDescription = "$label $value ${block.unit.orEmpty()}" },
                 ) {
                     val width = size.width * (kotlin.math.abs(value) / max)
                     drawRoundRect(
-                        color = Color(0xFF7C5CFC),
+                        color = if (selectedIndex == index) Color(0xFFB79BFF) else Color(0xFF7C5CFC),
                         topLeft = Offset(0f, 3f),
                         size = androidx.compose.ui.geometry.Size(width.coerceAtLeast(2f), size.height - 6f),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
@@ -95,11 +104,18 @@ private fun BarChartBlock(block: GenerativeUiBlock.BarChart) {
                 Text("${formatNumber(value)}${block.unit.orEmpty()}", color = AiriTheme.onBackground, fontSize = 11.sp)
             }
         }
+        if (selectedIndex >= 0) {
+            val label = block.labels[selectedIndex]
+            Text("$label: ${formatNumber(block.values[selectedIndex])}${block.unit.orEmpty()}", color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+        }
     }
 }
 
 @Composable
 private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
+    var selectedNodeId by remember(block.id) { mutableStateOf<String?>(null) }
+    val selected = block.nodes.firstOrNull { it.id == selectedNodeId }
+    val connected = block.edges.filter { it.from == selectedNodeId || it.to == selectedNodeId }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
         Row(
@@ -108,7 +124,11 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             block.nodes.forEachIndexed { index, node ->
-                Card(colors = CardDefaults.cardColors(containerColor = AiriTheme.surface.copy(alpha = 0.85f)), shape = AIRIShapes.sm) {
+                Card(
+                    modifier = Modifier.clickable { selectedNodeId = node.id },
+                    colors = CardDefaults.cardColors(containerColor = if (selectedNodeId == node.id) Color(0xFF34276A) else AiriTheme.surface.copy(alpha = 0.85f)),
+                    shape = AIRIShapes.sm,
+                ) {
                     Column(Modifier.padding(9.dp).size(width = 120.dp, height = 70.dp)) {
                         Text(node.label, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 2)
                         node.description?.let { Text(it, color = AiriTheme.onSurfaceVariant, fontSize = 10.sp, maxLines = 2) }
@@ -117,26 +137,39 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
                 if (index < block.nodes.lastIndex) Text("→", color = AiriTheme.onSurfaceVariant, fontSize = 20.sp)
             }
         }
+        selected?.let { node ->
+            Text(node.description ?: node.label, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+            connected.forEach { edge ->
+                Text("${edge.from} → ${edge.to}${edge.label?.let { " · $it" }.orEmpty()}", color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
+            }
+        }
     }
 }
 
 @Composable
 private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiAction) -> Unit) {
     val values = remember(block.id) { mutableStateMapOf<String, String>() }
+    var submitted by remember(block.id) { mutableStateOf(false) }
+    val missingRequired = block.fields.any { it.required && values[it.id].orEmpty().isBlank() }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
         block.fields.forEach { field ->
             OutlinedTextField(
                 value = values[field.id].orEmpty(),
-                onValueChange = { values[field.id] = it.take(500) },
-                label = { Text(field.label) },
+                onValueChange = { values[field.id] = it.take(500); submitted = false },
+                label = { Text(field.label + if (field.required) " *" else "") },
                 placeholder = field.placeholder?.let { { Text(it) } },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+        if (submitted && missingRequired) {
+            Text("أكمل الحقول المطلوبة قبل الإرسال", color = Color(0xFFFFB4AB), fontSize = 12.sp)
+        }
         Button(
-            onClick = { onAction(GenerativeUiAction(block.actionId, values.toMap())) },
+            onClick = {
+                if (missingRequired) submitted = true else onAction(GenerativeUiAction(block.actionId, values.toMap()))
+            },
             modifier = Modifier.align(Alignment.End),
             shape = AIRIShapes.md,
         ) { Text(block.submitLabel) }

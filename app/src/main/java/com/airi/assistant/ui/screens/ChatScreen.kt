@@ -127,6 +127,7 @@ import com.airi.assistant.ui.text.ContentPlatformActions
 import com.airi.assistant.ui.text.ContentUnitAction
 import com.airi.assistant.ui.text.canPerform
 import com.airi.assistant.ui.text.AssistantToolOutput
+import com.airi.assistant.ui.text.AssistantConversationContext
 import com.airi.assistant.ui.trace.InlineExecutionTrace
 import com.airi.assistant.ui.components.ThinkingAnimation
 import com.airi.assistant.ui.components.AgentFileCards
@@ -2467,6 +2468,14 @@ fun ChatMessageList(
                                 },
                                 executionTraceWorking = inlineTraceWorking && msg.executionTraceId == inlineTraceExecutionId,
                                 continuationHops = msg.continuationHops,
+                                conversationContext = AssistantConversationContext(
+                                    messageCount = messages.size,
+                                    totalChars = messages.sumOf { it.text.length },
+                                    hasAttachments = messages.any { it.attachments.isNotEmpty() || it.fileCards.isNotEmpty() },
+                                    hasToolOutputs = messages.any { it.toolOutputs.isNotEmpty() },
+                                    hasRemoteSources = messages.any { it.execOrigin != com.airi.assistant.execution.ExecOrigin.NONE || !it.executionSource.isNullOrBlank() },
+                                    hasSkillsOrConnectors = messages.any { !it.agentTag.isNullOrBlank() },
+                                ),
                                 onFeedback      = { liked -> onFeedback(msg.uid, liked) },
                                 onExportPdf     = onExportPdf,
                                 onExportMarkdown = onExportMarkdown,
@@ -3026,6 +3035,7 @@ fun AiBubble(
     executionActivityEvents: List<com.airi.assistant.ui.activity.ActivityEvent> = emptyList(),
     executionTraceWorking: Boolean = false,
     continuationHops: Int = 0,
+    conversationContext: AssistantConversationContext = AssistantConversationContext(),
     initialFeedback: Int = 0,
     
     onFeedback: (liked: Boolean) -> Unit = {},
@@ -3180,6 +3190,7 @@ fun AiBubble(
                                     modifier = Modifier.fillMaxWidth(),
                                     messageId = messageId,
                                     toolOutputs = toolOutputs,
+                                    conversationContext = conversationContext,
                                     onContentAction = handleContentAction,
                                     onCopyResult = { payload ->
                                         val copied = ContentPlatformActions.copyPlainText(context, "AIRI", payload)
@@ -3541,6 +3552,7 @@ fun AiStreamingBubble(
                             modifier = Modifier.weight(1f),
                             isStreaming = true,
                             messageId = messageId,
+                            conversationContext = conversationContext,
                             onContentAction = handleContentAction,
                         )
                     }

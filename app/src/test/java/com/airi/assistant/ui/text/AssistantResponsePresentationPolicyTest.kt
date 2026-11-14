@@ -46,4 +46,24 @@ class AssistantResponsePresentationPolicyTest {
         assertTrue(plan.supportsGenerativeUi)
         assertEquals(AssistantResponseSurface.COMPOSED, plan.surface)
     }
+
+    @Test
+    fun longToolAndAttachmentSessionsPreserveContextSignals() {
+        val plan = AssistantResponsePresentationPolicy.plan(
+            "حلل الملفات ثم أنشئ عرض تقديمي بالنتائج",
+            context = AssistantConversationContext(
+                messageCount = 36,
+                totalChars = 24_000,
+                hasAttachments = true,
+                hasToolOutputs = true,
+                hasRemoteSources = true,
+                hasSkillsOrConnectors = true,
+                sessionAgeHours = 8,
+            ),
+        )
+        assertEquals(AssistantWorkKind.PRESENTATION_CREATION, plan.workKind)
+        assertTrue(plan.isLongRunningConversation)
+        assertTrue(plan.hasExecutionContext)
+        assertTrue(plan.emphasizeKeyPoints)
+    }
 }

@@ -30,6 +30,27 @@ enum class AssistantResponseSurface {
     COMPOSED,
 }
 
+enum class AssistantWorkKind {
+    GENERAL,
+    DOCUMENT_CREATION,
+    IMAGE_CREATION,
+    PRESENTATION_CREATION,
+    WEBSITE_CREATION,
+    APP_CREATION,
+    GAME_CREATION,
+    PROMPT_ENGINEERING,
+}
+
+data class AssistantConversationContext(
+    val messageCount: Int = 0,
+    val totalChars: Int = 0,
+    val hasAttachments: Boolean = false,
+    val hasToolOutputs: Boolean = false,
+    val hasRemoteSources: Boolean = false,
+    val hasSkillsOrConnectors: Boolean = false,
+    val sessionAgeHours: Int? = null,
+)
+
 data class AssistantResponsePresentation(
     val style: AssistantResponseStyle,
     val surface: AssistantResponseSurface,
@@ -37,10 +58,17 @@ data class AssistantResponsePresentation(
     val emphasizeKeyPoints: Boolean,
     val supportsGenerativeUi: Boolean,
     val supportsAttachments: Boolean,
+    val workKind: AssistantWorkKind,
+    val isLongRunningConversation: Boolean,
+    val hasExecutionContext: Boolean,
 )
 
 object AssistantResponsePresentationPolicy {
-    fun plan(text: String, isStreaming: Boolean = false): AssistantResponsePresentation {
+    fun plan(
+        text: String,
+        isStreaming: Boolean = false,
+        context: AssistantConversationContext = AssistantConversationContext(),
+    ): AssistantResponsePresentation {
         val analysis = AssistantContentClassifier.analyse(text, isStreaming)
         val normalized = text.lowercase()
         val hasComparison = containsAny(normalized, "comparison", "compare", "versus", " vs ", "مقارنة", "مقابل", "الفرق بين", "أيهما")
@@ -51,11 +79,13 @@ object AssistantResponsePresentationPolicy {
         val hasData = analysis.containsTable || containsAny(normalized, "chart", "graph", "metrics", "statistics", "trend", "bar_chart", "diagram", "رسم بياني", "مخطط", "إحصاء", "مؤشرات", "اتجاه")
         val hasSymbolic = containsSymbolicContent(text)
         val hasCode = analysis.containsCode
+        val workKind = workKind(normalized)
+        val longRunning = context.messageCount >= 20 || context.totalChars >= 12_000 || context.sessionAgeHours?.let { it >= 4 } == true
 
         val style = when {
             hasMap -> AssistantResponseStyle.MAP_OR_ROUTE
             hasComparison -> AssistantResponseStyle.COMPARISON
-            hasDocument -> AssistantResponseStyle.DOCUMENT
+            hasDocument || workKind == AssistantWorkKind.DOCUMENT_CREATION -> AssistantResponseStyle.DOCUMENT
             hasCode -> AssistantResponseStyle.CODE
             hasEvaluation -> AssistantResponseStyle.EVALUATION
             hasData -> AssistantResponseStyle.DATA_VISUAL
@@ -66,6 +96,8 @@ object AssistantResponsePresentationPolicy {
         }
         val surface = when {
             hasMap -> AssistantResponseSurface.MAP_CARD
+            workKind in setOf(AssistantWorkKind.WEBSITE_CREATION, AssistantWorkKind.APP_CREATION, AssistantWorkKind.GAME_CREATION) -> AssistantResponseSurface.COMPOSED
+            workKind == AssistantWorkKind.PRESENTATION_CREATION || workKind == AssistantWorkKind.IMAGE_CREATION -> AssistantResponseSurface.DOCUMENT_CARD
             hasComparison || analysis.containsTable -> AssistantResponseSurface.TABLE
             hasDocument -> AssistantResponseSurface.DOCUMENT_CARD
             hasCode -> AssistantResponseSurface.CODE_VIEWER
@@ -80,7 +112,7 @@ object AssistantResponsePresentationPolicy {
             style = style,
             surface = surface,
             direction = analysis.direction,
-            emphasizeKeyPoints = style != AssistantResponseStyle.PLAIN_TEXT,
+            emphasizeKeyPoints = style != AssistantResponseStyle.PLAIN_TEXT || longRunning,
             supportsGenerativeUi = hasGenerativeBlock || style in setOf(
                 AssistantResponseStyle.COMPARISON,
                 AssistantResponseStyle.EVALUATION,
@@ -88,8 +120,23 @@ object AssistantResponsePresentationPolicy {
                 AssistantResponseStyle.MAP_OR_ROUTE,
                 AssistantResponseStyle.EXPLANATION,
             ),
-            supportsAttachments = style == AssistantResponseStyle.DOCUMENT || style == AssistantResponseStyle.CODE,
+            supportsAttachments = context.hasAttachments || style == AssistantResponseStyle.DOCUMENT ||
+                style == AssistantResponseStyle.CODE || workKind != AssistantWorkKind.GENERAL,
+            workKind = workKind,
+            isLongRunningConversation = longRunning,
+            hasExecutionContext = context.hasToolOutputs || context.hasRemoteSources || context.hasSkillsOrConnectors,
         )
+    }
+
+    private fun workKind(value: String): AssistantWorkKind = when {
+        containsAny(value, "presentation", "slides", "عرض تقديمي", "شرائح") -> AssistantWorkKind.PRESENTATION_CREATION
+        containsAny(value, "image", "illustration", "صورة", "رسم توضيحي") -> AssistantWorkKind.IMAGE_CREATION
+        containsAny(value, "website", "web app", "موقع", "صفحة ويب") -> AssistantWorkKind.WEBSITE_CREATION
+        containsAny(value, "mobile app", "application", "تطبيق") -> AssistantWorkKind.APP_CREATION
+        containsAny(value, "game", "لعبة") -> AssistantWorkKind.GAME_CREATION
+        containsAny(value, "prompt", "system instruction", "برومبت", "تعليمات النظام") -> AssistantWorkKind.PROMPT_ENGINEERING
+        containsAny(value, "document", "report", "pdf", "docx", "مستند", "تقرير", "وثيقة") -> AssistantWorkKind.DOCUMENT_CREATION
+        else -> AssistantWorkKind.GENERAL
     }
 
     private fun containsAny(value: String, vararg needles: String): Boolean = needles.any(value::contains)

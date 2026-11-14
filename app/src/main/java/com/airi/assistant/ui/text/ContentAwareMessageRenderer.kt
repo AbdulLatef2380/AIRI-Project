@@ -49,6 +49,7 @@ fun ContentAwareMessageRenderer(
     isStreaming: Boolean = false,
     messageId: String = "",
     toolOutputs: List<AssistantToolOutput> = emptyList(),
+    conversationContext: AssistantConversationContext = AssistantConversationContext(),
     onContentAction: (ContentTarget, ContentUnitAction) -> Unit,
     onCopyResult: ((String) -> Boolean)? = null,
     onGenerativeUiAction: (GenerativeUiAction) -> Unit = {},
@@ -60,8 +61,8 @@ fun ContentAwareMessageRenderer(
     val plan = remember(text, isStreaming, resolvedMessageId, toolOutputs) {
         contentSession.plan(text, isStreaming, toolOutputs)
     }
-    val presentation = remember(text, isStreaming) {
-        AssistantResponsePresentationPolicy.plan(text, isStreaming)
+    val presentation = remember(text, isStreaming, conversationContext) {
+        AssistantResponsePresentationPolicy.plan(text, isStreaming, conversationContext)
     }
     val compiledUi = remember(text, isStreaming) {
         if (isStreaming) null

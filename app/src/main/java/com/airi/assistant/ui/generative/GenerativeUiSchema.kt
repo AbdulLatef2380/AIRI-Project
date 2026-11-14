@@ -48,11 +48,18 @@ sealed interface GenerativeUiBlock {
         val submitLabel: String,
         val actionId: String,
     ) : GenerativeUiBlock
+
+    data class Actions(
+        override val id: String,
+        override val title: String?,
+        val options: List<ActionOption>,
+    ) : GenerativeUiBlock
 }
 
 data class DiagramNode(val id: String, val label: String, val description: String?)
 data class DiagramEdge(val from: String, val to: String, val label: String?)
 data class FormField(val id: String, val label: String, val placeholder: String?, val required: Boolean)
+data class ActionOption(val id: String, val label: String, val prompt: String)
 data class GenerativeUiAction(val id: String, val fields: Map<String, String> = emptyMap()) {
     val prompt: String
         get() = buildString {
@@ -153,6 +160,21 @@ object GenerativeUiCompiler {
                     }
                 }
                 GenerativeUiBlock.Form(id, title, fields, safeText(json.optString("submitLabel", "Submit")) ?: "Submit", safeId(json.optString("actionId", id)))
+            }
+            "actions" -> {
+                val optionsJson = json.optJSONArray("options") ?: JSONArray()
+                require(optionsJson.length() in 1..8) { "invalid action count" }
+                val options = buildList {
+                    for (i in 0 until optionsJson.length()) {
+                        val option = optionsJson.getJSONObject(i)
+                        add(ActionOption(
+                            id = safeId(option.optString("id", "action-$i")),
+                            label = requiredText(option, "label"),
+                            prompt = requiredText(option, "prompt"),
+                        ))
+                    }
+                }
+                GenerativeUiBlock.Actions(id, title, options)
             }
             else -> error("unsupported ui block")
         }

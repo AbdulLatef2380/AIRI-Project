@@ -59,6 +59,7 @@ fun GenerativeUiRenderer(
                     is GenerativeUiBlock.BarChart -> BarChartBlock(block)
                     is GenerativeUiBlock.Diagram -> DiagramBlock(block)
                     is GenerativeUiBlock.Form -> FormBlock(block, onAction)
+                    is GenerativeUiBlock.Actions -> ActionsBlock(block, onAction)
                 }
             }
         }
@@ -173,6 +174,20 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
             modifier = Modifier.align(Alignment.End),
             shape = AIRIShapes.md,
         ) { Text(block.submitLabel) }
+    }
+}
+
+@Composable
+private fun ActionsBlock(block: GenerativeUiBlock.Actions, onAction: (GenerativeUiAction) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+        block.options.forEach { option ->
+            Button(
+                onClick = { onAction(GenerativeUiAction(option.id, mapOf("prompt" to option.prompt))) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = AIRIShapes.md,
+            ) { Text(option.label) }
+        }
     }
 }
 

@@ -3020,6 +3020,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         projectId = activeProjectId
                     )
                     lastPersistedAssistantMessageId = saved.id
+                    universalRuntimeTrace.uiProjection(
+                        executionId = traceExecutionId,
+                        sessionId = sessionId,
+                        outcome = if (safeContent.contains("```airi-ui", ignoreCase = true)) "schema_candidate" else "text_fallback",
+                    )
                     persistExecutionTrace(
                         messageId = saved.id,
                         sessionId = sessionId,

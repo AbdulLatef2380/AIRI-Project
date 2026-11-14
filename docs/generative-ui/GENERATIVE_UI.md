@@ -18,10 +18,13 @@ The compiler accepts only four block types:
 - `bar_chart`: equal-length labels and numeric values.
 - `diagram`: bounded nodes and edges that reference existing node IDs.
 - `form`: bounded text fields and a descriptive action ID.
+- `actions`: bounded quick-action buttons whose prompts return through the normal agent dispatch path.
 
 The Android renderer owns layout, color, typography, scrolling, and accessibility semantics. The model cannot provide executable code, HTML, CSS, JavaScript, arbitrary URLs, or arbitrary layout instructions. Invalid schemas are discarded and the original message is rendered through the existing Markdown path.
 
 Form actions are converted to an explicit `[AIRI_UI_ACTION:<id>]` prompt and sent through the existing ChatViewModel dispatch path. They do not bypass tools, permissions, or approval flows.
+
+Quick actions use the same path. Every persisted assistant turn also records a redacted `UI_PROJECTION_COMPLETED` runtime event with either `schema_candidate` or `text_fallback`, correlated by the existing execution ID. This keeps the chat surface, agent trace, routing, and diagnostics in one lifecycle without storing raw prompt or provider payloads in the UI trace.
 
 ## AIRI identity
 

@@ -12,13 +12,14 @@ class GenerativeUiCompilerTest {
             "قبل\n```airi-ui\n" +
                 "{\"version\":1,\"title\":\"استهلاك\",\"blocks\":[" +
                 "{\"type\":\"bar_chart\",\"id\":\"monthly\",\"labels\":[\"يناير\",\"فبراير\"],\"values\":[10,20],\"unit\":\" kWh\"}," +
-                "{\"type\":\"form\",\"id\":\"calculator\",\"fields\":[{\"id\":\"watts\",\"label\":\"القدرة\",\"required\":true}],\"submitLabel\":\"احسب\",\"actionId\":\"calculate\"}" +
+                "{\"type\":\"form\",\"id\":\"calculator\",\"fields\":[{\"id\":\"watts\",\"label\":\"القدرة\",\"required\":true}],\"submitLabel\":\"احسب\",\"actionId\":\"calculate\"}," +
+                "{\"type\":\"actions\",\"id\":\"next\",\"options\":[{\"id\":\"details\",\"label\":\"التفاصيل\",\"prompt\":\"اشرح أكثر\"}]}" +
                 "]}\n```\nبعد",
         )
 
         assertNotNull(result)
         assertEquals("قبل\n\nبعد", result?.surroundingText)
-        assertEquals(2, result?.document?.blocks?.size)
+        assertEquals(3, result?.document?.blocks?.size)
         assertEquals("[AIRI_UI_ACTION:calculate] watts=100", GenerativeUiAction("calculate", mapOf("watts" to "100")).prompt)
     }
 

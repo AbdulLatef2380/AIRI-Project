@@ -54,12 +54,19 @@ sealed interface GenerativeUiBlock {
         override val title: String?,
         val options: List<ActionOption>,
     ) : GenerativeUiBlock
+
+    data class Route(
+        override val id: String,
+        override val title: String?,
+        val stops: List<RouteStop>,
+    ) : GenerativeUiBlock
 }
 
 data class DiagramNode(val id: String, val label: String, val description: String?)
 data class DiagramEdge(val from: String, val to: String, val label: String?)
 data class FormField(val id: String, val label: String, val placeholder: String?, val required: Boolean)
 data class ActionOption(val id: String, val label: String, val prompt: String)
+data class RouteStop(val id: String, val label: String, val location: String, val latitude: Double?, val longitude: Double?)
 data class GenerativeUiAction(val id: String, val fields: Map<String, String> = emptyMap()) {
     val prompt: String
         get() = buildString {
@@ -175,6 +182,25 @@ object GenerativeUiCompiler {
                     }
                 }
                 GenerativeUiBlock.Actions(id, title, options)
+            }
+            "route" -> {
+                val stopsJson = json.optJSONArray("stops") ?: JSONArray()
+                require(stopsJson.length() in 2..20) { "invalid route stops" }
+                val stops = buildList {
+                    for (i in 0 until stopsJson.length()) {
+                        val stop = stopsJson.getJSONObject(i)
+                        val latitude = stop.optDouble("latitude").takeUnless { it.isNaN() }?.coerceIn(-90.0, 90.0)
+                        val longitude = stop.optDouble("longitude").takeUnless { it.isNaN() }?.coerceIn(-180.0, 180.0)
+                        add(RouteStop(
+                            id = safeId(stop.optString("id", "stop-$i")),
+                            label = requiredText(stop, "label"),
+                            location = requiredText(stop, "location"),
+                            latitude = latitude,
+                            longitude = longitude,
+                        ))
+                    }
+                }
+                GenerativeUiBlock.Route(id, title, stops)
             }
             else -> error("unsupported ui block")
         }

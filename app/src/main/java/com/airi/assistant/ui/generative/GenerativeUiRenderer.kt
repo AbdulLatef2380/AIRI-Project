@@ -60,6 +60,7 @@ fun GenerativeUiRenderer(
                     is GenerativeUiBlock.Diagram -> DiagramBlock(block)
                     is GenerativeUiBlock.Form -> FormBlock(block, onAction)
                     is GenerativeUiBlock.Actions -> ActionsBlock(block, onAction)
+                    is GenerativeUiBlock.Route -> RouteBlock(block)
                 }
             }
         }
@@ -201,6 +202,34 @@ private fun ActionsBlock(block: GenerativeUiBlock.Actions, onAction: (Generative
                 modifier = Modifier.fillMaxWidth(),
                 shape = AIRIShapes.md,
             ) { Text(option.label) }
+        }
+    }
+}
+
+@Composable
+private fun RouteBlock(block: GenerativeUiBlock.Route) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+        block.stops.forEachIndexed { index, stop ->
+            Row(
+                modifier = Modifier.fillMaxWidth().semantics {
+                    contentDescription = buildString {
+                        append("${index + 1}. ${stop.label}, ${stop.location}")
+                        if (stop.latitude != null && stop.longitude != null) append(", ${stop.latitude}, ${stop.longitude}")
+                    }
+                },
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Text("${index + 1}", color = Color(0xFFB79BFF), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Column {
+                    Text(stop.label, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text(stop.location, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    if (stop.latitude != null && stop.longitude != null) {
+                        Text("${stop.latitude}, ${stop.longitude}", color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
+                    }
+                }
+            }
         }
     }
 }

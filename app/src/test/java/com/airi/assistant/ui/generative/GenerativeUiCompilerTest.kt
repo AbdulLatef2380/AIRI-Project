@@ -13,13 +13,14 @@ class GenerativeUiCompilerTest {
                 "{\"version\":1,\"title\":\"استهلاك\",\"blocks\":[" +
                 "{\"type\":\"bar_chart\",\"id\":\"monthly\",\"labels\":[\"يناير\",\"فبراير\"],\"values\":[10,20],\"unit\":\" kWh\"}," +
                 "{\"type\":\"form\",\"id\":\"calculator\",\"fields\":[{\"id\":\"watts\",\"label\":\"القدرة\",\"required\":true}],\"submitLabel\":\"احسب\",\"actionId\":\"calculate\"}," +
-                "{\"type\":\"actions\",\"id\":\"next\",\"options\":[{\"id\":\"details\",\"label\":\"التفاصيل\",\"prompt\":\"اشرح أكثر\"}]}" +
+                "{\"type\":\"actions\",\"id\":\"next\",\"options\":[{\"id\":\"details\",\"label\":\"التفاصيل\",\"prompt\":\"اشرح أكثر\"}]}," +
+                "{\"type\":\"route\",\"id\":\"trip\",\"stops\":[{\"id\":\"a\",\"label\":\"البداية\",\"location\":\"الرياض\",\"latitude\":24.7,\"longitude\":46.7},{\"id\":\"b\",\"label\":\"النهاية\",\"location\":\"جدة\"}]}" +
                 "]}\n```\nبعد",
         )
 
         assertNotNull(result)
         assertEquals("قبل\n\nبعد", result?.surroundingText)
-        assertEquals(3, result?.document?.blocks?.size)
+        assertEquals(4, result?.document?.blocks?.size)
         assertEquals("[AIRI_UI_ACTION:calculate] watts=100", GenerativeUiAction("calculate", mapOf("watts" to "100")).prompt)
         val safeAction = GenerativeUiAction("next", mapOf("prompt" to "line1\nline2]"))
         assertEquals("[AIRI_UI_ACTION:next] prompt=line1 line2}", safeAction.prompt)

@@ -12,11 +12,12 @@ The model emits at most one fenced block:
 ```
 ```
 
-The compiler accepts only five block types:
+The compiler accepts only six block types:
 
 - `stat`: one value with optional supporting text.
 - `bar_chart`: equal-length labels and numeric values.
 - `diagram`: bounded nodes and edges that reference existing node IDs.
+- `route`: an ordered list of bounded stops with optional validated coordinates; it does not fetch maps or open URLs by itself.
 - `form`: bounded text fields and a descriptive action ID.
 - `actions`: bounded quick-action buttons whose prompts return through the normal agent dispatch path.
 

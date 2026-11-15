@@ -14,6 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Surface
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +44,8 @@ fun GenerativeUiRenderer(
     compiled: CompiledGenerativeUi,
     modifier: Modifier = Modifier,
     onAction: (GenerativeUiAction) -> Unit = {},
+    sourceExecutionId: String? = null,
+    sourceMessageId: String? = null,
 ) {
     val document = compiled.document
     Card(
@@ -60,9 +64,11 @@ fun GenerativeUiRenderer(
                     is GenerativeUiBlock.Stat -> StatBlock(block)
                     is GenerativeUiBlock.BarChart -> BarChartBlock(block)
                     is GenerativeUiBlock.Diagram -> DiagramBlock(block)
-                    is GenerativeUiBlock.Form -> FormBlock(block, onAction)
-                    is GenerativeUiBlock.Actions -> ActionsBlock(block, onAction)
+                    is GenerativeUiBlock.Form -> FormBlock(block, onAction, sourceExecutionId, sourceMessageId)
+                    is GenerativeUiBlock.Actions -> ActionsBlock(block, onAction, sourceExecutionId, sourceMessageId)
                     is GenerativeUiBlock.Route -> RouteBlock(block)
+                    is GenerativeUiBlock.Table -> TableBlock(block)
+                    is GenerativeUiBlock.Checklist -> ChecklistBlock(block)
                 }
             }
         }
@@ -152,7 +158,7 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
 }
 
 @Composable
-private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiAction) -> Unit) {
+private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiAction) -> Unit, sourceExecutionId: String?, sourceMessageId: String?) {
     val values = remember(block.id) { mutableStateMapOf<String, String>() }
     var submitted by remember(block.id) { mutableStateOf(false) }
     var dispatched by remember(block.id) { mutableStateOf(false) }
@@ -178,7 +184,7 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
                     submitted = true
                 } else if (!dispatched) {
                     dispatched = true
-                    onAction(GenerativeUiAction(block.actionId, values.toMap()))
+                    onAction(GenerativeUiAction(block.actionId, values.toMap(), sourceExecutionId, sourceMessageId))
                 }
             },
             enabled = !dispatched,
@@ -189,7 +195,7 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
 }
 
 @Composable
-private fun ActionsBlock(block: GenerativeUiBlock.Actions, onAction: (GenerativeUiAction) -> Unit) {
+private fun ActionsBlock(block: GenerativeUiBlock.Actions, onAction: (GenerativeUiAction) -> Unit, sourceExecutionId: String?, sourceMessageId: String?) {
     var dispatched by remember(block.id) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
@@ -198,7 +204,7 @@ private fun ActionsBlock(block: GenerativeUiBlock.Actions, onAction: (Generative
                 onClick = {
                     if (!dispatched) {
                         dispatched = true
-                        onAction(GenerativeUiAction(option.id, mapOf("prompt" to option.prompt)))
+                        onAction(GenerativeUiAction(option.id, mapOf("prompt" to option.prompt), sourceExecutionId, sourceMessageId))
                     }
                 },
                 enabled = !dispatched,
@@ -231,6 +237,55 @@ private fun RouteBlock(block: GenerativeUiBlock.Route) {
                     if (stop.latitude != null && stop.longitude != null) {
                         Text("${stop.latitude}, ${stop.longitude}", color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TableBlock(block: GenerativeUiBlock.Table) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+        Column(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                block.headers.forEach { header ->
+                    Surface(color = AiriTheme.surfaceVariant, shape = AIRIShapes.sm) {
+                        Text(header, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, modifier = Modifier.padding(9.dp).size(width = 118.dp, height = 24.dp))
+                    }
+                }
+            }
+            block.rows.forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                    row.forEach { cell ->
+                        Surface(color = AiriTheme.surface.copy(alpha = 0.8f), shape = AIRIShapes.sm) {
+                            Text(cell, color = AiriTheme.onSurface, fontSize = 12.sp, modifier = Modifier.padding(9.dp).size(width = 118.dp, height = 30.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChecklistBlock(block: GenerativeUiBlock.Checklist) {
+    val checked = remember(block.id) {
+        mutableStateMapOf<String, Boolean>().apply {
+            block.items.forEach { put(it.id, it.initiallyChecked) }
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+        block.items.forEach { item ->
+            Row(
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = item.label },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(checked = checked[item.id] == true, onCheckedChange = { checked[item.id] = it })
+                Column(Modifier.weight(1f)) {
+                    Text(item.label, color = AiriTheme.onBackground, fontSize = 13.sp)
+                    item.detail?.let { Text(it, color = AiriTheme.onSurfaceVariant, fontSize = 11.sp) }
                 }
             }
         }

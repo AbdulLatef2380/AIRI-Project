@@ -162,6 +162,29 @@ class UniversalRuntimeTraceTest {
     }
 
     @Test
+    fun uiInteractionKeepsParentAndFieldNamesButNeverFieldValues() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        recorder.begin("exec-child", "session-ui", "model", "provider", "test", "input", emptyList())
+
+        recorder.uiInteraction(
+            executionId = "exec-child",
+            sessionId = "session-ui",
+            actionId = "compare",
+            sourceMessageId = "message-42",
+            parentExecutionId = "exec-parent",
+            accepted = true,
+            fieldNames = setOf("choice", "privateValue"),
+        )
+
+        val event = recorder.events.last { it.component == "GenerativeUiAction" }
+        assertEquals("action_accepted", event.outcome)
+        assertEquals("exec-parent", event.attributes["parentExecutionId"])
+        assertEquals("2", event.attributes["fieldCount"])
+        assertTrue(event.attributes.getValue("fieldNames").contains("choice"))
+        assertFalse(event.attributes.values.any { it.contains("secret") || it.contains("private input") })
+    }
+
+    @Test
     fun toolSchemaHashIsStableAndDoesNotContainDescriptionOrArguments() {
         val tool = ToolSchema(
             name = "safe_read",

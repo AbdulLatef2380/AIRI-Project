@@ -60,6 +60,19 @@ sealed interface GenerativeUiBlock {
         override val title: String?,
         val stops: List<RouteStop>,
     ) : GenerativeUiBlock
+
+    data class Table(
+        override val id: String,
+        override val title: String?,
+        val headers: List<String>,
+        val rows: List<List<String>>,
+    ) : GenerativeUiBlock
+
+    data class Checklist(
+        override val id: String,
+        override val title: String?,
+        val items: List<ChecklistItem>,
+    ) : GenerativeUiBlock
 }
 
 data class DiagramNode(val id: String, val label: String, val description: String?)
@@ -67,13 +80,19 @@ data class DiagramEdge(val from: String, val to: String, val label: String?)
 data class FormField(val id: String, val label: String, val placeholder: String?, val required: Boolean)
 data class ActionOption(val id: String, val label: String, val prompt: String)
 data class RouteStop(val id: String, val label: String, val location: String, val latitude: Double?, val longitude: Double?)
-data class GenerativeUiAction(val id: String, val fields: Map<String, String> = emptyMap()) {
+data class ChecklistItem(val id: String, val label: String, val detail: String?, val initiallyChecked: Boolean)
+data class GenerativeUiAction(
+    val id: String,
+    val fields: Map<String, String> = emptyMap(),
+    val sourceExecutionId: String? = null,
+    val sourceMessageId: String? = null,
+) {
     val prompt: String
         get() = buildString {
             append("[AIRI_UI_ACTION:")
             append(id)
             append("]")
-            fields.forEach { (key, value) ->
+            fields.toSortedMap().forEach { (key, value) ->
                 append(" ")
                 append(key)
                 append("=")
@@ -107,6 +126,18 @@ object GenerativeUiCompiler {
         val blocks = buildList {
             for (index in 0 until blocksJson.length()) {
                 add(parseBlock(blocksJson.getJSONObject(index), index))
+            }
+        }
+        val ids = mutableSetOf<String>()
+        blocks.forEach { block ->
+            require(ids.add(block.id)) { "duplicate block id" }
+            when (block) {
+                is GenerativeUiBlock.Diagram -> block.nodes.forEach { require(ids.add(it.id)) { "duplicate node id" } }
+                is GenerativeUiBlock.Form -> block.fields.forEach { require(ids.add(it.id)) { "duplicate field id" } }
+                is GenerativeUiBlock.Actions -> block.options.forEach { require(ids.add(it.id)) { "duplicate action id" } }
+                is GenerativeUiBlock.Route -> block.stops.forEach { require(ids.add(it.id)) { "duplicate stop id" } }
+                is GenerativeUiBlock.Checklist -> block.items.forEach { require(ids.add(it.id)) { "duplicate checklist id" } }
+                else -> Unit
             }
         }
         return GenerativeUiDocument(
@@ -191,6 +222,7 @@ object GenerativeUiCompiler {
                         val stop = stopsJson.getJSONObject(i)
                         val latitude = stop.optDouble("latitude").takeUnless { it.isNaN() }?.coerceIn(-90.0, 90.0)
                         val longitude = stop.optDouble("longitude").takeUnless { it.isNaN() }?.coerceIn(-180.0, 180.0)
+                        require((latitude == null) == (longitude == null)) { "route coordinates must be paired" }
                         add(RouteStop(
                             id = safeId(stop.optString("id", "stop-$i")),
                             label = requiredText(stop, "label"),
@@ -202,6 +234,36 @@ object GenerativeUiCompiler {
                 }
                 GenerativeUiBlock.Route(id, title, stops)
             }
+            "table" -> {
+                val headers = json.optJSONArray("headers").boundedStrings()
+                require(headers.size in 2..6) { "table needs two to six headers" }
+                val rowsJson = json.optJSONArray("rows") ?: JSONArray()
+                require(rowsJson.length() in 1..20) { "invalid table rows" }
+                val rows = buildList {
+                    for (i in 0 until rowsJson.length()) {
+                        val row = rowsJson.getJSONArray(i).boundedStrings()
+                        require(row.size == headers.size) { "table row mismatch" }
+                        add(row)
+                    }
+                }
+                GenerativeUiBlock.Table(id, title, headers, rows)
+            }
+            "checklist" -> {
+                val itemsJson = json.optJSONArray("items") ?: JSONArray()
+                require(itemsJson.length() in 1..20) { "invalid checklist items" }
+                val items = buildList {
+                    for (i in 0 until itemsJson.length()) {
+                        val item = itemsJson.getJSONObject(i)
+                        add(ChecklistItem(
+                            id = safeId(item.optString("id", "item-$i")),
+                            label = requiredText(item, "label"),
+                            detail = safeText(item.optString("detail", null)),
+                            initiallyChecked = item.optBoolean("checked", false),
+                        ))
+                    }
+                }
+                GenerativeUiBlock.Checklist(id, title, items)
+            }
             else -> error("unsupported ui block")
         }
     }
@@ -212,12 +274,18 @@ object GenerativeUiCompiler {
 
     private fun JSONArray?.boundedStrings(): List<String> {
         require(this != null && length() in 1..MAX_ITEMS)
-        return buildList { for (i in 0 until length()) add(safeText(getString(i)) ?: error("empty chart label")) }
+        return buildList { for (i in 0 until length()) add(safeText(getString(i)) ?: error("empty array text")) }
     }
 
     private fun JSONArray?.boundedNumbers(): List<Float> {
         require(this != null && length() in 1..MAX_ITEMS)
-        return buildList { for (i in 0 until length()) add(getDouble(i).toFloat().coerceIn(-1_000_000f, 1_000_000f)) }
+        return buildList {
+            for (i in 0 until length()) {
+                val value = getDouble(i)
+                require(value.isFinite()) { "non-finite chart value" }
+                add(value.toFloat().coerceIn(-1_000_000f, 1_000_000f))
+            }
+        }
     }
 }
 

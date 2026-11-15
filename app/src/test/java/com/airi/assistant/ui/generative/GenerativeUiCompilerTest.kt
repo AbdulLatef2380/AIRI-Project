@@ -36,4 +36,29 @@ class GenerativeUiCompilerTest {
     fun ignoresPlainTextWithoutUiFence() {
         assertNull(GenerativeUiCompiler.compile("إجابة نصية عادية بلا واجهة."))
     }
+
+    @Test
+    fun compilesComparisonTableAndStatefulChecklist() {
+        val result = GenerativeUiCompiler.compile(
+            "```airi-ui\n{" +
+                "\"version\":1,\"blocks\":[" +
+                "{\"type\":\"table\",\"id\":\"compare\",\"headers\":[\"الخيار\",\"النتيجة\"],\"rows\":[[\"A\",\"أفضل\"],[\"B\",\"أرخص\"]]}," +
+                "{\"type\":\"checklist\",\"id\":\"steps\",\"items\":[{\"id\":\"one\",\"label\":\"راجع الدليل\",\"checked\":true}]}" +
+                "]}\n```",
+        )
+
+        assertNotNull(result)
+        assertEquals(2, result?.document?.blocks?.size)
+        assertEquals(true, (result?.document?.blocks?.get(1) as GenerativeUiBlock.Checklist).items.single().initiallyChecked)
+    }
+
+    @Test
+    fun rejectsDuplicateNestedIdsAndNonFiniteNumbers() {
+        assertNull(GenerativeUiCompiler.compile("```airi-ui\n{" +
+            "\"version\":1,\"blocks\":[" +
+            "{\"type\":\"stat\",\"id\":\"same\",\"value\":\"1\"}," +
+            "{\"type\":\"stat\",\"id\":\"same\",\"value\":\"2\"}]}\n```"))
+        assertNull(GenerativeUiCompiler.compile("```airi-ui\n{" +
+            "\"version\":1,\"blocks\":[{\"type\":\"bar_chart\",\"id\":\"bad\",\"labels\":[\"x\"],\"values\":[\"NaN\"]}]}\n```"))
+    }
 }

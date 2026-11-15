@@ -53,6 +53,7 @@ fun ContentAwareMessageRenderer(
     onContentAction: (ContentTarget, ContentUnitAction) -> Unit,
     onCopyResult: ((String) -> Boolean)? = null,
     onGenerativeUiAction: (GenerativeUiAction) -> Unit = {},
+    generativeUiExecutionId: String? = null,
 ) {
     val resolvedMessageId = messageId.ifBlank {
         remember { "message-${text.hashCode().toUInt().toString(16)}" }
@@ -73,7 +74,12 @@ fun ContentAwareMessageRenderer(
             compiledUi.surroundingText.takeIf(String::isNotBlank)?.let { surrounding ->
                 BidiAwareMarkdownRenderer(text = surrounding, modifier = Modifier.fillMaxWidth(), isStreaming = isStreaming)
             }
-            GenerativeUiRenderer(compiled = compiledUi, onAction = onGenerativeUiAction)
+            GenerativeUiRenderer(
+                compiled = compiledUi,
+                onAction = onGenerativeUiAction,
+                sourceExecutionId = generativeUiExecutionId,
+                sourceMessageId = resolvedMessageId,
+            )
         } else {
             plan.units.forEach { unit ->
                 key(unit.id) {

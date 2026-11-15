@@ -349,6 +349,29 @@ class UniversalRuntimeTraceRecorder(
         outcome = RuntimeTraceRedaction.safeReason(outcome)
     )
 
+    fun uiInteraction(
+        executionId: String,
+        sessionId: String,
+        actionId: String,
+        sourceMessageId: String?,
+        parentExecutionId: String?,
+        accepted: Boolean,
+        fieldNames: Set<String>,
+    ) = record(
+        eventType = UniversalTraceEventType.UI_PROJECTION_COMPLETED,
+        executionId = executionId,
+        sessionId = sessionId,
+        component = "GenerativeUiAction",
+        outcome = if (accepted) "action_accepted" else "action_rejected",
+        attributes = buildMap {
+            put("actionId", RuntimeTraceRedaction.token(actionId))
+            put("fieldCount", fieldNames.size.coerceAtMost(32).toString())
+            put("fieldNames", fieldNames.asSequence().map(RuntimeTraceRedaction::token).sorted().take(32).joinToString(","))
+            sourceMessageId?.takeIf { it.isNotBlank() }?.let { put("sourceMessageId", RuntimeTraceRedaction.token(it)) }
+            parentExecutionId?.takeIf { it.isNotBlank() }?.let { put("parentExecutionId", RuntimeTraceRedaction.token(it)) }
+        },
+    )
+
     fun intentStage(
         executionId: String,
         sessionId: String,

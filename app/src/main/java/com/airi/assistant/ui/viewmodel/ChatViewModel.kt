@@ -1310,6 +1310,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     @Volatile private var activeGenerationJob: Job? = null
     /** A replacement composer request waits for the old owner to reach terminal cleanup. */
     @Volatile private var queuedComposerRequest: QueuedComposerRequest? = null
+    @Volatile private var pendingGenerativeUiAction: com.airi.assistant.ui.generative.GenerativeUiAction? = null
 
     private data class QueuedComposerRequest(
         val input: String,
@@ -2268,6 +2269,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             ConversationExecutionCoordinator.Command(input, cloudAttachmentConsent)
         )
 
+    /** Routes a rendered AIRI UI action through the normal generation gate. */
+    fun handleGenerativeUiAction(action: com.airi.assistant.ui.generative.GenerativeUiAction): Boolean {
+        if (action.id.isBlank() || action.prompt.isBlank()) return false
+        pendingGenerativeUiAction = action
+        val accepted = sendMessage(action.prompt)
+        if (!accepted) pendingGenerativeUiAction = null
+        return accepted
+    }
+
     private fun sendMessageCommand(input: String, cloudAttachmentConsent: Boolean): Boolean {
         if (generationBusy()) {
             queuedComposerRequest = QueuedComposerRequest(
@@ -2999,9 +3009,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 	            var firstTokenReceived = false
 	            var firstVisibleTokenLatencyMs: Long? = null
 	            val toolOutputs = mutableListOf<AssistantToolOutput>()
-	            val fileCards = mutableListOf<AgentFileCard>()
-	            val requestStart = System.currentTimeMillis()
-	            val traceExecutionId = java.util.UUID.randomUUID().toString()
+            val fileCards = mutableListOf<AgentFileCard>()
+            val requestStart = System.currentTimeMillis()
+            val traceExecutionId = java.util.UUID.randomUUID().toString()
+            val pendingAction = pendingGenerativeUiAction.also { pendingGenerativeUiAction = null }
+            val uiAction = pendingAction?.takeIf { it.prompt == trimmedInput }
+            var uiActionTraceRecorded = false
             val needsResummarize = summaryPlan.shouldSummarize
             val olderToFold = summaryPlan.olderTurns
             Log.i("AIRI", "AGENT_LOOP_START inputChars=${trimmedInput.length} queryType=${queryType.name} planMode=${_isPlanModeActive.value}")
@@ -3267,6 +3280,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     runtimeCapabilities = runtimeInventory.traceEntries(),
                 )
                 completionMetadata = loopResult.completionMetadata
+                uiAction?.let { action ->
+                    universalRuntimeTrace.uiInteraction(
+                        executionId = traceExecutionId,
+                        sessionId = sessionId,
+                        actionId = action.id,
+                        sourceMessageId = action.sourceMessageId,
+                        parentExecutionId = action.sourceExecutionId,
+                        accepted = true,
+                        fieldNames = action.fields.keys,
+                    )
+                    uiActionTraceRecorded = true
+                }
                 if (loopResult.terminalState == com.airi.assistant.agent.loop.AgentLoop.TerminalState.CANCELLED ||
                     _isCancelled.get() || !isCurrentGeneration(generationId)
                 ) {
@@ -3623,6 +3648,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } finally {
                 if (!isCurrentGeneration(generationId)) return@launch
+                if (!uiActionTraceRecorded) {
+                    uiAction?.let { action ->
+                        universalRuntimeTrace.uiInteraction(
+                            executionId = traceExecutionId,
+                            sessionId = sessionId,
+                            actionId = action.id,
+                            sourceMessageId = action.sourceMessageId,
+                            parentExecutionId = action.sourceExecutionId,
+                            accepted = true,
+                            fieldNames = action.fields.keys,
+                        )
+                    }
+                }
                 // Safety net for setup/provider failures that bypass a normal
                 // response-status branch: every started execution must leave a
                 // terminal, user-safe trace rather than disappearing silently.

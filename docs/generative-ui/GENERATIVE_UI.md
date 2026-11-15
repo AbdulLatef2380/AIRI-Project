@@ -12,7 +12,7 @@ The model emits at most one fenced block:
 ```
 ```
 
-The compiler accepts only six block types:
+The compiler accepts only eight block types:
 
 - `stat`: one value with optional supporting text.
 - `bar_chart`: equal-length labels and numeric values.
@@ -20,14 +20,16 @@ The compiler accepts only six block types:
 - `route`: an ordered list of bounded stops with optional validated coordinates; it does not fetch maps or open URLs by itself.
 - `form`: bounded text fields and a descriptive action ID.
 - `actions`: bounded quick-action buttons whose prompts return through the normal agent dispatch path.
+- `table`: a bounded comparison/data table with equal-width rows and no executable cells.
+- `checklist`: a bounded stateful checklist whose state is local to the rendered response.
 
-The Android renderer owns layout, color, typography, scrolling, and accessibility semantics. The model cannot provide executable code, HTML, CSS, JavaScript, arbitrary URLs, or arbitrary layout instructions. Invalid schemas are discarded and the original message is rendered through the existing Markdown path.
+The Android renderer owns layout, color, typography, scrolling, and accessibility semantics. The model cannot provide executable code, HTML, CSS, JavaScript, arbitrary URLs, or arbitrary layout instructions. Block and nested IDs must be unique, chart values must be finite, route coordinates must be paired, and all table rows must match the header width. Invalid schemas are discarded and the original message is rendered through the existing Markdown path.
 
 The complete lifecycle is: model response → bounded compiler → native Compose renderer → one-shot action dispatch → `ConversationExecutionCoordinator` → AgentLoop/tool/connector/terminal policy → `ExecutionStatusBus` and `UniversalRuntimeTrace` → persisted assistant turn. A UI action never calls a connector, terminal, sandbox, or live provider directly; it re-enters the same policy-controlled conversation path as typed input.
 
 Form actions are converted to an explicit `[AIRI_UI_ACTION:<id>]` prompt and sent through the existing ChatViewModel dispatch path. They do not bypass tools, permissions, or approval flows.
 
-Quick actions use the same path. Every persisted assistant turn also records a redacted `UI_PROJECTION_COMPLETED` runtime event with either `schema_candidate` or `text_fallback`, correlated by the existing execution ID. This keeps the chat surface, agent trace, routing, and diagnostics in one lifecycle without storing raw prompt or provider payloads in the UI trace.
+Quick actions use the same path. Every persisted assistant turn also records a redacted `UI_PROJECTION_COMPLETED` runtime event with either `schema_candidate` or `text_fallback`, correlated by the existing execution ID. A submitted form/action is routed through the normal `ChatViewModel` generation gate rather than calling the model directly: the next generation records a `GenerativeUiAction` event with its source message, parent execution, action id, and field names only. Raw form values, action prompts, provider payloads, and user text are never copied into the UI trace. This keeps the chat surface, agent trace, routing, and diagnostics in one lifecycle.
 
 ## AIRI identity
 

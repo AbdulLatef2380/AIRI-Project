@@ -1231,7 +1231,7 @@ fun ChatScreen(
                     voiceManager.speak(text)
                 },
                 onSuggestionClick  = { suggestion -> viewModel.sendMessage(suggestion) },
-                onInteractiveAction = { action -> viewModel.sendMessage(action.prompt) },
+                onInteractiveAction = { action -> viewModel.handleGenerativeUiAction(action) },
                 profileDisplayName = profileDisplayName,
                 onEditMessage      = { text -> viewModel.prefillInput(text) },
                 onDeleteMessage    = { message ->
@@ -3215,6 +3215,7 @@ fun AiBubble(
                                         copied
                                     },
                                     onGenerativeUiAction = onInteractiveAction,
+                                    generativeUiExecutionId = executionTraceId,
                                 )
                             }
                             if (isSelectingText) SelectionContainer { renderContent() } else renderContent()

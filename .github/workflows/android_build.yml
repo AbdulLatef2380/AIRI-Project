@@ -100,7 +100,10 @@ jobs:
 
     - name: Clean, compile, and package debug build
       run: |
-        ./gradlew clean :app:assembleDebug \
+        ./gradlew --no-daemon --max-workers=1 \
+          '-Dorg.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=768m -XX:+UseSerialGC' \
+          '-Dkotlin.daemon.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m' \
+          clean :app:assembleDebug \
           -Pandroid.native.buildOutput=verbose \
           --stacktrace
 

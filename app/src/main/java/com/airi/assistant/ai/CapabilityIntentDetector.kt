@@ -87,8 +87,18 @@ object CapabilityIntentDetector {
         "write a file", "create a file", "make a file", "save to a file", "save it to a file",
         "save it as a file",
         "save as a file", "save this as a file", "write it to a file", "generate a file",
-        "اكتب ملف", "اكتب ملفا", "انشئ ملف", "انشئ ملفا", "سو ملف", "احفظ في ملف", "احفظه في ملف",
+        "اكتب ملف", "اكتب ملفا", "انشئ ملف", "انشئ ملفا", "انشاء ملف", "انشاء ملفا",
+        "انشئ مستند", "انشاء مستند", "انشئ وثيقة", "انشاء وثيقة", "سو ملف", "سوي ملف",
+        "احفظ في ملف", "احفظه في ملف",
         "احفظ كملف", "احفظه كملف", "احفظ الكود في ملف", "اعطني ملف", "ولد ملف",
+    )
+    private val fileCreationVerbs = normalizedTerms(
+        "create", "make", "generate", "write", "save", "export", "produce",
+        "انشئ", "انشاء", "اصنع", "اعمل", "اكتب", "ولد", "سوي", "سو", "جهز", "صدر",
+    )
+    private val fileTargetNouns = normalizedTerms(
+        "file", "document", "report", "note", "spreadsheet", "pdf", "markdown", "مستند",
+        "وثيقة", "ملف", "تقرير", "مذكرة", "جدول", "بي دي اف", "مرفق",
     )
     private val explicitFileTarget = Regex(
         "(?:احفظ(?:ه|ها)?|اكتب|save(?: it)?)\\s+(?:في|to|as)\\s+[\\p{L}\\p{N}_.-]+\\.[\\p{L}\\p{N}]{1,8}(?![\\p{L}\\p{N}_])",
@@ -104,10 +114,13 @@ object CapabilityIntentDetector {
     )
 
     private val connectorWriteActions = normalizedTerms(
-        "send", "create", "update", "delete", "write", "post", "reply", "upload", "commit",
+        "send", "create", "make", "generate", "update", "delete", "write", "post", "reply", "upload", "commit",
         "edit", "modify", "rename", "move", "clear",
-        "ارسل", "انشئ", "اكتب", "حدث", "احذف", "انشر", "ارفع", "رد", "عدل", "غير",
+        "ارسل", "انشئ", "انشاء", "اصنع", "اعمل", "اكتب", "ولد", "حدث", "احذف", "انشر", "ارفع", "رد", "عدل", "غير",
         "تحديث", "تعديل", "حذف",
+    )
+    private val connectorWriteVerbStems = normalizedTerms(
+        "انشئ", "انشاء", "اصنع", "اعمل", "اكتب", "ولد", "سوي", "سو", "ارسل", "حدث", "احذف", "انشر", "ارفع", "عدل", "غير",
     )
 
     private val githubRepositoryTerms = normalizedTerms(
@@ -208,6 +221,34 @@ object CapabilityIntentDetector {
     private fun matchesAny(text: String, terms: List<String>): Boolean =
         terms.any { term -> if (term.length <= 4) containsTerm(text, term) else text.contains(term) }
 
+    /**
+     * Arabic clitics and verb inflections must not be treated as separate intent systems.
+     * For example, "قم بإنشاء ملف" normalizes to "قم بانشاء ملف" and the verb is
+     * still the same operation as "انشئ ملف". This bounded token-window matcher keeps
+     * the detector semantic enough for natural phrasing without making every tool own
+     * a growing list of spelling variants.
+     */
+    private fun hasCreationTarget(text: String): Boolean {
+        val tokens = text.split(Regex("\\s+|[,;.!؟?]"))
+            .filter { it.isNotBlank() }
+        val verbIndex = tokens.indexOfFirst { token ->
+            val bare = token.trim('(', ')', ':', '،')
+            fileCreationVerbs.any { verb ->
+                bare == verb || bare.removePrefix("ب") == verb || bare.removePrefix("ل") == verb
+            }
+        }
+        if (verbIndex < 0) return false
+        return tokens.drop(verbIndex + 1).take(7).any { token ->
+            val cleaned = token.trim('(', ')', ':', '،')
+            fileTargetNouns.any { target -> cleaned == target || cleaned.contains(target) }
+        }
+    }
+
+    private fun hasConnectorWriteAction(text: String): Boolean =
+        connectorWriteActions.any { containsTerm(text, it) } ||
+            text.split(Regex("\\s+|[,;.!؟?]"))
+                .any { token -> connectorWriteVerbStems.any { stem -> token == stem || token.removePrefix("ب") == stem } }
+
     fun detect(input: String): Intent {
         val text = normalize(input)
         val capabilities = linkedSetOf<Capability>()
@@ -250,7 +291,7 @@ object CapabilityIntentDetector {
             .any { containsTerm(text, it) }
         val connectorRead = connectorReadActions.any { containsTerm(text, it) } || ownershipRead ||
             (matchedConnectorIds.contains("github") && (githubUrlIntent || githubRepositoryIntent))
-        val connectorWrite = !capabilityDiscovery && connectorWriteActions.any { containsTerm(text, it) }
+        val connectorWrite = !capabilityDiscovery && hasConnectorWriteAction(text)
         if (matchedConnectorIds.isNotEmpty() && (connectorRead || connectorWrite ||
                 (matchedConnectorIds.contains("github") && (githubUrlIntent || githubRepositoryIntent)))) {
             if (connectorRead) capabilities += Capability.CONNECTOR_READ
@@ -292,7 +333,7 @@ object CapabilityIntentDetector {
         if (namesTerminal || asksToRunCommand) {
             capabilities += Capability.TERMINAL_EXECUTE
         }
-        if (fileWritePhrases.any { text.contains(it) } || explicitFileTarget.containsMatchIn(text)) {
+        if (fileWritePhrases.any { text.contains(it) } || explicitFileTarget.containsMatchIn(text) || hasCreationTarget(text)) {
             capabilities += Capability.FILE_WRITE
         }
         if (CodingTaskDetector.isCodingTask(text)) capabilities += Capability.CODE_TASK

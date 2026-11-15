@@ -316,4 +316,33 @@ class CapabilityIntentDetectorTest {
             "اكتب لي عن بايثون", "my app build failed", "كم الساعة",
         ).forEach { assertFalse(it, CapabilityIntentDetector.detect(it).requires(codeTask)) }
     }
+
+    @Test
+    fun naturalCreationPhrasesRequestFileCreationCapability() {
+        val fileWrite = CapabilityIntentDetector.Capability.FILE_WRITE
+        listOf(
+            "قم بإنشاء ملف PDF عن المشروع",
+            "أنشئ لي مستند Markdown",
+            "اعمل تقريراً واحفظه كملف",
+            "سوي ملف README للمشروع",
+            "generate a document with the audit findings",
+        ).forEach { input ->
+            assertTrue(input, CapabilityIntentDetector.detect(input).requires(fileWrite))
+        }
+    }
+
+    @Test
+    fun creationInflectionsStillRequestConnectorWriteOnlyWhenTargeted() {
+        val write = CapabilityIntentDetector.Capability.CONNECTOR_WRITE
+        listOf(
+            "قم بإنشاء issue في GitHub",
+            "أنشئ مسودة في Gmail",
+            "اعمل حدثاً في Google Calendar",
+        ).forEach { input ->
+            val intent = CapabilityIntentDetector.detect(input)
+            assertTrue(input, intent.requires(write))
+            assertTrue(input, intent.connectorIds.isNotEmpty())
+            assertFalse(input, intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_READ))
+        }
+    }
 }

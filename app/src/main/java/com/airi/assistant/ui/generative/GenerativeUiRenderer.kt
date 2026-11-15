@@ -43,7 +43,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
@@ -130,7 +129,14 @@ private fun StatBlock(block: GenerativeUiBlock.Stat) {
 
 @Composable
 private fun BarChartBlock(block: GenerativeUiBlock.BarChart) {
-    val max = block.values.maxOfOrNull { kotlin.math.abs(it) }?.coerceAtLeast(1f) ?: 1f
+    val minValue = block.values.minOrNull() ?: 0f
+    val maxValue = block.values.maxOrNull() ?: 1f
+    val range = (maxValue - minValue).coerceAtLeast(1f)
+    val zero = when {
+        minValue < 0f && maxValue > 0f -> (-minValue / range).coerceIn(0f, 1f)
+        maxValue <= 0f -> 1f
+        else -> 0f
+    }
     var selectedIndex by remember(block.id) { mutableIntStateOf(-1) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
@@ -145,10 +151,22 @@ private fun BarChartBlock(block: GenerativeUiBlock.BarChart) {
                 Canvas(
                     modifier = Modifier.weight(1f).height(22.dp).semantics { contentDescription = "$label $value ${block.unit.orEmpty()}" },
                 ) {
-                    val width = size.width * (kotlin.math.abs(value) / max)
+                    val valuePosition = ((value - minValue) / range).coerceIn(0f, 1f)
+                    val zeroPosition = size.width * zero
+                    val valuePositionPx = size.width * valuePosition
+                    val left = minOf(zeroPosition, valuePositionPx)
+                    val width = kotlin.math.abs(valuePositionPx - zeroPosition)
+                    if (minValue < 0f && maxValue > 0f) {
+                        drawLine(
+                            color = AiriTheme.outline.copy(alpha = 0.65f),
+                            start = Offset(zeroPosition, 1f),
+                            end = Offset(zeroPosition, size.height - 1f),
+                            strokeWidth = 1f,
+                        )
+                    }
                     drawRoundRect(
-                        color = if (selectedIndex == index) Color(0xFFB79BFF) else Color(0xFF7C5CFC),
-                        topLeft = Offset(0f, 3f),
+                        color = if (value < 0f) AiriTheme.error else AiriTheme.primary,
+                        topLeft = Offset(left, 3f),
                         size = androidx.compose.ui.geometry.Size(width.coerceAtLeast(2f), size.height - 6f),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
                     )
@@ -168,7 +186,6 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
     var selectedNodeId by remember(block.id) { mutableStateOf<String?>(null) }
     val selected = block.nodes.firstOrNull { it.id == selectedNodeId }
     val connected = block.edges.filter { it.from == selectedNodeId || it.to == selectedNodeId }
-    val arrow = if (LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl) "←" else "→"
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
         Row(
@@ -176,7 +193,7 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            block.nodes.forEachIndexed { index, node ->
+            block.nodes.forEach { node ->
                 Card(
                     modifier = Modifier
                         .clickable { selectedNodeId = node.id }
@@ -184,7 +201,7 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
                             contentDescription = node.description?.let { "${node.label}: $it" } ?: node.label
                             role = Role.Button
                         },
-                    colors = CardDefaults.cardColors(containerColor = if (selectedNodeId == node.id) Color(0xFF34276A) else AiriTheme.surface.copy(alpha = 0.85f)),
+                    colors = CardDefaults.cardColors(containerColor = if (selectedNodeId == node.id) AiriTheme.primary.copy(alpha = 0.22f) else AiriTheme.surface.copy(alpha = 0.85f)),
                     shape = AIRIShapes.sm,
                 ) {
                     Column(Modifier.padding(9.dp).size(width = 120.dp, height = 70.dp)) {
@@ -192,7 +209,6 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
                         node.description?.let { Text(it, color = AiriTheme.onSurfaceVariant, fontSize = 10.sp, maxLines = 2) }
                     }
                 }
-                if (index < block.nodes.lastIndex) Text(arrow, color = AiriTheme.onSurfaceVariant, fontSize = 20.sp)
             }
         }
         selected?.let { node ->

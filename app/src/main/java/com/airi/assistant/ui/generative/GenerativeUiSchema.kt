@@ -104,17 +104,22 @@ data class GenerativeUiAction(
 data class CompiledGenerativeUi(val document: GenerativeUiDocument, val surroundingText: String)
 
 object GenerativeUiCompiler {
+    private const val MAX_RESPONSE_CHARS = 96_000
     private const val MAX_JSON_CHARS = 32_000
+    private const val MAX_JSON_DEPTH = 12
     private const val MAX_BLOCKS = 8
     private const val MAX_ITEMS = 30
     private const val MAX_TEXT = 240
     private val fenced = Regex("```airi-ui\\s*([\\s\\S]*?)```", RegexOption.IGNORE_CASE)
 
     fun compile(text: String): CompiledGenerativeUi? {
+        if (text.length > MAX_RESPONSE_CHARS) return null
         val match = fenced.find(text) ?: return null
         val raw = match.groupValues.getOrNull(1)?.trim().orEmpty()
         if (raw.isBlank() || raw.length > MAX_JSON_CHARS) return null
-        val document = runCatching { parse(JSONObject(raw)) }.getOrNull() ?: return null
+        val document = runCatching {
+            JSONObject(raw).also { validateDepth(it, 0) }
+        }.mapCatching(::parse).getOrNull() ?: return null
         val surrounding = text.removeRange(match.range).trim()
         return CompiledGenerativeUi(document, surrounding)
     }
@@ -331,6 +336,16 @@ object GenerativeUiCompiler {
 
     private fun requireOnlyKeys(json: JSONObject, allowed: Set<String>) {
         json.keys().forEach { key -> require(key in allowed) { "unknown key: $key" } }
+    }
+
+    private fun validateDepth(value: Any?, depth: Int) {
+        require(depth <= MAX_JSON_DEPTH) { "ui schema nesting is too deep" }
+        when (value) {
+            is JSONObject -> value.keys().forEach { key -> validateDepth(value.get(key), depth + 1) }
+            is JSONArray -> for (index in 0 until value.length()) {
+                validateDepth(value.get(index), depth + 1)
+            }
+        }
     }
 
     private fun strictOptionalDouble(json: JSONObject, key: String): Double? {

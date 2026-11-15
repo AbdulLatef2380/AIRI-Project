@@ -83,6 +83,7 @@ fun ArtifactPreviewScreen(
     onBack: () -> Unit
 ) {
     val artifactManager = remember { ServiceLocator.artifactManager }
+    val activeProjectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
     var artifactType by remember(artifactId) { mutableStateOf("UNKNOWN") }
     var artifactContent by remember(artifactId) { mutableStateOf<String?>(null) }
     var artifact by remember(artifactId) { mutableStateOf<com.airi.assistant.workspace.ArtifactManager.Artifact?>(null) }
@@ -91,14 +92,15 @@ fun ArtifactPreviewScreen(
     var loadFailed by remember(artifactId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(artifactId) {
-        val loadedArtifact = artifactManager.getArtifact(artifactId)
+    LaunchedEffect(artifactId, activeProjectId) {
+        val loadedArtifact = activeProjectId.takeIf { it.isNotBlank() }
+            ?.let { projectId -> artifactManager.getArtifactForProject(artifactId, projectId) }
         if (loadedArtifact == null) {
             loadFailed = true
         } else {
             artifact = loadedArtifact
             artifactType = loadedArtifact.type.name
-            artifactContent = artifactManager.readContent(artifactId)
+            artifactContent = artifactManager.readContentForProject(artifactId, activeProjectId)
             revisions = artifactManager.listVersions(artifactId)
             loadFailed = artifactContent == null
         }
@@ -162,7 +164,7 @@ fun ArtifactPreviewScreen(
                                                 if (restored != null) {
                                                     artifact = restored
                                                     artifactType = restored.type.name
-                                                    artifactContent = artifactManager.readContent(artifactId)
+                                                    artifactContent = artifactManager.readContentForProject(artifactId, activeProjectId)
                                                     revisions = artifactManager.listVersions(artifactId)
                                                 }
                                             }

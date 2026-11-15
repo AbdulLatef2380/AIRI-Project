@@ -128,9 +128,13 @@ import com.airi.assistant.ui.text.ContentUnitAction
 import com.airi.assistant.ui.text.canPerform
 import com.airi.assistant.ui.text.AssistantToolOutput
 import com.airi.assistant.ui.text.AssistantConversationContext
+import com.airi.assistant.ui.text.ArtifactReferenceResolver
+import com.airi.assistant.ui.text.CurrentTurnContextResolver
+import com.airi.assistant.ui.text.ResponseTurnMessageEvidence
 import com.airi.assistant.ui.trace.InlineExecutionTrace
 import com.airi.assistant.ui.components.ThinkingAnimation
 import com.airi.assistant.ui.components.AgentFileCards
+import com.airi.assistant.ui.components.ArtifactReferenceCards
 import com.airi.assistant.agent.loop.tool.AgentFileCard
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.draw.drawWithContent
@@ -147,6 +151,20 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
+
+private fun ChatMessage.toResponseTurnEvidence(): ResponseTurnMessageEvidence = ResponseTurnMessageEvidence(
+    id = id,
+    isUser = isUser,
+    text = text,
+    hasAttachments = attachments.isNotEmpty() || fileCards.isNotEmpty(),
+    hasToolOutputs = toolOutputs.isNotEmpty(),
+    hasRemoteSources = execOrigin != com.airi.assistant.execution.ExecOrigin.NONE || !executionSource.isNullOrBlank(),
+    hasSkillsOrConnectors = !agentTag.isNullOrBlank(),
+    hasFiles = fileCards.isNotEmpty() || attachments.any { it.kind == ChatAttachment.Kind.FILE },
+    hasImages = imageUri != null || attachments.any { it.kind == ChatAttachment.Kind.IMAGE || it.kind == ChatAttachment.Kind.CAMERA },
+    hasAudio = voiceRecordingPath != null,
+    hasVideo = attachments.any { it.kind == ChatAttachment.Kind.VIDEO },
+)
 
 enum class VoiceSessionState { IDLE, LISTENING, PROCESSING, SPEAKING }
 
@@ -2404,13 +2422,13 @@ fun ChatMessageList(
                                     AiStreamingBubble(
                                         text = streamingText,
                                         messageId = "streaming-${messages.lastOrNull { it.isUser }?.uid ?: "active"}",
-                                        conversationContext = AssistantConversationContext(
-                                            messageCount = messages.size,
-                                            totalChars = messages.sumOf { it.text.length },
-                                            hasAttachments = messages.any { it.attachments.isNotEmpty() || it.fileCards.isNotEmpty() },
-                                            hasToolOutputs = messages.any { it.toolOutputs.isNotEmpty() },
-                                            hasRemoteSources = messages.any { it.execOrigin != com.airi.assistant.execution.ExecOrigin.NONE || !it.executionSource.isNullOrBlank() },
-                                            hasSkillsOrConnectors = messages.any { !it.agentTag.isNullOrBlank() },
+                                        conversationContext = CurrentTurnContextResolver.resolve(
+                                            messages = messages.map { it.toResponseTurnEvidence() } + ResponseTurnMessageEvidence(
+                                                id = Long.MIN_VALUE,
+                                                isUser = false,
+                                                text = streamingText,
+                                            ),
+                                            assistantMessageId = Long.MIN_VALUE,
                                         ),
                                         onShare = onShareAiResponse,
                                     )
@@ -2454,6 +2472,13 @@ fun ChatMessageList(
                                 onDelete           = { onDeleteMessage(msg) }
                             )
                         } else {
+                            val artifactReferences = remember(msg.text, currentSessionId) {
+                                ArtifactReferenceResolver.resolve(
+                                    text = msg.text,
+                                    projectId = currentSessionId,
+                                    artifactManager = ServiceLocator.artifactManager,
+                                )
+                            }
                             AiBubble(
                                 text            = msg.outputPresentation.agentOutput,
                                 // GenUI actions must correlate to the durable message id;
@@ -2461,6 +2486,7 @@ fun ChatMessageList(
                                 messageId       = msg.id.toString(),
                                 toolOutputs     = msg.outputPresentation.toolOutputs,
                                 fileCards       = msg.fileCards,
+                                artifactReferences = artifactReferences,
                                 agentTag        = msg.agentTag,
                                 isProPlan       = isProPlan,
                                 traceId         = msg.traceId,
@@ -2478,18 +2504,9 @@ fun ChatMessageList(
                                 },
                                 executionTraceWorking = inlineTraceWorking && msg.executionTraceId == inlineTraceExecutionId,
                                 continuationHops = msg.continuationHops,
-                                conversationContext = AssistantConversationContext(
-                                    latestUserText = messages.lastOrNull { it.isUser }?.text.orEmpty(),
-                                    messageCount = messages.size,
-                                    totalChars = messages.sumOf { it.text.length },
-                                    hasAttachments = messages.any { it.attachments.isNotEmpty() || it.fileCards.isNotEmpty() },
-                                    hasToolOutputs = messages.any { it.toolOutputs.isNotEmpty() },
-                                    hasRemoteSources = messages.any { it.execOrigin != com.airi.assistant.execution.ExecOrigin.NONE || !it.executionSource.isNullOrBlank() },
-                                    hasSkillsOrConnectors = messages.any { !it.agentTag.isNullOrBlank() },
-                                    hasFiles = messages.any { it.fileCards.isNotEmpty() || it.attachments.any { attachment -> attachment.kind == ChatAttachment.Kind.FILE } },
-                                    hasImages = messages.any { it.imageUri != null || it.attachments.any { attachment -> attachment.kind == ChatAttachment.Kind.IMAGE || attachment.kind == ChatAttachment.Kind.CAMERA } },
-                                    hasAudio = messages.any { it.voiceRecordingPath != null },
-                                    hasVideo = messages.any { it.attachments.any { attachment -> attachment.kind == ChatAttachment.Kind.VIDEO } },
+                                conversationContext = CurrentTurnContextResolver.resolve(
+                                    messages = messages.map { it.toResponseTurnEvidence() },
+                                    assistantMessageId = msg.id,
                                 ),
                                 onFeedback      = { liked -> onFeedback(msg.uid, liked) },
                                 onExportPdf     = onExportPdf,
@@ -2497,6 +2514,7 @@ fun ChatMessageList(
                                 initialFeedback = msg.feedback,
                                 onOpenRun       = onOpenRun,
                                 onInteractiveAction = onInteractiveAction,
+                                onPreviewArtifact = { artifactId -> onNavigate(AiriRoute.artifactPreview(artifactId)) },
                             )
                         }
                     }
@@ -3037,6 +3055,7 @@ fun AiBubble(
     messageId: String = "",
     toolOutputs: List<AssistantToolOutput> = emptyList(),
     fileCards: List<AgentFileCard> = emptyList(),
+    artifactReferences: List<com.airi.assistant.workspace.ArtifactManager.Artifact> = emptyList(),
     agentTag: String? = null,
     isProPlan: Boolean = false,
     traceId: String? = null,
@@ -3057,6 +3076,7 @@ fun AiBubble(
     onExportPdf: (String) -> Unit = {},
     onExportMarkdown: (String) -> Unit = {},
     onInteractiveAction: (com.airi.assistant.ui.generative.GenerativeUiAction) -> Unit = {},
+    onPreviewArtifact: (String) -> Unit = {},
     /** Opens the run screen for a trace id. When null, the legacy expandable badge is shown. */
     onOpenRun: ((String) -> Unit)? = null,
 ) {
@@ -3276,6 +3296,13 @@ fun AiBubble(
                 if (fileCards.isNotEmpty()) {
                     AgentFileCards(
                         cards = fileCards,
+                        modifier = Modifier.padding(top = 8.dp, start = 2.dp, end = 2.dp),
+                    )
+                }
+                if (artifactReferences.isNotEmpty()) {
+                    ArtifactReferenceCards(
+                        artifacts = artifactReferences,
+                        onPreview = onPreviewArtifact,
                         modifier = Modifier.padding(top = 8.dp, start = 2.dp, end = 2.dp),
                     )
                 }

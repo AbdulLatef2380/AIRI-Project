@@ -99,4 +99,15 @@ class GenerativeUiCompilerTest {
             "{\"id\":\"a\",\"label\":\"A\",\"location\":\"A\",\"latitude\":91,\"longitude\":0}," +
             "{\"id\":\"b\",\"label\":\"B\",\"location\":\"B\"}]}]}\n```"))
     }
+
+    @Test
+    fun rejectsExcessiveJsonDepthAndOversizedResponseBeforeRendering() {
+        var nested = "1"
+        repeat(20) { nested = "{\"nested\":$nested}" }
+        assertNull(GenerativeUiCompiler.compile("```airi-ui\n" +
+            "{\"version\":1,\"blocks\":[{\"type\":\"stat\",\"id\":\"x\",\"value\":$nested}]}\n```"))
+
+        val oversized = "x".repeat(100_000) + "\n```airi-ui\n{}\n```"
+        assertNull(GenerativeUiCompiler.compile(oversized))
+    }
 }

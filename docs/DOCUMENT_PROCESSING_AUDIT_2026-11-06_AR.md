@@ -197,3 +197,9 @@ Apache Tika يبيّن أن تغطية Office وOOXML وODF وPDF وEPUB وRTF �
 ## سبب فشل CI في التشغيل 43761706893
 
 فشلت خطوة `Clean, compile, and package debug build` بسبب `java.lang.OutOfMemoryError: Java heap space` داخل Kotlin FIR أثناء `:app:compileDebugKotlin`، بعد رسالة incremental عن `AttachmentDeliveryTrace.class`. لم يكن الفشل من اختبارات مستكشف النية أو من مصدر Kotlin محدد. عولج السبب في workflow بإيقاف Gradle daemon في هذه الخطوة، وتحديد عامل بناء واحد، ورفع heap الخاص بـGradle وKotlin daemon مع إبقاء `UseSerialGC` لتقليل ذروة الذاكرة المتزامنة.
+
+## تدقيق إضافي لبوابات الاستدعاء
+
+كُشف حاجز غير مقصود في مسار المهارات: المهارة التي يختارها المستخدم كانت تُذكر في system prompt، لكن أسماء أدواتها `skill_*` لم تكن تُضاف إلى `AgentRequestPlanner.exposedTools`. لذلك كان من الممكن أن يعرف النموذج المهارة دون أن يملك أداة قابلة للاستدعاء. تم إصلاح ذلك بتمرير أسماء أدوات المهارات المختارة إلى المخطط المركزي، مع إبقائها خاضعة لجاهزية المهارة وصلاحياتها والتحقق النهائي في `SkillToolBridge.invoke`، وأضيف اختبار يثبت عدم إسقاطها.
+
+أما الذاكرة والمعرفة فمسارهما مختلف ومثبت في المصدر: `memory_recall` يُطلب عند `MEMORY_READ`، وRAG والمعرفة المحددة يُجهزان قبل بناء prompt، مع fallback زمني عند غياب embeddings و`getOrNull` للمعرفة المحددة حتى لا يتحول فشل الاسترجاع إلى حجب للطلب. الموصلات تمر عبر كتالوج حي، ثم فحص الجاهزية والموافقة، ثم dispatcher؛ لذلك الرفض المقصود يظهر كحالة auth/permission/disconnected وليس كإجابة نصية صامتة.

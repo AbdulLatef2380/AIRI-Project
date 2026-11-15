@@ -69,6 +69,7 @@ object AgentRequestPlanner {
         text: String,
         support: ModelToolSupport,
         availableTools: Set<String>,
+        requestedSkillToolNames: Set<String> = emptySet(),
     ): RequestPlan {
         val understanding = StructuredTaskUnderstanding.understand(text)
         val runtimeIntent = CapabilityIntentDetector.detect(text)
@@ -99,6 +100,10 @@ object AgentRequestPlanner {
             capabilities.contains(Capability.CONNECTOR_WRITE)
         val wanted = buildSet {
             addAll(staticWanted)
+            // Explicitly selected skills are request-scoped capabilities. They must
+            // enter the same canonical admission path as builtins and connectors;
+            // mentioning them only in the system prompt does not make a tool callable.
+            addAll(requestedSkillToolNames.filter { it in availableTools })
             if (connectorRequested) {
                 addAll(availableTools.filter { isRequestedConnectorTool(it, runtimeIntent.connectorIds) })
             }

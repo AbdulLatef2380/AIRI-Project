@@ -2857,6 +2857,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 text = trimmedInput,
                 providerId = requestedProviderIdAtDispatch,
                 availableTools = allActiveTools,
+                requestedSkillToolNames = allActiveTools
+                    .asSequence()
+                    .filter { tool ->
+                        selectedSkillIds.any { skillId ->
+                            tool.name == "skill_$skillId" || tool.name.startsWith("skill_${skillId}_")
+                        }
+                    }
+                    .map { it.name }
+                    .toSet(),
             )
             if (requestPlan.unfulfillable != null) {
                 val reason = requestPlan.unfulfillable.name.lowercase().replace('_', ' ')

@@ -103,4 +103,18 @@ class AgentRequestPlannerTest {
         assertEquals(RequestPlan.Kind.CHAT, plan.kind)
         assertEquals(ToolChoice.NONE, plan.toolChoice)
     }
+
+    @Test
+    fun explicitlySelectedSkillToolsAreNotDroppedByQuestionExposurePolicy() {
+        val plan = AgentRequestPlanner.plan(
+            text = "راجع هذا النص باستخدام مهارة التدقيق",
+            support = ModelToolSupport.NATIVE,
+            availableTools = tools + setOf("skill_document_review", "skill_document_review_extract"),
+            requestedSkillToolNames = setOf("skill_document_review", "skill_document_review_extract"),
+        )
+
+        assertTrue("skill_document_review" in plan.exposedTools)
+        assertTrue("skill_document_review_extract" in plan.exposedTools)
+        assertNull(plan.unfulfillable)
+    }
 }

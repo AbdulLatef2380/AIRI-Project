@@ -15,9 +15,11 @@ class AgentRequestPlanningService(
         text: String,
         providerId: String,
         availableTools: Collection<ToolSchema>,
+        requestedSkillToolNames: Set<String> = emptySet(),
     ): RequestPlan = AgentRequestPlanner.plan(
         text = text,
         support = supportResolver(providerId),
         availableTools = availableTools.mapTo(linkedSetOf()) { it.name },
+        requestedSkillToolNames = requestedSkillToolNames,
     )
 }

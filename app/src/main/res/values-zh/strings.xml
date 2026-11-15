@@ -2445,6 +2445,7 @@
     <string name="paywall_purchase_success">Premium 已启用，尽享无限访问。</string>
     <string name="artifact_load_failed">无法加载此产物。</string>
     <string name="artifact_preview_title">预览 — %1$s</string>
+    <string name="artifact_preview_unavailable">此类型不提供预览：%1$s</string>
     <string name="artifact_open">打开</string>
     <string name="referral_share_whatsapp">通过 WhatsApp 分享</string>
     <string name="referral_share_telegram">通过 Telegram 分享</string>

@@ -2462,6 +2462,7 @@
     <string name="paywall_purchase_success">Premium activado. Disfruta del acceso ilimitado.</string>
     <string name="artifact_load_failed">No se pudo cargar este artefacto.</string>
     <string name="artifact_preview_title">Vista previa — %1$s</string>
+    <string name="artifact_preview_unavailable">La vista previa no está disponible para el tipo: %1$s</string>
     <string name="artifact_open">Abrir</string>
     <string name="referral_share_whatsapp">Compartir por WhatsApp</string>
     <string name="referral_share_telegram">Compartir por Telegram</string>

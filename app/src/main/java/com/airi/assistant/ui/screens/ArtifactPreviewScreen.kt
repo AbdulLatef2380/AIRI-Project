@@ -86,7 +86,8 @@ fun ArtifactPreviewScreen(
     onBack: () -> Unit
 ) {
     val artifactManager = remember { ServiceLocator.artifactManager }
-    val activeProjectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
+    val activeSession by ServiceLocator.workspaceRuntime.activeSession.collectAsState()
+    val activeProjectId = activeSession?.sessionId.orEmpty()
     var artifactType by remember(artifactId) { mutableStateOf("UNKNOWN") }
     var artifactContent by remember(artifactId) { mutableStateOf<String?>(null) }
     var artifact by remember(artifactId) { mutableStateOf<com.airi.assistant.workspace.ArtifactManager.Artifact?>(null) }

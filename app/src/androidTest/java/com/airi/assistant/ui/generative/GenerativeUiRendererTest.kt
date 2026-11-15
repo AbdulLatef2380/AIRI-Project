@@ -46,7 +46,7 @@ class GenerativeUiRendererTest {
 
         composeRule.onNodeWithText("Approve").assertIsDisplayed().performClick()
         composeRule.onNodeWithText(context.getString(R.string.generative_ui_action_preview_title)).assertIsDisplayed()
-        composeRule.onNodeWithText("Approve the reviewed item").assertIsDisplayed()
+        composeRule.onNodeWithText("[AIRI_UI_ACTION:approve] prompt=Approve the reviewed item").assertIsDisplayed()
         assertNull(received)
 
         composeRule.onNodeWithText(context.getString(R.string.generative_ui_action_preview_use)).performClick()

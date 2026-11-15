@@ -52,4 +52,3 @@ class CurrentTurnContextResolverTest {
         assertFalse(context.hasImages)
     }
 }
-***

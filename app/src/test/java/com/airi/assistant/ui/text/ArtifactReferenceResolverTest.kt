@@ -39,4 +39,3 @@ class ArtifactReferenceResolverTest {
         assertFalse(result.single().isUsable)
     }
 }
-***

@@ -2720,6 +2720,7 @@
     <string name="paywall_purchase_success">تم تفعيل Premium! استمتع بالوصول غير المحدود.</string>
     <string name="artifact_load_failed">تعذر تحميل هذا الملف الناتج.</string>
     <string name="artifact_preview_title">معاينة — %1$s</string>
+    <string name="artifact_preview_unavailable">المعاينة غير متاحة للنوع: %1$s</string>
     <string name="artifact_open">فتح</string>
     <string name="referral_share_whatsapp">مشاركة عبر WhatsApp</string>
     <string name="referral_share_telegram">مشاركة عبر Telegram</string>

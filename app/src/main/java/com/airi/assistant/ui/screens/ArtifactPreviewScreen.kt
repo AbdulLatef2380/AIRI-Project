@@ -88,7 +88,7 @@ fun ArtifactPreviewScreen(
     val artifactManager = remember { ServiceLocator.artifactManager }
     val activeSession by ServiceLocator.workspaceRuntime.activeSession.collectAsState()
     val activeProjectId = activeSession?.sessionId.orEmpty()
-    var artifactType by remember(artifactId) { mutableStateOf("UNKNOWN") }
+    var artifactType by remember(artifactId) { mutableStateOf("") }
     var artifactContent by remember(artifactId) { mutableStateOf<String?>(null) }
     var artifact by remember(artifactId) { mutableStateOf<com.airi.assistant.workspace.ArtifactManager.Artifact?>(null) }
     var revisions by remember(artifactId) { mutableStateOf(emptyList<com.airi.assistant.workspace.ArtifactManager.ArtifactRevision>()) }
@@ -410,7 +410,7 @@ private fun UnsupportedArtifactView(type: String, uri: android.net.Uri?, mimeTyp
     val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(text = "Preview not available for type: $type", color = AiriTheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.artifact_preview_unavailable, type), color = AiriTheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             if (uri != null) {
                 Button(onClick = {
                     val intent = Intent(Intent.ACTION_VIEW).apply {

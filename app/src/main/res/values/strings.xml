@@ -2785,6 +2785,7 @@
     <string name="paywall_purchase_success">Premium activated! Enjoy unlimited access.</string>
     <string name="artifact_load_failed">Unable to load this artifact.</string>
     <string name="artifact_preview_title">Preview — %1$s</string>
+    <string name="artifact_preview_unavailable">Preview is not available for type: %1$s</string>
     <string name="artifact_open">Open</string>
     <string name="referral_share_whatsapp">Share on WhatsApp</string>
     <string name="referral_share_telegram">Share on Telegram</string>

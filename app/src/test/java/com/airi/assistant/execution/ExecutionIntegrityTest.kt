@@ -117,6 +117,20 @@ class ExecutionIntegrityTest {
     }
 
     @Test
+    fun pauseAndResumeKeepOneExecutionIdentityBeforeTerminalOutcome() {
+        val machine = ExecutionStateMachine()
+        assertTrue(machine.transition(ExecutionLifecycleState.PREPARING))
+        assertTrue(machine.transition(ExecutionLifecycleState.VALIDATING))
+        assertTrue(machine.transition(ExecutionLifecycleState.PREPARING_CONTEXT))
+        assertTrue(machine.transition(ExecutionLifecycleState.EXECUTING))
+        assertTrue(machine.transition(ExecutionLifecycleState.PAUSED))
+        assertTrue(machine.transition(ExecutionLifecycleState.RESUMING))
+        assertTrue(machine.transition(ExecutionLifecycleState.EXECUTING))
+        assertTrue(machine.terminal(ExecutionLifecycleState.COMPLETED))
+        assertFalse(machine.transition(ExecutionLifecycleState.RESUMING))
+    }
+
+    @Test
     fun terminalDeliveryIsExactlyOnce() {
         val guard = TerminalDeliveryGuard()
         assertTrue(guard.tryDeliver())

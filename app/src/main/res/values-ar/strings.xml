@@ -2452,6 +2452,7 @@
     <string name="generative_ui_edge">%1$s إلى %2$s%3$s</string>
     <string name="generative_ui_edge_label_suffix"> · %1$s</string>
     <string name="generative_ui_required_fields">أكمل الحقول المطلوبة قبل الإرسال.</string>
+    <string name="generative_ui_accessible_response">رد AIRI تفاعلي</string>
     <string name="generative_ui_action_preview_title">مراجعة الإجراء</string>
     <string name="generative_ui_action_preview_notice">سيُوضع هذا النص في صندوق الإدخال. لن يُرسل شيء حتى تضغط زر الإرسال.</string>
     <string name="generative_ui_action_preview_use">استخدام في صندوق الإدخال</string>
@@ -2719,6 +2720,7 @@
     <string name="paywall_purchase_success">تم تفعيل Premium! استمتع بالوصول غير المحدود.</string>
     <string name="artifact_load_failed">تعذر تحميل هذا الملف الناتج.</string>
     <string name="artifact_preview_title">معاينة — %1$s</string>
+    <string name="artifact_open">فتح</string>
     <string name="referral_share_whatsapp">مشاركة عبر WhatsApp</string>
     <string name="referral_share_telegram">مشاركة عبر Telegram</string>
     <string name="referral_link_copied">تم نسخ رابط الإحالة</string>

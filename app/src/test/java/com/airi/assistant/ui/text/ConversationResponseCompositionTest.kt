@@ -96,4 +96,31 @@ class ConversationResponseCompositionTest {
         assertEquals(ResponseLane.WORKSPACE, workspace.lane)
         assertTrue(ResponseSectionKind.ACTIONS in workspace.sections)
     }
+
+    @Test
+    fun requestToCreateFileDoesNotClaimArtifactWithoutEvidence() {
+        val plan = ConversationResponseCompositionPlanner.plan(
+            ResponseRequestProfile(userText = "أنشئ تقريرًا", answerText = "سأبدأ الآن")
+        )
+
+        assertEquals(ResponseLane.CONVERSATION, plan.lane)
+        assertTrue(ResponseSectionKind.ARTIFACTS !in plan.sections)
+    }
+
+    @Test
+    fun verifiedArtifactEvidenceEnablesArtifactSection() {
+        val plan = ConversationResponseCompositionPlanner.plan(
+            ResponseRequestProfile(
+                userText = "أنشئ تقريرًا",
+                answerText = "تم الحفظ",
+                evidence = ResponseEvidence(
+                    artifactState = ResponseDeliveryState.COMPLETED,
+                    artifacts = listOf(ResponseArtifactEvidence("a1", "project", verified = true)),
+                ),
+            ),
+        )
+
+        assertEquals(ResponseLane.ARTIFACT, plan.lane)
+        assertTrue(ResponseSectionKind.ARTIFACTS in plan.sections)
+    }
 }

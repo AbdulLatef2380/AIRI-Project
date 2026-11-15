@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
@@ -39,7 +40,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +62,7 @@ fun GenerativeUiRenderer(
     sourceMessageId: String? = null,
 ) {
     val document = compiled.document
+    val accessibleResponseLabel = document.title ?: stringResource(R.string.generative_ui_accessible_response)
     var pendingAction by remember(compiled) { mutableStateOf<GenerativeUiAction?>(null) }
     val requestAction: (GenerativeUiAction) -> Unit = { pendingAction = it }
     pendingAction?.let { action ->
@@ -95,7 +99,7 @@ fun GenerativeUiRenderer(
         Column(
             modifier = Modifier
                 .padding(12.dp)
-                .semantics { contentDescription = document.title ?: "AIRI interactive response" },
+                .semantics { contentDescription = accessibleResponseLabel },
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             document.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 17.sp) }
@@ -143,13 +147,20 @@ private fun BarChartBlock(block: GenerativeUiBlock.BarChart) {
         block.labels.forEachIndexed { index, label ->
             val value = block.values[index]
             Row(
-                modifier = Modifier.fillMaxWidth().clickable { selectedIndex = index },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .sizeIn(minHeight = 48.dp)
+                    .clickable { selectedIndex = index }
+                    .semantics {
+                        contentDescription = "$label ${formatNumber(value)}${block.unit.orEmpty()}"
+                        role = Role.Button
+                    },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(label, color = if (selectedIndex == index) AiriTheme.onBackground else AiriTheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.size(width = 76.dp, height = 24.dp))
                 Canvas(
-                    modifier = Modifier.weight(1f).height(22.dp).semantics { contentDescription = "$label $value ${block.unit.orEmpty()}" },
+                    modifier = Modifier.weight(1f).height(22.dp),
                 ) {
                     val valuePosition = ((value - minValue) / range).coerceIn(0f, 1f)
                     val zeroPosition = size.width * zero
@@ -196,6 +207,7 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
             block.nodes.forEach { node ->
                 Card(
                     modifier = Modifier
+                        .sizeIn(minWidth = 120.dp, minHeight = 70.dp)
                         .clickable { selectedNodeId = node.id }
                         .semantics {
                             contentDescription = node.description?.let { "${node.label}: $it" } ?: node.label
@@ -204,7 +216,7 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
                     colors = CardDefaults.cardColors(containerColor = if (selectedNodeId == node.id) AiriTheme.primary.copy(alpha = 0.22f) else AiriTheme.surface.copy(alpha = 0.85f)),
                     shape = AIRIShapes.sm,
                 ) {
-                    Column(Modifier.padding(9.dp).size(width = 120.dp, height = 70.dp)) {
+                    Column(Modifier.padding(9.dp).sizeIn(minWidth = 120.dp, minHeight = 70.dp)) {
                         Text(node.label, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 2)
                         node.description?.let { Text(it, color = AiriTheme.onSurfaceVariant, fontSize = 10.sp, maxLines = 2) }
                     }
@@ -235,6 +247,7 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
                 label = { Text(field.label + if (field.required) " *" else "") },
                 placeholder = field.placeholder?.let { { Text(it) } },
                 singleLine = true,
+                isError = submitted && field.required && values[field.id].orEmpty().isBlank(),
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -243,7 +256,12 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
             enter = fadeIn() + expandVertically(),
             exit = fadeOut() + shrinkVertically(),
         ) {
-            Text(stringResource(R.string.generative_ui_required_fields), color = Color(0xFFFFB4AB), fontSize = 12.sp)
+            Text(
+                stringResource(R.string.generative_ui_required_fields),
+                color = AiriTheme.error,
+                fontSize = 12.sp,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
         }
         Button(
             onClick = {

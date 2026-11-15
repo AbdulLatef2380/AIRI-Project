@@ -2472,13 +2472,15 @@ fun ChatMessageList(
                                 onDelete           = { onDeleteMessage(msg) }
                             )
                         } else {
-                            val artifactReferences = remember(msg.text, currentSessionId) {
-                                ArtifactReferenceResolver.resolve(
+                            val artifactResolution = remember(msg.text, currentSessionId) {
+                                ArtifactReferenceResolver.resolveDetailed(
                                     text = msg.text,
                                     projectId = currentSessionId,
                                     artifactManager = ServiceLocator.artifactManager,
                                 )
                             }
+                            val artifactReferences = artifactResolution.mapNotNull { it.artifact.takeIf { artifact -> it.isUsable && artifact != null } }
+                            val unresolvedArtifactReferences = artifactResolution.count { !it.isUsable }
                             AiBubble(
                                 text            = msg.outputPresentation.agentOutput,
                                 // GenUI actions must correlate to the durable message id;
@@ -2515,6 +2517,7 @@ fun ChatMessageList(
                                 onOpenRun       = onOpenRun,
                                 onInteractiveAction = onInteractiveAction,
                                 onPreviewArtifact = { artifactId -> onNavigate(AiriRoute.artifactPreview(artifactId)) },
+                                unresolvedArtifactReferenceCount = unresolvedArtifactReferences,
                             )
                         }
                     }
@@ -3056,6 +3059,7 @@ fun AiBubble(
     toolOutputs: List<AssistantToolOutput> = emptyList(),
     fileCards: List<AgentFileCard> = emptyList(),
     artifactReferences: List<com.airi.assistant.workspace.ArtifactManager.Artifact> = emptyList(),
+    unresolvedArtifactReferenceCount: Int = 0,
     agentTag: String? = null,
     isProPlan: Boolean = false,
     traceId: String? = null,
@@ -3303,6 +3307,7 @@ fun AiBubble(
                     ArtifactReferenceCards(
                         artifacts = artifactReferences,
                         onPreview = onPreviewArtifact,
+                        unresolvedReferenceCount = unresolvedArtifactReferenceCount,
                         modifier = Modifier.padding(top = 8.dp, start = 2.dp, end = 2.dp),
                     )
                 }

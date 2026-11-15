@@ -31,10 +31,21 @@ import java.util.Locale
 fun ArtifactReferenceCards(
     artifacts: List<ArtifactManager.Artifact>,
     onPreview: (String) -> Unit,
+    unresolvedReferenceCount: Int = 0,
     modifier: Modifier = Modifier,
 ) {
-    if (artifacts.isEmpty()) return
+    if (artifacts.isEmpty() && unresolvedReferenceCount == 0) return
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (unresolvedReferenceCount > 0) {
+            Text(
+                text = stringResource(R.string.artifact_load_failed),
+                color = AiriTheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = stringResource(R.string.artifact_load_failed) },
+            )
+        }
         artifacts.forEach { artifact ->
             val description = stringResource(
                 R.string.artifact_size_version,

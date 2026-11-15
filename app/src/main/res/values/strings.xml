@@ -2556,6 +2556,7 @@
     <string name="generative_ui_edge">%1$s → %2$s%3$s</string>
     <string name="generative_ui_edge_label_suffix"> · %1$s</string>
     <string name="generative_ui_required_fields">Complete the required fields before submitting.</string>
+    <string name="generative_ui_accessible_response">Interactive AIRI response</string>
     <string name="generative_ui_action_preview_title">Review action</string>
     <string name="generative_ui_action_preview_notice">This text will be placed in the composer. Nothing is sent until you press Send.</string>
     <string name="generative_ui_action_preview_use">Use in composer</string>
@@ -2784,6 +2785,7 @@
     <string name="paywall_purchase_success">Premium activated! Enjoy unlimited access.</string>
     <string name="artifact_load_failed">Unable to load this artifact.</string>
     <string name="artifact_preview_title">Preview — %1$s</string>
+    <string name="artifact_open">Open</string>
     <string name="referral_share_whatsapp">Share on WhatsApp</string>
     <string name="referral_share_telegram">Share on Telegram</string>
     <string name="referral_link_copied">Referral link copied</string>

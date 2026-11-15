@@ -2089,6 +2089,7 @@
     <string name="generative_ui_edge">%1$s 到 %2$s%3$s</string>
     <string name="generative_ui_edge_label_suffix"> · %1$s</string>
     <string name="generative_ui_required_fields">提交前请填写必填字段。</string>
+    <string name="generative_ui_accessible_response">AIRI 交互式回复</string>
     <string name="generative_ui_action_preview_title">检查操作</string>
     <string name="generative_ui_action_preview_notice">此文本会放入输入框。只有点击发送后才会发送。</string>
     <string name="generative_ui_action_preview_use">放入输入框</string>
@@ -2444,6 +2445,7 @@
     <string name="paywall_purchase_success">Premium 已启用，尽享无限访问。</string>
     <string name="artifact_load_failed">无法加载此产物。</string>
     <string name="artifact_preview_title">预览 — %1$s</string>
+    <string name="artifact_open">打开</string>
     <string name="referral_share_whatsapp">通过 WhatsApp 分享</string>
     <string name="referral_share_telegram">通过 Telegram 分享</string>
     <string name="referral_link_copied">推荐链接已复制</string>

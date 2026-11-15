@@ -2090,6 +2090,7 @@
     <string name="generative_ui_edge">%1$s a %2$s%3$s</string>
     <string name="generative_ui_edge_label_suffix"> · %1$s</string>
     <string name="generative_ui_required_fields">Completa los campos obligatorios antes de enviar.</string>
+    <string name="generative_ui_accessible_response">Respuesta interactiva de AIRI</string>
     <string name="generative_ui_action_preview_title">Revisar acción</string>
     <string name="generative_ui_action_preview_notice">Este texto se colocará en el redactor. No se enviará nada hasta que pulses Enviar.</string>
     <string name="generative_ui_action_preview_use">Usar en el redactor</string>
@@ -2461,6 +2462,7 @@
     <string name="paywall_purchase_success">Premium activado. Disfruta del acceso ilimitado.</string>
     <string name="artifact_load_failed">No se pudo cargar este artefacto.</string>
     <string name="artifact_preview_title">Vista previa — %1$s</string>
+    <string name="artifact_open">Abrir</string>
     <string name="referral_share_whatsapp">Compartir por WhatsApp</string>
     <string name="referral_share_telegram">Compartir por Telegram</string>
     <string name="referral_link_copied">Enlace de referido copiado</string>

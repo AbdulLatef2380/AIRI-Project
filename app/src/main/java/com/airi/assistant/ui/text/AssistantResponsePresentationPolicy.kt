@@ -41,25 +41,6 @@ enum class AssistantWorkKind {
     PROMPT_ENGINEERING,
 }
 
-data class AssistantConversationContext(
-    val latestUserText: String = "",
-    val messageCount: Int = 0,
-    val totalChars: Int = 0,
-    val hasAttachments: Boolean = false,
-    val hasToolOutputs: Boolean = false,
-    val hasRemoteSources: Boolean = false,
-    val hasSkillsOrConnectors: Boolean = false,
-    val hasFiles: Boolean = false,
-    val hasImages: Boolean = false,
-    val hasAudio: Boolean = false,
-    val hasVideo: Boolean = false,
-    val hasPresentation: Boolean = false,
-    val hasWebsite: Boolean = false,
-    val hasApplication: Boolean = false,
-    val hasGame: Boolean = false,
-    val sessionAgeHours: Int? = null,
-)
-
 data class AssistantResponsePresentation(
     val style: AssistantResponseStyle,
     val surface: AssistantResponseSurface,

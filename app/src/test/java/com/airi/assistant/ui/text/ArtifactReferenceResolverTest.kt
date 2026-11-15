@@ -1,6 +1,7 @@
 package com.airi.assistant.ui.text
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class ArtifactReferenceResolverTest {
@@ -24,6 +25,18 @@ class ArtifactReferenceResolverTest {
     fun capsReferencesToPreventUnboundedUiExpansion() {
         val text = (1..20).joinToString(" ") { "airi://artifact/id_$it" }
         assertEquals(8, ArtifactReferenceResolver.extractIds(text).size)
+    }
+
+    @Test
+    fun blankProjectScopeNeverProducesUsableReference() {
+        val result = ArtifactReferenceResolver.resolveDetailed(
+            text = "airi://artifact/owned",
+            projectId = "",
+            artifactManager = error("manager must not be queried for blank scope"),
+        )
+
+        assertEquals(ArtifactReferenceState.INVALID_SCOPE, result.single().state)
+        assertFalse(result.single().isUsable)
     }
 }
 ***

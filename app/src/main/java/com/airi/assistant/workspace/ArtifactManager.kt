@@ -204,6 +204,16 @@ class ArtifactManager(
     /** Share/download URI scoped by the app FileProvider. */
     fun downloadUri(id: String): Uri? {
         val artifact = artifacts[id] ?: return null
+        return downloadUriForArtifact(artifact)
+    }
+
+    /** Share/open URI at the same project ownership boundary as preview reads. */
+    fun downloadUriForProject(id: String, projectId: String): Uri? {
+        val artifact = getArtifactForProject(id, projectId) ?: return null
+        return downloadUriForArtifact(artifact)
+    }
+
+    private fun downloadUriForArtifact(artifact: Artifact): Uri? {
         val file = File(artifact.filePath)
         if (!file.isFile || !file.canonicalPath.startsWith(File(context.filesDir, "workspace/artifacts").canonicalPath + File.separator)) return null
         return runCatching { FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file) }.getOrNull()

@@ -1,6 +1,8 @@
 package com.airi.assistant.ui.screens
 
 import android.util.Log
+import android.content.Intent
+import android.widget.Toast
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -23,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.core.ServiceLocator
@@ -100,9 +103,15 @@ fun ArtifactPreviewScreen(
         } else {
             artifact = loadedArtifact
             artifactType = loadedArtifact.type.name
-            artifactContent = artifactManager.readContentForProject(artifactId, activeProjectId)
+            artifactContent = if (isTextPreviewType(loadedArtifact.type)) {
+                artifactManager.readContentForProject(artifactId, activeProjectId)
+            } else {
+                // Binary artifacts must not be decoded as UTF-8.
+                ""
+            }
             revisions = artifactManager.listVersions(artifactId)
-            loadFailed = artifactContent == null
+            loadFailed = artifactContent == null ||
+                (!isTextPreviewType(loadedArtifact.type) && artifactManager.downloadUriForProject(artifactId, activeProjectId) == null)
         }
     }
 
@@ -164,7 +173,11 @@ fun ArtifactPreviewScreen(
                                                 if (restored != null) {
                                                     artifact = restored
                                                     artifactType = restored.type.name
-                                                    artifactContent = artifactManager.readContentForProject(artifactId, activeProjectId)
+                                                    artifactContent = if (isTextPreviewType(restored.type)) {
+                                                        artifactManager.readContentForProject(artifactId, activeProjectId)
+                                                    } else {
+                                                        ""
+                                                    }
                                                     revisions = artifactManager.listVersions(artifactId)
                                                 }
                                             }
@@ -188,11 +201,44 @@ fun ArtifactPreviewScreen(
                 "HTML", "CODE_HTML", "WEBSITE" -> HtmlArtifactView(html = artifactContent.orEmpty())
                 "MARKDOWN", "PRESENTATION", "REPORT" -> MarkdownArtifactView(markdown = artifactContent.orEmpty())
                 "CODE", "CODE_KOTLIN", "CODE_PYTHON", "CODE_JS", "SHELL_SCRIPT" -> CodeArtifactView(code = artifactContent.orEmpty())
-                else -> UnsupportedArtifactView(type = artifactType)
+                else -> UnsupportedArtifactView(
+                    type = artifactType,
+                    uri = artifact?.let { artifactManager.downloadUriForProject(it.id, activeProjectId) },
+                    mimeType = artifact?.let(::artifactMimeType).orEmpty(),
+                )
             }
         }
     }
 }
+
+private fun isTextPreviewType(type: com.airi.assistant.workspace.ArtifactManager.ArtifactType): Boolean =
+    type in setOf(
+        com.airi.assistant.workspace.ArtifactManager.ArtifactType.MARKDOWN,
+        com.airi.assistant.workspace.ArtifactManager.ArtifactType.TEXT,
+        com.airi.assistant.workspace.ArtifactManager.ArtifactType.JSON,
+        com.airi.assistant.workspace.ArtifactManager.ArtifactType.CODE_KOTLIN,
+        com.airi.assistant.workspace.ArtifactManager.ArtifactType.CODE_PYTHON,
+        com.airi.assistant.workspace.ArtifactManager.ArtifactType.CODE_HTML,
+        com.airi.assistant.workspace.ArtifactManager.ArtifactType.CODE_JS,
+        com.airi.assistant.workspace.ArtifactManager.ArtifactType.SHELL_SCRIPT,
+        com.airi.assistant.workspace.ArtifactManager.ArtifactType.WEBSITE,
+        com.airi.assistant.workspace.ArtifactManager.ArtifactType.PRESENTATION,
+        com.airi.assistant.workspace.ArtifactManager.ArtifactType.REPORT,
+        com.airi.assistant.workspace.ArtifactManager.ArtifactType.DIAGRAM,
+    )
+
+private fun artifactMimeType(artifact: com.airi.assistant.workspace.ArtifactManager.Artifact): String = when (artifact.type) {
+    com.airi.assistant.workspace.ArtifactManager.ArtifactType.DOCX -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    com.airi.assistant.workspace.ArtifactManager.ArtifactType.XLSX -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    com.airi.assistant.workspace.ArtifactManager.ArtifactType.ODT -> "application/vnd.oasis.opendocument.text"
+    com.airi.assistant.workspace.ArtifactManager.ArtifactType.ODS -> "application/vnd.oasis.opendocument.spreadsheet"
+    com.airi.assistant.workspace.ArtifactManager.ArtifactType.ODP -> "application/vnd.oasis.opendocument.presentation"
+    com.airi.assistant.workspace.ArtifactManager.ArtifactType.EPUB -> "application/epub+zip"
+    com.airi.assistant.workspace.ArtifactManager.ArtifactType.IMAGE -> "image/*"
+    com.airi.assistant.workspace.ArtifactManager.ArtifactType.AUDIO -> "audio/*"
+    else -> "application/octet-stream"
+}
+
 private const val HTML_TAG = "AIRI_ArtifactPreview"
 
 /**
@@ -359,13 +405,31 @@ private fun CodeArtifactView(code: String) {
     }
 }
 @Composable
-private fun UnsupportedArtifactView(type: String) {
+private fun UnsupportedArtifactView(type: String, uri: android.net.Uri?, mimeType: String) {
+    val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            text      = "Preview not available for type: $type",
-            color     = AiriTheme.onSurfaceVariant,
-            fontSize  = 14.sp,
-            fontWeight = FontWeight.Medium
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(text = "Preview not available for type: $type", color = AiriTheme.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            if (uri != null) {
+                Button(onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        data = uri
+                        this.type = mimeType
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    runCatching { context.startActivity(intent) }
+                        .onFailure { Toast.makeText(context, R.string.artifact_load_failed, Toast.LENGTH_SHORT).show() }
+                }) { Text(stringResource(R.string.artifact_open)) }
+                Button(onClick = {
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = mimeType
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    runCatching { context.startActivity(Intent.createChooser(intent, null)) }
+                        .onFailure { Toast.makeText(context, R.string.artifact_load_failed, Toast.LENGTH_SHORT).show() }
+                }) { Text(stringResource(R.string.share)) }
+            }
+        }
     }
 }

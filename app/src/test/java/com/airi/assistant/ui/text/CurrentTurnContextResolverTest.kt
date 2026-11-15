@@ -34,5 +34,22 @@ class CurrentTurnContextResolverTest {
         assertFalse(context.hasImages)
         assertEquals("", context.latestUserText)
     }
+
+    @Test
+    fun exposesOnlySelectedTurnIdsWhileRetainingHistoryMetrics() {
+        val context = CurrentTurnContextResolver.resolve(
+            listOf(
+                ResponseTurnMessageEvidence(1, true, "old", hasImages = true),
+                ResponseTurnMessageEvidence(2, false, "old answer"),
+                ResponseTurnMessageEvidence(3, true, "current"),
+                ResponseTurnMessageEvidence(4, false, "answer"),
+            ),
+            assistantMessageId = 4,
+        )
+
+        assertEquals(listOf(3L, 4L), context.currentTurnMessageIds)
+        assertEquals(4, context.messageCount)
+        assertFalse(context.hasImages)
+    }
 }
 ***

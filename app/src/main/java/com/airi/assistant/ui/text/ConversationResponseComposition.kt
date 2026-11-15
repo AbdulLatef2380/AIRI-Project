@@ -90,9 +90,11 @@ object ConversationResponseCompositionPlanner {
         val longRunning = profile.messageCount >= 20 ||
             profile.totalChars >= 12_000 ||
             profile.sessionAgeHours?.let { it >= 4 } == true
-        val hasComparison = containsAny(combined, "compare", "comparison", "versus", " vs ", "مقارنة", "مقابل", "الفرق بين", "أيهما")
+        val hasComparison = containsAny(combined, "compare", "comparison", "versus", " vs ", "مقارنة", "قارن", "مقابل", "الفرق بين", "أيهما")
         val hasDocument = containsAny(combined, "document", "report", "pdf", "docx", "markdown", "ملف", "مستند", "وثيقة", "تقرير")
-        val hasCode = fencedCode(profile.answerText) || containsAny(request, "code", "program", "script", "كود", "برمج", "شفرة")
+        val hasNativeGenerativeUi = answer.contains("```airi-ui")
+        val hasCode = (fencedCode(profile.answerText) && !hasNativeGenerativeUi) ||
+            containsAny(request, "code", "program", "script", "كود", "برمج", "شفرة")
         val hasEvaluation = containsAny(combined, "evaluate", "evaluation", "review", "rating", "score", "pros", "cons", "تقييم", "مراجعة", "إيجابيات", "سلبيات", "المخاطر")
         val hasMap = containsAny(combined, "map", "route", "directions", "coordinates", "location", "خريطة", "المسار", "إحداثيات", "الموقع")
         val hasData = containsAny(combined, "chart", "graph", "metrics", "statistics", "trend", "bar_chart", "diagram", "رسم بياني", "مخطط", "إحصاء", "مؤشرات", "اتجاه")
@@ -104,7 +106,7 @@ object ConversationResponseCompositionPlanner {
             line.contains("→") || line.contains("⇒") || line.contains("∑") ||
                 (line.contains("=") && line.any(Char::isDigit))
         } >= 2
-        val hasInteractive = answer.contains("```airi-ui") || hasData || hasMap || hasComparison
+        val hasInteractive = hasNativeGenerativeUi || hasData || hasMap || hasComparison
         val lane = when {
             evidence.hasImages || evidence.hasAudio || evidence.hasVideo || requestedMedia -> ResponseLane.MEDIA
             evidence.hasPresentation || evidence.hasWebsite || evidence.hasApplication || evidence.hasGame || requestedWorkspace -> ResponseLane.WORKSPACE

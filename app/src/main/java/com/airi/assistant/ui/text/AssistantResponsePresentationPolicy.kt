@@ -82,7 +82,7 @@ object AssistantResponsePresentationPolicy {
     ): AssistantResponsePresentation {
         val analysis = AssistantContentClassifier.analyse(text, isStreaming)
         val normalized = text.lowercase()
-        val hasComparison = containsAny(normalized, "comparison", "compare", "versus", " vs ", "مقارنة", "مقابل", "الفرق بين", "أيهما")
+        val hasComparison = containsAny(normalized, "comparison", "compare", "versus", " vs ", "مقارنة", "قارن", "مقابل", "الفرق بين", "أيهما")
         val hasDocument = containsAny(normalized, "document", "file", "report", "pdf", "docx", "markdown", "ملف", "مستند", "وثيقة", "تقرير")
         val hasEvaluation = containsAny(normalized, "evaluate", "evaluation", "review", "rating", "score", "pros", "cons", "تقييم", "مراجعة", "إيجابيات", "سلبيات", "المخاطر")
         val hasMap = containsAny(normalized, "map", "route", "directions", "coordinates", "location", "خريطة", "المسار", "إحداثيات", "الموقع")
@@ -131,6 +131,7 @@ object AssistantResponsePresentationPolicy {
         }
         val surface = when {
             hasMap -> AssistantResponseSurface.MAP_CARD
+            hasGenerativeBlock -> AssistantResponseSurface.COMPOSED
             workKind in setOf(AssistantWorkKind.WEBSITE_CREATION, AssistantWorkKind.APP_CREATION, AssistantWorkKind.GAME_CREATION) -> AssistantResponseSurface.COMPOSED
             workKind == AssistantWorkKind.PRESENTATION_CREATION || workKind == AssistantWorkKind.IMAGE_CREATION -> AssistantResponseSurface.DOCUMENT_CARD
             hasComparison || analysis.containsTable -> AssistantResponseSurface.TABLE
@@ -138,7 +139,6 @@ object AssistantResponsePresentationPolicy {
             hasCode -> AssistantResponseSurface.CODE_VIEWER
             hasEvaluation -> AssistantResponseSurface.SCORECARD
             hasData -> AssistantResponseSurface.CHART_OR_DIAGRAM
-            hasGenerativeBlock -> AssistantResponseSurface.COMPOSED
             analysis.kind == AssistantContentKind.RICH_CONTENT -> AssistantResponseSurface.COMPOSED
             analysis.kind == AssistantContentKind.MARKDOWN -> AssistantResponseSurface.MARKDOWN
             else -> AssistantResponseSurface.PROSE

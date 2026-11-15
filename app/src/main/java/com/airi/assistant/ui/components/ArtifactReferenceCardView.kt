@@ -37,13 +37,14 @@ fun ArtifactReferenceCards(
     if (artifacts.isEmpty() && unresolvedReferenceCount == 0) return
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (unresolvedReferenceCount > 0) {
+            val loadFailedDescription = stringResource(R.string.artifact_load_failed)
             Text(
-                text = stringResource(R.string.artifact_load_failed),
+                text = loadFailedDescription,
                 color = AiriTheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .semantics { contentDescription = stringResource(R.string.artifact_load_failed) },
+                    .semantics { contentDescription = loadFailedDescription },
             )
         }
         artifacts.forEach { artifact ->

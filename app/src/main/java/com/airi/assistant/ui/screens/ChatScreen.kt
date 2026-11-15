@@ -1217,6 +1217,7 @@ fun ChatScreen(
                 messages      = filteredChatMessages,
                 streamingText = if (chatSearchQuery.isBlank()) visibleStreamingText else "",
                 isGenerating  = generationBelongsToCurrentSession,
+                currentSessionId = currentSessionId,
                 generationStoppedNotice = generationStoppedNotice,
                 // Keep the entitlement as a stable logical value; each child
                 // resolves the visible badge through the active locale.
@@ -2202,6 +2203,7 @@ fun ChatMessageList(
     messages: List<ChatMessage>,
     streamingText: String,
     isGenerating: Boolean,
+    currentSessionId: String = "",
     generationStoppedNotice: Boolean = false,
     isProPlan: Boolean = false,
     executionError: ExecutionErrorProjection? = null,
@@ -2228,6 +2230,7 @@ fun ChatMessageList(
     onExportMarkdown: (String) -> Unit = {},
     onFeedback: (uid: String, liked: Boolean) -> Unit = { _, _ -> },
     onOpenRun: ((String) -> Unit)? = null,
+    onNavigate: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()

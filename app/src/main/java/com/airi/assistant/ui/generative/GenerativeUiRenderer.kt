@@ -142,6 +142,9 @@ private fun BarChartBlock(block: GenerativeUiBlock.BarChart) {
         else -> 0f
     }
     var selectedIndex by remember(block.id) { mutableIntStateOf(-1) }
+    val axisColor = AiriTheme.outline.copy(alpha = 0.65f)
+    val negativeBarColor = AiriTheme.error
+    val positiveBarColor = AiriTheme.primary
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
         block.labels.forEachIndexed { index, label ->
@@ -169,14 +172,14 @@ private fun BarChartBlock(block: GenerativeUiBlock.BarChart) {
                     val width = kotlin.math.abs(valuePositionPx - zeroPosition)
                     if (minValue < 0f && maxValue > 0f) {
                         drawLine(
-                            color = AiriTheme.outline.copy(alpha = 0.65f),
+                            color = axisColor,
                             start = Offset(zeroPosition, 1f),
                             end = Offset(zeroPosition, size.height - 1f),
                             strokeWidth = 1f,
                         )
                     }
                     drawRoundRect(
-                        color = if (value < 0f) AiriTheme.error else AiriTheme.primary,
+                        color = if (value < 0f) negativeBarColor else positiveBarColor,
                         topLeft = Offset(left, 3f),
                         size = androidx.compose.ui.geometry.Size(width.coerceAtLeast(2f), size.height - 6f),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),

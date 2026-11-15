@@ -422,7 +422,7 @@ private fun UnsupportedArtifactView(type: String, uri: android.net.Uri?, mimeTyp
                 }) { Text(stringResource(R.string.artifact_open)) }
                 Button(onClick = {
                     val intent = Intent(Intent.ACTION_SEND).apply {
-                        type = mimeType
+                        this.type = mimeType
                         putExtra(Intent.EXTRA_STREAM, uri)
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }

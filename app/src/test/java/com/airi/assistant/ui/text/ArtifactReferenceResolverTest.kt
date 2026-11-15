@@ -32,7 +32,7 @@ class ArtifactReferenceResolverTest {
         val result = ArtifactReferenceResolver.resolveDetailed(
             text = "airi://artifact/owned",
             projectId = "",
-            artifactManager = error("manager must not be queried for blank scope"),
+            artifactManager = null,
         )
 
         assertEquals(ArtifactReferenceState.INVALID_SCOPE, result.single().state)

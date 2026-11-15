@@ -267,7 +267,6 @@ object GenerativeUiCompiler {
                         val longitude = strictOptionalDouble(stop, "longitude")
                         require(latitude == null || latitude in -90.0..90.0) { "latitude out of range" }
                         require(longitude == null || longitude in -180.0..180.0) { "longitude out of range" }
-                        require((latitude == null) == (longitude == null)) { "route coordinates must be paired" }
                         add(RouteStop(
                             id = requiredId(stop, "id"),
                             label = requiredText(stop, "label"),

@@ -17,7 +17,11 @@ jobs:
           java-version: 17
 
       - name: Run Lint
-        run: ./gradlew lint
+        run: |
+          ./gradlew --no-daemon --max-workers=1 \
+            '-Dorg.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=768m -XX:+UseSerialGC' \
+            '-Dkotlin.daemon.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m' \
+            lint --stacktrace
 
       - name: Run core verification
         run: python3 tools/verify_core_changes.py

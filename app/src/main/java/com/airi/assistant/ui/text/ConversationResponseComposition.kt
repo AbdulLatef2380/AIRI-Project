@@ -143,7 +143,7 @@ object ConversationResponseCompositionPlanner {
             ResponseLane.DATA -> { add(ResponseSectionKind.EVIDENCE); add(ResponseSectionKind.CHART) }
             ResponseLane.MAP -> add(ResponseSectionKind.MAP)
             ResponseLane.DOCUMENT -> { add(ResponseSectionKind.ANSWER); if (hasVerifiedDelivery) add(ResponseSectionKind.ARTIFACTS) }
-            ResponseLane.ARTIFACT -> if (hasVerifiedDelivery) add(ResponseSectionKind.ARTIFACTS)
+            ResponseLane.ARTIFACT -> if (hasVerifiedDelivery || evidence.hasFiles) add(ResponseSectionKind.ARTIFACTS)
             ResponseLane.MEDIA -> add(ResponseSectionKind.MEDIA)
             ResponseLane.WORKSPACE -> { if (hasVerifiedDelivery) add(ResponseSectionKind.ARTIFACTS); add(ResponseSectionKind.MEDIA); add(ResponseSectionKind.ACTIONS) }
             ResponseLane.EVALUATION -> { add(ResponseSectionKind.EVIDENCE); add(ResponseSectionKind.TABLE); add(ResponseSectionKind.NEXT_STEP) }

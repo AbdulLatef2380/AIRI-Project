@@ -82,6 +82,7 @@ object AgentRequestPlanner {
                 understanding.taskType == StructuredTaskUnderstanding.TaskType.CODE_ANALYSIS ||
                 understanding.taskType == StructuredTaskUnderstanding.TaskType.CODE_EXECUTION ||
                 understanding.taskType == StructuredTaskUnderstanding.TaskType.FILE_CREATION -> RequestPlan.Kind.CODE_TASK
+            requestedSkillToolNames.isNotEmpty() -> RequestPlan.Kind.ACTION
             capabilities.isNotEmpty() -> RequestPlan.Kind.ACTION
             else -> RequestPlan.Kind.CHAT
         }

@@ -27,11 +27,12 @@ object ArtifactReferenceResolver {
     fun resolveDetailed(
         text: String,
         projectId: String,
-        artifactManager: ArtifactManager,
+        artifactManager: ArtifactManager?,
     ): List<ArtifactReferenceResolution> {
         if (projectId.isBlank()) {
             return extractIds(text).map { ArtifactReferenceResolution(it, ArtifactReferenceState.INVALID_SCOPE) }
         }
+        requireNotNull(artifactManager) { "artifactManager is required for a non-blank project scope" }
         return extractIds(text).map { id ->
             val artifact = artifactManager.getArtifactForProject(id, projectId)
             ArtifactReferenceResolution(
@@ -46,7 +47,7 @@ object ArtifactReferenceResolver {
     fun resolve(
         text: String,
         projectId: String,
-        artifactManager: ArtifactManager,
+        artifactManager: ArtifactManager?,
     ): List<ArtifactManager.Artifact> = resolveDetailed(text, projectId, artifactManager)
         .mapNotNull { it.artifact.takeIf { artifact -> it.isUsable && artifact != null } }
 }

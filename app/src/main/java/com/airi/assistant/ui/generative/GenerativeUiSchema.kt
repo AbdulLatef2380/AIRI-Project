@@ -117,9 +117,9 @@ object GenerativeUiCompiler {
         val match = fenced.find(text) ?: return null
         val raw = match.groupValues.getOrNull(1)?.trim().orEmpty()
         if (raw.isBlank() || raw.length > MAX_JSON_CHARS) return null
-        val document = runCatching {
-            JSONObject(raw).also { validateDepth(it, 0) }
-        }.mapCatching(::parse).getOrNull() ?: return null
+        val document = runCatching { JSONObject(raw) }
+            .mapCatching { json -> parse(json).also { validateDepth(json, 0) } }
+            .getOrNull() ?: return null
         val surrounding = text.removeRange(match.range).trim()
         return CompiledGenerativeUi(document, surrounding)
     }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -30,8 +31,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
@@ -54,7 +58,9 @@ fun GenerativeUiRenderer(
         colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant.copy(alpha = 0.72f)),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .padding(12.dp)
+                .semantics { contentDescription = document.title ?: "AIRI interactive response" },
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             document.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 17.sp) }
@@ -126,6 +132,7 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
     var selectedNodeId by remember(block.id) { mutableStateOf<String?>(null) }
     val selected = block.nodes.firstOrNull { it.id == selectedNodeId }
     val connected = block.edges.filter { it.from == selectedNodeId || it.to == selectedNodeId }
+    val arrow = if (LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl) "←" else "→"
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
         Row(
@@ -135,7 +142,12 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
         ) {
             block.nodes.forEachIndexed { index, node ->
                 Card(
-                    modifier = Modifier.clickable { selectedNodeId = node.id },
+                    modifier = Modifier
+                        .clickable { selectedNodeId = node.id }
+                        .semantics {
+                            contentDescription = node.description?.let { "${node.label}: $it" } ?: node.label
+                            role = Role.Button
+                        },
                     colors = CardDefaults.cardColors(containerColor = if (selectedNodeId == node.id) Color(0xFF34276A) else AiriTheme.surface.copy(alpha = 0.85f)),
                     shape = AIRIShapes.sm,
                 ) {
@@ -144,7 +156,7 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
                         node.description?.let { Text(it, color = AiriTheme.onSurfaceVariant, fontSize = 10.sp, maxLines = 2) }
                     }
                 }
-                if (index < block.nodes.lastIndex) Text("→", color = AiriTheme.onSurfaceVariant, fontSize = 20.sp)
+                if (index < block.nodes.lastIndex) Text(arrow, color = AiriTheme.onSurfaceVariant, fontSize = 20.sp)
             }
         }
         selected?.let { node ->
@@ -251,7 +263,14 @@ private fun TableBlock(block: GenerativeUiBlock.Table) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
                 block.headers.forEach { header ->
                     Surface(color = AiriTheme.surfaceVariant, shape = AIRIShapes.sm) {
-                        Text(header, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, modifier = Modifier.padding(9.dp).size(width = 118.dp, height = 24.dp))
+                        Text(
+                            header,
+                            color = AiriTheme.onBackground,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp,
+                            softWrap = true,
+                            modifier = Modifier.padding(9.dp).widthIn(min = 118.dp),
+                        )
                     }
                 }
             }
@@ -259,7 +278,13 @@ private fun TableBlock(block: GenerativeUiBlock.Table) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
                     row.forEach { cell ->
                         Surface(color = AiriTheme.surface.copy(alpha = 0.8f), shape = AIRIShapes.sm) {
-                            Text(cell, color = AiriTheme.onSurface, fontSize = 12.sp, modifier = Modifier.padding(9.dp).size(width = 118.dp, height = 30.dp))
+                            Text(
+                                cell,
+                                color = AiriTheme.onSurface,
+                                fontSize = 12.sp,
+                                softWrap = true,
+                                modifier = Modifier.padding(9.dp).widthIn(min = 118.dp),
+                            )
                         }
                     }
                 }

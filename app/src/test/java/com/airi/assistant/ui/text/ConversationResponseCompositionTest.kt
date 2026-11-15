@@ -35,6 +35,18 @@ class ConversationResponseCompositionTest {
     }
 
     @Test
+    fun comparisonTableDoesNotEnableGenerativeUiWithoutExplicitNativeBlock() {
+        val plan = ConversationResponseCompositionPlanner.plan(
+            ResponseRequestProfile(
+                userText = "قارن بين الخيارين",
+                answerText = "| الخيار | النتيجة |\n|---|---|\n| A | أفضل |",
+            ),
+        )
+        assertEquals(ResponseLane.COMPARISON, plan.lane)
+        assertFalse(plan.allowGenerativeUi)
+    }
+
+    @Test
     fun fileAndAttachmentWorkKeepsArtifactAndAttachmentSections() {
         val plan = ConversationResponseCompositionPlanner.plan(
             ResponseRequestProfile(

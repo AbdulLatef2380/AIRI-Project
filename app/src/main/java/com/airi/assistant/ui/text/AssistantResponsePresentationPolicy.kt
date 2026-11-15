@@ -148,13 +148,7 @@ object AssistantResponsePresentationPolicy {
             surface = surface,
             direction = analysis.direction,
             emphasizeKeyPoints = style != AssistantResponseStyle.PLAIN_TEXT || longRunning,
-            supportsGenerativeUi = hasGenerativeBlock || style in setOf(
-                AssistantResponseStyle.COMPARISON,
-                AssistantResponseStyle.EVALUATION,
-                AssistantResponseStyle.DATA_VISUAL,
-                AssistantResponseStyle.MAP_OR_ROUTE,
-                AssistantResponseStyle.EXPLANATION,
-            ),
+            supportsGenerativeUi = hasGenerativeBlock,
             supportsAttachments = context.hasAttachments || style == AssistantResponseStyle.DOCUMENT ||
                 style == AssistantResponseStyle.CODE || workKind != AssistantWorkKind.GENERAL,
             workKind = workKind,

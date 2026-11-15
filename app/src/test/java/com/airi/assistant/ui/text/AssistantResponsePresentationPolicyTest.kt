@@ -20,6 +20,7 @@ class AssistantResponsePresentationPolicyTest {
         assertEquals(AssistantResponseStyle.COMPARISON, plan.style)
         assertEquals(AssistantResponseSurface.TABLE, plan.surface)
         assertTrue(plan.emphasizeKeyPoints)
+        assertFalse(plan.supportsGenerativeUi)
     }
 
     @Test

@@ -134,7 +134,7 @@ object ConversationResponseCompositionPlanner {
             preserveInteractiveState = hasInteractive || evidence.hasAttachments || longRunning,
             discloseExecution = evidence.hasToolResults || evidence.hasRemoteSources || evidence.hasSkillsOrConnectors,
             discloseUncertainty = evidence.hasRemoteSources || lane == ResponseLane.MAP || lane == ResponseLane.EVALUATION,
-            allowGenerativeUi = !profile.isStreaming && hasInteractive && lane !in setOf(ResponseLane.CODE, ResponseLane.SYMBOLIC),
+            allowGenerativeUi = !profile.isStreaming && hasNativeGenerativeUi && lane !in setOf(ResponseLane.CODE, ResponseLane.SYMBOLIC),
             isLongRunning = longRunning,
         )
     }

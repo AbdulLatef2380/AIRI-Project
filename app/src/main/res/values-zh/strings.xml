@@ -2089,6 +2089,10 @@
     <string name="generative_ui_edge">%1$s 到 %2$s%3$s</string>
     <string name="generative_ui_edge_label_suffix"> · %1$s</string>
     <string name="generative_ui_required_fields">提交前请填写必填字段。</string>
+    <string name="generative_ui_action_preview_title">检查操作</string>
+    <string name="generative_ui_action_preview_notice">此文本会放入输入框。只有点击发送后才会发送。</string>
+    <string name="generative_ui_action_preview_use">放入输入框</string>
+    <string name="generative_ui_action_preview_cancel">取消</string>
     <string name="artifact_save_failed">无法保存内容</string>
     <string name="artifact_saved">内容已保存</string>
     <string name="artifact_share">分享内容</string>

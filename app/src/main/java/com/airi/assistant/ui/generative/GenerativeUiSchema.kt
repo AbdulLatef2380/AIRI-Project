@@ -119,9 +119,32 @@ object GenerativeUiCompiler {
         return CompiledGenerativeUi(document, surrounding)
     }
 
+    /** Rebuild an action from its assistant source; callback data is untrusted. */
+    fun rebuildAction(sourceText: String, requested: GenerativeUiAction): GenerativeUiAction? {
+        val document = compile(sourceText)?.document ?: return null
+        document.blocks.forEach { block ->
+            when (block) {
+                is GenerativeUiBlock.Form -> if (block.actionId == requested.id) {
+                    val allowed = block.fields.map { it.id }.toSet()
+                    if (requested.fields.keys.any { it !in allowed }) return null
+                    if (block.fields.any { it.required && requested.fields[it.id].orEmpty().isBlank() }) return null
+                    if (requested.fields.values.any { it.length > MAX_ACTION_FIELD_CHARS }) return null
+                    return GenerativeUiAction(block.actionId, requested.fields, requested.sourceExecutionId, requested.sourceMessageId)
+                }
+                is GenerativeUiBlock.Actions -> block.options.firstOrNull { it.id == requested.id }?.let { option ->
+                    return GenerativeUiAction(option.id, mapOf("prompt" to option.prompt), requested.sourceExecutionId, requested.sourceMessageId)
+                }
+                else -> Unit
+            }
+        }
+        return null
+    }
+
     private fun parse(root: JSONObject): GenerativeUiDocument {
-        require(root.optInt("version", 1) == 1) { "unsupported ui schema" }
-        val blocksJson = root.optJSONArray("blocks") ?: JSONArray()
+        requireOnlyKeys(root, setOf("version", "title", "description", "blocks"))
+        require(root.has("version") && root.get("version") is Number) { "version must be numeric" }
+        require(root.getInt("version") == 1) { "unsupported ui schema" }
+        val blocksJson = root.get("blocks") as? JSONArray ?: error("blocks must be an array")
         require(blocksJson.length() in 1..MAX_BLOCKS) { "invalid block count" }
         val blocks = buildList {
             for (index in 0 until blocksJson.length()) {
@@ -142,36 +165,44 @@ object GenerativeUiCompiler {
         }
         return GenerativeUiDocument(
             version = 1,
-            title = safeText(root.optString("title", null)),
-            description = safeText(root.optString("description", null)),
+            title = optionalText(root, "title"),
+            description = optionalText(root, "description"),
             blocks = blocks,
         )
     }
 
     private fun parseBlock(json: JSONObject, index: Int): GenerativeUiBlock {
-        val id = safeId(json.optString("id", "block-$index"))
-        val type = json.optString("type").lowercase()
-        val title = safeText(json.optString("title", null))
+        require(json.get("type") is String) { "block type must be text" }
+        require(json.get("id") is String) { "block id must be text" }
+        val id = safeId(json.getString("id"))
+        val type = json.getString("type").lowercase()
+        val title = optionalText(json, "title")
         return when (type) {
-            "stat" -> GenerativeUiBlock.Stat(
-                id = id,
-                title = title,
-                value = requiredText(json, "value"),
-                supportingText = safeText(json.optString("supportingText", null)),
-            )
+            "stat" -> {
+                requireOnlyKeys(json, setOf("type", "id", "title", "value", "supportingText"))
+                GenerativeUiBlock.Stat(
+                    id = id,
+                    title = title,
+                    value = requiredText(json, "value"),
+                    supportingText = optionalText(json, "supportingText"),
+                )
+            }
             "bar_chart" -> {
+                requireOnlyKeys(json, setOf("type", "id", "title", "labels", "values", "unit"))
                 val labels = json.optJSONArray("labels").boundedStrings()
                 val values = json.optJSONArray("values").boundedNumbers()
                 require(labels.isNotEmpty() && labels.size == values.size) { "chart labels/values mismatch" }
-                GenerativeUiBlock.BarChart(id, title, labels, values, safeText(json.optString("unit", null)))
+                GenerativeUiBlock.BarChart(id, title, labels, values, optionalText(json, "unit"))
             }
             "diagram" -> {
+                requireOnlyKeys(json, setOf("type", "id", "title", "nodes", "edges"))
                 val nodesJson = json.optJSONArray("nodes") ?: JSONArray()
                 require(nodesJson.length() in 1..MAX_ITEMS) { "invalid diagram nodes" }
                 val nodes = buildList {
                     for (i in 0 until nodesJson.length()) {
                         val node = nodesJson.getJSONObject(i)
-                        add(DiagramNode(safeId(node.optString("id", "node-$i")), requiredText(node, "label"), safeText(node.optString("description", null))))
+                        requireOnlyKeys(node, setOf("id", "label", "description"))
+                        add(DiagramNode(requiredId(node, "id"), requiredText(node, "label"), optionalText(node, "description")))
                     }
                 }
                 val nodeIds = nodes.map { it.id }.toSet()
@@ -180,33 +211,38 @@ object GenerativeUiCompiler {
                 val edges = buildList {
                     for (i in 0 until edgesJson.length()) {
                         val edge = edgesJson.getJSONObject(i)
-                        val from = safeId(edge.optString("from"))
-                        val to = safeId(edge.optString("to"))
+                        requireOnlyKeys(edge, setOf("from", "to", "label"))
+                        val from = requiredId(edge, "from")
+                        val to = requiredId(edge, "to")
                         require(from in nodeIds && to in nodeIds) { "edge references unknown node" }
-                        add(DiagramEdge(from, to, safeText(edge.optString("label", null))))
+                        add(DiagramEdge(from, to, optionalText(edge, "label")))
                     }
                 }
                 GenerativeUiBlock.Diagram(id, title, nodes, edges)
             }
             "form" -> {
+                requireOnlyKeys(json, setOf("type", "id", "title", "fields", "submitLabel", "actionId"))
                 val fieldsJson = json.optJSONArray("fields") ?: JSONArray()
                 require(fieldsJson.length() in 1..8) { "invalid form fields" }
                 val fields = buildList {
                     for (i in 0 until fieldsJson.length()) {
                         val field = fieldsJson.getJSONObject(i)
-                        add(FormField(safeId(field.optString("id", "field-$i")), requiredText(field, "label"), safeText(field.optString("placeholder", null)), field.optBoolean("required", false)))
+                        requireOnlyKeys(field, setOf("id", "label", "placeholder", "required"))
+                        add(FormField(requiredId(field, "id"), requiredText(field, "label"), optionalText(field, "placeholder"), optionalBoolean(field, "required") ?: false))
                     }
                 }
-                GenerativeUiBlock.Form(id, title, fields, safeText(json.optString("submitLabel", "Submit")) ?: "Submit", safeId(json.optString("actionId", id)))
+                GenerativeUiBlock.Form(id, title, fields, optionalText(json, "submitLabel") ?: "Submit", safeId(optionalText(json, "actionId") ?: id))
             }
             "actions" -> {
+                requireOnlyKeys(json, setOf("type", "id", "title", "options"))
                 val optionsJson = json.optJSONArray("options") ?: JSONArray()
                 require(optionsJson.length() in 1..8) { "invalid action count" }
                 val options = buildList {
                     for (i in 0 until optionsJson.length()) {
                         val option = optionsJson.getJSONObject(i)
+                        requireOnlyKeys(option, setOf("id", "label", "prompt"))
                         add(ActionOption(
-                            id = safeId(option.optString("id", "action-$i")),
+                            id = requiredId(option, "id"),
                             label = requiredText(option, "label"),
                             prompt = requiredText(option, "prompt"),
                         ))
@@ -215,16 +251,20 @@ object GenerativeUiCompiler {
                 GenerativeUiBlock.Actions(id, title, options)
             }
             "route" -> {
+                requireOnlyKeys(json, setOf("type", "id", "title", "stops"))
                 val stopsJson = json.optJSONArray("stops") ?: JSONArray()
                 require(stopsJson.length() in 2..20) { "invalid route stops" }
                 val stops = buildList {
                     for (i in 0 until stopsJson.length()) {
                         val stop = stopsJson.getJSONObject(i)
-                        val latitude = stop.optDouble("latitude").takeUnless { it.isNaN() }?.coerceIn(-90.0, 90.0)
-                        val longitude = stop.optDouble("longitude").takeUnless { it.isNaN() }?.coerceIn(-180.0, 180.0)
+                        requireOnlyKeys(stop, setOf("id", "label", "location", "latitude", "longitude"))
+                        val latitude = strictOptionalDouble(stop, "latitude")
+                        val longitude = strictOptionalDouble(stop, "longitude")
+                        require(latitude == null || latitude in -90.0..90.0) { "latitude out of range" }
+                        require(longitude == null || longitude in -180.0..180.0) { "longitude out of range" }
                         require((latitude == null) == (longitude == null)) { "route coordinates must be paired" }
                         add(RouteStop(
-                            id = safeId(stop.optString("id", "stop-$i")),
+                            id = requiredId(stop, "id"),
                             label = requiredText(stop, "label"),
                             location = requiredText(stop, "location"),
                             latitude = latitude,
@@ -235,6 +275,7 @@ object GenerativeUiCompiler {
                 GenerativeUiBlock.Route(id, title, stops)
             }
             "table" -> {
+                requireOnlyKeys(json, setOf("type", "id", "title", "headers", "rows"))
                 val headers = json.optJSONArray("headers").boundedStrings()
                 require(headers.size in 2..6) { "table needs two to six headers" }
                 val rowsJson = json.optJSONArray("rows") ?: JSONArray()
@@ -249,16 +290,18 @@ object GenerativeUiCompiler {
                 GenerativeUiBlock.Table(id, title, headers, rows)
             }
             "checklist" -> {
+                requireOnlyKeys(json, setOf("type", "id", "title", "items"))
                 val itemsJson = json.optJSONArray("items") ?: JSONArray()
                 require(itemsJson.length() in 1..20) { "invalid checklist items" }
                 val items = buildList {
                     for (i in 0 until itemsJson.length()) {
                         val item = itemsJson.getJSONObject(i)
+                        requireOnlyKeys(item, setOf("id", "label", "detail", "checked"))
                         add(ChecklistItem(
-                            id = safeId(item.optString("id", "item-$i")),
+                            id = requiredId(item, "id"),
                             label = requiredText(item, "label"),
-                            detail = safeText(item.optString("detail", null)),
-                            initiallyChecked = item.optBoolean("checked", false),
+                            detail = optionalText(item, "detail"),
+                            initiallyChecked = optionalBoolean(item, "checked") ?: false,
                         ))
                     }
                 }
@@ -268,9 +311,34 @@ object GenerativeUiCompiler {
         }
     }
 
-    private fun requiredText(json: JSONObject, key: String): String = safeText(json.optString(key, null)) ?: error("missing $key")
+    private fun requiredText(json: JSONObject, key: String): String {
+        require(json.has(key) && json.get(key) is String) { "$key must be text" }
+        return safeText(json.getString(key)) ?: error("missing $key")
+    }
+    private fun requiredId(json: JSONObject, key: String): String = safeId(requiredText(json, key))
+    private fun optionalText(json: JSONObject, key: String): String? {
+        if (!json.has(key) || json.isNull(key)) return null
+        require(json.get(key) is String) { "$key must be text" }
+        return safeText(json.getString(key))
+    }
+    private fun optionalBoolean(json: JSONObject, key: String): Boolean? {
+        if (!json.has(key) || json.isNull(key)) return null
+        require(json.get(key) is Boolean) { "$key must be boolean" }
+        return json.getBoolean(key)
+    }
     private fun safeText(value: String?): String? = value?.trim()?.takeIf { it.isNotEmpty() }?.take(MAX_TEXT)
     private fun safeId(value: String): String = value.trim().take(48).takeIf { it.matches(Regex("[A-Za-z0-9_-]+")) } ?: error("invalid id")
+
+    private fun requireOnlyKeys(json: JSONObject, allowed: Set<String>) {
+        json.keys().forEach { key -> require(key in allowed) { "unknown key: $key" } }
+    }
+
+    private fun strictOptionalDouble(json: JSONObject, key: String): Double? {
+        if (!json.has(key) || json.isNull(key)) return null
+        val value = json.get(key)
+        require(value is Number) { "$key must be numeric" }
+        return value.toDouble().also { require(it.isFinite()) { "$key must be finite" } }
+    }
 
     private fun JSONArray?.boundedStrings(): List<String> {
         require(this != null && length() in 1..MAX_ITEMS)
@@ -280,13 +348,17 @@ object GenerativeUiCompiler {
     private fun JSONArray?.boundedNumbers(): List<Float> {
         require(this != null && length() in 1..MAX_ITEMS)
         return buildList {
-            for (i in 0 until length()) {
-                val value = getDouble(i)
+                for (i in 0 until length()) {
+                val raw = get(i)
+                require(raw is Number) { "chart value must be numeric" }
+                val value = raw.toDouble()
                 require(value.isFinite()) { "non-finite chart value" }
-                add(value.toFloat().coerceIn(-1_000_000f, 1_000_000f))
+                require(value in -1_000_000.0..1_000_000.0) { "chart value out of range" }
+                add(value.toFloat())
             }
         }
     }
 }
 
 private const val MAX_ACTION_VALUE_CHARS = 400
+private const val MAX_ACTION_FIELD_CHARS = 500

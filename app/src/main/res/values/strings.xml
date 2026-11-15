@@ -2556,6 +2556,10 @@
     <string name="generative_ui_edge">%1$s → %2$s%3$s</string>
     <string name="generative_ui_edge_label_suffix"> · %1$s</string>
     <string name="generative_ui_required_fields">Complete the required fields before submitting.</string>
+    <string name="generative_ui_action_preview_title">Review action</string>
+    <string name="generative_ui_action_preview_notice">This text will be placed in the composer. Nothing is sent until you press Send.</string>
+    <string name="generative_ui_action_preview_use">Use in composer</string>
+    <string name="generative_ui_action_preview_cancel">Cancel</string>
     <string name="artifact_save">Save content</string>
     <string name="artifact_saved">Content saved</string>
     <string name="artifact_save_failed">Could not save content</string>

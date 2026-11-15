@@ -2269,13 +2269,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             ConversationExecutionCoordinator.Command(input, cloudAttachmentConsent)
         )
 
-    /** Routes a rendered AIRI UI action through the normal generation gate. */
+    /**
+     * Stages a reviewed AIRI UI action in the composer. This deliberately does
+     * not call sendMessage: the user must inspect and submit the resulting text.
+     * The assistant message is the authority for the action contract; callback
+     * data is rebuilt and validated instead of being trusted from Compose.
+     */
     fun handleGenerativeUiAction(action: com.airi.assistant.ui.generative.GenerativeUiAction): Boolean {
-        if (action.id.isBlank() || action.prompt.isBlank()) return false
-        pendingGenerativeUiAction = action
-        val accepted = sendMessage(action.prompt)
-        if (!accepted) pendingGenerativeUiAction = null
-        return accepted
+        val sourceId = action.sourceMessageId?.toLongOrNull() ?: return false
+        val currentSession = _currentSessionId.value
+        if (currentSession.isBlank()) return false
+        val source = _messages.value.firstOrNull { it.id == sourceId && !it.isUser }
+            ?: return false
+        if (action.sourceExecutionId != source.executionTraceId) return false
+        val verified = com.airi.assistant.ui.generative.GenerativeUiCompiler.rebuildAction(source.text, action)
+            ?: return false
+        if (verified.prompt.isBlank()) return false
+        pendingGenerativeUiAction = null
+        updateComposerText(verified.prompt)
+        return true
     }
 
     private fun sendMessageCommand(input: String, cloudAttachmentConsent: Boolean): Boolean {
@@ -3136,6 +3148,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     attachmentTrace = attachmentTrace,
                     platformCapabilitySnapshot = platformSnapshotBlock,
                     requestedExecutionId = traceExecutionId,
+                    messageId      = userMessage.id.toString(),
                     planMode       = _isPlanModeActive.value,
                     requireToolOnFirstStep = requestPlan.kind == com.airi.assistant.agent.request.RequestPlan.Kind.CODE_TASK,
                     requiredToolNames = requestPlan.requiredTools,

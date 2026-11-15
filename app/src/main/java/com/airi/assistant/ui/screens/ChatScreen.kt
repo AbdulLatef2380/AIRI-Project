@@ -2456,7 +2456,9 @@ fun ChatMessageList(
                         } else {
                             AiBubble(
                                 text            = msg.outputPresentation.agentOutput,
-                                messageId       = msg.uid,
+                                // GenUI actions must correlate to the durable message id;
+                                // the UI-only uid is intentionally not accepted at the trust boundary.
+                                messageId       = msg.id.toString(),
                                 toolOutputs     = msg.outputPresentation.toolOutputs,
                                 fileCards       = msg.fileCards,
                                 agentTag        = msg.agentTag,

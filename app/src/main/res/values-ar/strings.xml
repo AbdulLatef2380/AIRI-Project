@@ -2452,6 +2452,10 @@
     <string name="generative_ui_edge">%1$s إلى %2$s%3$s</string>
     <string name="generative_ui_edge_label_suffix"> · %1$s</string>
     <string name="generative_ui_required_fields">أكمل الحقول المطلوبة قبل الإرسال.</string>
+    <string name="generative_ui_action_preview_title">مراجعة الإجراء</string>
+    <string name="generative_ui_action_preview_notice">سيُوضع هذا النص في صندوق الإدخال. لن يُرسل شيء حتى تضغط زر الإرسال.</string>
+    <string name="generative_ui_action_preview_use">استخدام في صندوق الإدخال</string>
+    <string name="generative_ui_action_preview_cancel">إلغاء</string>
     <string name="artifact_saved">تم حفظ المحتوى</string>
     <string name="artifact_save_failed">تعذر حفظ المحتوى</string>
     <string name="artifact_share_failed">تعذر فتح المشاركة</string>

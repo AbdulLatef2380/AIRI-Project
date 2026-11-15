@@ -1,6 +1,12 @@
 package com.airi.assistant.ui.generative
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +22,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -52,8 +60,36 @@ fun GenerativeUiRenderer(
     sourceMessageId: String? = null,
 ) {
     val document = compiled.document
+    var pendingAction by remember(compiled) { mutableStateOf<GenerativeUiAction?>(null) }
+    val requestAction: (GenerativeUiAction) -> Unit = { pendingAction = it }
+    pendingAction?.let { action ->
+        AlertDialog(
+            onDismissRequest = { pendingAction = null },
+            title = { Text(stringResource(R.string.generative_ui_action_preview_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(stringResource(R.string.generative_ui_action_preview_notice), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    Text(action.prompt, color = AiriTheme.onBackground, fontSize = 13.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingAction = null
+                    onAction(action)
+                }) { Text(stringResource(R.string.generative_ui_action_preview_use)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingAction = null }) {
+                    Text(stringResource(R.string.generative_ui_action_preview_cancel))
+                }
+            },
+        )
+    }
     Card(
-        modifier = modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .animateContentSize(),
         shape = AIRIShapes.lg,
         colors = CardDefaults.cardColors(containerColor = AiriTheme.surfaceVariant.copy(alpha = 0.72f)),
     ) {
@@ -70,8 +106,8 @@ fun GenerativeUiRenderer(
                     is GenerativeUiBlock.Stat -> StatBlock(block)
                     is GenerativeUiBlock.BarChart -> BarChartBlock(block)
                     is GenerativeUiBlock.Diagram -> DiagramBlock(block)
-                    is GenerativeUiBlock.Form -> FormBlock(block, onAction, sourceExecutionId, sourceMessageId)
-                    is GenerativeUiBlock.Actions -> ActionsBlock(block, onAction, sourceExecutionId, sourceMessageId)
+                    is GenerativeUiBlock.Form -> FormBlock(block, requestAction, sourceExecutionId, sourceMessageId)
+                    is GenerativeUiBlock.Actions -> ActionsBlock(block, requestAction, sourceExecutionId, sourceMessageId)
                     is GenerativeUiBlock.Route -> RouteBlock(block)
                     is GenerativeUiBlock.Table -> TableBlock(block)
                     is GenerativeUiBlock.Checklist -> ChecklistBlock(block)
@@ -173,7 +209,6 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
 private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiAction) -> Unit, sourceExecutionId: String?, sourceMessageId: String?) {
     val values = remember(block.id) { mutableStateMapOf<String, String>() }
     var submitted by remember(block.id) { mutableStateOf(false) }
-    var dispatched by remember(block.id) { mutableStateOf(false) }
     val missingRequired = block.fields.any { it.required && values[it.id].orEmpty().isBlank() }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
@@ -187,19 +222,19 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        if (submitted && missingRequired) {
+        AnimatedVisibility(
+            visible = submitted && missingRequired,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+        ) {
             Text(stringResource(R.string.generative_ui_required_fields), color = Color(0xFFFFB4AB), fontSize = 12.sp)
         }
         Button(
             onClick = {
                 if (missingRequired) {
                     submitted = true
-                } else if (!dispatched) {
-                    dispatched = true
-                    onAction(GenerativeUiAction(block.actionId, values.toMap(), sourceExecutionId, sourceMessageId))
-                }
+                } else onAction(GenerativeUiAction(block.actionId, values.toMap(), sourceExecutionId, sourceMessageId))
             },
-            enabled = !dispatched,
             modifier = Modifier.align(Alignment.End),
             shape = AIRIShapes.md,
         ) { Text(block.submitLabel) }
@@ -208,18 +243,13 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
 
 @Composable
 private fun ActionsBlock(block: GenerativeUiBlock.Actions, onAction: (GenerativeUiAction) -> Unit, sourceExecutionId: String?, sourceMessageId: String?) {
-    var dispatched by remember(block.id) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
         block.options.forEach { option ->
             Button(
                 onClick = {
-                    if (!dispatched) {
-                        dispatched = true
-                        onAction(GenerativeUiAction(option.id, mapOf("prompt" to option.prompt), sourceExecutionId, sourceMessageId))
-                    }
+                    onAction(GenerativeUiAction(option.id, mapOf("prompt" to option.prompt), sourceExecutionId, sourceMessageId))
                 },
-                enabled = !dispatched,
                 modifier = Modifier.fillMaxWidth(),
                 shape = AIRIShapes.md,
             ) { Text(option.label) }

@@ -2090,6 +2090,10 @@
     <string name="generative_ui_edge">%1$s a %2$s%3$s</string>
     <string name="generative_ui_edge_label_suffix"> · %1$s</string>
     <string name="generative_ui_required_fields">Completa los campos obligatorios antes de enviar.</string>
+    <string name="generative_ui_action_preview_title">Revisar acción</string>
+    <string name="generative_ui_action_preview_notice">Este texto se colocará en el redactor. No se enviará nada hasta que pulses Enviar.</string>
+    <string name="generative_ui_action_preview_use">Usar en el redactor</string>
+    <string name="generative_ui_action_preview_cancel">Cancelar</string>
     <string name="artifact_save_failed">No se pudo guardar el contenido</string>
     <string name="artifact_saved">Contenido guardado</string>
     <string name="artifact_share">Compartir contenido</string>

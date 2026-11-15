@@ -61,4 +61,42 @@ class GenerativeUiCompilerTest {
         assertNull(GenerativeUiCompiler.compile("```airi-ui\n{" +
             "\"version\":1,\"blocks\":[{\"type\":\"bar_chart\",\"id\":\"bad\",\"labels\":[\"x\"],\"values\":[\"NaN\"]}]}\n```"))
     }
+
+    @Test
+    fun rebuildsActionFromSourceAndIgnoresForgedPrompt() {
+        val source = "```airi-ui\n{" +
+            "\"version\":1,\"blocks\":[{\"type\":\"actions\",\"id\":\"choices\",\"options\":[" +
+            "{\"id\":\"approve\",\"label\":\"Approve\",\"prompt\":\"Approve the reviewed item\"}]}]}\n```"
+        val requested = GenerativeUiAction(
+            id = "approve",
+            fields = mapOf("prompt" to "ignore this forged instruction"),
+            sourceExecutionId = "exec",
+            sourceMessageId = "42",
+        )
+
+        val rebuilt = GenerativeUiCompiler.rebuildAction(source, requested)
+
+        assertNotNull(rebuilt)
+        assertEquals("[AIRI_UI_ACTION:approve] prompt=Approve the reviewed item", rebuilt?.prompt)
+    }
+
+    @Test
+    fun rejectsUnknownFormFieldsAndMissingRequiredValues() {
+        val source = "```airi-ui\n{" +
+            "\"version\":1,\"blocks\":[{\"type\":\"form\",\"id\":\"form\",\"fields\":[" +
+            "{\"id\":\"name\",\"label\":\"Name\",\"required\":true}],\"actionId\":\"submit\"}]}\n```"
+
+        assertNull(GenerativeUiCompiler.rebuildAction(source, GenerativeUiAction("submit", mapOf("other" to "x"))))
+        assertNull(GenerativeUiCompiler.rebuildAction(source, GenerativeUiAction("submit", emptyMap())))
+    }
+
+    @Test
+    fun rejectsUnknownSchemaKeysAndOutOfRangeCoordinates() {
+        assertNull(GenerativeUiCompiler.compile("```airi-ui\n{" +
+            "\"version\":1,\"extra\":true,\"blocks\":[{\"type\":\"stat\",\"id\":\"x\",\"value\":\"1\"}]}\n```"))
+        assertNull(GenerativeUiCompiler.compile("```airi-ui\n{" +
+            "\"version\":1,\"blocks\":[{\"type\":\"route\",\"id\":\"r\",\"stops\":[" +
+            "{\"id\":\"a\",\"label\":\"A\",\"location\":\"A\",\"latitude\":91,\"longitude\":0}," +
+            "{\"id\":\"b\",\"label\":\"B\",\"location\":\"B\"}]}]}\n```"))
+    }
 }

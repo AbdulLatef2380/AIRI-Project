@@ -1,8 +1,9 @@
 package com.airi.assistant.ui.generative
 
-import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -73,7 +74,7 @@ class GenerativeUiRendererTest {
         composeRule.onNodeWithText(context.getString(R.string.generative_ui_action_preview_title)).assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.generative_ui_action_preview_cancel)).performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText(context.getString(R.string.generative_ui_action_preview_title)).assertDoesNotExist()
+        composeRule.onAllNodesWithText(context.getString(R.string.generative_ui_action_preview_title)).assertCountEquals(0)
         assertNull(received)
 
         composeRule.onNodeWithText("Approve").performClick()

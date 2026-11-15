@@ -62,7 +62,9 @@ class PermissionGovernanceLayer(
         val now = System.currentTimeMillis()
         val window = rateLimitWindows.computeIfAbsent(agentId) { ArrayDeque() }
         synchronized(window) {
-            while (window.isNotEmpty() && (now - window.peek()) > RATE_WINDOW_MS) {
+            while (window.isNotEmpty()) {
+                val oldest = window.peek() ?: break
+                if (now - oldest <= RATE_WINDOW_MS) break
                 window.poll()
             }
             if (window.size >= RATE_LIMIT_MAX) return false

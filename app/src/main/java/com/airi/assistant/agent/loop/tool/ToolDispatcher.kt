@@ -490,8 +490,8 @@ class ToolDispatcher(
             // AgentLoop admits this only with a task-owned durable context; the
             // governance layer is consulted here and the writer validates every field.
             "write_file" -> {
-                val filename = args["filename"].orEmpty()
-                val content = args["content"].orEmpty()
+                val filename = AgentFileWriter.filenameFromArgs(args)
+                val content = AgentFileWriter.contentFromArgs(args)
                 val overwrite = args["overwrite"]?.toBooleanStrictOrNull() ?: false
                 val decision = runCatching {
                     com.airi.assistant.core.ServiceLocator.permissionGovernanceLayer.evaluate(
@@ -522,7 +522,7 @@ class ToolDispatcher(
                             }
                         }
                         ToolResult.Success(
-                            AgentFileWriter.savedMessage(written.file.name, written.chars),
+                            AgentFileWriter.savedMessage(written.file.name, written.chars, written.sha256),
                             evidence = ToolResult.Evidence(
                                 kind = ToolResult.Evidence.Kind.FILE_DIFF,
                                 changedFiles = listOf(written.file.name),

@@ -83,11 +83,22 @@ object AgentFileCards {
         directory: File,
     ): AgentFileCard? {
         if (toolName != AgentFileWriter.TOOL_NAME) return null
-        val name = AgentFileWriter.sanitizeName(args["filename"].orEmpty()) ?: return null
+        val name = AgentFileWriter.sanitizeName(AgentFileWriter.filenameFromArgs(args)) ?: return null
         if (!result.startsWith("${AgentFileWriter.SAVED_PREFIX}$name ")) return null
         val root = runCatching { directory.canonicalFile }.getOrNull() ?: return null
         val file = runCatching { File(root, name).canonicalFile }.getOrNull() ?: return null
         if (file.parentFile != root || !file.isFile) return null
+        val receipt = RECEIPT.find(result)?.let { match ->
+            Triple(
+                match.groupValues[1],
+                match.groupValues[2].toIntOrNull(),
+                match.groupValues[3],
+            )
+        } ?: return null
+        val actualChars = runCatching { file.readText(Charsets.UTF_8).length }.getOrNull() ?: return null
+        val actualHash = runCatching { AgentFileWriter.sha256Of(file) }.getOrNull() ?: return null
+        if (receipt.first != name || receipt.second != actualChars) return null
+        if (receipt.third != actualHash) return null
         return AgentFileCard(
             fileName = name,
             sizeBytes = file.length(),
@@ -114,4 +125,8 @@ object AgentFileCards {
         return if (index < 0) existing + card
         else existing.toMutableList().also { it[index] = card }
     }
+
+    private val RECEIPT = Regex(
+        "\\[AIRI_FILE_RECEIPT\\|file=([^|]+)\\|chars=(\\d+)\\|sha256=([0-9a-f]{64})\\]"
+    )
 }

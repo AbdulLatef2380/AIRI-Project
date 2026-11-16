@@ -14,7 +14,10 @@ class AgentFileWriterTest {
         val d = dir()
         val r = AgentFileWriter.write(d, "report.md", "# Title\nbody", overwrite = false)
         assertTrue(r is AgentFileWriter.Result.Written)
+        val written = r as AgentFileWriter.Result.Written
         assertEquals("# Title\nbody", java.io.File(d, "report.md").readText())
+        assertEquals(64, written.sha256.length)
+        assertEquals(written.sha256, AgentFileWriter.sha256Of(java.io.File(d, "report.md")))
         assertFalse(java.io.File(d, ".report.md.tmp").exists())
     }
 

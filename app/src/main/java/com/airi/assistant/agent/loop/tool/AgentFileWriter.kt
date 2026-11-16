@@ -1,6 +1,7 @@
 package com.airi.assistant.agent.loop.tool
 
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * Report 1, item 5 (stage 33): bounded text-file writer behind the `write_file` tool.
@@ -23,8 +24,22 @@ object AgentFileWriter {
     const val SAVED_PREFIX = "Saved "
 
     /** The tool result the model sees after a successful write. */
-    fun savedMessage(fileName: String, chars: Int): String =
-        "$SAVED_PREFIX$fileName ($chars characters) in AIRI files."
+    fun savedMessage(fileName: String, chars: Int, sha256: String? = null): String = buildString {
+        append("$SAVED_PREFIX$fileName ($chars characters) in AIRI files.")
+        sha256?.takeIf { it.matches(Regex("[0-9a-f]{64}")) }?.let {
+            append(" [AIRI_FILE_RECEIPT|file=$fileName|chars=$chars|sha256=$it]")
+        }
+    }
+
+    fun filenameFromArgs(args: Map<String, String>): String =
+        listOf("filename", "file_name", "file_path", "filepath", "path", "name")
+            .firstNotNullOfOrNull { key -> args[key]?.takeIf(String::isNotBlank) }
+            .orEmpty()
+
+    fun contentFromArgs(args: Map<String, String>): String =
+        listOf("content", "text", "data", "code", "contents")
+            .firstNotNullOfOrNull { key -> args[key] }
+            .orEmpty()
 
     val ALLOWED_EXTENSIONS: Set<String> = setOf(
         "txt", "md", "json", "csv", "tsv", "html", "css", "js", "ts", "jsx", "tsx",
@@ -34,7 +49,7 @@ object AgentFileWriter {
     private val SAFE_NAME = Regex("""^[\p{L}\p{N}][\p{L}\p{N} ._()\-]{0,90}\.[A-Za-z0-9]{1,8}$""")
 
     sealed class Result {
-        data class Written(val file: File, val chars: Int) : Result()
+        data class Written(val file: File, val chars: Int, val sha256: String) : Result()
         data class Rejected(val reason: String) : Result()
     }
 
@@ -71,11 +86,24 @@ object AgentFileWriter {
                 target.delete()
                 if (!temp.renameTo(target)) return Result.Rejected("Could not finalize the file")
             }
-            Result.Written(target, content.length)
+            val persisted = target.readBytes()
+            val persistedHash = sha256(persisted)
+            if (persisted.size != content.toByteArray(Charsets.UTF_8).size) {
+                target.delete()
+                return Result.Rejected("Written file verification failed: byte count mismatch")
+            }
+            Result.Written(target, content.length, persistedHash)
         } catch (e: java.io.IOException) {
             Result.Rejected("Could not write the file: ${e.message}")
         } finally {
             if (temp.exists()) temp.delete()
         }
     }
+
+    fun sha256Of(file: File): String = sha256(file.readBytes())
+
+    private fun sha256(bytes: ByteArray): String = MessageDigest
+        .getInstance("SHA-256")
+        .digest(bytes)
+        .joinToString("") { "%02x".format(it.toInt() and 0xff) }
 }

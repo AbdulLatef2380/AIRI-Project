@@ -216,6 +216,8 @@ the tool returns an actual error.
         // including the code-task flag and the required-tool list the loop used to ignore.
         val canonicalRequiredTools = requestPlan?.requiredTools ?: requiredToolNames
         val canonicalCodeTask = requestPlan?.kind == RequestPlan.Kind.CODE_TASK || requireToolOnFirstStep
+        val effectiveRequiredTools = canonicalRequiredTools ?:
+            if (canonicalCodeTask) setOf("write_file") else null
         val toolExposure = com.airi.assistant.agent.loop.tool.ToolExposurePipeline.resolve(
             candidates = tools,
             queryType = queryType,
@@ -223,7 +225,7 @@ the tool returns an actual error.
             providerId = providerId,
             codeTask = canonicalCodeTask,
             promptBudgetChars = toolPromptBudget,
-            requiredToolNames = canonicalRequiredTools,
+            requiredToolNames = effectiveRequiredTools,
             admission = { permitted ->
                 AgentLoopToolAdmission.filter(
                     tools = permitted,
@@ -243,6 +245,28 @@ the tool returns an actual error.
             LoggingService.warn(
                 TAG,
                 "TOOL_BLOCK_TRIMMED kept=${effectiveTools.map { it.name }} omitted=${toolSelection.omittedToolNames} budgetChars=$toolPromptBudget"
+            )
+        }
+        val fileWriteRequired = effectiveRequiredTools?.contains("write_file") == true ||
+            canonicalCodeTask && tools.any { it.name == "write_file" }
+        if (fileWriteRequired && effectiveTools.none { it.name == "write_file" }) {
+            val reason = when {
+                executionContextFactory == null -> "durable file-write context is not available"
+                toolSelection.requiredButOmittedToolNames.contains("write_file") -> "write_file was omitted by the context budget"
+                else -> "write_file was not admitted for this execution"
+            }
+            val notice = if (input.any { it in '\u0600'..'\u06FF' }) {
+                "لم أُنشئ الملف: أداة الكتابة المطلوبة غير جاهزة لأن $reason. لم أعتبر الكود المحادثي ملفًا محفوظًا."
+            } else {
+                "I did not create the file: the required write_file tool is unavailable because $reason. The code in chat is not a saved file."
+            }
+            LoggingService.warn(TAG, "FILE_WRITE_ADMISSION_FAILED reason=${reason.replace(' ', '_')}")
+            return LoopResult(
+                finalAnswer = notice,
+                stepsUsed = 0,
+                toolsInvoked = emptyList(),
+                terminalState = TerminalState.FAILURE,
+                failureMessage = notice,
             )
         }
         val toolsInvoked = mutableListOf<String>()

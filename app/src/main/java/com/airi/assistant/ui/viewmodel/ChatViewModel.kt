@@ -2937,9 +2937,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
             if (requestPlan.unfulfillable != null) {
                 val reason = requestPlan.unfulfillable.name.lowercase().replace('_', ' ')
+                val writeFileRequired = "write_file" in requestPlan.requiredTools
+                val message = if (writeFileRequired) {
+                    when (requestPlan.unfulfillable) {
+                        com.airi.assistant.agent.request.RequestPlan.Unfulfillable.MODEL_HAS_NO_TOOLS ->
+                            "لم أُنشئ الملف: النموذج الحالي لا يدعم استدعاء الأدوات المطلوبة. اختر نموذجًا يدعم الأدوات ثم أعد المحاولة؛ الكود في المحادثة ليس ملفًا محفوظًا."
+                        com.airi.assistant.agent.request.RequestPlan.Unfulfillable.REQUIRED_TOOL_MISSING ->
+                            "لم أُنشئ الملف: أداة write_file غير متاحة في جلسة التنفيذ الحالية. أعد المحاولة بعد تفعيل مسار إنشاء الملفات؛ الكود في المحادثة ليس ملفًا محفوظًا."
+                    }
+                } else {
+                    "لا أستطيع تنفيذ هذا الطلب بالأدوات المتاحة حالياً ($reason). اختر نموذجاً يدعم الأدوات أو فعّل القدرة المطلوبة ثم أعد المحاولة."
+                }
                 _messages.update { current ->
                     current + ChatMessage(
-                        text = "لا أستطيع تنفيذ هذا الطلب بالأدوات المتاحة حالياً ($reason). اختر نموذجاً يدعم الأدوات أو فعّل القدرة المطلوبة ثم أعد المحاولة.",
+                        text = message,
                         isUser = false,
                     )
                 }

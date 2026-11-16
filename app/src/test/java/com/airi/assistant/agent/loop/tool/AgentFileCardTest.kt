@@ -14,7 +14,7 @@ class AgentFileCardTest {
     private fun write(dir: File, name: String, content: String = "print('hi')\n"): String {
         val written = AgentFileWriter.write(dir, name, content, overwrite = true)
         assertTrue(written is AgentFileWriter.Result.Written)
-        return AgentFileWriter.savedMessage(name, content.length)
+        return AgentFileWriter.savedMessage(name, content.length, (written as AgentFileWriter.Result.Written).sha256)
     }
 
     @Test fun successfulWriteFileBecomesACard() {
@@ -37,6 +37,12 @@ class AgentFileCardTest {
         val d = dir()
         val result = write(d, "app.py") + "\n\nSyntax check passed."
         assertNotNull(AgentFileCards.fromToolResult("write_file", mapOf("filename" to "app.py"), result, d))
+    }
+
+    @Test fun pathAliasStillProducesTheVerifiedCard() {
+        val d = dir()
+        val result = write(d, "app.py")
+        assertNotNull(AgentFileCards.fromToolResult("write_file", mapOf("path" to "app.py"), result, d))
     }
 
     @Test fun otherToolsNeverProduceACard() {
@@ -67,6 +73,29 @@ class AgentFileCardTest {
         write(d, "b.py")
         val resultForB = AgentFileWriter.savedMessage("b.py", 10)
         assertNull(AgentFileCards.fromToolResult("write_file", mapOf("filename" to "a.py"), resultForB, d))
+    }
+
+    @Test fun changedFileInvalidatesTheReceiptAndProducesNoCard() {
+        val d = dir()
+        val content = "print('original')\n"
+        val result = write(d, "app.py", content)
+        File(d, "app.py").writeText("print('tampered')\n")
+
+        assertNull(AgentFileCards.fromToolResult("write_file", mapOf("filename" to "app.py"), result, d))
+    }
+
+    @Test fun legacySuccessTextWithoutReceiptProducesNoCard() {
+        val d = dir()
+        write(d, "app.py")
+
+        assertNull(
+            AgentFileCards.fromToolResult(
+                "write_file",
+                mapOf("filename" to "app.py"),
+                "Saved app.py (12 characters) in AIRI files.",
+                d,
+            ),
+        )
     }
 
     @Test fun missingFileOrUnsafeNameProducesNoCard() {

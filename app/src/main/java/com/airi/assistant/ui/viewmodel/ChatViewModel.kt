@@ -158,6 +158,7 @@ import com.airi.assistant.agent.loop.tool.AgentFileCards
 import com.airi.assistant.agent.loop.tool.AgentFileWriter
 
 private const val MAX_TOOL_OUTPUT_PRESENTATION_CHARS = 4_000
+private const val CHAT_HISTORY_PAGE_SIZE = 40
 
 data class ChatMessage(
     val text: String,
@@ -1073,6 +1074,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _sessionLoadState = MutableStateFlow<SessionLoadState>(SessionLoadState.NotStarted)
     val sessionLoadState: StateFlow<SessionLoadState> = _sessionLoadState.asStateFlow()
     private val sessionLoadGate = LatestOperationGate()
+    private var oldestLoadedMessageOffset = 0
 
     private val _messageFocus = MutableStateFlow<MessageFocusRequest?>(null)
     /** Pending "open this message" request from the agent log; consumed by the chat list. */
@@ -1993,7 +1995,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val previousId      = _currentSessionId.value
             val hadMessages     = _messages.value.isNotEmpty()
             val switchingSessions = previousId.isNotEmpty() && previousId != sessionId && hadMessages
-            val historyResult = runCatching { memoryManager.loadSession(sessionId) }
+            val historyResult = runCatching {
+                if (_messageFocus.value?.sessionId == sessionId) {
+                    val full = memoryManager.loadSession(sessionId)
+                    com.airi.assistant.memory.repository.MemoryManager.SessionMessagePage(full, full.size, 0)
+                } else {
+                    memoryManager.loadLatestSessionPage(sessionId, CHAT_HISTORY_PAGE_SIZE)
+                }
+            }
             if (!sessionLoadGate.isCurrent(loadToken)) {
                 ServiceLocator.privacyTelemetryReporter.report(
                     com.airi.assistant.telemetry.AgentTelemetryEvent.RuntimeStateChanged(
@@ -2002,7 +2011,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 return@launch
             }
-            val history = historyResult.getOrElse { error ->
+            val page = historyResult.getOrElse { error ->
                 _sessionLoadState.value = SessionLoadState.Failed(
                     reason = error.message?.take(240) ?: "Session could not be loaded",
                     causeType = error.javaClass.simpleName,
@@ -2016,29 +2025,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 return@launch
             }
+            val history = page.messages
+            oldestLoadedMessageOffset = page.offset
             if (previousId != sessionId) rejectSummary()
             _currentSessionId.value = sessionId
             preferences.edit().putString(KEY_SESSION_ID, sessionId).apply()
-            // Restore execution traces saved with earlier assistant turns.
-            val archivedTraces = withContext(Dispatchers.IO) {
-                runCatching {
-                    ExecutionTraceArchive.getAll(history.filter { it.role != "user" }.map { it.id })
-                }.getOrDefault(emptyMap())
-            }
-            _messages.value = history.map { msg ->
-                val messageAttachments = attachmentPreviews(msg.attachmentJson)
-                val archived = archivedTraces[msg.id].orEmpty()
-                ChatMessage(
-                    text = attachmentBubbleText(msg.content, messageAttachments),
-                    isUser = msg.role == "user",
-                    id = msg.id,
-                    imageUri = attachmentPreviewUri(msg.attachmentJson),
-                    attachments = messageAttachments,
-                    executionTraceId = archived.firstOrNull()?.executionId,
-                    traceId = archived.firstOrNull()?.executionId?.let { "trace-$it" },
-                    executionTraceSnapshot = archived,
-                )
-            }
+            _messages.value = hydrateSessionMessages(history)
             _streamingText.value = if (activeGenerationSessionId == sessionId) streamAccumulator.toString() else ""
             if (SessionGenerationPolicy.mayReplaceNativeHistory(activeGenerationSessionId)) {
                 llamaManager.setHistory(history.takeLast(12))
@@ -2048,7 +2040,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             refreshSessions()
             _sessionLoadState.value = if (history.isEmpty()) SessionLoadState.Empty
-            else SessionLoadState.Ready(sessionId, history.size)
+            else SessionLoadState.Ready(
+                sessionId = sessionId,
+                messageCount = history.size,
+                totalMessageCount = page.totalCount,
+                hasOlder = page.hasOlder,
+            )
             ServiceLocator.privacyTelemetryReporter.report(
                 com.airi.assistant.telemetry.AgentTelemetryEvent.RuntimeStateChanged(
                     area = "session_load",
@@ -2067,6 +2064,60 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 Log.i("AIRI", "CONTEXT_RESET trigger=session_switch from=$previousId to=$sessionId")
             }
+        }
+    }
+
+    /** Loads the next older page and prepends it to the chronological UI list. */
+    fun loadOlderMessages() {
+        val state = _sessionLoadState.value as? SessionLoadState.Ready ?: return
+        if (!state.hasOlder || state.isLoadingOlder) return
+        val sessionId = state.sessionId
+        val requestedOffset = (oldestLoadedMessageOffset - CHAT_HISTORY_PAGE_SIZE).coerceAtLeast(0)
+        _sessionLoadState.value = state.copy(isLoadingOlder = true)
+        viewModelScope.launch {
+            runCatching {
+                memoryManager.loadSessionPage(sessionId, CHAT_HISTORY_PAGE_SIZE, requestedOffset)
+            }.onSuccess { page ->
+                if (_currentSessionId.value != sessionId) return@onSuccess
+                val older = hydrateSessionMessages(page.messages)
+                _messages.value = older + _messages.value
+                oldestLoadedMessageOffset = page.offset
+                _sessionLoadState.value = SessionLoadState.Ready(
+                    sessionId = sessionId,
+                    messageCount = _messages.value.size,
+                    totalMessageCount = page.totalCount,
+                    hasOlder = page.hasOlder,
+                )
+            }.onFailure {
+                if (_currentSessionId.value == sessionId) {
+                    _sessionLoadState.value = state.copy(isLoadingOlder = false)
+                }
+                Log.w("AIRI", "OLDER_SESSION_PAGE_FAILED session=$sessionId", it)
+            }
+        }
+    }
+
+    private suspend fun hydrateSessionMessages(
+        rows: List<com.airi.assistant.memory.entity.ChatMessage>
+    ): List<ChatMessage> {
+        val archivedTraces = withContext(Dispatchers.IO) {
+            runCatching {
+                ExecutionTraceArchive.getAll(rows.filter { it.role != "user" }.map { it.id })
+            }.getOrDefault(emptyMap())
+        }
+        return rows.map { msg ->
+            val messageAttachments = attachmentPreviews(msg.attachmentJson)
+            val archived = archivedTraces[msg.id].orEmpty()
+            ChatMessage(
+                text = attachmentBubbleText(msg.content, messageAttachments),
+                isUser = msg.role == "user",
+                id = msg.id,
+                imageUri = attachmentPreviewUri(msg.attachmentJson),
+                attachments = messageAttachments,
+                executionTraceId = archived.firstOrNull()?.executionId,
+                traceId = archived.firstOrNull()?.executionId?.let { "trace-$it" },
+                executionTraceSnapshot = archived,
+            )
         }
     }
 

@@ -1238,6 +1238,7 @@ fun ChatScreen(
                 isCloudReady  = modelState.isCloudReady,
                 sessionLoadState = sessionLoadState,
                 onRetrySession = { id -> id?.let(viewModel::loadSession) },
+                onLoadOlderMessages = viewModel::loadOlderMessages,
                 focusRequest = messageFocus,
                 onFocusHandled = { request -> viewModel.consumeMessageFocus(request) },
                 onOpenModels  = { onNavigate(AiriRoute.MODELS) },
@@ -2213,6 +2214,7 @@ fun ChatMessageList(
     inlineTraceWorking: Boolean = false,
     sessionLoadState: com.airi.assistant.ui.viewmodel.SessionLoadState = com.airi.assistant.ui.viewmodel.SessionLoadState.NotStarted,
     onRetrySession: (String?) -> Unit = {},
+    onLoadOlderMessages: () -> Unit = {},
     focusRequest: com.airi.assistant.ui.viewmodel.MessageFocusRequest? = null,
     onFocusHandled: (com.airi.assistant.ui.viewmodel.MessageFocusRequest) -> Unit = {},
     finalAnswerVerification: FinalAnswerUiState? = null,
@@ -2272,6 +2274,20 @@ fun ChatMessageList(
             listState.scrollToItem(0)
         }
         lastScrolledStreamLen = 0
+    }
+
+    LaunchedEffect(listState, messages.size, sessionLoadState) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }
+            .collect { lastVisibleIndex ->
+                val ready = sessionLoadState as? com.airi.assistant.ui.viewmodel.SessionLoadState.Ready
+                    ?: return@collect
+                val totalItems = listState.layoutInfo.totalItemsCount
+                if (ready.hasOlder && !ready.isLoadingOlder && totalItems > 0 &&
+                    lastVisibleIndex >= totalItems - 6
+                ) {
+                    onLoadOlderMessages()
+                }
+            }
     }
 
     // A newly submitted message owns the reading position: show the response

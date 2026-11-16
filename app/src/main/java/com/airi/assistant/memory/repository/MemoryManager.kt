@@ -24,6 +24,14 @@ import org.json.JSONArray
 // AP-18: applicationScope injected from ServiceLocator so summarization tasks survive
 // screen rotation without relying on a ViewModel lifecycle.
 class MemoryManager(context: Context, private val applicationScope: CoroutineScope? = null) {
+    data class SessionMessagePage(
+        val messages: List<ChatMessage>,
+        val totalCount: Int,
+        val offset: Int,
+    ) {
+        val hasOlder: Boolean get() = offset > 0
+    }
+
     data class ExplicitMemoryRequest(
         val content: String,
         val sessionId: String = "default",
@@ -250,6 +258,29 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
 
     suspend fun loadSession(sessionId: String): List<ChatMessage> {
         return sessionDao.getMessagesForSession(sessionId)
+    }
+
+    /** Loads a bounded page for the chat UI without changing full-history callers. */
+    suspend fun loadSessionPage(sessionId: String, limit: Int, offset: Int): SessionMessagePage {
+        val safeLimit = limit.coerceIn(1, 100)
+        val total = dao.countSessionMessages(sessionId)
+        val safeOffset = offset.coerceIn(0, total)
+        return SessionMessagePage(
+            messages = dao.getSessionMessagesPage(sessionId, safeLimit, safeOffset),
+            totalCount = total,
+            offset = safeOffset,
+        )
+    }
+
+    suspend fun loadLatestSessionPage(sessionId: String, limit: Int): SessionMessagePage {
+        val safeLimit = limit.coerceIn(1, 100)
+        val total = dao.countSessionMessages(sessionId)
+        val offset = (total - safeLimit).coerceAtLeast(0)
+        return SessionMessagePage(
+            messages = dao.getSessionMessagesPage(sessionId, safeLimit, offset),
+            totalCount = total,
+            offset = offset,
+        )
     }
 
     suspend fun deleteSession(sessionId: String) {

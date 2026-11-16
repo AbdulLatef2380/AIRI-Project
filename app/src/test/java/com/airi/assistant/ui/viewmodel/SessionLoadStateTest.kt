@@ -35,4 +35,18 @@ class SessionLoadStateTest {
         assertFalse(gate.isCurrent(older))
         assertTrue(gate.isCurrent(newer))
     }
+
+    @Test fun readyStateKeepsPaginationMetadata() {
+        val state = SessionLoadState.Ready(
+            sessionId = "session",
+            messageCount = 40,
+            totalMessageCount = 120,
+            hasOlder = true,
+        )
+        assertEquals(40, state.messageCount)
+        assertEquals(120, state.totalMessageCount)
+        assertTrue(state.hasOlder)
+        assertFalse(state.isLoadingOlder)
+        assertTrue(state.copy(isLoadingOlder = true).isLoadingOlder)
+    }
 }

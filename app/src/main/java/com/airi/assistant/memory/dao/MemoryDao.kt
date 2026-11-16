@@ -202,6 +202,15 @@ interface MemoryDao {
     @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0 ORDER BY timestamp ASC")
     suspend fun getSessionMessages(sessionId: String): List<ChatMessage>
 
+    /** Bounded chronological page used by the chat history viewport. */
+    @Query("""
+        SELECT * FROM episodic_memory
+        WHERE sessionId = :sessionId AND isMemory = 0
+        ORDER BY timestamp ASC, id ASC
+        LIMIT :limit OFFSET :offset
+    """)
+    suspend fun getSessionMessagesPage(sessionId: String, limit: Int, offset: Int): List<ChatMessage>
+
     /** Number of saved long-term memories represented in the Memory screen. */
     @Query("SELECT COUNT(*) FROM episodic_memory WHERE isMemory = 1")
     suspend fun getMemoryCount(): Int

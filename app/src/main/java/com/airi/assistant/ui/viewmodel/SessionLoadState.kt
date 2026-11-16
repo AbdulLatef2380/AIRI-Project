@@ -7,7 +7,13 @@ package com.airi.assistant.ui.viewmodel
 sealed class SessionLoadState {
     data object NotStarted : SessionLoadState()
     data object Loading : SessionLoadState()
-    data class Ready(val sessionId: String, val messageCount: Int) : SessionLoadState()
+    data class Ready(
+        val sessionId: String,
+        val messageCount: Int,
+        val totalMessageCount: Int = messageCount,
+        val hasOlder: Boolean = false,
+        val isLoadingOlder: Boolean = false,
+    ) : SessionLoadState()
     data object Empty : SessionLoadState()
     data class Failed(val reason: String, val causeType: String? = null, val sessionId: String? = null) : SessionLoadState()
 }

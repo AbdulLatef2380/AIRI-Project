@@ -161,7 +161,10 @@ class IsolatedTerminalService : Service() {
             while (true) {
                 currentCoroutineContext().ensureActive()
                 val pid = childPid(process)
-                if (pid != null && Debug.getPss(pid) * 1024L > limits.memoryBytes) {
+                val childMemory = pid?.let {
+                    Debug.MemoryInfo().also { memoryInfo -> Debug.getMemoryInfo(it, memoryInfo) }.totalPss * 1024L
+                }
+                if (childMemory != null && childMemory > limits.memoryBytes) {
                     ProcessTreeTerminator.terminate(process)
                     return ServiceResult.memoryExceeded()
                 }

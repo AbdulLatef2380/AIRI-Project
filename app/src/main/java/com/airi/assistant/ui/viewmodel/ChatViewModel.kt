@@ -3834,11 +3834,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun agentLoopBuiltinStatusOverrides(): Map<String, com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.StatusOverride> {
         val result = mutableMapOf<String, com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.StatusOverride>()
 
-        val screenReady = com.airi.assistant.accessibility.service.ScreenContextHolder.serviceInstance != null
+        val accessibilityReadiness = com.airi.assistant.domain.permission.AccessibilityReadiness.inspect(appContext)
+        val screenReady = accessibilityReadiness.isReady
         if (!screenReady) {
             result["read_screen"] = com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.StatusOverride(
                 com.airi.assistant.agent.loop.tool.RuntimeToolContract.Readiness.PERMISSION_REQUIRED,
-                "Android Accessibility service is not connected; enable AIRI in Accessibility settings.",
+                when (accessibilityReadiness.status) {
+                    com.airi.assistant.domain.permission.AccessibilityReadiness.Status.NOT_INSTALLED,
+                    com.airi.assistant.domain.permission.AccessibilityReadiness.Status.DISABLED ->
+                        "AIRI Accessibility Service is not enabled. Enable it in Android Accessibility settings.",
+                    com.airi.assistant.domain.permission.AccessibilityReadiness.Status.ENABLED_NOT_CONNECTED ->
+                        "AIRI Accessibility Service is enabled but not connected. Reopen AIRI and try again.",
+                    com.airi.assistant.domain.permission.AccessibilityReadiness.Status.READY -> "",
+                },
             )
         }
 

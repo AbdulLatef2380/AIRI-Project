@@ -1,7 +1,6 @@
 package com.airi.assistant
 
 import android.Manifest
-import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -10,7 +9,6 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
-import android.view.accessibility.AccessibilityManager
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
@@ -29,6 +27,7 @@ import com.airi.assistant.ui.AiriApp
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.connector.oauth.OAuthCallbackUriPolicy
 import com.airi.assistant.domain.growth.ReferralManager
+import com.airi.assistant.domain.permission.AccessibilityReadiness
 import com.airi.assistant.system.LanguageManager
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.voice.HotwordService
@@ -78,7 +77,7 @@ class MainActivity : ComponentActivity() {
                     first
                 }
                 var showAccessDialog by remember {
-                    mutableStateOf(isFirstLaunch && !isAccessibilityServiceEnabled())
+                    mutableStateOf(isFirstLaunch && !AccessibilityReadiness.inspect(this@MainActivity).isReady)
                 }
 
                 // App loads immediately — no blocking gate
@@ -183,16 +182,6 @@ class MainActivity : ComponentActivity() {
             // Failure details remain in the typed result/UI state only. Never
             // log provider error codes or redirect parameters from this path.
             ServiceLocator.connectorAuthorizationManager.completeOAuth(data)
-        }
-    }
-
-    private fun isAccessibilityServiceEnabled(): Boolean {
-        return try {
-            val am = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-            am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-                .any { it.resolveInfo.serviceInfo.packageName == packageName }
-        } catch (e: Exception) {
-            false
         }
     }
 

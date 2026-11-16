@@ -122,7 +122,14 @@ class ConnectorRegistry(
 
     suspend fun connect(id: String, persistConnection: Boolean = false): ConnectorState =
         lifecycleMutexes.getOrPut(id) { Mutex() }.withLock {
-        val connector = get(id) ?: return ConnectorState(false, false, errorMessage = "Connector not registered")
+        val connector = get(id) ?: return ConnectorState(
+            connected = false,
+            healthy = false,
+            statusLine = "Connector is not registered",
+            errorMessage = "Register the runtime adapter before connecting this connector.",
+            readiness = ConnectorReadiness.NOT_REGISTERED,
+            readinessReason = "Runtime adapter is not registered.",
+        )
         val token = (lifecycleGeneration[id] ?: 0L) + 1L
         lifecycleGeneration[id] = token
         return runCatching { connector.connect() }.getOrElse {

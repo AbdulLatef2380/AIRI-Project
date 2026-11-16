@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.airi.assistant.connector.ConnectorAccessProfile
 import com.airi.assistant.connector.ConnectorAvailability
 import com.airi.assistant.connector.ConnectorMeta
+import com.airi.assistant.connector.ConnectorReadiness
 import com.airi.assistant.connector.ConnectorState
 import com.airi.assistant.connector.ConnectorType
 import com.airi.assistant.core.ServiceLocator
@@ -99,7 +100,27 @@ class ConnectorsViewModel(application: Application) : AndroidViewModel(applicati
             if (meta.runtimeId == "google" && meta.id in GoogleDataScopes.surfaceIds) {
                 ServiceLocator.googleAuthService.stateForSurface(meta.id)
             } else {
-                registry.get(meta.runtimeId)?.state() ?: flowOf(ConnectorState(connected = false))
+                registry.get(meta.runtimeId)?.state() ?: flowOf(
+                    ConnectorState(
+                        connected = false,
+                        healthy = false,
+                        statusLine = if (meta.availability == ConnectorAvailability.COMING_SOON) {
+                            "Connector adapter is not available"
+                        } else {
+                            "Connector is not registered"
+                        },
+                        readiness = if (meta.availability == ConnectorAvailability.COMING_SOON) {
+                            ConnectorReadiness.UNSUPPORTED
+                        } else {
+                            ConnectorReadiness.NOT_REGISTERED
+                        },
+                        readinessReason = if (meta.availability == ConnectorAvailability.COMING_SOON) {
+                            "The runtime adapter is not available in this release."
+                        } else {
+                            "The catalog entry has no registered runtime adapter."
+                        },
+                    )
+                )
             }
         }
         return combine(stateFlows) { states ->

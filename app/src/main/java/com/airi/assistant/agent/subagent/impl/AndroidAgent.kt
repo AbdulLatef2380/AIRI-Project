@@ -39,6 +39,7 @@ class AndroidAgent(
 
     companion object {
         const val CAPABILITY_ACCESSIBILITY = "airi_accessibility_enabled"
+        const val ERROR_ACCESSIBILITY_NOT_ADMITTED = "accessibility_not_admitted"
         private const val TAG = "AndroidAgent"
     }
 
@@ -93,8 +94,9 @@ class AndroidAgent(
         // Guard: re-check capability at execution time (token may have been revoked)
         if (!context.grantedPermissions.contains(CAPABILITY_ACCESSIBILITY)) {
             emit(AgentEvent.Failed(
-                reason      = "Accessibility service is not enabled. Please enable AIRI in Accessibility Settings.",
-                recoverable = false
+                reason      = "AIRI device control is not ready. Enable the AIRI Accessibility Service in Android Settings, then try again.",
+                recoverable = false,
+                errorCode   = ERROR_ACCESSIBILITY_NOT_ADMITTED,
             ))
             return@flow
         }

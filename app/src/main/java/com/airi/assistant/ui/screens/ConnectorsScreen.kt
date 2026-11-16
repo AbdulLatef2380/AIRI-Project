@@ -37,6 +37,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airi.assistant.connector.ConnectorType
 import com.airi.assistant.connector.ConnectorAvailability
 import com.airi.assistant.connector.ConnectorAuthStrategies
+import com.airi.assistant.connector.ConnectorReadiness
 import com.airi.assistant.connector.local.ContactsConnector
 import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.ui.theme.AiriTheme
@@ -85,6 +86,29 @@ private fun iconForId(id: String): ImageVector = when {
     id.contains("maps") || id.contains("location") || id.contains("weather") -> Icons.Outlined.LocationOn
     id.contains("web") || id.contains("browser") || id.contains("http") -> Icons.Outlined.Public
     else                     -> Icons.Outlined.Hub
+}
+
+private fun readinessLabel(readiness: ConnectorReadiness, arabic: Boolean): String = when (readiness) {
+    ConnectorReadiness.NOT_REGISTERED -> if (arabic) "غير مسجل" else "Not registered"
+    ConnectorReadiness.CONFIGURATION_REQUIRED -> if (arabic) "يحتاج إعدادًا" else "Needs setup"
+    ConnectorReadiness.AUTHORIZATION_REQUIRED -> if (arabic) "يحتاج مصادقة" else "Needs authorization"
+    ConnectorReadiness.PERMISSION_REQUIRED -> if (arabic) "يحتاج صلاحية" else "Needs permission"
+    ConnectorReadiness.DISCONNECTED -> if (arabic) "غير متصل" else "Disconnected"
+    ConnectorReadiness.UNHEALTHY -> if (arabic) "متصل لكن غير سليم" else "Connected but unhealthy"
+    ConnectorReadiness.ACTION_NOT_PERMITTED -> if (arabic) "العملية غير مسموحة" else "Action not permitted"
+    ConnectorReadiness.READY -> if (arabic) "جاهز" else "Ready"
+    ConnectorReadiness.UNSUPPORTED -> if (arabic) "غير مدعوم" else "Unsupported"
+}
+
+private fun nextActionLabel(action: com.airi.assistant.connector.ConnectorNextAction, arabic: Boolean): String = when (action) {
+    com.airi.assistant.connector.ConnectorNextAction.REGISTER_CONNECTOR -> if (arabic) "سجّل محول الموصل" else "Register the connector adapter"
+    com.airi.assistant.connector.ConnectorNextAction.CONFIGURE_CONNECTOR -> if (arabic) "افتح إعداد الموصل" else "Open connector setup"
+    com.airi.assistant.connector.ConnectorNextAction.CONNECT_PROVIDER -> if (arabic) "اتصل بالمزود" else "Connect provider"
+    com.airi.assistant.connector.ConnectorNextAction.GRANT_PERMISSION -> if (arabic) "امنح الصلاحية المطلوبة" else "Grant the required permission"
+    com.airi.assistant.connector.ConnectorNextAction.RECONNECT -> if (arabic) "أعد الاتصال" else "Reconnect"
+    com.airi.assistant.connector.ConnectorNextAction.REVIEW_ACTION_ACCESS -> if (arabic) "راجع صلاحية العملية" else "Review action access"
+    com.airi.assistant.connector.ConnectorNextAction.RETRY_HEALTH_CHECK -> if (arabic) "أعد فحص الاتصال" else "Retry health check"
+    com.airi.assistant.connector.ConnectorNextAction.NONE -> ""
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -394,22 +418,16 @@ private fun ConnectorCard(
     var expanded by remember { mutableStateOf(false) }
     val isConnected = row.state.connected
     val isComingSoon = row.meta.availability == ConnectorAvailability.COMING_SOON
-    val isPartial = row.meta.availability == ConnectorAvailability.PARTIAL
     val authStrategy = remember(row.meta) { ConnectorAuthStrategies.forMeta(row.meta) }
-    val isReady = isConnected && row.state.healthy
-    val needsAttention = isConnected && !row.state.healthy
+    val isReady = row.state.readiness == ConnectorReadiness.READY
+    val needsAttention = row.state.readiness != ConnectorReadiness.READY && isConnected
+    val arabic = locale.language.equals("ar", ignoreCase = true)
     val statusColor = when {
         isReady -> SemanticSuccess
         needsAttention -> MaterialTheme.colorScheme.tertiary
         else -> AiriTheme.onSurface.copy(0.30f)
     }
-    val statusLabel = when {
-        isReady -> stringResource(R.string.connectors_status_connected)
-        needsAttention -> stringResource(R.string.connectors_status_needs_attention)
-        isComingSoon -> stringResource(R.string.connectors_status_coming_soon)
-        isPartial -> stringResource(R.string.connectors_status_configuration_required)
-        else -> stringResource(R.string.connectors_status_disconnected)
-    }
+    val statusLabel = readinessLabel(row.state.readiness, arabic)
 
     Box(
         modifier = Modifier
@@ -504,6 +522,27 @@ private fun ConnectorCard(
                     Spacer(Modifier.height(10.dp))
                     Divider(color = AiriTheme.outline.copy(alpha = 0.5f))
                     Spacer(Modifier.height(10.dp))
+                    if (!isReady) {
+                        Text(
+                            text = if (arabic) {
+                                "السبب: ${row.state.readinessReason ?: row.state.statusLine}"
+                            } else {
+                                "Reason: ${row.state.readinessReason ?: row.state.statusLine}"
+                            },
+                            color = AiriTheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                        )
+                        val nextAction = nextActionLabel(row.state.nextAction, arabic)
+                        if (nextAction.isNotBlank()) {
+                            Text(
+                                text = if (arabic) "الإجراء التالي: $nextAction" else "Next action: $nextAction",
+                                color = MaterialTheme.colorScheme.tertiary,
+                                fontSize = 12.sp,
+                                lineHeight = 17.sp,
+                            )
+                        }
+                    }
                         Text(
                             presentation.description,
                         color    = AiriTheme.onBackground.copy(0.55f),

@@ -194,7 +194,73 @@ data class ConnectorState(
     val errorMessage: String? = null,
     /** Provider-reported OAuth scopes; null means the provider did not expose them. */
     val grantedScopes: Set<String>? = null,
+    /** Explicit user-facing readiness; defaults preserve legacy connector states. */
+    val readiness: ConnectorReadiness = ConnectorReadinessInference.infer(
+        connected = connected,
+        healthy = healthy,
+        statusLine = statusLine,
+        errorMessage = errorMessage,
+    ),
+    /** Safe repair-oriented explanation; never contains credentials or raw provider bodies. */
+    val readinessReason: String? = errorMessage,
+    /** Stable next action understood by the UI, not an instruction to auto-connect. */
+    val nextAction: ConnectorNextAction = readiness.defaultNextAction,
 )
+
+/** The complete lifecycle visible to the user and to connector diagnostics. */
+enum class ConnectorReadiness {
+    NOT_REGISTERED,
+    CONFIGURATION_REQUIRED,
+    AUTHORIZATION_REQUIRED,
+    PERMISSION_REQUIRED,
+    DISCONNECTED,
+    UNHEALTHY,
+    ACTION_NOT_PERMITTED,
+    READY,
+    UNSUPPORTED,
+}
+
+enum class ConnectorNextAction {
+    REGISTER_CONNECTOR,
+    CONFIGURE_CONNECTOR,
+    CONNECT_PROVIDER,
+    GRANT_PERMISSION,
+    RECONNECT,
+    REVIEW_ACTION_ACCESS,
+    RETRY_HEALTH_CHECK,
+    NONE,
+}
+
+private val ConnectorReadiness.defaultNextAction: ConnectorNextAction
+    get() = when (this) {
+        ConnectorReadiness.NOT_REGISTERED -> ConnectorNextAction.REGISTER_CONNECTOR
+        ConnectorReadiness.CONFIGURATION_REQUIRED -> ConnectorNextAction.CONFIGURE_CONNECTOR
+        ConnectorReadiness.AUTHORIZATION_REQUIRED -> ConnectorNextAction.CONNECT_PROVIDER
+        ConnectorReadiness.PERMISSION_REQUIRED -> ConnectorNextAction.GRANT_PERMISSION
+        ConnectorReadiness.DISCONNECTED -> ConnectorNextAction.CONNECT_PROVIDER
+        ConnectorReadiness.UNHEALTHY -> ConnectorNextAction.RETRY_HEALTH_CHECK
+        ConnectorReadiness.ACTION_NOT_PERMITTED -> ConnectorNextAction.REVIEW_ACTION_ACCESS
+        ConnectorReadiness.READY, ConnectorReadiness.UNSUPPORTED -> ConnectorNextAction.NONE
+    }
+
+private object ConnectorReadinessInference {
+    fun infer(
+        connected: Boolean,
+        healthy: Boolean,
+        statusLine: String,
+        errorMessage: String?,
+    ): com.airi.assistant.connector.ConnectorReadiness {
+        if (connected && healthy) return com.airi.assistant.connector.ConnectorReadiness.READY
+        val text = "$statusLine ${errorMessage.orEmpty()}".lowercase()
+        return when {
+            "permission" in text || "scope" in text || "صلاح" in text -> com.airi.assistant.connector.ConnectorReadiness.PERMISSION_REQUIRED
+            "authorize" in text || "authorization" in text || "oauth" in text || "sign in" in text || "تفويض" in text -> com.airi.assistant.connector.ConnectorReadiness.AUTHORIZATION_REQUIRED
+            "configure" in text || "configuration" in text || "configured" in text || "إعداد" in text -> com.airi.assistant.connector.ConnectorReadiness.CONFIGURATION_REQUIRED
+            connected && !healthy -> com.airi.assistant.connector.ConnectorReadiness.UNHEALTHY
+            else -> com.airi.assistant.connector.ConnectorReadiness.DISCONNECTED
+        }
+    }
+}
 
 /**
  * Generic input envelope. The agent constructs one of these from the

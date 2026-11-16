@@ -84,7 +84,12 @@ class ConnectorToolBridge(
         )) {
             ConnectorAccessDecision.ALLOWED -> Unit
             ConnectorAccessDecision.NOT_GRANTED -> return ConnectorOutput.Failure(
-                "permission_denied", "No matching user access profile is granted for this connector action"
+                "permission_denied",
+                ConnectorReadinessMessage.failure(
+                    connectorName = binding.connectorId,
+                    code = "permission_denied",
+                    detail = "No matching user access profile is granted for this connector action",
+                ),
             )
             ConnectorAccessDecision.CONFIRMATION_REQUIRED -> return ConnectorOutput.Failure(
                 "approval_required", "This action requires a typed approval flow and was not executed"
@@ -95,7 +100,7 @@ class ConnectorToolBridge(
         } else {
             ""
         }
-        return runtime.execute(
+        return when (val output = runtime.execute(
             connectorId = binding.connectorId,
             input = ConnectorInput(
                 action = binding.action.runtimeAction,
@@ -108,7 +113,12 @@ class ConnectorToolBridge(
                 actionId = actionId?.takeIf(String::isNotBlank),
                 authorizationActionId = binding.action.id,
             )
-        )
+        )) {
+            is ConnectorOutput.Failure -> output.copy(
+                message = ConnectorReadinessMessage.failure(binding.connectorId, output.code, output.message)
+            )
+            else -> output
+        }
     }
 
     private fun bindings(onlyExecutable: Boolean, onlyGranted: Boolean): Map<String, Binding> = buildMap {

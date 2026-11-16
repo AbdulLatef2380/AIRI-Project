@@ -152,7 +152,10 @@ class AccessibilityExecutionEngine {
 
         val service = AiriAccessibilityService.instance
         if (service == null) {
-            emit(ExecutionEvent.Complete(success = false, summary = "Accessibility service not enabled"))
+            emit(ExecutionEvent.Complete(
+                success = false,
+                summary = "AIRI Accessibility Service is enabled but not connected. Reopen AIRI or Android Accessibility Settings, then try again.",
+            ))
             return@flow
         }
 

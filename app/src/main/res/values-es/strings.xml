@@ -2873,4 +2873,23 @@
     <string name="voice_preset_serious">Serio</string>
     <string name="voice_preset_serious_description">Una voz medida y seria para respuestas importantes.</string>
     <string name="voice_health_battery">Batería</string>
+    <string name="skill_stage_registered">Registrada</string>
+    <string name="skill_stage_ready">Lista</string>
+    <string name="skill_stage_exposed">Expuesta</string>
+    <string name="skill_stage_admitted">Admitida</string>
+    <string name="skill_stage_executable">Ejecutable</string>
+    <string name="skill_blocked_reason">Bloqueada: %1$s</string>
+    <string name="skill_reason_disabled">La habilidad está desactivada</string>
+    <string name="skill_reason_connector">Conecta y autoriza el servicio requerido</string>
+    <string name="skill_reason_action">Permite la acción del conector</string>
+    <string name="skill_reason_permission">Concede el permiso de Android</string>
+    <string name="skill_reason_runtime">El modelo o la memoria aún se están comprobando</string>
+    <string name="skill_reason_invalid">El manifiesto requiere revisión</string>
+    <string name="skill_next_action">Siguiente: %1$s</string>
+    <string name="skill_action_enable">Activar habilidad</string>
+    <string name="skill_action_connect">Conectar servicio</string>
+    <string name="skill_action_authorize">Autorizar acción</string>
+    <string name="skill_action_permission">Conceder permiso</string>
+    <string name="skill_action_retry">Reintentar comprobación</string>
+    <string name="skill_action_inspect">Inspeccionar habilidad</string>
 </resources>

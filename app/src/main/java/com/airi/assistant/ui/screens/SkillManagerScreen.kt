@@ -39,6 +39,7 @@ import com.airi.assistant.ai.skills.OfficialSkillLibrary
 import com.airi.assistant.ai.skills.SkillManifest
 import com.airi.assistant.ai.skills.SkillPresentation
 import com.airi.assistant.ai.skills.SkillRegistry
+import com.airi.assistant.ai.skills.SkillReadiness
 import com.airi.assistant.domain.customskill.CustomSkill
 import com.airi.assistant.domain.customskill.CustomSkillRepository
 import com.airi.assistant.domain.customskill.SkillConfig
@@ -377,6 +378,44 @@ private fun SkillHeroCard(total: Int, active: Int, connected: Int, onCreate: () 
                     Text(presentation?.description ?: info.description, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 if (!needsConnector) Switch(checked = info.isEnabled, onCheckedChange = onToggle, colors = SwitchDefaults.colors(checkedThumbColor = AiriTheme.surface, checkedTrackColor = AiriTheme.onSurfaceVariant, uncheckedThumbColor = AiriTheme.onSurfaceVariant, uncheckedTrackColor = AiriTheme.outline))
+            }
+            val readiness = info.readiness
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                listOf(
+                    stringResource(R.string.skill_stage_registered) to readiness.registered,
+                    stringResource(R.string.skill_stage_ready) to readiness.ready,
+                    stringResource(R.string.skill_stage_exposed) to readiness.exposed,
+                    stringResource(R.string.skill_stage_admitted) to readiness.admitted,
+                    stringResource(R.string.skill_stage_executable) to readiness.executable,
+                ).forEach { (label, active) ->
+                    Surface(shape = AIRIShapes.pill, color = if (active) SemanticSuccess.copy(0.14f) else AiriTheme.onSurface.copy(0.07f)) {
+                        Text(label, color = if (active) SemanticSuccess else AiriTheme.onSurfaceVariant, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp))
+                    }
+                }
+            }
+            readiness.blockedReason?.let { reason ->
+                val reasonText = when (reason) {
+                    SkillReadiness.BlockedReason.DISABLED -> stringResource(R.string.skill_reason_disabled)
+                    SkillReadiness.BlockedReason.CONNECTOR_NOT_READY -> stringResource(R.string.skill_reason_connector)
+                    SkillReadiness.BlockedReason.ACTION_NOT_ALLOWED -> stringResource(R.string.skill_reason_action)
+                    SkillReadiness.BlockedReason.PERMISSION_REQUIRED -> stringResource(R.string.skill_reason_permission)
+                    SkillReadiness.BlockedReason.RUNTIME_GATE_PENDING -> stringResource(R.string.skill_reason_runtime)
+                    SkillReadiness.BlockedReason.INVALID -> stringResource(R.string.skill_reason_invalid)
+                }
+                val nextText = when (readiness.nextAction) {
+                    SkillReadiness.NextAction.ENABLE_SKILL -> stringResource(R.string.skill_action_enable)
+                    SkillReadiness.NextAction.CONNECT_SERVICE -> stringResource(R.string.skill_action_connect)
+                    SkillReadiness.NextAction.AUTHORIZE_ACTION -> stringResource(R.string.skill_action_authorize)
+                    SkillReadiness.NextAction.GRANT_PERMISSION -> stringResource(R.string.skill_action_permission)
+                    SkillReadiness.NextAction.RETRY_RUNTIME_CHECK -> stringResource(R.string.skill_action_retry)
+                    SkillReadiness.NextAction.INSPECT_SKILL -> stringResource(R.string.skill_action_inspect)
+                    null -> null
+                }
+                Text(stringResource(R.string.skill_blocked_reason, reasonText), color = SemanticWarn, fontSize = 11.sp, lineHeight = 15.sp)
+                nextText?.let { Text(stringResource(R.string.skill_next_action, it), color = AiriTheme.onSurfaceVariant, fontSize = 10.sp) }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Surface(shape = AIRIShapes.pill, color = AiriTheme.onSurface.copy(alpha = 0.07f)) { Text(stringResource(if (info.executionKind == SkillRegistry.ExecutionKind.LOCAL) R.string.skill_type_local else R.string.skill_type_cloud), color = AiriTheme.onSurfaceVariant, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) }

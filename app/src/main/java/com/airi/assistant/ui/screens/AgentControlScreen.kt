@@ -133,7 +133,9 @@ fun AgentControlScreen(
                             onCheckedChange = { enabled ->
                                 if (info.isConnected) {
                                     skillInfos[index] = info.copy(isEnabled = enabled)
-                                    viewModel.setSkillEnabled(info.name, enabled)
+                                    // SkillInfo.name is localized/display text; the
+                                    // registry is keyed by the stable manifest id.
+                                    viewModel.setSkillEnabled(info.id, enabled)
                                 }
                             },
                             enabled = info.isConnected,

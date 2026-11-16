@@ -3131,4 +3131,23 @@
     <string name="voice_preset_serious">جاد</string>
     <string name="voice_preset_serious_description">نبرة هادئة وجادة للإجابات المهمة.</string>
     <string name="voice_health_battery">البطارية</string>
+    <string name="skill_stage_registered">مسجلة</string>
+    <string name="skill_stage_ready">جاهزة</string>
+    <string name="skill_stage_exposed">مكشوفة للوكيل</string>
+    <string name="skill_stage_admitted">مقبولة للتنفيذ</string>
+    <string name="skill_stage_executable">قابلة للتنفيذ</string>
+    <string name="skill_blocked_reason">محجوبة: %1$s</string>
+    <string name="skill_reason_disabled">المهارة معطلة</string>
+    <string name="skill_reason_connector">صل الخدمة المطلوبة وصادق عليها</string>
+    <string name="skill_reason_action">اسمح بإجراء الموصل المطلوب</string>
+    <string name="skill_reason_permission">امنح إذن Android المطلوب</string>
+    <string name="skill_reason_runtime">فحص النموذج أو الذاكرة قيد الانتظار</string>
+    <string name="skill_reason_invalid">يحتاج تعريف المهارة إلى مراجعة</string>
+    <string name="skill_next_action">التالي: %1$s</string>
+    <string name="skill_action_enable">تفعيل المهارة</string>
+    <string name="skill_action_connect">توصيل الخدمة</string>
+    <string name="skill_action_authorize">السماح بالإجراء</string>
+    <string name="skill_action_permission">منح الإذن</string>
+    <string name="skill_action_retry">إعادة فحص التشغيل</string>
+    <string name="skill_action_inspect">فحص المهارة</string>
 </resources>

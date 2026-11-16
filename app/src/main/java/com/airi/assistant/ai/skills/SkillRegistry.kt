@@ -216,7 +216,15 @@ class SkillRegistry(private val context: Context) {
         /** Whether execution stays on-device or requires a remote service. */
         val executionKind: ExecutionKind = ExecutionKind.LOCAL,
         /** Human-readable Android/service permissions shown before enabling. */
-        val requiredPermissions: List<String> = emptyList()
+        val requiredPermissions: List<String> = emptyList(),
+        /** Truthful lifecycle projection used by the skill UI and diagnostics. */
+        val readiness: SkillReadiness = SkillReadiness.evaluate(
+            registered = true,
+            enabled = isEnabled,
+            dependenciesReady = isConnected,
+            actionsReady = true,
+            permissionsReady = true,
+        )
     )
 
     enum class ExecutionKind { LOCAL, CLOUD }
@@ -273,8 +281,8 @@ class SkillRegistry(private val context: Context) {
         if (!depResult.satisfied) {
             return InstallResult.DependencyFailure(depResult.missing)
         }
-        setSkillEnabled(info.name, true)
-        setInstalledVersion(info.name, info.version)
+        setSkillEnabled(info.id, true)
+        setInstalledVersion(info.id, info.version)
         android.util.Log.i(
             "SkillRegistry",
             "AIRI SKILL_INSTALLED name=${info.name} version=${info.version} action=$action"
@@ -508,28 +516,58 @@ class SkillRegistry(private val context: Context) {
         addAll(OfficialSkillLibrary.ALL.map { entry ->
             val dependencies = entry.manifest.dependencies
             val connected = SkillDependencyReadiness.areAvailable(dependencies, ::isRuntimeConnectorReady)
+            val enabled = isSkillEnabled(entry.manifest.id)
+            val actionsReady = SkillDependencyReadiness.areActionsAvailable(
+                entry.manifest.connectorActionDependencies,
+                ::isRuntimeActionReady,
+            )
+            val permissionsReady = entry.manifest.permissions.all { permission ->
+                context.checkSelfPermission(permission) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            }
+            // Model/memory availability is request-scoped and is revalidated by
+            // SkillToolBridge. Do not claim executable until this local catalog
+            // can prove all static and runtime-independent gates.
+            val runtimeValidated = entry.manifest.modelAccess == SkillModelAccess.NONE &&
+                entry.manifest.memoryAccess == SkillMemoryAccess.NONE
             SkillInfo(
                 id = entry.manifest.id,
                 name = entry.manifest.displayName,
                 description = entry.manifest.description,
                 isConnected = connected,
-                isEnabled = isSkillEnabled(entry.manifest.id),
+                isEnabled = enabled,
                 version = entry.manifest.version,
                 dependencies = entry.manifest.dependencies,
                 author = entry.manifest.author,
                 executionKind = if (entry.manifest.modelAccess == SkillModelAccess.NONE) ExecutionKind.LOCAL else ExecutionKind.CLOUD,
-                requiredPermissions = entry.manifest.permissions
+                requiredPermissions = entry.manifest.permissions,
+                readiness = SkillReadiness.evaluate(
+                    registered = true,
+                    enabled = enabled,
+                    dependenciesReady = connected,
+                    actionsReady = actionsReady,
+                    permissionsReady = permissionsReady,
+                    runtimeValidated = runtimeValidated,
+                )
             )
         })
         // ── Custom / user-installed skills ────────────────────────────────────
         val officialIds = OfficialSkillLibrary.ALL.mapTo(mutableSetOf()) { it.manifest.id }
         addAll(customSkillRepository.getAllSkills().filterNot { it.id in officialIds }.map { skill ->
+            val enabled = isSkillEnabled(skill.id)
+            val connected = hasRunnableEndpoint(skill)
             SkillInfo(
                 id = skill.id,
                 name = skill.name,
                 description = skill.description,
-                isConnected = hasRunnableEndpoint(skill),
-                isEnabled = isSkillEnabled(skill.id)
+                isConnected = connected,
+                isEnabled = enabled,
+                readiness = SkillReadiness.evaluate(
+                    registered = true,
+                    enabled = enabled,
+                    dependenciesReady = connected,
+                    actionsReady = true,
+                    permissionsReady = true,
+                )
             )
         })
     }.distinctBy { it.id }

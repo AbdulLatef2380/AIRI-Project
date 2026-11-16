@@ -3196,4 +3196,23 @@
     <string name="voice_preset_serious">Serious</string>
     <string name="voice_preset_serious_description">A measured, serious delivery for important answers.</string>
     <string name="voice_health_battery">Battery</string>
+    <string name="skill_stage_registered">Registered</string>
+    <string name="skill_stage_ready">Ready</string>
+    <string name="skill_stage_exposed">Exposed</string>
+    <string name="skill_stage_admitted">Admitted</string>
+    <string name="skill_stage_executable">Executable</string>
+    <string name="skill_blocked_reason">Blocked: %1$s</string>
+    <string name="skill_reason_disabled">Skill is disabled</string>
+    <string name="skill_reason_connector">Connect and authorize the required service</string>
+    <string name="skill_reason_action">Allow the required connector action</string>
+    <string name="skill_reason_permission">Grant the required Android permission</string>
+    <string name="skill_reason_runtime">Runtime model or memory check is pending</string>
+    <string name="skill_reason_invalid">Skill manifest needs attention</string>
+    <string name="skill_next_action">Next: %1$s</string>
+    <string name="skill_action_enable">Enable skill</string>
+    <string name="skill_action_connect">Connect service</string>
+    <string name="skill_action_authorize">Authorize action</string>
+    <string name="skill_action_permission">Grant permission</string>
+    <string name="skill_action_retry">Retry runtime check</string>
+    <string name="skill_action_inspect">Inspect skill</string>
 </resources>

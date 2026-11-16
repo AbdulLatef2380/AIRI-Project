@@ -2856,4 +2856,23 @@
     <string name="voice_preset_serious">严肃</string>
     <string name="voice_preset_serious_description">适合重要回答的沉稳严肃语气。</string>
     <string name="voice_health_battery">电池</string>
+    <string name="skill_stage_registered">已注册</string>
+    <string name="skill_stage_ready">已就绪</string>
+    <string name="skill_stage_exposed">已暴露</string>
+    <string name="skill_stage_admitted">已准入</string>
+    <string name="skill_stage_executable">可执行</string>
+    <string name="skill_blocked_reason">已阻止：%1$s</string>
+    <string name="skill_reason_disabled">技能已停用</string>
+    <string name="skill_reason_connector">连接并授权所需服务</string>
+    <string name="skill_reason_action">允许所需的连接器操作</string>
+    <string name="skill_reason_permission">授予所需的 Android 权限</string>
+    <string name="skill_reason_runtime">模型或记忆运行时检查待完成</string>
+    <string name="skill_reason_invalid">技能清单需要检查</string>
+    <string name="skill_next_action">下一步：%1$s</string>
+    <string name="skill_action_enable">启用技能</string>
+    <string name="skill_action_connect">连接服务</string>
+    <string name="skill_action_authorize">授权操作</string>
+    <string name="skill_action_permission">授予权限</string>
+    <string name="skill_action_retry">重试运行时检查</string>
+    <string name="skill_action_inspect">检查技能</string>
 </resources>

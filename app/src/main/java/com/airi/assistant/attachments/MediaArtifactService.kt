@@ -10,16 +10,23 @@ import android.media.MediaMuxer
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import com.airi.assistant.workspace.ArtifactManager
+import com.airi.assistant.workspace.ArtifactProvenance
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import org.json.JSONObject
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.TimeUnit
 
 /** Local, bounded image/audio transforms. No media bytes are logged or uploaded. */
 class MediaArtifactService(
     private val context: Context,
     private val artifactManager: ArtifactManager,
 ) {
+    private val imageClient by lazy {
+        OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).build()
+    }
     data class MediaArtifactLink(
         val artifactId: String,
         val fileName: String,
@@ -78,6 +85,50 @@ class MediaArtifactService(
         } finally {
             if (bitmap != null && !bitmap.isRecycled) bitmap.recycle()
         }
+    }
+
+    /** Downloads a generated image, validates its bytes/type, then persists it locally. */
+    suspend fun generateImageFromPrompt(
+        sessionId: String,
+        prompt: String,
+        width: Int = 1024,
+        height: Int = 1024,
+        outputName: String = "airi-generated-image.jpg",
+        runId: String? = null,
+        traceId: String? = null,
+    ): MediaArtifactLink {
+        require(prompt.isNotBlank()) { "Image prompt is required" }
+        require(width in 256..2048 && height in 256..2048) { "Image dimensions are outside the safe range" }
+        val encoded = java.net.URLEncoder.encode(prompt, "UTF-8")
+        val url = "https://image.pollinations.ai/prompt/$encoded?width=$width&height=$height&nologo=true"
+        val request = Request.Builder().url(url).get().build()
+        val (bytes, mime) = imageClient.newCall(request).execute().use { response ->
+            require(response.isSuccessful) { "Image provider returned HTTP ${response.code}" }
+            val body = response.body ?: throw IllegalStateException("Image provider returned no body")
+            val declaredMime = body.contentType()?.toString()?.substringBefore(';').orEmpty().lowercase()
+            require(declaredMime.startsWith("image/")) { "Image provider returned unsupported content type" }
+            val data = body.bytes()
+            require(data.isNotEmpty()) { "Image provider returned an empty body" }
+            require(data.size <= ArtifactManager.MAX_BINARY_ARTIFACT_BYTES) { "Generated image exceeds the 25MB safety limit" }
+            require(BitmapFactory.decodeByteArray(data, 0, data.size) != null) { "Downloaded bytes are not a decodable image" }
+            data to declaredMime
+        }
+        val artifact = artifactManager.createBinaryArtifact(
+            sessionId = sessionId,
+            name = outputName.substringAfterLast('/').ifBlank { "airi-generated-image.jpg" },
+            type = ArtifactManager.ArtifactType.IMAGE,
+            bytes = bytes,
+            mimeType = mime,
+            description = "AI-generated image downloaded from provider",
+            agentId = "image_generator",
+            provenance = ArtifactProvenance(
+                projectId = sessionId,
+                toolId = "image_generator",
+                summary = "provider=pollinations; run=${runId?.take(40) ?: "none"}; trace=${traceId?.take(40) ?: "none"}",
+            ),
+        )
+        check(artifactManager.verifyArtifact(artifact.id)) { "Generated image artifact was not verified on disk" }
+        return link(artifact, mime, runId, traceId)
     }
 
     suspend fun processAudio(

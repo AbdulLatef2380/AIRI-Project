@@ -6,14 +6,10 @@ import com.airi.assistant.agent.subagent.AgentEvent
 import com.airi.assistant.agent.subagent.SubAgent
 import com.airi.assistant.agent.subagent.SubAgentCapability
 import com.airi.assistant.agent.subagent.SubAgentContext
+import com.airi.assistant.attachments.MediaArtifactService
+import com.airi.assistant.core.ServiceLocator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
-import java.util.concurrent.TimeUnit
 
 /**
  * MediaGenerationAgent — AI image generation via Pollinations.AI (free, no key).
@@ -22,7 +18,7 @@ import java.util.concurrent.TimeUnit
  *   Primary backend: Pollinations.AI image generation endpoint.
  *     URL: https://image.pollinations.ai/prompt/{encoded_prompt}
  *     - Free tier, no API key required, suitable for production use.
- *     - Returns a JPEG/PNG image URL the user can open in the browser.
+ *     - Downloads and verifies JPEG/PNG bytes before returning an AIRI artifact.
  *     - Parameters: width, height, model, seed.
  *
  *   When the user explicitly provides an OpenAI key via SecureApiKeyStore,
@@ -43,15 +39,6 @@ class MediaGenerationAgent(
 
     companion object {
         private const val TAG         = "MediaGenerationAgent"
-        private const val TIMEOUT_SEC = 30L
-        private const val POLLINATIONS_BASE = "https://image.pollinations.ai/prompt"
-    }
-
-    private val httpClient: OkHttpClient by lazy {
-        OkHttpClient.Builder()
-            .connectTimeout(TIMEOUT_SEC, TimeUnit.SECONDS)
-            .readTimeout(TIMEOUT_SEC, TimeUnit.SECONDS)
-            .build()
     }
 
     override val capability = SubAgentCapability(
@@ -107,18 +94,26 @@ class MediaGenerationAgent(
             reasoning = "Generate AI image from prompt using Pollinations.AI"
         ))
 
-        val imageUrl = runCatching { generateImage(prompt, width, height) }
-            .getOrElse { e ->
-                Log.w(TAG, "MEDIA_GENERATION_FAILURE causeType=${e::class.simpleName}")
-                null
-            }
+        val artifact = try {
+            MediaArtifactService(context, ServiceLocator.artifactManager).generateImageFromPrompt(
+                sessionId = context.sessionId,
+                prompt = prompt,
+                width = width,
+                height = height,
+                runId = context.executionId.takeIf { it.isNotBlank() },
+                traceId = context.parentId,
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "MEDIA_GENERATION_FAILURE causeType=${e::class.simpleName}")
+            null
+        }
 
         val durationMs = System.currentTimeMillis() - start
 
-        if (imageUrl != null) {
+        if (artifact != null) {
             Log.i(TAG, "MEDIA_GENERATION_COMPLETE success=true durationMs=$durationMs")
             emit(AgentEvent.PartialResult(
-                "Here is your generated image:\n$imageUrl\n\nTap the link to view the full image.",
+                "Here is your generated image:\n${artifact.structured()}",
                 isFinal = true
             ))
         } else {
@@ -130,27 +125,13 @@ class MediaGenerationAgent(
         }
 
         emit(AgentEvent.Complete(
-            result     = "[MediaGen: ${if (imageUrl != null) "success" else "failed"} durationMs=$durationMs]",
+            result     = "[MediaGen: ${if (artifact != null) "success artifact=${artifact.artifactId}" else "failed"} durationMs=$durationMs]",
             durationMs = durationMs,
             toolsUsed  = listOf("image_generator")
         ))
     }
 
     // ── Internals ──────────────────────────────────────────────────────────────
-
-    private fun generateImage(prompt: String, width: Int, height: Int): String {
-        val encoded = java.net.URLEncoder.encode(prompt, "UTF-8")
-        val url     = "$POLLINATIONS_BASE/$encoded?width=$width&height=$height&nologo=true"
-        // Pollinations returns the image directly at the URL — we return the URL
-        // so the user can open it. Verify it's reachable with a HEAD request.
-        val request = Request.Builder().url(url).head().build()
-        val response = httpClient.newCall(request).execute()
-        if (!response.isSuccessful && response.code != 405) {
-            Log.w(TAG, "MEDIA_PROVIDER_HTTP_FAILURE provider=pollinations code=${response.code}")
-        }
-        response.close()
-        return url
-    }
 
     private fun cleanPrompt(input: String): String =
         input

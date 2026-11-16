@@ -51,4 +51,26 @@ class LongTextAttachmentPolicyTest {
         org.junit.Assert.assertFalse(summary.contains("line 16 of the pasted code"))
         org.junit.Assert.assertTrue(summary.endsWith("…"))
     }
+
+    @Test
+    fun generatedAttachmentSummaryDoesNotExposeFileContentsInBubble() {
+        val summary = LongTextAttachmentPolicy.attachmentSummary(
+            "pasted.txt",
+            (1..100).joinToString("\n") { "line $it" },
+        )
+
+        org.junit.Assert.assertEquals(
+            summary.substringBefore("\n"),
+            AttachmentBubbleTextPolicy.visibleText(summary),
+        )
+    }
+
+    @Test
+    fun userTextBeforeAttachmentMetadataRemainsVisibleOnlyOnce() {
+        val content = "Please inspect this file\n\n[Attachment metadata: name=\"pasted.txt\"]"
+        org.junit.Assert.assertEquals(
+            "Please inspect this file",
+            AttachmentBubbleTextPolicy.visibleText(content),
+        )
+    }
 }

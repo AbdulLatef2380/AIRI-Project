@@ -102,6 +102,7 @@ import com.airi.assistant.system.LanguageManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -1099,55 +1100,66 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val composerDrafts: StateFlow<Map<String, ChatComposerDraft>> = _composerDrafts.asStateFlow()
     private val _longTextConversionInFlight = MutableStateFlow(false)
     val longTextConversionInFlight: StateFlow<Boolean> = _longTextConversionInFlight.asStateFlow()
+    private var longTextConversionJob: Job? = null
+    private var longTextConversionRevision = 0L
 
     fun updateComposerText(text: String) {
         val sessionId = _currentSessionId.value
         _composerDrafts.update { drafts ->
             ChatComposerDraftPolicy.replaceText(drafts, sessionId, text)
         }
-        if (LongTextAttachmentPolicy.shouldAutoConvert(text)) {
-            convertLongTextDraftToAttachment(sessionId, text)
+        longTextConversionJob?.cancel()
+        val revision = ++longTextConversionRevision
+        if (!LongTextAttachmentPolicy.shouldAutoConvert(text)) {
+            _longTextConversionInFlight.value = false
+            return
+        }
+        _longTextConversionInFlight.value = true
+        longTextConversionJob = viewModelScope.launch {
+            try {
+                // Clipboard insertion can arrive as several text updates. Wait until
+                // the final update before creating a file; otherwise partial pastes
+                // become duplicate attachments.
+                delay(250L)
+                convertLongTextDraftToAttachment(sessionId, text, revision)
+            } finally {
+                if (revision == longTextConversionRevision) {
+                    _longTextConversionInFlight.value = false
+                }
+            }
         }
     }
 
     /** Converts the current draft only after the complete text is written successfully. */
-    private fun convertLongTextDraftToAttachment(sessionId: String, text: String) {
-        if (sessionId.isBlank() || _longTextConversionInFlight.value) return
-        _longTextConversionInFlight.value = true
-        viewModelScope.launch {
-            val attachment = withContext(Dispatchers.IO) {
-                runCatching {
-                    val uri = ComposerTextFileStore.create(appContext, text, prefix = "long_message")
-                        ?: return@runCatching null
-                    ChatAttachment(
-                        kind = ChatAttachment.Kind.FILE,
-                        uri = uri,
-                        displayName = "message.txt",
-                        mimeType = "text/plain",
-                        sizeBytes = LongTextAttachmentPolicy.utf8SizeBytes(text)
-                    )
-                }.getOrNull()
-            }
-            if (attachment != null && _currentSessionId.value == sessionId) {
-                _composerDrafts.update { drafts ->
-                    val current = ChatComposerDraftPolicy.current(drafts, sessionId)
-                    if (current.text != text) return@update drafts
-                    val withTextCleared = ChatComposerDraftPolicy.replaceText(drafts, sessionId, "")
-                    ChatComposerDraftPolicy.replaceAttachments(
-                        withTextCleared,
-                        sessionId,
-                        current.attachments + attachment
-                    )
-                }
-            }
-            _longTextConversionInFlight.value = false
-            val latestText = ChatComposerDraftPolicy.current(_composerDrafts.value, sessionId).text
-            if (_currentSessionId.value == sessionId &&
-                latestText != text &&
-                LongTextAttachmentPolicy.shouldAutoConvert(latestText)
-            ) {
-                convertLongTextDraftToAttachment(sessionId, latestText)
-            }
+    private suspend fun convertLongTextDraftToAttachment(sessionId: String, text: String, revision: Long) {
+        if (sessionId.isBlank() || revision != longTextConversionRevision) return
+        val attachment = withContext(Dispatchers.IO) {
+            runCatching {
+                val uri = ComposerTextFileStore.create(appContext, text, prefix = "long_message")
+                    ?: return@runCatching null
+                ChatAttachment(
+                    kind = ChatAttachment.Kind.FILE,
+                    uri = uri,
+                    displayName = "message.txt",
+                    mimeType = "text/plain",
+                    sizeBytes = LongTextAttachmentPolicy.utf8SizeBytes(text)
+                )
+            }.getOrNull()
+        } ?: return
+
+        if (revision != longTextConversionRevision || _currentSessionId.value != sessionId) {
+            attachment.uri?.let { ComposerTextFileStore.discardIfOwned(appContext, it) }
+            return
+        }
+        _composerDrafts.update { drafts ->
+            val current = ChatComposerDraftPolicy.current(drafts, sessionId)
+            if (current.text != text) return@update drafts
+            val withTextCleared = ChatComposerDraftPolicy.replaceText(drafts, sessionId, "")
+            ChatComposerDraftPolicy.replaceAttachments(
+                withTextCleared,
+                sessionId,
+                current.attachments + attachment
+            )
         }
     }
 
@@ -2426,7 +2438,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // guard also protects programmatic callers from queuing a second request.
         if (activeGenerationId != 0L || _agentState.value.isWorking) return rejectSend("generation_in_progress")
         _lastExecutionError.value = null
-        // ── Long-text-to-file conversion (3000+ chars or 40+ lines) ───────────
+        // ── Long-text-to-file conversion (3000+ chars or 60+ lines) ───────────
         // When the user pastes/sends very long text (e.g. code, articles, logs),
         // convert it to a .txt file attachment instead of embedding it inline.
         // This prevents token overflow and keeps the conversation manageable.
@@ -6418,7 +6430,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Hides transport/context markers from the bubble while preserving them for the model. */
     private fun attachmentBubbleText(content: String, attachments: List<ChatAttachment>): String {
         if (attachments.isEmpty()) return content
-        return content.substringBefore("\n\n[Attachment metadata:").trim()
+        return com.airi.assistant.domain.AttachmentBubbleTextPolicy.visibleText(content)
     }
 
     private suspend fun currentSessionOrCreate(): String {

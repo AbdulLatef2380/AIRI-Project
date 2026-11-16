@@ -147,6 +147,16 @@
             android:foregroundServiceType="dataSync" />
 
         <!--
+            Release terminal boundary. Android assigns this service a distinct
+            isolated UID and permission set; it receives commands only through
+            the internal Binder contract and never receives an app workspace path.
+        -->
+        <service
+            android:name=".terminal.IsolatedTerminalService"
+            android:exported="false"
+            android:isolatedProcess="true" />
+
+        <!--
             LiveVoiceService — bidirectional real-time voice conversation.
             Local pipeline: Vosk STT + Android TTS (LocalVoicePipeline, always available).
             Cloud pipeline: GeminiLiveProvider or OpenAIRealtimeProvider (when API key set).

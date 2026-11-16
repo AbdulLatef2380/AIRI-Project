@@ -11,7 +11,7 @@
 | الصلاحيات | `PermissionGovernanceLayer` وواجهات permission الصريحة تفصل الإذن عن التنفيذ. لا يطلب onboarding الصلاحيات إلا من فعل مستخدم ظاهر. |
 | الشبكة والملفات | release يستخدم TLS-only؛ استثناءات emulator محصورة في debug. المرفقات تنسخ إلى تخزين خاص وتبقى URI المصدر خارج metadata الدائمة. |
 | المهارات الديناميكية | endpoint غير HTTPS أو placeholder لا يصل إلى registration صالح. |
-| تنفيذ الطرفية | `SandboxExecutor` يطبق policy/argv/workspace bounds فقط؛ **ليس OS sandbox**. يرفض shell في Release عبر `SandboxIsolationPolicy` حتى يتوفر عزل على مستوى النظام واختبارات device مستقلة. |
+| تنفيذ الطرفية | Debug يستخدم `SandboxExecutor` مع policy/argv/workspace bounds. Release يمر عبر `IsolatedTerminalService` المعلن بـ `android:isolatedProcess="true"` فقط بعد capability probe كامل؛ fuse `OS_SANDBOX_AVAILABLE` ما زال مغلقاً حتى تنجح اختبارات الجهاز المستقلة. لا يوجد fallback مباشر إلى UID التطبيق. |
 | الحذف المحلي | `DataDeletionCoordinator.eraseLocalData()` يوقف عمل AIRI المحلي ويمسح stores/ملفات/معرفة/artifacts/أسرار/تفضيلات/cache ويسجل خروجاً محلياً. **لا** يستدعي حذف حساب Firebase أو مزود بعيد ولا يدّعي حذف البيانات السحابية. |
 
 ## ما لا تثبته الحزمة

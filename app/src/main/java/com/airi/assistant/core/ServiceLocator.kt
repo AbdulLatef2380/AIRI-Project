@@ -381,7 +381,8 @@ object ServiceLocator {
     val terminalExecutionGateway: com.airi.assistant.terminal.TerminalExecutionGateway by lazy {
         com.airi.assistant.terminal.TerminalExecutionGateway(
             sandboxManager = sandboxManager,
-            governance = permissionGovernanceLayer
+            governance = permissionGovernanceLayer,
+            context = requireContext(),
         )
     }
     val terminalRuntime: com.airi.assistant.terminal.TerminalRuntime by lazy {

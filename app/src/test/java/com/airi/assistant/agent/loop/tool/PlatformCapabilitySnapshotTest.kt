@@ -96,4 +96,36 @@ class PlatformCapabilitySnapshotTest {
         assertTrue(prompt.contains("registered=true"))
         assertTrue(prompt.contains("exposed=false"))
     }
+
+    @Test
+    fun turnExposureSnapshotDistinguishesReadyBlockedAndContextOmitted() {
+        val block = PlatformCapabilitySnapshot(emptyList()).turnExposureBlock(
+            candidateToolNames = listOf("write_file", "terminal_execute", "connector_github_read"),
+            permittedToolNames = listOf("write_file", "connector_github_read"),
+            exposedToolNames = listOf("write_file"),
+            omittedToolNames = listOf("connector_github_read"),
+        )
+
+        assertTrue(block.contains("write_file: registered=true; ready=true; exposed=true"))
+        assertTrue(block.contains("terminal_execute: registered=true; ready=false; exposed=false"))
+        assertTrue(block.contains("status=blocked_by_policy"))
+        assertTrue(block.contains("connector_github_read: registered=true; ready=true; exposed=false"))
+        assertTrue(block.contains("status=context_omitted"))
+        assertTrue(block.contains("next_action=shorten_request_or_use_larger_context"))
+    }
+
+    @Test
+    fun turnExposureSnapshotIsPresentWithoutPrebuiltPlatformSnapshot() {
+        val block = PlatformCapabilitySnapshot(emptyList()).turnExposureBlock(
+            candidateToolNames = listOf("write_file"),
+            permittedToolNames = emptyList(),
+            exposedToolNames = emptyList(),
+            omittedToolNames = emptyList(),
+        )
+
+        assertTrue(block.startsWith("AIRI TURN TOOL EXPOSURE SNAPSHOT"))
+        assertTrue(block.contains("registered=true"))
+        assertTrue(block.contains("exposed=false"))
+        assertTrue(block.contains("blocked_reason="))
+    }
 }

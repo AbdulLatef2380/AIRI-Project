@@ -255,10 +255,20 @@ the tool returns an actual error.
                 toolSelection.requiredButOmittedToolNames.contains("write_file") -> "write_file was omitted by the context budget"
                 else -> "write_file was not admitted for this execution"
             }
+            val writeFileRegistered = tools.any { it.name == "write_file" }
+            val writeFileReady = permissionFilteredTools.any { it.name == "write_file" }
+            val nextAction = when {
+                !writeFileRegistered -> "enable_file_write_capability"
+                toolSelection.requiredButOmittedToolNames.contains("write_file") -> "shorten_request_or_use_larger_context"
+                executionContextFactory == null -> "start_durable_execution_context"
+                else -> "review_runtime_admission"
+            }
+            val diagnostic = "write_file: registered=$writeFileRegistered; ready=$writeFileReady; " +
+                "exposed=false; blocked_reason=${reason.replace(';', ',')}; next_action=$nextAction"
             val notice = if (input.any { it in '\u0600'..'\u06FF' }) {
-                "لم أُنشئ الملف: أداة الكتابة المطلوبة غير جاهزة لأن $reason. لم أعتبر الكود المحادثي ملفًا محفوظًا."
+                "لم أُنشئ الملف: أداة الكتابة المطلوبة غير جاهزة لأن $reason.\n$diagnostic\nلم أعتبر الكود المحادثي ملفًا محفوظًا."
             } else {
-                "I did not create the file: the required write_file tool is unavailable because $reason. The code in chat is not a saved file."
+                "I did not create the file: the required write_file tool is unavailable because $reason.\n$diagnostic\nThe code in chat is not a saved file."
             }
             LoggingService.warn(TAG, "FILE_WRITE_ADMISSION_FAILED reason=${reason.replace(' ', '_')}")
             return LoopResult(
@@ -377,9 +387,30 @@ the tool returns an actual error.
         var activeToolTrace: ActiveToolTrace? = null
         val pendingToolCalls = ArrayDeque<com.airi.assistant.ai.intent.ToolCall>()
 
-        val platformBlock = platformCapabilitySnapshot.trim().take(MAX_PLATFORM_SNAPSHOT_CHARS)
-        val promptWithPlatformSnapshot = if (platformBlock.isBlank() || systemPrompt.contains("AIRI PLATFORM CAPABILITY SNAPSHOT")) systemPrompt else
-            systemPrompt + "\n\n" + platformBlock
+        // ChatViewModel supplies the broad registry snapshot, but this loop is
+        // the final authority for request permission, runtime admission, and
+        // context-budget exposure. Always append that final decision so direct
+        // callers and the normal UI path receive the same truthful turn facts.
+        val turnExposureBlock = com.airi.assistant.agent.loop.tool.PlatformCapabilitySnapshot(
+            entries = emptyList(),
+        )
+            .turnExposureBlock(
+                candidateToolNames = tools.map { it.name },
+                permittedToolNames = permissionFilteredTools.map { it.name },
+                exposedToolNames = effectiveTools.map { it.name },
+                omittedToolNames = toolSelection.omittedToolNames,
+            )
+        val platformBlock = listOf(
+            turnExposureBlock,
+            platformCapabilitySnapshot.trim(),
+        ).filter { it.isNotBlank() }.joinToString("\n\n").take(MAX_PLATFORM_SNAPSHOT_CHARS)
+        val platformPromptAddition = if (systemPrompt.contains("AIRI PLATFORM CAPABILITY SNAPSHOT")) {
+            turnExposureBlock
+        } else {
+            platformBlock
+        }
+        val promptWithPlatformSnapshot = if (turnExposureBlock.isBlank()) systemPrompt else
+            systemPrompt + "\n\n" + platformPromptAddition
         val fullSystemPrompt = promptWithPlatformSnapshot + "\n\n" + toolSelection.promptBlock + TOOL_CALL_INSTRUCTION
         history.add(ConversationTurn.User(input))
         val capabilityIntent = com.airi.assistant.ai.CapabilityIntentDetector.detect(input)

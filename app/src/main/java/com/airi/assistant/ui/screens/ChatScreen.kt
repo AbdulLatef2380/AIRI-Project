@@ -5005,6 +5005,51 @@ fun AiriChatInputBar(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
                 AttachListRow(
+                    Icons.Outlined.Description,
+                    stringResource(R.string.attach_recent_files),
+                    stringResource(R.string.attach_recent_files_desc)
+                ) {
+                    showAttachPopup = false
+                    applyAttachmentPrompt(R.string.attach_recent_files_prompt, "file")
+                    onPickRecentFile()
+                }
+                AttachListRow(
+                    Icons.Outlined.EventNote,
+                    stringResource(R.string.attach_recent_tasks),
+                    stringResource(R.string.attach_recent_tasks_desc)
+                ) {
+                    showAttachPopup = false
+                    applyAttachmentPrompt(R.string.attach_recent_tasks_prompt, "tasks")
+                    onNavigate(AiriRoute.AGENT_TASKS)
+                }
+                AttachListRow(
+                    Icons.Outlined.StarBorder,
+                    stringResource(R.string.attach_skills),
+                    stringResource(R.string.attach_skills_desc)
+                ) {
+                    showAttachPopup = false
+                    applyAttachmentPrompt(R.string.attach_skills_prompt, "skills")
+                    onNavigate(AiriRoute.SKILL_MANAGER)
+                }
+                AttachListRow(
+                    Icons.Outlined.EditNote,
+                    stringResource(R.string.prompt_builder_shortcut),
+                    stringResource(R.string.attach_prompt_builder_desc)
+                ) {
+                    showAttachPopup = false
+                    applyAttachmentPrompt(R.string.attach_prompt_builder_prompt, "prompt")
+                    onNavigate(AiriRoute.PROMPT_BUILDER)
+                }
+                AttachListRow(
+                    Icons.Outlined.Assignment,
+                    stringResource(R.string.attach_plan),
+                    stringResource(R.string.attach_plan_desc)
+                ) {
+                    showAttachPopup = false
+                    applyAttachmentPrompt(R.string.attach_plan_prompt, "plan")
+                    onNavigate(AiriRoute.PLANNING_DASHBOARD)
+                }
+                AttachListRow(
                     Icons.Outlined.Slideshow,
                     stringResource(R.string.attach_slides),
                     stringResource(R.string.attach_slides_desc)
@@ -5026,6 +5071,32 @@ fun AiriChatInputBar(
                 ) {
                     showAttachPopup = false
                     applyAttachmentPrompt(R.string.attach_spreadsheet_prompt, "spreadsheet")
+                }
+                AttachListRow(
+                    icon = Icons.Outlined.History,
+                    label = stringResource(R.string.attach_scheduled_tasks),
+                    description = stringResource(R.string.attach_scheduled_tasks_desc)
+                ) {
+                    showAttachPopup = false
+                    applyAttachmentPrompt(R.string.attach_scheduled_tasks_prompt, "scheduled")
+                    onNavigate(AiriRoute.AGENT_TASKS)
+                }
+                AttachListRow(
+                    icon = Icons.Outlined.Mic,
+                    label = stringResource(R.string.attach_conversation_mode),
+                    description = stringResource(R.string.attach_conversation_mode_desc)
+                ) {
+                    showAttachPopup = false
+                    activeAttachmentMode = "voice"
+                    onVoiceChatClick()
+                }
+                AttachListRow(
+                    icon = Icons.Outlined.Edit,
+                    label = stringResource(R.string.attach_edit_image)
+                ) {
+                    showAttachPopup = false
+                    applyAttachmentPrompt(R.string.chat_edit_image_prefix, "edit_image")
+                    onPickImage()
                 }
             }
         }

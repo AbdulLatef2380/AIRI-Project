@@ -3134,10 +3134,14 @@ fun AiBubble(
                 ).show()
             }
             ContentUnitAction.SPEAK -> onSpeak(messageTarget.source)
+            ContentUnitAction.SHARE -> onShare(messageTarget.source)
             ContentUnitAction.EXPORT_PDF -> onExportPdf(messageTarget.source)
             ContentUnitAction.EXPORT_MARKDOWN -> onExportMarkdown(messageTarget.source)
             ContentUnitAction.SAVE,
-            ContentUnitAction.EXPAND -> Unit
+            ContentUnitAction.EXPAND,
+            // Fullscreen is handled by the content-unit action handler above; this legacy
+            // message-level dispatcher must remain exhaustive without duplicating that route.
+            ContentUnitAction.FULLSCREEN -> Unit
         }
     }
     val textDirection = remember(text) { chatTextDirection(text) }

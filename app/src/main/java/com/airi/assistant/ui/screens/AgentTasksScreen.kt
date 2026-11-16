@@ -107,10 +107,18 @@ fun AgentTasksScreen(
     fun reload() { jobs = orchestrator.listUserJobs() }
 
     fun approveAndResume(approvalId: String, approvalScope: ApprovalGrantScope) {
+        val liveApproval = liveApprovals.firstOrNull { it.id == approvalId }
         if (!permissionGovernance.approveAction(approvalId, approvalScope)) {
             ServiceLocator.calendarCreateRuntime.reconcileExpiredApprovals()
             ServiceLocator.calendarCreateRuntime.reconcileApproval(approvalId)
             return
+        }
+        if (liveApproval?.action == "terminal_expanded_session") {
+            ServiceLocator.terminalExecutionGateway.grantExpandedSession(
+                sourceSessionId = liveApproval.sourceSessionId.orEmpty(),
+                taskId = liveApproval.taskId.orEmpty(),
+                runId = liveApproval.runId.orEmpty(),
+            )
         }
         approvalResumeScope.launch {
             val connectorResult = ServiceLocator.approvalContinuationRuntime.resume(approvalId)

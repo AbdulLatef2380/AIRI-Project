@@ -10,6 +10,10 @@ import com.airi.assistant.agent.sandbox.ShellExecutionPermit
 import com.airi.assistant.domain.terminal.TerminalExecutionPolicy
 import com.airi.assistant.security.CommandRedactor
 import com.airi.assistant.security.PermissionGovernanceLayer
+import com.airi.assistant.core.ExecutionTraceGateway
+import com.airi.assistant.ui.activity.ActivityCategory
+import com.airi.assistant.ui.activity.ActivitySeverity
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Single coordinator for every terminal-like surface.
@@ -25,6 +29,42 @@ class TerminalExecutionGateway(
     context: Context? = null,
 ) {
     private val isolatedClient = context?.applicationContext?.let(::IsolatedTerminalClient)
+    private val expandedSessionGrants = ConcurrentHashMap<String, Long>()
+
+    /** Grant expanded commands for one task run; the grant expires and is never global. */
+    fun grantExpandedSession(sourceSessionId: String, taskId: String, runId: String): Boolean {
+        if (!listOf(sourceSessionId, taskId, runId).all(::isSafeCorrelation)) return false
+        expandedSessionGrants[grantKey(sourceSessionId, taskId, runId)] =
+            System.currentTimeMillis() + EXPANDED_SESSION_GRANT_MS
+        ExecutionTraceGateway.emit(
+            "Terminal expanded session approved [session=$sourceSessionId task=$taskId run=$runId]",
+            ActivityCategory.SYSTEM,
+            ActivitySeverity.WARN,
+        )
+        return true
+    }
+
+    fun hasExpandedSessionGrant(sourceSessionId: String, taskId: String, runId: String): Boolean {
+        val key = grantKey(sourceSessionId, taskId, runId)
+        val expiry = expandedSessionGrants[key] ?: return false
+        if (expiry <= System.currentTimeMillis()) {
+            expandedSessionGrants.remove(key, expiry)
+            return false
+        }
+        return true
+    }
+
+    private fun grantKey(sourceSessionId: String, taskId: String, runId: String): String =
+        "$sourceSessionId|$taskId|$runId"
+
+    private fun isSafeCorrelation(value: String): Boolean =
+        value.matches(Regex("^[A-Za-z0-9._:-]{1,160}$"))
+
+    private companion object {
+        const val EXPANDED_SESSION_GRANT_MS = 5 * 60_000L
+        const val SEED_MAX_FILES = 50
+        const val SEED_MAX_FILE_BYTES = 256L * 1024
+    }
     sealed class Result {
         data class Disabled(val reason: String, val requiresApproval: Boolean = false) : Result()
         data class Denied(val reason: String) : Result()
@@ -40,7 +80,8 @@ class TerminalExecutionGateway(
         if (!request.isStructurallyValid()) {
             return Result.Denied("Terminal request has incomplete or invalid execution correlation")
         }
-        if (!BuildConfig.DEBUG) return executeInReleaseIsolation(request)
+        val expandedApproved = hasExpandedSessionGrant(request.context.sourceSessionId, request.context.taskId, request.context.runId)
+        if (!BuildConfig.DEBUG) return executeInReleaseIsolation(request, expandedApproved)
         val session = createSession("agent:${request.context.agentId}:${request.context.taskId}")
             ?: return Result.Denied("Could not allocate an agent workspace")
         return try {
@@ -65,11 +106,6 @@ class TerminalExecutionGateway(
         }
     }
 
-    private companion object {
-        const val SEED_MAX_FILES = 50
-        const val SEED_MAX_FILE_BYTES = 256L * 1024
-    }
-
     suspend fun execute(
         session: SandboxSession,
         request: TerminalExecutionRequest
@@ -77,7 +113,8 @@ class TerminalExecutionGateway(
         if (!request.isStructurallyValid()) {
             return Result.Denied("Terminal request has incomplete or invalid execution correlation")
         }
-        if (!BuildConfig.DEBUG) return executeInReleaseIsolation(request)
+        val expandedApproved = hasExpandedSessionGrant(request.context.sourceSessionId, request.context.taskId, request.context.runId)
+        if (!BuildConfig.DEBUG) return executeInReleaseIsolation(request, expandedApproved)
         if (!sandboxManager.ownsSession(session)) {
             return Result.Denied("Sandbox session is not owned by the active sandbox manager")
         }
@@ -85,7 +122,7 @@ class TerminalExecutionGateway(
             return Result.Denied("Sandbox session is unavailable")
         }
         try {
-            val policy = TerminalExecutionPolicy.evaluate(request.command)
+            val policy = TerminalExecutionPolicy.evaluate(request.command, allowApprovedMutation = expandedApproved)
             if (!policy.allowed) return Result.Disabled(policy.reason, policy.requiresApproval)
 
             val decision = runCatching {
@@ -120,9 +157,9 @@ class TerminalExecutionGateway(
      * allowed to proceed only after the isolated service capability proof is
      * complete; the current compile-time fuse intentionally remains closed.
      */
-    private suspend fun executeInReleaseIsolation(request: TerminalExecutionRequest): Result {
+    private suspend fun executeInReleaseIsolation(request: TerminalExecutionRequest, expandedApproved: Boolean): Result {
         val client = isolatedClient ?: return Result.Disabled(SandboxIsolationPolicy.RELEASE_BLOCK_REASON)
-        val policy = TerminalExecutionPolicy.evaluate(request.command)
+        val policy = TerminalExecutionPolicy.evaluate(request.command, allowApprovedMutation = expandedApproved)
         if (!policy.allowed) return Result.Disabled(policy.reason, policy.requiresApproval)
         val capability = client.probe()
         if (!SandboxIsolationPolicy.mayExecuteShell(isDebugBuild = false, capability = capability)) {
@@ -137,6 +174,6 @@ class TerminalExecutionGateway(
             )
         }.getOrElse { return Result.Denied("Terminal governance failed closed") }
         if (!decision.allowed) return Result.Denied(decision.reason)
-        return Result.Completed(client.execute(request))
+        return Result.Completed(client.execute(request, allowExpanded = expandedApproved))
     }
 }

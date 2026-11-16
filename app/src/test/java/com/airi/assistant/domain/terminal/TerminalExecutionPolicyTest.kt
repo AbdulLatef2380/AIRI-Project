@@ -21,6 +21,20 @@ class TerminalExecutionPolicyTest {
         assertFalse(TerminalExecutionPolicy.evaluate("echo safe; cat /etc/passwd").allowed)
     }
 
+    @Test
+    fun approvedMutationIsAdmittedOnlyInsideTheBoundedWorkspace() {
+        assertTrue(TerminalExecutionPolicy.evaluate("rm -rf ./output", allowApprovedMutation = true).allowed)
+        assertTrue(TerminalExecutionPolicy.evaluate("mkdir -p ./build", allowApprovedMutation = true).allowed)
+        assertFalse(TerminalExecutionPolicy.evaluate("rm -rf /", allowApprovedMutation = true).allowed)
+        assertFalse(TerminalExecutionPolicy.evaluate("cp ./input /tmp/output", allowApprovedMutation = true).allowed)
+    }
+
+    @Test
+    fun approvalDoesNotPermitShellMetacharacters() {
+        assertFalse(TerminalExecutionPolicy.evaluate("rm -rf ./output; echo escaped", allowApprovedMutation = true).allowed)
+        assertFalse(TerminalExecutionPolicy.evaluate("rm -rf ./output | cat", allowApprovedMutation = true).allowed)
+    }
+
     // ── Report 3, T1: per-tool option allowlist ────────────────────────────────
 
     private fun allowed(cmd: String) = TerminalExecutionPolicy.evaluate(cmd).allowed

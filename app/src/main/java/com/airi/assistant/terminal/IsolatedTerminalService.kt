@@ -47,12 +47,13 @@ class IsolatedTerminalService : Service() {
             timeoutMs: Long,
             maxOutputBytes: Long,
             allowNetwork: Boolean,
+            allowExpanded: Boolean,
             callback: ISandboxTerminalCallback,
         ) {
             if (!listOf(requestId, sessionId, messageId, executionId, actionId, traceId).all(::isSafeRequestId) || callback == null) return
             jobs.remove(requestId)?.cancel()
             jobs[requestId] = scope.launch {
-                val result = runCommand(requestId, command, timeoutMs, maxOutputBytes, allowNetwork)
+                val result = runCommand(requestId, command, timeoutMs, maxOutputBytes, allowNetwork, allowExpanded)
                 runCatching {
                     callback.onResult(requestId, result.status, result.output, result.exitCode, result.reason)
                 }
@@ -104,10 +105,11 @@ class IsolatedTerminalService : Service() {
         timeoutMs: Long,
         maxOutputBytes: Long,
         allowNetwork: Boolean,
+        allowExpanded: Boolean,
     ): ServiceResult {
         if (allowNetwork) return ServiceResult.denied("Network access is disabled by isolated terminal policy")
         if (command.length > IsolatedProcessLimits.MAX_COMMAND_CHARS) return ServiceResult.denied("Command exceeds the isolated limit")
-        val decision = TerminalExecutionPolicy.evaluate(command)
+        val decision = TerminalExecutionPolicy.evaluate(command, allowApprovedMutation = allowExpanded)
         if (!decision.allowed) return ServiceResult.denied(decision.reason)
         val limits = runCatching {
             IsolatedProcessLimits(timeoutMs = timeoutMs, maxOutputBytes = maxOutputBytes)

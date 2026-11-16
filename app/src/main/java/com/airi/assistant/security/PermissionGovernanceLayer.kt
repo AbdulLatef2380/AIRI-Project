@@ -86,6 +86,7 @@ class PermissionGovernanceLayer(
         val riskLevel: RiskLevel,
         val timestampMs: Long = System.currentTimeMillis(),
         val expiresAtMs: Long = timestampMs + DEFAULT_APPROVAL_EXPIRY_MS,
+        val sourceSessionId: String? = null,
         val taskId: String? = null,
         val runId: String? = null,
         val stepId: String? = null
@@ -297,6 +298,7 @@ class PermissionGovernanceLayer(
         action: String,
         description: String,
         riskLevel: RiskLevel,
+        sourceSessionId: String? = null,
         taskId: String? = null,
         runId: String? = null,
         stepId: String? = null,
@@ -321,6 +323,7 @@ class PermissionGovernanceLayer(
             riskLevel = riskLevel,
             timestampMs = now,
             expiresAtMs = durableApproval?.expiresAtMs ?: now + expiresInMs,
+            sourceSessionId = sourceSessionId,
             taskId = taskId,
             runId = runId,
             stepId = stepId

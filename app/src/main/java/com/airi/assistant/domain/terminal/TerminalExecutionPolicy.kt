@@ -24,7 +24,7 @@ object TerminalExecutionPolicy {
     private val gitReadOnly = setOf("status", "log", "diff", "show", "ls-files", "rev-parse", "branch")
     private val shellMeta = setOf(';', '&', '|', '`', '$', '>', '<', '\n', '\r', '\u0000', '*', '?', '[', ']', '(', ')', '\\', '"', '\'')
 
-    fun evaluate(command: String): Decision {
+    fun evaluate(command: String, allowApprovedMutation: Boolean = false): Decision {
         // Reject raw input before trim()/split(Regex("\\s+")) can erase a
         // forbidden newline or carriage return and turn a compound command
         // into an apparently safe argv list.
@@ -39,18 +39,28 @@ object TerminalExecutionPolicy {
             return Decision(false, "Shell metacharacters are not allowed")
         }
         val binary = argv.first()
-        if (binary in destructiveBinaries) return Decision(false, APPROVAL_REQUIRED_REASON, requiresApproval = true)
-        if (binary !in safeBinaries) return Decision(false, "Binary is not available in the bounded workspace policy")
+        if (binary !in safeBinaries && binary !in destructiveBinaries) {
+            return Decision(false, "Binary is not available in the bounded workspace policy")
+        }
         if (binary == "git" && argv.getOrNull(1) !in gitReadOnly) {
             return Decision(false, "Only read-only git subcommands are available")
         }
-        optionViolation(binary, argv)?.let { return Decision(false, it) }
+        if (binary !in destructiveBinaries) {
+            optionViolation(binary, argv)?.let { return Decision(false, it) }
+        }
         if (argv.any(::isUnsafePathToken)) return Decision(false, "Path must remain inside the workspace")
         if (argv.any { it in setOf("-exec", "-execdir", "-delete") }) {
             return Decision(false, "Command option can escape the bounded executor")
         }
         if (argv.any { it.startsWith("--output") || it.startsWith("--work-tree") || it.startsWith("--git-dir") }) {
             return Decision(false, "Command option can escape the bounded executor")
+        }
+        if (binary in destructiveBinaries) {
+            return if (allowApprovedMutation) {
+                Decision(true, "approved mutation inside the isolated workspace")
+            } else {
+                Decision(false, APPROVAL_REQUIRED_REASON, requiresApproval = true)
+            }
         }
         return Decision(true, "allowed")
     }

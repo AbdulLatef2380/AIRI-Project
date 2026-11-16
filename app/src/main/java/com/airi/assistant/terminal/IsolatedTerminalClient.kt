@@ -56,7 +56,11 @@ class IsolatedTerminalClient(context: Context) {
         }
     }
 
-    suspend fun execute(request: TerminalExecutionRequest, limits: IsolatedProcessLimits = IsolatedProcessLimits()): SandboxExecutor.ExecutionResult =
+    suspend fun execute(
+        request: TerminalExecutionRequest,
+        limits: IsolatedProcessLimits = IsolatedProcessLimits(),
+        allowExpanded: Boolean = false,
+    ): SandboxExecutor.ExecutionResult =
         withContext(Dispatchers.Main) {
             val requestId = safeRequestId(request.executionId)
             val deferred = CompletableDeferred<IsolatedResult>()
@@ -78,6 +82,7 @@ class IsolatedTerminalClient(context: Context) {
                     limits.timeoutMs,
                     limits.maxOutputBytes,
                     false,
+                    allowExpanded,
                     callback,
                 )
                 val result = withTimeoutOrNull(limits.timeoutMs + IPC_GRACE_MS) { deferred.await() }

@@ -425,11 +425,31 @@ class ToolDispatcher(
                         ),
                         seedFilesFrom = java.io.File(context.filesDir, AgentFileWriter.DIRECTORY_NAME),
                     )) {
-                    is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Disabled ->
-                        ToolResult.Error(
-                            result.reason,
-                            code = if (result.requiresApproval) ToolErrorCodes.APPROVAL_REQUIRED else ToolErrorCodes.PERMISSION_DENIED
-                        )
+                    is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Disabled -> {
+                        if (!result.requiresApproval) {
+                            ToolResult.Error(result.reason, code = ToolErrorCodes.PERMISSION_DENIED)
+                        } else {
+                            val approvalId = com.airi.assistant.core.ServiceLocator.permissionGovernanceLayer.requestApproval(
+                                action = "terminal_expanded_session",
+                                description = "Approve expanded terminal command for this task run: ${command.take(240)}",
+                                riskLevel = com.airi.assistant.security.PermissionGovernanceLayer.RiskLevel.HIGH,
+                                sourceSessionId = execution.sourceSessionId,
+                                taskId = execution.taskId,
+                                runId = execution.runId,
+                                stepId = terminalActionId,
+                            )
+                            ToolResult.Error(
+                                result.reason,
+                                code = ToolErrorCodes.APPROVAL_REQUIRED,
+                                approval = ToolApprovalContext(
+                                    approvalId = approvalId,
+                                    taskId = execution.taskId,
+                                    runId = execution.runId,
+                                    stepId = terminalActionId,
+                                ),
+                            )
+                        }
+                    }
                     is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Denied ->
                         ToolResult.Error(result.reason, code = ToolErrorCodes.PERMISSION_DENIED)
                     is com.airi.assistant.terminal.TerminalExecutionGateway.Result.Completed -> when (val execution = result.result) {

@@ -19,8 +19,8 @@ class LauncherStartupInstrumentedTest {
                 assertEquals(false, activity.isDestroyed)
             }
             scenario.moveToState(Lifecycle.State.RESUMED)
+            assertEquals(Lifecycle.State.RESUMED, scenario.state)
             scenario.onActivity { activity ->
-                assertEquals(Lifecycle.State.RESUMED, scenario.state)
                 assertEquals(false, activity.isFinishing)
             }
         }

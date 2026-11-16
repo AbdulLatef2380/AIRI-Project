@@ -43,8 +43,8 @@ object AccessibilityCommandBridge {
                 )
         }
 
-    fun launchApp(appName: String): CommandResult {
-        gate("launch_app", appName)?.let { return it }
+    fun launchApp(appName: String, userApproved: Boolean = false): CommandResult {
+        gate("launch_app", appName, userApproved)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
@@ -145,14 +145,14 @@ object AccessibilityCommandBridge {
         }
     }
 
-    suspend fun typeText(text: String): CommandResult {
-        gate("type_text")?.let { return it }
+    suspend fun typeText(text: String, userApproved: Boolean = false): CommandResult {
+        gate("type_text", userApproved = userApproved)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
         val root = service.rootInActiveWindow
             ?: return CommandResult(false, "No active window")
-        gatePackage(root.packageName?.toString().orEmpty(), "type_text")?.let { return it }
+        gatePackage(root.packageName?.toString().orEmpty(), "type_text", userApproved = userApproved)?.let { return it }
 
         val nodes = NodeScanner.collectAllNodes(root)
         val editable = nodes.find { it.isEditable }
@@ -162,8 +162,8 @@ object AccessibilityCommandBridge {
         return CommandResult(success, if (success) "Typed: $text" else "Failed to type text")
     }
 
-    fun performBack(): CommandResult {
-        gate("go_back")?.let { return it }
+    fun performBack(userApproved: Boolean = false): CommandResult {
+        gate("go_back", userApproved = userApproved)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
@@ -202,18 +202,18 @@ object AccessibilityCommandBridge {
     }
 
     fun scrollUp(): CommandResult = performScroll("up")
-    fun scrollDown(): CommandResult = performScroll("down")
+    fun scrollDown(userApproved: Boolean = false): CommandResult = performScroll("down", userApproved)
     fun scrollLeft(): CommandResult = performScroll("left")
     fun scrollRight(): CommandResult = performScroll("right")
 
-    private fun performScroll(direction: String): CommandResult {
-        gate("scroll_$direction")?.let { return it }
+    private fun performScroll(direction: String, userApproved: Boolean = false): CommandResult {
+        gate("scroll_$direction", userApproved = userApproved)?.let { return it }
         val service = ScreenContextHolder.serviceInstance
             ?: return CommandResult(false, "Accessibility not connected")
 
         val root = service.rootInActiveWindow
             ?: return CommandResult(false, "No active window")
-        gatePackage(root.packageName?.toString().orEmpty(), "scroll_$direction")?.let { return it }
+        gatePackage(root.packageName?.toString().orEmpty(), "scroll_$direction", userApproved = userApproved)?.let { return it }
 
         val nodes = NodeScanner.collectAllNodes(root)
         val scrollable = nodes.find { it.isScrollable }

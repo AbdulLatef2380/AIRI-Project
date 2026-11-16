@@ -100,6 +100,7 @@ class ToolDispatcher(
         sessionId: String? = null,
         messageId: String? = null,
         durableExecutionContext: AgentLoopExecutionContext? = null,
+        userApproved: Boolean = false,
     ): ToolResult {
         val schema = BuiltinTools.ALL.firstOrNull { it.name == toolName }
             ?: skillToolBridge?.asToolSchemas()?.firstOrNull { it.name == toolName }
@@ -112,6 +113,13 @@ class ToolDispatcher(
                     message = "${failure.message} ${failure.repairHint}",
                     code = ToolErrorCodes.INVALID_ARGUMENT,
                     retryable = false,
+                )
+            }
+            if (it.actionClass == ToolSchema.ActionClass.HIGH_IMPACT &&
+                toolName != "calendar_create" && !userApproved) {
+                return ToolResult.Error(
+                    "This high-impact action requires explicit approval before execution.",
+                    code = ToolErrorCodes.APPROVAL_REQUIRED,
                 )
             }
         }
@@ -173,7 +181,7 @@ class ToolDispatcher(
             // ── App launch ─────────────────────────────────────────────────────
             "open_app" -> {
                 val appName = args["app_name"] ?: return ToolResult.Error("Missing app_name", code = ToolErrorCodes.INVALID_ARGUMENT)
-                val result = AccessibilityCommandBridge.launchApp(appName)
+                val result = AccessibilityCommandBridge.launchApp(appName, userApproved)
                 if (result.success) ToolResult.Success("Launched $appName")
                 else ToolResult.Error(result.message ?: "", code = ToolErrorCodes.EXECUTION_FAILED)
             }
@@ -181,25 +189,25 @@ class ToolDispatcher(
             // ── UI interaction ─────────────────────────────────────────────────
             "tap" -> {
                 val target = args["target"] ?: return ToolResult.Error("Missing target", code = ToolErrorCodes.INVALID_ARGUMENT)
-                val result = AccessibilityCommandBridge.click(target)
+                val result = AccessibilityCommandBridge.click(target, userApproved)
                 if (result.success) ToolResult.Success("Tapped: $target")
                 else ToolResult.Error(result.message ?: "", code = ToolErrorCodes.EXECUTION_FAILED)
             }
 
             "type_text" -> {
                 val text = args["text"] ?: return ToolResult.Error("Missing text", code = ToolErrorCodes.INVALID_ARGUMENT)
-                val result = AccessibilityCommandBridge.typeText(text)
+                val result = AccessibilityCommandBridge.typeText(text, userApproved)
                 if (result.success) ToolResult.Success("Typed: ${text.take(60)}")
                 else ToolResult.Error(result.message ?: "", code = ToolErrorCodes.EXECUTION_FAILED)
             }
 
             "scroll_down" -> {
-                val result = AccessibilityCommandBridge.scrollDown()
+                val result = AccessibilityCommandBridge.scrollDown(userApproved)
                 if (result.success) ToolResult.Success("Scrolled down") else ToolResult.Error(result.message ?: "")
             }
 
             "go_back" -> {
-                val result = AccessibilityCommandBridge.performBack()
+                val result = AccessibilityCommandBridge.performBack(userApproved)
                 if (result.success) ToolResult.Success("Pressed back") else ToolResult.Error(result.message ?: "")
             }
 

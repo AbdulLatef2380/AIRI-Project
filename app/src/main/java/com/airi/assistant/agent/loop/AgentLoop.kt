@@ -1220,7 +1220,7 @@ the tool returns an actual error.
                 // mutation is a typed calendar proposal, and it is admitted only
                 // after a foreground task owner has created an exact task/run/step.
                 if (
-                    (toolName == "calendar_create" || toolName == "terminal_execute" || toolName == "write_file") &&
+                    toolName in AgentLoopTaskRuntime.DURABLE_TOOLS &&
                     durableExecutionContext == null &&
                     executionContextFactory != null
                 ) {
@@ -1303,6 +1303,60 @@ the tool returns an actual error.
                 } else if (refusalResult != null) {
                     refusalResult
                 } else when (sideEffectDecision) {
+                    AgentLoopSideEffectPolicy.Decision.ALLOW_TYPED_DEVICE_ACTION -> {
+                        val execution = durableExecutionContext
+                        if (execution == null) {
+                            ToolDispatcher.ToolResult.Error(
+                                AgentLoopSideEffectPolicy.blockedMessage(toolName),
+                                code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
+                            )
+                        } else {
+                            val target = when (toolName) {
+                                "open_app" -> toolArgs["app_name"].orEmpty()
+                                "tap" -> toolArgs["target"].orEmpty()
+                                "type_text" -> toolArgs["text"].orEmpty().take(80)
+                                "flashlight" -> if (toolArgs["enabled"] == "true") "تشغيل الفلاش" else "إيقاف الفلاش"
+                                "set_alarm" -> toolArgs["time"].orEmpty()
+                                "create_note" -> toolArgs["title"].orEmpty()
+                                else -> toolName
+                            }
+                            val arabic = com.airi.assistant.agent.loop.verification.CodeTaskGate.looksArabic(input)
+                            val action = if (arabic) "تنفيذ $toolName: $target" else "Run $toolName: $target"
+                            val details = if (arabic) {
+                                "سيُنشئ AIRI سياقاً دائماً لهذا الإجراء، ثم ينفذه مرة واحدة ويتحقق من النتيجة."
+                            } else {
+                                "AIRI will create a durable task context, execute this action once, and verify the result."
+                            }
+                            val answer = onStepComplete(
+                                StepEvent.ToolExecuted(
+                                    "ask_confirmation",
+                                    mapOf("action" to action, "details" to details),
+                                    "CONFIRMATION_REQUIRED|$action|$details",
+                                    stepsUsed,
+                                )
+                            )
+                            if (answer?.startsWith("User confirmed") != true) {
+                                ToolDispatcher.ToolResult.Error(
+                                    if (arabic) "لم تتم الموافقة على الإجراء، فلم يُنفَّذ." else "The action was not approved, so it was not executed.",
+                                    code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
+                                )
+                            } else {
+                                dispatcher.execute(
+                                    toolName = toolName,
+                                    args = toolArgs,
+                                    context = appContext,
+                                    executionId = executionId,
+                                    agentId = SANDBOX_AGENT_ID,
+                                    actionId = toolStepId,
+                                    traceId = traceId,
+                                    sessionId = sessionId,
+                                    messageId = messageId,
+                                    durableExecutionContext = execution,
+                                    userApproved = true,
+                                )
+                            }
+                        }
+                    }
                     AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED -> {
                         LoggingService.warn(TAG, "AIRI TOOL_BLOCKED_NO_DURABLE_CONTEXT tool=$toolName")
                         ToolDispatcher.ToolResult.Error(

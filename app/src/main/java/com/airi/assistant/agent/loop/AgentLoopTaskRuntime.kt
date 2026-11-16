@@ -24,7 +24,7 @@ class AgentLoopTaskRuntime(
 ) : AgentLoopExecutionContextFactory {
 
     override fun createFor(toolName: String): AgentLoopExecutionContext? {
-        if (toolName != CALENDAR_CREATE && toolName != TERMINAL_EXECUTE && toolName != WRITE_FILE) return null
+        if (toolName !in DURABLE_TOOLS) return null
         val resolvedProjectId = projectId?.trim()?.takeIf { it.isNotEmpty() }
         if (!sourceSessionId.matches(SAFE_IDENTIFIER) ||
             (resolvedProjectId != null && !resolvedProjectId.matches(SAFE_IDENTIFIER))) {
@@ -49,8 +49,8 @@ class AgentLoopTaskRuntime(
                 id = taskId,
                 missionId = taskId,
                 projectId = resolvedProjectId,
-                title = when (toolName) { TERMINAL_EXECUTE -> "Agent terminal session"; WRITE_FILE -> "Agent file write"; else -> "Calendar event approval" },
-                description = when (toolName) { TERMINAL_EXECUTE -> "Execute one governed terminal action for the source session"; WRITE_FILE -> "Write one text file into the private agent files folder"; else -> "Create one reviewed calendar event for the active project" },
+                title = "AIRI ${toolName.replace('_', ' ')} approval",
+                description = "One reviewed device or resource action for the source session",
                 agentId = AgentLoopExecutionContext.AGENT_LOOP_PRINCIPAL,
                 input = "",
                 showNotification = false,
@@ -59,7 +59,7 @@ class AgentLoopTaskRuntime(
                 plan = listOf(
                     TaskPlanStep(
                         id = toolName,
-                        title = when (toolName) { TERMINAL_EXECUTE -> "Execute governed terminal action"; WRITE_FILE -> "Write agent file"; else -> "Create approved calendar event" },
+                        title = "Execute approved $toolName",
                         toolSummary = toolName
                     )
                 )
@@ -68,7 +68,7 @@ class AgentLoopTaskRuntime(
         durableTaskManager.beginRun(taskId = taskId, runId = runId, stepId = toolName)
         return context.takeIf(::ownsRunningStep)
             ?: run {
-                durableTaskManager.markFailed(taskId, "Calendar task context could not be initialized")
+                durableTaskManager.markFailed(taskId, "Task context could not be initialized")
                 null
             }
     }
@@ -98,6 +98,11 @@ class AgentLoopTaskRuntime(
         const val CALENDAR_CREATE = "calendar_create"
         const val TERMINAL_EXECUTE = "terminal_execute"
         const val WRITE_FILE = "write_file"
+        val DURABLE_TOOLS = setOf(
+            CALENDAR_CREATE, TERMINAL_EXECUTE, WRITE_FILE,
+            "open_app", "tap", "type_text", "scroll_down", "go_back", "flashlight",
+            "set_alarm", "create_note",
+        )
         private val SAFE_IDENTIFIER = Regex("^[A-Za-z0-9._-]{1,128}$")
     }
 }

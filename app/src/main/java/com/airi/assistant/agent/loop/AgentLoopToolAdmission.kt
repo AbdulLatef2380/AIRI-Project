@@ -19,7 +19,7 @@ object AgentLoopToolAdmission {
     ): List<ToolSchema> = tools.filter { schema ->
         val typedContextAvailable = when (schema.name) {
             "calendar_create" -> hasExecutionContext && hasCalendarRuntime
-            "terminal_execute", "write_file" -> hasExecutionContext
+            in AgentLoopTaskRuntime.DURABLE_TOOLS -> hasExecutionContext
             else -> false
         }
         val sideEffectAllowed = AgentLoopSideEffectPolicy.decide(schema, typedContextAvailable) !=

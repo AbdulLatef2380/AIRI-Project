@@ -167,6 +167,14 @@ object CapabilityIntentDetector {
         "بيانات الهاتف", "الموقع",
     )
 
+    private val deviceInteractionPhrases = normalizedTerms(
+        "open app", "launch app", "tap", "click", "type text", "scroll down", "go back",
+        "set an alarm", "set alarm", "create a note", "add a note", "create calendar event",
+        "افتح تطبيق", "افتح برنامج", "اضغط", "انقر", "اكتب داخل", "مرر للاسفل", "مرر لأسفل",
+        "ارجع للخلف", "رجوع", "اضبط منبه", "اضبط المنبه", "انشئ ملاحظة", "انشاء ملاحظة",
+        "انشئ موعد", "انشئ حدث", "اضف موعد", "أضف موعد",
+    )
+
     private val terminalTargets = normalizedTerms(
         "terminal", "shell", "sandbox", "command line",
         "الطرفية", "طرفية", "سطر الاوامر", "سطر الأوامر", "بيئة الاختبار",
@@ -321,7 +329,8 @@ object CapabilityIntentDetector {
             text.contains("البطارية") || text.contains("الشبكة")) {
             capabilities += Capability.DEVICE_STATE
         }
-        if (matchesAny(text, deviceActionVerbs) && matchesAny(text, deviceActionTargets)) {
+        if ((matchesAny(text, deviceActionVerbs) && matchesAny(text, deviceActionTargets)) ||
+            deviceInteractionPhrases.any(text::contains)) {
             capabilities += Capability.DEVICE_ACTION
         }
         val namesTerminal = matchesAny(text, terminalTargets) && matchesAny(text, terminalActionPatterns)

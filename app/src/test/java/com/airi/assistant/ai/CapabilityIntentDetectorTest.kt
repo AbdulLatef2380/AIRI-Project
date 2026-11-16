@@ -183,6 +183,21 @@ class CapabilityIntentDetectorTest {
     }
 
     @Test
+    fun naturalInteractiveDeviceRequestsRequireDeviceAction() {
+        listOf(
+            "افتح تطبيق الإعدادات",
+            "اضغط على زر تسجيل الدخول",
+            "اكتب داخل الحقل كلمة المرور",
+            "مرر لأسفل الشاشة",
+            "اضبط المنبه الساعة السابعة",
+            "أنشئ ملاحظة بعنوان اجتماع",
+        ).forEach { input ->
+            assertTrue(input, CapabilityIntentDetector.detect(input)
+                .requires(CapabilityIntentDetector.Capability.DEVICE_ACTION))
+        }
+    }
+
+    @Test
     fun terminalCommandRequestsToolsAndActionProfile() {
         val intent = CapabilityIntentDetector.detect("اعرض ملفات sandbox")
         assertTrue(intent.requires(CapabilityIntentDetector.Capability.TERMINAL_EXECUTE))

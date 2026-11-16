@@ -29,15 +29,15 @@ class AgentLoopSideEffectPolicyTest {
     }
 
     @Test
-    fun onlyTypedCalendarCreateCanBeAdmittedWithDurableContext() {
+    fun typedDeviceActionsAreAdmittedOnlyWithDurableContext() {
         assertEquals(
             AgentLoopSideEffectPolicy.Decision.ALLOW_TYPED_CALENDAR_CREATE,
             AgentLoopSideEffectPolicy.decide("calendar_create", hasDurableExecutionContext = true)
         )
-        listOf("create_note", "set_alarm", "open_app", "tap", "type_text", "scroll_down", "go_back")
+        listOf("create_note", "set_alarm", "open_app", "tap", "type_text", "scroll_down", "go_back", "flashlight")
             .forEach { tool ->
                 assertEquals(
-                    AgentLoopSideEffectPolicy.Decision.DURABLE_CONTEXT_REQUIRED,
+                    AgentLoopSideEffectPolicy.Decision.ALLOW_TYPED_DEVICE_ACTION,
                     AgentLoopSideEffectPolicy.decide(tool, hasDurableExecutionContext = true)
                 )
             }

@@ -354,4 +354,31 @@ class RuntimeToolCatalogTest {
         )
         assertFalse(result.requiredToolNames.contains("write_file"))
     }
+
+    @Test
+    fun deviceToolsAreRegisteredButNotExposedForPlainChat() {
+        val result = RuntimeToolCatalog.assemble(
+            builtins = BuiltinTools.ALL,
+            skills = emptyList(),
+            connectors = emptyList(),
+            intent = CapabilityIntentDetector.Intent(),
+        )
+        assertFalse(result.schemas.any { it.name == "tap" })
+        assertTrue(result.filtered.any { it.toolName == "tap" })
+    }
+
+    @Test
+    fun deviceActionIntentExposesOnlyTheBoundedDeviceSurface() {
+        val request = "اضغط على زر تسجيل الدخول"
+        val result = RuntimeToolCatalog.assemble(
+            builtins = BuiltinTools.ALL,
+            skills = emptyList(),
+            connectors = emptyList(),
+            intent = CapabilityIntentDetector.detect(request),
+            requestText = request,
+        )
+        assertTrue(result.schemas.any { it.name == "tap" })
+        assertTrue(result.requiredToolNames.contains("tap"))
+        assertFalse(result.schemas.any { it.name == "create_note" })
+    }
 }

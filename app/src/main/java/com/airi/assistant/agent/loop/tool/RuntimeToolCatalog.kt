@@ -65,6 +65,7 @@ object RuntimeToolCatalog {
         }
         val candidates = builtinContracts + skillContracts + connectorContracts
         val requestedConnectorIds = intent.connectorIds
+        val deviceTargetedBuiltins = targetedBuiltinNames(intent, requestText)
         val exposed = mutableListOf<RuntimeToolContract>()
         val filtered = mutableListOf<FilteredTool>()
 
@@ -79,7 +80,10 @@ object RuntimeToolCatalog {
                     contract.schema.name,
                     if (connectorRequested) Reason.NOT_READY else Reason.CONNECTOR_NOT_REQUESTED,
                 )
-                contract.readiness == RuntimeToolContract.Readiness.AVAILABLE -> exposed += contract
+                contract.readiness == RuntimeToolContract.Readiness.AVAILABLE &&
+                    (contract.schema.actionClass == ToolSchema.ActionClass.READ ||
+                        contract.schema.name in deviceTargetedBuiltins ||
+                        contract.schema.name in setOf("terminal_execute", "write_file")) -> exposed += contract
                 else -> filtered += FilteredTool(contract.schema.name, Reason.NOT_READY)
             }
         }
@@ -105,7 +109,7 @@ object RuntimeToolCatalog {
             }
             .map { it.schema.name }
             .toSet()
-        val requiredToolNames = targetedBuiltins + requiredConnectorNames
+        val requiredToolNames = targetedBuiltins + deviceTargetedBuiltins + requiredConnectorNames
         val normalizedRequest = CapabilityIntentDetector.normalize(requestText)
         val ordered = exposed.distinctBy { it.schema.name }.sortedWith(
             compareBy<RuntimeToolContract> { contract ->
@@ -187,6 +191,20 @@ object RuntimeToolCatalog {
             else -> 0
         }
         return lexicalScore + focusedScore
+    }
+
+    private fun targetedBuiltinNames(
+        intent: CapabilityIntentDetector.Intent,
+        requestText: String,
+    ): Set<String> = buildSet {
+        if (intent.requires(CapabilityIntentDetector.Capability.DEVICE_ACTION)) {
+            addAll(setOf("open_app", "tap", "type_text", "scroll_down", "go_back", "flashlight", "set_alarm", "create_note"))
+        }
+        val normalized = CapabilityIntentDetector.normalize(requestText)
+        if ((intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_WRITE) &&
+            requestText.contains("calendar", ignoreCase = true)) ||
+            (intent.requires(CapabilityIntentDetector.Capability.DEVICE_ACTION) &&
+                (normalized.contains("موعد") || normalized.contains("حدث"))) add("calendar_create")
     }
 
     private fun RuntimeToolContract.promptSchema(): ToolSchema {

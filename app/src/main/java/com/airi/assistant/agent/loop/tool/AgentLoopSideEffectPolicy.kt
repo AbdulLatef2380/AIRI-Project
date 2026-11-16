@@ -10,6 +10,7 @@ internal object AgentLoopSideEffectPolicy {
 
     enum class Decision {
         ALLOW_READ,
+        ALLOW_TYPED_DEVICE_ACTION,
         ALLOW_TYPED_CALENDAR_CREATE,
         ALLOW_TYPED_TERMINAL,
         ALLOW_TYPED_FILE_WRITE,
@@ -19,6 +20,9 @@ internal object AgentLoopSideEffectPolicy {
     /** Canonical admission path for new tools; policy is carried by the schema. */
     fun decide(schema: ToolSchema, hasDurableExecutionContext: Boolean): Decision = when {
         schema.sideEffectPolicy == ToolSchema.SideEffectPolicy.READ_ONLY -> Decision.ALLOW_READ
+        schema.actionClass != ToolSchema.ActionClass.READ && hasDurableExecutionContext &&
+            schema.name !in setOf("calendar_create", "terminal_execute", "write_file") ->
+            Decision.ALLOW_TYPED_DEVICE_ACTION
         schema.sideEffectPolicy == ToolSchema.SideEffectPolicy.REQUIRES_USER_CONFIRMATION &&
             schema.name == "calendar_create" && hasDurableExecutionContext -> Decision.ALLOW_TYPED_CALENDAR_CREATE
         schema.sideEffectPolicy == ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT &&
@@ -64,7 +68,11 @@ internal object AgentLoopSideEffectPolicy {
      * AgentLoop durable-context filter and the gateway's bounded command policy. */
     fun blockedToolOverrides(): Map<String, RuntimeToolCatalog.StatusOverride> =
         BuiltinTools.ALL
-            .filter { it.sideEffectPolicy != ToolSchema.SideEffectPolicy.READ_ONLY && it.name != "terminal_execute" && it.name != "write_file" }
+            .filter {
+                it.sideEffectPolicy != ToolSchema.SideEffectPolicy.READ_ONLY &&
+                    it.actionClass == ToolSchema.ActionClass.READ &&
+                    it.name != "terminal_execute" && it.name != "write_file"
+            }
             .associate { tool ->
                 tool.name to
                 RuntimeToolCatalog.StatusOverride(

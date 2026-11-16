@@ -7,7 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Binder
 import android.os.Debug
 import android.os.IBinder
-import android.os.Process
+import android.os.Process as AndroidProcess
 import com.airi.assistant.agent.sandbox.ProcessTreeTerminator
 import com.airi.assistant.domain.terminal.TerminalExecutionPolicy
 import kotlinx.coroutines.CancellationException
@@ -66,7 +66,7 @@ class IsolatedTerminalService : Service() {
             if (!isSafeRequestId(requestId) || callback == null) return
             scope.launch {
                 val appFilesDenied = runCatching { File(appMarkerPath).inputStream().use { it.read() } }.isFailure
-                val uidSeparated = Process.myUid() != applicationInfo.uid
+                val uidSeparated = AndroidProcess.myUid() != applicationInfo.uid
                 val networkDenied = checkSelfPermission(Manifest.permission.INTERNET) != PackageManager.PERMISSION_GRANTED
                 val limitsEnforced = resourceWatchdogAvailable()
                 val reason = when {
@@ -77,7 +77,7 @@ class IsolatedTerminalService : Service() {
                     else -> "probe passed"
                 }
                 runCatching {
-                    callback.onProbe(requestId, Process.myUid(), uidSeparated, appFilesDenied, networkDenied, limitsEnforced, reason)
+                    callback.onProbe(requestId, AndroidProcess.myUid(), uidSeparated, appFilesDenied, networkDenied, limitsEnforced, reason)
                 }
             }
         }

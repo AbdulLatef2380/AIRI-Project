@@ -21,4 +21,3 @@ object AttachmentBubbleTextPolicy {
         return withoutMetadata
     }
 }
-***

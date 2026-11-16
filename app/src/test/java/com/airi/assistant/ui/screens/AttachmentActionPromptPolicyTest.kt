@@ -36,4 +36,23 @@ class AttachmentActionPromptPolicyTest {
         assertTrue(result.startsWith("الفكرة\n\nأنشئ موقعًا متكاملًا:"))
         assertTrue(result.endsWith("تحقق من الملفات والاختبارات:"))
     }
+
+    @Test
+    fun selectingTheSameShortcutRepeatedlyDoesNotGrowTheDraft() {
+        val first = AttachmentActionPromptPolicy.merge("الفكرة", "أنشئ موقعًا متكاملًا:")
+        val repeated = (1..100).fold(first) { draft, _ ->
+            AttachmentActionPromptPolicy.merge(draft, "أنشئ موقعًا متكاملًا:")
+        }
+
+        assertEquals(first, repeated)
+    }
+
+    @Test
+    fun distinctShortcutsCanStillBeCombinedOnceEach() {
+        val result = listOf("الخطة", "العرض", "الملفات", "العرض").fold("") { draft, prompt ->
+            AttachmentActionPromptPolicy.merge(draft, prompt)
+        }
+
+        assertEquals("الخطة\n\nالعرض\n\nالملفات", result)
+    }
 }

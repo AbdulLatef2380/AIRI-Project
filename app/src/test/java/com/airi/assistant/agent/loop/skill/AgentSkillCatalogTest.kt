@@ -31,6 +31,14 @@ class AgentSkillCatalogTest {
     }
 
     @Test
+    fun catalogIncludesEveryOfficialManifest() {
+        assertEquals(
+            com.airi.assistant.ai.skills.OfficialSkillLibrary.ids.toSet(),
+            AgentSkillCatalog.skills.filter { it.source == AgentSkillDocSource.MANIFEST }.map { it.name }.toSet(),
+        )
+    }
+
+    @Test
     fun promptCatalogCarriesNamesAndDescriptionsOnly() {
         val catalog = AgentSkillCatalog.promptCatalog()
         AgentSkillCatalog.skills.forEach { skill ->
@@ -45,6 +53,14 @@ class AgentSkillCatalogTest {
         val loaded = AgentSkillCatalog.load("Python-App")
         assertTrue(loaded.isSuccess)
         assertTrue(loaded.getOrThrow().contains("## 3. Check"))
+    }
+
+    @Test
+    fun loadReturnsManifestInstructionsForOfficialSkills() {
+        val loaded = AgentSkillCatalog.load("document_generator")
+        assertTrue(loaded.isSuccess)
+        assertTrue(loaded.getOrThrow().contains("stable runtime identity"))
+        assertTrue(loaded.getOrThrow().contains("## Tools"))
     }
 
     @Test
@@ -65,7 +81,7 @@ class AgentSkillCatalogTest {
 
     @Test
     fun skillMdFilesInTheRepositoryMatchTheCatalogExactly() {
-        AgentSkillCatalog.skills.forEach { skill ->
+        AgentSkillCatalog.skills.filter { it.source == AgentSkillDocSource.REPOSITORY }.forEach { skill ->
             val file = skillFiles().firstOrNull { it.parentFile.name == skill.name }
             assertNotNull("skills/*/${skill.name}/SKILL.md is missing", file)
             val expected = "---\nname: ${skill.name}\ndescription: ${skill.description}\n---\n\n${skill.body}"

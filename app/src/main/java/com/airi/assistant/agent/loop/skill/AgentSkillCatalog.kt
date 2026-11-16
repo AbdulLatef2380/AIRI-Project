@@ -1,16 +1,24 @@
 package com.airi.assistant.agent.loop.skill
 
+
 /**
  * A skill's instructions as the agent sees them. The prompt carries only [name] and
  * [description] (see [AgentSkillCatalog.promptCatalog]); the full [body] is returned when the
  * model calls load_skill. The same text lives in skills/programming/<name>/SKILL.md; a unit test
  * keeps the two from drifting apart.
  */
-data class AgentSkillDoc(val name: String, val description: String, val body: String)
+enum class AgentSkillDocSource { REPOSITORY, MANIFEST }
+
+data class AgentSkillDoc(
+    val name: String,
+    val description: String,
+    val body: String,
+    val source: AgentSkillDocSource = AgentSkillDocSource.REPOSITORY,
+)
 
 object AgentSkillCatalog {
 
-    val skills: List<AgentSkillDoc> = listOf(
+    private val legacySkills: List<AgentSkillDoc> = listOf(
         AgentSkillDoc(
             name = "python_app",
             description = "Plan, write, check and hand over a complete single-file Python program (calculator, tool, small GUI app) as a saved file.",
@@ -53,7 +61,11 @@ object AgentSkillCatalog {
             "- Do not use input() or the terminal for a GUI app, and do not read or write outside the program's own folder.\n" +
             "- Getting the file there: the app shows a file card with Save and Share. The user saves or shares the file, then opens it in Pydroid 3 and runs it.\n",
         ),
-    )
+    /** Adapter consumed by legacy prompt/tool code; official docs come from SkillCatalog. */
+    val skills: List<AgentSkillDoc>
+        get() = legacySkills + SkillCatalog.official.map {
+            AgentSkillDoc(it.id, it.description, it.body, AgentSkillDocSource.MANIFEST)
+        }
 
     fun find(name: String): AgentSkillDoc? {
         val key = name.trim().lowercase().replace('-', '_').replace(' ', '_')

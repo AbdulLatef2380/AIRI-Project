@@ -138,11 +138,11 @@ class SkillRegistry(private val context: Context) {
     }
 
     fun getAvailableSkills(): List<AiriSkill> {
-        // OfficialSkillLibrary is the single runtime source. Every official
-        // manifest has a factory, so discovery, enablement, routing, tool
-        // schemas, and execution use one canonical ID set.
+        // SkillCatalog is the canonical discovery/instruction source. The
+        // library supplies the executable factory for the same stable ID.
         val skills = OfficialSkillLibrary.ALL
             .filter { entry ->
+                SkillCatalog.find(entry.manifest.id) != null &&
                 isSkillEnabled(entry.manifest.id) &&
                     areRuntimeDependenciesAvailable(entry.manifest.dependencies) &&
                     areRuntimeActionDependenciesAvailable(entry.manifest.connectorActionDependencies)
@@ -172,7 +172,7 @@ class SkillRegistry(private val context: Context) {
      */
     fun getRegisteredSkillsForRouting(): List<AiriSkill> {
         val skills = OfficialSkillLibrary.ALL
-            .filter { isSkillEnabled(it.manifest.id) }
+            .filter { SkillCatalog.find(it.manifest.id) != null && isSkillEnabled(it.manifest.id) }
             .mapNotNull { entry -> runCatching { entry.factory(context) }.getOrNull() }
             .toMutableList()
         customSkillRepository.getAllSkills()
@@ -182,6 +182,10 @@ class SkillRegistry(private val context: Context) {
             }
         return skills.distinctBy { it.skillId }
     }
+
+    /** Load the same instruction document that describes the executable skill. */
+    fun loadSkillInstructions(skillIdOrName: String): Result<SkillInstruction> =
+        SkillCatalog.load(skillIdOrName)
 
     private fun areRuntimeDependenciesAvailable(dependencies: List<String>): Boolean =
         SkillDependencyReadiness.areAvailable(dependencies, ::isRuntimeConnectorReady)

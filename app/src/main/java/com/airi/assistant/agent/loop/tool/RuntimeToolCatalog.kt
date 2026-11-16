@@ -204,7 +204,9 @@ object RuntimeToolCatalog {
         if ((intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_WRITE) &&
             requestText.contains("calendar", ignoreCase = true)) ||
             (intent.requires(CapabilityIntentDetector.Capability.DEVICE_ACTION) &&
-                (normalized.contains("موعد") || normalized.contains("حدث"))) add("calendar_create")
+                (normalized.contains("موعد") || normalized.contains("حدث")))) {
+            add("calendar_create")
+        }
     }
 
     private fun RuntimeToolContract.promptSchema(): ToolSchema {

@@ -28,6 +28,10 @@ import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.domain.tool.TypedArgumentContract
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import android.net.Uri
+import com.airi.assistant.attachments.GeneratedArtifactService
+import com.airi.assistant.attachments.MediaArtifactService
+import com.airi.assistant.workspace.ArtifactManager
 
 /**
  * ToolDispatcher — maps AgentLoop tool_call names to real implementations.
@@ -52,6 +56,7 @@ class ToolDispatcher(
     private val skillToolBridge: com.airi.assistant.ai.skills.SkillToolBridge? = null,
     // Canonical live connector bridge — handles dynamically exposed connector_* tools
     private val connectorToolBridge: com.airi.assistant.connector.ConnectorToolBridge? = null,
+    private val artifactManager: ArtifactManager? = null,
 ) {
     companion object {
         private const val TAG = "AIRI_ToolDispatcher"
@@ -561,6 +566,50 @@ class ToolDispatcher(
                     is AgentFileWriter.Result.Rejected ->
                         ToolResult.Error(written.reason, code = ToolErrorCodes.INVALID_ARGUMENT)
                 }
+            }
+
+            // ── Unified verified artifact generation ───────────────────────────
+            "generate_document", "generate_spreadsheet", "generate_pdf", "compress_files", "generate_image", "generate_audio", "generate_video" -> {
+                val manager = artifactManager ?: return ToolResult.Error("Artifact workspace is not available", code = ToolErrorCodes.NOT_CONNECTED)
+                val ownerSession = sessionId?.takeIf { it.isNotBlank() } ?: args["session_id"]?.takeIf { it.isNotBlank() }
+                    ?: return ToolResult.Error("Missing artifact session scope", code = ToolErrorCodes.PERMISSION_DENIED)
+                val run = executionId ?: durableExecutionContext?.runId
+                val trace = traceId
+                val result = try {
+                    when (toolName) {
+                        "generate_document" -> GeneratedArtifactService(manager).generateDocument(ownerSession, args.getValue("filename"), args.getValue("content"), runId = run, traceId = trace)
+                        "generate_spreadsheet" -> GeneratedArtifactService(manager).generateSpreadsheet(ownerSession, args.getValue("filename"), args.getValue("content"), run, trace)
+                        "generate_pdf" -> GeneratedArtifactService(manager).generatePdf(ownerSession, args.getValue("filename"), args.getValue("content"), run, trace)
+                        "compress_files" -> GeneratedArtifactService(manager).compressFiles(ownerSession, args.getValue("artifact_ids").split(',').map(String::trim).filter(String::isNotBlank), args["filename"] ?: "airi-artifacts.zip", run, trace)
+                        "generate_image" -> MediaArtifactService(context, manager).processImage(ownerSession, Uri.parse(args.getValue("uri")), args["filename"] ?: "airi-image.jpg", runId = run, traceId = trace)
+                            .also { check(manager.verifyArtifact(it.artifactId)) { "Image artifact was not verified on disk" } }
+                        "generate_audio" -> MediaArtifactService(context, manager).processAudio(ownerSession, Uri.parse(args.getValue("uri")), args["filename"] ?: "airi-audio.m4a", runId = run, traceId = trace)
+                            .also { check(manager.verifyArtifact(it.artifactId)) { "Audio artifact was not verified on disk" } }
+                        else -> MediaArtifactService(context, manager).processVideo(ownerSession, Uri.parse(args.getValue("uri")), args["filename"] ?: "airi-video.mp4", run, trace)
+                            .also { check(manager.verifyArtifact(it.artifactId)) { "Video artifact was not verified on disk" } }
+                    }
+                } catch (error: Throwable) {
+                    return ToolResult.Error(error.message ?: "Artifact generation failed", code = ToolErrorCodes.EXECUTION_FAILED)
+                }
+                val structured = when (result) {
+                            is GeneratedArtifactService.GeneratedArtifactLink -> result.structured()
+                            is MediaArtifactService.MediaArtifactLink -> result.structured()
+                            else -> error("Unsupported artifact result")
+                }
+                val id = when (result) {
+                            is GeneratedArtifactService.GeneratedArtifactLink -> result.artifactId
+                            is MediaArtifactService.MediaArtifactLink -> result.artifactId
+                            else -> null
+                }
+                ExecutionTraceGateway.emitExecution(
+                            executionId = executionId,
+                            actionId = actionId,
+                            phase = "artifact_verified",
+                            message = PrivacyGuard.redactForTrace("Artifact verified: ${id ?: "unknown"}"),
+                            category = ActivityCategory.TOOL,
+                            machineTag = "artifact_verified",
+                )
+                ToolResult.Success(structured, evidence = ToolResult.Evidence(kind = ToolResult.Evidence.Kind.FILE_DIFF, artifactId = id))
             }
 
             // ── Skill instructions on demand (report 3, phase 2) ──────────────

@@ -22,6 +22,7 @@ object DocumentGenerator {
             "ods" -> generateOdf(safeName, "application/vnd.oasis.opendocument.spreadsheet", "spreadsheet", content)
             "odp" -> generateOdf(safeName, "application/vnd.oasis.opendocument.presentation", "presentation", content)
             "epub" -> generateEpub(safeName, content)
+            "pdf" -> generatePdf(safeName, content)
             else -> throw IllegalArgumentException("No local generator exists for .$safeName")
         }
     }
@@ -131,6 +132,46 @@ object DocumentGenerator {
         }
         return GeneratedDocument(fileName, "application/epub+zip", bytes)
     }
+
+    /** Minimal self-contained PDF 1.4 writer; no external Office/PDF dependency is required. */
+    private fun generatePdf(fileName: String, content: String): GeneratedDocument {
+        val lines = content.lineSequence().flatMap { it.chunked(92).asSequence() }.take(90).toList()
+        val stream = buildString {
+            append("BT\n/F1 11 Tf\n50 790 Td\n")
+            lines.forEachIndexed { index, line ->
+                if (index > 0) append("0 -14 Td\n")
+                append("(").append(pdfEscape(line)).append(") Tj\n")
+            }
+            append("ET\n")
+        }
+        val objects = listOf(
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            "<< /Length ${stream.toByteArray(StandardCharsets.ISO_8859_1).size} >>\nstream\n$stream endstream",
+        )
+        val output = ByteArrayOutputStream()
+        fun write(value: String) { output.write(value.toByteArray(StandardCharsets.ISO_8859_1)) }
+        write("%PDF-1.4\n%\u00E2\u00E3\u00CF\u00D3\n")
+        val offsets = mutableListOf(0L)
+        objects.forEachIndexed { index, obj ->
+            offsets += output.size().toLong()
+            write("${index + 1} 0 obj\n$obj\nendobj\n")
+        }
+        val xrefOffset = output.size().toLong()
+        write("xref\n0 ${objects.size + 1}\n0000000000 65535 f \n")
+        offsets.drop(1).forEach { write("%010d 00000 n \n".format(it)) }
+        write("trailer\n<< /Size ${objects.size + 1} /Root 1 0 R >>\nstartxref\n$xrefOffset\n%%EOF\n")
+        return GeneratedDocument(fileName, "application/pdf", output.toByteArray())
+    }
+
+    private fun pdfEscape(value: String): String = value
+        .map { if (it.code in 32..126) it else '?' }
+        .joinToString("")
+        .replace("\\", "\\\\")
+        .replace("(", "\\(")
+        .replace(")", "\\)")
 
     private fun zipBytes(write: (ZipOutputStream) -> Unit): ByteArray = ByteArrayOutputStream().use { output ->
         ZipOutputStream(output).use(write); output.toByteArray()

@@ -13,6 +13,7 @@ import com.airi.assistant.workspace.ArtifactManager
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
+import org.json.JSONObject
 
 /** Local, bounded image/audio transforms. No media bytes are logged or uploaded. */
 class MediaArtifactService(
@@ -25,8 +26,19 @@ class MediaArtifactService(
         val mimeType: String,
         val link: String,
         val downloadUri: String?,
+        val size: Long = 0L,
+        val sha256: String = "",
+        val runId: String? = null,
+        val traceId: String? = null,
     ) {
         fun markdown(): String = "[$fileName]($link)"
+        fun structured(): String = JSONObject().apply {
+            put("artifactId", artifactId); put("fileName", fileName); put("mimeType", mimeType)
+            put("size", size); put("sha256", sha256); put("preview", link)
+            put("download", downloadUri ?: JSONObject.NULL); put("runId", runId ?: JSONObject.NULL)
+            put("traceId", traceId ?: JSONObject.NULL)
+            put("shareState", if (downloadUri == null) "unavailable" else "available"); put("verified", true)
+        }.toString()
     }
 
     suspend fun processImage(
@@ -35,6 +47,8 @@ class MediaArtifactService(
         outputName: String = "airi-image.jpg",
         maxDimension: Int = 2048,
         quality: Int = 88,
+        runId: String? = null,
+        traceId: String? = null,
     ): MediaArtifactLink {
         require(maxDimension in 64..4096)
         require(quality in 1..100)
@@ -57,7 +71,7 @@ class MediaArtifactService(
                     description = "Processed image (${scaled.width}×${scaled.height})",
                     agentId = "media_processor",
                 )
-                link(artifact, "image/jpeg")
+                link(artifact, "image/jpeg", runId, traceId)
             } finally {
                 if (scaled !== bitmap && !scaled.isRecycled) scaled.recycle()
             }
@@ -72,6 +86,8 @@ class MediaArtifactService(
         outputName: String = "airi-audio.m4a",
         startMs: Long = 0L,
         endMs: Long? = null,
+        runId: String? = null,
+        traceId: String? = null,
     ): MediaArtifactLink {
         require(startMs >= 0L)
         val input = copyToCache(source, "airi_audio_in_")
@@ -94,11 +110,44 @@ class MediaArtifactService(
                 description = "Processed audio (${startMs}–${end} ms)",
                 agentId = "media_processor",
             )
-            link(artifact, "audio/mp4")
+            link(artifact, "audio/mp4", runId, traceId)
         } finally {
             input.delete()
             output.delete()
         }
+    }
+
+    suspend fun processVideo(sessionId: String, source: Uri, outputName: String = "airi-video.mp4", runId: String? = null, traceId: String? = null): MediaArtifactLink {
+        val input = copyToCache(source, "airi_video_in_")
+        val output = File.createTempFile("airi_video_out_", ".mp4", context.cacheDir)
+        return try {
+            remuxTracks(input, output)
+            require(output.isFile && output.length() > 0L) { "Video output was not produced" }
+            require(output.length() <= ArtifactManager.MAX_BINARY_ARTIFACT_BYTES) { "Video exceeds the 25MB safety limit" }
+            val artifact = artifactManager.createBinaryArtifact(sessionId, outputName.substringAfterLast('/').ifBlank { "airi-video.mp4" }, ArtifactManager.ArtifactType.VIDEO, output.readBytes(), "video/mp4", "Processed video", "media_processor")
+            check(artifactManager.verifyArtifact(artifact.id)) { "Video artifact was not verified on disk" }
+            link(artifact, "video/mp4", runId, traceId)
+        } finally { input.delete(); output.delete() }
+    }
+
+    private fun remuxTracks(input: File, output: File) {
+        val extractor = MediaExtractor(); var muxer: MediaMuxer? = null
+        try {
+            extractor.setDataSource(input.absolutePath)
+            require(extractor.trackCount > 0) { "No media tracks found" }
+            val createdMuxer = MediaMuxer(output.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+            muxer = createdMuxer
+            val tracks = (0 until extractor.trackCount).associateWith { createdMuxer.addTrack(extractor.getTrackFormat(it)) }
+            createdMuxer.start(); (0 until extractor.trackCount).forEach(extractor::selectTrack)
+            val buffer = ByteBuffer.allocate(512 * 1024); val info = MediaCodec.BufferInfo()
+            while (true) {
+                val track = extractor.sampleTrackIndex; if (track < 0) break
+                buffer.clear(); val size = extractor.readSampleData(buffer, 0); if (size <= 0) break
+                info.offset = 0; info.size = size; info.presentationTimeUs = extractor.sampleTime
+                info.flags = if ((extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC) != 0) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0
+                createdMuxer.writeSampleData(tracks.getValue(track), buffer, info); extractor.advance()
+            }
+        } finally { runCatching { muxer?.stop() }; runCatching { muxer?.release() }; extractor.release() }
     }
 
     private fun remuxAudio(input: File, output: File, startUs: Long, endUs: Long) {
@@ -169,11 +218,15 @@ class MediaArtifactService(
         return Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true)
     }
 
-    private fun link(artifact: ArtifactManager.Artifact, mime: String) = MediaArtifactLink(
+    private fun link(artifact: ArtifactManager.Artifact, mime: String, runId: String? = null, traceId: String? = null) = MediaArtifactLink(
         artifactId = artifact.id,
         fileName = artifact.name,
         mimeType = mime,
         link = artifactManager.internalLink(artifact.id),
         downloadUri = artifactManager.downloadUri(artifact.id)?.toString(),
+        size = artifact.sizeBytes,
+        sha256 = artifact.contentHash,
+        runId = runId,
+        traceId = traceId,
     )
 }

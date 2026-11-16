@@ -231,12 +231,15 @@ private fun isTextPreviewType(type: com.airi.assistant.workspace.ArtifactManager
 private fun artifactMimeType(artifact: com.airi.assistant.workspace.ArtifactManager.Artifact): String = when (artifact.type) {
     com.airi.assistant.workspace.ArtifactManager.ArtifactType.DOCX -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     com.airi.assistant.workspace.ArtifactManager.ArtifactType.XLSX -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    com.airi.assistant.workspace.ArtifactManager.ArtifactType.PDF -> "application/pdf"
     com.airi.assistant.workspace.ArtifactManager.ArtifactType.ODT -> "application/vnd.oasis.opendocument.text"
     com.airi.assistant.workspace.ArtifactManager.ArtifactType.ODS -> "application/vnd.oasis.opendocument.spreadsheet"
     com.airi.assistant.workspace.ArtifactManager.ArtifactType.ODP -> "application/vnd.oasis.opendocument.presentation"
     com.airi.assistant.workspace.ArtifactManager.ArtifactType.EPUB -> "application/epub+zip"
     com.airi.assistant.workspace.ArtifactManager.ArtifactType.IMAGE -> "image/*"
     com.airi.assistant.workspace.ArtifactManager.ArtifactType.AUDIO -> "audio/*"
+    com.airi.assistant.workspace.ArtifactManager.ArtifactType.VIDEO -> "video/*"
+    com.airi.assistant.workspace.ArtifactManager.ArtifactType.ARCHIVE -> "application/zip"
     else -> "application/octet-stream"
 }
 

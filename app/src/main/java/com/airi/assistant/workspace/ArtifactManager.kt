@@ -68,8 +68,11 @@ class ArtifactManager(
         EPUB          ("epub", ""),
         DOCX          ("docx", ""),
         XLSX          ("xlsx", ""),
+        PDF           ("pdf",  ""),
         IMAGE         ("bin",  ""),
         AUDIO         ("bin",  ""),
+        VIDEO         ("bin",  ""),
+        ARCHIVE       ("zip",  ""),
         UNKNOWN       ("bin",  "")
     }
 
@@ -174,7 +177,7 @@ class ArtifactManager(
         provenance: ArtifactProvenance = ArtifactProvenance(projectId = sessionId),
     ): Artifact = withContext(Dispatchers.IO) {
         require(bytes.size <= MAX_BINARY_ARTIFACT_BYTES) { "Artifact exceeds the 25MB safety limit" }
-        require(type in setOf(ArtifactType.ODT, ArtifactType.ODS, ArtifactType.ODP, ArtifactType.EPUB, ArtifactType.DOCX, ArtifactType.XLSX, ArtifactType.IMAGE, ArtifactType.AUDIO)) {
+        require(type in setOf(ArtifactType.ODT, ArtifactType.ODS, ArtifactType.ODP, ArtifactType.EPUB, ArtifactType.DOCX, ArtifactType.XLSX, ArtifactType.PDF, ArtifactType.IMAGE, ArtifactType.AUDIO, ArtifactType.VIDEO, ArtifactType.ARCHIVE)) {
             "Binary artifact type is not permitted"
         }
         val validatedProvenance = validateProvenance(sessionId, provenance)
@@ -269,6 +272,13 @@ class ArtifactManager(
     // ── Read ──────────────────────────────────────────────────────────────────
 
     fun getArtifact(id: String): Artifact? = artifacts[id]
+
+    /** Verifies the physical file and its recorded size/hash before success is reported. */
+    suspend fun verifyArtifact(id: String): Boolean = withContext(Dispatchers.IO) {
+        val artifact = artifacts[id] ?: return@withContext false
+        val file = File(artifact.filePath)
+        file.isFile && file.length() == artifact.sizeBytes && sha256(file.readBytes()) == artifact.contentHash
+    }
 
     fun forSession(sessionId: String): List<Artifact> =
         artifacts.values.filter { it.sessionId == sessionId }.sortedByDescending { it.updatedAtMs }

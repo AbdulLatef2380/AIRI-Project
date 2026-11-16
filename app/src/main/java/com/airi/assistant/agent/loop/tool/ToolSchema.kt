@@ -212,6 +212,45 @@ object BuiltinTools {
         sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
     )
 
+    private val ARTIFACT_CONTENT = ToolSchema.Param("string", "Content or CSV/TSV rows", minLength = 1, maxLength = 200_000)
+    private val ARTIFACT_NAME = ToolSchema.Param("string", "Output file name", minLength = 1, maxLength = 96)
+
+    val GENERATE_DOCUMENT = ToolSchema(
+        name = "generate_document", description = "Create and register a verified DOCX/ODF/EPUB document artifact.",
+        parameters = mapOf("filename" to ARTIFACT_NAME, "content" to ARTIFACT_CONTENT), category = ToolSchema.Category.PRODUCTIVITY,
+        dangerous = true, sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
+    )
+    val GENERATE_SPREADSHEET = ToolSchema(
+        name = "generate_spreadsheet", description = "Create and register a verified XLSX spreadsheet artifact from CSV or TSV content.",
+        parameters = mapOf("filename" to ARTIFACT_NAME, "content" to ARTIFACT_CONTENT), category = ToolSchema.Category.PRODUCTIVITY,
+        dangerous = true, sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
+    )
+    val GENERATE_PDF = ToolSchema(
+        name = "generate_pdf", description = "Create and register a verified PDF artifact from text content.",
+        parameters = mapOf("filename" to ARTIFACT_NAME, "content" to ARTIFACT_CONTENT), category = ToolSchema.Category.PRODUCTIVITY,
+        dangerous = true, sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
+    )
+    val GENERATE_IMAGE = ToolSchema(
+        name = "generate_image", description = "Save a supplied image URI as a verified AIRI image artifact.",
+        parameters = mapOf("uri" to ToolSchema.Param("string", "Android content URI", minLength = 1, maxLength = 4096), "filename" to ARTIFACT_NAME), category = ToolSchema.Category.PRODUCTIVITY,
+        dangerous = true, sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
+    )
+    val GENERATE_AUDIO = ToolSchema(
+        name = "generate_audio", description = "Trim and save audio as a verified AIRI audio artifact.",
+        parameters = mapOf("uri" to ToolSchema.Param("string", "Android content URI", minLength = 1, maxLength = 4096), "filename" to ARTIFACT_NAME), category = ToolSchema.Category.PRODUCTIVITY,
+        dangerous = true, sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
+    )
+    val GENERATE_VIDEO = ToolSchema(
+        name = "generate_video", description = "Save/remux a supplied video URI as a verified AIRI video artifact.",
+        parameters = mapOf("uri" to ToolSchema.Param("string", "Android content URI", minLength = 1, maxLength = 4096), "filename" to ARTIFACT_NAME), category = ToolSchema.Category.PRODUCTIVITY,
+        dangerous = true, sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
+    )
+    val COMPRESS_FILES = ToolSchema(
+        name = "compress_files", description = "Package project-owned AIRI artifacts into a verified ZIP artifact.",
+        parameters = mapOf("artifact_ids" to ToolSchema.Param("string", "Comma-separated artifact IDs", minLength = 1, maxLength = 4096), "filename" to ARTIFACT_NAME), category = ToolSchema.Category.PRODUCTIVITY,
+        dangerous = true, sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
+    )
+
     val ASK_CONFIRMATION = ToolSchema(
         name        = "ask_confirmation",
         description = "Ask the user to confirm before proceeding with a sensitive action.",
@@ -276,12 +315,14 @@ object BuiltinTools {
         READ_SCREEN, OPEN_APP, TAP, TYPE_TEXT, SCROLL_DOWN, GO_BACK,
         WEB_SEARCH, FETCH_URL, MEMORY_RECALL,
         CALENDAR_READ, CURRENT_TIME, FLASHLIGHT, CALENDAR_CREATE, SET_ALARM, CREATE_NOTE, TERMINAL_EXECUTE, WRITE_FILE,
-        ASK_CONFIRMATION, CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL, LOAD_SKILL
+        ASK_CONFIRMATION, CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL, LOAD_SKILL,
+        GENERATE_DOCUMENT, GENERATE_SPREADSHEET, GENERATE_PDF, GENERATE_IMAGE, GENERATE_AUDIO, GENERATE_VIDEO, COMPRESS_FILES
     )
 
     /** Minimal set for plain chat (no accessibility, no calendar write). */
     val CHAT_ONLY: List<ToolSchema> = listOf(
         WEB_SEARCH, FETCH_URL, MEMORY_RECALL, CALENDAR_READ, CURRENT_TIME, CREATE_NOTE, TERMINAL_EXECUTE, WRITE_FILE,
-        CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL, LOAD_SKILL
+        CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL, LOAD_SKILL,
+        GENERATE_DOCUMENT, GENERATE_SPREADSHEET, GENERATE_PDF, GENERATE_IMAGE, GENERATE_AUDIO, GENERATE_VIDEO, COMPRESS_FILES
     )
 }

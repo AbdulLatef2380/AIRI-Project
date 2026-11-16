@@ -569,6 +569,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         },
         skillToolBridge = skillToolBridge,
         connectorToolBridge = connectorToolBridge,
+        artifactManager = ServiceLocator.artifactManager,
     )
     /** PHASE 0: universal, redacted runtime evidence; it does not alter execution. */
     private val universalRuntimeTrace = UniversalRuntimeTraceRecorder { event ->

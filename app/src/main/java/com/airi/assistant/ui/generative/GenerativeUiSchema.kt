@@ -360,10 +360,11 @@ object GenerativeUiCompiler {
     }
 
     private fun JSONArray?.boundedNumbers(): List<Float> {
-        require(this != null && length() in 1..MAX_ITEMS)
+        val values = requireNotNull(this) { "chart values must be an array" }
+        require(values.length() in 1..MAX_ITEMS)
         return buildList {
-                for (i in 0 until length()) {
-                val raw = get(i)
+            for (i in 0 until values.length()) {
+                val raw = values.get(i)
                 require(raw is Number) { "chart value must be numeric" }
                 val value = raw.toDouble()
                 require(value.isFinite()) { "non-finite chart value" }

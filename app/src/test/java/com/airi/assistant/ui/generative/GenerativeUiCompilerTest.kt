@@ -21,6 +21,10 @@ class GenerativeUiCompilerTest {
         assertNotNull(result)
         assertEquals("قبل\n\nبعد", result?.surroundingText)
         assertEquals(4, result?.document?.blocks?.size)
+        assertEquals(
+            listOf(10f, 20f),
+            (result?.document?.blocks?.firstOrNull() as? GenerativeUiBlock.BarChart)?.values,
+        )
         assertEquals("[AIRI_UI_ACTION:calculate] watts=100", GenerativeUiAction("calculate", mapOf("watts" to "100")).prompt)
         val safeAction = GenerativeUiAction("next", mapOf("prompt" to "line1\nline2]"))
         assertEquals("[AIRI_UI_ACTION:next] prompt=line1 line2}", safeAction.prompt)

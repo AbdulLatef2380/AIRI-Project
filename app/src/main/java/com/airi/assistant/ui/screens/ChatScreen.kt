@@ -3113,14 +3113,9 @@ fun AiBubble(
     var traceExpanded by remember { mutableStateOf(false) }
     var showContextMenu by remember { mutableStateOf(false) }
     var isSelectingText by remember { mutableStateOf(false) }
-    var showFullscreenViewer by remember { mutableStateOf(false) }
-    var fullscreenText by remember { mutableStateOf("") }
     val handleContentAction = rememberContentUnitActionHandler(
         onShare = onShare,
-        onFullscreen = { scopedText ->
-            fullscreenText = scopedText
-            showFullscreenViewer = scopedText.isNotBlank()
-        },
+        onFullscreen = {},
     )
     val adaptivePlan = remember(text) { AdaptiveContentPolicy.plan(text) }
     val messageTarget = remember(messageId, text, adaptivePlan.messageActions) {
@@ -3138,9 +3133,7 @@ fun AiBubble(
                     android.widget.Toast.LENGTH_SHORT,
                 ).show()
             }
-            ContentUnitAction.SHARE -> onShare(messageTarget.sharePayload)
             ContentUnitAction.SPEAK -> onSpeak(messageTarget.source)
-            ContentUnitAction.FULLSCREEN -> if (messageTarget.source.isNotBlank()) showFullscreenViewer = true
             ContentUnitAction.EXPORT_PDF -> onExportPdf(messageTarget.source)
             ContentUnitAction.EXPORT_MARKDOWN -> onExportMarkdown(messageTarget.source)
             ContentUnitAction.SAVE,
@@ -3154,9 +3147,6 @@ fun AiBubble(
     } else {
         Modifier.combinedClickable(
             onClick = { },
-            onDoubleClick = {
-                performMessageAction(ContentUnitAction.FULLSCREEN)
-            },
             onLongClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 showContextMenu = true
@@ -3290,13 +3280,6 @@ fun AiBubble(
                                 isSelectingText = true
                             }
                         )
-                        if (messageTarget.canPerform(ContentUnitAction.SHARE)) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.share), color = AiriTheme.onBackground) },
-                                leadingIcon = { Icon(Icons.Outlined.Share, null, tint = AiriTheme.onBackground.copy(0.7f), modifier = Modifier.size(16.dp)) },
-                                onClick = { showContextMenu = false; performMessageAction(ContentUnitAction.SHARE) }
-                            )
-                        }
                         Divider(color = AiriTheme.onBackground.copy(alpha = 0.08f))
                         if (messageTarget.canPerform(ContentUnitAction.EXPORT_PDF)) {
                             DropdownMenuItem(
@@ -3366,21 +3349,6 @@ fun AiBubble(
                             Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.copy), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(21.dp))
                         }
                     }
-                    // Keep the common full-response actions discoverable. Code
-                    // and table cards still expose their own scoped share action.
-                    if (messageTarget.canPerform(ContentUnitAction.SHARE)) {
-                        IconButton(
-                            onClick = { performMessageAction(ContentUnitAction.SHARE) },
-                            modifier = Modifier.size(48.dp),
-                        ) {
-                            Icon(
-                                Icons.Outlined.Share,
-                                contentDescription = stringResource(R.string.share),
-                                tint = AiriTheme.onSurfaceVariant,
-                                modifier = Modifier.size(21.dp),
-                            )
-                        }
-                    }
                 }
 
                 // Agent run card (Part 5 §1): real step count, opens the run screen; none without tools.
@@ -3447,79 +3415,6 @@ fun AiBubble(
                 }
             }
         }
-    if (showFullscreenViewer) {
-        FullscreenResponseViewer(
-            text = fullscreenText.ifBlank { text },
-            onDismiss = { showFullscreenViewer = false },
-            onCopy = {
-                val copied = ContentPlatformActions.copyPlainText(context, "AIRI", fullscreenText.ifBlank { text })
-                android.widget.Toast.makeText(
-                    context,
-                    if (copied) R.string.artifact_copied else R.string.artifact_copy_failed,
-                    android.widget.Toast.LENGTH_SHORT,
-                ).show()
-            },
-            onShare = {
-                onShare(fullscreenText.ifBlank { text })
-                showFullscreenViewer = false
-            },
-        )
-    }
-}
-
-@Composable
-private fun FullscreenResponseViewer(
-    text: String,
-    onDismiss: () -> Unit,
-    onCopy: () -> Unit,
-    onShare: () -> Unit
-) {
-    val context = LocalContext.current
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
-            shape = AIRIShapes.lg,
-            color = AiriTheme.background,
-            tonalElevation = 6.dp
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = stringResource(R.string.chat_fullscreen_title),
-                        color = AiriTheme.onBackground,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Row {
-                        IconButton(onClick = onCopy) {
-                            Icon(Icons.Outlined.ContentCopy, stringResource(R.string.copy), tint = AiriTheme.onBackground)
-                        }
-                        IconButton(onClick = onShare) {
-                            Icon(Icons.Outlined.Share, stringResource(R.string.share), tint = AiriTheme.onBackground)
-                        }
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.Outlined.Close, stringResource(R.string.close), tint = AiriTheme.onBackground)
-                        }
-                    }
-                }
-                Divider(color = AiriTheme.outline.copy(alpha = 0.22f))
-                SelectionContainer {
-                    CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection(text)) {
-                        BidiAwareMarkdownRenderer(
-                            text = text,
-                            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
 }
 
 @Composable
@@ -4091,6 +3986,11 @@ fun AiriChatInputBar(
         text = merged
         if (mode != null) activeAttachmentMode = mode
         onDraftTextChanged(merged)
+    }
+
+    /** Raw attachment selection must not author text on the user's behalf. */
+    fun prepareRawAttachmentSelection() {
+        activeAttachmentMode = ""
     }
 
     // Large prompt conversion is handled on send by the ViewModel. Never create a
@@ -4980,18 +4880,18 @@ fun AiriChatInputBar(
                         label = if (imageInputEnabled) stringResource(R.string.attach_image) else stringResource(R.string.attachment_capability_unavailable),
                         enabled = imageInputEnabled,
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_image_prompt, "image"); onPickImage() }
+                    ) { showAttachPopup = false; prepareRawAttachmentSelection(); onPickImage() }
                     AttachCard(
                         icon = Icons.Outlined.CameraAlt,
                         label = stringResource(R.string.attach_camera),
                         enabled = imageInputEnabled,
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_camera_prompt, "camera"); onTakePhoto() }
+                    ) { showAttachPopup = false; prepareRawAttachmentSelection(); onTakePhoto() }
                     AttachCard(
                         icon = Icons.Outlined.Videocam,
                         label = stringResource(R.string.attach_video),
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_video_prompt, "video"); onPickVideo() }
+                    ) { showAttachPopup = false; prepareRawAttachmentSelection(); onPickVideo() }
                 }
                 Spacer(Modifier.height(10.dp))
                 Row(
@@ -5004,12 +4904,12 @@ fun AiriChatInputBar(
                         icon = Icons.Outlined.Description,
                         label = stringResource(R.string.attach_text),
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_text_prompt, "text"); onPickText() }
+                    ) { showAttachPopup = false; prepareRawAttachmentSelection(); onPickText() }
                     AttachCard(
                         icon = Icons.Outlined.AttachFile,
                         label = stringResource(R.string.attach_files),
                         modifier = Modifier.weight(1f)
-                    ) { showAttachPopup = false; applyAttachmentPrompt(R.string.attach_file_prompt, "file"); onPickFile() }
+                    ) { showAttachPopup = false; prepareRawAttachmentSelection(); onPickFile() }
                     Spacer(modifier = Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(12.dp))
@@ -5026,7 +4926,7 @@ fun AiriChatInputBar(
                     stringResource(R.string.attach_recent_files_desc)
                 ) {
                     showAttachPopup = false
-                    applyAttachmentPrompt(R.string.attach_recent_files_prompt, "file")
+                    prepareRawAttachmentSelection()
                     onPickRecentFile()
                 }
                 AttachListRow(
@@ -5111,7 +5011,10 @@ fun AiriChatInputBar(
                     label = stringResource(R.string.attach_edit_image)
                 ) {
                     showAttachPopup = false
-                    applyAttachmentPrompt(R.string.chat_edit_image_prefix, "edit_image")
+                    // Selecting an image-edit workflow must not invent the
+                    // edit instruction; the user may send the image alone or
+                    // write the exact change they want.
+                    activeAttachmentMode = "edit_image"
                     onPickImage()
                 }
             }

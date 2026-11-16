@@ -33,6 +33,10 @@ internal enum class ImageDispatchRoute { LOCAL_SINGLE_IMAGE, CLOUD_VISION }
 internal object AttachmentDispatchPolicy {
     const val MAX_TOTAL_ATTACHMENT_BYTES = 40L * 1024L * 1024L
 
+    /** An attachment is sendable without an optional user instruction. */
+    fun acceptsComposerInput(input: String, hasAttachmentPayload: Boolean): Boolean =
+        input.isNotBlank() || hasAttachmentPayload
+
     /** A capability declaration is not sufficient unless this runtime has a payload path. */
     fun payloadTransportFailure(
         contentType: AttachmentPolicy.ContentType,

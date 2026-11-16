@@ -13,11 +13,11 @@ class AdaptiveContentPolicyTest {
         val code = plan.units.single { it.kind == ContentUnitKind.CODE }
 
         assertTrue(ContentUnitAction.COPY in code.actions)
-        assertTrue(ContentUnitAction.SHARE in code.actions)
+        assertFalse(ContentUnitAction.SHARE in code.actions)
         assertFalse(ContentUnitAction.SAVE in code.actions)
-        assertTrue(ContentUnitAction.FULLSCREEN in code.actions)
+        assertFalse(ContentUnitAction.FULLSCREEN in code.actions)
         assertTrue(ContentUnitAction.COPY in plan.messageActions)
-        assertTrue(ContentUnitAction.SHARE in plan.messageActions)
+        assertFalse(ContentUnitAction.SHARE in plan.messageActions)
         assertFalse(code.source.contains("شرح قبل"))
         assertFalse(code.source.contains("شرح بعد"))
     }
@@ -44,7 +44,7 @@ class AdaptiveContentPolicyTest {
         assertEquals("Model\tStatus\nLocal\tReady", AdaptiveContentPolicy.tableClipboardText(table.source))
         assertEquals("Model | Status\nLocal | Ready", AdaptiveContentPolicy.tableShareText(table.source))
         assertTrue(ContentUnitAction.COPY in table.actions)
-        assertTrue(ContentUnitAction.SHARE in table.actions)
+        assertFalse(ContentUnitAction.SHARE in table.actions)
     }
 
     @Test
@@ -95,9 +95,9 @@ class AdaptiveContentPolicyTest {
         val plan = AdaptiveContentPolicy.plan("نعم، هذا ممكن.")
         assertEquals(ContentUnitKind.PROSE, plan.units.single().kind)
         assertTrue(ContentUnitAction.COPY in plan.messageActions)
-        assertTrue(ContentUnitAction.SHARE in plan.messageActions)
+        assertFalse(ContentUnitAction.SHARE in plan.messageActions)
         assertTrue(ContentUnitAction.SPEAK in plan.messageActions)
-        assertTrue(ContentUnitAction.FULLSCREEN in plan.messageActions)
+        assertFalse(ContentUnitAction.FULLSCREEN in plan.messageActions)
         assertTrue(ContentUnitAction.EXPORT_PDF in plan.messageActions)
         assertTrue(ContentUnitAction.EXPORT_MARKDOWN in plan.messageActions)
     }
@@ -191,7 +191,7 @@ class AdaptiveContentPolicyTest {
         assertEquals("print(1)", codeUnits[2].source)
         assertFalse(ContentUnitAction.SHARE in codeUnits[0].actions)
         assertFalse(ContentUnitAction.SAVE in codeUnits[1].actions)
-        assertTrue(ContentUnitAction.SHARE in codeUnits[2].actions)
+        assertFalse(ContentUnitAction.SHARE in codeUnits[2].actions)
         assertFalse(ContentUnitAction.SAVE in codeUnits[2].actions)
         assertEquals(
             listOf(ContentUnitKind.PROSE, ContentUnitKind.CODE, ContentUnitKind.PROSE),
@@ -291,7 +291,7 @@ $existingText""",
 
         assertEquals(listOf("Agent final answer"), plan.units.map { it.source })
         assertEquals(listOf(toolOutput), plan.toolOutputs)
-        assertTrue(ContentUnitAction.EXPAND in plan.toolOutputs.single().actions)
+        assertFalse(ContentUnitAction.EXPAND in plan.toolOutputs.single().actions)
     }
 
     @Test
@@ -316,7 +316,7 @@ $existingText""",
             actions = setOf(ContentUnitAction.COPY, ContentUnitAction.SAVE, ContentUnitAction.EXPAND),
         )
         assertTrue(incomplete.canPerform(ContentUnitAction.COPY))
-        assertTrue(incomplete.canPerform(ContentUnitAction.EXPAND))
+        assertFalse(incomplete.canPerform(ContentUnitAction.EXPAND))
         assertFalse(incomplete.canPerform(ContentUnitAction.SAVE))
         assertFalse(incomplete.canPerform(ContentUnitAction.SHARE))
     }
@@ -341,9 +341,9 @@ $existingText""",
             toolName = "search",
             step = 1,
             text = "result",
-            actions = setOf(ContentUnitAction.EXPAND),
+            actions = emptySet(),
         ).toContentTarget("message-1")
-        assertTrue(target.canPerform(ContentUnitAction.EXPAND))
+        assertFalse(target.canPerform(ContentUnitAction.EXPAND))
         assertFalse(target.canPerform(ContentUnitAction.COPY))
         assertEquals("result", target.source)
     }

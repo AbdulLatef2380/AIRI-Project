@@ -10,9 +10,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.ExpandLess
-import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -21,7 +18,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -112,8 +108,6 @@ fun ContentAwareMessageRenderer(
                 key(output.id) {
                     ToolOutputCard(
                         output = output,
-                        target = output.toContentTarget(plan.messageId),
-                        onContentAction = onContentAction,
                     )
                 }
             }
@@ -124,53 +118,25 @@ fun ContentAwareMessageRenderer(
 @Composable
 private fun ToolOutputCard(
     output: AssistantToolOutput,
-    target: ContentTarget.ToolOutput,
-    onContentAction: (ContentTarget, ContentUnitAction) -> Unit,
 ) {
-    var expanded by rememberSaveable(output.id) { mutableStateOf(false) }
-    val canExpand = target.canPerform(ContentUnitAction.EXPAND)
-    if (!canExpand) return
-
     Surface(
         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
         color = AiriTheme.surfaceVariant,
         shape = AIRIShapes.sm,
     ) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.assistant_tool_output_label, output.toolName, output.step),
+                color = AiriTheme.onSurfaceVariant,
+                fontSize = 11.sp,
+            )
+            SelectionContainer {
                 Text(
-                    text = stringResource(R.string.assistant_tool_output_label, output.toolName, output.step),
-                    color = AiriTheme.onSurfaceVariant,
-                    fontSize = 11.sp,
-                    modifier = Modifier.weight(1f),
+                    text = output.text,
+                    color = AiriTheme.onSurface,
+                    fontSize = 12.sp,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 )
-                IconButton(
-                    onClick = {
-                        if (target.canPerform(ContentUnitAction.EXPAND)) {
-                            onContentAction(target, ContentUnitAction.EXPAND)
-                            expanded = !expanded
-                        }
-                    },
-                    modifier = Modifier.size(40.dp),
-                ) {
-                    Icon(
-                        imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                        contentDescription = stringResource(
-                            if (expanded) R.string.assistant_tool_output_hide else R.string.assistant_tool_output_show,
-                        ),
-                        tint = AiriTheme.onSurfaceVariant,
-                    )
-                }
-            }
-            if (expanded) {
-                SelectionContainer {
-                    Text(
-                        text = if (output.truncated) "${output.text}\n…" else output.text,
-                        color = AiriTheme.onSurface,
-                        fontSize = 12.sp,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    )
-                }
             }
         }
     }
@@ -261,7 +227,7 @@ private fun MarkdownTableRenderer(
                 }
             }
         }
-        if (tableTarget.canPerform(ContentUnitAction.COPY) || tableTarget.canPerform(ContentUnitAction.SHARE)) {
+        if (tableTarget.canPerform(ContentUnitAction.COPY)) {
             Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                 if (tableTarget.canPerform(ContentUnitAction.COPY)) {
                     IconButton(
@@ -269,14 +235,6 @@ private fun MarkdownTableRenderer(
                         modifier = Modifier.size(40.dp),
                     ) {
                         Icon(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.copy_table), tint = AiriTheme.onSurfaceVariant)
-                    }
-                }
-                if (tableTarget.canPerform(ContentUnitAction.SHARE)) {
-                    IconButton(
-                        onClick = { onContentAction(tableTarget, ContentUnitAction.SHARE) },
-                        modifier = Modifier.size(40.dp),
-                    ) {
-                        Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.share_table), tint = AiriTheme.onSurfaceVariant)
                     }
                 }
             }

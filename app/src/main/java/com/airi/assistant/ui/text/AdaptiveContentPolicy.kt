@@ -56,9 +56,7 @@ object AdaptiveContentPolicy {
         val messageActions = buildSet {
             add(ContentUnitAction.COPY)
             if (!isStreaming) {
-                add(ContentUnitAction.SHARE)
                 add(ContentUnitAction.SPEAK)
-                add(ContentUnitAction.FULLSCREEN)
                 add(ContentUnitAction.EXPORT_PDF)
                 add(ContentUnitAction.EXPORT_MARKDOWN)
             }
@@ -194,7 +192,7 @@ object AdaptiveContentPolicy {
         id = unitId(messageId, ContentUnitKind.PROSE, start, occurrence, occurrence),
         kind = ContentUnitKind.PROSE,
         source = source,
-        actions = setOf(ContentUnitAction.COPY, ContentUnitAction.SHARE),
+        actions = setOf(ContentUnitAction.COPY),
     )
 
     private data class UnitMatch(
@@ -213,10 +211,6 @@ object AdaptiveContentPolicy {
             complete = complete,
             actions = buildSet {
                 add(ContentUnitAction.COPY)
-                if (kind == ContentUnitKind.TABLE || complete) add(ContentUnitAction.SHARE)
-                if ((kind == ContentUnitKind.CODE || kind == ContentUnitKind.STRUCTURED_DATA) && complete) {
-                    add(ContentUnitAction.FULLSCREEN)
-                }
             },
         )
     }

@@ -157,7 +157,7 @@ import com.airi.assistant.agent.loop.tool.AgentFileCard
 import com.airi.assistant.agent.loop.tool.AgentFileCards
 import com.airi.assistant.agent.loop.tool.AgentFileWriter
 
-private const val MAX_TOOL_OUTPUT_PRESENTATION_CHARS = 4_000
+private const val MAX_TOOL_OUTPUT_TRACE_CHARS = 4_000
 private const val CHAT_HISTORY_PAGE_SIZE = 40
 
 data class ChatMessage(
@@ -2404,7 +2404,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         val directives = parseInputDirectives(input)
         val trimmedInput = directives.userText.trim()
-        if (trimmedInput.isEmpty()) return rejectSend("empty_input")
+        if (!AttachmentDispatchPolicy.acceptsComposerInput(
+                input = trimmedInput,
+                hasAttachmentPayload = visionParts.isNotEmpty() || attachmentParts.isNotEmpty(),
+            )) {
+            return rejectSend("empty_input")
+        }
         if (_modelState.value.isModelLoading) {
             // Previously a silent `false`: the user's text looked ignored. Say why (report 1, item 28 / section 2.d).
             _lastExecutionError.value = ExecutionErrorProjection(
@@ -3321,8 +3326,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                                     id = "tool-$generationId-${stepEvent.step}-${stepEvent.toolName}",
                                     toolName = stepEvent.toolName,
                                     step = stepEvent.step,
-                                    text = outputForPresentation.take(MAX_TOOL_OUTPUT_PRESENTATION_CHARS),
-                                    truncated = outputForPresentation.length > MAX_TOOL_OUTPUT_PRESENTATION_CHARS,
+                                    // The chat surface must not silently discard tool output.
+                                    // Runtime/provider safety limits remain upstream; this layer
+                                    // preserves the complete result for the user's inspection.
+                                    text = outputForPresentation,
+                                    truncated = false,
                                 )
                                 // Item 7: a successful write_file becomes a Save / Share card.
                                 AgentFileCards.fromToolResult(
@@ -3750,7 +3758,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     persistExecutionOutcome(
                         kind = ExecutionTraceKind.FAILED,
                         summary = "Execution ended without a terminal result",
-                        answer = streamAccumulator.toString().take(MAX_TOOL_OUTPUT_PRESENTATION_CHARS),
+                        answer = streamAccumulator.toString().take(MAX_TOOL_OUTPUT_TRACE_CHARS),
                     )
                 }
                 finishGeneration(generationId)

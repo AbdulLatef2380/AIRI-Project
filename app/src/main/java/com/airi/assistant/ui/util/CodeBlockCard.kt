@@ -3,7 +3,6 @@ package com.airi.assistant.ui.util
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,10 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.ExpandLess
-import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.Fullscreen
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -26,8 +21,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,7 +29,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDirection
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,8 +59,6 @@ fun CodeBlockCard(
         CodeSyntaxHighlighter.highlight(code, language, syntaxPalette)
     }
     val lineCount = remember(code) { code.count { it == '\n' } + 1 }
-    val canCollapse = lineCount > 14
-    var expanded by rememberSaveable(target?.blockId ?: "code-${code.hashCode()}") { mutableStateOf(false) }
     var copied by remember { mutableStateOf(false) }
     var copyFailed by remember { mutableStateOf(false) }
 
@@ -102,13 +92,6 @@ fun CodeBlockCard(
         copyFailed = !success
     }
 
-    fun share() {
-        val scopedTarget = target ?: return
-        if (scopedTarget.canPerform(ContentUnitAction.SHARE)) {
-            onContentAction?.invoke(scopedTarget, ContentUnitAction.SHARE)
-        }
-    }
-
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Surface(
             shape = RoundedCornerShape(10.dp),
@@ -130,32 +113,6 @@ fun CodeBlockCard(
                         fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace,
                     )
-                    if (canCollapse) {
-                        IconButton(
-                            onClick = { expanded = !expanded },
-                            modifier = Modifier.size(40.dp),
-                        ) {
-                            Icon(
-                                imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                                contentDescription = context.getString(
-                                    if (expanded) R.string.collapse_code else R.string.expand_code,
-                                ),
-                                tint = AiriTheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                    if (target?.canPerform(ContentUnitAction.FULLSCREEN) == true && onContentAction != null) {
-                        IconButton(
-                            onClick = { onContentAction(target, ContentUnitAction.FULLSCREEN) },
-                            modifier = Modifier.size(40.dp),
-                        ) {
-                            Icon(
-                                Icons.Outlined.Fullscreen,
-                                contentDescription = context.getString(R.string.expand_code),
-                                tint = AiriTheme.onSurfaceVariant,
-                            )
-                        }
-                    }
                     if ((target?.canPerform(ContentUnitAction.COPY) == true && (onContentAction != null || onCopyCodeResult != null)) ||
                         (target == null && (onCopyCode != null || onCopyCodeResult != null))
                     ) {
@@ -177,11 +134,6 @@ fun CodeBlockCard(
                             )
                         }
                     }
-                    if (target != null && target.canPerform(ContentUnitAction.SHARE) && onContentAction != null) {
-                        IconButton(onClick = ::share, modifier = Modifier.size(40.dp)) {
-                            Icon(Icons.Outlined.Share, contentDescription = context.getString(R.string.artifact_share), tint = AiriTheme.onSurfaceVariant)
-                        }
-                    }
                 }
                 SelectionContainer {
                     Text(
@@ -193,21 +145,11 @@ fun CodeBlockCard(
                             color = codeFore,
                             textDirection = TextDirection.Ltr,
                         ),
-                        softWrap = false,
-                        maxLines = if (canCollapse && !expanded) 14 else Int.MAX_VALUE,
-                        overflow = TextOverflow.Clip,
+                        softWrap = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
                             .combinedClickable(
                                 onClick = {},
-                                onDoubleClick = {
-                                    if (target?.canPerform(ContentUnitAction.FULLSCREEN) == true &&
-                                        onContentAction != null
-                                    ) {
-                                        onContentAction(target, ContentUnitAction.FULLSCREEN)
-                                    }
-                                },
                             )
                             .padding(top = 4.dp, bottom = 4.dp),
                     )

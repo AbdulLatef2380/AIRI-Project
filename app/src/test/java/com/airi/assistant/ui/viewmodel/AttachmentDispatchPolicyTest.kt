@@ -193,4 +193,17 @@ class AttachmentDispatchPolicyTest {
         assertEquals(40L * 1024L * 1024L, AttachmentDispatchPolicy.MAX_TOTAL_ATTACHMENT_BYTES)
         assertTrue(AttachmentDispatchPolicy.MAX_TOTAL_ATTACHMENT_BYTES >= AttachmentPolicy.MAX_ATTACHMENT_BYTES)
     }
+
+    @Test
+    fun attachmentPayloadMayBeSentWithoutAnInstruction() {
+        assertTrue(AttachmentDispatchPolicy.acceptsComposerInput("", hasAttachmentPayload = true))
+        assertTrue(AttachmentDispatchPolicy.acceptsComposerInput("  ", hasAttachmentPayload = true))
+    }
+
+    @Test
+    fun textOnlyTurnStillRequiresUserText() {
+        assertTrue(!AttachmentDispatchPolicy.acceptsComposerInput("", hasAttachmentPayload = false))
+        assertTrue(!AttachmentDispatchPolicy.acceptsComposerInput("  ", hasAttachmentPayload = false))
+        assertTrue(AttachmentDispatchPolicy.acceptsComposerInput("طلب المستخدم", hasAttachmentPayload = false))
+    }
 }

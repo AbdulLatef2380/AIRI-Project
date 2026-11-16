@@ -77,10 +77,22 @@ fun buildPlan(trace: AgentTrace): PlanProgress? {
     return PlanProgress(items)
 }
 
-/** Timeline rows: tool and task steps only. Intent/plan/verify decisions live in [buildDecisions]. */
+/**
+ * Timeline rows for user-visible work only. Intent/plan/verify decisions and execution admission
+ * lifecycle events live outside this list; exposing them here makes a plain chat reply look like a
+ * failed one-step run. A TASK_STEP is real work only when it has a stable action id and an explicit
+ * step lifecycle event; tool and skill rows remain visible as before.
+ */
 fun buildTimeline(trace: AgentTrace): List<StepRow> {
     val rows = trace.steps.withIndex().filter { (_, s) ->
-        s.type == AgentStepType.TOOL || s.type == AgentStepType.SKILL || s.type == AgentStepType.TASK_STEP
+        s.type == AgentStepType.TOOL ||
+            s.type == AgentStepType.SKILL ||
+            (s.type == AgentStepType.TASK_STEP &&
+                s.actionId?.isNotBlank() == true &&
+                s.lifecycleKinds.any {
+                    it == com.airi.assistant.core.ExecutionTraceKind.STEP_STARTED ||
+                        it == com.airi.assistant.core.ExecutionTraceKind.STEP_COMPLETED
+                })
     }
     val names = rows.map { it.value.name }.toSet()
     // "Still running" is the newest work row; model turns may follow it in the step list.

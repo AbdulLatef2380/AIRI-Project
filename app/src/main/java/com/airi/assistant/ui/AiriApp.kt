@@ -217,7 +217,6 @@ fun AiriApp() {
         val id = pendingRunId ?: return@LaunchedEffect
         val target = agentViewModel.traces.value.firstOrNull { it.id == id || it.traceId == id }
         if (target != null) {
-            navController.navigate(AiriRoute.AGENT_LOGS) { launchSingleTop = true }
             navController.navigate(AiriRoute.agentRun(target.id)) { launchSingleTop = true }
         } else {
             navController.navigate(AiriRoute.AGENT_LOGS) { launchSingleTop = true }
@@ -810,30 +809,30 @@ fun AiriApp() {
                             reason = feedbackStore.reasonFor(runId),
                             onReason = { reason -> feedbackStore.setReason(runId, reason) },
                         )
-                        InternalSurfaceRoute(onBack = { navController.popBackStack() }) {
-                            com.airi.assistant.ui.run.AgentRunScreen(
-                                viewModel = runViewModel,
-                                runId = runId,
-                                onBack = { navController.popBackStack() },
-                                onDelete = { trace ->
-                                    agentViewModel.deleteTrace(trace)
-                                    navController.popBackStack()
-                                },
-                                onOpenMessage = { sessionId, messageId ->
-                                    chatViewModel.requestOpenMessage(sessionId, messageId)
-                                    navController.navigate(AiriRoute.CHAT) {
-                                        popUpTo(AiriRoute.CHAT) { inclusive = false }
-                                        launchSingleTop = true
-                                    }
-                                },
-                                // The raw per-event screen is a developer tool: shown only with debug mode on.
-                                onOpenDiagnostics = if (runDebugMode) ({ trace ->
-                                    agentViewModel.selectTrace(trace)
-                                    navController.navigate(AiriRoute.AGENT_TRACE_DETAIL) { launchSingleTop = true }
-                                }) else null,
-                                actions = runActions,
-                            )
-                        }
+                        // Run details are a user-facing continuation of the chat card. They must
+                        // remain available in release builds; only raw logs/diagnostics are gated.
+                        com.airi.assistant.ui.run.AgentRunScreen(
+                            viewModel = runViewModel,
+                            runId = runId,
+                            onBack = { navController.popBackStack() },
+                            onDelete = { trace ->
+                                agentViewModel.deleteTrace(trace)
+                                navController.popBackStack()
+                            },
+                            onOpenMessage = { sessionId, messageId ->
+                                chatViewModel.requestOpenMessage(sessionId, messageId)
+                                navController.navigate(AiriRoute.CHAT) {
+                                    popUpTo(AiriRoute.CHAT) { inclusive = false }
+                                    launchSingleTop = true
+                                }
+                            },
+                            // The raw per-event screen is a developer tool: shown only with debug mode on.
+                            onOpenDiagnostics = if (runDebugMode) ({ trace ->
+                                agentViewModel.selectTrace(trace)
+                                navController.navigate(AiriRoute.AGENT_TRACE_DETAIL) { launchSingleTop = true }
+                            }) else null,
+                            actions = runActions,
+                        )
                     }
 
                     composable(AiriRoute.AGENT_TRACE_DETAIL) {

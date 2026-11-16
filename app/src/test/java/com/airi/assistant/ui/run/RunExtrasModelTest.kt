@@ -123,6 +123,31 @@ class RunExtrasModelTest {
         assertNull(buildRunCardModel(trace(intentOnly)))
     }
 
+    @Test fun internalExecutionLifecycleDoesNotBecomeAVisibleWorkCard() {
+        val internalLifecycle = AgentStep(
+            stepIndex = 0,
+            type = AgentStepType.TASK_STEP,
+            name = "execution_started",
+            success = false,
+        )
+
+        assertTrue(buildTimeline(trace(internalLifecycle)).isEmpty())
+        assertNull(buildRunCardModel(trace(internalLifecycle, success = false)))
+    }
+
+    @Test fun actionableTaskStepRemainsVisibleWhenItHasAStableActionId() {
+        val task = AgentStep(
+            stepIndex = 0,
+            type = AgentStepType.TASK_STEP,
+            name = "inspect_repository",
+            actionId = "step-1",
+            lifecycleKinds = listOf(com.airi.assistant.core.ExecutionTraceKind.STEP_STARTED),
+        )
+
+        assertEquals(1, buildTimeline(trace(task)).size)
+        assertNotNull(buildRunCardModel(trace(task)))
+    }
+
     @Test fun cardStepCountMatchesTimelineRows() {
         val t = trace(
             AgentStep(0, AgentStepType.PLAN, "plan", outputSummary = "- a\n- b"),

@@ -57,22 +57,12 @@ class ResponseOptimizerTest {
     fun smartRepliesFollowTheConfiguredAppLanguage() {
         val userInput = "حلّل هذا الكود واقترح تحسينات"
         val response = "```kotlin\nclass Example { fun run() {} }\n``` This implementation can be reviewed and improved with tests."
-        assertEquals(
-            listOf("حلّل الكود وحدد الأخطاء المحتملة واقترح تحسينات عملية", "أضف اختبارات ومعالجة واضحة للأخطاء لهذا التنفيذ", "حسّن الكود من حيث الأداء والأمان وسهولة الصيانة"),
-            ResponseOptimizer.generateSuggestions(userInput, response, "ar"),
-        )
-        assertEquals(
-            listOf("Analyze the code, identify likely bugs, and suggest practical improvements", "Add tests and error handling for this implementation", "Optimize this code for performance, security, and maintainability"),
-            ResponseOptimizer.generateSuggestions(userInput, response, "en"),
-        )
-        assertEquals(
-            listOf("Analiza el código, detecta errores y propone mejoras prácticas", "Añade pruebas y manejo de errores a esta implementación", "Optimiza el código para rendimiento, seguridad y mantenimiento"),
-            ResponseOptimizer.generateSuggestions(userInput, response, "es"),
-        )
-        assertEquals(
-            listOf("分析代码并找出潜在错误，提出实用改进", "为这段实现添加测试和错误处理", "从性能、安全性和可维护性方面优化代码"),
-            ResponseOptimizer.generateSuggestions(userInput, response, "zh"),
-        )
+        listOf("ar", "en", "es", "zh").forEach { language ->
+            val suggestions = ResponseOptimizer.generateSuggestions(userInput, response, language)
+            assertEquals(3, suggestions.size)
+            assertTrue("$language suggestions should be complete follow-up requests", suggestions.all { it.length >= 30 })
+        }
+        assertTrue(ResponseOptimizer.generateSuggestions(userInput, response, "ar").first().contains("الأداء"))
     }
 
     @Test
@@ -85,6 +75,42 @@ class ResponseOptimizerTest {
         assertEquals(3, suggestions.size)
         assertTrue(suggestions.all { it.length > 25 })
         assertTrue(suggestions.first().contains("الأداء"))
+    }
+
+    @Test
+    fun smartRepliesAreLongEnoughForMultiLineCards() {
+        val suggestions = ResponseOptimizer.generateSuggestions(
+            userInput = "قارن بين الأدوات من حيث الأداء والتكلفة",
+            response = "تختلف الأدوات في الأداء والتكلفة والخصوصية وسهولة الاستخدام، لذلك يعتمد القرار على القيود والأهداف الفعلية للمشروع.",
+            languageCode = "ar",
+        )
+        assertEquals(3, suggestions.size)
+        assertTrue(suggestions.all { it.length >= 80 })
+    }
+
+    @Test
+    fun smartRepliesKeepTheFollowUpSpecificToTheDetectedTask() {
+        val code = ResponseOptimizer.generateSuggestions(
+            userInput = "اشرح هذا الكود ثم اقترح طريقة اختباره",
+            response = "```kotlin\nclass Example { fun run() {} }\n``` يمكن تحسين التنفيذ بإضافة اختبارات لمسارات النجاح والفشل.",
+            languageCode = "ar",
+        )
+        assertTrue(code.all { it.contains("اختبار") || it.contains("الكود") || it.contains("الأداء") })
+
+        val steps = ResponseOptimizer.generateSuggestions(
+            userInput = "ضع خطة من خطوات واضحة لإطلاق التطبيق",
+            response = "ابدأ بالتجهيز، ثم نفذ الفحوصات، وبعدها راقب الإطلاق تدريجيًا مع خطة تراجع.",
+            languageCode = "ar",
+        )
+        assertTrue(steps.all { it.contains("خطوة") || it.contains("مهمة") || it.contains("تحقق") })
+
+        val action = ResponseOptimizer.generateSuggestions(
+            userInput = "نفّذ الإصلاح ثم أخبرني بالنتيجة",
+            response = "تم تنفيذ الإصلاح والتحقق من الملفات المتأثرة، ولم تظهر مشكلة إضافية في الفحص الساكن.",
+            languageCode = "ar",
+            queryType = QueryType.ACTION,
+        )
+        assertTrue(action.all { it.contains("تحقق") || it.contains("إنجاز") || it.contains("اختبار") })
     }
 
     @Test

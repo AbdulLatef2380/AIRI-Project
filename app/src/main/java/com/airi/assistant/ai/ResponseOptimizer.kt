@@ -454,70 +454,74 @@ object ResponseOptimizer {
                 "zh" -> zh
                 else -> en
             }
+                .map(String::trim)
+                .filter { suggestion -> suggestion.length >= 30 }
+                .distinctBy { suggestion -> suggestion.lowercase(Locale.ROOT).replace(Regex("\\s+"), " ") }
+                .take(3)
 
         return when {
             codeContext ->
                 localized(
-                    en = listOf("Analyze the code, identify likely bugs, and suggest practical improvements", "Add tests and error handling for this implementation", "Optimize this code for performance, security, and maintainability"),
-                    ar = listOf("حلّل الكود وحدد الأخطاء المحتملة واقترح تحسينات عملية", "أضف اختبارات ومعالجة واضحة للأخطاء لهذا التنفيذ", "حسّن الكود من حيث الأداء والأمان وسهولة الصيانة"),
-                    es = listOf("Analiza el código, detecta errores y propone mejoras prácticas", "Añade pruebas y manejo de errores a esta implementación", "Optimiza el código para rendimiento, seguridad y mantenimiento"),
-                    zh = listOf("分析代码并找出潜在错误，提出实用改进", "为这段实现添加测试和错误处理", "从性能、安全性和可维护性方面优化代码"),
+                    en = listOf("Analyze the code line by line, identify the most likely bugs, and explain which improvements matter first for this specific implementation.", "Add focused tests and clear error handling for the important success and failure paths, then explain what each test protects.", "Improve this code for performance, security, and maintainability while preserving its current behavior, and call out any trade-offs.",),
+                    ar = listOf("حلّل الكود سطرًا بسطر، وحدد الأخطاء الأكثر احتمالًا، واشرح أي التحسينات يجب تنفيذها أولًا في هذا التنفيذ تحديدًا.", "أضف اختبارات مركزة ومعالجة واضحة لمسارات النجاح والفشل المهمة، ثم وضّح ما الذي يحميه كل اختبار.", "حسّن هذا الكود من حيث الأداء والأمان وسهولة الصيانة مع الحفاظ على سلوكه الحالي، واذكر أي مفاضلات محتملة.",),
+                    es = listOf("Analiza el código línea por línea, identifica los errores más probables y explica qué mejoras deben hacerse primero en esta implementación concreta.", "Añade pruebas específicas y un manejo claro de errores para los caminos importantes de éxito y fallo, explicando qué protege cada prueba.", "Mejora el rendimiento, la seguridad y el mantenimiento sin cambiar el comportamiento actual, e indica las posibles decisiones y compromisos.",),
+                    zh = listOf("逐行分析这段代码，找出最可能的错误，并说明在这个具体实现中哪些改进应该优先完成。", "为重要的成功和失败路径添加针对性测试与清晰的错误处理，并解释每个测试保护的行为。", "在保持现有行为的前提下改进性能、安全性和可维护性，同时说明可能的取舍。",),
                 )
 
             stepContext ->
                 localized(
-                    en = listOf("Explain the first step with a concrete example", "Turn the proposed plan into the next executable tasks", "Rewrite the steps in a simpler, easier-to-follow way"),
-                    ar = listOf("اشرح الخطوة الأولى بمثال عملي واضح", "حوّل الخطة المقترحة إلى مهام تنفيذية تالية", "أعد كتابة الخطوات بطريقة أبسط وأسهل للتنفيذ"),
-                    es = listOf("Explica el paso 1", "¿Qué sigue?", "Simplifícalo"),
-                    zh = listOf("解释第 1 步", "接下来做什么？", "简化说明"),
+                    en = listOf("Explain the first step with a concrete example, including the expected input, output, and the point at which I should verify the result.", "Turn the proposed plan into the next executable tasks, ordered by priority with clear completion criteria and any dependencies.", "Rewrite the steps in a simpler, easier-to-follow way while keeping the important warnings, decisions, and checks needed to avoid mistakes.",),
+                    ar = listOf("اشرح الخطوة الأولى بمثال عملي واضح، مع توضيح المدخلات والنتيجة المتوقعة ونقطة التحقق من نجاحها.", "حوّل الخطة المقترحة إلى مهام تنفيذية مرتبة حسب الأولوية، مع معيار واضح لاكتمال كل مهمة والاعتماديات بينها.", "أعد كتابة الخطوات بطريقة أبسط وأسهل للتنفيذ، مع الحفاظ على التحذيرات والقرارات ونقاط التحقق المهمة لتجنب الأخطاء.",),
+                    es = listOf("Explica el primer paso con un ejemplo práctico, indicando la entrada, el resultado esperado y cuándo debo verificar que funciona.", "Convierte el plan propuesto en tareas ejecutables ordenadas por prioridad, con criterios claros de finalización y dependencias.", "Reescribe los pasos de forma más sencilla y fácil de seguir, manteniendo las advertencias, decisiones y comprobaciones importantes.",),
+                    zh = listOf("用具体例子解释第一步，说明输入、预期输出，以及应在什么时候验证结果是否正确。", "把计划转换成按优先级排列的可执行任务，并为每项任务给出完成标准和必要依赖。", "用更简单、更容易执行的方式重写步骤，同时保留重要的警告、决策和检查点。",),
                 )
 
             asksForReasoning && containsAny(answerLower, listOf("because", "therefore", "reason", "لأن", "لذلك", "السبب")) ->
                 localized(
-                    en = listOf("Explain the reasoning in more detail with a practical example", "Show how to apply this idea to a realistic case", "Summarize the answer into the key decisions and caveats"),
-                    ar = listOf("اشرح الفكرة بتفصيل أكبر مع مثال عملي", "وضّح كيفية تطبيق هذه الفكرة على حالة واقعية", "لخّص الإجابة في القرارات والنقاط المهمة والقيود"),
-                    es = listOf("Amplía la explicación", "Dame un ejemplo", "Resume la respuesta"),
-                    zh = listOf("详细说明", "举个例子", "总结回答"),
+                    en = listOf("Explain the reasoning in more detail with a practical example, and distinguish the facts from the assumptions behind the conclusion.", "Show how to apply this idea to a realistic case, including the decisions to make and the result I should expect.", "Summarize the answer into the key decisions, evidence, caveats, and one clear recommendation for what to do next.",),
+                    ar = listOf("اشرح منطق الإجابة بتفصيل أكبر مع مثال عملي، وميّز بين الحقائق والافتراضات التي بُني عليها الاستنتاج.", "وضّح كيفية تطبيق هذه الفكرة على حالة واقعية، مع القرارات المطلوبة والنتيجة التي ينبغي توقعها.", "لخّص الإجابة في القرارات والأدلة والنقاط المهمة والقيود، ثم اقترح خطوة تالية واضحة.",),
+                    es = listOf("Explica el razonamiento con más detalle y un ejemplo práctico, diferenciando los hechos de las suposiciones de la conclusión.", "Muestra cómo aplicar esta idea a un caso realista, incluyendo las decisiones necesarias y el resultado que debería esperar.", "Resume la respuesta con las decisiones, evidencias, limitaciones y una recomendación clara para el siguiente paso.",),
+                    zh = listOf("更详细地解释推理过程并给出实际例子，同时区分结论所依据的事实和假设。", "展示如何把这个想法应用到真实场景中，包括需要作出的决定和应当期待的结果。", "把回答总结为关键决定、证据、限制，并给出一个明确的下一步建议。",),
                 )
 
             asksForComparison ->
                 localized(
-                    en = listOf("Compare the alternatives by performance, cost, and ease of use", "Recommend the best option for my constraints and explain why", "List the trade-offs, risks, and situations where each option fits"),
-                    ar = listOf("قارن بين البدائل من حيث الأداء والتكلفة وسهولة الاستخدام", "رشّح الخيار الأنسب لقيودي واشرح سبب التوصية", "اذكر المفاضلات والمخاطر ومتى يناسب كل خيار"),
-                    es = listOf("Profundiza en la comparación", "¿Cuál es mejor?", "Ventajas y desventajas"),
-                    zh = listOf("深入比较", "哪个更好？", "列出优缺点"),
+                    en = listOf("Compare the alternatives by performance, cost, reliability, privacy, and ease of use, then summarize which differences matter for my situation.", "Recommend the best option for my stated constraints, explain the reasoning, and mention what new information could change the recommendation.", "List the trade-offs, risks, and situations where each option fits best, with a balanced conclusion rather than a generic winner.",),
+                    ar = listOf("قارن بين البدائل من حيث الأداء والتكلفة والاعتمادية والخصوصية وسهولة الاستخدام، ثم لخّص الفروق التي تهم حالتي.", "رشّح الخيار الأنسب لقيودي المذكورة، واشرح سبب التوصية، واذكر المعلومات التي قد تغيّر هذا القرار.", "اذكر المفاضلات والمخاطر والحالات التي يناسب فيها كل خيار، مع خلاصة متوازنة بدل اختيار عام بلا سياق.",),
+                    es = listOf("Compara las alternativas por rendimiento, coste, fiabilidad, privacidad y facilidad de uso, y resume qué diferencias importan en mi caso.", "Recomienda la mejor opción según mis limitaciones, explica el motivo y señala qué información podría cambiar la recomendación.", "Enumera las ventajas, riesgos y situaciones en las que encaja mejor cada alternativa, con una conclusión equilibrada y contextualizada.",),
+                    zh = listOf("从性能、成本、可靠性、隐私和易用性比较各个方案，并总结哪些差异对我的情况最重要。", "根据我的限制条件推荐最合适的方案，解释原因，并说明哪些新信息可能改变这个推荐。", "列出每个方案的取舍、风险和适用场景，给出有上下文的平衡结论，而不是笼统地选择一个赢家。",),
                 )
 
             asksForAnalysis ->
                 localized(
-                    en = listOf("Expand the analysis with evidence, assumptions, and limitations", "Extract the key findings and the next practical step", "Turn the analysis into a concise decision-ready summary"),
-                    ar = listOf("وسّع التحليل بالأدلة والافتراضات والقيود المهمة", "استخرج أهم النتائج والخطوة العملية التالية", "حوّل التحليل إلى ملخص واضح يساعد على اتخاذ القرار"),
-                    es = listOf("Más detalles", "¿Puntos clave?", "Resume la respuesta"),
-                    zh = listOf("补充细节", "关键要点？", "总结回答"),
+                    en = listOf("Expand the analysis with the strongest evidence, explicit assumptions, uncertainty, and limitations so I can judge how reliable the conclusion is.", "Extract the key findings and the next practical step, separating confirmed observations from ideas that still need verification.", "Turn the analysis into a concise decision-ready summary with the recommended choice, reasons, risks, and conditions for revisiting it.",),
+                    ar = listOf("وسّع التحليل بالأدلة الأقوى والافتراضات والشكوك والقيود بوضوح حتى أستطيع تقييم موثوقية النتيجة.", "استخرج أهم النتائج والخطوة العملية التالية، وافصل بين الملاحظات المؤكدة والأفكار التي تحتاج إلى تحقق.", "حوّل التحليل إلى ملخص واضح يساعد على اتخاذ القرار، يتضمن التوصية والأسباب والمخاطر ومتى ينبغي مراجعتها.",),
+                    es = listOf("Amplía el análisis con las pruebas más sólidas, las suposiciones, la incertidumbre y las limitaciones para poder valorar la fiabilidad de la conclusión.", "Extrae los hallazgos principales y el siguiente paso práctico, separando las observaciones confirmadas de lo que aún debe verificarse.", "Convierte el análisis en un resumen útil para decidir, con recomendación, razones, riesgos y condiciones para revisarla.",),
+                    zh = listOf("用最有力的证据、明确的假设、不确定性和限制补充分析，帮助我判断结论的可靠程度。", "提取关键发现和下一步行动，并区分已经确认的观察与仍需验证的想法。", "把分析整理成可用于决策的简明总结，包括推荐、理由、风险以及何时需要重新评估。",),
                 )
 
             queryType == QueryType.ACTION ->
                 localized(
-                    en = listOf("Verify the completed result and report any remaining issue", "Apply the next safe improvement to this task", "Summarize what was completed and what remains"),
-                    ar = listOf("تحقق من النتيجة المنفذة وأبلغني بأي مشكلة متبقية", "طبّق التحسين الآمن التالي على هذه المهمة", "لخّص ما تم إنجازه وما تبقى من المهمة"),
-                    es = listOf("Verifica el resultado", "Aplica la siguiente mejora", "Resume lo completado"),
-                    zh = listOf("验证已完成的结果", "应用下一项安全改进", "总结已完成和剩余任务"),
+                    en = listOf("Verify the completed result against the original request, run the relevant checks, and report any remaining issue with evidence.", "Apply the next safe improvement to this task, verify its effect, explain exactly what changed, and keep unrelated behavior untouched.", "Summarize what was completed, what was verified, what could not be tested, and the precise next step if anything remains.",),
+                    ar = listOf("تحقق من النتيجة المنفذة مقابل الطلب الأصلي، وشغّل الفحوصات المناسبة، وأبلغني بأي مشكلة متبقية مع الدليل.", "طبّق التحسين الآمن التالي على هذه المهمة، وتحقق من أثره، واشرح ما الذي تغير تحديدًا دون لمس السلوك غير المرتبط.", "لخّص ما تم إنجازه وما تم التحقق منه وما تعذر اختباره، وحدد الخطوة التالية بدقة إن بقي شيء.",),
+                    es = listOf("Verifica el resultado frente a la solicitud original, ejecuta las comprobaciones relevantes e informa de cualquier problema restante con pruebas.", "Aplica la siguiente mejora segura, verifica su efecto, explica exactamente qué cambió y no alteres el comportamiento relacionado.", "Resume lo completado, lo verificado, lo que no pudo probarse y el siguiente paso exacto si queda algo pendiente.",),
+                    zh = listOf("根据原始请求验证已完成的结果，运行相关检查，并用证据说明是否还有问题。", "应用下一项安全改进，验证它的效果，准确解释发生了什么变化，同时不要影响无关功能。", "总结已完成、已验证和无法测试的内容；如果仍有剩余任务，明确指出下一步。",),
                 )
 
             queryType == QueryType.ANALYTICAL ->
                 localized(
-                    en = listOf("Extract the key findings and evidence", "List the assumptions, risks, and limitations", "Turn this analysis into an actionable plan"),
-                    ar = listOf("استخرج أهم النتائج والأدلة", "اذكر الافتراضات والمخاطر والقيود", "حوّل هذا التحليل إلى خطة قابلة للتنفيذ"),
-                    es = listOf("Extrae los hallazgos", "Enumera riesgos y límites", "Convierte el análisis en un plan"),
-                    zh = listOf("提取关键结论和证据", "列出假设、风险和限制", "把分析转成可执行计划"),
+                    en = listOf("Extract the key findings and supporting evidence, and distinguish the conclusion from the observations that led to it.", "List the assumptions, risks, uncertainties, and limitations that could change how this result should be interpreted.", "Turn this analysis into an actionable plan with priorities, owners or inputs needed, verification points, and a clear first step.",),
+                    ar = listOf("استخرج أهم النتائج والأدلة الداعمة، وميّز بين الخلاصة والملاحظات التي قادت إليها.", "اذكر الافتراضات والمخاطر والشكوك والقيود التي قد تغيّر طريقة تفسير هذه النتيجة.", "حوّل هذا التحليل إلى خطة قابلة للتنفيذ تتضمن الأولويات والمدخلات المطلوبة ونقاط التحقق وأول خطوة واضحة.",),
+                    es = listOf("Extrae los hallazgos principales y las pruebas que los respaldan, diferenciando la conclusión de las observaciones que la sustentan.", "Enumera las suposiciones, riesgos, incertidumbres y limitaciones que podrían cambiar la interpretación del resultado.", "Convierte el análisis en un plan accionable con prioridades, información necesaria, puntos de verificación y un primer paso claro.",),
+                    zh = listOf("提取关键结论和支持证据，并区分最终判断与形成判断的观察结果。", "列出可能改变结果解释的假设、风险、不确定性和限制。", "把分析转成可执行计划，包含优先级、所需输入、验证节点和明确的第一步。",),
                 )
 
             queryType == QueryType.CREATIVE ->
                 localized(
-                    en = listOf("Develop the strongest idea further", "Give me three practical variations", "Turn this into a polished final version"),
-                    ar = listOf("طوّر أقوى فكرة بمزيد من التفاصيل", "قدّم لي ثلاث صيغ عملية مختلفة", "حوّل هذا إلى نسخة نهائية متقنة"),
-                    es = listOf("Desarrolla la mejor idea", "Dame tres variaciones", "Crea una versión final"),
-                    zh = listOf("进一步发展最佳创意", "给出三个实用变体", "整理成最终版本"),
+                    en = listOf("Develop the strongest idea further with a clear structure, concrete details, and an explanation of why it fits the goal and audience.", "Give me three practical variations with different tones or trade-offs, and explain when each version would be the best choice.", "Turn this into a polished final version, keeping the original intent while improving clarity, rhythm, and the details that make it distinctive.",),
+                    ar = listOf("طوّر أقوى فكرة بمزيد من التفاصيل وبنية واضحة، واشرح لماذا تناسب الهدف والجمهور المقصود.", "قدّم لي ثلاث صيغ عملية مختلفة في النبرة أو المفاضلات، واشرح متى تكون كل صيغة هي الاختيار الأفضل.", "حوّل هذه الفكرة إلى نسخة نهائية متقنة، مع الحفاظ على المقصد الأصلي وتحسين الوضوح والإيقاع والتفاصيل المميزة.",),
+                    es = listOf("Desarrolla la idea más sólida con una estructura clara, detalles concretos y una explicación de por qué encaja con el objetivo y el público.", "Dame tres variaciones prácticas con tonos o compromisos diferentes y explica cuándo conviene elegir cada una.", "Convierte esta idea en una versión final pulida, conservando la intención original y mejorando claridad, ritmo y rasgos distintivos.",),
+                    zh = listOf("进一步发展最有潜力的创意，提供清晰结构和具体细节，并说明它为何适合目标与受众。", "给出三个语气或取舍不同的实用变体，并说明每个版本在什么场景下最合适。", "在保留原意的同时整理成精炼的最终版本，改善表达清晰度、节奏和独特细节。",),
                 )
 
             // Arabic answers can be concise while still containing enough
@@ -526,10 +530,10 @@ object ResponseOptimizer {
             // a complete answer of roughly one paragraph.
             asksOpenEnded && answer.length >= 120 ->
                 localized(
-                    en = listOf("Give me a practical example", "What are the main limitations or risks?", "How does this affect everyday life?"),
-                    ar = listOf("أعطني مثالًا عمليًا على ذلك", "ما أبرز القيود أو المخاطر؟", "كيف يؤثر ذلك في الحياة اليومية؟"),
-                    es = listOf("Dame un ejemplo práctico", "¿Cuáles son sus límites o riesgos?", "¿Cómo afecta a la vida diaria?"),
-                    zh = listOf("给我一个实际例子", "主要限制或风险是什么？", "这如何影响日常生活？"),
+                    en = listOf("Give me a practical example that applies this idea to a realistic situation, with enough detail to see how the result would work.", "What are the main limitations, risks, or situations where this explanation may not apply, and how can I recognize them early?", "How does this affect everyday life or a real project, and what is one useful action I can take based on the explanation?",),
+                    ar = listOf("أعطني مثالًا عمليًا يطبّق هذه الفكرة على حالة واقعية، مع تفاصيل كافية لفهم النتيجة وكيفية عملها.", "ما أبرز القيود أو المخاطر أو الحالات التي قد لا تنطبق فيها هذه الإجابة، وكيف أكتشفها مبكرًا؟", "كيف يؤثر ذلك في الحياة اليومية أو في مشروع حقيقي، وما الإجراء المفيد الذي يمكنني اتخاذه بناءً على الشرح؟",),
+                    es = listOf("Dame un ejemplo práctico aplicado a una situación realista, con suficientes detalles para entender cómo funcionaría el resultado.", "¿Cuáles son las principales limitaciones, riesgos o casos en los que esta explicación no se aplica, y cómo puedo detectarlos pronto?", "¿Cómo afecta esto a la vida diaria o a un proyecto real, y qué acción útil puedo tomar a partir de la explicación?",),
+                    zh = listOf("给出一个把这个想法应用到真实场景的实际例子，并提供足够细节说明结果如何运作。", "主要限制、风险或不适用的情况是什么？我该如何尽早识别这些情况？", "这会如何影响日常生活或真实项目？根据这个解释，我可以采取哪一个有用的行动？",),
                 )
 
             else -> emptyList()

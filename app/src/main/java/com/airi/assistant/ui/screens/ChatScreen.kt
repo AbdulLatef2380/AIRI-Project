@@ -1126,6 +1126,9 @@ fun ChatScreen(
                     externalInputText    = externalInputText,
                     onExternalInputConsumed = { externalInputText = null },
                     onUserStartedTyping  = {
+                        // A new draft invalidates follow-ups generated for the
+                        // previous assistant turn; never show stale actions.
+                        viewModel.clearSmartReplies()
                         if (voiceState == VoiceSessionState.SPEAKING) {
                             voiceManager.stopVadIfRunning(); voiceManager.stopSpeaking()
                             isVadInterrupting.value = false; voiceState = VoiceSessionState.IDLE
@@ -4191,46 +4194,52 @@ fun AiriChatInputBar(
             }
         }
 
-        // Smart reply bubbles: each suggestion sizes itself to its content
-        // instead of stretching into a full-width action card.
+        // Smart reply cards are intentionally wide enough for complete,
+        // contextual follow-up requests. They wrap to several lines instead
+        // of reducing a useful continuation to a short chip.
         if (smartReplies.isNotEmpty() && !isGenerating) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
             ) {
                 smartReplies.forEach { reply ->
                     Row(
                         modifier = Modifier
-                            .widthIn(max = 300.dp)
-                            .clip(AIRIShapes.pill)
+                            .widthIn(min = 230.dp, max = 350.dp)
+                            .heightIn(min = 68.dp)
+                            .clip(AIRIShapes.md)
                             .background(AiriTheme.surfaceVariant.copy(alpha = 0.78f))
-                            .border(1.dp, AiriTheme.outline.copy(alpha = 0.32f), AIRIShapes.pill)
+                            .border(1.dp, AiriTheme.outline.copy(alpha = 0.32f), AIRIShapes.md)
                             .clickable { onSmartReply(reply) }
                             .semantics {
                                 contentDescription = reply
                                 role = Role.Button
                             }
-                            .padding(horizontal = 10.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.Top,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.AutoAwesome,
                             contentDescription = null,
                             tint = AiriTheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp),
+                            modifier = Modifier
+                                .padding(top = 1.dp)
+                                .size(16.dp),
                         )
                         CompositionLocalProvider(LocalLayoutDirection provides chatTextDirection(reply)) {
                             Text(
                                 text = reply,
                                 color = AiriTheme.onSurface,
                                 fontSize = 13.sp,
-                                lineHeight = 18.sp,
+                                lineHeight = 19.sp,
                                 fontWeight = FontWeight.Medium,
+                                softWrap = true,
+                                modifier = Modifier.weight(1f),
                             )
                         }
                     }

@@ -47,6 +47,46 @@ class ConversationResponseCompositionTest {
     }
 
     @Test
+    fun descriptionTranscriptAndDecodeDoNotTriggerCodeLane() {
+        val plan = ConversationResponseCompositionPlanner.plan(
+            ResponseRequestProfile(
+                userText = "اعرض chart مع description و transcript ثم decode للبيانات",
+                answerText = "هذه هي البيانات المعروضة.",
+            ),
+        )
+        assertEquals(ResponseLane.DATA, plan.lane)
+        assertFalse(plan.allowGenerativeUi)
+    }
+
+    @Test
+    fun validNativeUiIsAcceptedEvenWhenRequestAlsoMentionsCode() {
+        val plan = ConversationResponseCompositionPlanner.plan(
+            ResponseRequestProfile(
+                userText = "اكتب code مع stat تفاعلي",
+                answerText = """
+                    شرح مختصر.
+                    ```airi-ui
+                    {"version":1,"blocks":[{"type":"stat","id":"result","value":"42"}]}
+                    ```
+                """.trimIndent(),
+            ),
+        )
+        assertEquals(ResponseLane.CODE, plan.lane)
+        assertTrue(plan.allowGenerativeUi)
+    }
+
+    @Test
+    fun malformedNativeUiIsNotAdmittedByCompositionGate() {
+        val plan = ConversationResponseCompositionPlanner.plan(
+            ResponseRequestProfile(
+                userText = "اعرض نتيجة تفاعلية",
+                answerText = "```airi-ui\n{\"version\":1,\"blocks\":[]}\n```",
+            ),
+        )
+        assertFalse(plan.allowGenerativeUi)
+    }
+
+    @Test
     fun fileAndAttachmentWorkKeepsArtifactAndAttachmentSections() {
         val plan = ConversationResponseCompositionPlanner.plan(
             ResponseRequestProfile(

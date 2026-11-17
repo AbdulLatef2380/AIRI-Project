@@ -1,5 +1,8 @@
 package com.airi.assistant.ui.text
 
+import com.airi.assistant.ui.generative.GenerativeUiCompileResult
+import com.airi.assistant.ui.generative.GenerativeUiCompiler
+
 /** AIRI's bounded, provider-independent presentation contract. */
 enum class ResponseLane {
     CONVERSATION, EXPLANATION, COMPARISON, DOCUMENT, CODE, SYMBOLIC,
@@ -93,7 +96,9 @@ object ConversationResponseCompositionPlanner {
         val hasComparison = containsAny(combined, "compare", "comparison", "versus", " vs ", "مقارنة", "قارن", "مقابل", "الفرق بين", "أيهما")
         val hasDocument = containsAny(combined, "document", "report", "pdf", "docx", "markdown", "ملف", "مستند", "وثيقة", "تقرير")
         val hasNativeGenerativeUi = answer.contains("```airi-ui")
-        val hasCode = (fencedCode(profile.answerText) && !hasNativeGenerativeUi) || containsAny(request, "code", "program", "script", "كود", "برمج", "شفرة")
+        val hasCode = (fencedCode(profile.answerText) && !hasNativeGenerativeUi) ||
+            containsAnyWholeTerm(request, "code", "program", "script") ||
+            containsAny(request, "كود", "برمج", "شفرة")
         val hasEvaluation = containsAny(combined, "evaluate", "evaluation", "review", "rating", "score", "pros", "cons", "تقييم", "مراجعة", "إيجابيات", "سلبيات", "المخاطر")
         val hasMap = containsAny(combined, "map", "route", "directions", "coordinates", "location", "خريطة", "المسار", "إحداثيات", "الموقع")
         val hasData = containsAny(combined, "chart", "graph", "metrics", "statistics", "trend", "bar_chart", "diagram", "رسم بياني", "مخطط", "إحصاء", "مؤشرات", "اتجاه")
@@ -130,7 +135,8 @@ object ConversationResponseCompositionPlanner {
             preserveInteractiveState = hasInteractive || evidence.hasAttachments || longRunning,
             discloseExecution = evidence.hasToolResults || evidence.hasRemoteSources || evidence.hasSkillsOrConnectors,
             discloseUncertainty = evidence.hasRemoteSources || lane == ResponseLane.MAP || lane == ResponseLane.EVALUATION || evidence.artifactState == ResponseDeliveryState.FAILED,
-            allowGenerativeUi = !profile.isStreaming && hasNativeGenerativeUi && lane !in setOf(ResponseLane.CODE, ResponseLane.SYMBOLIC),
+            allowGenerativeUi = !profile.isStreaming && hasNativeGenerativeUi &&
+                GenerativeUiCompiler.compileDetailed(profile.answerText) is GenerativeUiCompileResult.Accepted,
             isLongRunning = longRunning,
         )
     }
@@ -160,4 +166,7 @@ object ConversationResponseCompositionPlanner {
 
     private fun fencedCode(value: String): Boolean = value.contains("```")
     private fun containsAny(value: String, vararg needles: String): Boolean = needles.any(value::contains)
+    private fun containsAnyWholeTerm(value: String, vararg needles: String): Boolean = needles.any { needle ->
+        Regex("(?<![A-Za-z])${Regex.escape(needle)}(?![A-Za-z])").containsMatchIn(value)
+    }
 }

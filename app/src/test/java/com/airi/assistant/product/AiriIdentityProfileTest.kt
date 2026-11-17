@@ -49,4 +49,16 @@ class AiriIdentityProfileTest {
     fun nonIdentityInputDoesNotReceiveIdentityInjection() {
         assertTrue(AiriIdentityProfile.promptContext("حلل هذا النص", null).isEmpty())
     }
+
+    @Test
+    fun generativeUiContractIsDetailedForCloudAndOmittedForLocal() {
+        val local = AiriIdentityProfile.runtimeContext(descriptor(CapabilityStatus.SUPPORTED, "local"))
+        val cloud = AiriIdentityProfile.runtimeContext(descriptor(CapabilityStatus.SUPPORTED, "openai"))
+
+        assertFalse(local.contains("Allowed block types and exact fields"))
+        assertTrue(cloud.contains("Allowed block types and exact fields"))
+        assertTrue(cloud.contains("supportingText"))
+        assertTrue(cloud.contains("submitLabel"))
+        assertTrue(cloud.contains("unique short ids"))
+    }
 }

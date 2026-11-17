@@ -114,4 +114,25 @@ class GenerativeUiCompilerTest {
         val oversized = "x".repeat(100_000) + "\n```airi-ui\n{}\n```"
         assertNull(GenerativeUiCompiler.compile(oversized))
     }
+
+    @Test
+    fun detailedResultDistinguishesPlainTextAndUnclosedFence() {
+        assertEquals(
+            GenerativeUiRejectReason.NO_FENCE,
+            (GenerativeUiCompiler.compileDetailed("plain answer") as GenerativeUiCompileResult.Rejected).reason,
+        )
+        assertEquals(
+            GenerativeUiRejectReason.UNCLOSED_FENCE,
+            (GenerativeUiCompiler.compileDetailed("```airi-ui\n{\"version\":1}") as GenerativeUiCompileResult.Rejected).reason,
+        )
+    }
+
+    @Test
+    fun detailedResultReportsSchemaFailureCategoryWithoutPayload() {
+        val result = GenerativeUiCompiler.compileDetailed(
+            "```airi-ui\n{\"version\":1,\"extra\":\"secret\",\"blocks\":[]}\n```",
+        ) as GenerativeUiCompileResult.Rejected
+
+        assertEquals(GenerativeUiRejectReason.UNKNOWN_KEY, result.reason)
+    }
 }

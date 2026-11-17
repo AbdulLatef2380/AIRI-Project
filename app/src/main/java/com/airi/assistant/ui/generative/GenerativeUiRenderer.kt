@@ -34,6 +34,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -109,11 +110,11 @@ fun GenerativeUiRenderer(
                     is GenerativeUiBlock.Stat -> StatBlock(block)
                     is GenerativeUiBlock.BarChart -> BarChartBlock(block)
                     is GenerativeUiBlock.Diagram -> DiagramBlock(block)
-                    is GenerativeUiBlock.Form -> FormBlock(block, requestAction, sourceExecutionId, sourceMessageId)
+                    is GenerativeUiBlock.Form -> FormBlock(block, requestAction, sourceExecutionId, sourceMessageId, "$sourceMessageId:${block.id}")
                     is GenerativeUiBlock.Actions -> ActionsBlock(block, requestAction, sourceExecutionId, sourceMessageId)
                     is GenerativeUiBlock.Route -> RouteBlock(block)
                     is GenerativeUiBlock.Table -> TableBlock(block)
-                    is GenerativeUiBlock.Checklist -> ChecklistBlock(block)
+                    is GenerativeUiBlock.Checklist -> ChecklistBlock(block, "$sourceMessageId:${block.id}")
                 }
             }
         }
@@ -237,16 +238,23 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
 }
 
 @Composable
-private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiAction) -> Unit, sourceExecutionId: String?, sourceMessageId: String?) {
-    val values = remember(block.id) { mutableStateMapOf<String, String>() }
-    var submitted by remember(block.id) { mutableStateOf(false) }
+private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiAction) -> Unit, sourceExecutionId: String?, sourceMessageId: String?, stateKey: String) {
+    var savedValues by rememberSaveable(stateKey) { mutableStateOf(emptyMap<String, String>()) }
+    val values = remember(stateKey, savedValues) {
+        mutableStateMapOf<String, String>().apply { putAll(savedValues) }
+    }
+    var submitted by rememberSaveable(stateKey) { mutableStateOf(false) }
     val missingRequired = block.fields.any { it.required && values[it.id].orEmpty().isBlank() }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
         block.fields.forEach { field ->
             OutlinedTextField(
                 value = values[field.id].orEmpty(),
-                onValueChange = { values[field.id] = it.take(500); submitted = false },
+                onValueChange = {
+                    values[field.id] = it.take(500)
+                    savedValues = values.toMap()
+                    submitted = false
+                },
                 label = { Text(field.label + if (field.required) " *" else "") },
                 placeholder = field.placeholder?.let { { Text(it) } },
                 singleLine = true,
@@ -361,10 +369,13 @@ private fun TableBlock(block: GenerativeUiBlock.Table) {
 }
 
 @Composable
-private fun ChecklistBlock(block: GenerativeUiBlock.Checklist) {
-    val checked = remember(block.id) {
+private fun ChecklistBlock(block: GenerativeUiBlock.Checklist, stateKey: String) {
+    var savedChecked by rememberSaveable(stateKey) {
+        mutableStateOf(block.items.associate { it.id to it.initiallyChecked })
+    }
+    val checked = remember(stateKey, savedChecked) {
         mutableStateMapOf<String, Boolean>().apply {
-            block.items.forEach { put(it.id, it.initiallyChecked) }
+            putAll(savedChecked)
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -374,7 +385,10 @@ private fun ChecklistBlock(block: GenerativeUiBlock.Checklist) {
                 modifier = Modifier.fillMaxWidth().semantics { contentDescription = item.label },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Checkbox(checked = checked[item.id] == true, onCheckedChange = { checked[item.id] = it })
+                Checkbox(checked = checked[item.id] == true, onCheckedChange = {
+                    checked[item.id] = it
+                    savedChecked = checked.toMap()
+                })
                 Column(Modifier.weight(1f)) {
                     Text(item.label, color = AiriTheme.onBackground, fontSize = 13.sp)
                     item.detail?.let { Text(it, color = AiriTheme.onSurfaceVariant, fontSize = 11.sp) }

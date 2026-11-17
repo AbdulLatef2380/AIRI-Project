@@ -2348,7 +2348,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val verified = com.airi.assistant.ui.generative.GenerativeUiCompiler.rebuildAction(source.text, action)
             ?: return false
         if (verified.prompt.isBlank()) return false
-        pendingGenerativeUiAction = null
+        pendingGenerativeUiAction = verified
         updateComposerText(verified.prompt)
         return true
     }
@@ -3133,10 +3133,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         projectId = activeProjectId
                     )
                     lastPersistedAssistantMessageId = saved.id
+                    val uiCompilation = com.airi.assistant.ui.generative.GenerativeUiCompiler.compileDetailed(safeContent)
+                    val uiOutcome = when (uiCompilation) {
+                        is com.airi.assistant.ui.generative.GenerativeUiCompileResult.Accepted -> "schema_valid"
+                        is com.airi.assistant.ui.generative.GenerativeUiCompileResult.Rejected ->
+                            if (uiCompilation.reason == com.airi.assistant.ui.generative.GenerativeUiRejectReason.NO_FENCE) "text_fallback"
+                            else "schema_rejected_${uiCompilation.reason.name.lowercase()}"
+                    }
                     universalRuntimeTrace.uiProjection(
                         executionId = traceExecutionId,
                         sessionId = sessionId,
-                        outcome = if (safeContent.contains("```airi-ui", ignoreCase = true)) "schema_candidate" else "text_fallback",
+                        outcome = uiOutcome,
                     )
                     persistExecutionTrace(
                         messageId = saved.id,

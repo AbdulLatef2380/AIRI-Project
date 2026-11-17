@@ -103,6 +103,25 @@ data class GenerativeUiAction(
 
 data class CompiledGenerativeUi(val document: GenerativeUiDocument, val surroundingText: String)
 
+enum class GenerativeUiRejectReason {
+    NO_FENCE,
+    UNCLOSED_FENCE,
+    OVERSIZE,
+    BAD_JSON,
+    BAD_VERSION,
+    UNKNOWN_KEY,
+    UNKNOWN_BLOCK,
+    BAD_ID,
+    DUPLICATE_ID,
+    LIMIT_EXCEEDED,
+    INVALID_SCHEMA,
+}
+
+sealed interface GenerativeUiCompileResult {
+    data class Accepted(val value: CompiledGenerativeUi) : GenerativeUiCompileResult
+    data class Rejected(val reason: GenerativeUiRejectReason) : GenerativeUiCompileResult
+}
+
 object GenerativeUiCompiler {
     private const val MAX_RESPONSE_CHARS = 96_000
     private const val MAX_JSON_CHARS = 32_000
@@ -112,17 +131,29 @@ object GenerativeUiCompiler {
     private const val MAX_TEXT = 240
     private val fenced = Regex("```airi-ui\\s*([\\s\\S]*?)```", RegexOption.IGNORE_CASE)
 
-    fun compile(text: String): CompiledGenerativeUi? {
-        if (text.length > MAX_RESPONSE_CHARS) return null
-        val match = fenced.find(text) ?: return null
+    fun compileDetailed(text: String): GenerativeUiCompileResult {
+        if (text.length > MAX_RESPONSE_CHARS) return GenerativeUiCompileResult.Rejected(GenerativeUiRejectReason.OVERSIZE)
+        val match = fenced.find(text) ?: return GenerativeUiCompileResult.Rejected(
+            if (text.contains("```airi-ui", ignoreCase = true)) GenerativeUiRejectReason.UNCLOSED_FENCE
+            else GenerativeUiRejectReason.NO_FENCE,
+        )
         val raw = match.groupValues.getOrNull(1)?.trim().orEmpty()
-        if (raw.isBlank() || raw.length > MAX_JSON_CHARS) return null
+        if (raw.isBlank() || raw.length > MAX_JSON_CHARS) return GenerativeUiCompileResult.Rejected(
+            if (raw.length > MAX_JSON_CHARS) GenerativeUiRejectReason.OVERSIZE else GenerativeUiRejectReason.BAD_JSON,
+        )
         val document = runCatching { JSONObject(raw) }
             .mapCatching { json -> parse(json).also { validateDepth(json, 0) } }
-            .getOrNull() ?: return null
+            .fold(
+                onSuccess = { it },
+                onFailure = { return GenerativeUiCompileResult.Rejected(reasonFor(it)) },
+            )
         val surrounding = text.removeRange(match.range).trim()
-        return CompiledGenerativeUi(document, surrounding)
+        return GenerativeUiCompileResult.Accepted(CompiledGenerativeUi(document, surrounding))
     }
+
+    /** Backwards-compatible nullable wrapper for existing renderers. */
+    fun compile(text: String): CompiledGenerativeUi? =
+        (compileDetailed(text) as? GenerativeUiCompileResult.Accepted)?.value
 
     /** Rebuild an action from its assistant source; callback data is untrusted. */
     fun rebuildAction(sourceText: String, requested: GenerativeUiAction): GenerativeUiAction? {
@@ -352,6 +383,20 @@ object GenerativeUiCompiler {
         val value = json.get(key)
         require(value is Number) { "$key must be numeric" }
         return value.toDouble().also { require(it.isFinite()) { "$key must be finite" } }
+    }
+
+    private fun reasonFor(error: Throwable): GenerativeUiRejectReason {
+        val message = error.message.orEmpty().lowercase()
+        return when {
+            "unsupported ui schema" in message -> GenerativeUiRejectReason.BAD_VERSION
+            "unknown key" in message -> GenerativeUiRejectReason.UNKNOWN_KEY
+            "unsupported ui block" in message -> GenerativeUiRejectReason.UNKNOWN_BLOCK
+            "duplicate" in message -> GenerativeUiRejectReason.DUPLICATE_ID
+            "invalid id" in message -> GenerativeUiRejectReason.BAD_ID
+            listOf("too many", "invalid block", "invalid form", "invalid action", "invalid route", "invalid table", "invalid checklist", "needs two", "out of range").any { it in message } -> GenerativeUiRejectReason.LIMIT_EXCEEDED
+            error is org.json.JSONException -> GenerativeUiRejectReason.BAD_JSON
+            else -> GenerativeUiRejectReason.INVALID_SCHEMA
+        }
     }
 
     private fun JSONArray?.boundedStrings(): List<String> {

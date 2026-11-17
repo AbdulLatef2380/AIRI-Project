@@ -2344,13 +2344,39 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (currentSession.isBlank()) return false
         val source = _messages.value.firstOrNull { it.id == sourceId && !it.isUser }
             ?: return false
-        if (action.sourceExecutionId != source.executionTraceId) return false
+        if (action.sourceExecutionId != source.executionTraceId) {
+            recordRejectedGenerativeUiAction(action, source.executionTraceId, currentSession)
+            return false
+        }
         val verified = com.airi.assistant.ui.generative.GenerativeUiCompiler.rebuildAction(source.text, action)
-            ?: return false
-        if (verified.prompt.isBlank()) return false
+            ?: run {
+                recordRejectedGenerativeUiAction(action, source.executionTraceId, currentSession)
+                return false
+            }
+        if (verified.prompt.isBlank()) {
+            recordRejectedGenerativeUiAction(action, source.executionTraceId, currentSession)
+            return false
+        }
         pendingGenerativeUiAction = verified
         updateComposerText(verified.prompt)
         return true
+    }
+
+    private fun recordRejectedGenerativeUiAction(
+        action: com.airi.assistant.ui.generative.GenerativeUiAction,
+        executionId: String?,
+        sessionId: String,
+    ) {
+        if (executionId.isNullOrBlank()) return
+        universalRuntimeTrace.uiInteraction(
+            executionId = executionId,
+            sessionId = sessionId,
+            actionId = action.id,
+            sourceMessageId = action.sourceMessageId,
+            parentExecutionId = action.sourceExecutionId,
+            accepted = false,
+            fieldNames = action.fields.keys,
+        )
     }
 
     private fun sendMessageCommand(input: String, cloudAttachmentConsent: Boolean): Boolean {

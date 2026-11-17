@@ -59,6 +59,9 @@ internal object OpenAIResponsesPayloadContract {
         append("],")
         append("\"max_output_tokens\":${request.maxTokens},")
         append("\"temperature\":${request.temperature},")
+        request.structuredOutput?.let { spec ->
+            append(StructuredOutputJson.openAiResponses(spec)).append(",")
+        }
         if (request.toolDefinitions.isNotEmpty()) {
             append("\"tools\":[")
             request.toolDefinitions.forEachIndexed { index, definition ->

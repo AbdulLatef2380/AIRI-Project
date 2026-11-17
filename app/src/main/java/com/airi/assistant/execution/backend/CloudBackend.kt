@@ -16,6 +16,7 @@ import com.airi.assistant.execution.cloud.CloudContinuationPolicy
 import com.airi.assistant.execution.cloud.CloudErrorType
 import com.airi.assistant.execution.cloud.CloudProviderAdapter
 import com.airi.assistant.execution.cloud.RetryPolicy
+import com.airi.assistant.execution.cloud.StructuredOutputJson
 import com.airi.assistant.execution.network.NetworkGuard
 import com.airi.assistant.execution.prefs.ExecModePreferences
 import com.airi.assistant.telemetry.PrivacyTelemetryReporter
@@ -115,6 +116,10 @@ class CloudBackend(
             onError("Cloud context budget exceeded before request dispatch")
             return
         }
+        StructuredOutputJson.validationError(request)?.let { error ->
+            onError(error)
+            return
+        }
         when (val guard = NetworkGuard.evaluate(prefs)) {
             is NetworkGuard.Decision.Block -> { onError("Network blocked: ${guard.reason}"); return }
             NetworkGuard.Decision.Allow -> {}
@@ -165,6 +170,17 @@ class CloudBackend(
                 RuntimeEventLog.post("CLOUD_BACKEND", EventSeverity.WARN,
                     "CLOUD_FAILOVER ${providerQueue[attemptIdx - 1].displayName} → ${provider.displayName}")
                 Log.w(TAG, "AIRI CLOUD_FAILOVER from=${providerQueue[attemptIdx-1].name} to=${provider.name}")
+            }
+
+            if ((request.requiresStructuredOutput || request.structuredOutput != null) &&
+                !StructuredOutputJson.hasNativeGuarantee(provider)
+            ) {
+                lastError = "Structured Output is not verified for ${provider.displayName}; refusing an unguaranteed fallback"
+                if (requestedProvider != null) {
+                    onError(lastError)
+                    return
+                }
+                continue
             }
 
             val resolvedModel = CloudAdapterFactory.resolveRequestedModel(provider, request)

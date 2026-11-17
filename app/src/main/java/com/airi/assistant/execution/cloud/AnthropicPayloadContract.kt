@@ -82,6 +82,10 @@ internal object AnthropicPayloadContract {
             append("]")
             append(ToolChoiceJson.anthropicMember(request.toolChoice, hasTools = true, toolName = request.toolChoiceName))
         }
+        request.structuredOutput?.let { spec ->
+            append(",")
+            append(StructuredOutputJson.anthropic(spec))
+        }
         append(",\"stream\":true}")
     }
 

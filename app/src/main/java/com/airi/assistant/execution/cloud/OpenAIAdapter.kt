@@ -73,6 +73,14 @@ open class OpenAIAdapter(
                 retryable = false
             )
 
+        StructuredOutputJson.validationError(request)?.let { error ->
+            return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                error = error,
+                errorType = CloudErrorType.INVALID_REQUEST,
+                retryable = false,
+            )
+        }
+
         if (provider != CloudProvider.OPENAI &&
             (request.inlineDataParts.isNotEmpty() || request.imageParts.isNotEmpty())
         ) {
@@ -494,6 +502,10 @@ open class OpenAIAdapter(
         append("\"temperature\":${req.temperature},")
         append("\"stream\":true,")
         append("\"stream_options\":{\"include_usage\":true}")
+        req.structuredOutput?.let { spec ->
+            append(",")
+            append(StructuredOutputJson.openAiChat(spec))
+        }
         if (req.toolDefinitions.isNotEmpty()) {
             append(",\"tools\":[")
             req.toolDefinitions.forEachIndexed { index, definition ->

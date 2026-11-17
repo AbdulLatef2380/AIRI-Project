@@ -56,4 +56,21 @@ class NativeProviderPayloadContractTest {
         )
         assertFalse(AnthropicPayloadContract.containsNonEmptyContent(office))
     }
+
+    @Test
+    fun nativePayloadsCarryFinalResponseSchemaSeparatelyFromToolSchemas() {
+        val structured = request().copy(
+            structuredOutput = ExecutionRequest.StructuredOutputSpec(
+                name = "attachment_summary",
+                schemaJson = "{\"type\":\"object\",\"properties\":{\"summary\":{\"type\":\"string\"}},\"required\":[\"summary\"],\"additionalProperties\":false}",
+            ),
+        )
+        val openAi = OpenAIResponsesPayloadContract.buildRequestBody(structured, "gpt-4.1")
+        val anthropic = AnthropicPayloadContract.buildRequestBody(structured, "claude-sonnet-4-5")
+
+        assertTrue(openAi.contains("\"text\":{\"format\":{\"type\":\"json_schema\""))
+        assertTrue(anthropic.contains("\"output_config\":{\"format\":{\"type\":\"json_schema\""))
+        assertTrue(openAi.contains("attachment_summary"))
+        assertTrue(anthropic.contains("attachment_summary"))
+    }
 }

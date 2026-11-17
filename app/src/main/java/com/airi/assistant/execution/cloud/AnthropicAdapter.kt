@@ -23,7 +23,7 @@ import org.json.JSONObject
  * ## Wire protocol
  * Uses the Anthropic Messages API with SSE streaming:
  *   POST https://api.anthropic.com/v1/messages
- *   anthropic-version: 2023-06-01
+ *   anthropic-version: 2026-10-21
  *   x-api-key: {API_KEY}
  *   Content-Type: application/json
  *
@@ -64,6 +64,14 @@ class AnthropicAdapter(
                 errorType = CloudErrorType.UNAUTHORIZED,
                 retryable = false
             )
+
+        StructuredOutputJson.validationError(request)?.let { error ->
+            return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                error = error,
+                errorType = CloudErrorType.INVALID_REQUEST,
+                retryable = false,
+            )
+        }
 
         val body    = AnthropicPayloadContract.buildRequestBody(request, model)
         val attachmentIds = AnthropicPayloadContract.attachmentIds(request)
@@ -340,7 +348,7 @@ class AnthropicAdapter(
     companion object {
         private const val TAG               = "AIRI_AnthropicAdapter"
         private const val ENDPOINT          = "https://api.anthropic.com/v1/messages"
-        private const val ANTHROPIC_VERSION = "2023-06-01"
+        private const val ANTHROPIC_VERSION = "2026-10-21"
         private const val CONNECT_TIMEOUT_MS = 10_000
         private const val READ_TIMEOUT_MS    = 90_000
         const val DEFAULT_MODEL             = "claude-haiku-4-5"

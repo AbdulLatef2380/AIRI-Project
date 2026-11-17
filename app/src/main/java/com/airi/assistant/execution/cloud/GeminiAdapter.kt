@@ -53,6 +53,14 @@ class GeminiAdapter(
                 retryable = false
             )
 
+        StructuredOutputJson.validationError(request)?.let { error ->
+            return@withContext CloudProviderAdapter.AdapterResult.Failure(
+                error = error,
+                errorType = CloudErrorType.INVALID_REQUEST,
+                retryable = false,
+            )
+        }
+
         // Keep credentials out of URLs: proxies, logs and diagnostics commonly
         // retain request URLs. Gemini supports x-goog-api-key authentication.
         val url  = "$BASE_URL/models/$model:streamGenerateContent?alt=sse"
@@ -306,7 +314,12 @@ class GeminiAdapter(
             append("]}")
         }
         append("],")
-        append("\"generationConfig\":{\"maxOutputTokens\":${req.maxTokens},\"temperature\":${req.temperature}}")
+        append("\"generationConfig\":{\"maxOutputTokens\":${req.maxTokens},\"temperature\":${req.temperature}")
+        req.structuredOutput?.let { spec ->
+            append(",")
+            append(StructuredOutputJson.gemini(spec))
+        }
+        append("}")
         append("}")
     }
 

@@ -61,7 +61,9 @@ fun GenerativeUiRenderer(
     onAction: (GenerativeUiAction) -> Unit = {},
     sourceExecutionId: String? = null,
     sourceMessageId: String? = null,
+    stateStore: GenerativeUiStateStore? = null,
 ) {
+    val effectiveStateStore = stateStore ?: remember { GenerativeUiStateStore() }
     val document = compiled.document
     val accessibleResponseLabel = document.title ?: stringResource(R.string.generative_ui_accessible_response)
     var pendingAction by remember(compiled) { mutableStateOf<GenerativeUiAction?>(null) }
@@ -108,13 +110,13 @@ fun GenerativeUiRenderer(
             document.blocks.forEach { block ->
                 when (block) {
                     is GenerativeUiBlock.Stat -> StatBlock(block)
-                    is GenerativeUiBlock.BarChart -> BarChartBlock(block)
-                    is GenerativeUiBlock.Diagram -> DiagramBlock(block)
-                    is GenerativeUiBlock.Form -> FormBlock(block, requestAction, sourceExecutionId, sourceMessageId, "$sourceMessageId:${block.id}")
+                    is GenerativeUiBlock.BarChart -> BarChartBlock(block, effectiveStateStore)
+                    is GenerativeUiBlock.Diagram -> DiagramBlock(block, effectiveStateStore)
+                    is GenerativeUiBlock.Form -> FormBlock(block, requestAction, sourceExecutionId, sourceMessageId, "$sourceMessageId:${block.id}", effectiveStateStore)
                     is GenerativeUiBlock.Actions -> ActionsBlock(block, requestAction, sourceExecutionId, sourceMessageId)
                     is GenerativeUiBlock.Route -> RouteBlock(block)
                     is GenerativeUiBlock.Table -> TableBlock(block)
-                    is GenerativeUiBlock.Checklist -> ChecklistBlock(block, "$sourceMessageId:${block.id}")
+                    is GenerativeUiBlock.Checklist -> ChecklistBlock(block, "$sourceMessageId:${block.id}", effectiveStateStore)
                 }
             }
         }
@@ -133,7 +135,7 @@ private fun StatBlock(block: GenerativeUiBlock.Stat) {
 }
 
 @Composable
-private fun BarChartBlock(block: GenerativeUiBlock.BarChart) {
+private fun BarChartBlock(block: GenerativeUiBlock.BarChart, stateStore: GenerativeUiStateStore) {
     val minValue = block.values.minOrNull() ?: 0f
     val maxValue = block.values.maxOrNull() ?: 1f
     val range = (maxValue - minValue).coerceAtLeast(1f)
@@ -142,7 +144,8 @@ private fun BarChartBlock(block: GenerativeUiBlock.BarChart) {
         maxValue <= 0f -> 1f
         else -> 0f
     }
-    var selectedIndex by remember(block.id) { mutableIntStateOf(-1) }
+    val stateKey = "bar:${block.id}"
+    var selectedIndex by remember(stateKey) { mutableIntStateOf(stateStore.state(stateKey).selectedIndex) }
     val axisColor = AiriTheme.outline.copy(alpha = 0.65f)
     val negativeBarColor = AiriTheme.error
     val positiveBarColor = AiriTheme.primary
@@ -154,7 +157,10 @@ private fun BarChartBlock(block: GenerativeUiBlock.BarChart) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .sizeIn(minHeight = 48.dp)
-                    .clickable { selectedIndex = index }
+                    .clickable {
+                        selectedIndex = index
+                        stateStore.update(stateKey) { it.copy(selectedIndex = index) }
+                    }
                     .semantics {
                         contentDescription = "$label ${formatNumber(value)}${block.unit.orEmpty()}"
                         role = Role.Button
@@ -197,8 +203,9 @@ private fun BarChartBlock(block: GenerativeUiBlock.BarChart) {
 }
 
 @Composable
-private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
-    var selectedNodeId by remember(block.id) { mutableStateOf<String?>(null) }
+private fun DiagramBlock(block: GenerativeUiBlock.Diagram, stateStore: GenerativeUiStateStore) {
+    val stateKey = "diagram:${block.id}"
+    var selectedNodeId by remember(stateKey) { mutableStateOf(stateStore.state(stateKey).selectedNodeId) }
     val selected = block.nodes.firstOrNull { it.id == selectedNodeId }
     val connected = block.edges.filter { it.from == selectedNodeId || it.to == selectedNodeId }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -212,7 +219,10 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
                 Card(
                     modifier = Modifier
                         .sizeIn(minWidth = 120.dp, minHeight = 70.dp)
-                        .clickable { selectedNodeId = node.id }
+                        .clickable {
+                            selectedNodeId = node.id
+                            stateStore.update(stateKey) { it.copy(selectedNodeId = node.id) }
+                        }
                         .semantics {
                             contentDescription = node.description?.let { "${node.label}: $it" } ?: node.label
                             role = Role.Button
@@ -238,12 +248,12 @@ private fun DiagramBlock(block: GenerativeUiBlock.Diagram) {
 }
 
 @Composable
-private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiAction) -> Unit, sourceExecutionId: String?, sourceMessageId: String?, stateKey: String) {
-    var savedValues by rememberSaveable(stateKey) { mutableStateOf(emptyMap<String, String>()) }
+private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiAction) -> Unit, sourceExecutionId: String?, sourceMessageId: String?, stateKey: String, stateStore: GenerativeUiStateStore) {
+    var savedValues by rememberSaveable(stateKey) { mutableStateOf(stateStore.state(stateKey).formValues) }
     val values = remember(stateKey, savedValues) {
         mutableStateMapOf<String, String>().apply { putAll(savedValues) }
     }
-    var submitted by rememberSaveable(stateKey) { mutableStateOf(false) }
+    var submitted by rememberSaveable(stateKey) { mutableStateOf(stateStore.state(stateKey).submitted) }
     val missingRequired = block.fields.any { it.required && values[it.id].orEmpty().isBlank() }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
@@ -253,6 +263,7 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
                 onValueChange = {
                     values[field.id] = it.take(500)
                     savedValues = values.toMap()
+                    stateStore.update(stateKey) { it.copy(formValues = savedValues, submitted = false) }
                     submitted = false
                 },
                 label = { Text(field.label + if (field.required) " *" else "") },
@@ -278,6 +289,7 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
             onClick = {
                 if (missingRequired) {
                     submitted = true
+                    stateStore.update(stateKey) { it.copy(submitted = true) }
                 } else onAction(GenerativeUiAction(block.actionId, values.toMap(), sourceExecutionId, sourceMessageId))
             },
             modifier = Modifier.align(Alignment.End),
@@ -369,9 +381,9 @@ private fun TableBlock(block: GenerativeUiBlock.Table) {
 }
 
 @Composable
-private fun ChecklistBlock(block: GenerativeUiBlock.Checklist, stateKey: String) {
+private fun ChecklistBlock(block: GenerativeUiBlock.Checklist, stateKey: String, stateStore: GenerativeUiStateStore) {
     var savedChecked by rememberSaveable(stateKey) {
-        mutableStateOf(block.items.associate { it.id to it.initiallyChecked })
+        mutableStateOf(stateStore.state(stateKey).checkedItems.ifEmpty { block.items.associate { it.id to it.initiallyChecked } })
     }
     val checked = remember(stateKey, savedChecked) {
         mutableStateMapOf<String, Boolean>().apply {
@@ -388,6 +400,7 @@ private fun ChecklistBlock(block: GenerativeUiBlock.Checklist, stateKey: String)
                 Checkbox(checked = checked[item.id] == true, onCheckedChange = {
                     checked[item.id] = it
                     savedChecked = checked.toMap()
+                    stateStore.update(stateKey) { it.copy(checkedItems = savedChecked) }
                 })
                 Column(Modifier.weight(1f)) {
                     Text(item.label, color = AiriTheme.onBackground, fontSize = 13.sp)

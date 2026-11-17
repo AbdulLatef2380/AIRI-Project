@@ -16,8 +16,32 @@ internal object RuntimeTraceActivityMapper {
             UniversalTraceEventType.TOOLS_EXPOSED,
             UniversalTraceEventType.EXECUTION_PATH_RESOLVED,
             UniversalTraceEventType.TOOL_PARSE_COMPLETED,
-            UniversalTraceEventType.MODEL_REQUEST_BUILT,
-            UniversalTraceEventType.UI_PROJECTION_COMPLETED -> null
+            UniversalTraceEventType.MODEL_REQUEST_BUILT -> null
+
+            UniversalTraceEventType.UI_PROJECTION_COMPLETED -> {
+                if (event.component == "GenerativeUiAction") {
+                    val rejected = event.outcome == "action_rejected"
+                    Presentation(
+                        category = ActivityCategory.TOOL,
+                        tag = if (rejected) "runtime_genui_action_rejected" else "runtime_genui_action_accepted",
+                        severity = if (rejected) ActivitySeverity.ERROR else ActivitySeverity.INFO,
+                        detail = details(event, "actionId", "fieldCount", "fieldNames", "sourceMessageId", "parentExecutionId"),
+                        metadata = actionMetadata(event, if (rejected) ActivityStatus.FAILED else ActivityStatus.COMPLETED),
+                    )
+                } else {
+                    val rejected = event.outcome.startsWith("rejected") || event.outcome == "compile_failed"
+                    Presentation(
+                        category = ActivityCategory.MODEL,
+                        tag = "runtime_genui_${event.outcome.take(48)}",
+                        severity = if (rejected) ActivitySeverity.WARN else ActivitySeverity.INFO,
+                        detail = details(event, "reason", "blockCount", "sourceMessageId"),
+                        metadata = ActivityMetadata(
+                            phase = ActivityPhase.MODEL,
+                            status = if (rejected) ActivityStatus.FAILED else ActivityStatus.COMPLETED,
+                        ),
+                    )
+                }
+            }
 
             UniversalTraceEventType.MEMORY_CONTEXT_RETRIEVED -> Presentation(
                 category = ActivityCategory.MODEL,
@@ -114,7 +138,7 @@ internal object RuntimeTraceActivityMapper {
     ): ActivityMetadata = ActivityMetadata(
         phase = if (status == ActivityStatus.COMPLETED) ActivityPhase.RESULT else ActivityPhase.ACTION,
         status = status,
-        parentId = event.attributes["parentId"],
+        parentId = event.attributes["parentId"] ?: event.attributes["parentExecutionId"],
         actionId = event.attributes["actionId"]
             ?.takeIf(String::isNotBlank)
             ?: "runtime:${event.executionId}:${event.traceId}",

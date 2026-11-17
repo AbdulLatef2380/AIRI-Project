@@ -3258,6 +3258,7 @@ fun AiBubble(
                                     },
                                     onGenerativeUiAction = onInteractiveAction,
                                     generativeUiExecutionId = executionTraceId,
+                                    generativeUiStateStore = viewModel.generativeUiStateStore,
                                 )
                             }
                             if (isSelectingText) SelectionContainer { renderContent() } else renderContent()

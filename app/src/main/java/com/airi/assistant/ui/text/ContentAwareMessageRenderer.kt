@@ -36,6 +36,7 @@ import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.generative.GenerativeUiAction
 import com.airi.assistant.ui.generative.GenerativeUiCompiler
 import com.airi.assistant.ui.generative.GenerativeUiRenderer
+import com.airi.assistant.ui.generative.GenerativeUiStateStore
 
 /** Routes assistant content to shared presentation primitives across all providers. */
 @Composable
@@ -50,6 +51,7 @@ fun ContentAwareMessageRenderer(
     onCopyResult: ((String) -> Boolean)? = null,
     onGenerativeUiAction: (GenerativeUiAction) -> Unit = {},
     generativeUiExecutionId: String? = null,
+    generativeUiStateStore: GenerativeUiStateStore? = null,
 ) {
     val resolvedMessageId = messageId.ifBlank {
         remember { "message-${text.hashCode().toUInt().toString(16)}" }
@@ -75,6 +77,7 @@ fun ContentAwareMessageRenderer(
                 onAction = onGenerativeUiAction,
                 sourceExecutionId = generativeUiExecutionId,
                 sourceMessageId = resolvedMessageId,
+                stateStore = generativeUiStateStore,
             )
         } else {
             plan.units.forEach { unit ->

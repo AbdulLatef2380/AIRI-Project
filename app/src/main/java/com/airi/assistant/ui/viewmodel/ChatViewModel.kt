@@ -147,6 +147,7 @@ import com.airi.assistant.voice.PorcupineEngine
 import com.airi.assistant.voice.OpenWakeWordEngine
 import com.airi.assistant.product.AiriIdentityProfile
 import com.airi.assistant.ui.activity.ActivityEvent
+import com.airi.assistant.ui.generative.GenerativeUiStateStore
 import com.airi.assistant.core.ExecutionTraceEvent
 import com.airi.assistant.core.ExecutionTraceArchive
 import com.airi.assistant.ai.agent.trace.ChatExecutionTraceMapper
@@ -418,6 +419,8 @@ data class DebugState(
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val appContext        = application.applicationContext
+    /** Conversation-scoped interactive GenUI state; cleared with this ViewModel. */
+    val generativeUiStateStore = GenerativeUiStateStore()
     private val preferences       = appContext.getSharedPreferences("airi_ui_state", Context.MODE_PRIVATE)
     private val perfPrefs         = appContext.getSharedPreferences("airi_perf_stats", Context.MODE_PRIVATE)
     private val llamaManager      = LlamaManager(appContext)

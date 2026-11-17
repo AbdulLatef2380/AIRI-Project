@@ -133,4 +133,43 @@ class RuntimeTraceActivityMapperTest {
         assertEquals(ActivityStatus.COMPLETED, provider?.metadata?.status)
         assertFalse(provider?.detail.orEmpty().contains("private"))
     }
+
+    @Test
+    fun genUiProjectionIsVisibleAndKeepsOnlyRedactedMetadata() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        recorder.begin("runtime-genui", "session-genui", "model", "provider", "test", "private input", emptyList())
+        recorder.uiProjection("runtime-genui", "session-genui", "genui_compiled")
+        val event = recorder.events.last { it.eventType == UniversalTraceEventType.UI_PROJECTION_COMPLETED }
+
+        val activity = RuntimeTraceActivityMapper.map(event)
+        assertNotNull(activity)
+        assertEquals("runtime_genui_genui_compiled", activity?.machineTag)
+        assertEquals(ActivityCategory.MODEL, activity?.category)
+        assertEquals(ActivityStatus.COMPLETED, activity?.metadata?.status)
+        assertFalse(activity?.detail.orEmpty().contains("private input"))
+    }
+
+    @Test
+    fun genUiActionProjectionUsesActionPhaseAndTypedFailure() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        recorder.begin("runtime-action", "session-action", "model", "provider", "test", "input", emptyList())
+        recorder.uiInteraction(
+            executionId = "runtime-action",
+            sessionId = "session-action",
+            actionId = "submit",
+            sourceMessageId = "message-1",
+            parentExecutionId = "runtime-parent",
+            accepted = false,
+            fieldNames = setOf("name"),
+        )
+        val event = recorder.events.last { it.component == "GenerativeUiAction" }
+
+        val activity = RuntimeTraceActivityMapper.map(event)
+        assertEquals("runtime_genui_action_rejected", activity?.machineTag)
+        assertEquals(ActivityCategory.TOOL, activity?.category)
+        assertEquals(ActivityPhase.ACTION, activity?.metadata?.phase)
+        assertEquals(ActivityStatus.FAILED, activity?.metadata?.status)
+        assertEquals("submit", activity?.metadata?.actionId)
+        assertEquals("runtime-parent", activity?.metadata?.parentId)
+    }
 }

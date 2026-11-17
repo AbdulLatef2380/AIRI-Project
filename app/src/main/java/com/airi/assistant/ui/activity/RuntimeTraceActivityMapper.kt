@@ -19,6 +19,23 @@ internal object RuntimeTraceActivityMapper {
             UniversalTraceEventType.MODEL_REQUEST_BUILT,
             UniversalTraceEventType.UI_PROJECTION_COMPLETED -> null
 
+            UniversalTraceEventType.MEMORY_CONTEXT_RETRIEVED -> Presentation(
+                category = ActivityCategory.MODEL,
+                tag = "runtime_memory_context",
+                detail = details(event, "source", "resultCount", "chars", "fallback"),
+                metadata = ActivityMetadata(phase = ActivityPhase.MODEL, status = ActivityStatus.COMPLETED),
+            )
+
+            UniversalTraceEventType.MODEL_PROVIDER_RESOLVED -> Presentation(
+                category = ActivityCategory.MODEL,
+                tag = "runtime_provider_resolved",
+                detail = details(event, "requestedProvider", "requestedModel", "resolvedProvider", "resolvedModel", "fallbackReason"),
+                metadata = ActivityMetadata(
+                    phase = ActivityPhase.MODEL,
+                    status = ActivityStatus.COMPLETED,
+                ),
+            )
+
             // Only the decision stage is user-meaningful: it says why tools were or were not
             // offered. The other intent stages are constant markers and stay diagnostic-only.
             UniversalTraceEventType.INTENT_STAGE_RECORDED -> if (event.attributes["stage"] == "INTENT_DECISION") {

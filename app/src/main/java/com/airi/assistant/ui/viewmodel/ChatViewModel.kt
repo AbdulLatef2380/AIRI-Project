@@ -2482,6 +2482,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             selectedModelIdAtDispatch
         }
+        val traceExecutionId = java.util.UUID.randomUUID().toString()
         val cloudConfigured = RemoteModelRegistry.getActive() != null ||
             com.airi.assistant.execution.cloud.EmbeddedProviderConfig
                 .getActiveProvider(appContext) != null
@@ -3111,7 +3112,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 	            val toolOutputs = mutableListOf<AssistantToolOutput>()
             val fileCards = mutableListOf<AgentFileCard>()
             val requestStart = System.currentTimeMillis()
-            val traceExecutionId = java.util.UUID.randomUUID().toString()
             val pendingAction = pendingGenerativeUiAction.also { pendingGenerativeUiAction = null }
             val uiAction = pendingAction?.takeIf { it.prompt == trimmedInput }
             var uiActionTraceRecorded = false
@@ -3391,6 +3391,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     runtimeCapabilities = runtimeInventory.traceEntries(),
                 )
                 completionMetadata = loopResult.completionMetadata
+                universalRuntimeTrace.memoryContext(
+                    executionId = traceExecutionId,
+                    sessionId = sessionId,
+                    source = if (ragContext.isNotBlank()) "rag" else "recent_memory_fallback",
+                    resultCount = listOf(ragContext, selectedKnowledge.orEmpty()).count { it.isNotBlank() },
+                    chars = ragContext.length + selectedKnowledge.orEmpty().length,
+                    fallback = !memoryManager.isSemanticMemoryReady(),
+                )
+                universalRuntimeTrace.providerResolution(
+                    executionId = traceExecutionId,
+                    sessionId = sessionId,
+                    requestedProvider = requestedProviderIdAtDispatch,
+                    requestedModel = requestedModelIdAtDispatch,
+                    resolvedProvider = loopResult.completionMetadata.resolvedProviderId
+                        .ifBlank { loopResult.completionMetadata.providerId },
+                    resolvedModel = loopResult.completionMetadata.resolvedModelId
+                        .ifBlank { loopResult.completionMetadata.requestedModelId },
+                    fallbackReason = loopResult.completionMetadata.fallbackReason,
+                )
                 uiAction?.let { action ->
                     universalRuntimeTrace.uiInteraction(
                         executionId = traceExecutionId,

@@ -113,4 +113,24 @@ class ExecutionTraceArchiveTest {
 
         assertEquals(emptyMap<Long, List<ExecutionTraceEvent>>(), ExecutionTraceArchive.getAll(listOf(1L, 2L, 3L)))
     }
+
+    @Test
+    fun maxMessagesEvictsOldestMessageWithoutMixingSessions() {
+        val file = File.createTempFile("execution_trace_archive_limit", ".json").apply { deleteOnExit() }
+        val previousLimit = ExecutionTraceArchive.maxMessages
+        try {
+            ExecutionTraceArchive.maxMessages = 2
+            ExecutionTraceArchive.attach(file)
+            ExecutionTraceArchive.put(1L, listOf(ExecutionTraceEvent("e1", 1, 1L, ExecutionTraceKind.COMPLETED, sessionId = "a")))
+            ExecutionTraceArchive.put(2L, listOf(ExecutionTraceEvent("e2", 1, 2L, ExecutionTraceKind.COMPLETED, sessionId = "b")))
+            ExecutionTraceArchive.put(3L, listOf(ExecutionTraceEvent("e3", 1, 3L, ExecutionTraceKind.COMPLETED, sessionId = "c")))
+
+            val retained = ExecutionTraceArchive.getAll(listOf(1L, 2L, 3L))
+            assertEquals(setOf(2L, 3L), retained.keys)
+            assertEquals("b", retained.getValue(2L).single().sessionId)
+            assertEquals("c", retained.getValue(3L).single().sessionId)
+        } finally {
+            ExecutionTraceArchive.maxMessages = previousLimit
+        }
+    }
 }

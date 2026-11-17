@@ -349,6 +349,50 @@ class UniversalRuntimeTraceRecorder(
         outcome = RuntimeTraceRedaction.safeReason(outcome)
     )
 
+    fun memoryContext(
+        executionId: String,
+        sessionId: String,
+        source: String,
+        resultCount: Int,
+        chars: Int,
+        fallback: Boolean,
+    ) = record(
+        eventType = UniversalTraceEventType.MEMORY_CONTEXT_RETRIEVED,
+        executionId = executionId,
+        sessionId = sessionId,
+        component = "MemoryRetrieval",
+        outcome = if (resultCount > 0) "retrieved" else "empty",
+        attributes = mapOf(
+            "source" to RuntimeTraceRedaction.safeReason(source),
+            "resultCount" to resultCount.coerceAtLeast(0).toString(),
+            "chars" to chars.coerceAtLeast(0).toString(),
+            "fallback" to fallback.toString(),
+        ),
+    )
+
+    fun providerResolution(
+        executionId: String,
+        sessionId: String,
+        requestedProvider: String,
+        requestedModel: String,
+        resolvedProvider: String,
+        resolvedModel: String,
+        fallbackReason: String? = null,
+    ) = record(
+        eventType = UniversalTraceEventType.MODEL_PROVIDER_RESOLVED,
+        executionId = executionId,
+        sessionId = sessionId,
+        component = "ProviderResolution",
+        outcome = if (requestedProvider == resolvedProvider && requestedModel == resolvedModel) "requested" else "fallback",
+        attributes = buildMap {
+            put("requestedProvider", RuntimeTraceRedaction.token(requestedProvider))
+            put("requestedModel", RuntimeTraceRedaction.token(requestedModel))
+            put("resolvedProvider", RuntimeTraceRedaction.token(resolvedProvider))
+            put("resolvedModel", RuntimeTraceRedaction.token(resolvedModel))
+            fallbackReason?.let { put("fallbackReason", RuntimeTraceRedaction.safeReason(it)) }
+        },
+    )
+
     fun uiInteraction(
         executionId: String,
         sessionId: String,
@@ -454,6 +498,8 @@ enum class UniversalTraceEventType {
     RESULT_RETURNED,
     MODEL_CONTINUATION_COMPLETED,
     UI_PROJECTION_COMPLETED,
+    MEMORY_CONTEXT_RETRIEVED,
+    MODEL_PROVIDER_RESOLVED,
     INTENT_STAGE_RECORDED,
     EXECUTION_TERMINAL_OUTCOME,
 }

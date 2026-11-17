@@ -108,4 +108,29 @@ class RuntimeTraceActivityMapperTest {
 
         assertNull(RuntimeTraceActivityMapper.map(event))
     }
+
+    @Test
+    fun memoryAndProviderMilestonesBecomeBoundedUserActivityRows() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        recorder.begin("runtime-evidence", "session-1", "model", "provider", "cloud", "input", emptyList())
+        recorder.memoryContext("runtime-evidence", "session-1", "rag", 2, 120, fallback = false)
+        recorder.providerResolution(
+            "runtime-evidence",
+            "session-1",
+            "google",
+            "requested-model",
+            "openai-compatible",
+            "resolved-model",
+            "bounded fallback",
+        )
+
+        val events = recorder.eventsFor("runtime-evidence")
+        val memory = RuntimeTraceActivityMapper.map(events.first { it.eventType == UniversalTraceEventType.MEMORY_CONTEXT_RETRIEVED })
+        val provider = RuntimeTraceActivityMapper.map(events.first { it.eventType == UniversalTraceEventType.MODEL_PROVIDER_RESOLVED })
+
+        assertEquals("runtime_memory_context", memory?.machineTag)
+        assertEquals("runtime_provider_resolved", provider?.machineTag)
+        assertEquals(ActivityStatus.COMPLETED, provider?.metadata?.status)
+        assertFalse(provider?.detail.orEmpty().contains("private"))
+    }
 }

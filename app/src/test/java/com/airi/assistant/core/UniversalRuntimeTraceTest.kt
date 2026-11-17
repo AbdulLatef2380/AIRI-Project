@@ -185,6 +185,29 @@ class UniversalRuntimeTraceTest {
     }
 
     @Test
+    fun memoryAndProviderEvidenceStoresCountsAndRedactsFallbackReason() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        recorder.begin("exec-evidence", "session-evidence", "model", "provider", "test", "input", emptyList())
+        recorder.memoryContext("exec-evidence", "session-evidence", "rag", 2, 480, fallback = false)
+        recorder.providerResolution(
+            executionId = "exec-evidence",
+            sessionId = "session-evidence",
+            requestedProvider = "google",
+            requestedModel = "gemini",
+            resolvedProvider = "openai-compatible",
+            resolvedModel = "fallback-model",
+            fallbackReason = "Bearer secret-token was unavailable",
+        )
+
+        val memory = recorder.events.last { it.eventType == UniversalTraceEventType.MEMORY_CONTEXT_RETRIEVED }
+        assertEquals("2", memory.attributes["resultCount"])
+        assertEquals("480", memory.attributes["chars"])
+        val provider = recorder.events.last { it.eventType == UniversalTraceEventType.MODEL_PROVIDER_RESOLVED }
+        assertEquals("fallback", provider.outcome)
+        assertFalse(provider.attributes.getValue("fallbackReason").contains("secret-token"))
+    }
+
+    @Test
     fun toolSchemaHashIsStableAndDoesNotContainDescriptionOrArguments() {
         val tool = ToolSchema(
             name = "safe_read",

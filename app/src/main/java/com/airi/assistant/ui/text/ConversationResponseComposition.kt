@@ -139,7 +139,9 @@ object ConversationResponseCompositionPlanner {
             preserveInteractiveState = hasInteractive || evidence.hasAttachments || longRunning,
             discloseExecution = evidence.hasToolResults || evidence.hasRemoteSources || evidence.hasSkillsOrConnectors,
             discloseUncertainty = evidence.hasRemoteSources || lane == ResponseLane.MAP || lane == ResponseLane.EVALUATION || evidence.artifactState == ResponseDeliveryState.FAILED,
-            allowGenerativeUi = !profile.isStreaming && hasNativeGenerativeUi &&
+            // A partial/unclosed fence still fails compilation and remains text;
+            // a complete validated document may appear during streaming.
+            allowGenerativeUi = hasNativeGenerativeUi &&
                 GenerativeUiCompiler.compileDetailed(profile.answerText) is GenerativeUiCompileResult.Accepted,
             isLongRunning = longRunning,
         )

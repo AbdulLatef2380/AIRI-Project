@@ -102,17 +102,28 @@ class ConversationResponseCompositionTest {
     }
 
     @Test
-    fun streamingNeverEmitsGenerativeUiButPreservesStateForProgressiveRendering() {
-        val plan = ConversationResponseCompositionPlanner.plan(
+    fun streamingProjectsOnlyACompleteValidatedGenerativeUiDocument() {
+        val partial = ConversationResponseCompositionPlanner.plan(
             ResponseRequestProfile(
                 userText = "اعرض مخططًا تفاعليًا",
                 answerText = "```airi-ui\n{partial",
                 isStreaming = true,
             )
         )
-        assertTrue(plan.progressive)
-        assertFalse(plan.allowGenerativeUi)
-        assertTrue(plan.preserveInteractiveState)
+        assertTrue(partial.progressive)
+        assertFalse(partial.allowGenerativeUi)
+        assertTrue(partial.preserveInteractiveState)
+
+        val complete = ConversationResponseCompositionPlanner.plan(
+            ResponseRequestProfile(
+                userText = "اعرض مخططًا تفاعليًا",
+                answerText = "```airi-ui\n{" +
+                    "\"version\":1,\"blocks\":[{\"type\":\"stat\",\"id\":\"s\",\"value\":\"42\"}]}\n```",
+                isStreaming = true,
+            )
+        )
+        assertTrue(complete.progressive)
+        assertTrue(complete.allowGenerativeUi)
     }
 
     @Test

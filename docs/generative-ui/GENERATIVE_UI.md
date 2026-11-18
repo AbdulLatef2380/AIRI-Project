@@ -31,7 +31,7 @@ All limits live in `GenerativeUiLimits` and are used by both the parser and the 
 
 ## Rendering lifecycle
 
-model response → bounded compiler (`GenerativeUiCompiler`, small LRU cache so one final answer is parsed once) → native Compose renderer. Interactive block state (selected bar, selected node, form values, checked items) lives in `GenerativeUiStateStore`, keyed `<messageId>:<blockId>` for every block, bounded to 256 keys with least-recently-used eviction, and removed when its message or conversation is deleted.
+model response → bounded compiler (`GenerativeUiCompiler`, small LRU cache) → native Compose renderer. During streaming, a complete valid document may be projected immediately; an unclosed fence or partial JSON remains plain text until the closing fence arrives. No speculative control is shown. Interactive block state (selected bar, selected node, form values, checked items) lives in `GenerativeUiStateStore`, keyed `<messageId>:<blockId>` for every block, bounded to 256 keys with least-recently-used eviction, and removed when its message or conversation is deleted.
 
 ## Actions
 

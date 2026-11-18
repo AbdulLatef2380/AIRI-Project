@@ -26,9 +26,11 @@
 
 - `git diff --check`: passed (no whitespace errors).
 - Source grep after color-reference normalization: the only remaining `MaterialTheme.colorScheme` occurrence is the canonical alias in `ui/theme/Theme.kt`.
-- Attempted `./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon --stacktrace`: **not run to compilation**. Gradle stopped during project configuration with `SDK location not found`; neither `ANDROID_HOME`/`ANDROID_SDK_ROOT` nor `local.properties` points to an Android SDK, and `sdkmanager`/`adb` are unavailable in this environment.
+- Skill execution check: current `SkillToolBridge.invoke` is a `suspend` function, and no `runBlocking` reference was found under `ai/skills`; the earlier report's claim about this bridge is stale. This source check is not a runtime verification of the full dispatcher path.
+- Attempted `./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon --stacktrace`: **not run to compilation**. Android SDK API 36 was installed in this sandbox, but Gradle stopped during project configuration because the installed Java 21 runtime does not provide `JAVA_COMPILER` (`javac` is absent). No external tools were installed after the user's instruction to stop installing tools.
+- GitHub Actions for `main` commit `436cb93f`: `AIRI Oracle` and `AIRI Architecture Audit` completed successfully; `AIRI Android CI` and `AIRI Deep Audit` were still in progress at the time of this report. These results are not a local/device test result.
 - Therefore no claim is made that the APK builds, unit tests pass, instrumentation tests pass, or the application has been exercised on a device.
 
 ## Release/push gate
 
-This follow-up is not a full production-readiness closure. The code changes above should not be represented as a complete resolution of every concern until an Android SDK is configured and the build, unit tests, instrumentation tests, and targeted on-device flows pass. The verified residual issues above require additional work before a clean release sign-off.
+This follow-up is not a full production-readiness closure. The code changes above should not be represented as a complete resolution of every concern until a JDK with compiler, the build, unit tests, instrumentation tests, and targeted on-device flows pass. The verified residual issues above require additional work before a clean release sign-off.

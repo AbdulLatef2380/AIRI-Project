@@ -55,6 +55,13 @@ class GenerativeUiSchemaHardeningTest {
     }
 
     @Test
+    fun explicitFormActionIdCannotCollideWithItsBlockId() {
+        val sameAsBlock = """{"version":1,"blocks":[
+            {"type":"form","id":"form","fields":[{"id":"name","label":"Name"}],"actionId":"form"}]}"""
+        assertEquals(GenerativeUiRejectReason.DUPLICATE_ID, reasonOf(sameAsBlock))
+    }
+
+    @Test
     fun formWithDefaultActionIdStillCompilesAndRebuilds() {
         val text = ui("""{"version":1,"blocks":[{"type":"form","id":"calc","fields":[{"id":"w","label":"W","required":true}]}]}""")
         assertNotNull(GenerativeUiCompiler.compile(text))

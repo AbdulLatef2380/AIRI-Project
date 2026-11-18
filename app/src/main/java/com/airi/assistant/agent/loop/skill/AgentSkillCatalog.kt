@@ -1,5 +1,7 @@
 package com.airi.assistant.agent.loop.skill
 
+import com.airi.assistant.ai.skills.SkillCatalog
+
 
 /**
  * A skill's instructions as the agent sees them. The prompt carries only [name] and
@@ -67,6 +69,7 @@ object AgentSkillCatalog {
             "- Do not use input() or the terminal for a GUI app, and do not read or write outside the program's own folder.\n" +
             "- Getting the file there: the app shows a file card with Save and Share. The user saves or shares the file, then opens it in Pydroid 3 and runs it.\n",
         ),
+    )
     /** Adapter consumed by legacy prompt/tool code; official docs come from SkillCatalog. */
     val skills: List<AgentSkillDoc>
         get() = legacySkills + SkillCatalog.official.map {

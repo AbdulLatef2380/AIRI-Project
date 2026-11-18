@@ -267,13 +267,17 @@ object GenerativeUiCompiler {
         // ids may never collide, because an action is later rebuilt by id.
         val ids = mutableSetOf<String>()
         fun claim(id: String) = ensure(ids.add(id), GenerativeUiRejectReason.DUPLICATE_ID) { "duplicate id" }
-        blocks.forEach { block ->
+        blocks.forEachIndexed { index, block ->
+            val rawBlock = objectAt(blocksJson, index)
             claim(block.id)
             when (block) {
                 is GenerativeUiBlock.Diagram -> block.nodes.forEach { claim(it.id) }
                 is GenerativeUiBlock.Form -> {
                     block.fields.forEach { claim(it.id) }
-                    if (block.actionId != block.id) claim(block.actionId)
+                    // An explicitly supplied actionId participates in the same
+                    // namespace as block and field IDs. The implicit default
+                    // keeps the legacy action id equal to the form id.
+                    if ((rawBlock as JSONObject).has("actionId")) claim(block.actionId)
                 }
                 is GenerativeUiBlock.Actions -> block.options.forEach { claim(it.id) }
                 is GenerativeUiBlock.Route -> block.stops.forEach { claim(it.id) }

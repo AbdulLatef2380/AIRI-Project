@@ -6,8 +6,11 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -16,6 +19,7 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.core.VoiceManager
 import com.airi.assistant.execution.CloudProvider
@@ -122,6 +126,7 @@ class LiveVoiceService : Service() {
     @Volatile private var activeSttGeneration: Long = 0L
     private var recoveryJob: Job? = null
     private var routeJob: Job? = null
+    private var foregroundReady = false
 
     // ── Audio focus () ─────────────────────────────────────────────────
 
@@ -161,7 +166,17 @@ class LiveVoiceService : Service() {
         super.onCreate()
         Log.i(TAG, "LiveVoiceService onCreate")
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification(VoicePipelineState.IDLE))
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "Live voice requires RECORD_AUDIO; refusing service start")
+            stopSelf()
+            return
+        }
+        foregroundReady = promoteToForeground()
+        if (!foregroundReady) {
+            stopSelf()
+            return
+        }
 
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
@@ -205,6 +220,10 @@ class LiveVoiceService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!foregroundReady) {
+            stopSelfResult(startId)
+            return START_NOT_STICKY
+        }
         when (intent?.action) {
             ACTION_START_LISTEN -> requestListen()
             ACTION_STOP         -> requestStop()
@@ -237,9 +256,32 @@ class LiveVoiceService : Service() {
         realtimeTransport?.destroy()
         realtimeTransport = null
         session.endSession()
-        voiceManager.destroy()
+        if (::voiceManager.isInitialized) voiceManager.destroy()
         serviceScope.cancel()
         super.onDestroy()
+    }
+
+    private fun promoteToForeground(): Boolean {
+        val notification = buildNotification(VoicePipelineState.IDLE)
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            true
+        } catch (error: SecurityException) {
+            Log.e(TAG, "Live voice foreground permission rejected", error)
+            false
+        } catch (error: IllegalStateException) {
+            Log.e(TAG, "Live voice foreground start rejected by lifecycle", error)
+            false
+        }
     }
 
     // ── Public voice control API ──────────────────────────────────────────────

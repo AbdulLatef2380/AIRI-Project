@@ -58,6 +58,25 @@
 -keepclassmembers class * {
     @com.google.gson.annotations.SerializedName <fields>;
 }
+-keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations
+-keepattributes AnnotationDefault
+-keep class com.airi.assistant.tools.ToolDefinition { *; }
+# These stores deserialize concrete Kotlin data classes through Gson/TypeToken.
+# Keep their JSON field names and constructors; keep the scope narrow so R8 can
+# still remove unrelated application code.
+-keep class com.airi.assistant.workspace.ProjectFileManager$ProjectFile { *; }
+-keep class com.airi.assistant.workspace.ProjectFileEditRuntime$Proposal { *; }
+-keep class com.airi.assistant.domain.customskill.** { *; }
+-keep class com.airi.assistant.agent.durable.DurableTask { *; }
+-keep class com.airi.assistant.knowledge.ProjectKnowledgeManager$KnowledgeChunk { *; }
+-keep class com.airi.assistant.crash.CrashReportStore$CrashReport { *; }
+-keep class com.airi.assistant.profile.UserPreferences { *; }
+-keep class com.airi.assistant.ui.plan.PlanSnapshot { *; }
+
+# JNA is used by Vosk's Android native bridge.  Its interfaces and callback
+# signatures are discovered reflectively and must retain their members.
+-keep class com.sun.jna.** { *; }
+-keep class com.sun.jna.platform.** { *; }
 
 # ── BuildConfig ───────────────────────────────────────────────────────────────
 -keep class com.airi.assistant.BuildConfig { *; }

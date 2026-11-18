@@ -113,6 +113,13 @@ static std::atomic<int> g_last_gen_status{0};
 static uint32_t g_last_n_ctx     = 0;
 static int      g_last_n_threads = 0;
 
+// Read-only telemetry snapshots.  These are deliberately separate from the
+// llama state: UI polling must never wait behind a decode, model load, or
+// projector evaluation.  Writers publish them while holding LLAMA_LOCK.
+static std::atomic<int>      g_kv_position_snapshot{0};
+static std::atomic<uint32_t> g_n_ctx_snapshot{0};
+static std::atomic<bool>     g_mmproj_loaded_snapshot{false};
+
 // SPEC v4 — per-generation sampling parameters.
 // Written by nativeSetSamplingParams() (which takes LLAMA_LOCK) before every
 // generateNextTokens call.  Read inside airi_generate_next() (also under
@@ -210,6 +217,10 @@ static std::mutex g_emb_mutex;
 
 // Session state — persists across messages.
 static int               g_n_past      = 0;       // absolute KV position
+
+static inline void airi_publish_kv_position() {
+    g_kv_position_snapshot.store(g_n_past, std::memory_order_release);
+}
 static const int         KV_KEEP_HEAD  = 128;     // never trim the first N tokens
                                                   // (covers a typical system prompt)
 
@@ -609,6 +620,7 @@ static void airi_kv_trim_if_needed(int reserve) {
               g_n_past, n_ctx, safe_keep_head, keep_tail, reserve);
         llama_memory_clear(llama_get_memory(g_ctx), true);
         g_n_past = 0;
+        airi_publish_kv_position();
         return;
     }
 
@@ -625,10 +637,12 @@ static void airi_kv_trim_if_needed(int reserve) {
         PROOF("KV_TRIM_RM_FAILED p0=%d p1=%d -> hard reset", p0, p1);
         llama_memory_clear(mem, true);
         g_n_past = 0;
+        airi_publish_kv_position();
         return;
     }
     llama_memory_seq_add(mem, 0, p1, g_n_past, -drop);
     g_n_past -= drop;
+    airi_publish_kv_position();
     PROOF("KV_TRIM_OK n_past_new=%d", g_n_past);
 }
 
@@ -774,6 +788,7 @@ static int airi_append_text(JNIEnv* env, const std::string& text, bool last_toke
     if (last_token_logits) g_t_prefill_ms.store(t1 - t0);
 
     g_n_past += n_tokens;
+    airi_publish_kv_position();
     PROOF("APPEND_DECODE_OK n_new=%d n_past_after=%d elapsed_ms=%ld n_past=%d n_ctx=%u kv_used_pct=%d",
           n_tokens, g_n_past, (t1 - t0), g_n_past, n_ctx,
           n_ctx > 0 ? (int)((100L * g_n_past) / n_ctx) : 0);
@@ -1017,6 +1032,7 @@ static std::string airi_generate_next(
             break;
         }
         g_n_past++;
+    airi_publish_kv_position();
     }
 
     // Flush trailing valid UTF-8.
@@ -1091,6 +1107,7 @@ Java_com_airi_assistant_ai_LlamaNative_loadModel(
     if (g_ctx)   { llama_free(g_ctx);          g_ctx   = nullptr; }
     if (g_model) { llama_model_free(g_model);  g_model = nullptr; }
     g_n_past = 0;
+    airi_publish_kv_position();
     // OMEGA CORE — model swap: clear every piece of per-session state so the
     // new model starts from a known-good slate.
     //   g_cancel_requested: a stale cancel from the previous session (user
@@ -1148,8 +1165,10 @@ Java_com_airi_assistant_ai_LlamaNative_loadModel(
 
     g_model_path = model_path;
     g_n_past = 0;
+    airi_publish_kv_position();
     // SPEC v2 — cache cparams so nativeFullReset() rebuilds an identical ctx.
     g_last_n_ctx     = cparams.n_ctx;
+    g_n_ctx_snapshot.store(cparams.n_ctx, std::memory_order_release);
     g_last_n_threads = cparams.n_threads;
     // SPEC v3 — fresh ctx ⇒ new session id.
     {
@@ -1202,6 +1221,7 @@ Java_com_airi_assistant_ai_LlamaNative_loadModelWithProgress(
     if (g_ctx)   { llama_free(g_ctx);          g_ctx   = nullptr; }
     if (g_model) { llama_model_free(g_model);  g_model = nullptr; }
     g_n_past = 0;
+    airi_publish_kv_position();
     // OMEGA CORE — same model-swap state clear as in loadModel() above.
     // See loadModel() comment for the full rationale.
     g_cancel_requested.store(false);
@@ -1252,8 +1272,10 @@ Java_com_airi_assistant_ai_LlamaNative_loadModelWithProgress(
 
     g_model_path = model_path;
     g_n_past = 0;
+    airi_publish_kv_position();
     // SPEC v2 — cache cparams so nativeFullReset() rebuilds an identical ctx.
     g_last_n_ctx     = cparams.n_ctx;
+    g_n_ctx_snapshot.store(cparams.n_ctx, std::memory_order_release);
     g_last_n_threads = cparams.n_threads;
     // SPEC v3 — fresh ctx ⇒ new session id.
     {
@@ -1280,6 +1302,7 @@ Java_com_airi_assistant_ai_LlamaNative_beginSession(JNIEnv* env, jobject /*this*
     g_phase = "beginSession";
     llama_memory_clear(llama_get_memory(g_ctx), true);
     g_n_past = 0;
+    airi_publish_kv_position();
     g_cancel.store(false);
     // Wipe the draft KV in lockstep so the next appendUserTurn re-syncs both.
     airi_draft_clear_kv();
@@ -1299,6 +1322,7 @@ Java_com_airi_assistant_ai_LlamaNative_resetSession(JNIEnv* /*env*/, jobject /*t
     g_phase = "resetSession";
     llama_memory_clear(llama_get_memory(g_ctx), true);
     g_n_past = 0;
+    airi_publish_kv_position();
     g_cancel.store(false);
     airi_draft_clear_kv();
     const int64_t new_sid = g_session_id.fetch_add(1) + 1;
@@ -1335,8 +1359,10 @@ Java_com_airi_assistant_ai_LlamaNative_unloadModel(JNIEnv* /*env*/, jobject /*th
     }
     g_model_path.clear();
     g_n_past = 0;
+    airi_publish_kv_position();
     g_draft_n_past = 0;
     g_last_n_ctx = 0;
+    g_n_ctx_snapshot.store(0, std::memory_order_release);
     g_last_n_threads = 0;
     airi_draft_clear_kv();
     const int64_t new_sid = g_session_id.fetch_add(1) + 1;
@@ -1427,15 +1453,12 @@ Java_com_airi_assistant_ai_LlamaNative_generateNextTokens(
 
 JNIEXPORT jint JNICALL
 Java_com_airi_assistant_ai_LlamaNative_getKvPosition(JNIEnv*, jobject) {
-    LLAMA_LOCK();
-    return (jint)g_n_past;
+    return (jint)g_kv_position_snapshot.load(std::memory_order_acquire);
 }
 
 JNIEXPORT jint JNICALL
 Java_com_airi_assistant_ai_LlamaNative_getNCtx(JNIEnv*, jobject) {
-    LLAMA_LOCK();
-    if (!g_ctx) return 0;
-    return (jint)llama_n_ctx(g_ctx);
+    return (jint)g_n_ctx_snapshot.load(std::memory_order_acquire);
 }
 
 // ----------------------------------------------------------------------------
@@ -1458,6 +1481,7 @@ Java_com_airi_assistant_ai_LlamaNative_generateResponse(
     try {
         llama_memory_clear(llama_get_memory(g_ctx), true);
         g_n_past = 0;
+    airi_publish_kv_position();
         airi_append_text(env, prompt_str, /*last_token_logits=*/true);
         std::string out = airi_generate_next(env, /*max_new=*/256, nullptr, nullptr);
         return env->NewStringUTF(out.c_str());
@@ -1496,6 +1520,7 @@ Java_com_airi_assistant_ai_LlamaNative_generateStream(
     try {
         llama_memory_clear(llama_get_memory(g_ctx), true);
         g_n_past = 0;
+    airi_publish_kv_position();
         airi_append_text(env, prompt_str, /*last_token_logits=*/true);
         airi_generate_next(env, /*max_new=*/512, callback, invoke);
     } catch (const std::exception& e) {
@@ -1738,6 +1763,7 @@ Java_com_airi_assistant_ai_LlamaNative_nativeFullReset(JNIEnv* env, jobject /*th
     // observable from the JVM side.
     if (g_ctx) { llama_free(g_ctx); g_ctx = nullptr; }
     g_n_past = 0;
+    airi_publish_kv_position();
     g_cancel_requested.store(false);
     g_last_gen_status.store(0);
 
@@ -1792,6 +1818,7 @@ Java_com_airi_assistant_ai_LlamaNative_setRuntimeMode(
 
     if (g_ctx) { llama_free(g_ctx); g_ctx = nullptr; }
     g_n_past = 0;
+    airi_publish_kv_position();
     g_cancel.store(false);
 
     llama_context_params cparams = llama_context_default_params();
@@ -1809,6 +1836,7 @@ Java_com_airi_assistant_ai_LlamaNative_setRuntimeMode(
     }
     // SPEC v2 — cache cparams so nativeFullReset() preserves the runtime mode.
     g_last_n_ctx     = cparams.n_ctx;
+    g_n_ctx_snapshot.store(cparams.n_ctx, std::memory_order_release);
     g_last_n_threads = cparams.n_threads;
     // SPEC v3 — runtime-mode swap rebuilds g_ctx ⇒ new session id.
     {
@@ -2175,6 +2203,7 @@ Java_com_airi_assistant_ai_LlamaNative_generateNextTokensSpeculative(
             llama_batch_free(mb);
             if (rc != 0) { PROOF("SPEC_BAIL_MAIN_DECODE_FAILED rc=%d", rc); break; }
             g_n_past++;
+    airi_publish_kv_position();
             emit_token(m_first);
             g_draft_in_sync.store(false);
             break;
@@ -2237,10 +2266,12 @@ Java_com_airi_assistant_ai_LlamaNative_generateNextTokensSpeculative(
             if (rcm != 0) {
                 PROOF("SPEC_COMMIT_MAIN_FAILED rc=%d", rcm);
                 g_n_past += A;
+    airi_publish_kv_position();
                 g_draft_in_sync.store(false);
                 break;
             }
             g_n_past += A + 1;
+    airi_publish_kv_position();
         } else {
             // All K drafts accepted; append the bonus.
             llama_batch mb = llama_batch_init(1, 0, 1);
@@ -2251,10 +2282,12 @@ Java_com_airi_assistant_ai_LlamaNative_generateNextTokensSpeculative(
             if (rcm != 0) {
                 PROOF("SPEC_COMMIT_BONUS_FAILED rc=%d", rcm);
                 g_n_past += (int)drafts.size();
+    airi_publish_kv_position();
                 g_draft_in_sync.store(false);
                 break;
             }
             g_n_past += (int)drafts.size() + 1;
+    airi_publish_kv_position();
         }
 
         // (6) Commit DRAFT KV to mirror the same final state.
@@ -2563,6 +2596,7 @@ Java_com_airi_assistant_ai_LlamaNative_loadMmproj(
         mtmd_free(g_mtmd_ctx);
         g_mtmd_ctx = nullptr;
     }
+    g_mmproj_loaded_snapshot.store(false, std::memory_order_release);
     const char* cPath = env->GetStringUTFChars(jPath, nullptr);
     g_mmproj_path = cPath ? cPath : "";
     mtmd_context_params params = mtmd_context_params_default();
@@ -2580,6 +2614,7 @@ Java_com_airi_assistant_ai_LlamaNative_loadMmproj(
         g_mmproj_path.clear();
         return JNI_FALSE;
     }
+    g_mmproj_loaded_snapshot.store(true, std::memory_order_release);
     PROOF("MMPROJ_LOADED path=%s vision=%d",
           g_mmproj_path.c_str(),
           (int)mtmd_support_vision(g_mtmd_ctx));
@@ -2595,6 +2630,7 @@ Java_com_airi_assistant_ai_LlamaNative_unloadMmproj(
     if (g_mtmd_ctx) {
         mtmd_free(g_mtmd_ctx);
         g_mtmd_ctx = nullptr;
+        g_mmproj_loaded_snapshot.store(false, std::memory_order_release);
         PROOF("MMPROJ_UNLOADED path=%s", g_mmproj_path.c_str());
         g_mmproj_path.clear();
     }
@@ -2604,9 +2640,7 @@ JNIEXPORT jboolean JNICALL
 Java_com_airi_assistant_ai_LlamaNative_isMmprojLoaded(
     JNIEnv* /*env*/, jobject /*this*/)
 {
-    LLAMA_LOCK();
-    std::lock_guard<std::mutex> lock(g_mtmd_mutex);
-    return g_mtmd_ctx ? JNI_TRUE : JNI_FALSE;
+    return g_mmproj_loaded_snapshot.load(std::memory_order_acquire) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jstring JNICALL

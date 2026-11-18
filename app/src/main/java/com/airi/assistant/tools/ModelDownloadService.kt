@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.content.pm.ServiceInfo
 import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
@@ -37,7 +38,11 @@ class ModelDownloadService : Service() {
             Log.i(TAG, "CANCEL requested via intent")
             Log.i("AIRI", "DOWNLOAD_CANCEL_REQUESTED source=intent")
             stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            stopSelfResult(startId)
+            return START_NOT_STICKY
+        }
+        if (isDownloading.get()) {
+            Log.w(TAG, "DOWNLOAD_IGNORED reason=already_running")
             return START_NOT_STICKY
         }
         cancelRequested.set(false)
@@ -49,9 +54,30 @@ class ModelDownloadService : Service() {
         val url = intent?.getStringExtra(EXTRA_DOWNLOAD_URL) ?: defaultUrl
         val fileName = intent?.getStringExtra(EXTRA_FILENAME) ?: defaultFileName
         val expectedSize = intent?.getLongExtra(EXTRA_EXPECTED_SIZE_BYTES, defaultExpectedSize) ?: defaultExpectedSize
-        startForeground(1, createNotification(fileName))
+        if (!promoteToForeground(fileName)) {
+            isDownloading.set(false)
+            stopSelfResult(startId)
+            return START_NOT_STICKY
+        }
         startModelDownload(url, fileName, expectedSize)
-        return START_STICKY
+        return START_NOT_STICKY
+    }
+
+    private fun promoteToForeground(fileName: String): Boolean = try {
+        val notification = createNotification(fileName)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            @Suppress("DEPRECATION")
+            startForeground(1, notification)
+        }
+        true
+    } catch (error: SecurityException) {
+        Log.e(TAG, "Download foreground permission rejected", error)
+        false
+    } catch (error: IllegalStateException) {
+        Log.e(TAG, "Download foreground start rejected by lifecycle", error)
+        false
     }
 
     private fun createNotification(fileName: String): Notification {
@@ -68,7 +94,14 @@ class ModelDownloadService : Service() {
 
     private fun startModelDownload(url: String, fileName: String, expectedSize: Long) {
         Thread {
-            val modelsDir = File(getExternalFilesDir(null), "models").apply { if (!exists()) mkdirs() }
+            val externalRoot = getExternalFilesDir(null)
+            if (externalRoot == null) {
+                Log.e(TAG, "DOWNLOAD_FAILURE cause=external_storage_unavailable")
+                isDownloading.set(false)
+                stopSelf()
+                return@Thread
+            }
+            val modelsDir = File(externalRoot, "models").apply { if (!exists()) mkdirs() }
             val finalFile = File(modelsDir, fileName)
             val tempFile = File(modelsDir, "$fileName.part")
             var success = false
@@ -190,6 +223,14 @@ class ModelDownloadService : Service() {
         }
     }
 
+    @androidx.annotation.RequiresApi(35)
+    override fun onTimeout(startId: Int) {
+        Log.w(TAG, "DOWNLOAD_TIMEOUT startId=$startId")
+        cancelRequested.set(true)
+        stopSelfResult(startId)
+        super.onTimeout(startId)
+    }
+
     companion object {
         private const val MAX_DOWNLOAD_ATTEMPTS = 3
         private const val RETRY_BACKOFF_MS = 1_500L
@@ -228,7 +269,8 @@ class ModelDownloadService : Service() {
             val intent = Intent(context, ModelDownloadService::class.java).apply {
                 action = ACTION_CANCEL_DOWNLOAD
             }
-            context.startService(intent)
+            runCatching { context.startService(intent) }
+                .onFailure { Log.w("AIRI_MODEL_DOWNLOAD", "cancel service dispatch failed", it) }
         }
     }
 }

@@ -9,6 +9,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
@@ -52,14 +53,17 @@ class HotwordService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startInForeground()
-        if (running) return START_STICKY
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED) {
-            Log.w(TAG, "Hotword: RECORD_AUDIO not granted — stopping")
-            stopSelf()
+            Log.w(TAG, "Hotword: RECORD_AUDIO not granted — refusing foreground start")
+            stopSelfResult(startId)
             return START_NOT_STICKY
         }
+        if (!startInForeground()) {
+            stopSelfResult(startId)
+            return START_NOT_STICKY
+        }
+        if (running) return START_STICKY
         if (!VoiceCaptureArbiter.acquire(microphoneOwner)) {
             Log.i(TAG, "Hotword deferred: microphone owned by ${VoiceCaptureArbiter.currentOwner}")
             stopSelf()
@@ -295,7 +299,7 @@ class HotwordService : Service() {
         }
     }
 
-    private fun startInForeground() {
+    private fun startInForeground(): Boolean {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val ch = NotificationChannel(
@@ -318,7 +322,21 @@ class HotwordService : Service() {
             .setContentIntent(pi)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
-        startForeground(NOTIF_ID, notif)
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+            } else {
+                @Suppress("DEPRECATION")
+                startForeground(NOTIF_ID, notif)
+            }
+            true
+        } catch (error: SecurityException) {
+            Log.e(TAG, "Hotword foreground permission rejected", error)
+            false
+        } catch (error: IllegalStateException) {
+            Log.e(TAG, "Hotword foreground start rejected by lifecycle", error)
+            false
+        }
     }
 
     private fun stopCaptureForPreemption() {

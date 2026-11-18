@@ -196,7 +196,10 @@ def test_ui_contract() -> dict[str, int]:
     ai_block = source[ai_at:ai_end]
     check(".clip(RoundedCornerShape(4.dp, 18.dp" not in ai_block, "assistant response still has a rounded bubble")
     check(".padding(horizontal = 14.dp, vertical = 12.dp)" not in ai_block, "assistant response still has bubble padding")
-    check("BidiAwareMarkdownRenderer" in ai_block, "assistant response lost readable renderer")
+    check(
+        "BidiAwareMarkdownRenderer" in ai_block or "ContentAwareMessageRenderer" in ai_block,
+        "assistant response lost readable renderer",
+    )
     check(".background(AiriTheme.surfaceVariant)" in source[user_at:ai_at], "theme-aware user bubble surface is missing")
     user_block = source[user_at:ai_at]
     policy_block = policy

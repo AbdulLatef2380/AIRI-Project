@@ -26,6 +26,7 @@ android {
 }
 
 baselineProfile {
+    targetProjectPath = ":app"
     useConnectedDevices = true
 }
 

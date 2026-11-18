@@ -2,6 +2,10 @@ package com.airi.assistant.domain.tool
 
 import com.airi.assistant.domain.execution.ExecutionOutcome
 import com.airi.assistant.domain.execution.RequestId
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -137,6 +141,37 @@ class ToolExecutionPipelineTest {
         assertEquals(1, handlerCalls)
         assertEquals(first, retry)
         assertEquals("created-once", (retry as ExecutionOutcome.Success).text)
+    }
+
+    @Test
+    fun concurrentRequestsWithTheSameRequestIdExecuteHandlerOnlyOnce() = runBlocking {
+        val requestId = RequestId("concurrent-request")
+        val handlerStarted = CompletableDeferred<Unit>()
+        val releaseHandler = CompletableDeferred<Unit>()
+        var handlerCalls = 0
+        val pipeline = pipeline(handler = ToolHandler {
+            handlerCalls++
+            handlerStarted.complete(Unit)
+            releaseHandler.await()
+            ToolHandlerResult.Success("single-result")
+        })
+
+        val first = async(Dispatchers.Default) {
+            pipeline.execute(request(mapOf("count" to "1"), requestId = requestId))
+        }
+        handlerStarted.await()
+        val second = async(start = CoroutineStart.UNDISPATCHED) {
+            pipeline.execute(request(mapOf("count" to "1"), requestId = requestId))
+        }
+
+        assertEquals(1, handlerCalls)
+        releaseHandler.complete(Unit)
+        val firstResult = first.await()
+        val secondResult = second.await()
+
+        assertEquals(1, handlerCalls)
+        assertEquals(firstResult, secondResult)
+        assertEquals("single-result", (firstResult as ExecutionOutcome.Success).text)
     }
 
     private fun pipeline(

@@ -297,6 +297,14 @@ object GenerativeUiCompiler {
                 is GenerativeUiBlock.Actions -> block.options.firstOrNull { it.id == requested.id }?.let { option ->
                     return GenerativeUiAction(option.id, mapOf("prompt" to option.prompt), requested.sourceExecutionId, requested.sourceMessageId)
                 }
+                is GenerativeUiBlock.Cards -> block.items.firstOrNull { it.actionId == requested.id }?.let { item ->
+                    return GenerativeUiAction(
+                        requested.id,
+                        mapOf("prompt" to item.body),
+                        requested.sourceExecutionId,
+                        requested.sourceMessageId,
+                    )
+                }
                 else -> Unit
             }
         }
@@ -388,7 +396,12 @@ object GenerativeUiCompiler {
             }
             "image" -> {
                 requireOnlyKeys(json, setOf("type", "id", "title", "alt", "source"))
-                GenerativeUiBlock.Image(id, title, requiredText(json, "alt"), requiredText(json, "source"))
+                val source = requiredText(json, "source")
+                val uri = runCatching { java.net.URI(source) }.getOrNull()
+                ensure(uri?.scheme.equals("https", ignoreCase = true) && !uri?.host.isNullOrBlank() && uri?.rawUserInfo == null) {
+                    "image source must be an HTTPS URL without user information"
+                }
+                GenerativeUiBlock.Image(id, title, requiredText(json, "alt"), source)
             }
             "cards" -> {
                 requireOnlyKeys(json, setOf("type", "id", "title", "items"))

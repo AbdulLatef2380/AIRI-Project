@@ -273,7 +273,8 @@ object GitHubSkillImporter {
                 method       = "POST",
                 bodyTemplate = buildDefaultBodyTemplate(manifest)
             ),
-            createdAt   = System.currentTimeMillis()
+            createdAt   = System.currentTimeMillis(),
+            requiredPermissions = manifest.permissions.distinct()
         )
     }
 

@@ -8,7 +8,9 @@ data class CustomSkill(
     val config: SkillConfig,
     val isPremium: Boolean = true,
     val createdAt: Long,
-    val permission: SkillPermission? = null
+    val permission: SkillPermission? = null,
+    // Nullable for Gson compatibility with records written before this field existed.
+    val requiredPermissions: List<String>? = null,
 ) {
     fun effectivePermission(): SkillPermission =
         permission ?: SkillPermissionEnforcer.deriveFromMethod(config.method)

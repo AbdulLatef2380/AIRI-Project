@@ -384,7 +384,8 @@ class SkillRegistry(private val context: Context) {
                     headers = headers,
                     bodyTemplate = bodyTemplate
                 ),
-                createdAt = createdAt
+                createdAt = createdAt,
+                requiredPermissions = manifest.permissions.distinct()
             )
             customSkillRepository.saveSkill(customSkill)
             setSkillEnabled(skillId, true)

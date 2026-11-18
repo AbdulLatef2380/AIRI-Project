@@ -424,7 +424,7 @@ private fun ConnectorCard(
     val arabic = locale.language.equals("ar", ignoreCase = true)
     val statusColor = when {
         isReady -> SemanticSuccess
-        needsAttention -> MaterialTheme.colorScheme.tertiary
+        needsAttention -> AiriTheme.colorScheme.tertiary
         else -> AiriTheme.onSurface.copy(0.30f)
     }
     val statusLabel = readinessLabel(row.state.readiness, arabic)
@@ -537,7 +537,7 @@ private fun ConnectorCard(
                         if (nextAction.isNotBlank()) {
                             Text(
                                 text = if (arabic) "الإجراء التالي: $nextAction" else "Next action: $nextAction",
-                                color = MaterialTheme.colorScheme.tertiary,
+                                color = AiriTheme.colorScheme.tertiary,
                                 fontSize = 12.sp,
                                 lineHeight = 17.sp,
                             )

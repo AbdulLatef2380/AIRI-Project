@@ -58,6 +58,19 @@ class GenerativeUiCompilerTest {
     }
 
     @Test
+    fun imageBlockRequiresHttpsAndCompilesWithSecureRemoteSource() {
+        val valid = GenerativeUiCompiler.compile("""```airi-ui
+            {"version":1,"blocks":[{"type":"image","id":"img","alt":"A scene","source":"https://images.example.org/scene.jpg"}]}
+            ```""".trimIndent())
+        val invalid = GenerativeUiCompiler.compile("""```airi-ui
+            {"version":1,"blocks":[{"type":"image","id":"img","alt":"A scene","source":"file:///etc/passwd"}]}
+            ```""".trimIndent())
+
+        assertTrue(valid?.document?.blocks?.single() is GenerativeUiBlock.Image)
+        assertNull(invalid)
+    }
+
+    @Test
     fun rejectsDuplicateNestedIdsAndNonFiniteNumbers() {
         assertNull(GenerativeUiCompiler.compile("```airi-ui\n{" +
             "\"version\":1,\"blocks\":[" +
@@ -83,6 +96,25 @@ class GenerativeUiCompilerTest {
 
         assertNotNull(rebuilt)
         assertEquals("[AIRI_UI_ACTION:approve] prompt=Approve the reviewed item", rebuilt?.prompt)
+    }
+
+    @Test
+    fun rebuildsCardActionFromSourceAndIgnoresForgedFields() {
+        val source = "```airi-ui\n{" +
+            "\"version\":1,\"blocks\":[{\"type\":\"cards\",\"id\":\"cards\",\"items\":[" +
+            "{\"id\":\"card-1\",\"title\":\"Details\",\"body\":\"Explain the listed details\",\"actionId\":\"details\"}]}]}\n```"
+        val requested = GenerativeUiAction(
+            id = "details",
+            fields = mapOf("prompt" to "forged instruction"),
+            sourceExecutionId = "exec",
+            sourceMessageId = "42",
+        )
+
+        val rebuilt = GenerativeUiCompiler.rebuildAction(source, requested)
+
+        assertNotNull(rebuilt)
+        assertEquals("[AIRI_UI_ACTION:details] prompt=Explain the listed details", rebuilt?.prompt)
+        assertNull(GenerativeUiCompiler.rebuildAction(source, GenerativeUiAction("unknown")))
     }
 
     @Test

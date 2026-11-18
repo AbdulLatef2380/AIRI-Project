@@ -1,5 +1,7 @@
 # AIRI — Final Verification Report
 
+> **Superseded verification note (2026-11-19):** The checklist below records results from an earlier phase; it is not proof of the current checkout's build or runtime status. A source audit on 2026-11-19 found 47 remaining `MaterialTheme.colorScheme` references and numerous hard-coded UI colors, so the “zero references” claim below is historical and must not be read as a current pass. The current Android build/test attempt also stopped during project configuration because no Android SDK is configured. See the follow-up remediation report for verified findings and remaining gates.
+
 ## Build Consistency
 
 | Check | Status | Notes |
@@ -100,7 +102,7 @@
 | 55 composable routes verified | ✅ PASS | `AiriApp.kt` route constant count vs `composable()` body count |
 | Zero Arabic in Kotlin UI code | ✅ PASS | Unicode U+0600–U+06FF regex scan across all 90 UI `.kt` files |
 | Zero SmartToy / robot icons | ✅ PASS | Full-text search for `SmartToy`, `Robot`, `AdbFilled` in all UI files |
-| Zero `MaterialTheme.colorScheme.` in screens | ✅ PASS | 427 direct references migrated to `AiriTheme.*` / `CosmicAccent` / `SemanticError` |
+| Zero `MaterialTheme.colorScheme.` in screens | ⚠️ HISTORICAL / NOT VERIFIED ON CURRENT CHECKOUT | The earlier scan claimed 427 substitutions; the 2026-11-19 source audit still found 47 references and hard-coded UI colors. |
 | Zero TODO/FIXME in screens | ✅ PASS | Regex scan of all screen files |
 | All `R.string.*` references defined | ✅ PASS | 646 used vs 1,076 defined — zero missing |
 | Zero package name collisions | ✅ PASS | Class-name dedup scan confirmed all collisions are cross-package |

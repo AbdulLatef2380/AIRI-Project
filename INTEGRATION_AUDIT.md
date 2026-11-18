@@ -3,6 +3,8 @@
 **Scope:** End-to-end execution chain from user message → AgentLoop → ToolDispatcher → SkillToolBridge → AiriSkill.execute()  
 **Method:** Direct source inspection of every file in the chain. No assumptions.
 
+> **Superseded on 2026-11-19:** This document is a historical snapshot, not a verification of the current checkout. In particular, its `runBlocking` examples and statement that blocking does not block the caller are incorrect for the current source: `SkillToolBridge.invoke` and `ToolDispatcher.execute` are now `suspend` APIs and the bridge uses `withTimeout { skill.execute(...) }` without `runBlocking`. The current code still runs trusted built-in skills in-process; the sandbox is policy/workspace isolation, not an OS process/UID sandbox. Imported manifest permissions were found to be dropped in the importer-to-runtime adapter; this follow-up changeset now carries them into the runtime access-policy gate. Build and integration tests remain unverified until an Android SDK is configured.
+
 ---
 
 ## 1. Execution Chain — Concrete Code Evidence

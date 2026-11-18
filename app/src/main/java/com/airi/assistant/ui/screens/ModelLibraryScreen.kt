@@ -271,7 +271,7 @@ fun ModelLibraryScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     if (localEndpointDraft.isNotBlank() && !endpointAllowed) {
-                        Text(stringResource(R.string.local_endpoint_invalid), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                        Text(stringResource(R.string.local_endpoint_invalid), color = AiriTheme.colorScheme.error, fontSize = 12.sp)
                     }
                 }
             },

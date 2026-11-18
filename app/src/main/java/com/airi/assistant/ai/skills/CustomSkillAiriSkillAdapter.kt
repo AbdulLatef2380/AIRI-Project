@@ -27,6 +27,7 @@ internal class CustomSkillAiriSkillAdapter(
     override val isOfficial:  Boolean = false
     override val iconEmoji:   String  = ""
     override val category:    String  = "CUSTOM"
+    override val requiredPermissions: List<String> = customSkill.requiredPermissions.orEmpty()
 
     override val toolDefinitions: List<SkillToolDefinition> = listOf(
         SkillToolDefinition(

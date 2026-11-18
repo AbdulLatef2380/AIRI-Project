@@ -3,6 +3,7 @@ package com.airi.assistant.domain.tool
 import com.airi.assistant.domain.execution.ExecutionOutcome
 import com.airi.assistant.domain.execution.RequestId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import java.util.concurrent.ConcurrentHashMap
 
 /** A request before parsing and authorization. */
@@ -121,8 +122,30 @@ class ToolExecutionPipeline(
     private val handler: ToolHandler,
     private val invocationLedger: ToolInvocationLedger = InMemoryToolInvocationLedger(),
 ) {
+    private val inFlight = ConcurrentHashMap<RequestId, CompletableDeferred<ExecutionOutcome>>()
+
     suspend fun execute(request: ToolRequest): ExecutionOutcome {
         invocationLedger.outcome(request.requestId)?.let { return it }
+        val result = CompletableDeferred<ExecutionOutcome>()
+        val running = inFlight.putIfAbsent(request.requestId, result)
+        if (running != null) return running.await()
+        try {
+            invocationLedger.outcome(request.requestId)?.let {
+                result.complete(it)
+                return it
+            }
+            val outcome = executeOnce(request)
+            result.complete(outcome)
+            return outcome
+        } catch (cancelled: CancellationException) {
+            result.cancel(cancelled)
+            throw cancelled
+        } finally {
+            inFlight.remove(request.requestId, result)
+        }
+    }
+
+    private suspend fun executeOnce(request: ToolRequest): ExecutionOutcome {
         val spec = specs.find(request.toolId)
             ?: return ExecutionOutcome.Failure(request.requestId, request.generationId, "unknown_tool")
 

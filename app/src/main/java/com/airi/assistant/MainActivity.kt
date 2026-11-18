@@ -99,7 +99,7 @@ class MainActivity : ComponentActivity() {
                                 Text(
                                     stringResource(R.string.accessibility_dialog_steps),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = AiriTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         },

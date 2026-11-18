@@ -224,7 +224,7 @@ fun CloudModelStoreSection(
                     if (localEndpointDraft.isNotBlank() && !endpointAllowed) {
                         Text(
                             stringResource(R.string.local_endpoint_invalid),
-                            color = MaterialTheme.colorScheme.error,
+                            color = AiriTheme.colorScheme.error,
                             fontSize = 12.sp,
                         )
                     }

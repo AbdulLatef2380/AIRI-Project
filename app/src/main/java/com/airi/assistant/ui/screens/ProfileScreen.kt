@@ -633,8 +633,10 @@ internal fun cachePhotoForAccount(context: Context, uri: Uri, uid: String): Stri
     if (!directory.exists() && !directory.mkdirs()) return null
     val destination = File(directory, "avatar.jpg")
     val temporary   = File(directory, ".avatar-${java.util.UUID.randomUUID()}.tmp")
+    val backup      = File(directory, ".avatar-${java.util.UUID.randomUUID()}.bak")
     if (java.nio.file.Files.isSymbolicLink(destination.toPath()) ||
-        java.nio.file.Files.isSymbolicLink(temporary.toPath())
+        java.nio.file.Files.isSymbolicLink(temporary.toPath()) ||
+        java.nio.file.Files.isSymbolicLink(backup.toPath())
     ) return null
 
     return try {
@@ -653,14 +655,17 @@ internal fun cachePhotoForAccount(context: Context, uri: Uri, uid: String): Stri
                 }
             }
         } ?: return null
-        if (destination.exists() && !destination.delete()) {
+        val movedExisting = destination.exists() && !destination.renameTo(backup)
+        if (movedExisting) {
             temporary.delete()
             return null
         }
         if (!temporary.renameTo(destination)) {
+            if (backup.exists()) backup.renameTo(destination)
             temporary.delete()
             return null
         }
+        if (backup.exists()) backup.delete()
         destination.absolutePath
     } catch (_: Exception) {
         temporary.delete()

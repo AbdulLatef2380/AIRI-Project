@@ -1,11 +1,13 @@
 # AIRI — UI/UX Refinement Report
 **Sprint: July 2026**
 
+> **Current-checkout caveat (2026-11-19):** This is a historical sprint report. Its “every color now reads from `MaterialTheme.colorScheme`” conclusion is not a current verified fact. The follow-up source audit found remaining hard-coded UI color literals (including intentional brand/status colors and some surfaces/text) and corrected 47 direct scheme references to `AiriTheme.colorScheme`, which resolves to the active `MaterialTheme.colorScheme`. A per-screen light/dark/AMOLED visual audit and classification of the remaining literals are still required.
+
 ---
 
 ## Executive Summary
 
-9 tasks completed. 358 hardcoded color violations corrected across 52 files. 180 missing locale strings added. 2 P0 crashes fixed. Every change is verified by source analysis.
+Historical sprint result: 9 tasks reported complete, including 358 color replacements, 180 locale strings, and 2 crash fixes. Those counts describe that sprint only; they do not certify the current checkout.
 
 ---
 

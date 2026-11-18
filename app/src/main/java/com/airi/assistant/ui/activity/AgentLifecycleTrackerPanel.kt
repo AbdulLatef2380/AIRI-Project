@@ -1,5 +1,7 @@
 package com.airi.assistant.ui.activity
 
+import com.airi.assistant.ui.theme.AiriTheme
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -95,7 +97,7 @@ fun AgentLifecycleTrackerPanel(
         modifier = modifier
             .fillMaxWidth()
             .background(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
+                AiriTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
                 RoundedCornerShape(12.dp),
             )
             .semantics {
@@ -217,7 +219,7 @@ fun AgentLifecycleTrackerPanel(
                 Text(
                     text = stringResource(R.string.agent_lifecycle_working),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = AiriTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp),
                 )
             }
@@ -314,11 +316,11 @@ private fun ActivitySummaryRow(
             },
             contentDescription = null,
             tint = when {
-                isWaiting -> MaterialTheme.colorScheme.tertiary
-                latestStatus == TaskStatus.FAILED -> MaterialTheme.colorScheme.error
-                latestStatus == TaskStatus.CANCELLED -> MaterialTheme.colorScheme.outline
-                isWorking && !isTerminal -> MaterialTheme.colorScheme.primary
-                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+                isWaiting -> AiriTheme.colorScheme.tertiary
+                latestStatus == TaskStatus.FAILED -> AiriTheme.colorScheme.error
+                latestStatus == TaskStatus.CANCELLED -> AiriTheme.colorScheme.outline
+                isWorking && !isTerminal -> AiriTheme.colorScheme.primary
+                else -> AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
             },
             modifier = Modifier.size(16.dp),
         )
@@ -330,7 +332,7 @@ private fun ActivitySummaryRow(
             if (isWaiting) {
                 Text(
                     text = stringResource(R.string.agent_lifecycle_status_waiting),
-                    color = MaterialTheme.colorScheme.tertiary,
+                    color = AiriTheme.colorScheme.tertiary,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
                 )
@@ -344,9 +346,9 @@ private fun ActivitySummaryRow(
                         },
                     ),
                     color = if (latestStatus == TaskStatus.FAILED) {
-                        MaterialTheme.colorScheme.error
+                        AiriTheme.colorScheme.error
                     } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f)
+                        AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
@@ -355,13 +357,13 @@ private fun ActivitySummaryRow(
             if (items.isEmpty() && !isWaiting && latestStatus != TaskStatus.FAILED && latestStatus != TaskStatus.CANCELLED) {
                 Text(
                     text = stringResource(R.string.agent_lifecycle_working),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
+                    color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
                     style = MaterialTheme.typography.bodySmall,
                 )
             } else if (items.isNotEmpty()) {
                 Text(
                     text = items.joinToString(" · "),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
+                    color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -374,7 +376,7 @@ private fun ActivitySummaryRow(
                     } else {
                         stringResource(messageRes)
                     },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = AiriTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.testTag("agent-trace-human-progress"),
                 )
@@ -382,7 +384,7 @@ private fun ActivitySummaryRow(
             activeNode?.let { node ->
                 Text(
                     text = stringResource(R.string.agent_trace_active_node, node.title),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -392,7 +394,7 @@ private fun ActivitySummaryRow(
             if (summary.summary.tasks > 0 || summary.summary.toolsUsed > 0) {
                 Text(
                     text = executionCounts,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                    color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.testTag("agent-trace-execution-counts"),
                 )
@@ -401,7 +403,7 @@ private fun ActivitySummaryRow(
         Icon(
             imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+            tint = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
             modifier = Modifier.size(18.dp),
         )
     }
@@ -438,14 +440,14 @@ private fun ActivityGroupHeader(group: UnifiedExecutionTraceGroup, expanded: Boo
         Text(
             text = groupLabel,
             modifier = Modifier.weight(1f),
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f),
+            color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Medium,
         )
         Icon(
             imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+            tint = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
             modifier = Modifier.size(17.dp),
         )
     }
@@ -480,9 +482,9 @@ private fun ActivityEventRow(
         event.provenance?.let(::add)
     }.joinToString(". ")
     val color = when (event.status) {
-        TaskStatus.RUNNING -> MaterialTheme.colorScheme.onSurface
-        TaskStatus.FAILED -> MaterialTheme.colorScheme.error
-        TaskStatus.WAITING, TaskStatus.PENDING, TaskStatus.COMPLETED, TaskStatus.CANCELLED -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f)
+        TaskStatus.RUNNING -> AiriTheme.colorScheme.onSurface
+        TaskStatus.FAILED -> AiriTheme.colorScheme.error
+        TaskStatus.WAITING, TaskStatus.PENDING, TaskStatus.COMPLETED, TaskStatus.CANCELLED -> AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.68f)
     }
     val accessibleEventDescription = buildList {
         if (technicalEvent) add(humanTitle)
@@ -525,14 +527,14 @@ private fun ActivityEventRow(
                     )
                     Text(
                         text = stringResource(R.string.agent_trace_event_technical_name),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                        color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
                         style = MaterialTheme.typography.labelSmall,
                         maxLines = 1,
                     )
                     Text(
                         text = event.title,
                         modifier = Modifier.testTag("agent-trace-technical-token"),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                        color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontFamily = FontFamily.Monospace,
                             textDirection = TextDirection.Ltr,
@@ -555,7 +557,7 @@ private fun ActivityEventRow(
             event.durationMs?.takeIf { it >= 0L }?.let { durationMs ->
                 Text(
                     text = stringResource(R.string.agent_trace_event_completed_in, formatTraceDuration(durationMs)),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                    color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
                 )
@@ -566,7 +568,7 @@ private fun ActivityEventRow(
                 Icon(
                     imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                    tint = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
                     modifier = Modifier.size(16.dp),
                 )
             }
@@ -579,12 +581,12 @@ private fun ActivityEventRow(
                 if (!event.detailLog.isNullOrBlank()) {
                     Text(
                         text = stringResource(R.string.agent_trace_event_details),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                        color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
                         style = MaterialTheme.typography.labelSmall,
                     )
                     Text(
                         text = event.detailLog.orEmpty(),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         style = MaterialTheme.typography.labelSmall.copy(
                             textDirection = if (technicalEvent) TextDirection.Ltr else TextDirection.Content,
                         ),
@@ -597,13 +599,13 @@ private fun ActivityEventRow(
                 if (event.inputParams.isNotEmpty()) {
                     Text(
                         text = stringResource(R.string.agent_trace_event_inputs),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                        color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
                         style = MaterialTheme.typography.labelSmall,
                     )
                     event.inputParams.entries.take(8).forEach { (key, value) ->
                         Text(
                             text = "$key: $value",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                             style = MaterialTheme.typography.labelSmall.copy(textDirection = TextDirection.Ltr),
                             fontSize = 10.sp,
                             maxLines = 1,
@@ -614,14 +616,14 @@ private fun ActivityEventRow(
                 event.durationMs?.let { durationMs ->
                     Text(
                         text = stringResource(R.string.agent_trace_event_duration, durationMs.coerceAtLeast(0L)),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
                 event.outputSummary?.let { output ->
                     Text(
                         text = stringResource(R.string.agent_trace_event_output, output),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         style = MaterialTheme.typography.labelSmall,
                         maxLines = 4,
                         overflow = TextOverflow.Ellipsis,
@@ -630,7 +632,7 @@ private fun ActivityEventRow(
                 event.provenance?.let { source ->
                     Text(
                         text = stringResource(R.string.agent_trace_event_source, source),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        color = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         style = MaterialTheme.typography.labelSmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -639,7 +641,7 @@ private fun ActivityEventRow(
                 event.errorCode?.let { errorCode ->
                     Text(
                         text = stringResource(R.string.agent_trace_event_reason, errorCode),
-                        color = if (event.status == TaskStatus.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (event.status == TaskStatus.FAILED) AiriTheme.colorScheme.error else AiriTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.semantics { contentDescription = errorCode },
                     )
@@ -668,18 +670,18 @@ private fun ActivityCategoryIcon(category: UnifiedTraceCategory, modifier: Modif
         UnifiedTraceCategory.PLAN, UnifiedTraceCategory.TASK -> Icons.Outlined.Folder
         UnifiedTraceCategory.SYSTEM -> Icons.Outlined.TaskAlt
     }
-    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f), modifier = modifier)
+    Icon(icon, contentDescription = null, tint = AiriTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f), modifier = modifier)
 }
 
 @Composable
 private fun StatusIcon(status: TaskStatus) {
     when (status) {
-        TaskStatus.PENDING -> Icon(Icons.Outlined.RadioButtonUnchecked, stringResource(R.string.agent_lifecycle_status_pending), tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f), modifier = Modifier.size(14.dp))
-        TaskStatus.WAITING -> Icon(Icons.Outlined.RadioButtonUnchecked, stringResource(R.string.agent_lifecycle_status_waiting), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
-        TaskStatus.RUNNING -> CircularProgressIndicator(Modifier.size(14.dp), color = MaterialTheme.colorScheme.primary, strokeWidth = 2.dp)
-        TaskStatus.COMPLETED -> Icon(Icons.Outlined.Check, stringResource(R.string.agent_lifecycle_status_completed), tint = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.78f), modifier = Modifier.size(14.dp))
-        TaskStatus.FAILED -> Icon(Icons.Outlined.ErrorOutline, stringResource(R.string.agent_lifecycle_status_failed), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp))
-        TaskStatus.CANCELLED -> Icon(Icons.Outlined.ErrorOutline, stringResource(R.string.agent_lifecycle_status_cancelled), tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(14.dp))
+        TaskStatus.PENDING -> Icon(Icons.Outlined.RadioButtonUnchecked, stringResource(R.string.agent_lifecycle_status_pending), tint = AiriTheme.colorScheme.outline.copy(alpha = 0.55f), modifier = Modifier.size(14.dp))
+        TaskStatus.WAITING -> Icon(Icons.Outlined.RadioButtonUnchecked, stringResource(R.string.agent_lifecycle_status_waiting), tint = AiriTheme.colorScheme.primary.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
+        TaskStatus.RUNNING -> CircularProgressIndicator(Modifier.size(14.dp), color = AiriTheme.colorScheme.primary, strokeWidth = 2.dp)
+        TaskStatus.COMPLETED -> Icon(Icons.Outlined.Check, stringResource(R.string.agent_lifecycle_status_completed), tint = AiriTheme.colorScheme.tertiary.copy(alpha = 0.78f), modifier = Modifier.size(14.dp))
+        TaskStatus.FAILED -> Icon(Icons.Outlined.ErrorOutline, stringResource(R.string.agent_lifecycle_status_failed), tint = AiriTheme.colorScheme.error, modifier = Modifier.size(15.dp))
+        TaskStatus.CANCELLED -> Icon(Icons.Outlined.ErrorOutline, stringResource(R.string.agent_lifecycle_status_cancelled), tint = AiriTheme.colorScheme.outline, modifier = Modifier.size(14.dp))
     }
 }
 

@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -53,6 +54,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.AIRIShapes
@@ -288,8 +290,13 @@ private fun ImageBlock(block: GenerativeUiBlock.Image) {
     Card(colors = CardDefaults.cardColors(containerColor = AiriTheme.surface.copy(alpha = 0.72f)), shape = AIRIShapes.md) {
         Column(Modifier.fillMaxWidth().padding(10.dp)) {
             block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
-            Text("[${block.alt}]", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
-            Text(block.source.take(240), color = AiriTheme.onSurfaceVariant, fontSize = 10.sp)
+            AsyncImage(
+                model = block.source,
+                contentDescription = block.alt,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().height(180.dp),
+            )
+            Text(block.alt, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
         }
     }
 }
@@ -304,10 +311,12 @@ private fun CardsBlock(block: GenerativeUiBlock.Cards, onAction: (GenerativeUiAc
                     Text(item.title, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     Text(item.body, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
                     item.actionId?.let { actionId ->
+                        val phase = stateStore.actionPhase(messageId, actionId)
                         TextButton(onClick = {
-                            stateStore.setActionPhase(messageId, actionId, GenerativeUiStateStore.ActionPhase.SUCCEEDED)
+                            stateStore.setActionPhase(messageId, actionId, GenerativeUiStateStore.ActionPhase.STAGED)
                             onAction(GenerativeUiAction(actionId, sourceExecutionId = executionId, sourceMessageId = messageId))
                         }) { Text(stringResource(R.string.generative_ui_action_preview_use)) }
+                        ActionPhaseText(phase)
                     }
                 }
             }

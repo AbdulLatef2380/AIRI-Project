@@ -805,7 +805,7 @@ private fun StatusBadge(readiness: IntegrationReadiness) {
     val authorizationRequired = readiness == IntegrationReadiness.AUTHORIZATION_REQUIRED
     val accent = when {
         ready -> SemanticSuccess
-        authorizationRequired -> MaterialTheme.colorScheme.tertiary
+        authorizationRequired -> AiriTheme.colorScheme.tertiary
         else -> AiriTheme.onSurface.copy(alpha = 0.35f)
     }
     val bgColor = if (ready || authorizationRequired) accent.copy(alpha = 0.15f) else AiriTheme.outline

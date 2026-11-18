@@ -64,8 +64,9 @@ fun SecretManagerScreen(onBack: () -> Unit) {
         )
     }
 
-    val keyStates = remember {
-        providers.associateWith { p -> mutableStateOf(keyStore.getKey(p)) }.toMutableMap()
+    var screenUnlocked by remember { mutableStateOf(false) }
+    val keyStates = remember(screenUnlocked) {
+        providers.associateWith { p -> mutableStateOf(if (screenUnlocked) keyStore.getKey(p) else null) }.toMutableMap()
     }
 
     var editingProvider by remember { mutableStateOf<CloudProvider?>(null) }
@@ -86,13 +87,16 @@ fun SecretManagerScreen(onBack: () -> Unit) {
         bm.canAuthenticate(BIOMETRIC_WEAK or DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
     }
 
-    /**
-     * Run BiometricPrompt if hardware is available; invoke [onSuccess] immediately otherwise.
-     * Errors and denials are surfaced as snackbar messages.
-     */
+    /** Run BiometricPrompt and fail closed if authentication cannot be performed. */
     fun authenticateThen(onSuccess: () -> Unit) {
-        if (!biometricAvailable) { onSuccess(); return }
-        val activity = context as? FragmentActivity ?: run { onSuccess(); return }
+        if (!biometricAvailable) {
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.secret_manager_biometric_cancel)) }
+            return
+        }
+        val activity = context as? FragmentActivity ?: run {
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.secret_manager_biometric_cancel)) }
+            return
+        }
         val executor = ContextCompat.getMainExecutor(context)
         val callback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
@@ -117,6 +121,10 @@ fun SecretManagerScreen(onBack: () -> Unit) {
             .setAllowedAuthenticators(BIOMETRIC_WEAK or DEVICE_CREDENTIAL)
             .build()
         prompt.authenticate(info)
+    }
+
+    LaunchedEffect(Unit) {
+        authenticateThen { screenUnlocked = true }
     }
 
     deletingProjectGitHubSecret.takeIf { it && projectId != null }?.let {
@@ -363,7 +371,24 @@ fun SecretManagerScreen(onBack: () -> Unit) {
             )
         }
     ) { padding ->
-        LazyColumn(
+        if (!screenUnlocked) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(Icons.Outlined.Lock, null, tint = AiriTheme.primary, modifier = Modifier.size(36.dp))
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    stringResource(R.string.secret_manager_biometric_subtitle),
+                    color = AiriTheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(16.dp))
+                Button(onClick = { authenticateThen { screenUnlocked = true } }) {
+                    Text(stringResource(R.string.secret_manager_biometric_title))
+                }
+            }
+        } else LazyColumn(
             modifier       = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -436,12 +461,20 @@ fun SecretManagerScreen(onBack: () -> Unit) {
                             }
                             if (projectId != null) {
                                 TextButton(
-                                    onClick = { projectSecretText = ""; showProjectSecret = false; editingProjectGitHubSecret = true }
+                                    onClick = {
+                                        authenticateThen {
+                                            projectSecretText = ""
+                                            showProjectSecret = false
+                                            editingProjectGitHubSecret = true
+                                        }
+                                    }
                                 ) {
                                     Text(stringResource(if (projectGitHubConfigured) R.string.secret_project_update else R.string.secret_project_set))
                                 }
                                 if (projectGitHubConfigured) {
-                                    IconButton(onClick = { deletingProjectGitHubSecret = true }, modifier = Modifier.size(36.dp)) {
+                                    IconButton(onClick = {
+                                        authenticateThen { deletingProjectGitHubSecret = true }
+                                    }, modifier = Modifier.size(36.dp)) {
                                         Icon(Icons.Outlined.Delete, stringResource(R.string.secret_manager_delete_cd), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                                     }
                                 }
@@ -461,9 +494,11 @@ fun SecretManagerScreen(onBack: () -> Unit) {
                     isSet     = isSet,
                     preview   = preview,
                     onEdit    = {
-                        editText        = ""
-                        showKey         = false
-                        editingProvider = provider
+                        authenticateThen {
+                            editText        = ""
+                            showKey         = false
+                            editingProvider = provider
+                        }
                     },
                     onCopy    = {
                         if (!currentKey.isNullOrBlank()) {
@@ -483,7 +518,7 @@ fun SecretManagerScreen(onBack: () -> Unit) {
                             }
                         }
                     },
-                    onDelete  = { showDeleteFor = provider }
+                    onDelete  = { authenticateThen { showDeleteFor = provider } }
                 )
             }
         }

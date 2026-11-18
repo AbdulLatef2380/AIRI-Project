@@ -376,6 +376,9 @@ object ServiceLocator {
             durableTaskManager = durableTaskManager
         )
     }
+    val skillApprovalGate: com.airi.assistant.ai.skills.SkillApprovalGate by lazy {
+        com.airi.assistant.ai.skills.GovernanceSkillApprovalGate(permissionGovernanceLayer)
+    }
 
     // ── Terminal runtime ───────────────────────────────────────────────────────
     /** Single coordinator for TerminalScreen and SandboxWorkspaceScreen. */

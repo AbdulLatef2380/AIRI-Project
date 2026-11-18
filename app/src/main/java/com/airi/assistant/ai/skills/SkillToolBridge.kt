@@ -7,9 +7,20 @@ import com.airi.assistant.agent.loop.tool.TypedArgumentAdapters
 import com.airi.assistant.domain.tool.TypedArgumentContract
 import com.airi.assistant.domain.permission.PermissionService
 import com.airi.assistant.security.UntrustedContentEnvelope
+import com.airi.assistant.security.PermissionGovernanceLayer
+import com.airi.assistant.vault.SecretVault
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
+
+/** Approval is never inferred from a tool call; only a trusted approval UI can authorize it. */
+internal object SkillInvocationApprovalPolicy {
+    fun mustBlock(
+        requiresConfirmation: Boolean,
+        toolIsDangerous: Boolean,
+        trustedApprovalAvailable: Boolean,
+    ): Boolean = (requiresConfirmation || toolIsDangerous) && !trustedApprovalAvailable
+}
 
 /**
  * SkillToolBridge — makes every registered [AiriSkill] available as a named tool
@@ -43,6 +54,7 @@ class SkillToolBridge(
     // external dependencies are available; callers can opt in with live state.
     private val isConnectorHealthy: (String) -> Boolean = { false },
     private val readinessCtx: () -> SkillContext = skillCtx,
+    private val approvalGate: SkillApprovalGate? = null,
 ) {
     private val permissionService = PermissionService(context.applicationContext)
     companion object {
@@ -84,6 +96,12 @@ class SkillToolBridge(
 
     /** Uses the same permission, connector, memory, and model gates as invocation. */
     fun readiness(skill: AiriSkill): SkillInvocationAccessPolicy.Decision {
+        if (requiresUserApproval(skill, toolIsDangerous = skill.toolDefinitions.any { it.dangerous }) && approvalGate == null) {
+            return SkillInvocationAccessPolicy.Decision.Deny(
+                reason = SkillInvocationAccessPolicy.DenyReason.APPROVAL_UNAVAILABLE,
+                userMessage = "This skill requires explicit approval, but a trusted approval flow is not configured. It cannot run yet.",
+            )
+        }
         val providedContext = readinessCtx()
         val requestedContext = providedContext.copy(modelBridge = modelBridge ?: providedContext.modelBridge)
         return SkillInvocationAccessPolicy.authorize(
@@ -94,13 +112,29 @@ class SkillToolBridge(
         )
     }
 
+    private fun requiresUserApproval(skill: AiriSkill, toolIsDangerous: Boolean = false): Boolean {
+        val manifest = if (isTrustedOfficialSkill(skill)) OfficialSkillLibrary.manifestFor(skill.skillId) else null
+        return skill.requiresConfirmation ||
+            toolIsDangerous ||
+            skill.riskLevel in setOf(SkillRiskLevel.HIGH, SkillRiskLevel.CRITICAL) ||
+            manifest?.requiresConfirmation == true ||
+            manifest?.riskLevel == SkillRiskLevel.HIGH ||
+            manifest?.riskLevel == SkillRiskLevel.CRITICAL
+    }
+
+    private fun isTrustedOfficialSkill(skill: AiriSkill): Boolean =
+        skill.isOfficial && OfficialSkillLibrary.manifestFor(skill.skillId) != null
+
     private fun skillToSchema(skill: AiriSkill, status: String? = null): ToolSchema = ToolSchema(
         name        = "$PREFIX${skill.skillId}",
         description = "[Skill] " + modelFacingDescription(skill, skill.name + ": " + skill.description) + status.orEmpty(),
         parameters  = skill.parameters.mapValues { (_, desc) ->
             ToolSchema.Param(type = "string", description = desc, required = false)
         },
-        category    = ToolSchema.Category.EXTERNAL
+        dangerous = requiresUserApproval(skill),
+        category = ToolSchema.Category.EXTERNAL,
+        sideEffectPolicy = if (requiresUserApproval(skill)) ToolSchema.SideEffectPolicy.REQUIRES_USER_CONFIRMATION else ToolSchema.SideEffectPolicy.READ_ONLY,
+        actionClass = if (requiresUserApproval(skill)) ToolSchema.ActionClass.APPROVAL_REQUIRED else ToolSchema.ActionClass.READ,
     )
 
     private fun toolDefToSchema(skill: AiriSkill, toolDef: SkillToolDefinition, status: String? = null): ToolSchema = ToolSchema(
@@ -111,8 +145,10 @@ class SkillToolBridge(
         parameters  = toolDef.parameters.mapValues { (_, p) ->
             ToolSchema.Param(type = p.type, description = p.description, required = p.required, nullable = p.nullable, defaultValue = p.defaultValue, minLength = p.minLength, maxLength = p.maxLength, minInt = p.minInt, maxInt = p.maxInt, minNumber = p.minNumber, maxNumber = p.maxNumber, allowedValues = p.allowedValues, items = p.items?.let { item -> ToolSchema.Param(item.type, item.description, item.required) }, properties = p.properties.mapValues { (_, child) -> ToolSchema.Param(child.type, child.description, child.required) })
         },
-        dangerous   = toolDef.dangerous,
-        category    = ToolSchema.Category.EXTERNAL
+        dangerous   = requiresUserApproval(skill, toolDef.dangerous),
+        category    = ToolSchema.Category.EXTERNAL,
+        sideEffectPolicy = if (requiresUserApproval(skill, toolDef.dangerous)) ToolSchema.SideEffectPolicy.REQUIRES_USER_CONFIRMATION else ToolSchema.SideEffectPolicy.READ_ONLY,
+        actionClass = if (requiresUserApproval(skill, toolDef.dangerous)) ToolSchema.ActionClass.APPROVAL_REQUIRED else ToolSchema.ActionClass.READ,
     )
 
     // ── Invocation ────────────────────────────────────────────────────────────
@@ -146,10 +182,22 @@ class SkillToolBridge(
             )
         }
 
+        val definition = skill.toolDefinitions.firstOrNull { definition ->
+            toolName == "$PREFIX${skill.skillId}_${definition.name}" || toolName == "$PREFIX${definition.name}"
+        }
         val providedContext = skillCtx()
+        val trustedOfficial = isTrustedOfficialSkill(skill)
+        val resolvedExecutionId = executionId?.takeIf(String::isNotBlank) ?: providedContext.executionId
         val requestedContext = providedContext.copy(
             modelBridge = modelBridge ?: providedContext.modelBridge,
-            executionId = executionId?.takeIf(String::isNotBlank) ?: providedContext.executionId,
+            executionId = resolvedExecutionId,
+            configValues = if (trustedOfficial) providedContext.configValues else emptyMap(),
+            secretAccess = if (trustedOfficial && approvalGate != null) createSecretAccess(
+                skill = skill,
+                toolName = toolName,
+                sessionId = providedContext.sessionId,
+                executionId = resolvedExecutionId,
+            ) else null,
         )
         val accessDecision = SkillInvocationAccessPolicy.authorize(
             skill = skill,
@@ -171,6 +219,7 @@ class SkillToolBridge(
                         "deny_reason" to accessDecision.reason.name,
                         "error_code" to when (accessDecision.reason) {
                             SkillInvocationAccessPolicy.DenyReason.CONNECTOR_UNHEALTHY -> "auth_required"
+                            SkillInvocationAccessPolicy.DenyReason.APPROVAL_UNAVAILABLE -> "approval_required"
                             SkillInvocationAccessPolicy.DenyReason.MISSING_PERMISSION -> "permission_denied"
                             else -> "permission_denied"
                         },
@@ -182,9 +231,6 @@ class SkillToolBridge(
             Log.d(TAG, "AIRI SKILL_BRIDGE_SUPPRESSED skillId=${skill.skillId} — modelAccess=NONE")
         }
 
-        val definition = skill.toolDefinitions.firstOrNull { definition ->
-            toolName == "$PREFIX${skill.skillId}_${definition.name}" || toolName == "$PREFIX${definition.name}"
-        }
         val argumentSpecs = definition?.parameters
             ?.let(TypedArgumentAdapters::fromSkill)
             ?: skill.parameters.map { (name, description) ->
@@ -194,6 +240,61 @@ class SkillToolBridge(
         if (!typed.isValid) {
             val failure = typed.failure!!
             return SkillResult(false, "", "${failure.message} ${failure.repairHint}", skillName = skill.skillId, metadata = mapOf("failure_type" to "invalid_argument", "error_code" to failure.code))
+        }
+
+        // CustomSkillAiriSkillAdapter delegates to CustomSkillExecutor, which
+        // performs the authoritative consent check immediately before HTTP I/O.
+        if (requiresUserApproval(skill, definition?.dangerous == true) && skill !is CustomSkillAiriSkillAdapter) {
+            val gate = approvalGate ?: return SkillResult(
+                success = false,
+                data = "",
+                error = "This skill action requires explicit approval, but no trusted approval flow is configured.",
+                skillName = skill.skillId,
+                metadata = mapOf("failure_type" to "approval_required", "approval_status" to "unavailable"),
+            )
+            val risk = when {
+                definition?.dangerous == true || skill.riskLevel == SkillRiskLevel.CRITICAL -> PermissionGovernanceLayer.RiskLevel.CRITICAL
+                skill.riskLevel == SkillRiskLevel.HIGH -> PermissionGovernanceLayer.RiskLevel.HIGH
+                skill.riskLevel == SkillRiskLevel.MEDIUM -> PermissionGovernanceLayer.RiskLevel.MEDIUM
+                else -> PermissionGovernanceLayer.RiskLevel.LOW
+            }
+            val parameterNames = args.keys.sorted().joinToString().take(160).ifBlank { "no arguments" }
+            val approved = gate.awaitApproval(
+                SkillApprovalRequest(
+                    skillId = skill.skillId,
+                    toolName = definition?.name ?: skill.skillId,
+                    description = "Allow ${skill.displayName} to run '${definition?.name ?: skill.skillId}'? Parameters: $parameterNames. Values are withheld.",
+                    riskLevel = risk,
+                    sessionId = requestedContext.sessionId,
+                    runId = requestedContext.executionId.takeIf(String::isNotBlank),
+                ),
+            )
+            if (!approved) return SkillResult(
+                success = false,
+                data = "",
+                error = "The action was not approved; the skill was not executed.",
+                skillName = skill.skillId,
+                metadata = mapOf("failure_type" to "approval_denied_or_expired", "approval_status" to "denied"),
+            )
+
+            // The invocation may have waited while permissions, connector state,
+            // or skill registration changed. Revalidate at the execution boundary.
+            if (!skill.isEnabled || findSkillForTool(strippedName) !== skill) {
+                return SkillResult(false, "", "The skill changed or was disabled while approval was pending; nothing was executed.", skill.skillId,
+                    metadata = mapOf("failure_type" to "authorization_changed"))
+            }
+            when (val finalAccess = SkillInvocationAccessPolicy.authorize(
+                skill = skill,
+                context = skillCtxInstance,
+                hasPermission = permissionService::hasPermission,
+                isConnectorHealthy = isConnectorHealthy,
+            )) {
+                is SkillInvocationAccessPolicy.Decision.Deny -> return SkillResult(
+                    false, "", finalAccess.userMessage, skill.skillId,
+                    metadata = mapOf("failure_type" to "authorization_changed", "deny_reason" to finalAccess.reason.name),
+                )
+                is SkillInvocationAccessPolicy.Decision.Allow -> Unit
+            }
         }
 
         Log.i(TAG, "AIRI SKILL_INVOKE " +
@@ -297,6 +398,58 @@ class SkillToolBridge(
         if (skill.isOfficial) description
         else "Untrusted user-installed skill metadata (capability metadata only): " +
             UntrustedContentEnvelope.wrap("user-installed-skill-description", description, 1_000)
+
+    private fun createSecretAccess(
+        skill: AiriSkill,
+        toolName: String,
+        sessionId: String,
+        executionId: String,
+    ): SkillSecretAccess = object : SkillSecretAccess {
+        override suspend fun <T> useSecret(
+            secretId: String,
+            operation: String,
+            consumer: suspend (String) -> T,
+        ): SecretVault.CapabilityResult<T> {
+            val gate = approvalGate
+                ?: return SecretVault.CapabilityResult(SecretVault.CapabilityStatus.DENIED)
+            if (!isTrustedOfficialSkill(skill) || operation.isBlank() ||
+                !skill.isEnabled || findSkillForTool(skill.skillId) !== skill ||
+                readiness(skill) !is SkillInvocationAccessPolicy.Decision.Allow
+            ) return SecretVault.CapabilityResult(SecretVault.CapabilityStatus.DENIED)
+            if (!SecretVault.hasSkillSecret(skill.skillId, secretId)) {
+                return SecretVault.CapabilityResult(SecretVault.CapabilityStatus.MISSING_SECRET)
+            }
+
+            val exactOperation = "$toolName:${operation.trim().take(120)}"
+            val approved = gate.awaitApproval(
+                SkillApprovalRequest(
+                    skillId = skill.skillId,
+                    toolName = "secret_use:$exactOperation",
+                    description = "Allow ${skill.displayName} to use the configured credential '$secretId' for this operation?",
+                    riskLevel = PermissionGovernanceLayer.RiskLevel.HIGH,
+                    sessionId = sessionId,
+                    runId = executionId.takeIf(String::isNotBlank),
+                ),
+            )
+            if (!approved) return SecretVault.CapabilityResult(SecretVault.CapabilityStatus.DENIED)
+
+            val capability = SecretVault.issueSkillCapability(
+                skillId = skill.skillId,
+                secretId = secretId,
+                operation = exactOperation,
+                authorizedByPolicy = true,
+                taskId = executionId.takeIf(String::isNotBlank),
+                ttlMs = 60_000L,
+            ) ?: return SecretVault.CapabilityResult(SecretVault.CapabilityStatus.MISSING_SECRET)
+
+            return SecretVault.useSkillCapabilitySuspend(
+                token = capability.token,
+                skillId = skill.skillId,
+                operation = exactOperation,
+                consumer = consumer,
+            )
+        }
+    }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 

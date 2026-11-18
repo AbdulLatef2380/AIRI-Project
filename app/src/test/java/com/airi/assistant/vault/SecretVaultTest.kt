@@ -154,4 +154,43 @@ class SecretVaultTest {
         assertEquals(true, SecretVault.revokeCapability(capability.token))
         assertNull(SecretVault.capabilityStatus(capability.token))
     }
+
+    @Test
+    fun skillSecretCapabilityIsBoundToSkillOperationAndOneUse() {
+        assertEquals(true, SecretVault.storeSkillSecret("web_search", "BRAVE_API_KEY", "brave-test-secret"))
+        val capability = SecretVault.issueSkillCapability(
+            skillId = "web_search",
+            secretId = "BRAVE_API_KEY",
+            operation = "skill_web_search_search:brave_search",
+            authorizedByPolicy = true,
+        )!!
+
+        val wrongSkill = SecretVault.useSkillCapability(
+            token = capability.token,
+            skillId = "research_agent",
+            operation = "skill_web_search_search:brave_search",
+        ) { it }
+        assertEquals(SecretVault.CapabilityStatus.DENIED, wrongSkill.status)
+
+        val wrongOperation = SecretVault.useSkillCapability(
+            token = capability.token,
+            skillId = "web_search",
+            operation = "other_operation",
+        ) { it }
+        assertEquals(SecretVault.CapabilityStatus.DENIED, wrongOperation.status)
+
+        val result = SecretVault.useSkillCapability(
+            token = capability.token,
+            skillId = "web_search",
+            operation = "skill_web_search_search:brave_search",
+        ) { it }
+        assertEquals(SecretVault.CapabilityStatus.CONSUMED, result.status)
+        assertEquals("brave-test-secret", result.value)
+        val replay = SecretVault.useSkillCapability(
+            token = capability.token,
+            skillId = "web_search",
+            operation = "skill_web_search_search:brave_search",
+        ) { it }
+        assertEquals(SecretVault.CapabilityStatus.REVOKED, replay.status)
+    }
 }

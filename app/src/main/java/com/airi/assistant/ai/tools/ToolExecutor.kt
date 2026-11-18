@@ -4,6 +4,7 @@ import android.content.Context
 import com.airi.assistant.ai.intent.ToolCall
 import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.domain.customskill.CustomSkillRepository
+import com.airi.assistant.domain.customskill.CustomSkillApprovalPolicy
 import com.airi.assistant.domain.error.AppError
 import com.airi.assistant.domain.error.AppErrorHandler
 import com.airi.assistant.domain.skill.SkillService
@@ -50,6 +51,13 @@ class ToolExecutor(
             val customSkill = CustomSkillRepository.shared(context).getAllSkills()
                 .firstOrNull { customSkillToolName(it) == toolCall.toolName }
                 ?: return ToolResult(false, "", "Custom skill '${toolCall.toolName}' is not available.")
+            if (CustomSkillApprovalPolicy.requiresExplicitApproval(customSkill.effectivePermission())) {
+                return ToolResult(
+                    success = false,
+                    data = "",
+                    error = "This custom skill action requires your explicit approval. No trusted request-bound approval flow is available, so it was not executed.",
+                )
+            }
             return try {
                 val result = SkillService(
                     context,

@@ -108,6 +108,12 @@ fun AgentTasksScreen(
 
     fun approveAndResume(approvalId: String, approvalScope: ApprovalGrantScope) {
         val liveApproval = liveApprovals.firstOrNull { it.id == approvalId }
+        if (liveApproval?.action?.startsWith("skill:") == true) {
+            // Skill tool approvals are always single-use, regardless of the
+            // broader scope selected for other durable task approvals.
+            ServiceLocator.skillApprovalGate.approveFromTrustedUi(approvalId)
+            return
+        }
         if (!permissionGovernance.approveAction(approvalId, approvalScope)) {
             ServiceLocator.calendarCreateRuntime.reconcileExpiredApprovals()
             ServiceLocator.calendarCreateRuntime.reconcileApproval(approvalId)
@@ -132,6 +138,11 @@ fun AgentTasksScreen(
     }
 
     fun denyAndReconcile(approvalId: String) {
+        val liveApproval = liveApprovals.firstOrNull { it.id == approvalId }
+        if (liveApproval?.action?.startsWith("skill:") == true) {
+            ServiceLocator.skillApprovalGate.denyFromTrustedUi(approvalId)
+            return
+        }
         if (!permissionGovernance.denyAction(approvalId)) return
         ServiceLocator.projectFileEditRuntime.reconcileApproval(approvalId)
         ServiceLocator.calendarCreateRuntime.reconcileApproval(approvalId)

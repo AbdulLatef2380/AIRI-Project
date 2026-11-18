@@ -117,6 +117,7 @@ class UnifiedCognitiveLoop {
                             ?: false
                     }.getOrDefault(false)
                 },
+                approvalGate = ServiceLocator.skillApprovalGate,
             )
         }
     }

@@ -3157,4 +3157,17 @@
     <string name="skill_action_permission">منح الإذن</string>
     <string name="skill_action_retry">إعادة فحص التشغيل</string>
     <string name="skill_action_inspect">فحص المهارة</string>
+    <string name="secret_skill_section">بيانات اعتماد المهارات</string>
+    <string name="secret_skill_description">تُشفّر بيانات الاعتماد محليًا ولا تُعرض للنموذج. يتطلب استخدامها موافقة منفصلة لكل عملية. لبحث Brave استخدم المعرّف web_search أو research_agent والاسم BRAVE_API_KEY.</string>
+    <string name="secret_skill_configure">إعداد بيانات اعتماد</string>
+    <string name="secret_skill_id">معرّف المهارة</string>
+    <string name="secret_skill_secret_id">اسم بيانات الاعتماد</string>
+    <string name="secret_skill_value">قيمة بيانات الاعتماد</string>
+    <string name="secret_skill_saved">شُفّرت بيانات الاعتماد وحُفظت</string>
+    <string name="secret_skill_save_failed">لم تُحفظ بيانات الاعتماد. التخزين المشفّر الآمن غير متاح.</string>
+    <string name="secret_skill_removed">أُزيلت بيانات الاعتماد</string>
+    <string name="secret_skill_remove_failed">تعذّر حذف بيانات الاعتماد من التخزين المشفّر.</string>
+    <string name="secret_skill_remove">إزالة بيانات الاعتماد</string>
+    <string name="secret_skill_not_configured">غير مهيأة لهذه المعرّفات</string>
+    <string name="secret_skill_configured">بيانات اعتماد مشفّرة ومهيأة</string>
 </resources>

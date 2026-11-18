@@ -9,12 +9,17 @@ import com.airi.assistant.ai.skills.SkillResult
 import com.airi.assistant.ai.skills.SkillToolDefinition
 import com.airi.assistant.ai.skills.SkillParamDef
 import com.airi.assistant.tools.execution.SearchTool
+import kotlinx.coroutines.CancellationException
 
 /**
  * ResearchAgentSkill — multi-step research: searches the web, fetches top pages,
  * synthesizes a comprehensive answer using the active model.
  */
 class ResearchAgentSkill(private val context: Context) : AiriSkill {
+    private data class BraveResearchBundle(
+        val rawSources: String,
+        val toolOutputs: List<SkillResult.ToolOutput>,
+    )
 
     override val skillId    = "research_agent"
     override val name       = "research_agent"
@@ -63,7 +68,6 @@ class ResearchAgentSkill(private val context: Context) : AiriSkill {
         val start      = System.currentTimeMillis()
         val skillCtx   = params["context"] as? SkillContext
         val modelBridge = skillCtx?.modelBridge
-        val apiKey     = skillCtx?.configValues?.get("brave_api_key")
 
         val query = (params["query"] as? String
             ?: params["input"] as? String
@@ -74,39 +78,49 @@ class ResearchAgentSkill(private val context: Context) : AiriSkill {
         }
 
         val depth = (params["depth"] as? String)?.toIntOrNull()?.coerceIn(1, 5) ?: 3
-        val tool  = SearchTool(context, braveApiKey = apiKey)
+        val tool  = SearchTool(context)
         val rawSources = StringBuilder()
         val toolOutputs = mutableListOf<SkillResult.ToolOutput>()
 
         // Step 1: Search
-        val searchResult = try {
-            if (!apiKey.isNullOrBlank()) {
-                val brave = tool.searchBrave(query, count = depth, enrich = true)
+        val braveUse = try {
+            skillCtx?.secretAccess?.useSecret(
+                secretId = "BRAVE_API_KEY",
+                operation = "deep_research_search",
+            ) { apiKey ->
+                val braveTool = SearchTool(context, braveApiKey = apiKey)
+                val brave = braveTool.searchBrave(query, count = depth, enrich = true)
                 if (brave.success) {
-                    toolOutputs.add(SkillResult.ToolOutput("web_search", brave.toAgentString()))
-                    rawSources.append("=== Search Results ===\n${brave.toAgentString()}\n\n")
+                    val sources = StringBuilder().append("=== Search Results ===\n${brave.toAgentString()}\n\n")
+                    val outputs = mutableListOf(SkillResult.ToolOutput("web_search", brave.toAgentString()))
 
                     // Step 2: Fetch top pages for deeper content
                     val urlsToFetch = brave.results.take(minOf(depth, 3)).mapNotNull { it.url }
                     urlsToFetch.forEachIndexed { idx, url ->
-                        val page = tool.fetchViaJina(url, maxChars = 2000)
+                        val page = braveTool.fetchViaJina(url, maxChars = 2000)
                         if (page.success && page.content.isNotBlank()) {
-                            rawSources.append("=== Source ${idx + 1}: $url ===\n${page.content}\n\n")
-                            toolOutputs.add(SkillResult.ToolOutput("fetch_url", page.content))
+                            sources.append("=== Source ${idx + 1}: $url ===\n${page.content}\n\n")
+                            outputs.add(SkillResult.ToolOutput("fetch_url", page.content))
                         }
                     }
-                    "brave_search_success"
-                } else {
-                    null
-                }
-            } else {
-                null
+                    BraveResearchBundle(sources.toString(), outputs)
+                } else null
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
             null
         }
 
-        if (searchResult == null) {
+        val braveBundle = braveUse?.value.takeIf {
+            braveUse?.status == com.airi.assistant.vault.SecretVault.CapabilityStatus.CONSUMED
+        }
+        if (braveBundle != null) {
+            rawSources.append(braveBundle.rawSources)
+            toolOutputs.addAll(braveBundle.toolOutputs)
+        }
+
+        if (braveBundle == null) {
             val ddg = tool.searchDuckDuckGo(query)
             if (ddg.success) {
                 rawSources.append("=== Search Results ===\n${ddg.summary}\n\n")
@@ -117,7 +131,7 @@ class ResearchAgentSkill(private val context: Context) : AiriSkill {
         if (rawSources.isBlank()) {
             return SkillResult(
                 false, "",
-                "Could not retrieve research sources for: $query\n\nTip: Add a Brave Search API key in Settings for better results.",
+                "Could not retrieve research sources for: $query\n\nTip: Configure BRAVE_API_KEY for the research_agent skill in Secret Manager for Brave results.",
                 skillId
             )
         }

@@ -453,7 +453,7 @@ class ToolDispatcher(
                         } else {
                             val approvalId = com.airi.assistant.core.ServiceLocator.permissionGovernanceLayer.requestApproval(
                                 action = "terminal_expanded_session",
-                                description = "Approve expanded terminal command for this task run: ${command.take(240)}",
+                                description = "Approve expanded terminal command for this task run: ${com.airi.assistant.security.CommandRedactor.redact(command).take(240)}",
                                 riskLevel = com.airi.assistant.security.PermissionGovernanceLayer.RiskLevel.HIGH,
                                 sourceSessionId = execution.sourceSessionId,
                                 taskId = execution.taskId,

@@ -28,6 +28,11 @@ internal class CustomSkillAiriSkillAdapter(
     override val iconEmoji:   String  = ""
     override val category:    String  = "CUSTOM"
     override val requiredPermissions: List<String> = customSkill.requiredPermissions.orEmpty()
+    override val requiresConfirmation: Boolean =
+        com.airi.assistant.domain.customskill.CustomSkillApprovalPolicy
+            .requiresExplicitApproval(customSkill.effectivePermission())
+    override val riskLevel: SkillRiskLevel =
+        if (requiresConfirmation) SkillRiskLevel.HIGH else SkillRiskLevel.LOW
 
     override val toolDefinitions: List<SkillToolDefinition> = listOf(
         SkillToolDefinition(
@@ -39,7 +44,8 @@ internal class CustomSkillAiriSkillAdapter(
                     description = "The user's request or input for the $name skill",
                     required    = true
                 )
-            )
+            ),
+            dangerous = requiresConfirmation,
         )
     )
 

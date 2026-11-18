@@ -103,6 +103,9 @@ class ScopedPermissionRegistry {
             AgentPermission.SPAWN_SUBAGENT,  AgentPermission.WRITE_NOTES
         )
         grant("terminal", AgentPermission.EXECUTE_TERMINAL)
+        // The interactive terminal UI receives only its terminal capability;
+        // it does not inherit file, network, or orchestration permissions.
+        grant("terminal-ui", AgentPermission.EXECUTE_TERMINAL)
 
         LoggingService.info(TAG, "AIRI PERMISSION_DEFAULTS_INSTALLED agents=${grants.keys}")
     }

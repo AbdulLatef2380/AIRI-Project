@@ -82,10 +82,19 @@ class ProjectContextResolver(
         )
     }
 
-    suspend fun buildContextBlock(projectId: String, query: String): String = when (val resolution = resolve(projectId, query)) {
-        ProjectContextResolution.Unscoped -> ""
-        is ProjectContextResolution.Rejected -> ""
-        is ProjectContextResolution.Admitted -> resolution.formatPromptBlock()
+    suspend fun buildContextBlock(
+        projectId: String,
+        query: String,
+        maxPrivacyLevel: Int = com.airi.assistant.memory.repository.MemoryPrivacyPolicy.LOCAL_MAX_LEVEL,
+    ): String {
+        // Project metadata, file names, and artifacts currently have no distinct
+        // per-item cloud-sharing consent. Keep the entire project context local.
+        if (maxPrivacyLevel < com.airi.assistant.memory.repository.MemoryPrivacyPolicy.LOCAL_MAX_LEVEL) return ""
+        return when (val resolution = resolve(projectId, query)) {
+            ProjectContextResolution.Unscoped -> ""
+            is ProjectContextResolution.Rejected -> ""
+            is ProjectContextResolution.Admitted -> resolution.formatPromptBlock()
+        }
     }
 
     private companion object {

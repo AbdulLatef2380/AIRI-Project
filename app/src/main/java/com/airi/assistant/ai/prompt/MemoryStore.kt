@@ -4,6 +4,8 @@ import android.content.Context
 import com.airi.core.memory.MemoryAdmissionPolicy
 import org.json.JSONArray
 import org.json.JSONObject
+import java.nio.charset.StandardCharsets
+import java.util.Base64
 
 /**
  * Per-session compression scratchpad.
@@ -34,40 +36,55 @@ object MemoryStore {
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    private fun summaryKey(sessionId: String) = "summary::$sessionId"
+    private fun keyPart(value: String): String =
+        Base64.getUrlEncoder().withoutPadding().encodeToString(value.toByteArray(StandardCharsets.UTF_8))
+
+    private fun summaryKey(sessionId: String, projectId: String, maxPrivacyLevel: Int) =
+        "summary_v2::${keyPart(sessionId)}::${keyPart(projectId)}::$maxPrivacyLevel"
     private fun factsKey(sessionId: String) = "facts::$sessionId"
     private fun scopedFactsKey(sessionId: String) = "facts_v2::$sessionId"
-    private fun coverageKey(sessionId: String) = "covered_through::$sessionId"
+    private fun coverageKey(sessionId: String, projectId: String, maxPrivacyLevel: Int) =
+        "covered_through_v2::${keyPart(sessionId)}::${keyPart(projectId)}::$maxPrivacyLevel"
 
     // ── Summary ──────────────────────────────────────────────────────────────
 
-    fun getSummary(ctx: Context, sessionId: String): String =
-        prefs(ctx).getString(summaryKey(sessionId), "") ?: ""
+    private fun validScope(sessionId: String, projectId: String, maxPrivacyLevel: Int): Boolean =
+        sessionId.isNotBlank() && normalizeProjectId(projectId) != null &&
+            maxPrivacyLevel in MIN_PRIVACY_LEVEL..MAX_PRIVACY_LEVEL
 
-    fun setSummary(ctx: Context, sessionId: String, summary: String) {
-        prefs(ctx).edit().putString(summaryKey(sessionId), summary.trim()).apply()
+    fun getSummary(ctx: Context, sessionId: String, projectId: String, maxPrivacyLevel: Int): String {
+        if (!validScope(sessionId, projectId, maxPrivacyLevel)) return ""
+        return prefs(ctx).getString(summaryKey(sessionId, projectId.trim(), maxPrivacyLevel), "") ?: ""
     }
 
-    /** Persist the accepted summary and its coverage marker in one preferences transaction. */
-    fun setSummaryAndCoverage(ctx: Context, sessionId: String, summary: String, coveredThrough: Int) {
+    /** Persist summary and coverage atomically under the exact scope that produced it. */
+    fun setSummaryAndCoverage(
+        ctx: Context, sessionId: String, projectId: String, maxPrivacyLevel: Int,
+        summary: String, coveredThrough: Int
+    ) {
+        if (!validScope(sessionId, projectId, maxPrivacyLevel)) return
+        val project = projectId.trim()
         prefs(ctx).edit()
-            .putString(summaryKey(sessionId), summary.trim())
-            .putInt(coverageKey(sessionId), coveredThrough.coerceAtLeast(0))
+            .putString(summaryKey(sessionId, project, maxPrivacyLevel), summary.trim())
+            .putInt(coverageKey(sessionId, project, maxPrivacyLevel), coveredThrough.coerceAtLeast(0))
             .apply()
     }
 
-    fun getSummaryCoverage(ctx: Context, sessionId: String): Int =
-        prefs(ctx).getInt(coverageKey(sessionId), 0)
-
-    fun setSummaryCoverage(ctx: Context, sessionId: String, coveredThrough: Int) {
-        prefs(ctx).edit().putInt(coverageKey(sessionId), coveredThrough.coerceAtLeast(0)).apply()
+    fun getSummaryCoverage(ctx: Context, sessionId: String, projectId: String, maxPrivacyLevel: Int): Int {
+        if (!validScope(sessionId, projectId, maxPrivacyLevel)) return 0
+        return prefs(ctx).getInt(coverageKey(sessionId, projectId.trim(), maxPrivacyLevel), 0)
     }
 
+    /** Clear all summary scopes for a session when its history is invalid/deleted. */
     fun clearSummary(ctx: Context, sessionId: String) {
-        prefs(ctx).edit()
-            .remove(summaryKey(sessionId))
-            .remove(coverageKey(sessionId))
-            .apply()
+        val store = prefs(ctx)
+        val editor = store.edit()
+        val sessionPrefix = keyPart(sessionId)
+        store.all.keys.filter {
+            it.startsWith("summary_v2::$sessionPrefix::") ||
+                it.startsWith("covered_through_v2::$sessionPrefix::")
+        }.forEach(editor::remove)
+        editor.remove("summary::$sessionId").remove("covered_through::$sessionId").apply()
     }
 
     // ── Memory facts ─────────────────────────────────────────────────────────
@@ -222,7 +239,11 @@ object MemoryStore {
             val store = prefs(ctx)
             val editor = store.edit()
             store.all.keys
-                .filter { it.startsWith("facts::") || it.startsWith("facts_v2::") }
+                .filter {
+                    it.startsWith("facts::") || it.startsWith("facts_v2::") ||
+                        it.startsWith("summary_v2::") || it.startsWith("covered_through_v2::") ||
+                        it.startsWith("summary::") || it.startsWith("covered_through::")
+                }
                 .forEach(editor::remove)
             editor.apply()
         }
@@ -231,12 +252,12 @@ object MemoryStore {
     fun clear(ctx: Context, sessionId: String) {
         synchronized(lock) {
             prefs(ctx).edit()
-                .remove(summaryKey(sessionId))
+                .remove("summary::$sessionId")
                 .remove(factsKey(sessionId))
                 .remove(scopedFactsKey(sessionId))
-                .remove(coverageKey(sessionId))
                 .apply()
         }
+        clearSummary(ctx, sessionId)
     }
 
     private fun writeScopedFacts(

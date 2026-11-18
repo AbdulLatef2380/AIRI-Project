@@ -9,6 +9,7 @@ import com.airi.assistant.ai.skills.SkillResult
 import com.airi.assistant.ai.skills.SkillToolDefinition
 import com.airi.assistant.ai.skills.SkillParamDef
 import com.airi.assistant.tools.execution.SearchTool
+import kotlinx.coroutines.CancellationException
 import com.airi.assistant.security.UntrustedContentEnvelope
 
 class WebSearchSkill(private val context: Context) : AiriSkill {
@@ -66,23 +67,25 @@ class WebSearchSkill(private val context: Context) : AiriSkill {
         }
 
         val count = (params["count"] as? String)?.toIntOrNull() ?: 5
-        val apiKey = (params["brave_api_key"] as? String)
-            ?: (params["context"] as? SkillContext)?.configValues?.get("brave_api_key")
-
-        val tool = SearchTool(context, braveApiKey = apiKey)
+        val skillContext = params["context"] as? SkillContext
+        val tool = SearchTool(context)
 
         return try {
-            if (!apiKey.isNullOrBlank()) {
-                val brave = tool.searchBrave(query, count = count, enrich = true)
-                if (brave.success) {
-                    return SkillResult(
+            val braveUse = skillContext?.secretAccess?.useSecret(
+                secretId = "BRAVE_API_KEY",
+                operation = "brave_search",
+            ) { apiKey ->
+                val brave = SearchTool(context, braveApiKey = apiKey).searchBrave(query, count = count, enrich = true)
+                if (brave.success) SkillResult(
                         success     = true,
                         data        = UntrustedContentEnvelope.wrap("web-search", brave.toAgentString()),
                         skillName   = skillId,
                         executionMs = System.currentTimeMillis() - start,
                         metadata    = mapOf("source" to "brave", "result_count" to "${brave.results.size}")
-                    )
-                }
+                    ) else null
+            }
+            if (braveUse?.status == com.airi.assistant.vault.SecretVault.CapabilityStatus.CONSUMED && braveUse.value != null) {
+                return braveUse.value
             }
 
             val ddg = tool.searchDuckDuckGo(query)
@@ -98,12 +101,14 @@ class WebSearchSkill(private val context: Context) : AiriSkill {
                 tool.searchViaIntent(query)
                 SkillResult(
                     success     = true,
-                    data        = "Search opened in browser for: $query\n\nNote: Add a Brave Search API key in Settings → AI Models → API Keys for full results.",
+                    data        = "Search opened in browser for: $query\n\nFor Brave results, configure BRAVE_API_KEY for the web_search skill in Secret Manager.",
                     skillName   = skillId,
                     executionMs = System.currentTimeMillis() - start,
                     metadata    = mapOf("source" to "browser_intent")
                 )
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
             SkillResult(false, "", "Web search failed: ${e.message}", skillId)
         }

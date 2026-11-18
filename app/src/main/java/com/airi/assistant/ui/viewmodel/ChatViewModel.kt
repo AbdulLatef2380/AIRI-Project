@@ -529,14 +529,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             com.airi.assistant.ai.skills.SkillContext(
                 memoryManager = runCatching { ServiceLocator.memoryManager }.getOrNull(),
                 sessionId     = _currentSessionId.value,
-                configValues  = buildMap {
-                    runCatching {
-                        val braveKey = ServiceLocator.secureApiKeyStore.getKey(
-                            com.airi.assistant.execution.CloudProvider.BRAVE
-                        )
-                        if (!braveKey.isNullOrBlank()) put("brave_api_key", braveKey)
-                    }
-                }
             )
         },
         isConnectorHealthy = { connectorId ->
@@ -554,6 +546,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 sessionId = _currentSessionId.value,
             )
         },
+        approvalGate = ServiceLocator.skillApprovalGate,
     )
     private val connectorToolBridge      = com.airi.assistant.connector.ConnectorToolBridge(
         registry = ServiceLocator.connectorRegistry,
@@ -811,6 +804,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val summarySequence = java.util.concurrent.atomic.AtomicLong(0L)
     @Volatile private var pendingSummaryToken: Long = 0L
     @Volatile private var pendingSummarySessionId: String? = null
+    @Volatile private var pendingSummaryProjectId: String? = null
+    @Volatile private var pendingSummaryPrivacyLevel: Int? = null
     @Volatile private var pendingSummaryCoverage: Int? = null
 
     fun acceptSummary(sessionId: String, summary: String) {
@@ -818,15 +813,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val token = pendingSummaryToken
             if (sessionId.isBlank() || sessionId != pendingSummarySessionId || token == 0L) return@launch
             val coveredThrough = pendingSummaryCoverage ?: return@launch
+            val projectId = pendingSummaryProjectId ?: return@launch
+            val privacyLevel = pendingSummaryPrivacyLevel ?: return@launch
             runCatching {
                 com.airi.assistant.ai.prompt.MemoryStore.setSummaryAndCoverage(
-                    appContext, sessionId, summary, coveredThrough
+                    appContext, sessionId, projectId, privacyLevel, summary, coveredThrough
                 )
             }
                 .onSuccess {
                     if (pendingSummaryToken == token && pendingSummarySessionId == sessionId) {
                         _pendingSummary.value = null
                         pendingSummarySessionId = null
+                        pendingSummaryProjectId = null
+                        pendingSummaryPrivacyLevel = null
                         pendingSummaryToken = 0L
                         pendingSummaryCoverage = null
                     }
@@ -839,6 +838,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         summarySequence.incrementAndGet()
         _pendingSummary.value = null
         pendingSummarySessionId = null
+        pendingSummaryProjectId = null
+        pendingSummaryPrivacyLevel = null
         pendingSummaryToken = 0L
         pendingSummaryCoverage = null
     }
@@ -2669,7 +2670,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val attachmentJson = pendingAttachmentJsonForNextSend.takeIf { stagedForSession }
             val rawHistory = memoryManager.loadSession(sessionId)
             val storedSummaryCoverage = com.airi.assistant.ai.prompt.MemoryStore
-                .getSummaryCoverage(appContext, sessionId)
+                .getSummaryCoverage(appContext, sessionId, activeProjectId, ragPrivacyLevel)
             val summaryCoverageIsValid = storedSummaryCoverage in 0..rawHistory.size
             if (!summaryCoverageIsValid) {
                 com.airi.assistant.ai.prompt.MemoryStore.clearSummary(appContext, sessionId)
@@ -2677,7 +2678,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val summaryPlan = com.airi.assistant.ai.prompt.ConversationSummaryWindowPolicy.select(
                 history = rawHistory,
                 previousSummary = if (summaryCoverageIsValid) {
-                    com.airi.assistant.ai.prompt.MemoryStore.getSummary(appContext, sessionId)
+                    com.airi.assistant.ai.prompt.MemoryStore.getSummary(
+                        appContext, sessionId, activeProjectId, ragPrivacyLevel
+                    )
                 } else "",
                 coveredThrough = if (summaryCoverageIsValid) storedSummaryCoverage else 0,
             )
@@ -3985,6 +3988,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             com.airi.assistant.ai.prompt.ConversationSummarizer.summarize(
                                 ctx             = appContext,
                                 sessionId       = sessionId,
+                                projectId       = activeProjectId,
+                                maxPrivacyLevel = ragPrivacyLevel,
                                 llamaManager    = llamaManager,
                                 olderTurns      = olderToFold,
                                 previousSummary = summaryPlan.previousSummary,
@@ -3997,6 +4002,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         if (result != null && _currentSessionId.value == sessionId && summarySequence.get() == summaryToken) {
                             pendingSummaryToken = summaryToken
                             pendingSummarySessionId = sessionId
+                            pendingSummaryProjectId = activeProjectId
+                            pendingSummaryPrivacyLevel = ragPrivacyLevel
                             pendingSummaryCoverage = summaryPlan.coverageThrough
                             _pendingSummary.value = result
                         }
@@ -5966,7 +5973,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val projectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
         val privacyLevel = com.airi.assistant.memory.repository.MemoryPrivacyPolicy
             .retrievalCeiling(execModePrefs.effectiveMode == ExecutionMode.LOCAL_ONLY)
-        val profiles = ServiceLocator.projectKnowledgeManager.activeKnowledgeProfiles()
+        val profiles = ServiceLocator.projectKnowledgeManager.activeKnowledgeProfiles(maxPrivacyLevel = privacyLevel)
             .asSequence()
             .filter { profile ->
                 normalized.isBlank() ||
@@ -6009,7 +6016,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         projectId: String,
         maxPrivacyLevel: Int
     ): String? {
-        ServiceLocator.projectKnowledgeManager.activeKnowledgeProfile(knowledgeId)?.let { profile ->
+        ServiceLocator.projectKnowledgeManager.activeKnowledgeProfile(
+            knowledgeId,
+            maxPrivacyLevel = maxPrivacyLevel,
+        )?.let { profile ->
             return "${profile.name}: ${profile.content}".take(MAX_SELECTED_KNOWLEDGE_CHARS)
         }
         val messageId = knowledgeId.toLongOrNull() ?: return null

@@ -24,7 +24,8 @@ object SkillInvocationAccessPolicy {
         MISSING_PERMISSION,
         MEMORY_UNAVAILABLE,
         MODEL_UNAVAILABLE,
-        CONNECTOR_UNHEALTHY
+        CONNECTOR_UNHEALTHY,
+        APPROVAL_UNAVAILABLE,
     }
 
     fun authorize(

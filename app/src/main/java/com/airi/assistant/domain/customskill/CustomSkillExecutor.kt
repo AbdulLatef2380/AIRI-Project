@@ -109,6 +109,31 @@ class CustomSkillExecutor(
             is SkillPermissionEnforcer.PermissionCheckResult.Allowed -> Unit
         }
 
+        // Final execution-time consent check. Tool schemas and earlier routing
+        // approvals are not authorization to transmit this request.
+        if (CustomSkillApprovalPolicy.requiresExplicitApproval(permission)) {
+            val host = runCatching { java.net.URI(skill.config.endpoint).host }.getOrNull()
+                ?.take(253).orEmpty()
+            val gate = runCatching { com.airi.assistant.core.ServiceLocator.skillApprovalGate }.getOrNull()
+                ?: return@withContext SkillResult(
+                    false,
+                    "",
+                    "This custom skill requires explicit approval, but no trusted approval flow is configured.",
+                    skill.name,
+                )
+            val approved = gate.awaitApproval(
+                com.airi.assistant.ai.skills.SkillApprovalRequest(
+                    skillId = "custom_${skill.id.take(58)}",
+                    toolName = "${skill.id.take(64)}:$method",
+                    description = "Allow custom skill '${skill.name.take(80)}' to send an HTTP $method request to $host?",
+                    riskLevel = com.airi.assistant.security.PermissionGovernanceLayer.RiskLevel.HIGH,
+                ),
+            )
+            if (!approved) {
+                return@withContext SkillResult(false, "", "Custom skill request was not approved; no request was sent.", skill.name)
+            }
+        }
+
         val bodyInput = input.toMutableMap().apply {
             putIfAbsent("timestamp", System.currentTimeMillis())
         }
@@ -119,7 +144,7 @@ class CustomSkillExecutor(
         val sanitizedUrl = CustomSkillSecurity.sanitizeUrl(skill.config.endpoint)
         val maskedHeaders = CustomSkillSecurity.maskHeaders(skill.config.headers)
         LoggingService.info(TAG, "Executing '${skill.name}' method=$method url=$sanitizedUrl permission=$permission headers=$maskedHeaders")
-        LoggingService.debug(TAG, "Request body (sanitized): ${body.take(500)}")
+        // Rendered body may contain credentials; never write it to logs.
 
         // ── Semaphore: max 3 concurrent executions ────────────────────────────
         val startMs = System.currentTimeMillis()
@@ -206,7 +231,6 @@ class CustomSkillExecutor(
                         }
                         runtime.skillExecuted(skill.name)
                         LoggingService.info(TAG, "Skill '${skill.name}' succeeded status=$code attempt=${attempt + 1}${if (wasTruncated) " [truncated]" else ""}")
-                        LoggingService.debug(TAG, "Normalized response: ${output.toJsonString().take(500)}")
                         return SkillResult(true, output.toJsonString(), null, skill.name)
                     }
 
@@ -220,7 +244,7 @@ class CustomSkillExecutor(
 
                     // ── 4xx: client error — do not retry ─────────────────────
                     if (code in 400..499) {
-                        val message = "HTTP $code: ${responseBody.take(300)}"
+                        val message = "Custom skill endpoint returned HTTP $code."
                         val output = SkillExecutionOutput.failure(message)
                         SkillCircuitBreaker.recordFailure(skill.id)
                         runtime.skillFailed(skill.name, "http_$code")
@@ -229,7 +253,7 @@ class CustomSkillExecutor(
                     }
 
                     // ── 5xx: server error — retry ─────────────────────────────
-                    val serverError = "HTTP $code: ${responseBody.take(300)}"
+                    val serverError = "Custom skill endpoint returned HTTP $code."
                     LoggingService.warn(TAG, "Skill '${skill.name}' server error status=$code attempt=${attempt + 1}")
                     if (attempt == maxAttempts - 1) {
                         SkillCircuitBreaker.recordFailure(skill.id)
@@ -241,7 +265,7 @@ class CustomSkillExecutor(
 
             } catch (e: SocketTimeoutException) {
                 lastNetworkError = e
-                LoggingService.warn(TAG, "Skill '${skill.name}' socket timeout attempt=${attempt + 1}: ${e.message}")
+                LoggingService.warn(TAG, "Skill '${skill.name}' socket timeout attempt=${attempt + 1}")
                 if (attempt == maxAttempts - 1) {
                     logCrashlytics("Custom skill socket timeout: ${skill.name}", e)
                     SkillCircuitBreaker.recordFailure(skill.id)
@@ -253,7 +277,7 @@ class CustomSkillExecutor(
 
             } catch (e: IOException) {
                 lastNetworkError = e
-                LoggingService.warn(TAG, "Skill '${skill.name}' IO error attempt=${attempt + 1}: ${e.message}")
+                LoggingService.warn(TAG, "Skill '${skill.name}' IO error attempt=${attempt + 1}")
                 if (attempt == maxAttempts - 1) {
                     logCrashlytics("Custom skill IO error: ${skill.name}", e)
                     SkillCircuitBreaker.recordFailure(skill.id)

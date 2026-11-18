@@ -55,7 +55,8 @@ class ProjectKnowledgeManager(
 
     data class KnowledgeProfile(
         val id: String = UUID.randomUUID().toString(), val name: String, val usage: String,
-        val content: String, val active: Boolean = true, val createdAtMs: Long = System.currentTimeMillis()
+        val content: String, val active: Boolean = true, val createdAtMs: Long = System.currentTimeMillis(),
+        val privacyLevel: Int = DEFAULT_PROFILE_PRIVACY_LEVEL
     )
 
     data class KnowledgeProposal(
@@ -77,37 +78,62 @@ class ProjectKnowledgeManager(
 
     init { restore(); restoreProfiles() }
 
-    fun createKnowledge(name: String, usage: String, content: String): KnowledgeProfile? {
+    fun createKnowledge(
+        name: String,
+        usage: String,
+        content: String,
+        privacyLevel: Int = DEFAULT_PROFILE_PRIVACY_LEVEL,
+    ): KnowledgeProfile? {
         if (name.isBlank() || usage.isBlank() || content.isBlank()) return null
-        val profile = KnowledgeProfile(name = name.trim(), usage = usage.trim(), content = content.trim())
-        persistProfiles((_profiles.value + profile).takeLast(100))
-        return profile
+        val profile = KnowledgeProfile(
+            name = name.trim(),
+            usage = usage.trim(),
+            content = content.trim(),
+            privacyLevel = normalizeProfilePrivacy(privacyLevel),
+        )
+        return profile.takeIf { persistProfiles((_profiles.value + profile).takeLast(100)) }
     }
 
-    fun setKnowledgeActive(id: String, active: Boolean) {
-        persistProfiles(_profiles.value.map { if (it.id == id) it.copy(active = active) else it })
+    fun setKnowledgeActive(id: String, active: Boolean): Boolean {
+        if (_profiles.value.none { it.id == id }) return false
+        return persistProfiles(_profiles.value.map { if (it.id == id) it.copy(active = active) else it })
     }
 
-    fun updateKnowledge(id: String, name: String, usage: String, content: String): KnowledgeProfile? {
+    fun updateKnowledge(
+        id: String,
+        name: String,
+        usage: String,
+        content: String,
+        privacyLevel: Int? = null,
+    ): KnowledgeProfile? {
         if (id.isBlank() || name.isBlank() || usage.isBlank() || content.isBlank()) return null
         val current = _profiles.value.firstOrNull { it.id == id } ?: return null
-        val updated = current.copy(name = name.trim(), usage = usage.trim(), content = content.trim())
-        persistProfiles(_profiles.value.map { if (it.id == id) updated else it })
-        return updated
+        val updated = current.copy(
+            name = name.trim(),
+            usage = usage.trim(),
+            content = content.trim(),
+            privacyLevel = privacyLevel?.let(::normalizeProfilePrivacy) ?: current.privacyLevel,
+        )
+        return updated.takeIf { persistProfiles(_profiles.value.map { if (it.id == id) updated else it }) }
     }
 
     fun deleteKnowledge(id: String): Boolean {
         if (id.isBlank() || _profiles.value.none { it.id == id }) return false
-        persistProfiles(_profiles.value.filterNot { it.id == id })
-        return true
+        return persistProfiles(_profiles.value.filterNot { it.id == id })
     }
 
-    fun activeKnowledgeProfiles(): List<KnowledgeProfile> =
-        _profiles.value.filter { profile -> profile.active }
+    fun activeKnowledgeProfiles(maxPrivacyLevel: Int = MAX_PROFILE_PRIVACY_LEVEL): List<KnowledgeProfile> =
+        _profiles.value.filter { profile ->
+            profile.active && KnowledgeProfilePrivacyPolicy.isAllowed(profile.privacyLevel, maxPrivacyLevel)
+        }
 
     /** Resolves one active profile for an explicit @knowledge selection. */
-    fun activeKnowledgeProfile(id: String): KnowledgeProfile? =
-        _profiles.value.firstOrNull { it.id == id && it.active }
+    fun activeKnowledgeProfile(
+        id: String,
+        maxPrivacyLevel: Int = MAX_PROFILE_PRIVACY_LEVEL,
+    ): KnowledgeProfile? = _profiles.value.firstOrNull {
+        it.id == id && it.active && KnowledgeProfilePrivacyPolicy.isAllowed(it.privacyLevel, maxPrivacyLevel)
+    }
 
     fun pendingKnowledgeProposals(): List<KnowledgeProposal> = KNOWLEDGE_PROPOSALS.filter { proposal ->
         !proposalPreferences.getBoolean("resolved:${proposal.id}", false) &&
@@ -168,9 +194,15 @@ class ProjectKnowledgeManager(
             }
             if (newChunks.isEmpty()) throw IllegalArgumentException("No indexable text segments were produced")
 
+            val previousChunks = chunksById.values.filter { it.fileId == projectFile.id }
             chunksById.entries.removeIf { (_, chunk) -> chunk.fileId == projectFile.id }
             newChunks.forEach { chunk -> chunksById[chunk.id] = chunk }
-            persist()
+            if (!persist()) {
+                chunksById.entries.removeIf { (_, chunk) -> chunk.fileId == projectFile.id }
+                previousChunks.forEach { chunk -> chunksById[chunk.id] = chunk }
+                publish()
+                throw IllegalStateException("Knowledge index could not be saved to local storage")
+            }
             projectFileManager.markIndexed(fileId, success = true)
             Log.i(TAG, "PROJECT_KNOWLEDGE_INDEXED file=$fileId chunks=${newChunks.size}")
             IndexResult(IndexStatus.INDEXED, fileId, chunkCount = newChunks.size)
@@ -183,7 +215,15 @@ class ProjectKnowledgeManager(
     }
 
     /** Returns local lexical hits only within the requested project. */
-    fun search(projectId: String, query: String, limit: Int = DEFAULT_LIMIT): List<KnowledgeHit> {
+    fun search(
+        projectId: String,
+        query: String,
+        limit: Int = DEFAULT_LIMIT,
+        maxPrivacyLevel: Int = MAX_PROFILE_PRIVACY_LEVEL,
+    ): List<KnowledgeHit> {
+        // Project-file indexing has no per-file cloud-sharing consent control yet.
+        // Treat those imported documents as local-only rather than infer consent.
+        if (!KnowledgeProfilePrivacyPolicy.isAllowed(MAX_PROFILE_PRIVACY_LEVEL, maxPrivacyLevel)) return emptyList()
         val terms = normalizedTerms(query)
         if (projectId.isBlank() || terms.isEmpty()) return emptyList()
         pruneUnavailableSources()
@@ -208,9 +248,13 @@ class ProjectKnowledgeManager(
     }
 
     fun deleteIndexForFile(fileId: String): Boolean {
-        val removed = chunksById.entries.removeIf { (_, chunk) -> chunk.fileId == fileId }
-        if (removed) persist()
-        return removed
+        val previous = chunksById.values.filter { it.fileId == fileId }
+        if (previous.isEmpty()) return false
+        chunksById.entries.removeIf { (_, chunk) -> chunk.fileId == fileId }
+        if (persist()) return true
+        previous.forEach { chunk -> chunksById[chunk.id] = chunk }
+        publish()
+        return false
     }
 
     /** Clears all project knowledge chunks and the local index file during data deletion. */
@@ -275,19 +319,21 @@ class ProjectKnowledgeManager(
         if (removed && persistAfterPrune) persist() else publish()
     }
 
-    private fun persist() {
+    private fun persist(): Boolean {
         indexFile.parentFile?.mkdirs()
         val temp = File(indexFile.parentFile, "${indexFile.name}.tmp")
-        runCatching {
+        val persisted = runCatching {
             temp.writeText(gson.toJson(chunksById.values.toList()), Charsets.UTF_8)
             if (!temp.renameTo(indexFile)) {
                 temp.copyTo(indexFile, overwrite = true)
                 temp.delete()
             }
-            publish()
+            indexFile.isFile
         }.onFailure { error ->
             Log.w(TAG, "PROJECT_KNOWLEDGE_PERSIST_FAILED type=${error.javaClass.simpleName}")
-        }
+        }.getOrDefault(false)
+        if (persisted) publish()
+        return persisted
     }
 
     private fun publish() {
@@ -300,18 +346,50 @@ class ProjectKnowledgeManager(
             val array = JSONArray(profilesFile.readText())
             _profiles.value = (0 until array.length()).map { i ->
                 val o = array.getJSONObject(i)
-                KnowledgeProfile(o.getString("id"), o.getString("name"), o.getString("usage"), o.getString("content"), o.optBoolean("active", true), o.optLong("created_at"))
+                KnowledgeProfile(
+                    id = o.getString("id"),
+                    name = o.getString("name"),
+                    usage = o.getString("usage"),
+                    content = o.getString("content"),
+                    active = o.optBoolean("active", true),
+                    createdAtMs = o.optLong("created_at"),
+                    // Older data never explicitly authorized cloud sharing.
+                    privacyLevel = normalizeProfilePrivacy(o.optInt("privacy_level", DEFAULT_PROFILE_PRIVACY_LEVEL)),
+                )
             }
         }.onFailure { Log.w(TAG, "KNOWLEDGE_PROFILES_RESTORE_FAILED", it) }
     }
 
-    private fun persistProfiles(profiles: List<KnowledgeProfile>) {
-        _profiles.value = profiles
+    private fun persistProfiles(profiles: List<KnowledgeProfile>): Boolean {
         profilesFile.parentFile?.mkdirs()
         val array = JSONArray()
-        profiles.forEach { p -> array.put(JSONObject().apply { put("id", p.id); put("name", p.name); put("usage", p.usage); put("content", p.content); put("active", p.active); put("created_at", p.createdAtMs) }) }
-        runCatching { profilesFile.writeText(array.toString()) }
+        profiles.forEach { p ->
+            array.put(JSONObject().apply {
+                put("id", p.id)
+                put("name", p.name)
+                put("usage", p.usage)
+                put("content", p.content)
+                put("active", p.active)
+                put("created_at", p.createdAtMs)
+                put("privacy_level", p.privacyLevel)
+            })
+        }
+        val temp = File(profilesFile.parentFile, "${profilesFile.name}.tmp")
+        val persisted = runCatching {
+            temp.writeText(array.toString())
+            if (!temp.renameTo(profilesFile)) {
+                temp.copyTo(profilesFile, overwrite = true)
+                temp.delete()
+            }
+            profilesFile.isFile
+        }.onFailure { error ->
+            Log.w(TAG, "KNOWLEDGE_PROFILES_PERSIST_FAILED type=${error.javaClass.simpleName}")
+        }.getOrDefault(false)
+        if (persisted) _profiles.value = profiles
+        return persisted
     }
+
+    private fun normalizeProfilePrivacy(level: Int): Int = level.coerceIn(0, MAX_PROFILE_PRIVACY_LEVEL)
 
     private companion object {
         const val TAG = "ProjectKnowledgeManager"
@@ -322,6 +400,8 @@ class ProjectKnowledgeManager(
         const val MIN_TERM_CHARS = 2
         const val MAX_ERROR_CHARS = 220
         const val MAX_SCORE = 8f
+        const val MAX_PROFILE_PRIVACY_LEVEL = KnowledgeProfilePrivacyPolicy.DEFAULT_LEVEL
+        const val DEFAULT_PROFILE_PRIVACY_LEVEL = MAX_PROFILE_PRIVACY_LEVEL
         val TERM_SEPARATOR = Regex("[^\\p{L}\\p{N}_-]+")
         val KNOWLEDGE_PROPOSALS = listOf(
             KnowledgeProposal(

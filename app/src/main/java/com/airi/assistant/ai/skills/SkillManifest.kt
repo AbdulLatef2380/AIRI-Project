@@ -114,6 +114,9 @@ data class SkillManifest(
         val default:  String? = null
     )
 
+    /** True when this manifest cannot be safely configured without SecureStorage integration. */
+    fun requiresSecureConfiguration(): Boolean = configuration.values.any { it.secret }
+
     fun toJson(): JSONObject {
         fun stringArray(values: List<String>) = JSONArray().apply {
             values.forEach(::put)

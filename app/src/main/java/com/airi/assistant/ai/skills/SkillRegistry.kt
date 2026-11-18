@@ -364,6 +364,7 @@ class SkillRegistry(private val context: Context) {
         val resolvedMethod = method.trim().uppercase()
         if (
             !isValidDynamicManifest(manifest) ||
+            manifest.requiresSecureConfiguration() ||
             !isTrustedHttpsEndpoint(resolvedEndpoint) ||
             resolvedMethod !in SUPPORTED_HTTP_METHODS ||
             bodyTemplate.isBlank() ||
@@ -412,6 +413,7 @@ class SkillRegistry(private val context: Context) {
         bodyTemplate: String = """{"input": "{{input}}"}""",
         type: SkillType = SkillType.API,
     ): Boolean = isValidDynamicManifest(manifest) &&
+        !manifest.requiresSecureConfiguration() &&
         isTrustedHttpsEndpoint(endpoint.trim()) &&
         method.trim().uppercase() in SUPPORTED_HTTP_METHODS &&
         bodyTemplate.isNotBlank() &&

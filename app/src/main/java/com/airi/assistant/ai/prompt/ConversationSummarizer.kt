@@ -34,6 +34,8 @@ object ConversationSummarizer {
      *
      * @param ctx             Android context (for MemoryStore writes).
      * @param sessionId       Current session identifier.
+     * @param projectId       Exact active project scope of the summarized turns.
+     * @param maxPrivacyLevel Exact privacy ceiling used for this summary.
      * @param llamaManager    The local inference engine.
      * @param olderTurns      Messages BEFORE the recent sliding window.
      * @param previousSummary The summary already on file (may be blank).
@@ -46,6 +48,8 @@ object ConversationSummarizer {
     suspend fun summarize(
         ctx: Context,
         sessionId: String,
+        projectId: String,
+        maxPrivacyLevel: Int,
         llamaManager: LlamaManager,
         olderTurns: List<ChatMessage>,
         previousSummary: String,
@@ -104,7 +108,9 @@ object ConversationSummarizer {
         val cleaned = result.trim().take(contextBudget.summaryChars)
 
         if (persistImmediately) {
-            MemoryStore.setSummaryAndCoverage(ctx, sessionId, cleaned, coverageThrough)
+            MemoryStore.setSummaryAndCoverage(
+                ctx, sessionId, projectId, maxPrivacyLevel, cleaned, coverageThrough
+            )
             Log.i("AIRI_PROMPT_COMPRESS",
                 "SUMMARIZE_OK session=$sessionId folded=${olderTurns.size} covered=$coverageThrough chars=${cleaned.length}")
         }

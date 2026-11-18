@@ -123,7 +123,10 @@ class TerminalExecutionGateway(
         }
         try {
             val policy = TerminalExecutionPolicy.evaluate(request.command, allowApprovedMutation = expandedApproved)
-            if (!policy.allowed) return Result.Disabled(policy.reason, policy.requiresApproval)
+            if (!policy.allowed) return Result.Disabled(
+                reason = if (policy.requiresApproval) "Terminal mutations are currently disabled; approval cannot safely authorize this command yet." else policy.reason,
+                requiresApproval = false,
+            )
 
             val decision = runCatching {
                 governance.evaluate(
@@ -160,7 +163,10 @@ class TerminalExecutionGateway(
     private suspend fun executeInReleaseIsolation(request: TerminalExecutionRequest, expandedApproved: Boolean): Result {
         val client = isolatedClient ?: return Result.Disabled(SandboxIsolationPolicy.RELEASE_BLOCK_REASON)
         val policy = TerminalExecutionPolicy.evaluate(request.command, allowApprovedMutation = expandedApproved)
-        if (!policy.allowed) return Result.Disabled(policy.reason, policy.requiresApproval)
+        if (!policy.allowed) return Result.Disabled(
+            reason = if (policy.requiresApproval) "Terminal mutations are currently disabled; approval cannot safely authorize this command yet." else policy.reason,
+            requiresApproval = false,
+        )
         val capability = client.probe()
         if (!SandboxIsolationPolicy.mayExecuteShell(isDebugBuild = false, capability = capability)) {
             return Result.Disabled(SandboxIsolationPolicy.releaseBlockReason(capability))

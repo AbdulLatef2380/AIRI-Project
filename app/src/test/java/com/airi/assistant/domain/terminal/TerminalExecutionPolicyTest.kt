@@ -23,6 +23,9 @@ class TerminalExecutionPolicyTest {
 
     @Test
     fun approvedMutationIsAdmittedOnlyInsideTheBoundedWorkspace() {
+        val pending = TerminalExecutionPolicy.evaluate("rm -rf ./output")
+        assertFalse(pending.allowed)
+        assertTrue(pending.requiresApproval)
         assertTrue(TerminalExecutionPolicy.evaluate("rm -rf ./output", allowApprovedMutation = true).allowed)
         assertTrue(TerminalExecutionPolicy.evaluate("mkdir -p ./build", allowApprovedMutation = true).allowed)
         assertFalse(TerminalExecutionPolicy.evaluate("rm -rf /", allowApprovedMutation = true).allowed)

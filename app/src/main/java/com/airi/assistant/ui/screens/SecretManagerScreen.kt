@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -81,6 +82,15 @@ fun SecretManagerScreen(onBack: () -> Unit) {
     var deletingProjectGitHubSecret by remember { mutableStateOf(false) }
     var projectSecretText by remember { mutableStateOf("") }
     var showProjectSecret by remember { mutableStateOf(false) }
+    var editingSkillSecret by remember { mutableStateOf(false) }
+    var deletingSkillSecret by remember { mutableStateOf(false) }
+    var skillIdInput by remember { mutableStateOf("") }
+    var skillSecretIdInput by remember { mutableStateOf("") }
+    var skillSecretText by remember { mutableStateOf("") }
+    var showSkillSecret by remember { mutableStateOf(false) }
+    var configuredSkillId by rememberSaveable { mutableStateOf("") }
+    var configuredSkillSecretId by rememberSaveable { mutableStateOf("") }
+    var skillSecretConfigured by remember { mutableStateOf(false) }
     var projectGitHubConfigured by remember(projectId) {
         mutableStateOf(false)
     }
@@ -88,6 +98,12 @@ fun SecretManagerScreen(onBack: () -> Unit) {
     LaunchedEffect(screenUnlocked, projectId) {
         projectGitHubConfigured = screenUnlocked &&
             projectId?.let { projectSecretVault.hasProjectSecret(it, "GITHUB_PAT", "github") } == true
+    }
+
+    LaunchedEffect(screenUnlocked, configuredSkillId, configuredSkillSecretId) {
+        skillSecretConfigured = screenUnlocked && configuredSkillId.isNotBlank() &&
+            configuredSkillSecretId.isNotBlank() &&
+            projectSecretVault.hasSkillSecret(configuredSkillId, configuredSkillSecretId)
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -100,6 +116,10 @@ fun SecretManagerScreen(onBack: () -> Unit) {
                 editingProjectGitHubSecret = false
                 projectSecretText = ""
                 showProjectSecret = false
+                editingSkillSecret = false
+                deletingSkillSecret = false
+                skillSecretText = ""
+                showSkillSecret = false
                 deletingProjectGitHubSecret = false
                 showDeleteFor = null
             }
@@ -380,6 +400,99 @@ fun SecretManagerScreen(onBack: () -> Unit) {
         )
     }
 
+    if (editingSkillSecret) {
+        AlertDialog(
+            onDismissRequest = { editingSkillSecret = false; skillSecretText = ""; showSkillSecret = false },
+            containerColor = AiriTheme.surface,
+            shape = AIRIShapes.xl,
+            title = { Text(stringResource(R.string.secret_skill_configure), color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(stringResource(R.string.secret_skill_description), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    OutlinedTextField(
+                        value = skillIdInput,
+                        onValueChange = { skillIdInput = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.secret_skill_id)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = skillSecretIdInput,
+                        onValueChange = { skillSecretIdInput = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.secret_skill_secret_id)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = skillSecretText,
+                        onValueChange = { skillSecretText = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.secret_skill_value)) },
+                        visualTransformation = if (showSkillSecret) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        trailingIcon = {
+                            IconButton(onClick = { showSkillSecret = !showSkillSecret }) {
+                                Icon(
+                                    if (showSkillSecret) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                    contentDescription = null,
+                                    tint = AiriTheme.onSurfaceVariant,
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = skillIdInput.isNotBlank() && skillSecretIdInput.isNotBlank() && skillSecretText.isNotBlank(),
+                    onClick = {
+                        val skill = skillIdInput.trim().lowercase()
+                        val secretId = skillSecretIdInput.trim().uppercase()
+                        val saved = projectSecretVault.storeSkillSecret(skill, secretId, skillSecretText)
+                        if (saved) {
+                            configuredSkillId = skill
+                            configuredSkillSecretId = secretId
+                            skillSecretConfigured = true
+                        }
+                        editingSkillSecret = false
+                        skillSecretText = ""
+                        showSkillSecret = false
+                        scope.launch {
+                            snackbar.showSnackbar(context.getString(if (saved) R.string.secret_skill_saved else R.string.secret_skill_save_failed))
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent),
+                ) { Text(stringResource(R.string.secret_manager_save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingSkillSecret = false; skillSecretText = ""; showSkillSecret = false }) {
+                    Text(stringResource(R.string.cancel), color = AiriTheme.onSurfaceVariant)
+                }
+            },
+        )
+    }
+
+    if (deletingSkillSecret) {
+        AlertDialog(
+            onDismissRequest = { deletingSkillSecret = false },
+            title = { Text(stringResource(R.string.secret_skill_remove)) },
+            text = { Text("${configuredSkillId}/${configuredSkillSecretId}") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val removed = projectSecretVault.revokeSkillSecret(configuredSkillId, configuredSkillSecretId)
+                    if (removed) skillSecretConfigured = false
+                    deletingSkillSecret = false
+                    val message = if (removed) R.string.secret_skill_removed else R.string.secret_skill_remove_failed
+                    scope.launch { snackbar.showSnackbar(context.getString(message)) }
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = { TextButton(onClick = { deletingSkillSecret = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+
     Scaffold(
         containerColor = AiriTheme.background,
         snackbarHost   = { SnackbarHost(snackbar) },
@@ -506,6 +619,47 @@ fun SecretManagerScreen(onBack: () -> Unit) {
                                     }, modifier = Modifier.size(36.dp)) {
                                         Icon(Icons.Outlined.Delete, stringResource(R.string.secret_manager_delete_cd), tint = AiriTheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Surface(
+                    shape = AIRIShapes.md,
+                    color = AiriTheme.surfaceVariant,
+                    border = BorderStroke(0.5.dp, AiriTheme.outline.copy(0.25f)),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(stringResource(R.string.secret_skill_section), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AiriTheme.onBackground)
+                        Text(stringResource(R.string.secret_skill_description), fontSize = 12.sp, color = AiriTheme.onSurfaceVariant, lineHeight = 17.sp)
+                        if (configuredSkillId.isNotBlank() && configuredSkillSecretId.isNotBlank()) {
+                            Text(
+                                text = if (skillSecretConfigured) "$configuredSkillId / $configuredSkillSecretId — ${context.getString(R.string.secret_skill_configured)}"
+                                else "$configuredSkillId / $configuredSkillSecretId — ${context.getString(R.string.secret_skill_not_configured)}",
+                                fontSize = 12.sp,
+                                color = AiriTheme.onSurfaceVariant,
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = {
+                                authenticateThen {
+                                    if (configuredSkillId.isNotBlank()) skillIdInput = configuredSkillId
+                                    if (configuredSkillSecretId.isNotBlank()) skillSecretIdInput = configuredSkillSecretId
+                                    skillSecretText = ""
+                                    showSkillSecret = false
+                                    editingSkillSecret = true
+                                }
+                            }) { Text(stringResource(R.string.secret_skill_configure)) }
+                            if (skillSecretConfigured) {
+                                TextButton(onClick = { authenticateThen { deletingSkillSecret = true } }) {
+                                    Text(stringResource(R.string.secret_skill_remove), color = SemanticError)
                                 }
                             }
                         }

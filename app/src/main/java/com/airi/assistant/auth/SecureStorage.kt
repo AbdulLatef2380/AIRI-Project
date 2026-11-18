@@ -245,6 +245,72 @@ class SecureStorage(context: Context) {
 
     fun getInstallUuid(): String? = safeRead(null) { prefs.getString(KEY_INSTALL_UUID, null) }
 
+    // ─── Skill secrets ────────────────────────────────────────────────────────
+
+    /**
+     * Store a skill-owned secret only in the encrypted store. Unlike legacy
+     * convenience setters this API reports failure and never treats the
+     * in-memory fallback as durable storage.
+     */
+    fun saveSkillSecret(skillId: String, secretId: String, value: String): Boolean {
+        val key = skillSecretKey(skillId, secretId) ?: return false
+        if (!isEncrypted || value.isBlank()) return false
+        return runCatching {
+            prefs.edit().putString(key, value).commit() &&
+                prefs.getString(key, null) == value
+        }.getOrDefault(false)
+    }
+
+    /** Secret values are returned only to trusted adapters, never to UI/model code. */
+    fun getSkillSecret(skillId: String, secretId: String): String? {
+        val key = skillSecretKey(skillId, secretId) ?: return null
+        if (!isEncrypted) return null
+        return safeRead(null) { prefs.getString(key, null) }
+    }
+
+    fun hasSkillSecret(skillId: String, secretId: String): Boolean =
+        !getSkillSecret(skillId, secretId).isNullOrBlank()
+
+    fun clearSkillSecret(skillId: String, secretId: String): Boolean {
+        val key = skillSecretKey(skillId, secretId) ?: return false
+        if (!isEncrypted) return false
+        return runCatching { prefs.edit().remove(key).commit() && !prefs.contains(key) }
+            .getOrDefault(false)
+    }
+
+    /** Internal broker namespace for scoped SecretVault entries (not LLM keys). */
+    fun saveBrokerSecret(storageName: String, value: String): Boolean {
+        val key = brokerSecretKey(storageName) ?: return false
+        if (!isEncrypted || value.isBlank()) return false
+        return runCatching {
+            prefs.edit().putString(key, value).commit() && prefs.getString(key, null) == value
+        }.getOrDefault(false)
+    }
+
+    fun getBrokerSecret(storageName: String): String? {
+        val key = brokerSecretKey(storageName) ?: return null
+        if (!isEncrypted) return null
+        return safeRead(null) { prefs.getString(key, null) }
+    }
+
+    fun clearBrokerSecret(storageName: String): Boolean {
+        val key = brokerSecretKey(storageName) ?: return false
+        if (!isEncrypted) return false
+        return runCatching { prefs.edit().remove(key).commit() && !prefs.contains(key) }
+            .getOrDefault(false)
+    }
+
+    private fun skillSecretKey(skillId: String, secretId: String): String? {
+        val skill = skillId.trim().lowercase()
+        val secret = secretId.trim().uppercase()
+        if (!SKILL_ID_PATTERN.matches(skill) || !SKILL_SECRET_ID_PATTERN.matches(secret)) return null
+        return "$KEY_SKILL_SECRET_PREFIX$skill:$secret"
+    }
+
+    private fun brokerSecretKey(storageName: String): String? =
+        storageName.trim().takeIf { BROKER_STORAGE_NAME_PATTERN.matches(it) }
+            ?.let { "$KEY_BROKER_SECRET_PREFIX$it" }
+
     // ─── Generic integration token store (Notion + future integrations) ─
 
     /**
@@ -291,6 +357,7 @@ class SecureStorage(context: Context) {
      */
     fun clearAll() {
         prefs.edit().clear().apply()
+        com.airi.assistant.vault.SecretVault.revokeAllCapabilities()
         Log.i("SecureStorage", "AIRI GDPR_CREDENTIAL_WIPE_COMPLETE")
     }
 
@@ -345,6 +412,11 @@ class SecureStorage(context: Context) {
         private const val KEY_GOOGLE_ID_TOKEN  = "google_id_token"
         private const val KEY_GOOGLE_UPDATED   = "google_updated"
         private const val KEY_GOOGLE_SURFACE_SCOPES_PREFIX = "google_surface_scopes:"
+        private const val KEY_SKILL_SECRET_PREFIX = "skill_secret:"
+        private const val KEY_BROKER_SECRET_PREFIX = "secret_broker_"
+        private val SKILL_ID_PATTERN = Regex("[a-z0-9][a-z0-9_.-]{0,63}")
+        private val SKILL_SECRET_ID_PATTERN = Regex("[A-Z0-9][A-Z0-9_.-]{0,63}")
+        private val BROKER_STORAGE_NAME_PATTERN = Regex("[A-Za-z0-9_.:-]{1,256}")
     }
 }
 

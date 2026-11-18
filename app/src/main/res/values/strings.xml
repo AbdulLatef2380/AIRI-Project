@@ -3222,4 +3222,17 @@
     <string name="skill_action_permission">Grant permission</string>
     <string name="skill_action_retry">Retry runtime check</string>
     <string name="skill_action_inspect">Inspect skill</string>
+    <string name="secret_skill_section">Skill credentials</string>
+    <string name="secret_skill_description">Credentials are encrypted locally and are never shown to the model. Use is approved separately for each operation. For Brave search, use web_search or research_agent with the name BRAVE_API_KEY.</string>
+    <string name="secret_skill_configure">Configure credential</string>
+    <string name="secret_skill_id">Skill ID</string>
+    <string name="secret_skill_secret_id">Credential name</string>
+    <string name="secret_skill_value">Credential value</string>
+    <string name="secret_skill_saved">Credential encrypted and saved</string>
+    <string name="secret_skill_save_failed">Credential not saved. Secure encrypted storage is unavailable.</string>
+    <string name="secret_skill_removed">Credential removed</string>
+    <string name="secret_skill_remove_failed">Credential could not be removed from encrypted storage.</string>
+    <string name="secret_skill_remove">Remove credential</string>
+    <string name="secret_skill_not_configured">Not configured for these IDs</string>
+    <string name="secret_skill_configured">Encrypted credential configured</string>
 </resources>

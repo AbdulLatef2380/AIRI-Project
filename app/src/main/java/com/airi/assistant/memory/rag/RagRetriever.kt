@@ -86,7 +86,11 @@ $formatted
             """.trimIndent(), MAX_CONTEXT_CHARS)
         }.orEmpty()
         val projectBlockRaw = projectContextResolver
-            ?.buildContextBlock(projectId = projectId, query = query)
+            ?.buildContextBlock(
+                projectId = projectId,
+                query = query,
+                maxPrivacyLevel = maxPrivacyLevel,
+            )
             .orEmpty()
         val projectBlock = projectBlockRaw.takeIf(String::isNotBlank)
             ?.let { UntrustedContentEnvelope.wrap("project-context", it, MAX_CONTEXT_CHARS) }
@@ -178,7 +182,12 @@ $formatted
             )
         }
         val projectKnowledge = projectKnowledgeManager
-            ?.search(projectId = projectId, query = normalizedQuery, limit = safeLimit)
+            ?.search(
+                projectId = projectId,
+                query = normalizedQuery,
+                limit = safeLimit,
+                maxPrivacyLevel = maxPrivacyLevel,
+            )
             .orEmpty()
             .map { hit ->
                 RetrievedPassage(
@@ -194,7 +203,7 @@ $formatted
                 )
             }
         val activeKnowledge = projectKnowledgeManager
-            ?.activeKnowledgeProfiles()
+            ?.activeKnowledgeProfiles(maxPrivacyLevel = maxPrivacyLevel)
             .orEmpty()
             .mapNotNull { profile ->
                 val score = knowledgeProfileScore(profile, normalizedQuery)

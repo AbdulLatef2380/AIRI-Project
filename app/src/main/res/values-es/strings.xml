@@ -2899,4 +2899,17 @@
     <string name="skill_action_permission">Conceder permiso</string>
     <string name="skill_action_retry">Reintentar comprobación</string>
     <string name="skill_action_inspect">Inspeccionar habilidad</string>
+    <string name="secret_skill_section">Credenciales de habilidades</string>
+    <string name="secret_skill_description">Las credenciales se cifran localmente y no se muestran al modelo. Cada operación requiere aprobación por separado.</string>
+    <string name="secret_skill_configure">Configurar credencial</string>
+    <string name="secret_skill_id">ID de habilidad</string>
+    <string name="secret_skill_secret_id">Nombre de credencial</string>
+    <string name="secret_skill_value">Valor de credencial</string>
+    <string name="secret_skill_saved">Credencial cifrada y guardada</string>
+    <string name="secret_skill_save_failed">No se guardó la credencial. El almacenamiento cifrado seguro no está disponible.</string>
+    <string name="secret_skill_removed">Credencial eliminada</string>
+    <string name="secret_skill_remove_failed">No se pudo eliminar la credencial del almacenamiento cifrado.</string>
+    <string name="secret_skill_remove">Eliminar credencial</string>
+    <string name="secret_skill_not_configured">No configurada para estos ID</string>
+    <string name="secret_skill_configured">Credencial cifrada configurada</string>
 </resources>

@@ -74,7 +74,9 @@ object PromptCompressor {
      *                         including the in-flight user message
      * @param userInput        the in-flight user message (used only for budgeting)
      * @param nCtx             live n_ctx of the current performance mode
-     * @param sessionId        used to fetch memory + summary from MemoryStore
+     * @param sessionId        session scope used to fetch the summary
+     * @param projectId        exact project scope used to fetch the summary
+     * @param maxPrivacyLevel  exact privacy ceiling used to fetch the summary
      */
     fun compose(
         ctx: Context,
@@ -82,7 +84,9 @@ object PromptCompressor {
         history: List<ChatMessage>,
         userInput: String,
         nCtx: Int,
-        sessionId: String
+        sessionId: String,
+        projectId: String,
+        maxPrivacyLevel: Int
     ): CompressedPrompt {
         val safeNCtx     = nCtx.coerceAtLeast(512)
         val budgetTokens = (safeNCtx * HARD_CAP_PCT) / 100
@@ -93,8 +97,8 @@ object PromptCompressor {
         val older       = history.dropLast(recentCount)
 
         // ── 2) Pull stored summary + facts.
-        val storedSummary = MemoryStore.getSummary(ctx, sessionId)
-        val coveredThrough = MemoryStore.getSummaryCoverage(ctx, sessionId)
+        val storedSummary = MemoryStore.getSummary(ctx, sessionId, projectId, maxPrivacyLevel)
+        val coveredThrough = MemoryStore.getSummaryCoverage(ctx, sessionId, projectId, maxPrivacyLevel)
 
         // Decide whether the summary is stale and a re-summarization should
         // run after this turn (caller fires-and-forgets).

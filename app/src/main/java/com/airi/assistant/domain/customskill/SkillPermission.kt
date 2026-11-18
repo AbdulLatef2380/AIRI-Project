@@ -46,3 +46,9 @@ object SkillPermissionEnforcer {
         data class Denied(val reason: String) : PermissionCheckResult()
     }
 }
+
+/** Request-bound consent is required for any custom skill beyond read-only calls. */
+object CustomSkillApprovalPolicy {
+    fun requiresExplicitApproval(permission: SkillPermission): Boolean =
+        permission != SkillPermission.READ_ONLY
+}

@@ -194,7 +194,7 @@ fun MemoryScreen(
         KnowledgeProfilesDialog(knowledgeProfiles, pendingProposals, { showKnowledgeDialog = false },
             { profile -> showKnowledgeDialog = false; selectedKnowledge = profile },
             { proposal -> showKnowledgeDialog = false; selectedProposal = proposal },
-            { name, usage, content -> knowledgeManager.createKnowledge(name, usage, content) },
+            { name, usage, content, privacyLevel -> knowledgeManager.createKnowledge(name, usage, content, privacyLevel) != null },
             { id, active -> knowledgeManager.setKnowledgeActive(id, active) })
     }
     selectedProposal?.let { proposal ->
@@ -207,10 +207,11 @@ fun MemoryScreen(
                 selectedProposal = null
             },
             onAccept = { name, usage, content ->
-                knowledgeManager.createKnowledge(name, usage, content)?.also {
+                val saved = knowledgeManager.createKnowledge(name, usage, content)?.also {
                     knowledgeManager.resolveKnowledgeProposal(proposal.id)
-                }
-                selectedProposal = null
+                } != null
+                if (saved) selectedProposal = null
+                saved
             }
         )
     }
@@ -227,20 +228,31 @@ fun MemoryScreen(
         KnowledgeProfileEditorDialog(
             profile = profile,
             onDismiss = { editingKnowledge = null },
-            onSave = { id, name, usage, content ->
-                if (knowledgeManager.updateKnowledge(id, name, usage, content) != null) editingKnowledge = null
+            onSave = { id, name, usage, content, privacyLevel ->
+                val saved = knowledgeManager.updateKnowledge(id, name, usage, content, privacyLevel) != null
+                if (saved) editingKnowledge = null
+                saved
             }
         )
     }
     deletingKnowledge?.let { profile ->
+        var deleteFailed by remember(profile.id) { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { deletingKnowledge = null },
             containerColor = AiriTheme.surface,
             title = { Text(stringResource(R.string.knowledge_delete_title), color = AiriTheme.onSurface, fontWeight = FontWeight.Bold) },
-            text = { Text(stringResource(R.string.knowledge_delete_message, profile.name), color = AiriTheme.onSurfaceVariant) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.knowledge_delete_message, profile.name), color = AiriTheme.onSurfaceVariant)
+                    if (deleteFailed) Text("تعذر حذف المعرفة من التخزين المحلي. أعد المحاولة.", color = SemanticError, fontSize = 13.sp)
+                }
+            },
             confirmButton = {
                 Button(
-                    onClick = { knowledgeManager.deleteKnowledge(profile.id); deletingKnowledge = null },
+                    onClick = {
+                        deleteFailed = !knowledgeManager.deleteKnowledge(profile.id)
+                        if (!deleteFailed) deletingKnowledge = null
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = SemanticError)
                 ) { Text(stringResource(R.string.knowledge_delete)) }
             },
@@ -559,13 +571,15 @@ private fun KnowledgeProfilesDialog(
     onDismiss: () -> Unit,
     onOpen: (com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile) -> Unit,
     onOpenProposal: (com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProposal) -> Unit,
-    onCreate: (String, String, String) -> Unit,
+    onCreate: (String, String, String, Int) -> Boolean,
     onToggle: (String, Boolean) -> Unit
 ) {
     var creating by remember { mutableStateOf(profiles.isEmpty()) }
     var name by remember { mutableStateOf("") }
     var usage by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
+    var allowCloudContext by remember { mutableStateOf(false) }
+    var saveFailed by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize(), color = AiriTheme.background) {
             Column(Modifier.fillMaxSize()) {
@@ -576,6 +590,22 @@ private fun KnowledgeProfilesDialog(
                 }
                 Divider(color = AiriTheme.outline)
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    item {
+                        Surface(
+                            shape = AIRIShapes.lg,
+                            color = AiriTheme.surfaceVariant,
+                            border = BorderStroke(.5.dp, AiriTheme.outline),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                "ملفات المشروع المفهرسة تبقى محلية في هذا الإصدار ولا تُرسل لمزود سحابي. لاستخدامها اختر التنفيذ المحلي؛ مشاركة ملفات المشروع سحابيًا غير متاحة بعد.",
+                                color = AiriTheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                                lineHeight = 18.sp,
+                                modifier = Modifier.padding(14.dp),
+                            )
+                        }
+                    }
                     items(proposals, key = { "proposal:${it.id}" }) { proposal ->
                         Surface(
                             onClick = { onOpenProposal(proposal) },
@@ -606,6 +636,7 @@ private fun KnowledgeProfilesDialog(
                                     Text(if (profile.active) "مفعل" else "معطل", color = if (profile.active) CosmicAccent else AiriTheme.onSurfaceVariant, fontSize = 12.sp)
                                 }
                                 Text(profile.usage, color = AiriTheme.onSurfaceVariant, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(if (profile.privacyLevel <= CLOUD_CONTEXT_PRIVACY_LEVEL) "مصرح بإدراجها في سياق النموذج السحابي" else "محلية على الجهاز فقط", color = AiriTheme.onSurfaceVariant, fontSize = 11.sp)
                                 Divider(color = AiriTheme.outline.copy(.6f))
                                 Text(profile.content, color = AiriTheme.onBackground.copy(.78f), fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
@@ -615,8 +646,14 @@ private fun KnowledgeProfilesDialog(
                         }
                     }
                     if (creating) item {
+                        if (saveFailed) Text("تعذر حفظ المعرفة على الجهاز. تحقق من مساحة التخزين ثم أعد المحاولة.", color = SemanticError, fontSize = 13.sp)
+                        KnowledgePrivacyControl(allowCloudContext, { allowCloudContext = it })
                         KnowledgeEditorFields("معرفة جديدة", name, usage, content, { name = it }, { usage = it }, { content = it }) {
-                            if (name.isNotBlank() && usage.isNotBlank() && content.isNotBlank()) { onCreate(name, usage, content); name = ""; usage = ""; content = ""; creating = false }
+                            if (name.isNotBlank() && usage.isNotBlank() && content.isNotBlank()) {
+                                val saved = onCreate(name, usage, content, if (allowCloudContext) CLOUD_CONTEXT_PRIVACY_LEVEL else PRIVATE_PROFILE_PRIVACY_LEVEL)
+                                saveFailed = !saved
+                                if (saved) { name = ""; usage = ""; content = ""; allowCloudContext = false; creating = false }
+                            }
                         }
                     }
                 }
@@ -630,12 +667,13 @@ private fun KnowledgeProposalDialog(
     proposal: com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProposal,
     onDismiss: () -> Unit,
     onReject: () -> Unit,
-    onAccept: (String, String, String) -> Unit
+    onAccept: (String, String, String) -> Boolean
 ) {
     var editing by remember(proposal.id) { mutableStateOf(false) }
     var name by remember(proposal.id) { mutableStateOf(proposal.name) }
     var usage by remember(proposal.id) { mutableStateOf(proposal.usage) }
     var content by remember(proposal.id) { mutableStateOf(proposal.content) }
+    var saveFailed by remember(proposal.id) { mutableStateOf(false) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize(), color = AiriTheme.background) {
             Column(Modifier.fillMaxSize()) {
@@ -666,10 +704,11 @@ private fun KnowledgeProposalDialog(
                         KnowledgeDetailBlock("المحتوى", content)
                     }
                     Text(stringResource(R.string.knowledge_before_decision), color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    if (saveFailed) Text("تعذر حفظ المعرفة على الجهاز. المقترح ما زال قيد المراجعة.", color = SemanticError, fontSize = 13.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedButton(onClick = onReject, modifier = Modifier.weight(1f), shape = AIRIShapes.md) { Text(stringResource(R.string.knowledge_dismiss)) }
                         Button(
-                            onClick = { if (name.isNotBlank() && usage.isNotBlank() && content.isNotBlank()) onAccept(name.trim(), usage.trim(), content.trim()) },
+                            onClick = { if (name.isNotBlank() && usage.isNotBlank() && content.isNotBlank()) saveFailed = !onAccept(name.trim(), usage.trim(), content.trim()) },
                             enabled = name.isNotBlank() && usage.isNotBlank() && content.isNotBlank(),
                             modifier = Modifier.weight(1f), shape = AIRIShapes.md,
                             colors = ButtonDefaults.buttonColors(containerColor = CosmicAccent)
@@ -714,6 +753,7 @@ private fun KnowledgeProfileDetailDialog(
                 }
                 Divider(color = AiriTheme.outline)
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                    KnowledgeDetailBlock("استخدام المعرفة", if (profile.privacyLevel <= CLOUD_CONTEXT_PRIVACY_LEVEL) "يمكن إدراج هذه المعرفة في الطلبات المرسلة إلى نموذج سحابي عند تفعيلها." else "تبقى هذه المعرفة محلية ولا تُدرج في سياق النماذج السحابية.")
                     KnowledgeDetailBlock("تستخدم عندما...", profile.usage)
                     KnowledgeDetailBlock("المحتوى", profile.content)
                 }
@@ -746,20 +786,24 @@ private fun KnowledgeEditorFields(title: String, name: String, usage: String, co
 }
 
 @Composable
-private fun KnowledgeProfileEditorDialog(profile: com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile, onDismiss: () -> Unit, onSave: (String, String, String, String) -> Unit) {
+private fun KnowledgeProfileEditorDialog(profile: com.airi.assistant.knowledge.ProjectKnowledgeManager.KnowledgeProfile, onDismiss: () -> Unit, onSave: (String, String, String, String, Int) -> Boolean) {
     var name by remember(profile.id) { mutableStateOf(profile.name) }
     var usage by remember(profile.id) { mutableStateOf(profile.usage) }
     var content by remember(profile.id) { mutableStateOf(profile.content) }
+    var allowCloudContext by remember(profile.id) { mutableStateOf(profile.privacyLevel <= CLOUD_CONTEXT_PRIVACY_LEVEL) }
+    var saveFailed by remember(profile.id) { mutableStateOf(false) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize(), color = AiriTheme.background) {
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "إلغاء", tint = AiriTheme.onBackground) }
                     Text(stringResource(R.string.knowledge_edit_title), color = AiriTheme.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { if (name.isNotBlank() && usage.isNotBlank() && content.isNotBlank()) onSave(profile.id, name, usage, content) }) { Text(stringResource(R.string.knowledge_save), color = CosmicAccent, fontWeight = FontWeight.Bold) }
+                    TextButton(onClick = { if (name.isNotBlank() && usage.isNotBlank() && content.isNotBlank()) saveFailed = !onSave(profile.id, name, usage, content, if (allowCloudContext) CLOUD_CONTEXT_PRIVACY_LEVEL else PRIVATE_PROFILE_PRIVACY_LEVEL) }) { Text(stringResource(R.string.knowledge_save), color = CosmicAccent, fontWeight = FontWeight.Bold) }
                 }
                 Divider(color = AiriTheme.outline)
                 Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    if (saveFailed) Text("تعذر حفظ التغييرات على الجهاز. أعد المحاولة بعد التحقق من التخزين.", color = SemanticError, fontSize = 13.sp)
+                    KnowledgePrivacyControl(allowCloudContext, { allowCloudContext = it })
                     KnowledgeField("اسم المعرفة", name, { name = it }, "اسم واضح")
                     KnowledgeField("تستخدم عندما...", usage, { usage = it }, "اشرح الحالة المناسبة")
                     KnowledgeField("المحتوى", content, { content = it }, "محتوى المعرفة", 10)
@@ -773,3 +817,19 @@ private fun KnowledgeProfileEditorDialog(profile: com.airi.assistant.knowledge.P
 private fun KnowledgeField(label: String, value: String, onChange: (String) -> Unit, hint: String, minLines: Int = 2) {
     OutlinedTextField(value, onChange, label = { Text(label) }, placeholder = { Text(hint, color = AiriTheme.outline) }, modifier = Modifier.fillMaxWidth(), minLines = minLines, maxLines = if (minLines > 4) 16 else 4, shape = AIRIShapes.md, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CosmicAccent, unfocusedBorderColor = AiriTheme.outline, focusedLabelColor = CosmicAccent, focusedTextColor = AiriTheme.onSurface, unfocusedTextColor = AiriTheme.onSurface, cursorColor = CosmicAccent))
 }
+
+@Composable
+private fun KnowledgePrivacyControl(allowCloudContext: Boolean, onChange: (Boolean) -> Unit) {
+    Surface(shape = AIRIShapes.lg, color = AiriTheme.surface, border = BorderStroke(.5.dp, AiriTheme.outline), modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("السماح بالسياق السحابي", color = AiriTheme.onSurface, fontWeight = FontWeight.SemiBold)
+                Text(if (allowCloudContext) "قد تُرسل هذه المعرفة إلى مزود النموذج عند استخدامها." else "الخيار الآمن: تبقى على هذا الجهاز ولا تُرسل للنموذج السحابي.", color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+            }
+            Switch(checked = allowCloudContext, onCheckedChange = onChange)
+        }
+    }
+}
+
+private const val CLOUD_CONTEXT_PRIVACY_LEVEL = 1
+private const val PRIVATE_PROFILE_PRIVACY_LEVEL = 3

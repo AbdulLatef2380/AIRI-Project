@@ -2882,4 +2882,17 @@
     <string name="skill_action_permission">授予权限</string>
     <string name="skill_action_retry">重试运行时检查</string>
     <string name="skill_action_inspect">检查技能</string>
+    <string name="secret_skill_section">技能凭据</string>
+    <string name="secret_skill_description">凭据仅在本地加密保存，不会显示给模型。每次操作都需要单独批准。</string>
+    <string name="secret_skill_configure">配置凭据</string>
+    <string name="secret_skill_id">技能 ID</string>
+    <string name="secret_skill_secret_id">凭据名称</string>
+    <string name="secret_skill_value">凭据值</string>
+    <string name="secret_skill_saved">凭据已加密保存</string>
+    <string name="secret_skill_save_failed">凭据未保存。安全加密存储不可用。</string>
+    <string name="secret_skill_removed">凭据已删除</string>
+    <string name="secret_skill_remove_failed">无法从加密存储中删除凭据。</string>
+    <string name="secret_skill_remove">删除凭据</string>
+    <string name="secret_skill_not_configured">这些 ID 尚未配置</string>
+    <string name="secret_skill_configured">已配置加密凭据</string>
 </resources>

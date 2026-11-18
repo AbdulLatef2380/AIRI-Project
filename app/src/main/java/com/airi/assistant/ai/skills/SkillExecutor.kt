@@ -38,6 +38,23 @@ class SkillExecutor(private val context: Context) {
 
         val (skill, _) = best
 
+        val manifest = if (skill.isOfficial) OfficialSkillLibrary.manifestFor(skill.skillId) else null
+        val approvalRequired = skill.requiresConfirmation ||
+            skill.riskLevel in setOf(SkillRiskLevel.HIGH, SkillRiskLevel.CRITICAL) ||
+            skill.toolDefinitions.any { it.dangerous } ||
+            manifest?.requiresConfirmation == true ||
+            manifest?.riskLevel == SkillRiskLevel.HIGH ||
+            manifest?.riskLevel == SkillRiskLevel.CRITICAL
+        if (approvalRequired) {
+            return SkillResult(
+                success = false,
+                data = "",
+                error = "This legacy skill route cannot collect request-bound user approval. Use the AgentLoop skill tool route instead; no action was executed.",
+                skillName = skill.skillId,
+                metadata = mapOf("failure_type" to "approval_flow_unavailable", "approval_status" to "blocked"),
+            )
+        }
+
         val params = buildMap<String, Any> {
             put("input", input)
             put("context", context)

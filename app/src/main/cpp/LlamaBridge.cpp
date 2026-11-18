@@ -1298,6 +1298,43 @@ Java_com_airi_assistant_ai_LlamaNative_resetSession(JNIEnv* /*env*/, jobject /*t
     g_phase = "idle";
 }
 
+// ----------------------------------------------------------------------------
+// unloadModel(): release all chat-owned native resources.
+// Unlike resetSession(), this drops the mmap-backed weights as well as KV.
+// The caller serializes this behind the Kotlin inference dispatcher.
+// ----------------------------------------------------------------------------
+JNIEXPORT void JNICALL
+Java_com_airi_assistant_ai_LlamaNative_unloadModel(JNIEnv* /*env*/, jobject /*this*/) {
+    LLAMA_LOCK();
+    g_phase = "unloadModel";
+    g_cancel.store(true);
+    if (g_draft_ctx) {
+        llama_free(g_draft_ctx);
+        g_draft_ctx = nullptr;
+    }
+    if (g_draft_model) {
+        llama_model_free(g_draft_model);
+        g_draft_model = nullptr;
+    }
+    if (g_ctx) {
+        llama_free(g_ctx);
+        g_ctx = nullptr;
+    }
+    if (g_model) {
+        llama_model_free(g_model);
+        g_model = nullptr;
+    }
+    g_model_path.clear();
+    g_n_past = 0;
+    g_draft_n_past = 0;
+    g_last_n_ctx = 0;
+    g_last_n_threads = 0;
+    airi_draft_clear_kv();
+    const int64_t new_sid = g_session_id.fetch_add(1) + 1;
+    PROOF("MODEL_UNLOADED session_id=%lld", (long long)new_sid);
+    g_phase = "idle";
+}
+
 JNIEXPORT void JNICALL
 Java_com_airi_assistant_ai_LlamaNative_appendUserTurn(
     JNIEnv* env, jobject /*this*/, jstring jText)

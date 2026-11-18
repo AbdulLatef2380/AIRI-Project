@@ -641,20 +641,12 @@ class LlamaManager(private val context: Context) {
     /**
      * , finding E (revised after source audit):
      *
-     * LlamaBridge.cpp exposes NO native unload-model entry point, and project
-     * rules forbid modifying it. However, audit of LlamaBridge.cpp:647-648 and
-     * :720-721 confirms that `loadModel()` ALREADY frees the previous g_ctx +
-     * g_model before loading a new one — so model-swap is leak-free.
-     *
-     * The remaining true-leak surface is "user manually pressed Unload". For
-     * that path, the most we can honestly do without touching the bridge is:
+     * The native bridge owns the actual model/context lifetime. The unload
+     * path therefore:
      *   1. Cancel any in-flight generation so we don't race the dispatcher.
-     *   2. Run resetSession() (clears KV cache — frees several MB).
+     *   2. Call native unloadModel(), which frees g_ctx, g_model, and draft
+     *      resources while the JNI mutex is held.
      *   3. Mark the manager as not-loaded so subsequent generate() calls reject.
-     * The model weights themselves remain mmapped until the next loadModel()
-     * call internally frees them. Because they are mmapped (not mlocked, see
-     * LlamaBridge.cpp:655-656), the kernel can page them out under memory
-     * pressure, so the practical leak is bounded.
      *
      * Every step is observable via AIRI so the test on device can
      * confirm the sequence ran in the expected order.
@@ -678,12 +670,12 @@ class LlamaManager(private val context: Context) {
                     reloadHistorySnapshot = trimContext(chatHistory.toList())
                 }
                 if (LlamaNative.isAvailable()) {
-                    runCatching { LlamaNative.resetSession() }
-                        .onSuccess { Log.i("AIRI", "UNLOAD_KV_CLEARED") }
-                        .onFailure { Log.w("AIRI", "UNLOAD_KV_CLEAR_FAIL ${it.message}") }
                     runCatching { LlamaNative.unloadMmproj() }
                         .onSuccess { Log.i("AIRI", "UNLOAD_MMPROJ_CLEARED") }
                         .onFailure { Log.w("AIRI", "UNLOAD_MMPROJ_CLEAR_FAIL ${it.message}") }
+                    runCatching { LlamaNative.unloadModel() }
+                        .onSuccess { Log.i("AIRI", "UNLOAD_NATIVE_MODEL_CLEARED") }
+                        .onFailure { Log.w("AIRI", "UNLOAD_NATIVE_MODEL_CLEAR_FAIL ${it.message}") }
                     runCatching { LlamaNative.unloadEmbeddingModel() }
                         .onSuccess { Log.i("AIRI", "UNLOAD_EMBEDDING_CLEARED") }
                         .onFailure { Log.w("AIRI", "UNLOAD_EMBEDDING_CLEAR_FAIL ${it.message}") }
@@ -695,8 +687,7 @@ class LlamaManager(private val context: Context) {
                 chatHistory.clear()
                 invalidateSession()
                 Log.i("AIRI",
-                    "UNLOAD_COMPLETE generation=$generation kv_cleared=true model_mmap_held=true " +
-                    "note=loadModel_will_free_weights")
+                    "UNLOAD_COMPLETE generation=$generation kv_cleared=true model_mmap_held=false")
                 if (hadLoadedModel) {
                     // P1-D: Surface a reset only when a real loaded model/KV context existed.
                     runCatching {

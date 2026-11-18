@@ -49,6 +49,8 @@ object LlamaNative {
     // ── Model load ───────────────────────────────────────────────────────────
     external fun loadModelWithProgress(modelPath: String, callback: ProgressCallback)
     external fun loadModel(modelPath: String): String
+    /** Releases the chat model, context, draft context, and vision projector. */
+    external fun unloadModel()
 
     // ── Session API (incremental, KV-cache reuse) ────────────────────────────
     // Lifecycle:

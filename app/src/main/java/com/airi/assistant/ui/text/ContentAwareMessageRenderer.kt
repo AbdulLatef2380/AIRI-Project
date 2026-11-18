@@ -53,6 +53,35 @@ fun ContentAwareMessageRenderer(
     generativeUiExecutionId: String? = null,
     generativeUiStateStore: GenerativeUiStateStore? = null,
 ) {
+    // Streaming is deliberately a cheaper presentation mode. Stable complete
+    // lines keep the normal Markdown renderer, while the incomplete tail is
+    // plain text. This prevents reparsing the entire response and compiling
+    // generative UI on every token; the final message is rendered normally
+    // once isStreaming becomes false.
+    if (isStreaming) {
+        val split = remember(text) { StreamingMarkdownPolicy.split(text) }
+        Column(modifier = modifier.fillMaxWidth()) {
+            split.stablePrefix.takeIf(String::isNotEmpty)?.let { stable ->
+                BidiAwareMarkdownRenderer(
+                    text = stable,
+                    modifier = Modifier.fillMaxWidth(),
+                    isStreaming = false,
+                )
+            }
+            split.tail.takeIf(String::isNotEmpty)?.let { tail ->
+                Text(
+                    text = tail,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = TextStyle(
+                        color = AiriTheme.onSurface.copy(alpha = 0.93f),
+                        textDirection = TextDirection.ContentOrLtr,
+                    ),
+                )
+            }
+        }
+        return
+    }
+
     val resolvedMessageId = messageId.ifBlank {
         remember { "message-${text.hashCode().toUInt().toString(16)}" }
     }

@@ -3,6 +3,7 @@ package com.airi.assistant.ui.generative
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GenerativeUiCompilerTest {
@@ -134,5 +135,15 @@ class GenerativeUiCompilerTest {
         ) as GenerativeUiCompileResult.Rejected
 
         assertEquals(GenerativeUiRejectReason.UNKNOWN_KEY, result.reason)
+    }
+
+    @Test
+    fun lineChartCompilesAsAValidatedNativeBlock() {
+        val result = GenerativeUiCompiler.compile(
+            """```airi-ui
+            {"version":1,"blocks":[{"type":"line_chart","id":"trend","labels":["A","B","C"],"values":[1,2.5,2],"unit":"%"}]}
+            ```""".trimIndent(),
+        )
+        assertTrue(result?.document?.blocks?.single() is GenerativeUiBlock.LineChart)
     }
 }

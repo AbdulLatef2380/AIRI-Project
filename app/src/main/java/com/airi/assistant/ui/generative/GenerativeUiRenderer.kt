@@ -115,6 +115,7 @@ fun GenerativeUiRenderer(
                 when (block) {
                     is GenerativeUiBlock.Stat -> StatBlock(block)
                     is GenerativeUiBlock.BarChart -> BarChartBlock(block, GenerativeUiStateStore.key(sourceMessageId, block.id), effectiveStateStore)
+                    is GenerativeUiBlock.LineChart -> LineChartBlock(block, GenerativeUiStateStore.key(sourceMessageId, block.id), effectiveStateStore)
                     is GenerativeUiBlock.Diagram -> DiagramBlock(block, GenerativeUiStateStore.key(sourceMessageId, block.id), effectiveStateStore)
                     is GenerativeUiBlock.Form -> FormBlock(block, requestAction, sourceExecutionId, sourceMessageId, GenerativeUiStateStore.key(sourceMessageId, block.id), effectiveStateStore)
                     is GenerativeUiBlock.Actions -> ActionsBlock(block, requestAction, sourceExecutionId, sourceMessageId, effectiveStateStore)
@@ -201,6 +202,54 @@ private fun BarChartBlock(block: GenerativeUiBlock.BarChart, stateKey: String, s
         if (selectedIndex >= 0) {
             val label = block.labels[selectedIndex]
             Text("$label: ${formatNumber(block.values[selectedIndex])}${block.unit.orEmpty()}", color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun LineChartBlock(block: GenerativeUiBlock.LineChart, stateKey: String, stateStore: GenerativeUiStateStore) {
+    var selectedIndex by remember(stateKey) { mutableIntStateOf(stateStore.state(stateKey).selectedIndex) }
+    val minValue = block.values.minOrNull() ?: 0f
+    val maxValue = block.values.maxOrNull() ?: 1f
+    val range = (maxValue - minValue).coerceAtLeast(1f)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(150.dp)
+                .semantics {
+                    contentDescription = block.labels.mapIndexed { index, label ->
+                        "$label ${formatNumber(block.values[index])}${block.unit.orEmpty()}"
+                    }.joinToString()
+                },
+        ) {
+            val step = if (block.values.size == 1) size.width else size.width / (block.values.size - 1)
+            val points = block.values.mapIndexed { index, value ->
+                Offset(index * step, size.height - ((value - minValue) / range) * size.height)
+            }
+            points.zipWithNext().forEach { (from, to) -> drawLine(AiriTheme.primary, from, to, strokeWidth = 5f) }
+            points.forEachIndexed { index, point ->
+                drawCircle(if (index == selectedIndex) AiriTheme.secondary else AiriTheme.primary, 7f, point)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+            block.labels.forEachIndexed { index, label ->
+                Text(
+                    label,
+                    color = if (index == selectedIndex) AiriTheme.onBackground else AiriTheme.onSurfaceVariant,
+                    fontSize = 10.sp,
+                    modifier = Modifier
+                        .clickable {
+                            selectedIndex = index
+                            stateStore.update(stateKey) { it.copy(selectedIndex = index) }
+                        }
+                        .semantics { contentDescription = "$label ${formatNumber(block.values[index])}${block.unit.orEmpty()}" },
+                )
+            }
+        }
+        if (selectedIndex >= 0) {
+            Text("${block.labels[selectedIndex]}: ${formatNumber(block.values[selectedIndex])}${block.unit.orEmpty()}", color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
         }
     }
 }

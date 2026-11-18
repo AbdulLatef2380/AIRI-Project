@@ -33,6 +33,13 @@ sealed interface GenerativeUiBlock {
         val values: List<Float>,
         val unit: String?,
     ) : GenerativeUiBlock
+    data class LineChart(
+        override val id: String,
+        override val title: String?,
+        val labels: List<String>,
+        val values: List<Float>,
+        val unit: String?,
+    ) : GenerativeUiBlock
 
     data class Diagram(
         override val id: String,
@@ -315,6 +322,13 @@ object GenerativeUiCompiler {
                 val values = json.optJSONArray("values").boundedNumbers()
                 ensure(labels.size == values.size) { "chart labels/values mismatch" }
                 GenerativeUiBlock.BarChart(id, title, labels, values, optionalText(json, "unit"))
+            }
+            "line_chart" -> {
+                requireOnlyKeys(json, setOf("type", "id", "title", "labels", "values", "unit"))
+                val labels = json.optJSONArray("labels").boundedStrings()
+                val values = json.optJSONArray("values").boundedNumbers()
+                ensure(labels.size == values.size) { "chart labels/values mismatch" }
+                GenerativeUiBlock.LineChart(id, title, labels, values, optionalText(json, "unit"))
             }
             "diagram" -> {
                 requireOnlyKeys(json, setOf("type", "id", "title", "nodes", "edges"))

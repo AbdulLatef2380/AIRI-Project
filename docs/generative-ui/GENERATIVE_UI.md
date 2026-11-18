@@ -12,10 +12,11 @@ The model emits at most one fenced block:
 ```
 ```
 
-The compiler accepts only eight block types:
+The compiler accepts only nine block types:
 
 - `stat`: one value with optional supporting text.
 - `bar_chart`: equal-length labels and numeric values.
+- `line_chart`: equal-length labels and numeric values rendered as a selectable native trend line.
 - `diagram`: bounded nodes and edges that reference existing node IDs.
 - `route`: an ordered list of bounded stops with optional validated coordinates; it does not fetch maps or open URLs by itself.
 - `form`: bounded text fields and a descriptive action ID.

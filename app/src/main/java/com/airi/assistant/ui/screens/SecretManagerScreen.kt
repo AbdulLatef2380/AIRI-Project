@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -40,11 +41,14 @@ import com.airi.assistant.core.ServiceLocator
 import com.airi.assistant.execution.security.SecureApiKeyStore
 import com.airi.assistant.ui.theme.*
 import kotlinx.coroutines.launch
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SecretManagerScreen(onBack: () -> Unit) {
     val context  = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val keyStore = remember { SecureApiKeyStore(context) }
     val workspaceRuntime = ServiceLocator.workspaceRuntime
     val activeProject by workspaceRuntime.activeSession.collectAsState()
@@ -78,7 +82,30 @@ fun SecretManagerScreen(onBack: () -> Unit) {
     var projectSecretText by remember { mutableStateOf("") }
     var showProjectSecret by remember { mutableStateOf(false) }
     var projectGitHubConfigured by remember(projectId) {
-        mutableStateOf(projectId?.let { projectSecretVault.hasProjectSecret(it, "GITHUB_PAT", "github") } == true)
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(screenUnlocked, projectId) {
+        projectGitHubConfigured = screenUnlocked &&
+            projectId?.let { projectSecretVault.hasProjectSecret(it, "GITHUB_PAT", "github") } == true
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                screenUnlocked = false
+                editingProvider = null
+                editText = ""
+                showKey = false
+                editingProjectGitHubSecret = false
+                projectSecretText = ""
+                showProjectSecret = false
+                deletingProjectGitHubSecret = false
+                showDeleteFor = null
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // Biometric availability check — performed once
@@ -100,7 +127,9 @@ fun SecretManagerScreen(onBack: () -> Unit) {
         val executor = ContextCompat.getMainExecutor(context)
         val callback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                onSuccess()
+                if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                    onSuccess()
+                }
             }
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&

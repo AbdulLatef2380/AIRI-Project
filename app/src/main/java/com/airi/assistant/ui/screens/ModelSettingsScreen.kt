@@ -773,7 +773,7 @@ fun RefDownloadedModelCard(
                 ) {
                     // descriptionContainer: bg surface, borderRadius 16, padding 12
                     Surface(
-                        color = Color(0xFF1C1C1E),
+                        color = AiriTheme.surfaceVariant,
                         shape = AIRIShapes.md,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -1079,7 +1079,7 @@ fun RefCatalogModelCard(
                     // descriptionContainer: bg surface, borderRadius 16, padding 12
                     if (entry.description.isNotBlank()) {
                         Surface(
-                            color = Color(0xFF1C1C1E),
+                            color = AiriTheme.surfaceVariant,
                             shape = AIRIShapes.md,
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -1137,7 +1137,7 @@ private fun RefDetailCard(
     warn: Boolean = false
 ) {
     Surface(
-        color = Color(0xFF1C1C1E),
+        color = AiriTheme.surfaceVariant,
         shape = AIRIShapes.md,
         modifier = modifier
     ) {

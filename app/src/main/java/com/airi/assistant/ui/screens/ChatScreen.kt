@@ -1254,6 +1254,7 @@ fun ChatScreen(
                 },
                 onSuggestionClick  = { suggestion -> viewModel.sendMessage(suggestion) },
                 onInteractiveAction = { action -> viewModel.handleGenerativeUiAction(action) },
+                generativeUiStateStore = viewModel.generativeUiStateStore,
                 profileDisplayName = profileDisplayName,
                 onEditMessage      = { text -> viewModel.prefillInput(text) },
                 onDeleteMessage    = { message ->
@@ -2227,6 +2228,7 @@ fun ChatMessageList(
     onSpeak: (String) -> Unit = {},
     onSuggestionClick: (String) -> Unit = {},
     onInteractiveAction: (com.airi.assistant.ui.generative.GenerativeUiAction) -> Unit = {},
+    generativeUiStateStore: com.airi.assistant.ui.generative.GenerativeUiStateStore? = null,
     profileDisplayName: String = "",
     onEditMessage: (String) -> Unit = {},
     onDeleteMessage: (ChatMessage) -> Unit = {},
@@ -2524,7 +2526,7 @@ fun ChatMessageList(
                                 },
                                 executionTraceWorking = inlineTraceWorking && msg.executionTraceId == inlineTraceExecutionId,
                                 continuationHops = msg.continuationHops,
-                                generativeUiStateStore = viewModel.generativeUiStateStore,
+                                generativeUiStateStore = generativeUiStateStore,
                                 conversationContext = CurrentTurnContextResolver.resolve(
                                     messages = messages.map { it.toResponseTurnEvidence() },
                                     assistantMessageId = msg.id,

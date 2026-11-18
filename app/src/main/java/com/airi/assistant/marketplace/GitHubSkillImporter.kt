@@ -1,6 +1,7 @@
 package com.airi.assistant.marketplace
 
 import android.util.Log
+import com.airi.assistant.agent.browser.HostAddressPolicy
 import com.airi.assistant.ai.skills.SkillManifest
 import com.airi.assistant.ai.skills.SkillPackageVerifier
 import com.airi.assistant.domain.customskill.CustomSkill
@@ -11,7 +12,6 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
-import java.net.URL
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -39,6 +39,9 @@ object GitHubSkillImporter {
     private const val TAG = "GitHubSkillImporter"
 
     private val client = OkHttpClient.Builder()
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .dns(HostAddressPolicy.PublicOnlyDns)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
@@ -174,15 +177,26 @@ object GitHubSkillImporter {
     // ── Fetch ──────────────────────────────────────────────────────────────────
 
     private fun fetchContent(url: String): String {
-        val request  = Request.Builder().url(url)
+        val allowedUrl = when (val decision = MarketplaceInstallPolicy.checkHttpsPublicUrl(url)) {
+            is MarketplaceInstallPolicy.UrlDecision.Allowed -> decision.normalizedUrl
+            is MarketplaceInstallPolicy.UrlDecision.Rejected -> throw IllegalArgumentException("Manifest URL rejected: ${decision.reason}")
+        }
+        val request  = Request.Builder().url(allowedUrl)
             .header("Accept", "application/json, text/plain, */*")
             .header("User-Agent", "AIRI-Skill-Importer/1.0")
             .build()
         val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            throw Exception("HTTP ${response.code}: ${response.message}")
+        response.use {
+            if (!it.isSuccessful) throw Exception("HTTP ${it.code}: ${it.message}")
+            if (it.body == null) throw Exception("Empty response body")
+            val body = it.body!!
+            val limit = 200_000L
+            if (body.contentLength() > limit) throw Exception("Skill manifest too large (max 200KB)")
+            val source = body.source()
+            source.request(limit + 1)
+            if (source.buffer.size > limit) throw Exception("Skill manifest too large (max 200KB)")
+            return source.buffer.readUtf8()
         }
-        return response.body?.string() ?: throw Exception("Empty response body")
     }
 
     // ── Validation ────────────────────────────────────────────────────────────
@@ -247,8 +261,8 @@ object GitHubSkillImporter {
         val endpoint = json.optString("endpoint")
         if (endpoint.isBlank()) {
             errors.add("'endpoint' is required for an executable skill")
-        } else if (!endpoint.startsWith("https://")) {
-            errors.add("'endpoint' must use HTTPS (plain HTTP is not allowed)")
+        } else if (MarketplaceInstallPolicy.checkHttpsPublicUrl(endpoint) !is MarketplaceInstallPolicy.UrlDecision.Allowed) {
+            errors.add("'endpoint' must use HTTPS and a public host without URL credentials")
         }
 
         if (!json.has("id")) warnings.add("Skill does not declare an 'id'. One will be auto-generated.")

@@ -46,4 +46,24 @@ class MarketplaceInstallPolicyTest {
         assertTrue(SkillSecurityScanner.scan("""{"entry":"Runtime.getRuntime().exec(x)"}""").isNotEmpty())
         assertTrue(SkillSecurityScanner.scan("""{"endpoint":"https://x.example/run","name":"ok"}""").isEmpty())
     }
+
+    @Test
+    fun githubImporterAcceptsOnlyPublicHttpsExecutionEndpoints() {
+        fun manifest(endpoint: String) = """{
+            "id":"sample_skill","name":"Sample Skill","description":"A valid sample skill.",
+            "version":"1.0.0","author":"Test","tools":[],"endpoint":"$endpoint"
+        }"""
+
+        assertTrue(GitHubSkillImporter.validateJsonString(manifest("https://api.example.com/run")).isValid)
+        listOf(
+            "http://api.example.com/run",
+            "https://127.0.0.1/run",
+            "https://user:secret@api.example.com/run"
+        ).forEach { endpoint ->
+            assertTrue(
+                "expected importer to reject endpoint: $endpoint",
+                !GitHubSkillImporter.validateJsonString(manifest(endpoint)).isValid
+            )
+        }
+    }
 }

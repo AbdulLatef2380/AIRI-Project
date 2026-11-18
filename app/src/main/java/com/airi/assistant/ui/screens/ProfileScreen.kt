@@ -116,12 +116,13 @@ fun ProfileScreen(
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
+            if (uid.isBlank() || authService.currentUser()?.uid != uid) return@launch
             val path = cachePhotoForAccount(context, uri, uid)
-            if (path != null) {
+            if (path != null && authService.currentUser()?.uid == uid) {
                 localPhotoPath = path
                 profileRepository.update { copy(localPhotoPath = path) }
                 snackbar.showSnackbar(context.getString(R.string.profile_photo_saved))
-            } else {
+            } else if (path == null && authService.currentUser()?.uid == uid) {
                 snackbar.showSnackbar(context.getString(R.string.profile_save_failed))
             }
         }
@@ -669,6 +670,7 @@ internal fun cachePhotoForAccount(context: Context, uri: Uri, uid: String): Stri
         destination.absolutePath
     } catch (_: Exception) {
         temporary.delete()
+        if (backup.exists() && !destination.exists()) backup.renameTo(destination)
         null
     }
 }

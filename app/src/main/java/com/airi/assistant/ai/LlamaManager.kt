@@ -330,7 +330,8 @@ class LlamaManager(private val context: Context) {
         scope.launch {
             lifecycleLock.withLock {
                 try {
-                    LlamaNative.setRuntimeMode(mode.nCtx, mode.nThreads)
+                    val threads = mode.effectiveThreads
+                    LlamaNative.setRuntimeMode(mode.nCtx, threads)
                     // SPRINT 1: Read the LIVE nCtx from the native runtime AFTER setRuntimeMode.
                     // llama.cpp may round the requested nCtx internally (e.g. to a power of 2
                     // or a block-size multiple). contextBudget.historyTokens replaces the former
@@ -339,7 +340,7 @@ class LlamaManager(private val context: Context) {
                     invalidateSession()
                     Log.i(TAG,
                         "RUNTIME_MODE_APPLIED mode=${mode.name} n_ctx=${contextBudget.nCtx} " +
-                        "threads=${mode.nThreads} maxHistoryTokens=$maxHistoryTokens " +
+                        "threads=$threads maxHistoryTokens=$maxHistoryTokens " +
                         "budget=${contextBudget.toLogString()}")
                 } catch (e: Throwable) {
                     Log.e(TAG, "applyRuntimeMode failed: ${e.message}", e)

@@ -21,6 +21,7 @@ import com.airi.assistant.ai.CatalogEntry
 import com.airi.assistant.ai.DeviceProfiler
 import com.airi.assistant.ai.ModelConfigManager
 import com.airi.assistant.ai.PerformanceMode
+import com.airi.assistant.ai.effectiveThreads
 import com.airi.assistant.ai.DeviceTier
 import com.airi.assistant.ai.LlamaManager
 import com.airi.assistant.ai.LlamaNative
@@ -1250,7 +1251,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         RuntimeEventLog.post(
             subsystem = "PERFORMANCE",
             severity  = EventSeverity.INFO,
-            reason    = "User set mode → ${mode.name} n_ctx=${mode.nCtx} threads=${mode.nThreads}"
+            reason    = "User set mode → ${mode.name} n_ctx=${mode.nCtx} threads=${mode.effectiveThreads}"
         )
         _performanceMode.value = mode
         _maxTokens.value = mode.maxTokens
@@ -1264,7 +1265,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // model. KV is wiped; next message re-primes via reconcileSession.
         llamaManager.applyRuntimeMode(mode)
         Log.i("AIRI_PERF",
-            "PerformanceMode -> ${mode.name} n_ctx=${mode.nCtx} threads=${mode.nThreads}")
+            "PerformanceMode -> ${mode.name} n_ctx=${mode.nCtx} threads=${mode.effectiveThreads}")
     }
 
     // ── Paywall trigger ───────────────────────────────────────────────────────
@@ -4380,7 +4381,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 nParams        = meta?.nParams ?: 0L,
                 modelSizeMb    = sizeMb,
                 nCtx           = if (m.nCtx > 0) m.nCtx else mode.nCtx,
-                nThreads       = mode.nThreads,
+                nThreads       = mode.effectiveThreads,
                 firstTokenMs   = m.firstTokenMs,
                 totalLatencyMs = elapsed,
                 decodedTokens  = if (m.decodedTokens > 0) m.decodedTokens else tokenCount,

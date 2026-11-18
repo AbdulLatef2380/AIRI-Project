@@ -250,6 +250,9 @@ dependencies {
 
     // Core Android
     implementation(libs.androidx.core.ktx)
+    // Installs an embedded baseline profile when a release profile is present;
+    // the runtime initializer is safe for debug/emulator variants.
+    implementation(libs.androidx.profileinstaller)
 
     // Testing
     testImplementation(libs.junit)

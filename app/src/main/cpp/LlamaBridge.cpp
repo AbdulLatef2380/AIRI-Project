@@ -76,7 +76,11 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN,  LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#ifndef NDEBUG
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+#else
+#define LOGD(...) ((void)0)
+#endif
 #define PROOF(...) __android_log_print(ANDROID_LOG_INFO, "AIRI_PROOF", __VA_ARGS__)
 
 // ─── global state ────────────────────────────────────────────────────────────
@@ -291,6 +295,12 @@ static int airi_pick_threads() {
     int hw = (int)std::thread::hardware_concurrency();
     if (hw <= 0) hw = 4;
     return std::min(hw, AIRI_MAX_THREADS_CAP);
+}
+
+static int airi_cap_threads(int requested) {
+    int hw = (int)std::thread::hardware_concurrency();
+    if (hw <= 0) hw = AIRI_MAX_THREADS_CAP;
+    return std::clamp(requested, 1, std::min(hw, AIRI_MAX_THREADS_CAP));
 }
 
 // Phase marker so the signal handler can report WHERE we crashed.
@@ -692,10 +702,9 @@ static int airi_append_text(JNIEnv* env, const std::string& text, bool last_toke
     // The full prompt MUST NOT be passed in one llama_decode call. Split into
     // batches of AIRI_PREFILL_CHUNK tokens, check g_cancel_requested between
     // every chunk, and surface decode errors immediately as status=-1 so the
-    // Kotlin layer can route them through fullReset(). Chunk size of 64 keeps
-    // per-batch latency bounded on mid-range mobile CPUs while still amortising
-    // llama_decode's per-call overhead across multiple tokens.
-    static const int AIRI_PREFILL_CHUNK = 64;
+    // Kotlin layer can route them through fullReset(). Matching n_ubatch keeps
+    // the prefill path aligned with llama.cpp's configured micro-batch size.
+    static const int AIRI_PREFILL_CHUNK = AIRI_DEFAULT_N_UBATCH;
     const int n_chunk_alloc = std::min(AIRI_PREFILL_CHUNK, std::max(n_tokens, 1));
     llama_batch batch = llama_batch_init(n_chunk_alloc, 0, 1);
 
@@ -1736,7 +1745,7 @@ Java_com_airi_assistant_ai_LlamaNative_nativeFullReset(JNIEnv* env, jobject /*th
     cparams.n_ctx           = (g_last_n_ctx > 0) ? g_last_n_ctx : AIRI_DEFAULT_N_CTX;
     cparams.n_batch         = AIRI_DEFAULT_N_BATCH;
     cparams.n_ubatch        = AIRI_DEFAULT_N_UBATCH;
-    cparams.n_threads       = (g_last_n_threads > 0) ? g_last_n_threads : airi_pick_threads();
+    cparams.n_threads       = airi_cap_threads((g_last_n_threads > 0) ? g_last_n_threads : airi_pick_threads());
     cparams.n_threads_batch = cparams.n_threads;
 
     // SPEC v3 — REBUILD lifecycle markers. Pair 1:1 with REBUILD_END on
@@ -1789,7 +1798,7 @@ Java_com_airi_assistant_ai_LlamaNative_setRuntimeMode(
     cparams.n_ctx           = (uint32_t)std::max(512, (int)nCtx);
     cparams.n_batch         = AIRI_DEFAULT_N_BATCH;
     cparams.n_ubatch        = AIRI_DEFAULT_N_UBATCH;
-    cparams.n_threads       = std::max(1, (int)nThreads);
+    cparams.n_threads       = airi_cap_threads((int)nThreads);
     cparams.n_threads_batch = cparams.n_threads;
 
     g_ctx = llama_init_from_model(g_model, cparams);

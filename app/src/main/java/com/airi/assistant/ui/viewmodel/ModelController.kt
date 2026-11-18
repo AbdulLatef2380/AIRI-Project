@@ -18,6 +18,7 @@ import com.airi.assistant.ai.ModelSource
 import com.airi.assistant.ai.ModelType
 import com.airi.assistant.ai.ModelValidator
 import com.airi.assistant.ai.PerformanceMode
+import com.airi.assistant.ai.effectiveThreads
 import com.airi.assistant.ai.RuntimeSupervisor
 import com.airi.assistant.ai.ValidationResult
 import com.airi.assistant.analytics.AnalyticsService
@@ -459,7 +460,7 @@ internal class ModelController(
                 generationId         = genId,
                 replayTokenCount     = 0,
                 nCtx                 = mode.nCtx,
-                nThreads             = mode.nThreads,
+                nThreads             = mode.effectiveThreads,
                 runtimeUptimeMs      = uptimeMs,
                 generationDurationMs = lastGenerationDurationMs,
                 speculativeActive    = draftActive,

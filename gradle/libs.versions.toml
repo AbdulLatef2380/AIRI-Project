@@ -37,6 +37,7 @@ mlkitTextRecognition = "16.0.0"
 tesseract4android = "4.9.0"
 securityCrypto = "1.1.0-alpha06"
 workManager = "2.9.0"
+profileInstaller = "1.4.1"
 billing = "6.2.1"
 accompanistPermissions = "0.32.0"
 tensorflowLite = "2.14.0"
@@ -93,6 +94,7 @@ mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition"
 tesseract4android = { group = "cz.adaptech.tesseract4android", name = "tesseract4android", version.ref = "tesseract4android" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workManager" }
+androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileInstaller" }
 billing = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "billing" }
 accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "accompanistPermissions" }
 tensorflow-lite = { group = "org.tensorflow", name = "tensorflow-lite", version.ref = "tensorflowLite" }

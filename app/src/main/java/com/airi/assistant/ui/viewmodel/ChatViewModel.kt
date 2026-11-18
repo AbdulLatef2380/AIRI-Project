@@ -2661,7 +2661,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val perfMode = _performanceMode.value
             val sessionId = generationSessionId
             val activeProjectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
-            val ragPrivacyLevel = if (execModePrefs.effectiveMode == ExecutionMode.LOCAL_ONLY) 0 else 1
+            val ragPrivacyLevel = com.airi.assistant.memory.repository.MemoryPrivacyPolicy
+                .retrievalCeiling(cloudProviderAtDispatch == null)
             val wasEmpty = _messages.value.isEmpty()
             val stagedForSession = pendingAttachmentSessionId == sessionId
             val attachedForBubble = pendingImageUriForNextSend.takeIf { stagedForSession }
@@ -5963,7 +5964,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val normalized = query.trim().lowercase()
         val sessionId = _currentSessionId.value
         val projectId = ServiceLocator.workspaceRuntime.activeSession.value?.sessionId.orEmpty()
-        val privacyLevel = if (execModePrefs.effectiveMode == ExecutionMode.LOCAL_ONLY) 0 else 1
+        val privacyLevel = com.airi.assistant.memory.repository.MemoryPrivacyPolicy
+            .retrievalCeiling(execModePrefs.effectiveMode == ExecutionMode.LOCAL_ONLY)
         val profiles = ServiceLocator.projectKnowledgeManager.activeKnowledgeProfiles()
             .asSequence()
             .filter { profile ->

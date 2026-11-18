@@ -11,7 +11,9 @@ package com.airi.assistant.ai.prompt
  *   - persistent preferences ("I prefer X", "I like Y", "I hate Z")
  *   - persistent intents     ("I'm working on …", "I'm building …")
  *
- * Returns canonical "key=value" strings so MemoryStore can de-dupe by key.
+ * Returns candidate canonical "key=value" strings. Callers must apply the
+ * durable-memory admission policy before storing; accepted facts may then be
+ * mirrored into MemoryStore as a scoped scratchpad projection.
  *
  * Bilingual: matches both English and a small set of common Arabic phrasings
  * since the app targets ar+en users.
@@ -41,8 +43,8 @@ object MemoryExtractor {
 
     /**
      * Extract facts from a single user message. Returns a list of "key=value"
-     * strings ready to feed into [MemoryStore.mergeFacts]. Quietly returns an
-     * empty list when nothing matches — extraction is best-effort.
+     * strings for downstream policy validation. Quietly returns an empty list
+     * when nothing matches — extraction is best-effort.
      */
     fun extract(userMessage: String): List<String> {
         if (userMessage.isBlank() || userMessage.length > 4_000) return emptyList()

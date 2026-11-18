@@ -2,7 +2,6 @@ package com.airi.assistant.ai.prompt
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MemoryFactAdmissionPolicyTest {
@@ -16,12 +15,19 @@ class MemoryFactAdmissionPolicyTest {
     @Test
     fun normalizesWhitespaceAndBoundsScratchpadFacts() {
         val normalized = MemoryFactAdmissionPolicy.sanitize("  language = Arabic   and English  ")
-        assertEquals("language = Arabic and English", normalized)
-        assertTrue(MemoryFactAdmissionPolicy.sanitize("x".repeat(1_000))!!.length <= 240)
+        assertEquals("language=Arabic and English", normalized)
+        assertNull(MemoryFactAdmissionPolicy.sanitize("language=" + "x".repeat(1_000)))
     }
 
     @Test
     fun rejectsBlankFacts() {
         assertNull(MemoryFactAdmissionPolicy.sanitize("  \n\t "))
+    }
+
+    @Test
+    fun rejectsIdentityAndLocationFactsOutsideTheScratchpadAllowList() {
+        assertNull(MemoryFactAdmissionPolicy.sanitize("name=Sam"))
+        assertNull(MemoryFactAdmissionPolicy.sanitize("location=Oslo"))
+        assertNull(MemoryFactAdmissionPolicy.sanitize("preference=user@example.com"))
     }
 }

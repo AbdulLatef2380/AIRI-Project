@@ -15,10 +15,20 @@ enum class MemoryScope {
     USER
 }
 
+/** Numeric memory sensitivity ceilings: local may use all levels; remote is limited to level 1. */
+object MemoryPrivacyPolicy {
+    const val MAX_LEVEL = 3
+    const val REMOTE_MAX_LEVEL = 1
+    const val LOCAL_MAX_LEVEL = MAX_LEVEL
+
+    fun retrievalCeiling(localOnly: Boolean): Int =
+        if (localOnly) LOCAL_MAX_LEVEL else REMOTE_MAX_LEVEL
+}
+
 internal object MemoryMetadataPolicy {
     private const val MAX_PROVENANCE_CHARS = 180
     private const val MIN_PRIVACY_LEVEL = 0
-    private const val MAX_PRIVACY_LEVEL = 3
+    private const val MAX_PRIVACY_LEVEL = MemoryPrivacyPolicy.MAX_LEVEL
 
     fun normalizeScope(scope: MemoryScope, projectId: String): String = when (scope) {
         MemoryScope.PROJECT -> if (projectId.isBlank()) MemoryScope.SESSION.name else MemoryScope.PROJECT.name

@@ -4,9 +4,10 @@ import android.util.Log
 import com.airi.assistant.knowledge.ProjectKnowledgeManager
 import com.airi.assistant.memory.embedding.EmbeddingService
 import com.airi.assistant.memory.entity.ChatMessage
-import com.airi.assistant.memory.repository.MemoryManager
+import com.airi.assistant.memory.repository.RagMemorySource
 import com.airi.assistant.security.UntrustedContentEnvelope
 import com.airi.assistant.workspace.ProjectContextResolver
+import com.airi.core.memory.MemoryAdmissionPolicy
 
 /**
  * RagRetriever — Retrieval-Augmented Generation wired into the main agent flow.
@@ -36,15 +37,17 @@ import com.airi.assistant.workspace.ProjectContextResolver
  *     LlamaManager receives the augmented prompt — no cloud leakage.
  */
 class RagRetriever(
-    private val memoryManager: MemoryManager,
+    private val memoryManager: RagMemorySource,
     private val projectKnowledgeManager: ProjectKnowledgeManager? = null,
-    private val projectContextResolver: ProjectContextResolver? = null
+    private val projectContextResolver: ProjectContextResolver? = null,
+    private val scratchpadFactSource: MemoryStoreRagFactSource? = null,
 ) {
 
     companion object {
         private const val TAG       = "RagRetriever"
         private const val MIN_SCORE = 0.30f  // cosine similarity floor
         private const val DEFAULT_K = 5
+        private const val MAX_STORED_FACTS = 30
         private const val MAX_CONTEXT_CHARS = 2_400
         private const val DEFAULT_PRIVACY_LEVEL = 1
     }
@@ -131,6 +134,32 @@ $formatted
                 memoryId = memory.id
             )
         }
+        val scratchpadFacts = scratchpadFactSource
+            ?.getScopedFacts(sessionId, projectId, maxPrivacyLevel, MAX_STORED_FACTS)
+            .orEmpty()
+            .filter { fact ->
+                val sourceId = fact.sourceMemoryId
+                sourceId == null || memoryManager.isScopedMemoryVisible(
+                    memoryId = sourceId,
+                    sessionId = sessionId,
+                    projectId = projectId,
+                    maxPrivacyLevel = maxPrivacyLevel,
+                )
+            }
+            .take(safeLimit)
+            .map { fact ->
+                RetrievedPassage(
+                    citationId = "memory-store-${fact.sourceMemoryId ?: fact.content.hashCode()}",
+                    role = "memory",
+                    content = fact.content,
+                    score = 0.8f,
+                    source = "MEMORY_STORE",
+                    provenance = "Session-scoped compression scratchpad",
+                    scope = "SESSION",
+                    confidence = 0.82f,
+                    memoryId = fact.sourceMemoryId ?: 0L,
+                )
+            }
         val semanticReady = memoryManager.isSemanticMemoryReady()
         val semantic = if (semanticReady) {
             retrieveSemantic(sessionId, normalizedQuery, safeLimit, projectId, maxPrivacyLevel)
@@ -184,7 +213,7 @@ $formatted
             .sortedByDescending { it.score }
             .take(3)
         return RagRetrievalRanker.rank(
-            passages = (longTerm + semantic + chronologicalFallback + projectKnowledge + activeKnowledge)
+            passages = (longTerm + scratchpadFacts + semantic + chronologicalFallback + projectKnowledge + activeKnowledge)
                 .filter(::isPromptSafe),
             limit = safeLimit
         )
@@ -302,7 +331,7 @@ $formatted
         val text = passage.content.trim()
         if (text.length < 3 || text.length > 1_500) return false
         if (text.startsWith("[ATTACHMENT:", ignoreCase = true)) return false
-        if (text.contains("api key", ignoreCase = true) || text.contains("password", ignoreCase = true)) return false
+        if (MemoryAdmissionPolicy.containsSensitiveData(text)) return false
         return true
     }
 }

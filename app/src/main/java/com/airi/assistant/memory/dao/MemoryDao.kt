@@ -110,6 +110,27 @@ interface MemoryDao {
         limit: Int
     ): List<ChatMessage>
 
+    @Query("""
+        SELECT EXISTS(
+            SELECT 1 FROM episodic_memory
+            WHERE id = :memoryId
+              AND isMemory = 1
+              AND privacyLevel <= :maxPrivacyLevel
+              AND (expiresAtMs < 0 OR expiresAtMs > :nowMs)
+              AND (
+                  (memoryScope = 'SESSION' AND sessionId = :sessionId)
+                  OR (memoryScope = 'PROJECT' AND :projectId != '' AND projectId = :projectId)
+              )
+        )
+    """)
+    suspend fun isScopedLongTermMemoryVisible(
+        memoryId: Long,
+        sessionId: String,
+        projectId: String,
+        maxPrivacyLevel: Int,
+        nowMs: Long,
+    ): Boolean
+
     @Query("UPDATE episodic_memory SET lastAccessedAtMs = :nowMs WHERE id IN (:memoryIds)")
     suspend fun markMemoriesAccessed(memoryIds: List<Long>, nowMs: Long)
 

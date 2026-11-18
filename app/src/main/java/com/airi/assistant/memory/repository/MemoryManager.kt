@@ -3,6 +3,8 @@ package com.airi.assistant.memory.repository
 import android.content.Context
 import androidx.room.withTransaction
 import com.airi.assistant.ai.prompt.MemoryExtractor
+import com.airi.assistant.ai.prompt.MemoryFactAdmissionPolicy
+import com.airi.assistant.ai.prompt.MemoryStore
 import com.airi.assistant.agent.memory.AgentMemoryDecision
 import com.airi.core.memory.MemoryAdmissionPolicy
 import com.airi.assistant.memory.AiriDatabase
@@ -23,7 +25,7 @@ import org.json.JSONArray
 
 // AP-18: applicationScope injected from ServiceLocator so summarization tasks survive
 // screen rotation without relying on a ViewModel lifecycle.
-class MemoryManager(context: Context, private val applicationScope: CoroutineScope? = null) {
+class MemoryManager(context: Context, private val applicationScope: CoroutineScope? = null) : RagMemorySource {
     data class SessionMessagePage(
         val messages: List<ChatMessage>,
         val totalCount: Int,
@@ -155,6 +157,16 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
             keepRecentPerScope = MAX_LONG_TERM_FACTS_PER_SESSION
         ) ?: return ExplicitMemoryResult.Duplicate
         enqueueSyncMutation(id, "UPSERT")
+        if (normalizedScope != MemoryScope.USER.name) {
+            cacheApprovedScratchpadFact(
+                sessionId = request.sessionId,
+                projectId = request.projectId.takeIf { normalizedScope == MemoryScope.PROJECT.name }.orEmpty(),
+                privacyLevel = safePrivacy,
+                memoryId = id,
+                content = normalized,
+                expiresAtMs = request.expiresAtMs,
+            )
+        }
         return ExplicitMemoryResult.Stored(id)
     }
 
@@ -227,7 +239,17 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
                                 ),
                                 keepRecentPerScope = MAX_LONG_TERM_FACTS_PER_SESSION
                             )
-                            if (insertedId != null) enqueueSyncMutation(insertedId, "UPSERT")
+                            if (insertedId != null) {
+                                enqueueSyncMutation(insertedId, "UPSERT")
+                                cacheApprovedScratchpadFact(
+                                    sessionId = sessionId,
+                                    projectId = projectId,
+                                    privacyLevel = DEFAULT_PRIVACY_LEVEL,
+                                    memoryId = insertedId,
+                                    content = storedFact,
+                                    expiresAtMs = NO_EXPIRY,
+                                )
+                            }
                         }
                 }.onFailure { android.util.Log.w("AIRI_MEMORY", "Fact admission failed: ${it.javaClass.simpleName}") }
             }
@@ -287,6 +309,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         val attachments = sessionDao.getMessagesForSession(sessionId)
             .mapNotNull { it.attachmentJson }
         sessionDao.deleteSessionAndMessages(sessionId)
+        MemoryStore.clear(appContext, sessionId)
         withContext(Dispatchers.IO) { deleteAttachmentFiles(attachments) }
     }
 
@@ -297,6 +320,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
             message
         } ?: return false
         if (deleted.isMemory) enqueueSyncMutation(deleted.id, "DELETE_TOMBSTONE")
+        if (deleted.isMemory) removeScratchpadMirror(deleted)
         val attachmentJson = deleted.attachmentJson.orEmpty()
 
         if (attachmentJson.isNotBlank()) {
@@ -354,7 +378,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         return messages.joinToString("\n") { "${it.role}: ${it.content}" }
     }
 
-    suspend fun getRecentMessages(sessionId: String, limit: Int = 10): List<ChatMessage> {
+    override suspend fun getRecentMessages(sessionId: String, limit: Int): List<ChatMessage> {
         return dao.getRecentMessages(sessionId, limit)
     }
 
@@ -376,6 +400,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         val local = dao.getMessageById(memoryId)
         if (local != null && local.updatedAtMs > remoteUpdatedAtMs) return
         dao.deleteLongTermMemory(memoryId)
+        local?.let(::removeScratchpadMirror)
         syncDao.removeForMemoryUpTo(memoryId, remoteUpdatedAtMs)
     }
 
@@ -383,11 +408,55 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
     internal suspend fun restoreSyncedMemory(message: ChatMessage) {
         if (!message.isMemory || message.content.isBlank()) return
         val local = dao.getMessageById(message.id)
-        if (local == null || message.updatedAtMs >= local.updatedAtMs) dao.insertMessage(message)
+        if (local == null || message.updatedAtMs >= local.updatedAtMs) {
+            local?.let(::removeScratchpadMirror)
+            dao.insertMessage(message)
+            if (message.memoryScope != MemoryScope.USER.name) {
+                cacheApprovedScratchpadFact(
+                    sessionId = message.sessionId,
+                    projectId = message.projectId,
+                    privacyLevel = message.privacyLevel,
+                    memoryId = message.id,
+                    content = message.content,
+                    expiresAtMs = message.expiresAtMs,
+                )
+            }
+        }
     }
 
     private suspend fun enqueueSyncMutation(memoryId: Long, operation: String) {
         syncDao.enqueue(MemorySyncMutationEntity(memoryId = memoryId, operation = operation))
+    }
+
+    /** Mirror only facts that the core durable-memory allow-list already admits. */
+    private fun cacheApprovedScratchpadFact(
+        sessionId: String,
+        projectId: String,
+        privacyLevel: Int,
+        memoryId: Long,
+        content: String,
+        expiresAtMs: Long,
+    ) {
+        val fact = MemoryFactAdmissionPolicy.sanitize(content.removePrefix("[memory] ")) ?: return
+        MemoryStore.mergeFacts(
+            ctx = appContext,
+            sessionId = sessionId,
+            newFacts = listOf(fact),
+            projectId = projectId,
+            privacyLevel = privacyLevel,
+            sourceMemoryId = memoryId,
+            expiresAtMs = expiresAtMs,
+        )
+    }
+
+    private fun removeScratchpadMirror(memory: ChatMessage) {
+        MemoryStore.removeSourceMemory(appContext, memory.sessionId, memory.id)
+        MemoryStore.removeMatchingFact(
+            ctx = appContext,
+            sessionId = memory.sessionId,
+            projectId = memory.projectId.takeIf { memory.memoryScope == MemoryScope.PROJECT.name }.orEmpty(),
+            content = memory.content,
+        )
     }
 
     suspend fun getLongTermMemories(sessionId: String, limit: Int = 20): List<ChatMessage> =
@@ -398,11 +467,11 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
      * Project memory never crosses to a different project and expired rows are
      * not returned. A successful recall updates `lastAccessedAtMs` for audit.
      */
-    suspend fun getScopedLongTermMemories(
+    override suspend fun getScopedLongTermMemories(
         sessionId: String,
-        projectId: String = "",
-        maxPrivacyLevel: Int = DEFAULT_PRIVACY_LEVEL,
-        limit: Int = 20
+        projectId: String,
+        maxPrivacyLevel: Int,
+        limit: Int,
     ): List<ChatMessage> {
         val memories = dao.getScopedLongTermMemories(
             sessionId = sessionId,
@@ -416,6 +485,19 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         }
         return memories
     }
+
+    override suspend fun isScopedMemoryVisible(
+        memoryId: Long,
+        sessionId: String,
+        projectId: String,
+        maxPrivacyLevel: Int,
+    ): Boolean = dao.isScopedLongTermMemoryVisible(
+        memoryId = memoryId,
+        sessionId = sessionId,
+        projectId = projectId,
+        maxPrivacyLevel = MemoryMetadataPolicy.normalizePrivacyLevel(maxPrivacyLevel),
+        nowMs = System.currentTimeMillis(),
+    )
 
     suspend fun explainMemory(memoryId: Long): MemoryExplanation? = dao.getMessageById(memoryId)
         ?.takeIf { it.isMemory }
@@ -434,9 +516,12 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         }
 
     suspend fun forgetMemory(memoryId: Long): Boolean {
-        val existed = dao.getMessageById(memoryId)?.isMemory == true
+        val existing = dao.getMessageById(memoryId)?.takeIf { it.isMemory }
         val deleted = dao.deleteLongTermMemory(memoryId) > 0
-        if (deleted && existed) enqueueSyncMutation(memoryId, "DELETE_TOMBSTONE")
+        if (deleted && existing != null) {
+            enqueueSyncMutation(memoryId, "DELETE_TOMBSTONE")
+            removeScratchpadMirror(existing)
+        }
         return deleted
     }
 
@@ -446,6 +531,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         val ids = dao.getRecentLongTermMemories(sessionId, 10_000).map { it.id }
         val deleted = dao.deleteLongTermMemoriesForSession(sessionId)
         ids.forEach { enqueueSyncMutation(it, "DELETE_TOMBSTONE") }
+        MemoryStore.clearFacts(appContext, sessionId)
         return deleted
     }
 
@@ -475,7 +561,20 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
             expiresAtMs = expiresAtMs,
             updatedAtMs = System.currentTimeMillis()
         ) > 0
-        if (updated) enqueueSyncMutation(memoryId, "UPSERT")
+        if (updated) {
+            enqueueSyncMutation(memoryId, "UPSERT")
+            removeScratchpadMirror(existing)
+            if (normalizedScope != MemoryScope.USER.name) {
+                cacheApprovedScratchpadFact(
+                    sessionId = existing.sessionId,
+                    projectId = projectId.takeIf { normalizedScope == MemoryScope.PROJECT.name }.orEmpty(),
+                    privacyLevel = MemoryMetadataPolicy.normalizePrivacyLevel(privacyLevel),
+                    memoryId = memoryId,
+                    content = normalized,
+                    expiresAtMs = expiresAtMs,
+                )
+            }
+        }
         return updated
     }
 
@@ -503,7 +602,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
      *
      * Emits AIRI VECTOR_SEARCH_HIT (or _SKIPPED / _EMPTY).
      */
-    suspend fun semanticSearch(sessionId: String, query: String, k: Int = 5):
+    override suspend fun semanticSearch(sessionId: String, query: String, k: Int):
         List<EmbeddingService.RankedMessage> =
             embeddingService.topKSimilar(sessionId, query, k)
 
@@ -517,7 +616,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
     }
 
     /** Whether the embedding backend is loaded and ready. */
-    fun isSemanticMemoryReady(): Boolean = embeddingService.isReady()
+    override fun isSemanticMemoryReady(): Boolean = embeddingService.isReady()
 
     /** Releases the native embedding model under critical memory pressure. */
     suspend fun releaseEmbeddingResources() {
@@ -540,6 +639,7 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
             dao.clearSemanticMemories()
             ids.forEach { enqueueSyncMutation(it, "DELETE_TOMBSTONE") }
         }
+        MemoryStore.clearAllFacts(appContext)
     }
 
     private companion object {

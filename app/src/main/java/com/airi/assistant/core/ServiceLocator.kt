@@ -734,7 +734,12 @@ object ServiceLocator {
     }
 
     val ragRetriever: RagRetriever by lazy {
-        RagRetriever(memoryManager, projectKnowledgeManager, projectContextResolver)
+        RagRetriever(
+            memoryManager = memoryManager,
+            projectKnowledgeManager = projectKnowledgeManager,
+            projectContextResolver = projectContextResolver,
+            scratchpadFactSource = com.airi.assistant.memory.rag.MemoryStoreRagFactSource(requireContext()),
+        )
     }
 
     // ── Media Library ─────────────────────────────────────────────────────────

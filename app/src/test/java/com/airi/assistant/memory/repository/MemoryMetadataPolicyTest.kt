@@ -40,4 +40,10 @@ class MemoryMetadataPolicyTest {
         assertEquals(0, MemoryMetadataPolicy.normalizeImportance(-1))
         assertEquals(100, MemoryMetadataPolicy.normalizeImportance(1000))
     }
+
+    @Test
+    fun localRetrievalAllowsPrivateFactsWhileRemoteRetrievalUsesSafeCeiling() {
+        assertEquals(3, MemoryPrivacyPolicy.retrievalCeiling(localOnly = true))
+        assertEquals(1, MemoryPrivacyPolicy.retrievalCeiling(localOnly = false))
+    }
 }

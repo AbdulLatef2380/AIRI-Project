@@ -8,18 +8,17 @@ import com.airi.assistant.memory.entity.ChatMessage
 /**
  * Structured prompt compression.
  *
- * Replaces naive truncation with a 5-section envelope:
+ * Replaces naive truncation with a structured envelope:
  *
  *      <System>        existing system prompt — never trimmed
- *      <Memory>        key user facts (from MemoryStore)
  *      <Summary>       compact natural-language summary of older turns
  *      <Recent Turns>  sliding window of the last RECENT_TURN_PAIRS user/assistant pairs
  *      <User Input>    the in-flight user message (added at the call site)
  *
  * Hard token-budget enforcement: the final composed prompt is capped at
  * HARD_CAP_PCT of the live n_ctx. If we exceed, we shrink the summary, then
- * drop oldest recent turns. The system prompt and memory section are never
- * dropped — they're considered load-bearing.
+ * drop oldest recent turns. The system prompt is never dropped. Memory facts
+ * are injected only through scoped RAG, avoiding duplicate or unscoped injection.
  *
  * NOTE: This module ONLY reshapes the prompt envelope. It does NOT change
  *       sampler params, decode logic, or KV management.
@@ -96,7 +95,6 @@ object PromptCompressor {
         // ── 2) Pull stored summary + facts.
         val storedSummary = MemoryStore.getSummary(ctx, sessionId)
         val coveredThrough = MemoryStore.getSummaryCoverage(ctx, sessionId)
-        val facts          = MemoryStore.getFacts(ctx, sessionId)
 
         // Decide whether the summary is stale and a re-summarization should
         // run after this turn (caller fires-and-forgets).
@@ -112,7 +110,7 @@ object PromptCompressor {
             history.sumOf { estimateTokens(it.content) } +
             estimateTokens(userInput)
 
-        var composedSystem = buildSystemEnvelope(baseSystemPrompt, facts, summaryToInject)
+        var composedSystem = buildSystemEnvelope(baseSystemPrompt, summaryToInject)
         var workingRecent  = recent.toMutableList()
 
         fun composedTokens(): Int =
@@ -129,12 +127,12 @@ object PromptCompressor {
                 val keep = (summaryToInject.length * 3 / 4).coerceAtLeast(120)
                 if (summaryToInject.length > keep) {
                     summaryToInject = summaryToInject.substring(0, keep) + "…"
-                    composedSystem = buildSystemEnvelope(baseSystemPrompt, facts, summaryToInject)
+                    composedSystem = buildSystemEnvelope(baseSystemPrompt, summaryToInject)
                     truncatedSummary = true
                     continue
                 } else {
                     summaryToInject = ""
-                    composedSystem = buildSystemEnvelope(baseSystemPrompt, facts, "")
+                    composedSystem = buildSystemEnvelope(baseSystemPrompt, "")
                     truncatedSummary = true
                     continue
                 }
@@ -162,7 +160,7 @@ object PromptCompressor {
             nCtx             = safeNCtx,
             budgetTokens     = budgetTokens,
             summaryTokens    = estimateTokens(summaryToInject),
-            memoryTokens     = estimateTokens(facts.joinToString("\n")),
+            memoryTokens     = 0,
             systemTokens     = estimateTokens(baseSystemPrompt),
             recentTokens     = workingRecent.sumOf { estimateTokens(it.content) },
             truncatedSummary = truncatedSummary,
@@ -193,19 +191,11 @@ object PromptCompressor {
      */
     private fun buildSystemEnvelope(
         baseSystemPrompt: String,
-        facts: List<String>,
         summary: String
     ): String {
         val sb = StringBuilder()
         if (baseSystemPrompt.isNotBlank()) {
             sb.append(baseSystemPrompt.trim()).append('\n')
-        }
-        if (facts.isNotEmpty()) {
-            
-            val rawFacts = facts.joinToString("\n") { "- $it" }
-            val isolated = AccessibilityPolicyGuard.wrapRetrievedContent(rawFacts)
-            sb.append("\n[Memory — known user facts]\n")
-            sb.append(isolated).append('\n')
         }
         if (summary.isNotBlank()) {
             

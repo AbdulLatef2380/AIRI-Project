@@ -28,6 +28,7 @@ import com.airi.assistant.agent.observability.AgentObservabilityHub
 import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
 import com.airi.assistant.agent.scheduler.ScheduledJobOrchestrator
 import com.airi.assistant.agent.subagent.SubAgentRegistry
+import com.airi.assistant.agent.subagent.impl.MediaGenerationAgent
 import com.airi.assistant.agent.subagent.impl.AndroidAgent
 import com.airi.assistant.agent.subagent.impl.CloudBrowserAgent
 import com.airi.assistant.agent.subagent.impl.CodingAgent
@@ -792,7 +793,9 @@ object ServiceLocator {
         val agents = listOf(
             // Real agents — verified non-delegation-shell implementations.
             CodingAgent { codingAgentRuntimeProvider() },
-            // MediaGenerationAgent REMOVED (): delegation shell, no real capability.
+            // Real cloud image generation. SubAgentAuthorization enforces cloud/privacy policy
+            // before routing, and MediaArtifactService verifies the downloaded artifact.
+            MediaGenerationAgent(requireContext()),
             // DocumentProcessorAgent is a real local URI reader/extractor and must remain
             // registered so document requests reach the bounded extraction path.
             // LocalBrowserOperator REMOVED (): delegation shell, 0 real operations.

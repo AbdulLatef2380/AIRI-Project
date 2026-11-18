@@ -11,6 +11,21 @@ import com.airi.assistant.agent.loop.tool.ToolSchema
  * execution context, and terminal execution remains explicitly gated.
  */
 object AgentLoopToolAdmission {
+    /**
+     * Built-in artifact transforms are registered and dispatched, but are not yet admitted by
+     * the typed durable-artifact route. T8 keeps this exception explicit so a newly added tool
+     * cannot disappear from the AgentLoop silently.
+     */
+    val INTENTIONALLY_BLOCKED_WITHOUT_TYPED_ROUTE: Set<String> = setOf(
+        "generate_document",
+        "generate_spreadsheet",
+        "generate_pdf",
+        "generate_image",
+        "generate_audio",
+        "generate_video",
+        "compress_files",
+    )
+
     fun filter(
         tools: List<ToolSchema>,
         hasExecutionContext: Boolean,

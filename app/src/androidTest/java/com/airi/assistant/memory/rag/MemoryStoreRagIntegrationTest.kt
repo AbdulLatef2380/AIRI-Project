@@ -45,6 +45,7 @@ class MemoryStoreRagIntegrationTest {
             newFacts = listOf("preference=concise answers"),
             projectId = "project-a",
             privacyLevel = 1,
+            sourceMemoryId = 123L,
         )
 
         val rag = RagRetriever(
@@ -84,6 +85,7 @@ class MemoryStoreRagIntegrationTest {
             newFacts = listOf("preference=private setting"),
             projectId = "project-a",
             privacyLevel = 2,
+            sourceMemoryId = 124L,
         )
         val rag = RagRetriever(EmptyRagMemorySource, scratchpadFactSource = ragSource)
 
@@ -95,7 +97,7 @@ class MemoryStoreRagIntegrationTest {
     }
 
     @Test
-    fun legacyFactsAreRestrictedToUnprojectedSessionsAndRevalidated() = runBlocking {
+    fun legacyFactsWithoutVerifiableRoomOwnerAreNotInjectedIntoRag() = runBlocking {
         context.getSharedPreferences("airi_session_compress", Context.MODE_PRIVATE)
             .edit()
             .putString("facts::legacy-session", "[\"preference=tea\",\"name=Sam\",\"password=secret\"]")
@@ -103,7 +105,7 @@ class MemoryStoreRagIntegrationTest {
         val rag = RagRetriever(EmptyRagMemorySource, scratchpadFactSource = ragSource)
 
         val safe = rag.retrieve("legacy-session", "tea", maxPrivacyLevel = 1)
-        assertEquals(listOf("preference=tea"), safe.filter { it.source == "MEMORY_STORE" }.map { it.content })
+        assertTrue(safe.none { it.source == "MEMORY_STORE" })
         assertFalse(rag.retrieve("legacy-session", "tea", projectId = "project-x", maxPrivacyLevel = 3)
             .any { it.source == "MEMORY_STORE" })
     }
@@ -135,7 +137,11 @@ class MemoryStoreRagIntegrationTest {
             sessionId: String,
             projectId: String,
             maxPrivacyLevel: Int,
-        ) = false
+        ) = when (memoryId) {
+            123L -> sessionId == "session-a" && projectId == "project-a" && maxPrivacyLevel >= 1
+            124L -> sessionId == "session-a" && projectId == "project-a" && maxPrivacyLevel >= 2
+            else -> false
+        }
 
         override fun isSemanticMemoryReady() = false
 

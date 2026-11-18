@@ -19,5 +19,5 @@ class MemoryStoreRagFactSource(context: Context) {
         projectId = projectId,
         maxPrivacyLevel = maxPrivacyLevel,
         limit = limit,
-    )
+    ).filter { it.sourceMemoryId != null }
 }

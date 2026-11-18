@@ -23,6 +23,9 @@ android {
             }
         }
     }
+
+    // The test module must identify the application it profiles.
+    targetProjectPath = ":app"
 }
 
 baselineProfile {

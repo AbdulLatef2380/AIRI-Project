@@ -163,4 +163,30 @@ class ConversationResponseCompositionTest {
         assertEquals(ResponseLane.ARTIFACT, plan.lane)
         assertTrue(ResponseSectionKind.ARTIFACTS in plan.sections)
     }
+
+    private fun uiAnswer(json: String) = "نتيجة.\n```airi-ui\n$json\n```"
+
+    @Test
+    fun interfaceKeysInsideAiriUiDoNotSteerTheLane() {
+        val plan = ConversationResponseCompositionPlanner.plan(
+            ResponseRequestProfile(
+                userText = "لخص لي النتيجة",
+                answerText = uiAnswer("""{"version":1,"blocks":[{"type":"stat","id":"route","value":"location bar_chart diagram"}]}"""),
+            ),
+        )
+        assertEquals(ResponseLane.CONVERSATION, plan.lane)
+        assertTrue(plan.allowGenerativeUi)
+    }
+
+    @Test
+    fun arabicCodeWordsMatchAsWholeWordsOnly() {
+        fun laneFor(request: String) = ConversationResponseCompositionPlanner.plan(
+            ResponseRequestProfile(userText = request, answerText = "حسناً"),
+        ).lane
+        assertEquals(ResponseLane.CODE, laneFor("اكتب لي الكود"))
+        assertEquals(ResponseLane.CODE, laneFor("أحتاج مساعدة في البرمجة"))
+        assertEquals(ResponseLane.CODE, laneFor("وضّح كودك"))
+        assertFalse(laneFor("ما أسباب الركود الاقتصادي") == ResponseLane.CODE)
+        assertFalse(laneFor("هذه رسالة مشفرة") == ResponseLane.CODE)
+    }
 }

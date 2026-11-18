@@ -172,4 +172,36 @@ class RuntimeTraceActivityMapperTest {
         assertEquals("submit", activity?.metadata?.actionId)
         assertEquals("runtime-parent", activity?.metadata?.parentId)
     }
+
+    @Test
+    fun rejectedGenUiProjectionIsAWarningAndFailedWithReason() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        recorder.begin("runtime-ui-r", "session-ui", "model", "provider", "test", "input", emptyList())
+        recorder.uiProjection(
+            "runtime-ui-r", "session-ui",
+            outcome = com.airi.assistant.core.UiProjectionOutcome.REJECTED,
+            reason = "duplicate_id",
+        )
+        val event = recorder.events.last { it.eventType == UniversalTraceEventType.UI_PROJECTION_COMPLETED }
+        val activity = RuntimeTraceActivityMapper.map(event)
+        assertEquals(ActivitySeverity.WARN, activity?.severity)
+        assertEquals(ActivityStatus.FAILED, activity?.metadata?.status)
+        assertTrue(activity?.detail.orEmpty().contains("duplicate_id"))
+    }
+
+    @Test
+    fun acceptedGenUiProjectionIsInfoCompletedWithBlockCount() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        recorder.begin("runtime-ui-a", "session-ui", "model", "provider", "test", "input", emptyList())
+        recorder.uiProjection(
+            "runtime-ui-a", "session-ui",
+            outcome = com.airi.assistant.core.UiProjectionOutcome.ACCEPTED,
+            blockCount = 3,
+        )
+        val event = recorder.events.last { it.eventType == UniversalTraceEventType.UI_PROJECTION_COMPLETED }
+        val activity = RuntimeTraceActivityMapper.map(event)
+        assertEquals(ActivitySeverity.INFO, activity?.severity)
+        assertEquals(ActivityStatus.COMPLETED, activity?.metadata?.status)
+        assertTrue(activity?.detail.orEmpty().contains("3"))
+    }
 }

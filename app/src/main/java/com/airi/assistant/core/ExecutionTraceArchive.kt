@@ -22,6 +22,13 @@ object ExecutionTraceArchive {
 
     @Volatile var maxMessages = 200
 
+    /**
+     * Cap for one conversation. When it is reached the oldest trace of that same
+     * conversation is dropped first, so a long chat never pushes out the traces
+     * of other chats. The global [maxMessages] stays as the overall ceiling.
+     */
+    @Volatile var maxMessagesPerSession = 100
+
     private val lock = Any()
     private var file: File? = null
     private var loaded = false
@@ -46,6 +53,7 @@ object ExecutionTraceArchive {
             if (!ensureLoaded(target)) return
             entries.remove(messageId)
             entries[messageId] = events
+            evictOldestInSession(sessionOf(events))
             while (entries.size > maxMessages) entries.remove(entries.keys.first())
             writeGeneration += 1
             writeGeneration to entries.toMap()
@@ -82,6 +90,18 @@ object ExecutionTraceArchive {
             runCatching { target.delete() }
                 .onFailure { LoggingService.error("AIRI_TRACE", "Execution trace archive clear failed", it) }
         }
+    }
+
+    private fun sessionOf(events: List<ExecutionTraceEvent>): String =
+        events.firstOrNull { it.sessionId.isNotBlank() }?.sessionId.orEmpty()
+
+    /** Caller holds [lock]. Drops the oldest traces of [sessionId] beyond the per-session cap. */
+    private fun evictOldestInSession(sessionId: String) {
+        if (sessionId.isBlank()) return
+        val limit = maxMessagesPerSession.coerceAtLeast(1)
+        val owned = entries.entries.filter { sessionOf(it.value) == sessionId }.map { it.key }
+        if (owned.size <= limit) return
+        owned.take(owned.size - limit).forEach { entries.remove(it) }
     }
 
     private fun removeEntries(predicate: (Long) -> Boolean) {

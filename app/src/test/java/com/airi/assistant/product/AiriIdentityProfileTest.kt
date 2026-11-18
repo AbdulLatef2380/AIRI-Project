@@ -61,4 +61,30 @@ class AiriIdentityProfileTest {
         assertTrue(cloud.contains("submitLabel"))
         assertTrue(cloud.contains("unique short ids"))
     }
+
+    @Test
+    fun contractStatesLimitsAndIsGatedByRequestIntent() {
+        val cloud = descriptor(CapabilityStatus.SUPPORTED, "openai")
+        val unknownRequest = AiriIdentityProfile.runtimeContext(cloud)
+        assertTrue(unknownRequest.contains("Hard limits"))
+        assertTrue(unknownRequest.contains("every id in the document must be unique"))
+
+        val chatty = AiriIdentityProfile.runtimeContext(cloud, "صباح الخير، كيف حالك؟")
+        assertFalse(chatty.contains("airi-ui"))
+
+        val comparison = AiriIdentityProfile.runtimeContext(cloud, "قارن بين الخيارين في جدول")
+        assertTrue(comparison.contains("airi-ui"))
+        val english = AiriIdentityProfile.runtimeContext(cloud, "Give me a checklist for moving")
+        assertTrue(english.contains("airi-ui"))
+
+        val local = AiriIdentityProfile.runtimeContext(descriptor(CapabilityStatus.SUPPORTED, "local"), "قارن بين الخيارين")
+        assertFalse(local.contains("airi-ui"))
+    }
+
+    @Test
+    fun intentCheckIgnoresWordsThatOnlyContainAKeyword() {
+        assertFalse(GenerativeUiIntent.suggestsStructuredOutput("this is a tablet and information"))
+        assertTrue(GenerativeUiIntent.suggestsStructuredOutput("show a bar chart of sales"))
+        assertFalse(GenerativeUiIntent.suggestsStructuredOutput("   "))
+    }
 }

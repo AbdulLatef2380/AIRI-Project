@@ -1,5 +1,6 @@
 package com.airi.assistant.ui.activity
 
+import com.airi.assistant.core.UiProjectionOutcome
 import com.airi.assistant.core.UniversalRuntimeTraceEvent
 import com.airi.assistant.core.UniversalTraceEventType
 
@@ -29,7 +30,9 @@ internal object RuntimeTraceActivityMapper {
                         metadata = actionMetadata(event, if (rejected) ActivityStatus.FAILED else ActivityStatus.COMPLETED),
                     )
                 } else {
-                    val rejected = event.outcome.startsWith("rejected") || event.outcome == "compile_failed"
+                    // The outcome is a typed value (accepted / rejected); a rejection is a
+                    // warning-level failed projection, never a successful one.
+                    val rejected = event.outcome == UiProjectionOutcome.REJECTED
                     Presentation(
                         category = ActivityCategory.MODEL,
                         tag = "runtime_genui_${event.outcome.take(48)}",

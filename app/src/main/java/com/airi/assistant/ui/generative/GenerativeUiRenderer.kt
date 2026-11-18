@@ -29,6 +29,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -64,6 +65,9 @@ fun GenerativeUiRenderer(
     stateStore: GenerativeUiStateStore? = null,
 ) {
     val effectiveStateStore = stateStore ?: remember { GenerativeUiStateStore() }
+    val actionVersion by effectiveStateStore.actionVersion.collectAsState()
+    @Suppress("UNUSED_VARIABLE")
+    val observedActionVersion = actionVersion
     val document = compiled.document
     val accessibleResponseLabel = document.title ?: stringResource(R.string.generative_ui_accessible_response)
     var pendingAction by remember(compiled) { mutableStateOf<GenerativeUiAction?>(null) }
@@ -110,13 +114,13 @@ fun GenerativeUiRenderer(
             document.blocks.forEach { block ->
                 when (block) {
                     is GenerativeUiBlock.Stat -> StatBlock(block)
-                    is GenerativeUiBlock.BarChart -> BarChartBlock(block, effectiveStateStore)
-                    is GenerativeUiBlock.Diagram -> DiagramBlock(block, effectiveStateStore)
-                    is GenerativeUiBlock.Form -> FormBlock(block, requestAction, sourceExecutionId, sourceMessageId, "$sourceMessageId:${block.id}", effectiveStateStore)
-                    is GenerativeUiBlock.Actions -> ActionsBlock(block, requestAction, sourceExecutionId, sourceMessageId)
+                    is GenerativeUiBlock.BarChart -> BarChartBlock(block, GenerativeUiStateStore.key(sourceMessageId, block.id), effectiveStateStore)
+                    is GenerativeUiBlock.Diagram -> DiagramBlock(block, GenerativeUiStateStore.key(sourceMessageId, block.id), effectiveStateStore)
+                    is GenerativeUiBlock.Form -> FormBlock(block, requestAction, sourceExecutionId, sourceMessageId, GenerativeUiStateStore.key(sourceMessageId, block.id), effectiveStateStore)
+                    is GenerativeUiBlock.Actions -> ActionsBlock(block, requestAction, sourceExecutionId, sourceMessageId, effectiveStateStore)
                     is GenerativeUiBlock.Route -> RouteBlock(block)
                     is GenerativeUiBlock.Table -> TableBlock(block)
-                    is GenerativeUiBlock.Checklist -> ChecklistBlock(block, "$sourceMessageId:${block.id}", effectiveStateStore)
+                    is GenerativeUiBlock.Checklist -> ChecklistBlock(block, GenerativeUiStateStore.key(sourceMessageId, block.id), effectiveStateStore)
                 }
             }
         }
@@ -135,7 +139,7 @@ private fun StatBlock(block: GenerativeUiBlock.Stat) {
 }
 
 @Composable
-private fun BarChartBlock(block: GenerativeUiBlock.BarChart, stateStore: GenerativeUiStateStore) {
+private fun BarChartBlock(block: GenerativeUiBlock.BarChart, stateKey: String, stateStore: GenerativeUiStateStore) {
     val minValue = block.values.minOrNull() ?: 0f
     val maxValue = block.values.maxOrNull() ?: 1f
     val range = (maxValue - minValue).coerceAtLeast(1f)
@@ -144,7 +148,6 @@ private fun BarChartBlock(block: GenerativeUiBlock.BarChart, stateStore: Generat
         maxValue <= 0f -> 1f
         else -> 0f
     }
-    val stateKey = "bar:${block.id}"
     var selectedIndex by remember(stateKey) { mutableIntStateOf(stateStore.state(stateKey).selectedIndex) }
     val axisColor = AiriTheme.outline.copy(alpha = 0.65f)
     val negativeBarColor = AiriTheme.error
@@ -203,8 +206,7 @@ private fun BarChartBlock(block: GenerativeUiBlock.BarChart, stateStore: Generat
 }
 
 @Composable
-private fun DiagramBlock(block: GenerativeUiBlock.Diagram, stateStore: GenerativeUiStateStore) {
-    val stateKey = "diagram:${block.id}"
+private fun DiagramBlock(block: GenerativeUiBlock.Diagram, stateKey: String, stateStore: GenerativeUiStateStore) {
     var selectedNodeId by remember(stateKey) { mutableStateOf(stateStore.state(stateKey).selectedNodeId) }
     val selected = block.nodes.firstOrNull { it.id == selectedNodeId }
     val connected = block.edges.filter { it.from == selectedNodeId || it.to == selectedNodeId }
@@ -285,32 +287,54 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
         }
+        val phase = stateStore.actionPhase(sourceMessageId, block.actionId)
         Button(
+            enabled = phase != GenerativeUiStateStore.ActionPhase.RUNNING,
             onClick = {
                 if (missingRequired) {
                     submitted = true
                     stateStore.update(stateKey) { it.copy(submitted = true) }
-                } else onAction(GenerativeUiAction(block.actionId, values.toMap(), sourceExecutionId, sourceMessageId))
+                } else {
+                    stateStore.setActionPhase(sourceMessageId, block.actionId, GenerativeUiStateStore.ActionPhase.STAGED)
+                    onAction(GenerativeUiAction(block.actionId, values.toMap(), sourceExecutionId, sourceMessageId))
+                }
             },
             modifier = Modifier.align(Alignment.End),
             shape = AIRIShapes.md,
         ) { Text(block.submitLabel) }
+        ActionPhaseText(phase)
     }
 }
 
 @Composable
-private fun ActionsBlock(block: GenerativeUiBlock.Actions, onAction: (GenerativeUiAction) -> Unit, sourceExecutionId: String?, sourceMessageId: String?) {
+private fun ActionsBlock(block: GenerativeUiBlock.Actions, onAction: (GenerativeUiAction) -> Unit, sourceExecutionId: String?, sourceMessageId: String?, stateStore: GenerativeUiStateStore) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
         block.options.forEach { option ->
+            val phase = stateStore.actionPhase(sourceMessageId, option.id)
             Button(
+                enabled = phase != GenerativeUiStateStore.ActionPhase.RUNNING,
                 onClick = {
+                    stateStore.setActionPhase(sourceMessageId, option.id, GenerativeUiStateStore.ActionPhase.STAGED)
                     onAction(GenerativeUiAction(option.id, mapOf("prompt" to option.prompt), sourceExecutionId, sourceMessageId))
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = AIRIShapes.md,
             ) { Text(option.label) }
+            ActionPhaseText(phase)
         }
+    }
+}
+
+@Composable
+private fun ActionPhaseText(phase: GenerativeUiStateStore.ActionPhase?) {
+    phase?.let {
+        Text(
+            stringResource(R.string.generative_ui_action_phase, it.name.lowercase()),
+            color = AiriTheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
     }
 }
 

@@ -122,38 +122,112 @@ sealed interface GenerativeUiCompileResult {
     data class Rejected(val reason: GenerativeUiRejectReason) : GenerativeUiCompileResult
 }
 
+/**
+ * Hard limits of the airi-ui contract. They are public so the model-facing
+ * prompt contract and the parser are generated from one set of numbers and
+ * cannot drift apart.
+ */
+object GenerativeUiLimits {
+    const val MAX_BLOCKS = 8
+    const val MAX_ITEMS = 30
+    const val MAX_TEXT = 240
+    const val MIN_FORM_FIELDS = 1
+    const val MAX_FORM_FIELDS = 8
+    const val MAX_ACTION_OPTIONS = 8
+    const val MIN_ROUTE_STOPS = 2
+    const val MAX_ROUTE_STOPS = 20
+    const val MIN_TABLE_COLUMNS = 2
+    const val MAX_TABLE_COLUMNS = 6
+    const val MAX_TABLE_ROWS = 20
+    const val MAX_CHECKLIST_ITEMS = 20
+    const val MAX_ID_CHARS = 48
+}
+
+/**
+ * Typed parser failure. The rejection category is part of the exception, so
+ * classification can never depend on the wording of an error message.
+ */
+private class SchemaViolation(
+    val reason: GenerativeUiRejectReason,
+    message: String,
+) : IllegalArgumentException(message)
+
+private fun reject(reason: GenerativeUiRejectReason, message: String): Nothing =
+    throw SchemaViolation(reason, message)
+
+private inline fun ensure(
+    condition: Boolean,
+    reason: GenerativeUiRejectReason = GenerativeUiRejectReason.INVALID_SCHEMA,
+    message: () -> String,
+) {
+    if (!condition) reject(reason, message())
+}
+
 object GenerativeUiCompiler {
     private const val MAX_RESPONSE_CHARS = 96_000
     private const val MAX_JSON_CHARS = 32_000
     private const val MAX_JSON_DEPTH = 12
-    private const val MAX_BLOCKS = 8
-    private const val MAX_ITEMS = 30
-    private const val MAX_TEXT = 240
+    private const val CACHE_ENTRIES = 4
+    private const val FENCE_OPEN = "```airi-ui"
     private val fenced = Regex("```airi-ui\\s*([\\s\\S]*?)```", RegexOption.IGNORE_CASE)
+    private val idPattern = Regex("[A-Za-z0-9_-]+")
+    private val noFence = GenerativeUiCompileResult.Rejected(GenerativeUiRejectReason.NO_FENCE)
+
+    /**
+     * Small access-ordered cache. A finished response is compiled by the
+     * view-model, the composition planner and the renderer; the cache makes
+     * those three calls cost one parse. Results are immutable value objects.
+     */
+    private val cache = object : LinkedHashMap<String, GenerativeUiCompileResult>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, GenerativeUiCompileResult>?): Boolean =
+            size > CACHE_ENTRIES
+    }
 
     fun compileDetailed(text: String): GenerativeUiCompileResult {
         if (text.length > MAX_RESPONSE_CHARS) return GenerativeUiCompileResult.Rejected(GenerativeUiRejectReason.OVERSIZE)
-        val match = fenced.find(text) ?: return GenerativeUiCompileResult.Rejected(
-            if (text.contains("```airi-ui", ignoreCase = true)) GenerativeUiRejectReason.UNCLOSED_FENCE
-            else GenerativeUiRejectReason.NO_FENCE,
-        )
-        val raw = match.groupValues.getOrNull(1)?.trim().orEmpty()
-        if (raw.isBlank() || raw.length > MAX_JSON_CHARS) return GenerativeUiCompileResult.Rejected(
-            if (raw.length > MAX_JSON_CHARS) GenerativeUiRejectReason.OVERSIZE else GenerativeUiRejectReason.BAD_JSON,
-        )
-        val document = runCatching { JSONObject(raw) }
-            .mapCatching { json -> parse(json).also { validateDepth(json, 0) } }
-            .fold(
-                onSuccess = { it },
-                onFailure = { return GenerativeUiCompileResult.Rejected(reasonFor(it)) },
-            )
-        val surrounding = text.removeRange(match.range).trim()
-        return GenerativeUiCompileResult.Accepted(CompiledGenerativeUi(document, surrounding))
+        if (!text.contains(FENCE_OPEN, ignoreCase = true)) return noFence
+        synchronized(cache) { cache[text] }?.let { return it }
+        val result = compileUncached(text)
+        synchronized(cache) { cache[text] = result }
+        return result
     }
 
     /** Backwards-compatible nullable wrapper for existing renderers. */
     fun compile(text: String): CompiledGenerativeUi? =
         (compileDetailed(text) as? GenerativeUiCompileResult.Accepted)?.value
+
+    /**
+     * Returns [text] without any airi-ui payload (closed fences, and an
+     * unclosed trailing fence). Keyword-based classifiers must run on this
+     * value so that interface keys such as "route" or "bar_chart" never
+     * influence the response lane.
+     */
+    fun withoutGenerativeUi(text: String): String {
+        if (!text.contains(FENCE_OPEN, ignoreCase = true)) return text
+        val closedRemoved = fenced.replace(text, " ")
+        val open = closedRemoved.indexOf(FENCE_OPEN, ignoreCase = true)
+        return if (open >= 0) closedRemoved.substring(0, open) else closedRemoved
+    }
+
+    internal fun clearCacheForTesting() {
+        synchronized(cache) { cache.clear() }
+    }
+
+    private fun compileUncached(text: String): GenerativeUiCompileResult {
+        val match = fenced.find(text) ?: return GenerativeUiCompileResult.Rejected(GenerativeUiRejectReason.UNCLOSED_FENCE)
+        val raw = match.groupValues.getOrNull(1)?.trim().orEmpty()
+        if (raw.length > MAX_JSON_CHARS) return GenerativeUiCompileResult.Rejected(GenerativeUiRejectReason.OVERSIZE)
+        if (raw.isBlank()) return GenerativeUiCompileResult.Rejected(GenerativeUiRejectReason.BAD_JSON)
+        val document = try {
+            val json = JSONObject(raw)
+            validateDepth(json, 0)
+            parse(json)
+        } catch (error: Exception) {
+            return GenerativeUiCompileResult.Rejected(reasonFor(error))
+        }
+        val surrounding = text.removeRange(match.range).trim()
+        return GenerativeUiCompileResult.Accepted(CompiledGenerativeUi(document, surrounding))
+    }
 
     /** Rebuild an action from its assistant source; callback data is untrusted. */
     fun rebuildAction(sourceText: String, requested: GenerativeUiAction): GenerativeUiAction? {
@@ -178,24 +252,32 @@ object GenerativeUiCompiler {
 
     private fun parse(root: JSONObject): GenerativeUiDocument {
         requireOnlyKeys(root, setOf("version", "title", "description", "blocks"))
-        require(root.has("version") && root.get("version") is Number) { "version must be numeric" }
-        require(root.getInt("version") == 1) { "unsupported ui schema" }
-        val blocksJson = root.get("blocks") as? JSONArray ?: error("blocks must be an array")
-        require(blocksJson.length() in 1..MAX_BLOCKS) { "invalid block count" }
+        val version = root.opt("version")
+        ensure(version is Number, GenerativeUiRejectReason.BAD_VERSION) { "version must be numeric" }
+        ensure((version as Number).toDouble() == 1.0, GenerativeUiRejectReason.BAD_VERSION) { "unsupported ui schema" }
+        val blocksJson = root.opt("blocks") as? JSONArray
+            ?: reject(GenerativeUiRejectReason.INVALID_SCHEMA, "blocks must be an array")
+        ensure(blocksJson.length() in 1..GenerativeUiLimits.MAX_BLOCKS, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "invalid block count" }
         val blocks = buildList {
             for (index in 0 until blocksJson.length()) {
-                add(parseBlock(blocksJson.getJSONObject(index), index))
+                add(parseBlock(objectAt(blocksJson, index)))
             }
         }
+        // One flat identifier namespace: block ids, nested ids and form action
+        // ids may never collide, because an action is later rebuilt by id.
         val ids = mutableSetOf<String>()
+        fun claim(id: String) = ensure(ids.add(id), GenerativeUiRejectReason.DUPLICATE_ID) { "duplicate id" }
         blocks.forEach { block ->
-            require(ids.add(block.id)) { "duplicate block id" }
+            claim(block.id)
             when (block) {
-                is GenerativeUiBlock.Diagram -> block.nodes.forEach { require(ids.add(it.id)) { "duplicate node id" } }
-                is GenerativeUiBlock.Form -> block.fields.forEach { require(ids.add(it.id)) { "duplicate field id" } }
-                is GenerativeUiBlock.Actions -> block.options.forEach { require(ids.add(it.id)) { "duplicate action id" } }
-                is GenerativeUiBlock.Route -> block.stops.forEach { require(ids.add(it.id)) { "duplicate stop id" } }
-                is GenerativeUiBlock.Checklist -> block.items.forEach { require(ids.add(it.id)) { "duplicate checklist id" } }
+                is GenerativeUiBlock.Diagram -> block.nodes.forEach { claim(it.id) }
+                is GenerativeUiBlock.Form -> {
+                    block.fields.forEach { claim(it.id) }
+                    if (block.actionId != block.id) claim(block.actionId)
+                }
+                is GenerativeUiBlock.Actions -> block.options.forEach { claim(it.id) }
+                is GenerativeUiBlock.Route -> block.stops.forEach { claim(it.id) }
+                is GenerativeUiBlock.Checklist -> block.items.forEach { claim(it.id) }
                 else -> Unit
             }
         }
@@ -207,9 +289,9 @@ object GenerativeUiCompiler {
         )
     }
 
-    private fun parseBlock(json: JSONObject, index: Int): GenerativeUiBlock {
-        require(json.get("type") is String) { "block type must be text" }
-        require(json.get("id") is String) { "block id must be text" }
+    private fun parseBlock(json: JSONObject): GenerativeUiBlock {
+        ensure(json.opt("type") is String) { "block type must be text" }
+        ensure(json.opt("id") is String) { "block id must be text" }
         val id = safeId(json.getString("id"))
         val type = json.getString("type").lowercase()
         val title = optionalText(json, "title")
@@ -227,30 +309,30 @@ object GenerativeUiCompiler {
                 requireOnlyKeys(json, setOf("type", "id", "title", "labels", "values", "unit"))
                 val labels = json.optJSONArray("labels").boundedStrings()
                 val values = json.optJSONArray("values").boundedNumbers()
-                require(labels.isNotEmpty() && labels.size == values.size) { "chart labels/values mismatch" }
+                ensure(labels.size == values.size) { "chart labels/values mismatch" }
                 GenerativeUiBlock.BarChart(id, title, labels, values, optionalText(json, "unit"))
             }
             "diagram" -> {
                 requireOnlyKeys(json, setOf("type", "id", "title", "nodes", "edges"))
                 val nodesJson = json.optJSONArray("nodes") ?: JSONArray()
-                require(nodesJson.length() in 1..MAX_ITEMS) { "invalid diagram nodes" }
+                ensure(nodesJson.length() in 1..GenerativeUiLimits.MAX_ITEMS, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "invalid diagram nodes" }
                 val nodes = buildList {
                     for (i in 0 until nodesJson.length()) {
-                        val node = nodesJson.getJSONObject(i)
+                        val node = objectAt(nodesJson, i)
                         requireOnlyKeys(node, setOf("id", "label", "description"))
                         add(DiagramNode(requiredId(node, "id"), requiredText(node, "label"), optionalText(node, "description")))
                     }
                 }
                 val nodeIds = nodes.map { it.id }.toSet()
                 val edgesJson = json.optJSONArray("edges") ?: JSONArray()
-                require(edgesJson.length() <= MAX_ITEMS) { "too many diagram edges" }
+                ensure(edgesJson.length() <= GenerativeUiLimits.MAX_ITEMS, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "too many diagram edges" }
                 val edges = buildList {
                     for (i in 0 until edgesJson.length()) {
-                        val edge = edgesJson.getJSONObject(i)
+                        val edge = objectAt(edgesJson, i)
                         requireOnlyKeys(edge, setOf("from", "to", "label"))
                         val from = requiredId(edge, "from")
                         val to = requiredId(edge, "to")
-                        require(from in nodeIds && to in nodeIds) { "edge references unknown node" }
+                        ensure(from in nodeIds && to in nodeIds) { "edge references unknown node" }
                         add(DiagramEdge(from, to, optionalText(edge, "label")))
                     }
                 }
@@ -259,10 +341,13 @@ object GenerativeUiCompiler {
             "form" -> {
                 requireOnlyKeys(json, setOf("type", "id", "title", "fields", "submitLabel", "actionId"))
                 val fieldsJson = json.optJSONArray("fields") ?: JSONArray()
-                require(fieldsJson.length() in 1..8) { "invalid form fields" }
+                ensure(
+                    fieldsJson.length() in GenerativeUiLimits.MIN_FORM_FIELDS..GenerativeUiLimits.MAX_FORM_FIELDS,
+                    GenerativeUiRejectReason.LIMIT_EXCEEDED,
+                ) { "invalid form fields" }
                 val fields = buildList {
                     for (i in 0 until fieldsJson.length()) {
-                        val field = fieldsJson.getJSONObject(i)
+                        val field = objectAt(fieldsJson, i)
                         requireOnlyKeys(field, setOf("id", "label", "placeholder", "required"))
                         add(FormField(requiredId(field, "id"), requiredText(field, "label"), optionalText(field, "placeholder"), optionalBoolean(field, "required") ?: false))
                     }
@@ -272,10 +357,10 @@ object GenerativeUiCompiler {
             "actions" -> {
                 requireOnlyKeys(json, setOf("type", "id", "title", "options"))
                 val optionsJson = json.optJSONArray("options") ?: JSONArray()
-                require(optionsJson.length() in 1..8) { "invalid action count" }
+                ensure(optionsJson.length() in 1..GenerativeUiLimits.MAX_ACTION_OPTIONS, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "invalid action count" }
                 val options = buildList {
                     for (i in 0 until optionsJson.length()) {
-                        val option = optionsJson.getJSONObject(i)
+                        val option = objectAt(optionsJson, i)
                         requireOnlyKeys(option, setOf("id", "label", "prompt"))
                         add(ActionOption(
                             id = requiredId(option, "id"),
@@ -289,15 +374,18 @@ object GenerativeUiCompiler {
             "route" -> {
                 requireOnlyKeys(json, setOf("type", "id", "title", "stops"))
                 val stopsJson = json.optJSONArray("stops") ?: JSONArray()
-                require(stopsJson.length() in 2..20) { "invalid route stops" }
+                ensure(
+                    stopsJson.length() in GenerativeUiLimits.MIN_ROUTE_STOPS..GenerativeUiLimits.MAX_ROUTE_STOPS,
+                    GenerativeUiRejectReason.LIMIT_EXCEEDED,
+                ) { "invalid route stops" }
                 val stops = buildList {
                     for (i in 0 until stopsJson.length()) {
-                        val stop = stopsJson.getJSONObject(i)
+                        val stop = objectAt(stopsJson, i)
                         requireOnlyKeys(stop, setOf("id", "label", "location", "latitude", "longitude"))
                         val latitude = strictOptionalDouble(stop, "latitude")
                         val longitude = strictOptionalDouble(stop, "longitude")
-                        require(latitude == null || latitude in -90.0..90.0) { "latitude out of range" }
-                        require(longitude == null || longitude in -180.0..180.0) { "longitude out of range" }
+                        ensure(latitude == null || latitude in -90.0..90.0, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "latitude out of range" }
+                        ensure(longitude == null || longitude in -180.0..180.0, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "longitude out of range" }
                         add(RouteStop(
                             id = requiredId(stop, "id"),
                             label = requiredText(stop, "label"),
@@ -312,13 +400,18 @@ object GenerativeUiCompiler {
             "table" -> {
                 requireOnlyKeys(json, setOf("type", "id", "title", "headers", "rows"))
                 val headers = json.optJSONArray("headers").boundedStrings()
-                require(headers.size in 2..6) { "table needs two to six headers" }
+                ensure(
+                    headers.size in GenerativeUiLimits.MIN_TABLE_COLUMNS..GenerativeUiLimits.MAX_TABLE_COLUMNS,
+                    GenerativeUiRejectReason.LIMIT_EXCEEDED,
+                ) { "table needs two to six headers" }
                 val rowsJson = json.optJSONArray("rows") ?: JSONArray()
-                require(rowsJson.length() in 1..20) { "invalid table rows" }
+                ensure(rowsJson.length() in 1..GenerativeUiLimits.MAX_TABLE_ROWS, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "invalid table rows" }
                 val rows = buildList {
                     for (i in 0 until rowsJson.length()) {
-                        val row = rowsJson.getJSONArray(i).boundedStrings()
-                        require(row.size == headers.size) { "table row mismatch" }
+                        val rowJson = rowsJson.optJSONArray(i)
+                            ?: reject(GenerativeUiRejectReason.INVALID_SCHEMA, "table row must be an array")
+                        val row = rowJson.boundedStrings()
+                        ensure(row.size == headers.size) { "table row mismatch" }
                         add(row)
                     }
                 }
@@ -327,10 +420,10 @@ object GenerativeUiCompiler {
             "checklist" -> {
                 requireOnlyKeys(json, setOf("type", "id", "title", "items"))
                 val itemsJson = json.optJSONArray("items") ?: JSONArray()
-                require(itemsJson.length() in 1..20) { "invalid checklist items" }
+                ensure(itemsJson.length() in 1..GenerativeUiLimits.MAX_CHECKLIST_ITEMS, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "invalid checklist items" }
                 val items = buildList {
                     for (i in 0 until itemsJson.length()) {
-                        val item = itemsJson.getJSONObject(i)
+                        val item = objectAt(itemsJson, i)
                         requireOnlyKeys(item, setOf("id", "label", "detail", "checked"))
                         add(ChecklistItem(
                             id = requiredId(item, "id"),
@@ -342,34 +435,40 @@ object GenerativeUiCompiler {
                 }
                 GenerativeUiBlock.Checklist(id, title, items)
             }
-            else -> error("unsupported ui block")
+            else -> reject(GenerativeUiRejectReason.UNKNOWN_BLOCK, "unsupported ui block")
         }
     }
 
+    private fun objectAt(array: JSONArray, index: Int): JSONObject =
+        array.optJSONObject(index) ?: reject(GenerativeUiRejectReason.INVALID_SCHEMA, "array item must be an object")
+
     private fun requiredText(json: JSONObject, key: String): String {
-        require(json.has(key) && json.get(key) is String) { "$key must be text" }
-        return safeText(json.getString(key)) ?: error("missing $key")
+        ensure(json.has(key) && json.get(key) is String) { "$key must be text" }
+        return safeText(json.getString(key)) ?: reject(GenerativeUiRejectReason.INVALID_SCHEMA, "missing $key")
     }
     private fun requiredId(json: JSONObject, key: String): String = safeId(requiredText(json, key))
     private fun optionalText(json: JSONObject, key: String): String? {
         if (!json.has(key) || json.isNull(key)) return null
-        require(json.get(key) is String) { "$key must be text" }
+        ensure(json.get(key) is String) { "$key must be text" }
         return safeText(json.getString(key))
     }
     private fun optionalBoolean(json: JSONObject, key: String): Boolean? {
         if (!json.has(key) || json.isNull(key)) return null
-        require(json.get(key) is Boolean) { "$key must be boolean" }
+        ensure(json.get(key) is Boolean) { "$key must be boolean" }
         return json.getBoolean(key)
     }
-    private fun safeText(value: String?): String? = value?.trim()?.takeIf { it.isNotEmpty() }?.take(MAX_TEXT)
-    private fun safeId(value: String): String = value.trim().take(48).takeIf { it.matches(Regex("[A-Za-z0-9_-]+")) } ?: error("invalid id")
+    private fun safeText(value: String?): String? =
+        value?.trim()?.takeIf { it.isNotEmpty() }?.take(GenerativeUiLimits.MAX_TEXT)
+    private fun safeId(value: String): String =
+        value.trim().take(GenerativeUiLimits.MAX_ID_CHARS).takeIf { idPattern.matches(it) }
+            ?: reject(GenerativeUiRejectReason.BAD_ID, "invalid id")
 
     private fun requireOnlyKeys(json: JSONObject, allowed: Set<String>) {
-        json.keys().forEach { key -> require(key in allowed) { "unknown key: $key" } }
+        json.keys().forEach { key -> ensure(key in allowed, GenerativeUiRejectReason.UNKNOWN_KEY) { "unknown key" } }
     }
 
     private fun validateDepth(value: Any?, depth: Int) {
-        require(depth <= MAX_JSON_DEPTH) { "ui schema nesting is too deep" }
+        ensure(depth <= MAX_JSON_DEPTH, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "ui schema nesting is too deep" }
         when (value) {
             is JSONObject -> value.keys().forEach { key -> validateDepth(value.get(key), depth + 1) }
             is JSONArray -> for (index in 0 until value.length()) {
@@ -381,39 +480,43 @@ object GenerativeUiCompiler {
     private fun strictOptionalDouble(json: JSONObject, key: String): Double? {
         if (!json.has(key) || json.isNull(key)) return null
         val value = json.get(key)
-        require(value is Number) { "$key must be numeric" }
-        return value.toDouble().also { require(it.isFinite()) { "$key must be finite" } }
+        ensure(value is Number) { "$key must be numeric" }
+        return (value as Number).toDouble().also { ensure(it.isFinite()) { "$key must be finite" } }
     }
 
-    private fun reasonFor(error: Throwable): GenerativeUiRejectReason {
-        val message = error.message.orEmpty().lowercase()
-        return when {
-            "unsupported ui schema" in message -> GenerativeUiRejectReason.BAD_VERSION
-            "unknown key" in message -> GenerativeUiRejectReason.UNKNOWN_KEY
-            "unsupported ui block" in message -> GenerativeUiRejectReason.UNKNOWN_BLOCK
-            "duplicate" in message -> GenerativeUiRejectReason.DUPLICATE_ID
-            "invalid id" in message -> GenerativeUiRejectReason.BAD_ID
-            listOf("too many", "invalid block", "invalid form", "invalid action", "invalid route", "invalid table", "invalid checklist", "needs two", "out of range").any { it in message } -> GenerativeUiRejectReason.LIMIT_EXCEEDED
-            error is org.json.JSONException -> GenerativeUiRejectReason.BAD_JSON
-            else -> GenerativeUiRejectReason.INVALID_SCHEMA
-        }
+    private fun reasonFor(error: Throwable): GenerativeUiRejectReason = when (error) {
+        is SchemaViolation -> error.reason
+        is org.json.JSONException -> GenerativeUiRejectReason.BAD_JSON
+        else -> GenerativeUiRejectReason.INVALID_SCHEMA
     }
 
     private fun JSONArray?.boundedStrings(): List<String> {
-        require(this != null && length() in 1..MAX_ITEMS)
-        return buildList { for (i in 0 until length()) add(safeText(getString(i)) ?: error("empty array text")) }
+        ensure(this != null, GenerativeUiRejectReason.INVALID_SCHEMA) { "list must be an array" }
+        val array = this!!
+        ensure(array.length() in 1..GenerativeUiLimits.MAX_ITEMS, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "invalid list size" }
+        return buildList {
+            for (i in 0 until array.length()) {
+                val raw = when (val item = array.opt(i)) {
+                    is String -> item
+                    is Number -> item.toString()
+                    else -> reject(GenerativeUiRejectReason.INVALID_SCHEMA, "list item must be text")
+                }
+                add(safeText(raw) ?: reject(GenerativeUiRejectReason.INVALID_SCHEMA, "empty array text"))
+            }
+        }
     }
 
     private fun JSONArray?.boundedNumbers(): List<Float> {
-        val values = requireNotNull(this) { "chart values must be an array" }
-        require(values.length() in 1..MAX_ITEMS)
+        ensure(this != null, GenerativeUiRejectReason.INVALID_SCHEMA) { "chart values must be an array" }
+        val values = this!!
+        ensure(values.length() in 1..GenerativeUiLimits.MAX_ITEMS, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "invalid list size" }
         return buildList {
             for (i in 0 until values.length()) {
-                val raw = values.get(i)
-                require(raw is Number) { "chart value must be numeric" }
-                val value = raw.toDouble()
-                require(value.isFinite()) { "non-finite chart value" }
-                require(value in -1_000_000.0..1_000_000.0) { "chart value out of range" }
+                val raw = values.opt(i)
+                ensure(raw is Number) { "chart value must be numeric" }
+                val value = (raw as Number).toDouble()
+                ensure(value.isFinite()) { "non-finite chart value" }
+                ensure(value in -1_000_000.0..1_000_000.0, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "chart value out of range" }
                 add(value.toFloat())
             }
         }

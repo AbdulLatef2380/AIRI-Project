@@ -341,12 +341,30 @@ class UniversalRuntimeTraceRecorder(
         attributes = mapOf("capabilityId" to capabilityId, "stage" to stage.name),
     )
 
-    fun uiProjection(executionId: String, sessionId: String, outcome: String) = record(
+    /**
+     * Records the outcome of projecting an assistant answer onto the native
+     * GenUI surface. [outcome] must be one of [UiProjectionOutcome]; the
+     * activity mapper reads the typed value, never a text prefix. Only answers
+     * that actually contained an airi-ui candidate are recorded.
+     */
+    fun uiProjection(
+        executionId: String,
+        sessionId: String,
+        outcome: String,
+        reason: String? = null,
+        blockCount: Int? = null,
+        sourceMessageId: String? = null,
+    ) = record(
         eventType = UniversalTraceEventType.UI_PROJECTION_COMPLETED,
         executionId = executionId,
         sessionId = sessionId,
         component = "ChatViewModel",
-        outcome = RuntimeTraceRedaction.safeReason(outcome)
+        outcome = RuntimeTraceRedaction.safeReason(outcome),
+        attributes = buildMap {
+            reason?.takeIf { it.isNotBlank() }?.let { put("reason", RuntimeTraceRedaction.safeReason(it)) }
+            blockCount?.let { put("blockCount", it.coerceIn(0, 64).toString()) }
+            sourceMessageId?.takeIf { it.isNotBlank() }?.let { put("sourceMessageId", RuntimeTraceRedaction.token(it)) }
+        },
     )
 
     fun memoryContext(
@@ -479,6 +497,12 @@ class UniversalRuntimeTraceRecorder(
         const val MAX_RETAINED_EXECUTIONS = 8
         const val MAX_EVENTS_PER_EXECUTION = 600
     }
+}
+
+/** Stable outcome values of a GenUI projection event. */
+object UiProjectionOutcome {
+    const val ACCEPTED = "accepted"
+    const val REJECTED = "rejected"
 }
 
 enum class UniversalTraceEventType {

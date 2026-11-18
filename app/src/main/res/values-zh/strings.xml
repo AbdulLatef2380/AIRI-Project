@@ -2094,6 +2094,8 @@
     <string name="generative_ui_action_preview_notice">此文本会放入输入框。只有点击发送后才会发送。</string>
     <string name="generative_ui_action_preview_use">放入输入框</string>
     <string name="generative_ui_action_preview_cancel">取消</string>
+    <string name="generative_ui_action_rejected">此操作已失效，未添加到输入框。</string>
+    <string name="generative_ui_action_phase">操作状态：%1$s</string>
     <string name="artifact_save_failed">无法保存内容</string>
     <string name="artifact_saved">内容已保存</string>
     <string name="artifact_share">分享内容</string>
@@ -2125,6 +2127,10 @@
     <string name="agent_trace_title_runtime_request_received">收到请求</string>
     <string name="agent_trace_title_runtime_intent_decision">意图与工具决策</string>
     <string name="agent_trace_title_runtime_result_returned">返回执行结果</string>
+    <string name="agent_trace_title_runtime_memory_context">检索记忆上下文</string>
+    <string name="agent_trace_title_runtime_provider_resolved">确定提供商和模型</string>
+    <string name="agent_trace_title_runtime_genui_accepted">显示交互式界面</string>
+    <string name="agent_trace_title_runtime_genui_rejected">交互式界面被拒绝，以文本显示</string>
     <string name="agent_trace_title_runtime_tool_rejected">工具调用被拒绝</string>
     <string name="agent_trace_title_runtime_tools_exposed">向模型提供工具</string>
     <string name="agent_trace_title_search_completed">搜索完成</string>
@@ -2826,6 +2832,7 @@
     <string name="agent_skills_desc">切换技能开关。技能需要已连接的集成。</string>
     <string name="agent_tools_desc">工具是技能调用外部服务时使用的底层操作。</string>
     <string name="agent_trace_desc">为代理日志和聊天追踪保留的历史运行和事件数量。</string>
+    <string name="agent_trace_retention_summary">每个对话最多保留 %1$d 条内联追踪，总计 %2$d 条。最早的追踪将被优先移除。</string>
     <string name="agent_debug_desc">在聊天界面显示调试层和诊断提示。</string>
     <string name="credits_no_actions">今天尚未记录任何操作。</string>
     <string name="credits_total_consumed">消耗的总积分</string>

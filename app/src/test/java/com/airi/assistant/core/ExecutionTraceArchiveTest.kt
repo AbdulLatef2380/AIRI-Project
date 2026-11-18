@@ -133,4 +133,28 @@ class ExecutionTraceArchiveTest {
             ExecutionTraceArchive.maxMessages = previousLimit
         }
     }
+
+    @Test
+    fun perSessionLimitDropsOldestOfThatSessionOnly() {
+        val file = File.createTempFile("execution_trace_archive", ".json").apply { deleteOnExit() }
+        val previousSession = ExecutionTraceArchive.maxMessagesPerSession
+        val previousGlobal = ExecutionTraceArchive.maxMessages
+        try {
+            ExecutionTraceArchive.maxMessages = 50
+            ExecutionTraceArchive.maxMessagesPerSession = 2
+            ExecutionTraceArchive.attach(file)
+            fun trace(id: Long, session: String) =
+                listOf(ExecutionTraceEvent("e$id", 1, id, ExecutionTraceKind.COMPLETED, sessionId = session))
+            ExecutionTraceArchive.put(1L, trace(1L, "busy"))
+            ExecutionTraceArchive.put(2L, trace(2L, "quiet"))
+            ExecutionTraceArchive.put(3L, trace(3L, "busy"))
+            ExecutionTraceArchive.put(4L, trace(4L, "busy"))
+
+            val retained = ExecutionTraceArchive.getAll(listOf(1L, 2L, 3L, 4L))
+            assertEquals(setOf(2L, 3L, 4L), retained.keys)
+        } finally {
+            ExecutionTraceArchive.maxMessagesPerSession = previousSession
+            ExecutionTraceArchive.maxMessages = previousGlobal
+        }
+    }
 }

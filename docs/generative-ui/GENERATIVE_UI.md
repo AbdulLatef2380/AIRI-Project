@@ -25,11 +25,34 @@ The compiler accepts only eight block types:
 
 The Android renderer owns layout, color, typography, scrolling, and accessibility semantics. The model cannot provide executable code, HTML, CSS, JavaScript, arbitrary URLs, or arbitrary layout instructions. Block and nested IDs must be unique, chart values must be finite, route coordinates must be paired, and all table rows must match the header width. Invalid schemas are discarded and the original message is rendered through the existing Markdown path.
 
-The complete lifecycle is: model response → bounded compiler → native Compose renderer → one-shot action dispatch → `ConversationExecutionCoordinator` → AgentLoop/tool/connector/terminal policy → `ExecutionStatusBus` and `UniversalRuntimeTrace` → persisted assistant turn. A UI action never calls a connector, terminal, sandbox, or live provider directly; it re-enters the same policy-controlled conversation path as typed input.
+## Limits
 
-Form actions are converted to an explicit `[AIRI_UI_ACTION:<id>]` prompt and sent through the existing ChatViewModel dispatch path. They do not bypass tools, permissions, or approval flows.
+All limits live in `GenerativeUiLimits` and are used by both the parser and the model-facing prompt contract, so they cannot drift apart: at most 8 blocks; at most 30 entries per `labels`/`values`/`nodes`/`edges`; text is truncated at 240 characters; tables have 2-6 columns and 1-20 rows; routes have 2-20 stops; forms have 1-8 fields; actions have 1-8 options; checklists have 1-20 items; ids match `[A-Za-z0-9_-]+` (max 48). Every id in a document must be unique across block ids, nested ids and a form's `actionId`; a collision is rejected with `DUPLICATE_ID`. Each rejection carries a typed `GenerativeUiRejectReason`; the reason is never derived from error text, and raw model text is never copied into it.
 
-Quick actions use the same path. Every persisted assistant turn also records a redacted `UI_PROJECTION_COMPLETED` runtime event with either `schema_candidate` or `text_fallback`, correlated by the existing execution ID. A submitted form/action is routed through the normal `ChatViewModel` generation gate rather than calling the model directly: the next generation records a `GenerativeUiAction` event with its source message, parent execution, action id, and field names only. Raw form values, action prompts, provider payloads, and user text are never copied into the UI trace. This keeps the chat surface, agent trace, routing, and diagnostics in one lifecycle.
+## Rendering lifecycle
+
+model response → bounded compiler (`GenerativeUiCompiler`, small LRU cache so one final answer is parsed once) → native Compose renderer. Interactive block state (selected bar, selected node, form values, checked items) lives in `GenerativeUiStateStore`, keyed `<messageId>:<blockId>` for every block, bounded to 256 keys with least-recently-used eviction, and removed when its message or conversation is deleted.
+
+## Actions
+
+A UI action is **not** dispatched automatically. The real flow is:
+
+1. The user taps a quick action or submits a form. `ChatViewModel.handleGenerativeUiAction` rebuilds the action from the assistant source message (`GenerativeUiCompiler.rebuildAction`), so callback data is never trusted. Unknown ids, unknown field names, missing required fields and oversize values are refused, and the user sees a short notice.
+2. A verified action is staged: its `[AIRI_UI_ACTION:<id>]` prompt is placed in the composer and held by `PendingGenerativeUiActionGate`. Nothing is sent yet.
+3. The user reviews the text and sends it manually. Only if the submitted text equals the staged prompt is the send attributed to the action; editing the composer, switching or deleting the conversation, or sending anything else drops the staged action.
+4. The send starts a **new** execution through the normal `ChatViewModel` generation gate and the usual AgentLoop/tool/connector/terminal/approval policies. A UI action never calls a connector, terminal, sandbox or provider directly. That execution records a `GenerativeUiAction` runtime event with the source message, parent execution id, action id and field names only; raw form values, prompts and provider payloads are never copied into traces.
+
+The rendered control shows a bounded lifecycle (`staged`, `running`, `succeeded`, or `failed`) keyed by source message and action id. The execution sets `running` when the staged prompt is claimed and sets the terminal phase from the persisted execution outcome; rejected or stale actions become `failed`. The same result is emitted as a typed `UI_PROJECTION_COMPLETED` event with the source and parent execution ids, without copying form values or prompts.
+
+Models may also call the read-only `render_ui` tool with a JSON document. The tool validates it through the same compiler as the `airi-ui` fence fallback and returns a canonical fence; it never executes UI callbacks. A rejected document returns a typed invalid-argument result so the AgentLoop can repair or fall back to plain text.
+
+## Repair retry
+
+When a finished answer from a non-local provider carries an `airi-ui` block that the compiler rejects for a fixable reason (everything except `NO_FENCE` and `OVERSIZE`), `ChatViewModel` makes **one** silent, tool-less model call (`GenerativeUiRepairRunner`) that tells the model the typed reason in plain words and asks for the same reply with a corrected block, or plain text. The retry is skipped when the run invoked any tool, when the provider is local, when the answer is too large to echo, when the generation was cancelled, and it is bounded by a 25-second timeout. The repaired reply replaces the original only if it compiles, or is plain text with no `airi-ui` remnant; otherwise the original answer is kept, so a retry can never make the result worse. The trace shows the first rejection and then the final outcome. This also covers a truncated block (`UNCLOSED_FENCE`).
+
+## Trace events
+
+Every persisted assistant answer that actually contained an `airi-ui` candidate records one `UI_PROJECTION_COMPLETED` runtime event whose outcome is `accepted` (with `blockCount`) or `rejected` (with a typed `reason`). Answers without a candidate record nothing. The activity feed shows a rejection as a warning with status failed. Memory-context and provider-resolution milestones are recorded to the runtime trace and the activity feed, and are merged into the inline timeline through the execution's activity snapshot.
 
 ## AIRI identity
 
@@ -47,4 +70,4 @@ OpenAI's official description of Intelligent UI says responses may combine text,
 
 ## Validation
 
-`GenerativeUiCompilerTest` covers valid chart/form compilation, rejection of unknown or executable block types, schema version rejection, and plain-text fallback. Device validation remains part of the Android CI matrix; local sandbox compilation may still require the configured Android SDK.
+`GenerativeUiCompilerTest` covers valid chart/form compilation, rejection of unknown or executable block types, schema version rejection, and plain-text fallback. `GenerativeUiSchemaHardeningTest` covers typed rejection reasons, `actionId` collisions, the parse cache and fence stripping; `GenerativeUiStateStoreTest` covers key isolation, action lifecycle state, removal and LRU eviction; `RenderUiToolTest` covers canonical rendering and compiler rejection; `PendingGenerativeUiActionGateTest` covers the staged-action lifecycle; `RuntimeTraceActivityMapperTest` covers accepted/rejected projection events. Device validation remains part of the Android CI matrix; local sandbox compilation may still require the configured Android SDK.

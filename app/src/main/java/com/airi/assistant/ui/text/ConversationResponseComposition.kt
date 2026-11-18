@@ -89,23 +89,27 @@ data class ResponseComposition(
 object ConversationResponseCompositionPlanner {
     fun plan(profile: ResponseRequestProfile): ResponseComposition {
         val request = profile.userText.lowercase()
-        val answer = profile.answerText.lowercase()
+        // Keyword lanes are decided from what the answer says to the reader. The
+        // payload of an airi-ui block (keys such as "route" or "bar_chart", JSON
+        // punctuation, its fence) is interface data and must never steer the lane.
+        val visibleAnswer = GenerativeUiCompiler.withoutGenerativeUi(profile.answerText)
+        val answer = visibleAnswer.lowercase()
         val combined = "$request\n$answer"
         val evidence = profile.evidence
         val longRunning = profile.messageCount >= 20 || profile.totalChars >= 12_000 || profile.sessionAgeHours?.let { it >= 4 } == true
         val hasComparison = containsAny(combined, "compare", "comparison", "versus", " vs ", "مقارنة", "قارن", "مقابل", "الفرق بين", "أيهما")
         val hasDocument = containsAny(combined, "document", "report", "pdf", "docx", "markdown", "ملف", "مستند", "وثيقة", "تقرير")
-        val hasNativeGenerativeUi = answer.contains("```airi-ui")
-        val hasCode = (fencedCode(profile.answerText) && !hasNativeGenerativeUi) ||
+        val hasNativeGenerativeUi = profile.answerText.contains("```airi-ui", ignoreCase = true)
+        val hasCode = fencedCode(visibleAnswer) ||
             containsAnyWholeTerm(request, "code", "program", "script") ||
-            containsAny(request, "كود", "برمج", "شفرة")
+            arabicCodeTerm.containsMatchIn(request)
         val hasEvaluation = containsAny(combined, "evaluate", "evaluation", "review", "rating", "score", "pros", "cons", "تقييم", "مراجعة", "إيجابيات", "سلبيات", "المخاطر")
         val hasMap = containsAny(combined, "map", "route", "directions", "coordinates", "location", "خريطة", "المسار", "إحداثيات", "الموقع")
         val hasData = containsAny(combined, "chart", "graph", "metrics", "statistics", "trend", "bar_chart", "diagram", "رسم بياني", "مخطط", "إحصاء", "مؤشرات", "اتجاه")
         val creationRequest = containsAny(request, "create", "generate", "build", "make", "أنشئ", "إنشاء", "ولّد", "صمّم", "ابنِ")
         val requestedMedia = creationRequest && containsAny(request, "image", "illustration", "audio", "sound", "voice", "video", "صورة", "رسم توضيحي", "صوت", "فيديو")
         val requestedWorkspace = creationRequest && containsAny(request, "presentation", "slides", "website", "web app", "mobile app", "application", "game", "عرض تقديمي", "شرائح", "موقع", "تطبيق", "لعبة")
-        val hasSymbolic = profile.answerText.lines().count { line -> line.contains("→") || line.contains("⇒") || line.contains("∑") || (line.contains("=") && line.any(Char::isDigit)) } >= 2
+        val hasSymbolic = visibleAnswer.lines().count { line -> line.contains("→") || line.contains("⇒") || line.contains("∑") || (line.contains("=") && line.any(Char::isDigit)) } >= 2
         val hasInteractive = hasNativeGenerativeUi || hasData || hasMap || hasComparison
         val hasVerifiedDelivery = evidence.hasVerifiedArtifacts || evidence.artifactState != ResponseDeliveryState.NONE || evidence.mediaState != ResponseDeliveryState.NONE || evidence.workspaceState != ResponseDeliveryState.NONE
         val lane = when {
@@ -163,6 +167,15 @@ object ConversationResponseCompositionPlanner {
         if (longRunning || evidence.hasToolResults || evidence.hasSkillsOrConnectors) add(ResponseSectionKind.TRACE)
         add(ResponseSectionKind.NEXT_STEP)
     }
+
+    /**
+     * Arabic programming terms matched as whole words, allowing the usual
+     * one-letter/definite-article prefixes and pronoun suffixes (الكود، للبرمجة،
+     * كودك) but not words that merely contain them (e.g. بركود).
+     */
+    private val arabicCodeTerm = Regex(
+        "(?<![\\p{L}\\p{M}])[وفبلك]{0,2}(?:ال)?(?:كود|أكواد|اكواد|شفرة|برمج\\p{L}{0,4})(?:ك|ه|ها|نا|هم)?(?![\\p{L}\\p{M}])",
+    )
 
     private fun fencedCode(value: String): Boolean = value.contains("```")
     private fun containsAny(value: String, vararg needles: String): Boolean = needles.any(value::contains)

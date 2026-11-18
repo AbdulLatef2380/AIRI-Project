@@ -1,5 +1,7 @@
 package com.airi.assistant.ui.text
 
+import com.airi.assistant.ui.generative.GenerativeUiCompiler
+
 /**
  * Deterministic presentation contract shared by model guidance and native rendering.
  * It never executes tools and never changes the assistant's answer; it only describes
@@ -62,15 +64,18 @@ object AssistantResponsePresentationPolicy {
         context: AssistantConversationContext = AssistantConversationContext(),
     ): AssistantResponsePresentation {
         val analysis = AssistantContentClassifier.analyse(text, isStreaming)
-        val normalized = text.lowercase()
+        // Lane keywords come from the visible answer only; the airi-ui payload is
+        // interface data and must not be read as map/data/code content.
+        val visibleText = GenerativeUiCompiler.withoutGenerativeUi(text)
+        val normalized = visibleText.lowercase()
         val hasComparison = containsAny(normalized, "comparison", "compare", "versus", " vs ", "مقارنة", "قارن", "مقابل", "الفرق بين", "أيهما")
         val hasDocument = containsAny(normalized, "document", "file", "report", "pdf", "docx", "markdown", "ملف", "مستند", "وثيقة", "تقرير")
         val hasEvaluation = containsAny(normalized, "evaluate", "evaluation", "review", "rating", "score", "pros", "cons", "تقييم", "مراجعة", "إيجابيات", "سلبيات", "المخاطر")
         val hasMap = containsAny(normalized, "map", "route", "directions", "coordinates", "location", "خريطة", "المسار", "إحداثيات", "الموقع")
-        val hasGenerativeBlock = normalized.contains("```airi-ui")
+        val hasGenerativeBlock = text.contains("```airi-ui", ignoreCase = true)
         val hasData = analysis.containsTable || containsAny(normalized, "chart", "graph", "metrics", "statistics", "trend", "bar_chart", "diagram", "رسم بياني", "مخطط", "إحصاء", "مؤشرات", "اتجاه")
-        val hasSymbolic = containsSymbolicContent(text)
-        val hasCode = analysis.containsCode
+        val hasSymbolic = containsSymbolicContent(visibleText)
+        val hasCode = analysis.codeBlocks.any { !it.language.equals("airi-ui", ignoreCase = true) }
         val workKind = workKind(normalized)
         val longRunning = context.messageCount >= 20 || context.totalChars >= 12_000 || context.sessionAgeHours?.let { it >= 4 } == true
         val composition = ConversationResponseCompositionPlanner.plan(

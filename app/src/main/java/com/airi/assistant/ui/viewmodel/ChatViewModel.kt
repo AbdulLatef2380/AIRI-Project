@@ -1107,6 +1107,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var longTextConversionRevision = 0L
 
     fun updateComposerText(text: String) {
+        pendingGenerativeUiActions.onComposerTextChanged(text)
         val sessionId = _currentSessionId.value
         _composerDrafts.update { drafts ->
             ChatComposerDraftPolicy.replaceText(drafts, sessionId, text)
@@ -1327,7 +1328,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     @Volatile private var activeGenerationJob: Job? = null
     /** A replacement composer request waits for the old owner to reach terminal cleanup. */
     @Volatile private var queuedComposerRequest: QueuedComposerRequest? = null
-    @Volatile private var pendingGenerativeUiAction: com.airi.assistant.ui.generative.GenerativeUiAction? = null
+    private val pendingGenerativeUiActions = com.airi.assistant.ui.generative.PendingGenerativeUiActionGate()
 
     private data class QueuedComposerRequest(
         val input: String,
@@ -1854,6 +1855,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val generationRunning = activeGenerationId != 0L
             val session = memoryManager.createSession()
             rejectSummary()
+            pendingGenerativeUiActions.clear()
             _currentSessionId.value = session.id
             preferences.edit().putString(KEY_SESSION_ID, session.id).apply()
             _messages.value = emptyList()
@@ -1897,6 +1899,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             ExecutionTraceArchive.deleteSession(sessionId)
             rejectSummary()
             removeComposerDraft(sessionId)
+            generativeUiStateStore.removeMessages(_messages.value.map { it.id.toString() })
+            pendingGenerativeUiActions.clear()
             val replacement = memoryManager.createSession()
             _currentSessionId.value = replacement.id
             preferences.edit().putString(KEY_SESSION_ID, replacement.id).apply()
@@ -2042,7 +2046,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             val history = page.messages
             oldestLoadedMessageOffset = page.offset
-            if (previousId != sessionId) rejectSummary()
+            if (previousId != sessionId) {
+                rejectSummary()
+                pendingGenerativeUiActions.clear()
+            }
             _currentSessionId.value = sessionId
             preferences.edit().putString(KEY_SESSION_ID, sessionId).apply()
             _messages.value = hydrateSessionMessages(history)
@@ -2139,6 +2146,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteSession(sessionId: String) {
         viewModelScope.launch {
             val wasActive = _currentSessionId.value == sessionId
+            // Collected before deletion so GenUI state of inactive sessions is cleaned too.
+            val deletedMessageIds = runCatching { memoryManager.loadSession(sessionId).map { it.id.toString() } }
+                .getOrDefault(emptyList())
             val deletion = runCatching { memoryManager.deleteSession(sessionId) }
             if (deletion.isFailure) {
                 Log.w("AIRI", "SESSION_DELETE_FAILED id=$sessionId", deletion.exceptionOrNull())
@@ -2149,6 +2159,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             AgentTraceManager.instance.deleteForSession(sessionId)
             ExecutionTraceArchive.deleteSession(sessionId)
             if (pendingSummarySessionId == sessionId) rejectSummary()
+            generativeUiStateStore.removeMessages(
+                if (wasActive) deletedMessageIds + _messages.value.map { it.id.toString() } else deletedMessageIds,
+            )
+            if (wasActive) pendingGenerativeUiActions.clear()
 
             if (SessionDeletionPolicy.shouldRemoveDraft(deleteSucceeded = true)) {
                 removeComposerDraft(sessionId)
@@ -2342,11 +2356,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * data is rebuilt and validated instead of being trusted from Compose.
      */
     fun handleGenerativeUiAction(action: com.airi.assistant.ui.generative.GenerativeUiAction): Boolean {
-        val sourceId = action.sourceMessageId?.toLongOrNull() ?: return false
+        val staged = stageGenerativeUiAction(action)
+        // A silent refusal leaves the user guessing; say that nothing was staged.
+        if (!staged) _generationNotice.tryEmit(R.string.generative_ui_action_rejected)
+        return staged
+    }
+
+    private fun stageGenerativeUiAction(action: com.airi.assistant.ui.generative.GenerativeUiAction): Boolean {
         val currentSession = _currentSessionId.value
-        if (currentSession.isBlank()) return false
+        val sourceId = action.sourceMessageId?.toLongOrNull()
+        if (sourceId == null || currentSession.isBlank()) {
+            recordRejectedGenerativeUiAction(action, null, currentSession)
+            return false
+        }
         val source = _messages.value.firstOrNull { it.id == sourceId && !it.isUser }
-            ?: return false
+            ?: run {
+                recordRejectedGenerativeUiAction(action, null, currentSession)
+                return false
+            }
         if (action.sourceExecutionId != source.executionTraceId) {
             recordRejectedGenerativeUiAction(action, source.executionTraceId, currentSession)
             return false
@@ -2360,7 +2387,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             recordRejectedGenerativeUiAction(action, source.executionTraceId, currentSession)
             return false
         }
-        pendingGenerativeUiAction = verified
+        pendingGenerativeUiActions.stage(verified)
         updateComposerText(verified.prompt)
         return true
     }
@@ -2370,6 +2397,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         executionId: String?,
         sessionId: String,
     ) {
+        generativeUiStateStore.setActionPhase(
+            action.sourceMessageId,
+            action.id,
+            GenerativeUiStateStore.ActionPhase.FAILED,
+        )
         if (executionId.isNullOrBlank()) return
         universalRuntimeTrace.uiInteraction(
             executionId = executionId,
@@ -3141,15 +3173,114 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 	            val toolOutputs = mutableListOf<AssistantToolOutput>()
             val fileCards = mutableListOf<AgentFileCard>()
             val requestStart = System.currentTimeMillis()
-            val pendingAction = pendingGenerativeUiAction.also { pendingGenerativeUiAction = null }
-            val uiAction = pendingAction?.takeIf { it.prompt == trimmedInput }
-            var uiActionTraceRecorded = false
+            val uiAction = pendingGenerativeUiActions.claim(trimmedInput)
+            uiAction?.let { action ->
+                generativeUiStateStore.setActionPhase(
+                    action.sourceMessageId,
+                    action.id,
+                    GenerativeUiStateStore.ActionPhase.RUNNING,
+                )
+            }
             val needsResummarize = summaryPlan.shouldSummarize
             val olderToFold = summaryPlan.olderTurns
             Log.i("AIRI", "AGENT_LOOP_START inputChars=${trimmedInput.length} queryType=${queryType.name} planMode=${_isPlanModeActive.value}")
             val reasoningParser = ReasoningStreamParser()
             var lastPersistedAssistantMessageId: Long? = null
             var completionMetadata = com.airi.assistant.execution.CompletionMetadata()
+
+            // One construction path for the visible assistant message, shared by the
+            // partial-response and the final-response branches so they cannot drift.
+            fun assistantChatMessage(id: Long, text: String, continuationHops: Int = 0) = ChatMessage(
+                text = text,
+                isUser = false,
+                id = id,
+                traceId = "trace-$traceExecutionId",
+                execOrigin = _lastExecOrigin.value,
+                executionSource = hybridOrchestrator.lastExecutionSource,
+                executionTraceId = traceExecutionId,
+                executionTraceSnapshot = ExecutionStatusBus.traceSnapshot(traceExecutionId),
+                executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == traceExecutionId },
+                toolOutputs = toolOutputs.toList(),
+                fileCards = fileCards.toList(),
+                continuationHops = continuationHops,
+            )
+
+            fun publishAssistantMessage(message: ChatMessage) {
+                _messages.update { current ->
+                    if (current.any { it.id == message.id }) current else current + message
+                }
+            }
+
+            // Shared by the partial-response and the final-response branches. Only answers
+            // that really carried an airi-ui candidate leave a projection event.
+            fun recordUiProjection(content: String, messageId: Long) {
+                when (val uiCompilation = com.airi.assistant.ui.generative.GenerativeUiCompiler.compileDetailed(content)) {
+                    is com.airi.assistant.ui.generative.GenerativeUiCompileResult.Accepted ->
+                        universalRuntimeTrace.uiProjection(
+                            executionId = traceExecutionId,
+                            sessionId = sessionId,
+                            outcome = com.airi.assistant.core.UiProjectionOutcome.ACCEPTED,
+                            blockCount = uiCompilation.value.document.blocks.size,
+                            sourceMessageId = messageId.toString(),
+                        )
+                    is com.airi.assistant.ui.generative.GenerativeUiCompileResult.Rejected ->
+                        if (uiCompilation.reason != com.airi.assistant.ui.generative.GenerativeUiRejectReason.NO_FENCE) {
+                            universalRuntimeTrace.uiProjection(
+                                executionId = traceExecutionId,
+                                sessionId = sessionId,
+                                outcome = com.airi.assistant.core.UiProjectionOutcome.REJECTED,
+                                reason = uiCompilation.reason.name.lowercase(),
+                                sourceMessageId = messageId.toString(),
+                            )
+                        }
+                }
+            }
+
+            // One silent, tool-less retry when a finished cloud answer carried an airi-ui block that
+            // the compiler rejected. The original answer is kept unless the retry is strictly valid.
+            suspend fun repairRejectedGenerativeUi(answer: String, toolsInvoked: Int, resolvedProviderId: String): String {
+                val reason = com.airi.assistant.agent.loop.GenerativeUiRepairPolicy
+                    .reasonToRepair(answer, resolvedProviderId, toolsInvoked) ?: return answer
+                if (!isCurrentGeneration(generationId) || _isCancelled.get()) return answer
+                universalRuntimeTrace.uiProjection(
+                    executionId = traceExecutionId,
+                    sessionId = sessionId,
+                    outcome = com.airi.assistant.core.UiProjectionOutcome.REJECTED,
+                    reason = reason.name.lowercase(),
+                )
+                val repaired = try {
+                    kotlinx.coroutines.withTimeoutOrNull(GENUI_REPAIR_TIMEOUT_MS) {
+                        com.airi.assistant.agent.loop.GenerativeUiRepairRunner(hybridOrchestrator, appContext).repair(
+                            com.airi.assistant.agent.loop.GenerativeUiRepairRunner.Input(
+                                userInput = trimmedInput,
+                                rejectedAnswer = answer,
+                                reason = reason,
+                                systemPrompt = fullSystemPrompt,
+                                priorConversation = history.mapNotNull { turn ->
+                                    when (turn.role.lowercase()) {
+                                        "user", "assistant" -> com.airi.assistant.execution.ExecutionRequest.ConversationTurn(
+                                            role = turn.role.lowercase(),
+                                            content = turn.content,
+                                        )
+                                        else -> null
+                                    }
+                                },
+                                providerId = requestedProviderIdAtDispatch,
+                                modelId = requestedModelIdAtDispatch,
+                                sessionId = sessionId,
+                                executionId = "$traceExecutionId-genui-repair",
+                            ),
+                        )
+                    }
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Log.w("AIRI", "GENUI_REPAIR_FAILED reason=${reason.name.lowercase()}", error)
+                    null
+                }
+                if (repaired == null || !isCurrentGeneration(generationId) || _isCancelled.get()) return answer
+                return ReasoningStreamParser.extractAnswer(repaired).ifBlank { repaired }
+            }
 
             suspend fun persistAssistantResponse(content: String): Boolean {
                 val safeContent = ReasoningStreamParser.extractAnswer(content).ifBlank { content }.trim()
@@ -3162,18 +3293,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         projectId = activeProjectId
                     )
                     lastPersistedAssistantMessageId = saved.id
-                    val uiCompilation = com.airi.assistant.ui.generative.GenerativeUiCompiler.compileDetailed(safeContent)
-                    val uiOutcome = when (uiCompilation) {
-                        is com.airi.assistant.ui.generative.GenerativeUiCompileResult.Accepted -> "schema_valid"
-                        is com.airi.assistant.ui.generative.GenerativeUiCompileResult.Rejected ->
-                            if (uiCompilation.reason == com.airi.assistant.ui.generative.GenerativeUiRejectReason.NO_FENCE) "text_fallback"
-                            else "schema_rejected_${uiCompilation.reason.name.lowercase()}"
-                    }
-                    universalRuntimeTrace.uiProjection(
-                        executionId = traceExecutionId,
-                        sessionId = sessionId,
-                        outcome = uiOutcome,
-                    )
+                    recordUiProjection(safeContent, saved.id)
                     persistExecutionTrace(
                         messageId = saved.id,
                         sessionId = sessionId,
@@ -3194,22 +3314,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         firstVisibleTokenLatencyMs = firstVisibleTokenLatencyMs,
                     )
                     if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
-                        _messages.update { current ->
-                            if (current.any { it.id == saved.id }) current
-                            else current + ChatMessage(
-                                text = safeContent,
-                                isUser = false,
-                                id = saved.id,
-                                traceId = "trace-$traceExecutionId",
-                                execOrigin = _lastExecOrigin.value,
-                                executionSource = hybridOrchestrator.lastExecutionSource,
-                                executionTraceId = traceExecutionId,
-                                executionTraceSnapshot = ExecutionStatusBus.traceSnapshot(traceExecutionId),
-                                executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == traceExecutionId },
-                                toolOutputs = toolOutputs.toList(),
-                                fileCards = fileCards.toList(),
-                            )
-                        }
+                        publishAssistantMessage(assistantChatMessage(saved.id, safeContent))
                     }
                     true
                 } catch (cancelled: CancellationException) {
@@ -3439,18 +3544,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         .ifBlank { loopResult.completionMetadata.requestedModelId },
                     fallbackReason = loopResult.completionMetadata.fallbackReason,
                 )
-                uiAction?.let { action ->
-                    universalRuntimeTrace.uiInteraction(
-                        executionId = traceExecutionId,
-                        sessionId = sessionId,
-                        actionId = action.id,
-                        sourceMessageId = action.sourceMessageId,
-                        parentExecutionId = action.sourceExecutionId,
-                        accepted = true,
-                        fieldNames = action.fields.keys,
-                    )
-                    uiActionTraceRecorded = true
-                }
                 if (loopResult.terminalState == com.airi.assistant.agent.loop.AgentLoop.TerminalState.CANCELLED ||
                     _isCancelled.get() || !isCurrentGeneration(generationId)
                 ) {
@@ -3463,9 +3556,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val streamedAnswer = (streamAccumulator.toString() + reasoningParser.finish()).trim()
                 val responseStatus = GenerationResponsePolicy.classify(loopResult.terminalState, streamedAnswer, loopResult.completionMetadata)
-                val normalizedAnswer = if (responseStatus == GenerationResponseStatus.SUCCESS) {
+                val initialAnswer = if (responseStatus == GenerationResponseStatus.SUCCESS) {
                     ReasoningStreamParser.extractAnswer(loopResult.finalAnswer).ifBlank { streamedAnswer }
                 } else streamedAnswer
+                val normalizedAnswer = if (responseStatus == GenerationResponseStatus.SUCCESS) {
+                    repairRejectedGenerativeUi(
+                        answer = initialAnswer,
+                        toolsInvoked = loopResult.toolsInvoked.size,
+                        resolvedProviderId = loopResult.completionMetadata.resolvedProviderId
+                            .ifBlank { loopResult.completionMetadata.providerId }
+                            .ifBlank { requestedProviderIdAtDispatch },
+                    )
+                } else initialAnswer
                 when (responseStatus) {
                     GenerationResponseStatus.CANCELLED -> {
                         persistExecutionOutcome(
@@ -3633,6 +3735,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         content = normalizedAnswer,
                         projectId = activeProjectId
                     )
+                    recordUiProjection(normalizedAnswer, assistantMsg.id)
                     persistExecutionTrace(
                         messageId = assistantMsg.id,
                         sessionId = sessionId,
@@ -3653,22 +3756,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         firstVisibleTokenLatencyMs = firstVisibleTokenLatencyMs,
                     )
                     if (SessionGenerationPolicy.mayPublishToVisibleSession(sessionId, _currentSessionId.value)) {
-                        _messages.update {
-                            it + ChatMessage(
-                                text       = normalizedAnswer,
-                                isUser     = false,
-                                id         = assistantMsg.id,
-                                traceId    = "trace-$traceExecutionId",
-                                execOrigin = _lastExecOrigin.value,
-                                executionSource = hybridOrchestrator.lastExecutionSource,
-                                executionTraceId = traceExecutionId,
-                                executionTraceSnapshot = ExecutionStatusBus.traceSnapshot(traceExecutionId),
-                                executionActivitySnapshot = AgentActivityBus.recentEvents.value.filter { it.executionId == traceExecutionId },
-                                toolOutputs = toolOutputs.toList(),
-                                fileCards = fileCards.toList(),
+                        publishAssistantMessage(
+                            assistantChatMessage(
+                                id = assistantMsg.id,
+                                text = normalizedAnswer,
                                 continuationHops = loopResult.completionMetadata.continuationHops,
-                            )
-                        }
+                            ),
+                        )
                     }
                     // Record inference outcome for adaptive intelligence
                     runCatching {
@@ -3807,19 +3901,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } finally {
                 if (!isCurrentGeneration(generationId)) return@launch
-                if (!uiActionTraceRecorded) {
-                    uiAction?.let { action ->
-                        universalRuntimeTrace.uiInteraction(
-                            executionId = traceExecutionId,
-                            sessionId = sessionId,
-                            actionId = action.id,
-                            sourceMessageId = action.sourceMessageId,
-                            parentExecutionId = action.sourceExecutionId,
-                            accepted = true,
-                            fieldNames = action.fields.keys,
-                        )
-                    }
-                }
                 // Safety net for setup/provider failures that bypass a normal
                 // response-status branch: every started execution must leave a
                 // terminal, user-safe trace rather than disappearing silently.
@@ -3837,6 +3918,34 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         kind = ExecutionTraceKind.FAILED,
                         summary = "Execution ended without a terminal result",
                         answer = streamAccumulator.toString().take(MAX_TOOL_OUTPUT_TRACE_CHARS),
+                    )
+                }
+                uiAction?.let { action ->
+                    val terminalKind = ExecutionStatusBus.traceSnapshot(traceExecutionId)
+                        .lastOrNull { event -> event.kind in setOf(
+                            ExecutionTraceKind.COMPLETED,
+                            ExecutionTraceKind.FAILED,
+                            ExecutionTraceKind.CANCELLED,
+                            ExecutionTraceKind.APPROVAL_CANCELLED,
+                            ExecutionTraceKind.APPROVAL_TIMEOUT,
+                        ) }?.kind
+                    generativeUiStateStore.setActionPhase(
+                        action.sourceMessageId,
+                        action.id,
+                        if (terminalKind == ExecutionTraceKind.COMPLETED) {
+                            GenerativeUiStateStore.ActionPhase.SUCCEEDED
+                        } else {
+                            GenerativeUiStateStore.ActionPhase.FAILED
+                        },
+                    )
+                    universalRuntimeTrace.uiInteraction(
+                        executionId = traceExecutionId,
+                        sessionId = sessionId,
+                        actionId = action.id,
+                        sourceMessageId = action.sourceMessageId,
+                        parentExecutionId = action.sourceExecutionId,
+                        accepted = terminalKind == ExecutionTraceKind.COMPLETED,
+                        fieldNames = action.fields.keys,
                     )
                 }
                 finishGeneration(generationId)
@@ -4207,7 +4316,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // the detailed biography block added only for identity/about questions.
         val capabilityDescriptor = currentCapabilityDescriptor()
         val identityContext = listOf(
-            AiriIdentityProfile.runtimeContext(capabilityDescriptor),
+            AiriIdentityProfile.runtimeContext(capabilityDescriptor, input),
             AiriIdentityProfile.promptContext(input, capabilityDescriptor)
         ).filter { it.isNotBlank() }.joinToString("\n\n")
         return buildEffectiveSystemPrompt(
@@ -5962,6 +6071,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             AgentTraceManager.instance.deleteForMessage(message.id)
             ExecutionTraceArchive.deleteMessage(message.id)
+            generativeUiStateStore.removeMessage(message.id.toString())
             _messages.value = _messages.value.filter { it.uid != message.uid }
             Result.success(Unit)
         }
@@ -6525,6 +6635,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // KEY_MODEL_ID, KEY_MODEL_PATH, KEY_MODEL_REGISTRY, KEY_SCANNED_IDS
         // moved to ModelController (iewModel decomposition).
         const val KEY_SESSION_ID = "current_session_id"
+        /** Upper bound for the single GenUI repair retry; the original answer is kept on timeout. */
+        const val GENUI_REPAIR_TIMEOUT_MS = 25_000L
         const val KEY_AUTO_TITLE_SESSIONS = "auto_title_sessions"
         const val KEY_MANUAL_TITLE_SESSIONS = "manual_title_sessions"
         const val KEY_SESSION_ICON_KEYS = "session_icon_keys"

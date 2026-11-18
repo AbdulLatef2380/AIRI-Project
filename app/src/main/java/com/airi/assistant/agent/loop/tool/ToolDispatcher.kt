@@ -633,6 +633,21 @@ class ToolDispatcher(
                 ToolResult.Success("CONFIRMATION_REQUIRED|$action|$details")
             }
 
+            // ── Structured GenUI projection ────────────────────────────────────
+            // Validation is shared with the airi-ui fence fallback. The tool only
+            // returns assistant content; it does not execute callbacks or actions.
+            "render_ui" -> when (val rendered = RenderUiTool.render(args["document"].orEmpty(), args["text"])) {
+                is RenderUiTool.Result.Accepted -> ToolResult.Success(
+                    rendered.content,
+                    evidence = ToolResult.Evidence(kind = ToolResult.Evidence.Kind.GENERIC),
+                )
+                is RenderUiTool.Result.Rejected -> ToolResult.Error(
+                    rendered.reason,
+                    code = ToolErrorCodes.INVALID_ARGUMENT,
+                    retryable = false,
+                )
+            }
+
             "create_skill_proposal" -> {
                 val name = args["name"].orEmpty().trim()
                 val description = args["description"].orEmpty().trim()

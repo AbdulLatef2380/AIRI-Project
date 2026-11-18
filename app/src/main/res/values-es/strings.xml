@@ -2095,6 +2095,8 @@
     <string name="generative_ui_action_preview_notice">Este texto se colocará en el redactor. No se enviará nada hasta que pulses Enviar.</string>
     <string name="generative_ui_action_preview_use">Usar en el redactor</string>
     <string name="generative_ui_action_preview_cancel">Cancelar</string>
+    <string name="generative_ui_action_rejected">Esta acción ya no es válida y no se añadió al cuadro de texto.</string>
+    <string name="generative_ui_action_phase">Estado de la acción: %1$s</string>
     <string name="artifact_save_failed">No se pudo guardar el contenido</string>
     <string name="artifact_saved">Contenido guardado</string>
     <string name="artifact_share">Compartir contenido</string>
@@ -2126,6 +2128,10 @@
     <string name="agent_trace_title_runtime_request_received">Solicitud recibida</string>
     <string name="agent_trace_title_runtime_intent_decision">Decisión de intención y herramientas</string>
     <string name="agent_trace_title_runtime_result_returned">Devolver resultado de ejecución</string>
+    <string name="agent_trace_title_runtime_memory_context">Recuperar contexto de memoria</string>
+    <string name="agent_trace_title_runtime_provider_resolved">Resolver proveedor y modelo</string>
+    <string name="agent_trace_title_runtime_genui_accepted">Mostrar interfaz interactiva</string>
+    <string name="agent_trace_title_runtime_genui_rejected">Interfaz interactiva rechazada, mostrada como texto</string>
     <string name="agent_trace_title_runtime_tool_rejected">Ejecución de herramienta rechazada</string>
     <string name="agent_trace_title_runtime_tools_exposed">Mostrar herramientas al modelo</string>
     <string name="agent_trace_title_search_completed">Búsqueda completada</string>
@@ -2843,6 +2849,7 @@
     <string name="agent_skills_desc">Activa o desactiva habilidades. Requieren integraciones conectadas.</string>
     <string name="agent_tools_desc">Las herramientas son acciones de bajo nivel que usan las habilidades para llamar a servicios externos.</string>
     <string name="agent_trace_desc">Cuántas ejecuciones y eventos anteriores se conservan en el registro del agente y la traza del chat.</string>
+    <string name="agent_trace_retention_summary">Conserva hasta %1$d trazas en línea por conversación y %2$d en total. Las más antiguas se eliminan primero.</string>
     <string name="agent_debug_desc">Muestra la superposición de depuración y los avisos de diagnóstico en el chat.</string>
     <string name="credits_no_actions">Aún no se han registrado acciones hoy.</string>
     <string name="credits_total_consumed">Total de créditos consumidos</string>

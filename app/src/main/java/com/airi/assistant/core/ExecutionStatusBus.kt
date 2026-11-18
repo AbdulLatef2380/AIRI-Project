@@ -37,6 +37,8 @@ object ExecutionStatusBus {
     private const val TAG = "ExecutionStatusBus"
     /** Executions whose trace is retained; set through [TraceRetention]. */
     @Volatile internal var maxTraceHistory = 32
+    /** Timeline entries kept per execution; set through [TraceRetention]. */
+    @Volatile internal var maxTraceEntries = ExecutionTraceBuffer.DEFAULT_MAX_ENTRIES
 
     private val _status = MutableStateFlow(AgentState())
     private val _trace = MutableStateFlow<List<ExecutionTraceEvent>>(emptyList())
@@ -126,7 +128,7 @@ object ExecutionStatusBus {
                     executionStage        = ExecutionStage.PLANNING
                 )
             }
-            traceBuffers[executionId] = ExecutionTraceBuffer().also { it.begin(executionId, sessionId) }
+            traceBuffers[executionId] = ExecutionTraceBuffer(maxTraceEntries).also { it.begin(executionId, sessionId) }
             toolTraceLifecycles[executionId] = ExecutionToolTraceLifecycle().also { it.begin(executionId) }
             toolTraceContexts[executionId] = mutableMapOf()
             modelTurnStore.remove(executionId)

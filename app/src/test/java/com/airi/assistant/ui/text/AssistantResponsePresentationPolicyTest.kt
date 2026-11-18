@@ -67,4 +67,14 @@ class AssistantResponsePresentationPolicyTest {
         assertTrue(plan.hasExecutionContext)
         assertTrue(plan.emphasizeKeyPoints)
     }
+
+    @Test
+    fun airiUiPayloadIsNeitherCodeNorMapContent() {
+        val plan = AssistantResponsePresentationPolicy.plan(
+            "```airi-ui\n{\"version\":1,\"blocks\":[{\"type\":\"route\",\"id\":\"trip\",\"stops\":[{\"id\":\"a\",\"label\":\"A\",\"location\":\"X\"},{\"id\":\"b\",\"label\":\"B\",\"location\":\"Y\"}]}]}\n```",
+        )
+        assertTrue(plan.supportsGenerativeUi)
+        assertEquals(AssistantResponseSurface.COMPOSED, plan.surface)
+        assertFalse(plan.style == AssistantResponseStyle.CODE)
+    }
 }

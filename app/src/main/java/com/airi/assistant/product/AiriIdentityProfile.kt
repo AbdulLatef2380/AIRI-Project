@@ -3,6 +3,7 @@ package com.airi.assistant.product
 import com.airi.assistant.execution.Capability
 import com.airi.assistant.execution.CapabilityStatus
 import com.airi.assistant.execution.ModelCapabilityDescriptor
+import com.airi.assistant.ui.generative.GenerativeUiLimits
 
 /**
  * Canonical product identity used by the existing prompt pipeline.
@@ -58,7 +59,7 @@ object AiriIdentityProfile {
     }
 
     /** Stable context for ordinary turns; cloud providers are not AIRI's identity. */
-    fun runtimeContext(descriptor: ModelCapabilityDescriptor?): String {
+    fun runtimeContext(descriptor: ModelCapabilityDescriptor?, userInput: String? = null): String {
         val modelFacts = descriptor?.let { d ->
             val vision = when (d.status(Capability.IMAGE_UNDERSTANDING)) {
                 CapabilityStatus.SUPPORTED, CapabilityStatus.SUPPORTED_WITH_LIMITS -> "image understanding available"
@@ -77,16 +78,46 @@ object AiriIdentityProfile {
             - Do not invent application features or provider capabilities. When inventory evidence is incomplete, say the exact status is unverified rather than denying the feature. $modelFacts.
             - Attachments are routed by AIRI; use only attachment content present in the request.
             - Choose response composition by intent: plain questions use concise prose; explanations use headings and ordered steps; comparisons use balanced tables; documents/files use an artifact-oriented structure with format and next action; code uses fenced language-labelled blocks plus explanation; symbolic answers preserve exact symbols in LTR islands; evaluations use criteria, evidence, risks, and a conclusion; data uses tables/charts; maps/routes use ordered stops and explicit uncertainty. Arabic stays RTL-aware while code, identifiers, paths, URLs, numbers, and tables remain readable LTR islands.
-            ${descriptor?.let { generativeUiContract(it) }.orEmpty()}
+            ${descriptor?.let { generativeUiContract(it, userInput) }.orEmpty()}
             - Tone: speak like a capable, friendly person who is glad to help. Be warm and direct, address the user naturally, and engage with what they actually said instead of answering like a policy document. Keep the honesty rules above, but state limits briefly and move on to what you can do; do not open or close with disclaimers.
         """.trimIndent()
     }
 
-    private fun generativeUiContract(descriptor: ModelCapabilityDescriptor): String {
+    /**
+     * The airi-ui contract is only injected when the request plausibly benefits
+     * from structured output. [userInput] == null means "caller does not know
+     * the request" and keeps the contract (backwards compatible); a known input
+     * that suggests no data, comparison, list, flow or form skips the ~2.5k
+     * characters entirely.
+     */
+    private fun generativeUiContract(descriptor: ModelCapabilityDescriptor, userInput: String?): String {
         if (descriptor.providerId.equals("local", ignoreCase = true)) return ""
+        if (userInput != null && !GenerativeUiIntent.suggestsStructuredOutput(userInput)) return ""
+        val l = GenerativeUiLimits
         return """
-            AIRI supports a constrained in-chat generative UI surface for this configured cloud provider. Emit at most one fenced `airi-ui` JSON block only when a chart, comparison table, checklist, process diagram, statistic, route, quick action, or small form materially improves the answer; otherwise use plain text. The block must be valid JSON with `version: 1`, optional string `title`/`description`, and a non-empty `blocks` array (maximum 8). Allowed block types and exact fields are: `stat` (`id`, optional `title`, `value`, optional `supportingText`); `bar_chart` (`id`, optional `title`, `labels`, `values`, optional `unit`, with equal non-empty arrays); `diagram` (`id`, optional `title`, `nodes` with `id`/`label`/optional `description`, and `edges` with `from`/`to`/optional `label`); `route` (`id`, optional `title`, `stops` with `id`/`label`/`location` and optional numeric `latitude`/`longitude`); `table` (`id`, optional `title`, `headers`, and same-width `rows`); `checklist` (`id`, optional `title`, `items` with `id`/`label`/optional `detail`/optional boolean `checked`); `form` (`id`, optional `title`, `fields` with `id`/`label`/optional `placeholder`/optional boolean `required`, optional `submitLabel`, optional `actionId`); `actions` (`id`, optional `title`, `options` with `id`/`label`/`prompt`). Use unique short ids matching `[A-Za-z0-9_-]+`. Do not emit unknown keys, HTML, CSS, JavaScript, Kotlin, URLs, arbitrary colors, or executable code. Keep user-facing text concise and factual; actions must be descriptive and non-destructive, while sensitive or external actions remain in the normal approval/tool flow.
-            Schema example: `{"version":1,"title":"...","blocks":[{"type":"stat","id":"result","value":"24 kWh"}]}`.
+            AIRI supports a constrained in-chat generative UI surface for this configured cloud provider. Emit at most one fenced `airi-ui` JSON block only when a chart, comparison table, checklist, process diagram, statistic, route, quick action, or small form materially improves the answer; otherwise use plain text. The block must be valid JSON with `version: 1`, optional string `title`/`description`, and a non-empty `blocks` array (maximum ${l.MAX_BLOCKS}). Allowed block types and exact fields are: `stat` (`id`, optional `title`, `value`, optional `supportingText`); `bar_chart` (`id`, optional `title`, `labels`, `values`, optional `unit`, with equal non-empty arrays); `diagram` (`id`, optional `title`, `nodes` with `id`/`label`/optional `description`, and `edges` with `from`/`to`/optional `label`); `route` (`id`, optional `title`, `stops` with `id`/`label`/`location` and optional numeric `latitude`/`longitude`); `table` (`id`, optional `title`, `headers`, and same-width `rows`); `checklist` (`id`, optional `title`, `items` with `id`/`label`/optional `detail`/optional boolean `checked`); `form` (`id`, optional `title`, `fields` with `id`/`label`/optional `placeholder`/optional boolean `required`, optional `submitLabel`, optional `actionId`); `actions` (`id`, optional `title`, `options` with `id`/`label`/`prompt`). Use unique short ids matching `[A-Za-z0-9_-]+` (at most ${l.MAX_ID_CHARS} characters); every id in the document must be unique, including nested ids and a form's `actionId`. Do not emit unknown keys, HTML, CSS, JavaScript, Kotlin, URLs, arbitrary colors, or executable code. Keep user-facing text concise and factual; actions must be descriptive and non-destructive, while sensitive or external actions remain in the normal approval/tool flow.
+            Hard limits (a block that breaks any of them is rejected and shown as plain text): at most ${l.MAX_BLOCKS} blocks; at most ${l.MAX_ITEMS} entries in any `labels`/`values`/`nodes`/`edges` list; text longer than ${l.MAX_TEXT} characters is truncated; `table` has ${l.MIN_TABLE_COLUMNS}-${l.MAX_TABLE_COLUMNS} columns and 1-${l.MAX_TABLE_ROWS} rows; `route` has ${l.MIN_ROUTE_STOPS}-${l.MAX_ROUTE_STOPS} stops; `form` has ${l.MIN_FORM_FIELDS}-${l.MAX_FORM_FIELDS} fields; `actions` has 1-${l.MAX_ACTION_OPTIONS} options; `checklist` has 1-${l.MAX_CHECKLIST_ITEMS} items; latitude is -90..90 and longitude -180..180.
+            Examples: `{"version":1,"title":"...","blocks":[{"type":"stat","id":"result","value":"24 kWh"}]}`; `{"version":1,"blocks":[{"type":"table","id":"compare","headers":["Option","Cost"],"rows":[["A","10"],["B","12"]]},{"type":"actions","id":"next","options":[{"id":"details","label":"Details","prompt":"Explain option A in more detail"}]}]}`.
         """.trimIndent()
+    }
+}
+
+/** Cheap intent check that decides whether the airi-ui contract is worth its prompt tokens. */
+internal object GenerativeUiIntent {
+    private val latin = Regex(
+        "(?<![a-z])(?:compar(?:e|es|ing|ison|isons)|versus|vs|charts?|graphs?|diagrams?|tables?|routes?|" +
+            "itinerar(?:y|ies)|checklists?|calculat(?:e|es|or|ors|ion|ions)|statistics?|stats|metrics?|" +
+            "roadmaps?|schedules?|steps|forms?|plans?|lists?|options|breakdowns?|dashboards?|pros and cons)(?![a-z])",
+    )
+    private val arabic = listOf(
+        "قارن", "مقارنة", "الفرق بين", "جدول", "مخطط", "رسم بياني", "خطة", "خطوات", "قائمة",
+        "مسار", "رحلة", "نموذج", "استمارة", "احسب", "حاسبة", "حساب", "إحصائ", "بيانات",
+        "مؤشرات", "خيارات", "ترتيب", "جدولة", "قارنلي",
+    )
+
+    fun suggestsStructuredOutput(input: String): Boolean {
+        val normalized = input.lowercase()
+        if (normalized.isBlank()) return false
+        return latin.containsMatchIn(normalized) || arabic.any(normalized::contains)
     }
 }

@@ -262,6 +262,17 @@ object BuiltinTools {
         dangerous = false
     )
 
+    /** Emits a validated GenUI document through the normal AgentLoop tool path. */
+    val RENDER_UI = ToolSchema(
+        name = "render_ui",
+        description = "Render a validated AIRI UI document for the user. Pass only the JSON document; do not include an airi-ui fence.",
+        parameters = mapOf(
+            "document" to ToolSchema.Param("string", "AIRI UI JSON document, version 1", minLength = 2, maxLength = 32_000),
+            "text" to ToolSchema.Param("string", "Optional short text shown before the UI", required = false, maxLength = 2_000),
+        ),
+        category = ToolSchema.Category.SYSTEM,
+    )
+
     val FETCH_URL = ToolSchema(
         name        = "fetch_url",
         description = "Fetch the full text content of a web page. Use after web_search to read the actual content, verify facts, or extract detailed information from a specific URL.",
@@ -315,14 +326,14 @@ object BuiltinTools {
         READ_SCREEN, OPEN_APP, TAP, TYPE_TEXT, SCROLL_DOWN, GO_BACK,
         WEB_SEARCH, FETCH_URL, MEMORY_RECALL,
         CALENDAR_READ, CURRENT_TIME, FLASHLIGHT, CALENDAR_CREATE, SET_ALARM, CREATE_NOTE, TERMINAL_EXECUTE, WRITE_FILE,
-        ASK_CONFIRMATION, CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL, LOAD_SKILL,
+        ASK_CONFIRMATION, RENDER_UI, CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL, LOAD_SKILL,
         GENERATE_DOCUMENT, GENERATE_SPREADSHEET, GENERATE_PDF, GENERATE_IMAGE, GENERATE_AUDIO, GENERATE_VIDEO, COMPRESS_FILES
     )
 
     /** Minimal set for plain chat (no accessibility, no calendar write). */
     val CHAT_ONLY: List<ToolSchema> = listOf(
         WEB_SEARCH, FETCH_URL, MEMORY_RECALL, CALENDAR_READ, CURRENT_TIME, CREATE_NOTE, TERMINAL_EXECUTE, WRITE_FILE,
-        CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL, LOAD_SKILL,
+        RENDER_UI, CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL, LOAD_SKILL,
         GENERATE_DOCUMENT, GENERATE_SPREADSHEET, GENERATE_PDF, GENERATE_IMAGE, GENERATE_AUDIO, GENERATE_VIDEO, COMPRESS_FILES
     )
 }

@@ -212,6 +212,17 @@ fun AgentControlScreen(
                         )
                     }
                 }
+                // The archive evicts silently otherwise: tell the user what is kept.
+                Text(
+                    text = stringResource(
+                        R.string.agent_trace_retention_summary,
+                        retention.messagesPerSession,
+                        retention.messages,
+                    ),
+                    fontSize = 11.sp,
+                    color = AiriTheme.outline,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
             if (com.airi.assistant.BuildConfig.DEBUG) {
                 AgentControlCard {

@@ -9,6 +9,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import com.airi.assistant.ui.theme.AiriTheme
 import com.airi.assistant.ui.viewmodel.ChatMessage
 import com.airi.assistant.ui.viewmodel.ModelUiState
+import kotlinx.coroutines.flow.MutableStateFlow
 
 private val previewMessages = listOf(
     ChatMessage("أهلًا بك", isUser = true),
@@ -20,13 +21,13 @@ private val previewMessages = listOf(
 @Preview(name = "Chat empty dark", widthDp = 360, heightDp = 800, uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
 @Composable
 private fun ChatEmptyDarkPreview() {
-    AiriTheme { ChatMessageList(emptyList(), streamingText = "", isGenerating = false) }
+    AiriTheme { ChatMessageList(emptyList(), streamingTextFlow = MutableStateFlow(""), isGenerating = false) }
 }
 
 @Preview(name = "Chat messages light", widthDp = 411, heightDp = 891, showBackground = true)
 @Composable
 private fun ChatMessagesLightPreview() {
-    AiriTheme { ChatMessageList(previewMessages, streamingText = "", isGenerating = false) }
+    AiriTheme { ChatMessageList(previewMessages, streamingTextFlow = MutableStateFlow(""), isGenerating = false) }
 }
 
 @Preview(name = "Arabic user RTL", widthDp = 360, heightDp = 800, showBackground = true)

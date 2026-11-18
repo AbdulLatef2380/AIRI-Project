@@ -350,7 +350,10 @@ class AIRIApplication : Application() {
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
         val severity = when {
-            level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> "CRITICAL"
+            // UI_HIDDEN is numerically higher than RUNNING_CRITICAL on
+            // Android. Equality is intentional: hiding AIRI must not unload
+            // the model or invalidate the active KV/session state.
+            level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> "CRITICAL"
             level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW      -> "LOW"
             level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN        -> "BACKGROUND"
             else                                                       -> null

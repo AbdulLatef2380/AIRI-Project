@@ -117,6 +117,7 @@ import androidx.fragment.app.FragmentActivity
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.airi.assistant.ui.text.BidiAwareMarkdownRenderer
@@ -235,7 +236,6 @@ fun ChatScreen(
     }
     val scope         = rememberCoroutineScope()
     val messages      by viewModel.messages.collectAsStateWithLifecycle()
-    val streamingText by viewModel.streamingText.collectAsStateWithLifecycle()
     val agentState    by viewModel.agentState.collectAsStateWithLifecycle()
     val generationStoppedNotice by viewModel.generationStoppedNotice.collectAsStateWithLifecycle()
     val agentActivityEvents by AgentActivityBus.recentEvents.collectAsStateWithLifecycle()
@@ -248,7 +248,7 @@ fun ChatScreen(
     val attachmentDispatchInFlight by viewModel.attachmentDispatchInFlight.collectAsStateWithLifecycle()
     val longTextConversionInFlight by viewModel.longTextConversionInFlight.collectAsStateWithLifecycle()
     val dailyCreditsRemaining  by viewModel.dailyCreditsRemaining.collectAsStateWithLifecycle()
-    val isProPlan = ServiceLocator.subscriptionManager.isPro()
+    val isProPlan = remember { ServiceLocator.subscriptionManager.isPro() }
     // : real-time network state — drives offline banner
     val isOnline      by viewModel.isOnline.collectAsStateWithLifecycle()
     // LiveVoiceService — voice mode state
@@ -269,7 +269,6 @@ fun ChatScreen(
     val currentSession = sessions.firstOrNull { it.id == currentSessionId }
     val generationBelongsToCurrentSession = agentState.isWorking &&
         (agentState.sessionId.isBlank() || agentState.sessionId == currentSessionId)
-    val visibleStreamingText = streamingText.takeIf { generationBelongsToCurrentSession }.orEmpty()
     val visibleExecutionError = lastExecutionError?.takeIf {
         it.sessionId.isNullOrBlank() || it.sessionId == currentSessionId
     }
@@ -292,7 +291,7 @@ fun ChatScreen(
     var knowledgeSearchVersion by remember { mutableStateOf(0) }
 
     // Chat is "active" when there are messages or the AI is responding
-    val chatIsActive = messages.isNotEmpty() || visibleStreamingText.isNotEmpty() || generationBelongsToCurrentSession
+    val chatIsActive = messages.isNotEmpty() || generationBelongsToCurrentSession
     val hasUserMessages = messages.any { it.isUser }
     LaunchedEffect(chatIsActive) { onChatActiveChanged(chatIsActive) }
     // ChatScreen is the correct collection site because it has access to
@@ -674,7 +673,7 @@ fun ChatScreen(
     }
 
     LaunchedEffect(speakNextResponse, agentState.isWorking) {
-        snapshotFlow { streamingText }.collect { current ->
+        viewModel.streamingText.collect { current ->
             if (!speakNextResponse) {
                 if (ttsStreamingActive) { voiceManager.ttsStreamFlush(); ttsStreamingActive = false }
                 lastTtsStreamLen = 0; return@collect
@@ -1218,7 +1217,7 @@ fun ChatScreen(
             }
             ChatMessageList(
                 messages      = filteredChatMessages,
-                streamingText = if (chatSearchQuery.isBlank()) visibleStreamingText else "",
+                streamingTextFlow = viewModel.streamingText,
                 isGenerating  = generationBelongsToCurrentSession,
                 currentSessionId = currentSessionId,
                 generationStoppedNotice = generationStoppedNotice,
@@ -2205,7 +2204,7 @@ private fun AiriHistoryPanel(
 @Composable
 fun ChatMessageList(
     messages: List<ChatMessage>,
-    streamingText: String,
+    streamingTextFlow: StateFlow<String>,
     isGenerating: Boolean,
     currentSessionId: String = "",
     generationStoppedNotice: Boolean = false,
@@ -2240,8 +2239,12 @@ fun ChatMessageList(
 ) {
     val listState = rememberLazyListState()
     val scope     = rememberCoroutineScope()
+    val streamingText by streamingTextFlow.collectAsStateWithLifecycle()
     val reversedMessages = remember(messages) { messages.reversed() }
     val messageKeys = remember(reversedMessages) { ChatUiPolicy.messageKeys(reversedMessages) }
+    val conversationContext = remember(messages) {
+        CurrentTurnContextResolver.resolve(messages.map { it.toResponseTurnEvidence() })
+    }
     val isPinnedToBottom by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < 48
@@ -2444,14 +2447,7 @@ fun ChatMessageList(
                                     AiStreamingBubble(
                                         text = streamingText,
                                         messageId = "streaming-${messages.lastOrNull { it.isUser }?.uid ?: "active"}",
-                                        conversationContext = CurrentTurnContextResolver.resolve(
-                                            messages = messages.map { it.toResponseTurnEvidence() } + ResponseTurnMessageEvidence(
-                                                id = Long.MIN_VALUE,
-                                                isUser = false,
-                                                text = streamingText,
-                                            ),
-                                            assistantMessageId = Long.MIN_VALUE,
-                                        ),
+                                        conversationContext = conversationContext,
                                         onShare = onShareAiResponse,
                                     )
                                 },

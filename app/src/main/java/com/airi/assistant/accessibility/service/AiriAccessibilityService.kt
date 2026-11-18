@@ -90,7 +90,9 @@ class AiriAccessibilityService : AccessibilityService() {
             info.feedbackType  = AccessibilityServiceInfo.FEEDBACK_GENERIC
             info.flags         = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or
                                   AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
-            info.notificationTimeout = 100L
+            // Coalesce bursts from editors/browsers; node-counting is not part
+            // of the hot path and must never run once per content event.
+            info.notificationTimeout = 500L
         }
 
         // Unlock AndroidAgent routing in SubAgentRegistry
@@ -154,6 +156,11 @@ class AiriAccessibilityService : AccessibilityService() {
         val pkg       = event.packageName?.toString() ?: return
         val className = event.className?.toString() ?: ""
 
+        // AIRI's own Compose tree generates frequent content-change events
+        // during streaming. Accessibility state for the host app is not an
+        // external capability and must not feed back into the hot path.
+        if (pkg == packageName) return
+
         // Policy-gated read. For denylisted packages we still publish the
         // package name (so the UI can reflect "AIRI is paused for this app")
         // but we do NOT walk the node tree.
@@ -168,25 +175,15 @@ class AiriAccessibilityService : AccessibilityService() {
             return
         }
 
-        val root      = rootInActiveWindow
-        val nodeCount = if (root != null) countNodes(root) else 0
-
         _screenContext.value = ScreenState(
             packageName = pkg,
             className   = className,
-            nodeCount   = nodeCount,
+            // Node count is diagnostic-only; calculate it only in an explicit
+            // diagnostic action rather than traversing Binder nodes per event.
+            nodeCount   = 0,
             eventType   = eventTypeName(event.eventType),
             timestampMs = System.currentTimeMillis()
         )
-    }
-
-    private fun countNodes(node: android.view.accessibility.AccessibilityNodeInfo, depth: Int = 0): Int {
-        if (depth > 50) return 1
-        var count = 1
-        for (i in 0 until node.childCount) {
-            count += countNodes(node.getChild(i) ?: continue, depth + 1)
-        }
-        return count
     }
 
     private fun eventTypeName(type: Int): String = when (type) {

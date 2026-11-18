@@ -4979,8 +4979,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val cloudAllowed = execModePrefs.effectiveMode != ExecutionMode.LOCAL_ONLY
         val cloudCanReceiveAttachments = cloudAllowed && _modelState.value.isCloudReady &&
             _modelState.value.activeCloudProvider != null
-        val localVisionReady = localAllowed && _modelState.value.capabilities.vision &&
-            runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
+        // capabilities.vision is updated after serialized mmproj loading; do
+        // not query JNI from the admission/UI path while llama holds its lock.
+        val localVisionReady = localAllowed && _modelState.value.capabilities.vision
         val cloudProvider = _modelState.value.activeCloudProvider
         val cloudDescriptor = cloudProvider?.let {
             ModelCapabilityEngine.fromCloud(it, _modelState.value.cloudModelName)
@@ -4997,7 +4998,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 ModelCapabilityEngine.fromLocal(
                     model = local,
                     capabilities = state.capabilities,
-                    mmprojLoaded = runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false),
+                    mmprojLoaded = state.capabilities.vision,
                     availableRamMb = runCatching { DeviceProfiler.profile(appContext).availableRamMb }.getOrNull(),
                     modelAvailable = state.isModelReady,
                 )
@@ -5545,7 +5546,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             ModelCapabilityEngine.fromLocal(
                 model = local,
                 capabilities = state.capabilities,
-                mmprojLoaded = runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false),
+                mmprojLoaded = state.capabilities.vision,
                 availableRamMb = runCatching { DeviceProfiler.profile(appContext).availableRamMb }.getOrNull(),
                 modelAvailable = state.isModelReady,
             )
@@ -5640,8 +5641,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         Log.i("AIRI", "VISION_PRIVACY_GATE origin=LOCAL data=image_bytes_on_device_only")
         AnalyticsService.modelLoaded(_modelState.value.selectedModelName, 0L)
 
-        val visionReady = _modelState.value.capabilities.vision &&
-                          runCatching { LlamaNative.isMmprojLoaded() }.getOrDefault(false)
+        val visionReady = _modelState.value.capabilities.vision
         val attachmentName = imageUri?.lastPathSegment ?: "camera_capture"
 
         // Resolve an in-memory displayable URI ONCE so the user's chat

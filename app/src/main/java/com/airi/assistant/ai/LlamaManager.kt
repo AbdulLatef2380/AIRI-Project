@@ -121,13 +121,11 @@ class LlamaManager(private val context: Context) {
 
     companion object {
         private const val TAG = "AIRI_MODEL"
-        // Per-token streaming: the native callback already fires once per
-        // UTF-8-valid piece (i.e. per token for ASCII, per 1-2 tokens for
-        // multi-byte Arabic / CJK clusters). We forward each native callback
-        // to the UI immediately. Set TOKEN_BATCH_MS > 0 only if the UI thread
-        // becomes a bottleneck — never as a default.
-        private const val TOKEN_BATCH_MS = 0L
-        private const val TOKEN_BATCH_CHARS = 1
+        // Native callbacks remain token-granular, but UI delivery is bounded:
+        // this avoids one Main-dispatch and one full StringBuilder copy per
+        // token while preserving a responsive stream (at most 20Hz or 24 chars).
+        private const val TOKEN_BATCH_MS = 50L
+        private const val TOKEN_BATCH_CHARS = 24
         // Inactivity timeout: increased from 20s to 45s. On mid-range devices
         // (Snapdragon 4xx/6xx, ~4GB RAM) running Q4-quantized 3B+ models,
         // token generation can legitimately stall for 20-35s during heavy

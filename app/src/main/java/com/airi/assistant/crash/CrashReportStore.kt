@@ -40,6 +40,7 @@ class CrashReportStore(private val context: Context) {
     private val TAG    = "CrashReportStore"
     private val gson   = Gson()
     private val file   = File(context.filesDir, "airi_crash_reports.json")
+    private val fileLock = Any()
 
     private val _reports = MutableStateFlow<List<CrashReport>>(emptyList())
     val reports: StateFlow<List<CrashReport>> = _reports.asStateFlow()
@@ -122,18 +123,27 @@ class CrashReportStore(private val context: Context) {
     }
 
     private fun add(report: CrashReport) {
-        val current  = _reports.value.toMutableList()
-        current.add(0, report)
-        if (current.size > MAX_REPORTS) current.subList(MAX_REPORTS, current.size).clear()
-        _reports.value = current
-        persist()
+        synchronized(fileLock) {
+            val current  = _reports.value.toMutableList()
+            current.add(0, report)
+            if (current.size > MAX_REPORTS) current.subList(MAX_REPORTS, current.size).clear()
+            _reports.value = current
+            persistLocked()
+        }
     }
 
-    private fun persist() {
+    private fun persist() = synchronized(fileLock) { persistLocked() }
+
+    private fun persistLocked() {
         runCatching {
             val tmp = File(file.parent, "${file.name}.tmp")
             tmp.writeText(gson.toJson(_reports.value), Charsets.UTF_8)
-            tmp.renameTo(file)
+            if (!tmp.renameTo(file)) {
+                // Some filesystems refuse replacing an existing file atomically.
+                // Keep the last complete JSON rather than silently losing it.
+                file.writeText(tmp.readText(Charsets.UTF_8), Charsets.UTF_8)
+                tmp.delete()
+            }
         }.onFailure { Log.e(TAG, "Persist failed: ${it.message}") }
     }
 

@@ -75,6 +75,7 @@ jobs:
           echo '{"status":"SKIP","detail":"OPENAI_API_KEY and GEMINI_API_KEY are not configured"}'
         fi
         python3 tools/verify_core_changes.py
+        python3 tools/verify_phase3_runtime_contracts.py --output phase3-runtime-contracts.json
         python3 scripts/airi_localization_health.py --strict | tee phase7-localization-review.txt
         python3 scripts/airi_release_health.py
         python3 -m unittest discover -s scripts -p 'test_airi_ui_hardcoded_text_lint.py' -v
@@ -93,6 +94,7 @@ jobs:
           phase7-remote-control-security.json
           phase7-firestore-rules.json
           phase7-localization-review.txt
+          phase3-runtime-contracts.json
         if-no-files-found: warn
 
     - name: Build and test shared core

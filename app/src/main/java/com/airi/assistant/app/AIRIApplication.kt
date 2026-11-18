@@ -23,6 +23,8 @@ import com.airi.assistant.memory.AiriDatabase
 import com.airi.assistant.sync.CloudSyncWorker
 import com.airi.assistant.agent.learning.reinforcement.ReinforcementMemory
 import com.airi.assistant.runtime.recovery.RuntimeRecoveryEngine
+import com.airi.assistant.crash.launchGuarded
+import com.airi.assistant.runtime.recovery.MemoryPressurePolicy
 import com.airi.assistant.resources.ResourceMonitorWorker
 import com.airi.assistant.attachments.TransientAttachmentCache
 import com.airi.assistant.system.LanguageManager
@@ -252,7 +254,11 @@ class AIRIApplication : Application() {
             // Moving them to IO reduces cold-start main-thread time by ~60–120 ms
             // on mid-range devices (each lazy init touches SharedPreferences / DB /
             // network, which are blocking I/O operations on the main thread).
-            applicationScope.launch {
+            applicationScope.launchGuarded(
+                monitor = ServiceLocator.runtimeHealthMonitor,
+                crashReporter = ServiceLocator.crashReporter,
+                component = "AIRIApplication.deferred_init",
+            ) {
                 runCatching {
                     ServiceLocator.networkService
                     ServiceLocator.executionHistoryStore
@@ -320,7 +326,11 @@ class AIRIApplication : Application() {
             // Fires a background integrity token request so that the first
             // high-trust action (cloud call, subscription purchase) already has
             // a cached verdict available without blocking the user.
-            applicationScope.launch {
+            applicationScope.launchGuarded(
+                monitor = ServiceLocator.runtimeHealthMonitor,
+                crashReporter = ServiceLocator.crashReporter,
+                component = "AIRIApplication.integrity_warmup",
+            ) {
                 PlayIntegrityVerifier.warmUp(applicationContext)
             }
 
@@ -349,23 +359,18 @@ class AIRIApplication : Application() {
      */
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        val severity = when {
-            // UI_HIDDEN is numerically higher than RUNNING_CRITICAL on
-            // Android. Equality is intentional: hiding AIRI must not unload
-            // the model or invalidate the active KV/session state.
-            level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> "CRITICAL"
-            level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW      -> "LOW"
-            level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN        -> "BACKGROUND"
-            else                                                       -> null
-        } ?: return
+        val decision = MemoryPressurePolicy.classify(level) ?: return
+        val severity = decision.severity.name
 
         LoggingService.warn(TAG, "onTrimMemory level=$level severity=$severity")
         com.airi.assistant.domain.event.EventBus.emitSync(
             com.airi.assistant.domain.event.AppEvent.LowMemoryPressure(level = level, severity = severity)
         )
-        // Evict stale graph workspaces — these hold in-memory file trees and
-        // snapshot logs from completed or abandoned executeGraph() runs.
-        com.airi.assistant.agent.workspace.WorkspaceRegistry.pruneStale()
+        if (decision.shouldPruneStaleWorkspaces) {
+            // Evict stale graph workspaces — these hold in-memory file trees and
+            // snapshot logs from completed or abandoned executeGraph() runs.
+            com.airi.assistant.agent.workspace.WorkspaceRegistry.pruneStale()
+        }
         // Do not evict composer attachments here: the live draft state may still
         // reference them when the user returns. Expired cache entries and stale
         // partial writes are pruned at process startup instead.

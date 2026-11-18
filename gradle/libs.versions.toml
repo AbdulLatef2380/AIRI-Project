@@ -38,6 +38,7 @@ tesseract4android = "4.9.0"
 securityCrypto = "1.1.0-alpha06"
 workManager = "2.9.0"
 profileInstaller = "1.4.1"
+baselineProfile = "1.4.1"
 billing = "6.2.1"
 accompanistPermissions = "0.32.0"
 tensorflowLite = "2.14.0"
@@ -109,3 +110,4 @@ kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref 
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
+androidx-baselineprofile = { id = "androidx.baselineprofile", version.ref = "baselineProfile" }

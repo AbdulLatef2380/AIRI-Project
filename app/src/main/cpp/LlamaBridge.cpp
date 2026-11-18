@@ -314,14 +314,25 @@ static int airi_cap_threads(int requested) {
     return std::clamp(requested, 1, std::min(hw, AIRI_MAX_THREADS_CAP));
 }
 
-// Phase marker so the signal handler can report WHERE we crashed.
+// Phase marker is intentionally not read by the fatal signal handler: a
+// std::string/formatting/logging call is not async-signal-safe. Detailed phase
+// logging remains in the normal PROOF path immediately before native work.
 static const char*       g_phase       = "idle";
+static volatile sig_atomic_t g_signal_seen = 0;
 
 // ─── signal handler ──────────────────────────────────────────────────────────
 static void airi_signal_handler(int sig) {
-    __android_log_print(ANDROID_LOG_ERROR, "AIRI_PROOF",
-        "SIGNAL_CAUGHT signal=%d phase=%s", sig, g_phase);
-    signal(sig, SIG_DFL);
+    // Only async-signal-safe operations are allowed here. Android's tombstone
+    // and the process-level crash reporter remain the source of full details.
+    if (g_signal_seen == 0) {
+        g_signal_seen = 1;
+        static const char marker[] = "AIRI_NATIVE_FATAL_SIGNAL\n";
+        (void)write(STDERR_FILENO, marker, sizeof(marker) - 1);
+    }
+    struct sigaction default_action{};
+    default_action.sa_handler = SIG_DFL;
+    sigemptyset(&default_action.sa_mask);
+    sigaction(sig, &default_action, nullptr);
     raise(sig);
 }
 

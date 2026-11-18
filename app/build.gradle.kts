@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.androidx.baselineprofile)
 
     id("com.google.gms.google-services")
 
@@ -247,6 +248,7 @@ ksp {
 
 dependencies {
     implementation(project(":core-domain"))
+    baselineProfile(project(":baselineprofile"))
 
     // Core Android
     implementation(libs.androidx.core.ktx)

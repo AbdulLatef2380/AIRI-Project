@@ -1,0 +1,78 @@
+name: AIRI Phase 3 Performance Evidence
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app/src/main/cpp/**'
+      - 'app/src/main/java/com/airi/assistant/runtime/recovery/**'
+      - 'baselineprofile/**'
+      - 'app/build.gradle.kts'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'tools/verify_phase3_runtime_contracts.py'
+
+permissions:
+  contents: read
+
+jobs:
+  phase3-contracts:
+    name: Phase 3 SDK-free contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Phase 3 contracts
+        run: |
+          python3 tools/verify_phase3_runtime_contracts.py --output phase3-runtime-contracts.json
+      - name: Upload contract evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIRI-Phase3-runtime-contracts
+          path: phase3-runtime-contracts.json
+
+  startup-profile:
+    name: Android startup profile and macrobenchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          accept-android-sdk-licenses: true
+      - name: Install Android toolchain
+        run: |
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "platforms;android-30"
+      - name: Build benchmark and profile artifacts
+        run: |
+          ./gradlew --no-daemon --max-workers=1 \
+            :app:assembleRelease \
+            :baselineprofile:assemble \
+            --stacktrace
+      - name: Run connected Baseline Profile collection
+        uses: reactivecircus/android-emulator-runner@v2
+        timeout-minutes: 25
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 2048
+          script: |
+            ./gradlew --no-daemon --max-workers=1 :app:generateBaselineProfile --stacktrace
+      - name: Upload profile and benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIRI-Phase3-startup-profile
+          path: |
+            app/build/outputs/**/baseline-prof.txt
+            app/build/reports/**
+            baselineprofile/build/reports/**
+          if-no-files-found: warn

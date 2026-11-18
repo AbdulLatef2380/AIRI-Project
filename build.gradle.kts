@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.compose.multiplatform) apply false
+    alias(libs.plugins.androidx.baselineprofile) apply false
 
     // Google Services Plugin (Firebase)
     id("com.google.gms.google-services") version "4.4.1" apply false

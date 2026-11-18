@@ -1,6 +1,7 @@
 package com.airi.assistant.crash
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
@@ -71,4 +72,33 @@ fun CoroutineScope.launchTracked(
     // coroutine body even runs, unregister here too.
     job.invokeOnCompletion { monitor.unregisterCoroutine(uniqueKey) }
     return job
+}
+
+/**
+ * Launch a tracked worker with an explicit crash boundary.
+ *
+ * Cancellation is control flow and is rethrown. Unexpected failures are
+ * recorded once and are not allowed to escape into an unrelated supervisor,
+ * which otherwise makes background failures look like silent feature loss.
+ */
+fun CoroutineScope.launchGuarded(
+    monitor: RuntimeHealthMonitor,
+    crashReporter: OrchestratorCrashReporter,
+    component: String,
+    context: CoroutineContext = EmptyCoroutineContext,
+    block: suspend CoroutineScope.() -> Unit
+): Job = launchTracked(monitor, component, context) {
+    try {
+        block()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Throwable) {
+        runCatching {
+            crashReporter.reportManual(
+                component = component,
+                errorTag = failure::class.java.simpleName.ifBlank { "CoroutineFailure" },
+                message = failure.message ?: "background coroutine failed",
+            )
+        }
+    }
 }

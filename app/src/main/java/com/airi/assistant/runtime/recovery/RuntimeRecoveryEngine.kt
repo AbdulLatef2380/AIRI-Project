@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * RuntimeRecoveryEngine — Phase R9 crash recovery and execution checkpointing.
@@ -61,6 +62,7 @@ class RuntimeRecoveryEngine(private val context: Context) {
     val status: StateFlow<RecoveryStatus?> = _status.asStateFlow()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val crashHandlerInstalled = AtomicBoolean(false)
 
     // ── Lifecycle ──────────────────────────────────────────────────────────
 
@@ -81,10 +83,15 @@ class RuntimeRecoveryEngine(private val context: Context) {
         if (available.isNotEmpty()) writeRecoveryAttempts(attempts + 1)
 
         // Install crash handler to write timestamp on uncaught exception
-        val existing = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            runCatching { writeCrashTimestamp(System.currentTimeMillis()) }
-            runCatching { existing?.uncaughtException(thread, throwable) }
+        if (crashHandlerInstalled.compareAndSet(false, true)) {
+            val existing = Thread.getDefaultUncaughtExceptionHandler()
+            Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+                // This handler runs on the dying thread. Keep the durable
+                // marker tiny and best-effort, then always delegate so Android
+                // retains its normal crash/tombstone behaviour.
+                runCatching { writeCrashTimestamp(System.currentTimeMillis()) }
+                runCatching { existing?.uncaughtException(thread, throwable) }
+            }
         }
     }
 

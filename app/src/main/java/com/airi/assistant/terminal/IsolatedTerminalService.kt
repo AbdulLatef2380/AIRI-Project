@@ -5,7 +5,6 @@ import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Binder
-import android.os.Debug
 import android.os.IBinder
 import android.os.Process as AndroidProcess
 import com.airi.assistant.agent.sandbox.ProcessTreeTerminator
@@ -161,9 +160,7 @@ class IsolatedTerminalService : Service() {
             while (true) {
                 currentCoroutineContext().ensureActive()
                 val pid = childPid(process)
-                val childMemory = pid?.let {
-                    Debug.MemoryInfo().also { memoryInfo -> Debug.getMemoryInfo(it, memoryInfo) }.totalPss * 1024L
-                }
+                val childMemory = pid?.let(::processResidentBytes)
                 if (childMemory != null && childMemory > limits.memoryBytes) {
                     ProcessTreeTerminator.terminate(process)
                     return ServiceResult.memoryExceeded()
@@ -208,6 +205,17 @@ class IsolatedTerminalService : Service() {
         val systemTicks = fields.getOrNull(12)?.toLongOrNull() ?: return@runCatching 0L
         ((userTicks + systemTicks) * 1_000L) / 100L
     }.getOrDefault(0L)
+
+    private fun processResidentBytes(pid: Int): Long? = runCatching {
+        File("/proc/$pid/status").useLines { lines ->
+            lines.firstOrNull { it.startsWith("VmRSS:") }
+                ?.trim()
+                ?.split(Regex("\\s+"))
+                ?.getOrNull(1)
+                ?.toLongOrNull()
+                ?.times(1024L)
+        }
+    }.getOrNull()
 
     private fun childPidSupportAvailable(): Boolean = runCatching {
         Process::class.java.getMethod("pid")

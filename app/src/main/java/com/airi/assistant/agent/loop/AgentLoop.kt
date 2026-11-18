@@ -219,7 +219,7 @@ the tool returns an actual error.
         // Report ب-2: one shared pipeline (also used by ChatViewModel) with the same inputs,
         // including the code-task flag and the required-tool list the loop used to ignore.
         val canonicalRequiredTools = requestPlan?.requiredTools ?: requiredToolNames
-        val generativeUiRequested = com.airi.assistant.ui.generative.GenerativeUiIntent
+        val generativeUiRequested = com.airi.assistant.product.GenerativeUiIntent
             .suggestsStructuredOutput(input) &&
             com.airi.assistant.ui.generative.GenerativeUiStructuredOutput.supportedProvider(providerId)
         val canonicalCodeTask = requestPlan?.kind == RequestPlan.Kind.CODE_TASK || requireToolOnFirstStep
@@ -729,7 +729,7 @@ the tool returns an actual error.
 
                 if (queuedToolCall == null &&
                     com.airi.assistant.ui.generative.GenerativeUiStructuredOutput.supportedProvider(providerId) &&
-                    com.airi.assistant.ui.generative.GenerativeUiIntent.suggestsStructuredOutput(input)
+                    com.airi.assistant.product.GenerativeUiIntent.suggestsStructuredOutput(input)
                 ) {
                     com.airi.assistant.ui.generative.GenerativeUiStructuredOutput.toFence(rawResponse)?.let {
                         rawResponse = it
@@ -2006,7 +2006,7 @@ the tool returns an actual error.
         }
         val currentPromptText = (history.lastOrNull() as? ConversationTurn.User)?.content
         val nativeGenerativeUi = currentPromptText?.let {
-            com.airi.assistant.ui.generative.GenerativeUiIntent.suggestsStructuredOutput(it)
+            com.airi.assistant.product.GenerativeUiIntent.suggestsStructuredOutput(it)
         } == true &&
             com.airi.assistant.ui.generative.GenerativeUiStructuredOutput.supportedProvider(providerId) &&
             tools.any { it.name == "render_ui" }

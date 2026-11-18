@@ -371,8 +371,11 @@ class MediaLibrary(private val context: Context) {
             ArtifactManager.ArtifactType.EPUB            -> "application/epub+zip"
             ArtifactManager.ArtifactType.DOCX            -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             ArtifactManager.ArtifactType.XLSX            -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ArtifactManager.ArtifactType.PDF             -> "application/pdf"
             ArtifactManager.ArtifactType.IMAGE           -> "image/jpeg"
             ArtifactManager.ArtifactType.AUDIO           -> "audio/mp4"
+            ArtifactManager.ArtifactType.VIDEO           -> "video/mp4"
+            ArtifactManager.ArtifactType.ARCHIVE         -> "application/zip"
             ArtifactManager.ArtifactType.UNKNOWN        -> "application/octet-stream"
         }
 

@@ -95,7 +95,7 @@ class MediaGenerationAgent(
         ))
 
         val artifact = try {
-            MediaArtifactService(context, ServiceLocator.artifactManager).generateImageFromPrompt(
+            MediaArtifactService(this@MediaGenerationAgent.context, ServiceLocator.artifactManager).generateImageFromPrompt(
                 sessionId = context.sessionId,
                 prompt = prompt,
                 width = width,

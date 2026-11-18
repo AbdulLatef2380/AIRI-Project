@@ -16,14 +16,14 @@ object AccessibilityToolReadiness {
                         "AIRI Accessibility Service is not enabled. Enable it in Android Accessibility settings."
                     AccessibilityReadiness.Status.ENABLED_NOT_CONNECTED ->
                         "AIRI Accessibility Service is enabled but not connected. Reopen AIRI and try again."
-                    AccessibilityReadiness.Status.READY -> "",
+                    AccessibilityReadiness.Status.READY -> ""
                 },
                 nextAction = when (snapshot.status) {
                     AccessibilityReadiness.Status.NOT_INSTALLED,
                     AccessibilityReadiness.Status.DISABLED -> "enable_accessibility"
                     AccessibilityReadiness.Status.ENABLED_NOT_CONNECTED -> "wait_for_accessibility_connection"
                     AccessibilityReadiness.Status.READY -> null
-                },
+                }
             )
         }
 }

@@ -1,5 +1,7 @@
 package com.airi.assistant.agent.loop.tool
 
+import com.airi.assistant.agent.loop.AgentLoopTaskRuntime
+
 /**
  * Fail-closed admission for AgentLoop tools that can change a user resource or
  * live device state. A chat loop has no durable task/run/step context today,

@@ -2524,6 +2524,7 @@ fun ChatMessageList(
                                 },
                                 executionTraceWorking = inlineTraceWorking && msg.executionTraceId == inlineTraceExecutionId,
                                 continuationHops = msg.continuationHops,
+                                generativeUiStateStore = viewModel.generativeUiStateStore,
                                 conversationContext = CurrentTurnContextResolver.resolve(
                                     messages = messages.map { it.toResponseTurnEvidence() },
                                     assistantMessageId = msg.id,
@@ -3093,6 +3094,7 @@ fun AiBubble(
     continuationHops: Int = 0,
     conversationContext: AssistantConversationContext = AssistantConversationContext(),
     initialFeedback: Int = 0,
+    generativeUiStateStore: com.airi.assistant.ui.generative.GenerativeUiStateStore? = null,
     
     onFeedback: (liked: Boolean) -> Unit = {},
     onExportPdf: (String) -> Unit = {},
@@ -3254,7 +3256,7 @@ fun AiBubble(
                                     },
                                     onGenerativeUiAction = onInteractiveAction,
                                     generativeUiExecutionId = executionTraceId,
-                                    generativeUiStateStore = viewModel.generativeUiStateStore,
+                                    generativeUiStateStore = generativeUiStateStore,
                                 )
                             }
                             if (isSelectingText) SelectionContainer { renderContent() } else renderContent()

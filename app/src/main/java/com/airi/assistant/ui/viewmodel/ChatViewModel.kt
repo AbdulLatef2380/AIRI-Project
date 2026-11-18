@@ -3054,13 +3054,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             val candidateToolsWithGenUi = if (
-                com.airi.assistant.ui.generative.GenerativeUiIntent.suggestsStructuredOutput(trimmedInput) &&
+                com.airi.assistant.product.GenerativeUiIntent.suggestsStructuredOutput(trimmedInput) &&
                 com.airi.assistant.ui.generative.GenerativeUiStructuredOutput.supportedProvider(requestedProviderIdAtDispatch)
             ) {
                 (candidateTools + allActiveTools.filter { it.name == "render_ui" }).distinctBy { it.name }
             } else candidateTools
             val requiredToolsWithGenUi = requestPlan.requiredTools + if (
-                com.airi.assistant.ui.generative.GenerativeUiIntent.suggestsStructuredOutput(trimmedInput) &&
+                com.airi.assistant.product.GenerativeUiIntent.suggestsStructuredOutput(trimmedInput) &&
                 com.airi.assistant.ui.generative.GenerativeUiStructuredOutput.supportedProvider(requestedProviderIdAtDispatch)
             ) setOf("render_ui") else emptySet()
             val toolPromptBudget = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy

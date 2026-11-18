@@ -220,6 +220,9 @@ private fun LineChartBlock(block: GenerativeUiBlock.LineChart, stateKey: String,
     val minValue = block.values.minOrNull() ?: 0f
     val maxValue = block.values.maxOrNull() ?: 1f
     val range = (maxValue - minValue).coerceAtLeast(1f)
+    val primaryColor = AiriTheme.primary
+    val selectedColor = AiriTheme.onBackground
+    val mutedColor = AiriTheme.onSurfaceVariant
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
         Canvas(
@@ -236,16 +239,16 @@ private fun LineChartBlock(block: GenerativeUiBlock.LineChart, stateKey: String,
             val points = block.values.mapIndexed { index, value ->
                 Offset(index * step, size.height - ((value - minValue) / range) * size.height)
             }
-            points.zipWithNext().forEach { (from, to) -> drawLine(AiriTheme.primary, from, to, strokeWidth = 5f) }
+            points.zipWithNext().forEach { (from, to) -> drawLine(primaryColor, from, to, strokeWidth = 5f) }
             points.forEachIndexed { index, point ->
-                drawCircle(if (index == selectedIndex) AiriTheme.secondary else AiriTheme.primary, 7f, point)
+                drawCircle(if (index == selectedIndex) selectedColor else primaryColor, 7f, point)
             }
         }
         Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             block.labels.forEachIndexed { index, label ->
                 Text(
                     label,
-                    color = if (index == selectedIndex) AiriTheme.onBackground else AiriTheme.onSurfaceVariant,
+                    color = if (index == selectedIndex) selectedColor else mutedColor,
                     fontSize = 10.sp,
                     modifier = Modifier
                         .clickable {
@@ -257,7 +260,7 @@ private fun LineChartBlock(block: GenerativeUiBlock.LineChart, stateKey: String,
             }
         }
         if (selectedIndex >= 0) {
-            Text("${block.labels[selectedIndex]}: ${formatNumber(block.values[selectedIndex])}${block.unit.orEmpty()}", color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+            Text("${block.labels[selectedIndex]}: ${formatNumber(block.values[selectedIndex])}${block.unit.orEmpty()}", color = mutedColor, fontSize = 12.sp)
         }
     }
 }
@@ -265,13 +268,14 @@ private fun LineChartBlock(block: GenerativeUiBlock.LineChart, stateKey: String,
 @Composable
 private fun PieChartBlock(block: GenerativeUiBlock.PieChart) {
     val total = block.values.sum().coerceAtLeast(0.01f)
+    val primaryColor = AiriTheme.primary
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
         Canvas(Modifier.fillMaxWidth().height(150.dp)) {
             var start = -90f
             block.values.forEachIndexed { index, value ->
                 val sweep = value.coerceAtLeast(0f) / total * 360f
-                drawArc(AiriTheme.primary.copy(alpha = 0.35f + (index % 5) * 0.12f), start, sweep, true)
+                drawArc(primaryColor.copy(alpha = 0.35f + (index % 5) * 0.12f), start, sweep, true)
                 start += sweep
             }
         }

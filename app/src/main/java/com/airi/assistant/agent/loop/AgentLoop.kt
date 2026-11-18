@@ -247,30 +247,49 @@ the tool returns an actual error.
                 "TOOL_BLOCK_TRIMMED kept=${effectiveTools.map { it.name }} omitted=${toolSelection.omittedToolNames} budgetChars=$toolPromptBudget"
             )
         }
-        val fileWriteRequired = effectiveRequiredTools?.contains("write_file") == true ||
-            canonicalCodeTask && tools.any { it.name == "write_file" }
-        if (fileWriteRequired && effectiveTools.none { it.name == "write_file" }) {
-            val reason = when {
-                executionContextFactory == null -> "durable file-write context is not available"
-                toolSelection.requiredButOmittedToolNames.contains("write_file") -> "write_file was omitted by the context budget"
-                else -> "write_file was not admitted for this execution"
+        val requiredTools = buildSet {
+            addAll(effectiveRequiredTools.orEmpty())
+            if (canonicalCodeTask && tools.any { it.name == "write_file" }) add("write_file")
+        }
+        val missingRequiredTools = requiredTools.filterNot { required ->
+            effectiveTools.any { it.name == required }
+        }
+        if (missingRequiredTools.isNotEmpty()) {
+            val diagnostics = missingRequiredTools.map { toolName ->
+                val registered = tools.any { it.name == toolName }
+                val ready = permissionFilteredTools.any { it.name == toolName }
+                val omitted = toolSelection.requiredButOmittedToolNames.contains(toolName)
+                val durableContextMissing = toolName == "write_file" && executionContextFactory == null
+                com.airi.assistant.agent.loop.tool.ToolAdmissionDiagnostic(
+                    toolName = toolName,
+                    registered = registered,
+                    ready = ready,
+                    exposed = false,
+                    blockedReason = when {
+                        !registered -> "required tool is not registered"
+                        omitted -> "$toolName was omitted by the context budget"
+                        durableContextMissing -> "durable file-write context is not available"
+                        !ready -> "tool was not admitted by runtime or permission policy"
+                        else -> "tool was not selected for this execution"
+                    },
+                    nextAction = when {
+                        !registered -> "enable_${toolName}_capability"
+                        omitted -> "shorten_request_or_use_larger_context"
+                        durableContextMissing -> "start_durable_execution_context"
+                        !ready -> "review_runtime_admission"
+                        else -> "review_request_admission"
+                    },
+                )
             }
-            val writeFileRegistered = tools.any { it.name == "write_file" }
-            val writeFileReady = permissionFilteredTools.any { it.name == "write_file" }
-            val nextAction = when {
-                !writeFileRegistered -> "enable_file_write_capability"
-                toolSelection.requiredButOmittedToolNames.contains("write_file") -> "shorten_request_or_use_larger_context"
-                executionContextFactory == null -> "start_durable_execution_context"
-                else -> "review_runtime_admission"
-            }
-            val diagnostic = "write_file: registered=$writeFileRegistered; ready=$writeFileReady; " +
-                "exposed=false; blocked_reason=${reason.replace(';', ',')}; next_action=$nextAction"
-            val notice = if (input.any { it in '\u0600'..'\u06FF' }) {
-                "لم أُنشئ الملف: أداة الكتابة المطلوبة غير جاهزة لأن $reason.\n$diagnostic\nلم أعتبر الكود المحادثي ملفًا محفوظًا."
+            val arabic = input.any { it in '\u0600'..'\u06FF' }
+            val diagnostic = diagnostics.joinToString("\n") { it.machineLine() }
+            val humanDiagnostic = diagnostics.joinToString("\n") { it.humanLine(arabic) }
+            val notice = if (arabic) {
+                "تعذر تنفيذ الطلب لأن أداة مطلوبة لم تُقبل في هذه الجلسة.\n$humanDiagnostic\nالتشخيص: $diagnostic"
             } else {
-                "I did not create the file: the required write_file tool is unavailable because $reason.\n$diagnostic\nThe code in chat is not a saved file."
+                "The request cannot be completed because a required tool was not admitted for this session.\n$humanDiagnostic\nDiagnostic: $diagnostic"
             }
-            LoggingService.warn(TAG, "FILE_WRITE_ADMISSION_FAILED reason=${reason.replace(' ', '_')}")
+            LoggingService.warn(TAG, "REQUIRED_TOOL_ADMISSION_FAILED tools=${missingRequiredTools.joinToString(",")}")
             return LoopResult(
                 finalAnswer = notice,
                 stepsUsed = 0,

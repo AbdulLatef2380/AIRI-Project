@@ -614,7 +614,49 @@ class ToolDispatcher(
 
             // ── Skill instructions on demand (report 3, phase 2) ──────────────
             "load_skill" -> {
-                val loaded = com.airi.assistant.agent.loop.skill.AgentSkillCatalog.load(args["name"].orEmpty())
+                val requestedName = args["name"].orEmpty()
+                val readiness = com.airi.assistant.agent.loop.skill.AgentSkillCatalog.find(requestedName)?.let { doc ->
+                    val registry = SkillRegistry.shared(context)
+                    val info = runCatching { registry.getAllSkillInfos().firstOrNull { it.id == doc.name } }.getOrNull()
+                    val registered = runCatching {
+                        registry.getRegisteredSkillsForRouting().firstOrNull { it.skillId == doc.name }
+                    }.getOrNull()
+                    when {
+                        info?.isEnabled == false -> com.airi.assistant.agent.loop.skill.SkillLoadReadiness(
+                            ready = false,
+                            blockedReason = "Skill '${doc.name}' is disabled.",
+                            nextAction = "enable_skill",
+                        )
+                        registered == null -> com.airi.assistant.agent.loop.skill.SkillLoadReadiness(
+                            ready = false,
+                            blockedReason = "skill '${doc.name}' is registered in the catalog but has no runtime executor",
+                            nextAction = "enable_skill_runtime",
+                        )
+                        skillToolBridge == null -> com.airi.assistant.agent.loop.skill.SkillLoadReadiness(
+                            ready = false,
+                            blockedReason = "SkillToolBridge is not connected to the agent dispatcher",
+                            nextAction = "configure_skill_dispatcher",
+                        )
+                        else -> when (val decision = skillToolBridge.readiness(registered)) {
+                            is com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.Decision.Allow ->
+                                com.airi.assistant.agent.loop.skill.SkillLoadReadiness(ready = true)
+                            is com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.Decision.Deny ->
+                                com.airi.assistant.agent.loop.skill.SkillLoadReadiness(
+                                    ready = false,
+                                    blockedReason = decision.userMessage,
+                                    nextAction = when (decision.reason) {
+                                        com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.DISABLED -> "enable_skill"
+                                        com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.CONNECTOR_UNHEALTHY -> "connect_required_service"
+                                        com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.MISSING_PERMISSION -> "grant_required_permission"
+                                        com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.MEMORY_UNAVAILABLE -> "configure_memory"
+                                        com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.MODEL_UNAVAILABLE -> "load_model"
+                                        com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.INVALID_MANIFEST -> "inspect_skill_manifest"
+                                    },
+                                )
+                        }
+                    }
+                }
+                val loaded = com.airi.assistant.agent.loop.skill.AgentSkillCatalog.load(requestedName, readiness)
                 loaded.fold(
                     onSuccess = { ToolResult.Success(it) },
                     onFailure = { ToolResult.Error(it.message ?: "Unknown skill", code = ToolErrorCodes.INVALID_ARGUMENT) },

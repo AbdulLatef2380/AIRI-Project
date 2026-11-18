@@ -16,6 +16,12 @@ data class AgentSkillDoc(
     val source: AgentSkillDocSource = AgentSkillDocSource.REPOSITORY,
 )
 
+data class SkillLoadReadiness(
+    val ready: Boolean,
+    val blockedReason: String? = null,
+    val nextAction: String = "none",
+)
+
 object AgentSkillCatalog {
 
     private val legacySkills: List<AgentSkillDoc> = listOf(
@@ -78,9 +84,14 @@ object AgentSkillCatalog {
     fun promptCatalog(): String = skills.joinToString("\n") { "- ${it.name}: ${it.description}" }
 
     /** Text returned by load_skill, or a short error naming the valid choices. */
-    fun load(name: String): Result<String> {
+    fun load(name: String, readiness: SkillLoadReadiness? = null): Result<String> {
         val doc = find(name)
             ?: return Result.failure(IllegalArgumentException("Unknown skill '$name'. Available: ${names.joinToString()}"))
-        return Result.success("SKILL ${doc.name}\n\n${doc.body}")
+        val status = readiness?.let {
+            "READINESS: ${if (it.ready) "ready" else "not_ready"}\n" +
+                "BLOCKED_REASON: ${it.blockedReason ?: "none"}\n" +
+                "NEXT_ACTION: ${it.nextAction}"
+        } ?: "READINESS: not_checked\nBLOCKED_REASON: runtime status was not supplied\nNEXT_ACTION: check_runtime_status"
+        return Result.success("SKILL ${doc.name}\n$status\n\n${doc.body}")
     }
 }

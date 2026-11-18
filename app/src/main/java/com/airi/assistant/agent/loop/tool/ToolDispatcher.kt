@@ -23,6 +23,7 @@ import com.airi.assistant.domain.customskill.SkillType
 import com.airi.assistant.marketplace.GitHubSkillImporter
 import com.airi.assistant.execution.privacy.PrivacyGuard
 import com.airi.assistant.core.ExecutionTraceGateway
+import com.airi.assistant.agent.loop.AgentLoopTaskRuntime
 import com.airi.assistant.agent.loop.AgentLoopExecutionContext
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.domain.tool.TypedArgumentContract
@@ -118,6 +119,14 @@ class ToolDispatcher(
                     message = "${failure.message} ${failure.repairHint}",
                     code = ToolErrorCodes.INVALID_ARGUMENT,
                     retryable = false,
+                )
+            }
+            if ((toolName == "write_file" || toolName in AgentLoopTaskRuntime.ARTIFACT_TOOLS) &&
+                (durableExecutionContext == null || !userApproved)
+            ) {
+                return ToolResult.Error(
+                    "This file or artifact operation requires a task-owned context and explicit approval.",
+                    code = ToolErrorCodes.PERMISSION_DENIED,
                 )
             }
             if (it.actionClass == ToolSchema.ActionClass.HIGH_IMPACT &&
@@ -569,7 +578,7 @@ class ToolDispatcher(
             }
 
             // ── Unified verified artifact generation ───────────────────────────
-            "generate_document", "generate_spreadsheet", "generate_pdf", "compress_files", "generate_image", "generate_audio", "generate_video" -> {
+            "generate_document", "generate_spreadsheet", "generate_pdf", "compress_files", "generate_image", "generate_image_from_prompt", "generate_audio", "generate_video" -> {
                 val manager = artifactManager ?: return ToolResult.Error("Artifact workspace is not available", code = ToolErrorCodes.NOT_CONNECTED)
                 val ownerSession = sessionId?.takeIf { it.isNotBlank() } ?: args["session_id"]?.takeIf { it.isNotBlank() }
                     ?: return ToolResult.Error("Missing artifact session scope", code = ToolErrorCodes.PERMISSION_DENIED)
@@ -583,6 +592,8 @@ class ToolDispatcher(
                         "compress_files" -> GeneratedArtifactService(manager).compressFiles(ownerSession, args.getValue("artifact_ids").split(',').map(String::trim).filter(String::isNotBlank), args["filename"] ?: "airi-artifacts.zip", run, trace)
                         "generate_image" -> MediaArtifactService(context, manager).processImage(ownerSession, Uri.parse(args.getValue("uri")), args["filename"] ?: "airi-image.jpg", runId = run, traceId = trace)
                             .also { check(manager.verifyArtifact(it.artifactId)) { "Image artifact was not verified on disk" } }
+                        "generate_image_from_prompt" -> MediaArtifactService(context, manager).generateImageFromPrompt(ownerSession, args.getValue("prompt"), outputName = args["filename"] ?: "airi-generated-image.jpg", runId = run, traceId = trace)
+                            .also { check(manager.verifyArtifact(it.artifactId)) { "Generated image artifact was not verified on disk" } }
                         "generate_audio" -> MediaArtifactService(context, manager).processAudio(ownerSession, Uri.parse(args.getValue("uri")), args["filename"] ?: "airi-audio.m4a", runId = run, traceId = trace)
                             .also { check(manager.verifyArtifact(it.artifactId)) { "Audio artifact was not verified on disk" } }
                         else -> MediaArtifactService(context, manager).processVideo(ownerSession, Uri.parse(args.getValue("uri")), args["filename"] ?: "airi-video.mp4", run, trace)

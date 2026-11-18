@@ -8,6 +8,7 @@ import com.airi.assistant.agent.loop.tool.AgentLoopSideEffectPolicy
 import com.airi.assistant.agent.loop.tool.ToolDispatcher
 import com.airi.assistant.agent.loop.tool.ToolSchema
 import com.airi.assistant.agent.loop.tool.ToolSpecAdapter
+import com.airi.assistant.agent.loop.tool.ToolResultVerifier
 import com.airi.assistant.accessibility.security.AccessibilityPolicyGuard
 import com.airi.assistant.ai.OutputBudgetPolicy
 import com.airi.assistant.ai.QueryType
@@ -208,6 +209,9 @@ the tool returns an actual error.
         requestPlan: RequestPlan? = null,
     ): LoopResult {
         val startMs      = System.currentTimeMillis()
+        // One short-lived grant covers ordinary multi-step device navigation in this
+        // execution only. High-impact mutations still require a fresh approval.
+        var deviceApprovalGranted = false
         // Last sign of progress; see TIMEOUT_MS. Streaming tokens and finished tool calls bump it.
         val progressMs   = AtomicLong(startMs)
         val toolPromptBudget = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
@@ -231,8 +235,8 @@ the tool returns an actual error.
                     tools = permitted,
                     hasExecutionContext = executionContextFactory != null,
                     hasCalendarRuntime = calendarCreateRuntime != null,
-                    terminalEnabled = com.airi.assistant.domain.terminal.TerminalExecutionPolicy
-                        .evaluate("echo").allowed,
+                    terminalEnabled = com.airi.assistant.agent.sandbox.SandboxIsolationPolicy
+                        .mayExecuteShell(isDebugBuild = com.airi.assistant.BuildConfig.DEBUG),
                 )
             },
         )
@@ -908,7 +912,7 @@ the tool returns an actual error.
                             actionId = actionId,
                             detail = "Checking parallel tool result before completion.",
                         )
-                        val verificationPassed = result is ToolDispatcher.ToolResult.Success && resultText.isNotBlank()
+                        val verificationPassed = ToolResultVerifier.isVerified(result)
                         ExecutionStatusBus.onVerificationCompleted(
                             executionId = executionId,
                             actionId = actionId,
@@ -1377,20 +1381,24 @@ the tool returns an actual error.
                             } else {
                                 "AIRI will create a durable task context, execute this action once, and verify the result."
                             }
-                            val answer = onStepComplete(
-                                StepEvent.ToolExecuted(
-                                    "ask_confirmation",
-                                    mapOf("action" to action, "details" to details),
-                                    "CONFIRMATION_REQUIRED|$action|$details",
-                                    stepsUsed,
+                            val perActionApproval = toolName in setOf("flashlight", "set_alarm", "create_note", "calendar_create")
+                            val answer = if (!deviceApprovalGranted || perActionApproval) {
+                                onStepComplete(
+                                    StepEvent.ToolExecuted(
+                                        "ask_confirmation",
+                                        mapOf("action" to action, "details" to details),
+                                        "CONFIRMATION_REQUIRED|$action|$details",
+                                        stepsUsed,
+                                    )
                                 )
-                            )
+                            } else "User confirmed (execution-scoped grant)"
                             if (answer?.startsWith("User confirmed") != true) {
                                 ToolDispatcher.ToolResult.Error(
                                     if (arabic) "لم تتم الموافقة على الإجراء، فلم يُنفَّذ." else "The action was not approved, so it was not executed.",
                                     code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
                                 )
                             } else {
+                                if (!perActionApproval) deviceApprovalGranted = true
                                 dispatcher.execute(
                                     toolName = toolName,
                                     args = toolArgs,
@@ -1493,7 +1501,12 @@ the tool returns an actual error.
                         if (agentSandbox != null) {
                             agentSandbox.execute(agentId = SANDBOX_AGENT_ID, goalId = durableExecutionContext?.taskId.orEmpty()) { ctx ->
                                 ctx.guardTool(toolName)
-                                dispatcher.execute(toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID, actionId = toolStepId, traceId = traceId, sessionId = sessionId, messageId = messageId)
+                                dispatcher.execute(
+                                    toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID,
+                                    actionId = toolStepId, traceId = traceId, sessionId = sessionId,
+                                    messageId = messageId, durableExecutionContext = durableExecutionContext,
+                                    userApproved = true,
+                                )
                             }
                         } else {
                             ToolDispatcher.ToolResult.Error(
@@ -1508,6 +1521,57 @@ the tool returns an actual error.
                         LoggingService.warn(TAG, "File write tool failed type=${e.javaClass.simpleName}")
                         ToolDispatcher.ToolResult.Error(
                             "File write failed: ${e.message}",
+                            code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.EXECUTION_FAILED,
+                        )
+                    }
+                    AgentLoopSideEffectPolicy.Decision.ALLOW_TYPED_ARTIFACT_WRITE -> try {
+                        val execution = durableExecutionContext
+                        if (execution == null || agentSandbox == null) {
+                            ToolDispatcher.ToolResult.Error(
+                                "Artifact workspace requires a durable sandbox context",
+                                code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
+                                provenance = com.airi.assistant.agent.loop.tool.ToolProvenance.SYSTEM,
+                            )
+                        } else {
+                            val arabic = com.airi.assistant.agent.loop.verification.CodeTaskGate.looksArabic(input)
+                            val target = toolArgs["filename"].orEmpty().take(96).ifBlank { toolName }
+                            val action = if (arabic) "إنشاء الملف $target عبر $toolName" else "Create $target with $toolName"
+                            val details = if (arabic) {
+                                "سيتم إنشاء Artifact داخل مساحة AIRI الخاصة والتحقق من وجوده وبصمته بعد التنفيذ."
+                            } else {
+                                "AIRI will create a private project artifact and verify its bytes and integrity after execution."
+                            }
+                            val answer = onStepComplete(
+                                StepEvent.ToolExecuted(
+                                    "ask_confirmation",
+                                    mapOf("action" to action, "details" to details),
+                                    "CONFIRMATION_REQUIRED|$action|$details",
+                                    stepsUsed,
+                                )
+                            )
+                            if (answer?.startsWith("User confirmed") != true) {
+                                ToolDispatcher.ToolResult.Error(
+                                    if (arabic) "لم تتم الموافقة على إنشاء الـArtifact، فلم يُنفَّذ." else "Artifact creation was not approved, so it did not run.",
+                                    code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.PERMISSION_DENIED,
+                                )
+                            } else {
+                                agentSandbox.execute(agentId = SANDBOX_AGENT_ID, goalId = execution.taskId) { ctx ->
+                                    ctx.guardTool(toolName)
+                                    dispatcher.execute(
+                                        toolName, toolArgs, appContext, executionId, SANDBOX_AGENT_ID,
+                                        actionId = toolStepId, traceId = traceId, sessionId = sessionId,
+                                        messageId = messageId, durableExecutionContext = execution,
+                                        userApproved = true,
+                                    )
+                                }
+                            }
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        LoggingService.warn(TAG, "Artifact tool failed type=${e.javaClass.simpleName}")
+                        ToolDispatcher.ToolResult.Error(
+                            "Artifact creation failed: ${e.message}",
                             code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.EXECUTION_FAILED,
                         )
                     }
@@ -1575,7 +1639,7 @@ the tool returns an actual error.
                         actionId = toolStepId,
                         detail = "Checking tool result before completion.",
                     )
-                    val passed = toolResult is ToolDispatcher.ToolResult.Success && resultText.isNotBlank()
+                    val passed = ToolResultVerifier.isVerified(toolResult)
                     ExecutionStatusBus.onVerificationCompleted(
                         executionId = executionId,
                         actionId = toolStepId,

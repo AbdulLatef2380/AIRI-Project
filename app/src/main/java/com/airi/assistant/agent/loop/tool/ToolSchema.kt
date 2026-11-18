@@ -235,6 +235,14 @@ object BuiltinTools {
         parameters = mapOf("uri" to ToolSchema.Param("string", "Android content URI", minLength = 1, maxLength = 4096), "filename" to ARTIFACT_NAME), category = ToolSchema.Category.PRODUCTIVITY,
         dangerous = true, sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
     )
+    val GENERATE_IMAGE_FROM_PROMPT = ToolSchema(
+        name = "generate_image_from_prompt", description = "Generate an image from a user-approved prompt and save it as a verified AIRI image artifact.",
+        parameters = mapOf(
+            "prompt" to ToolSchema.Param("string", "Image description sent to the configured image provider", minLength = 1, maxLength = 4_000),
+            "filename" to ARTIFACT_NAME,
+        ), category = ToolSchema.Category.PRODUCTIVITY,
+        dangerous = true, sideEffectPolicy = ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT,
+    )
     val GENERATE_AUDIO = ToolSchema(
         name = "generate_audio", description = "Trim and save audio as a verified AIRI audio artifact.",
         parameters = mapOf("uri" to ToolSchema.Param("string", "Android content URI", minLength = 1, maxLength = 4096), "filename" to ARTIFACT_NAME), category = ToolSchema.Category.PRODUCTIVITY,
@@ -327,13 +335,15 @@ object BuiltinTools {
         WEB_SEARCH, FETCH_URL, MEMORY_RECALL,
         CALENDAR_READ, CURRENT_TIME, FLASHLIGHT, CALENDAR_CREATE, SET_ALARM, CREATE_NOTE, TERMINAL_EXECUTE, WRITE_FILE,
         ASK_CONFIRMATION, RENDER_UI, CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL, LOAD_SKILL,
-        GENERATE_DOCUMENT, GENERATE_SPREADSHEET, GENERATE_PDF, GENERATE_IMAGE, GENERATE_AUDIO, GENERATE_VIDEO, COMPRESS_FILES
+        GENERATE_DOCUMENT, GENERATE_SPREADSHEET, GENERATE_PDF, GENERATE_IMAGE, GENERATE_IMAGE_FROM_PROMPT,
+        GENERATE_AUDIO, GENERATE_VIDEO, COMPRESS_FILES
     )
 
     /** Minimal set for plain chat (no accessibility, no calendar write). */
     val CHAT_ONLY: List<ToolSchema> = listOf(
         WEB_SEARCH, FETCH_URL, MEMORY_RECALL, CALENDAR_READ, CURRENT_TIME, CREATE_NOTE, TERMINAL_EXECUTE, WRITE_FILE,
         RENDER_UI, CREATE_SKILL_PROPOSAL, IMPORT_SKILL_PROPOSAL, LOAD_SKILL,
-        GENERATE_DOCUMENT, GENERATE_SPREADSHEET, GENERATE_PDF, GENERATE_IMAGE, GENERATE_AUDIO, GENERATE_VIDEO, COMPRESS_FILES
+        GENERATE_DOCUMENT, GENERATE_SPREADSHEET, GENERATE_PDF, GENERATE_IMAGE, GENERATE_IMAGE_FROM_PROMPT,
+        GENERATE_AUDIO, GENERATE_VIDEO, COMPRESS_FILES
     )
 }

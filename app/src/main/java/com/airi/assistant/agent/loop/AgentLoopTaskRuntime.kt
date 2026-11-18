@@ -98,11 +98,16 @@ class AgentLoopTaskRuntime(
         const val CALENDAR_CREATE = "calendar_create"
         const val TERMINAL_EXECUTE = "terminal_execute"
         const val WRITE_FILE = "write_file"
+        val ARTIFACT_TOOLS = setOf(
+            "generate_document", "generate_spreadsheet", "generate_pdf",
+            "generate_image", "generate_image_from_prompt", "generate_audio",
+            "generate_video", "compress_files",
+        )
         val DURABLE_TOOLS = setOf(
             CALENDAR_CREATE, TERMINAL_EXECUTE, WRITE_FILE,
             "open_app", "tap", "type_text", "scroll_down", "go_back", "flashlight",
             "set_alarm", "create_note",
-        )
+        ) + ARTIFACT_TOOLS
         private val SAFE_IDENTIFIER = Regex("^[A-Za-z0-9._-]{1,128}$")
     }
 }

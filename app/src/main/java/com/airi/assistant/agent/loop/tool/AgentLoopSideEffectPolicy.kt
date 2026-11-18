@@ -14,6 +14,7 @@ internal object AgentLoopSideEffectPolicy {
         ALLOW_TYPED_CALENDAR_CREATE,
         ALLOW_TYPED_TERMINAL,
         ALLOW_TYPED_FILE_WRITE,
+        ALLOW_TYPED_ARTIFACT_WRITE,
         DURABLE_CONTEXT_REQUIRED
     }
 
@@ -29,6 +30,9 @@ internal object AgentLoopSideEffectPolicy {
             schema.name == "terminal_execute" && hasDurableExecutionContext -> Decision.ALLOW_TYPED_TERMINAL
         schema.sideEffectPolicy == ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT &&
             schema.name == "write_file" && hasDurableExecutionContext -> Decision.ALLOW_TYPED_FILE_WRITE
+        schema.sideEffectPolicy == ToolSchema.SideEffectPolicy.REQUIRES_DURABLE_CONTEXT &&
+            schema.name in AgentLoopTaskRuntime.ARTIFACT_TOOLS && hasDurableExecutionContext ->
+            Decision.ALLOW_TYPED_ARTIFACT_WRITE
         schema.sideEffectPolicy != ToolSchema.SideEffectPolicy.READ_ONLY ->
             Decision.DURABLE_CONTEXT_REQUIRED
         else -> Decision.ALLOW_READ
@@ -64,14 +68,13 @@ internal object AgentLoopSideEffectPolicy {
         else -> "This device action requires a task-owned approval session before it can run."
     }
 
-    /** Catalog-level blocks apply to device actions; terminal is admitted by the
-     * AgentLoop durable-context filter and the gateway's bounded command policy. */
+    /** Catalog-level blocks apply only where no typed AgentLoop route exists. */
     fun blockedToolOverrides(): Map<String, RuntimeToolCatalog.StatusOverride> =
         BuiltinTools.ALL
             .filter {
                 it.sideEffectPolicy != ToolSchema.SideEffectPolicy.READ_ONLY &&
                     it.actionClass == ToolSchema.ActionClass.READ &&
-                    it.name != "terminal_execute" && it.name != "write_file"
+                    it.name !in AgentLoopTaskRuntime.DURABLE_TOOLS
             }
             .associate { tool ->
                 tool.name to

@@ -221,6 +221,44 @@ class AgentLoopVerticalIntegrationTest {
     }
 
     @Test
+    fun modelCanIssueSequentialToolCallsAcrossTurnsAndSeesEarlierResult() = runBlocking {
+        ExecutionStatusBus.reset()
+        try {
+            val connector = RecordingConnector()
+            val fixture = fixture(connector)
+            val orchestrator = ScriptedOrchestrator(
+                "{\"tool_call\":{\"name\":\"connector_vertical_read\",\"args\":{}}}",
+                "{\"tool_call\":{\"name\":\"connector_vertical_read\",\"args\":{}}}",
+                "Both sequential connector results were received.",
+            )
+
+            val result = fixture.loop(orchestrator).run(
+                input = "Read the connected source twice, one step at a time",
+                systemPrompt = "You are AIRI.",
+                tools = listOf(fixture.readSchema),
+                requestedExecutionId = "execution-sequential-tools",
+                onToken = {},
+            )
+
+            assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
+            assertEquals("Both sequential connector results were received.", result.finalAnswer)
+            assertEquals(listOf("connector_vertical_read", "connector_vertical_read"), result.toolsInvoked)
+            assertEquals(2, connector.executeCalls)
+            assertEquals(3, orchestrator.requests.size)
+            assertEquals(1, orchestrator.requests[1].conversationHistory.count { it.kind == "tool_result" })
+            assertTrue(orchestrator.requests[1].conversationHistory.any {
+                it.kind == "tool_result" && it.content.contains("vertical-result")
+            })
+            assertEquals(2, orchestrator.requests[2].conversationHistory.count { it.kind == "tool_result" })
+            assertTrue(orchestrator.requests[2].conversationHistory
+                .filter { it.kind == "tool_result" }
+                .all { it.content.contains("vertical-result") })
+        } finally {
+            ExecutionStatusBus.reset()
+        }
+    }
+
+    @Test
     fun connectorApprovalIsNormalizedAndRecordedAsWaitingTrace() = runBlocking {
         ExecutionStatusBus.reset()
         try {

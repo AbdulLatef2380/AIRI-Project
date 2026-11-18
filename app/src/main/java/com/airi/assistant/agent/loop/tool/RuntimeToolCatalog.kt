@@ -26,6 +26,7 @@ object RuntimeToolCatalog {
     data class StatusOverride(
         val readiness: RuntimeToolContract.Readiness,
         val reason: String,
+        val nextAction: String? = null,
     )
 
     enum class Reason {
@@ -49,18 +50,19 @@ object RuntimeToolCatalog {
                     readiness = override.readiness,
                     source = RuntimeToolContract.Source.BUILTIN,
                     reason = override.reason,
+                    nextAction = override.nextAction,
                 )
             } ?: RuntimeToolContract.builtin(schema)
         }
         val connectorContracts = connectors.map { contract ->
             effectiveOverrides[contract.schema.name]?.let { override ->
-                contract.copy(readiness = override.readiness, reason = override.reason)
+                contract.copy(readiness = override.readiness, reason = override.reason, nextAction = override.nextAction)
             } ?: contract
         }
         val skillContracts = skills.map { schema ->
             val contract = RuntimeToolContract.skill(schema)
             effectiveOverrides[schema.name]?.let { override ->
-                contract.copy(readiness = override.readiness, reason = override.reason)
+                contract.copy(readiness = override.readiness, reason = override.reason, nextAction = override.nextAction)
             } ?: contract
         }
         val candidates = builtinContracts + skillContracts + connectorContracts

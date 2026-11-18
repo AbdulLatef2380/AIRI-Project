@@ -4001,17 +4001,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val accessibilityReadiness = com.airi.assistant.domain.permission.AccessibilityReadiness.inspect(appContext)
         val screenReady = accessibilityReadiness.isReady
         if (!screenReady) {
-            result["read_screen"] = com.airi.assistant.agent.loop.tool.RuntimeToolCatalog.StatusOverride(
-                com.airi.assistant.agent.loop.tool.RuntimeToolContract.Readiness.PERMISSION_REQUIRED,
-                when (accessibilityReadiness.status) {
-                    com.airi.assistant.domain.permission.AccessibilityReadiness.Status.NOT_INSTALLED,
-                    com.airi.assistant.domain.permission.AccessibilityReadiness.Status.DISABLED ->
-                        "AIRI Accessibility Service is not enabled. Enable it in Android Accessibility settings.",
-                    com.airi.assistant.domain.permission.AccessibilityReadiness.Status.ENABLED_NOT_CONNECTED ->
-                        "AIRI Accessibility Service is enabled but not connected. Reopen AIRI and try again.",
-                    com.airi.assistant.domain.permission.AccessibilityReadiness.Status.READY -> "",
-                },
-            )
+            result["read_screen"] = com.airi.assistant.agent.loop.tool.AccessibilityToolReadiness
+                .override(accessibilityReadiness)!!
         }
 
         val calendarPermissionGranted = runCatching {

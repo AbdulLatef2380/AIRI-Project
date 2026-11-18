@@ -55,6 +55,8 @@ data class RuntimeCapabilityInventory(
         /** Readiness plus exposure; final runtime/OS/provider gates still run at invocation. */
         val admittedToDispatcher: Boolean,
         val detail: String? = null,
+        /** Machine-readable recovery hint, when readiness is not available. */
+        val nextAction: String? = null,
         /** Canonical execution route used after catalog admission. */
         val dispatcherRoute: String? = null,
     ) {
@@ -138,6 +140,7 @@ data class RuntimeCapabilityInventory(
                     val lifecycle = entry.lifecycle
                     append("  • ${entry.id}: registered=${entry.registered}, availability=${entry.availability.name.lowercase()}, in_request_catalog=${entry.inRequestCatalog}, exposed=${entry.exposedToAgent}, dispatcher_admitted=${entry.admittedToDispatcher}, lifecycle=${lifecycle.stages.joinToString(">") { it.name.lowercase() }}, current=${lifecycle.current.name.lowercase()}")
                     entry.detail?.takeIf(String::isNotBlank)?.let { append("; note=${it.take(MAX_DETAIL_CHARS)}") }
+                    entry.nextAction?.takeIf(String::isNotBlank)?.let { append("; next_action=${it.take(MAX_DETAIL_CHARS)}") }
                     lifecycle.reason?.takeIf(String::isNotBlank)?.let { append("; reason=${it.take(MAX_DETAIL_CHARS)}") }
                     appendLine()
                 }
@@ -265,6 +268,7 @@ data class RuntimeCapabilityInventory(
                     } else contract.reason ?: if (
                         contract.source == RuntimeToolContract.Source.BUILTIN && availability == Availability.UNKNOWN
                     ) "Registered handler; actual device/session/policy readiness is checked at invocation." else null,
+                    nextAction = contract.nextAction,
                     dispatcherRoute = when (contract.source) {
                         RuntimeToolContract.Source.BUILTIN -> "ToolDispatcher"
                         RuntimeToolContract.Source.SKILL -> "SkillToolBridge"

@@ -10,6 +10,8 @@ data class RuntimeToolContract(
     val readiness: Readiness,
     val source: Source,
     val reason: String? = null,
+    /** Machine-readable recovery hint for a not-ready capability. */
+    val nextAction: String? = null,
     val capabilityId: String? = null,
 ) {
     enum class Readiness {

@@ -146,4 +146,40 @@ class GenerativeUiCompilerTest {
         )
         assertTrue(result?.document?.blocks?.single() is GenerativeUiBlock.LineChart)
     }
+
+    @Test
+    fun richBlocksAndTypedFormFieldsCompile() {
+        val result = GenerativeUiCompiler.compile("""```airi-ui
+        {"version":1,"blocks":[
+          {"type":"pie_chart","id":"share","labels":["A","B"],"values":[60,40]},
+          {"type":"cards","id":"cards","items":[{"id":"a","title":"A","body":"First"}]},
+          {"type":"tabs","id":"tabs","items":[{"id":"one","label":"One","body":"Content"}]},
+          {"type":"timeline","id":"timeline","items":[{"id":"step","label":"Done","status":"complete"}]},
+          {"type":"form","id":"filters","fields":[
+            {"id":"kind","label":"Kind","kind":"select","options":["A","B"]},
+            {"id":"amount","label":"Amount","kind":"slider","min":0,"max":10,"step":1},
+            {"id":"date","label":"Date","kind":"date"}]}
+        ]}
+        ```""".trimIndent())
+
+        assertNotNull(result)
+        assertTrue(result!!.document.blocks[0] is GenerativeUiBlock.PieChart)
+        val form = result.document.blocks.last() as GenerativeUiBlock.Form
+        assertEquals(FormFieldKind.SELECT, form.fields[0].kind)
+        assertEquals(FormFieldKind.SLIDER, form.fields[1].kind)
+        assertEquals(FormFieldKind.DATE, form.fields[2].kind)
+    }
+
+    @Test
+    fun complianceMetricsTrackProviderRateAndReasons() {
+        GenerativeUiComplianceMetrics.resetForTesting()
+        val accepted = GenerativeUiCompiler.compileDetailed("```airi-ui\n{\"version\":1,\"blocks\":[{\"type\":\"stat\",\"id\":\"s\",\"value\":\"1\"}]}\n```")
+        val rejected = GenerativeUiCompiler.compileDetailed("```airi-ui\n{\"version\":1,\"blocks\":[] }\n```")
+        GenerativeUiComplianceMetrics.record("openai", accepted)
+        GenerativeUiComplianceMetrics.record("openai", rejected)
+        val snapshot = GenerativeUiComplianceMetrics.snapshot("openai")
+        assertEquals(2L, snapshot.attempts)
+        assertEquals(0.5, snapshot.acceptanceRate, 0.0001)
+        assertEquals(1L, snapshot.rejectionReasons[GenerativeUiRejectReason.LIMIT_EXCEEDED.name.lowercase()])
+    }
 }

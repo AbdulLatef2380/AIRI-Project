@@ -3053,17 +3053,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     ) ?: plannerTools
                 }
             }
+            val candidateToolsWithGenUi = if (
+                com.airi.assistant.ui.generative.GenerativeUiIntent.suggestsStructuredOutput(trimmedInput) &&
+                com.airi.assistant.ui.generative.GenerativeUiStructuredOutput.supportedProvider(requestedProviderIdAtDispatch)
+            ) {
+                (candidateTools + allActiveTools.filter { it.name == "render_ui" }).distinctBy { it.name }
+            } else candidateTools
+            val requiredToolsWithGenUi = requestPlan.requiredTools + if (
+                com.airi.assistant.ui.generative.GenerativeUiIntent.suggestsStructuredOutput(trimmedInput) &&
+                com.airi.assistant.ui.generative.GenerativeUiStructuredOutput.supportedProvider(requestedProviderIdAtDispatch)
+            ) setOf("render_ui") else emptySet()
             val toolPromptBudget = com.airi.assistant.ai.prompt.budget.ContributorBudgetPolicy
                 .toolCharsCapFor(requestedProviderIdAtDispatch, llamaManager.contextBudget.availableForContent)
             // Report ب-2: the same pipeline AgentLoop uses, so the two can no longer disagree.
             val toolExposure = com.airi.assistant.agent.loop.tool.ToolExposurePipeline.resolve(
-                candidates = candidateTools,
+                candidates = candidateToolsWithGenUi,
                 queryType = queryType,
                 modelId = requestedModelIdAtDispatch,
                 providerId = requestedProviderIdAtDispatch,
                 codeTask = requestPlan.kind == com.airi.assistant.agent.request.RequestPlan.Kind.CODE_TASK,
                 promptBudgetChars = toolPromptBudget,
-                requiredToolNames = requestPlan.requiredTools,
+                requiredToolNames = requiredToolsWithGenUi,
             )
             val requestPermissionProfile = toolExposure.profile
             val permissionFilteredTools = toolExposure.permitted
@@ -3215,7 +3225,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // Shared by the partial-response and the final-response branches. Only answers
             // that really carried an airi-ui candidate leave a projection event.
             fun recordUiProjection(content: String, messageId: Long) {
-                when (val uiCompilation = com.airi.assistant.ui.generative.GenerativeUiCompiler.compileDetailed(content)) {
+                val uiCompilation = com.airi.assistant.ui.generative.GenerativeUiCompiler.compileDetailed(content)
+                if (uiCompilation !is com.airi.assistant.ui.generative.GenerativeUiCompileResult.Rejected ||
+                    uiCompilation.reason != com.airi.assistant.ui.generative.GenerativeUiRejectReason.NO_FENCE
+                ) {
+                    com.airi.assistant.ui.generative.GenerativeUiComplianceMetrics.record(requestedProviderIdAtDispatch, uiCompilation)
+                }
+                when (uiCompilation) {
                     is com.airi.assistant.ui.generative.GenerativeUiCompileResult.Accepted ->
                         universalRuntimeTrace.uiProjection(
                             executionId = traceExecutionId,

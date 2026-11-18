@@ -25,6 +25,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -116,6 +119,11 @@ fun GenerativeUiRenderer(
                     is GenerativeUiBlock.Stat -> StatBlock(block)
                     is GenerativeUiBlock.BarChart -> BarChartBlock(block, GenerativeUiStateStore.key(sourceMessageId, block.id), effectiveStateStore)
                     is GenerativeUiBlock.LineChart -> LineChartBlock(block, GenerativeUiStateStore.key(sourceMessageId, block.id), effectiveStateStore)
+                    is GenerativeUiBlock.PieChart -> PieChartBlock(block)
+                    is GenerativeUiBlock.Image -> ImageBlock(block)
+                    is GenerativeUiBlock.Cards -> CardsBlock(block, requestAction, sourceExecutionId, sourceMessageId, effectiveStateStore)
+                    is GenerativeUiBlock.Tabs -> TabsBlock(block, GenerativeUiStateStore.key(sourceMessageId, block.id), effectiveStateStore)
+                    is GenerativeUiBlock.Timeline -> TimelineBlock(block)
                     is GenerativeUiBlock.Diagram -> DiagramBlock(block, GenerativeUiStateStore.key(sourceMessageId, block.id), effectiveStateStore)
                     is GenerativeUiBlock.Form -> FormBlock(block, requestAction, sourceExecutionId, sourceMessageId, GenerativeUiStateStore.key(sourceMessageId, block.id), effectiveStateStore)
                     is GenerativeUiBlock.Actions -> ActionsBlock(block, requestAction, sourceExecutionId, sourceMessageId, effectiveStateStore)
@@ -255,6 +263,84 @@ private fun LineChartBlock(block: GenerativeUiBlock.LineChart, stateKey: String,
 }
 
 @Composable
+private fun PieChartBlock(block: GenerativeUiBlock.PieChart) {
+    val total = block.values.sum().coerceAtLeast(0.01f)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+        Canvas(Modifier.fillMaxWidth().height(150.dp)) {
+            var start = -90f
+            block.values.forEachIndexed { index, value ->
+                val sweep = value.coerceAtLeast(0f) / total * 360f
+                drawArc(AiriTheme.primary.copy(alpha = 0.35f + (index % 5) * 0.12f), start, sweep, true)
+                start += sweep
+            }
+        }
+        block.labels.forEachIndexed { index, label -> Text("$label: ${formatNumber(block.values[index])}", color = AiriTheme.onSurfaceVariant, fontSize = 11.sp) }
+    }
+}
+
+@Composable
+private fun ImageBlock(block: GenerativeUiBlock.Image) {
+    Card(colors = CardDefaults.cardColors(containerColor = AiriTheme.surface.copy(alpha = 0.72f)), shape = AIRIShapes.md) {
+        Column(Modifier.fillMaxWidth().padding(10.dp)) {
+            block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+            Text("[${block.alt}]", color = AiriTheme.onSurfaceVariant, fontSize = 13.sp)
+            Text(block.source.take(240), color = AiriTheme.onSurfaceVariant, fontSize = 10.sp)
+        }
+    }
+}
+
+@Composable
+private fun CardsBlock(block: GenerativeUiBlock.Cards, onAction: (GenerativeUiAction) -> Unit, executionId: String?, messageId: String?, stateStore: GenerativeUiStateStore) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+        block.items.forEach { item ->
+            Card(colors = CardDefaults.cardColors(containerColor = AiriTheme.surface.copy(alpha = 0.72f)), shape = AIRIShapes.md) {
+                Column(Modifier.fillMaxWidth().padding(10.dp)) {
+                    Text(item.title, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text(item.body, color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    item.actionId?.let { actionId ->
+                        TextButton(onClick = {
+                            stateStore.setActionPhase(messageId, actionId, GenerativeUiStateStore.ActionPhase.SUCCEEDED)
+                            onAction(GenerativeUiAction(actionId, sourceExecutionId = executionId, sourceMessageId = messageId))
+                        }) { Text(stringResource(R.string.generative_ui_action_preview_use)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabsBlock(block: GenerativeUiBlock.Tabs, stateKey: String, stateStore: GenerativeUiStateStore) {
+    var selected by rememberSaveable(stateKey) { mutableIntStateOf(stateStore.state(stateKey).selectedIndex.coerceAtLeast(0)) }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            block.items.forEachIndexed { index, item -> TextButton(onClick = { selected = index; stateStore.update(stateKey) { it.copy(selectedIndex = index) } }) { Text(item.label) } }
+        }
+        Text(block.items[selected.coerceIn(block.items.indices)].body, color = AiriTheme.onSurface, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun TimelineBlock(block: GenerativeUiBlock.Timeline) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+        block.items.forEachIndexed { index, item ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+                Text("${index + 1}", color = AiriTheme.primary, fontWeight = FontWeight.Bold)
+                Column {
+                    Text(item.label, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    item.detail?.let { Text(it, color = AiriTheme.onSurfaceVariant, fontSize = 11.sp) }
+                    item.status?.let { Text(it, color = AiriTheme.primary, fontSize = 10.sp) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun DiagramBlock(block: GenerativeUiBlock.Diagram, stateKey: String, stateStore: GenerativeUiStateStore) {
     var selectedNodeId by remember(stateKey) { mutableStateOf(stateStore.state(stateKey).selectedNodeId) }
     val selected = block.nodes.firstOrNull { it.id == selectedNodeId }
@@ -305,24 +391,42 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
         mutableStateMapOf<String, String>().apply { putAll(savedValues) }
     }
     var submitted by rememberSaveable(stateKey) { mutableStateOf(stateStore.state(stateKey).submitted) }
+    var expandedSelect by rememberSaveable(stateKey) { mutableStateOf<String?>(null) }
     val missingRequired = block.fields.any { it.required && values[it.id].orEmpty().isBlank() }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         block.title?.let { Text(it, color = AiriTheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
         block.fields.forEach { field ->
-            OutlinedTextField(
-                value = values[field.id].orEmpty(),
-                onValueChange = {
-                    values[field.id] = it.take(500)
-                    savedValues = values.toMap()
-                    stateStore.update(stateKey) { it.copy(formValues = savedValues, submitted = false) }
-                    submitted = false
-                },
-                label = { Text(field.label + if (field.required) " *" else "") },
-                placeholder = field.placeholder?.let { { Text(it) } },
-                singleLine = true,
-                isError = submitted && field.required && values[field.id].orEmpty().isBlank(),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            val label = field.label + if (field.required) " *" else ""
+            val update: (String) -> Unit = { value ->
+                values[field.id] = value.take(500)
+                savedValues = values.toMap()
+                stateStore.update(stateKey) { it.copy(formValues = savedValues, submitted = false) }
+                submitted = false
+            }
+            when (field.kind) {
+                FormFieldKind.SELECT -> {
+                    TextButton(onClick = { expandedSelect = field.id }, modifier = Modifier.fillMaxWidth()) { Text("$label: ${values[field.id].orEmpty()}") }
+                    DropdownMenu(expanded = expandedSelect == field.id, onDismissRequest = { expandedSelect = null }) {
+                        field.options.forEach { option -> DropdownMenuItem(text = { Text(option) }, onClick = { update(option); expandedSelect = null }) }
+                    }
+                }
+                FormFieldKind.SLIDER -> {
+                    val min = field.min ?: 0f
+                    val max = field.max ?: 100f
+                    val current = values[field.id]?.toFloatOrNull()?.coerceIn(min, max) ?: min
+                    Text("$label: ${formatNumber(current)}", color = AiriTheme.onSurfaceVariant, fontSize = 12.sp)
+                    Slider(value = current, onValueChange = { update(it.toString()) }, valueRange = min..max, steps = ((max - min) / (field.step ?: 1f)).toInt().coerceAtLeast(0))
+                }
+                FormFieldKind.TEXT, FormFieldKind.DATE -> OutlinedTextField(
+                    value = values[field.id].orEmpty(),
+                    onValueChange = update,
+                    label = { Text(label) },
+                    placeholder = field.placeholder?.let { value -> { Text(value) } } ?: if (field.kind == FormFieldKind.DATE) ({ Text("YYYY-MM-DD") }) else null,
+                    singleLine = true,
+                    isError = submitted && field.required && values[field.id].orEmpty().isBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
         AnimatedVisibility(
             visible = submitted && missingRequired,
@@ -364,8 +468,14 @@ private fun ActionsBlock(block: GenerativeUiBlock.Actions, onAction: (Generative
             Button(
                 enabled = phase != GenerativeUiStateStore.ActionPhase.RUNNING,
                 onClick = {
-                    stateStore.setActionPhase(sourceMessageId, option.id, GenerativeUiStateStore.ActionPhase.STAGED)
-                    onAction(GenerativeUiAction(option.id, mapOf("prompt" to option.prompt), sourceExecutionId, sourceMessageId))
+                    if (option.local) {
+                        // Local actions are intentionally limited to UI state transitions;
+                        // they never execute connectors or mutate external data.
+                        stateStore.setActionPhase(sourceMessageId, option.id, GenerativeUiStateStore.ActionPhase.SUCCEEDED)
+                    } else {
+                        stateStore.setActionPhase(sourceMessageId, option.id, GenerativeUiStateStore.ActionPhase.STAGED)
+                        onAction(GenerativeUiAction(option.id, mapOf("prompt" to option.prompt), sourceExecutionId, sourceMessageId))
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = AIRIShapes.md,

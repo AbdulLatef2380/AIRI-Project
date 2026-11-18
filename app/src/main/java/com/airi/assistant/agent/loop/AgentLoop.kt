@@ -219,9 +219,14 @@ the tool returns an actual error.
         // Report ب-2: one shared pipeline (also used by ChatViewModel) with the same inputs,
         // including the code-task flag and the required-tool list the loop used to ignore.
         val canonicalRequiredTools = requestPlan?.requiredTools ?: requiredToolNames
+        val generativeUiRequested = com.airi.assistant.ui.generative.GenerativeUiIntent
+            .suggestsStructuredOutput(input) &&
+            com.airi.assistant.ui.generative.GenerativeUiStructuredOutput.supportedProvider(providerId)
         val canonicalCodeTask = requestPlan?.kind == RequestPlan.Kind.CODE_TASK || requireToolOnFirstStep
-        val effectiveRequiredTools = canonicalRequiredTools ?:
-            if (canonicalCodeTask) setOf("write_file") else null
+        val effectiveRequiredTools = (canonicalRequiredTools.orEmpty() +
+            (if (generativeUiRequested) setOf("render_ui") else emptySet()) +
+            (if (canonicalCodeTask) setOf("write_file") else emptySet()))
+            .takeIf { it.isNotEmpty() }
         val toolExposure = com.airi.assistant.agent.loop.tool.ToolExposurePipeline.resolve(
             candidates = tools,
             queryType = queryType,
@@ -693,7 +698,7 @@ the tool returns an actual error.
                 val turnStartedMs = System.currentTimeMillis()
                 var turnPromptEstimate = 0
                 var turnMetadata: CompletionMetadata? = null
-                val rawResponse = queuedToolCall?.let {
+                var rawResponse = queuedToolCall?.let {
                     com.airi.assistant.agent.loop.tool.TextToolCallProtocol.encode(it)
                 } ?: callLLM(
                     prompt       = "", // history carries the full context
@@ -721,6 +726,15 @@ the tool returns an actual error.
                     progress = progressMs,
                     stallMs = timeoutMs,
                 )
+
+                if (queuedToolCall == null &&
+                    com.airi.assistant.ui.generative.GenerativeUiStructuredOutput.supportedProvider(providerId) &&
+                    com.airi.assistant.ui.generative.GenerativeUiIntent.suggestsStructuredOutput(input)
+                ) {
+                    com.airi.assistant.ui.generative.GenerativeUiStructuredOutput.toFence(rawResponse)?.let {
+                        rawResponse = it
+                    }
+                }
 
                 if (queuedToolCall == null) {
                     recordModelTurn(
@@ -1991,6 +2005,11 @@ the tool returns an actual error.
             }
         }
         val currentPromptText = (history.lastOrNull() as? ConversationTurn.User)?.content
+        val nativeGenerativeUi = currentPromptText?.let {
+            com.airi.assistant.ui.generative.GenerativeUiIntent.suggestsStructuredOutput(it)
+        } == true &&
+            com.airi.assistant.ui.generative.GenerativeUiStructuredOutput.supportedProvider(providerId) &&
+            tools.any { it.name == "render_ui" }
         val requestProjection = ConversationRequestPolicy.project(requestTurns, currentPromptText)
         val localTurns = history.drop(localHistoryStartIndex.coerceIn(0, history.size))
         val localPrompt = if (localTurns.isEmpty()) prompt else buildString {
@@ -2059,6 +2078,10 @@ the tool returns an actual error.
                 requestedProviderId   = providerId,
                 requestedModelId      = modelId,
                 requiresVision        = visionParts.isNotEmpty() || attachmentParts.isNotEmpty(),
+                requiresStructuredOutput = nativeGenerativeUi,
+                structuredOutput        = if (nativeGenerativeUi) {
+                    com.airi.assistant.ui.generative.GenerativeUiStructuredOutput.SPEC
+                } else null,
                 imageParts            = visionParts,
                 inlineDataParts       = attachmentParts,
                 attachmentTrace       = attachmentTrace,

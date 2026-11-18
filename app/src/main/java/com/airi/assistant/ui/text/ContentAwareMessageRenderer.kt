@@ -59,6 +59,25 @@ fun ContentAwareMessageRenderer(
     // generative UI on every token; the final message is rendered normally
     // once isStreaming becomes false.
     if (isStreaming) {
+        // Progressive compile: a closed, validated document can be projected while
+        // the model continues emitting surrounding prose. The compiler cache keeps
+        // repeated token updates bounded and the same state key preserves inputs.
+        val progressiveUi = GenerativeUiCompiler.compile(text)
+        if (progressiveUi != null) {
+            Column(modifier = modifier.fillMaxWidth()) {
+                progressiveUi.surroundingText.takeIf(String::isNotBlank)?.let { surrounding ->
+                    BidiAwareMarkdownRenderer(text = surrounding, modifier = Modifier.fillMaxWidth(), isStreaming = false)
+                }
+                GenerativeUiRenderer(
+                    compiled = progressiveUi,
+                    onAction = onGenerativeUiAction,
+                    sourceExecutionId = generativeUiExecutionId,
+                    sourceMessageId = messageId,
+                    stateStore = generativeUiStateStore,
+                )
+            }
+            return
+        }
         val split = remember(text) { StreamingMarkdownPolicy.split(text) }
         Column(modifier = modifier.fillMaxWidth()) {
             split.stablePrefix.takeIf(String::isNotEmpty)?.let { stable ->

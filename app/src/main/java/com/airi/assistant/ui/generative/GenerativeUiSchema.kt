@@ -41,6 +41,38 @@ sealed interface GenerativeUiBlock {
         val unit: String?,
     ) : GenerativeUiBlock
 
+    data class PieChart(
+        override val id: String,
+        override val title: String?,
+        val labels: List<String>,
+        val values: List<Float>,
+    ) : GenerativeUiBlock
+
+    data class Image(
+        override val id: String,
+        override val title: String?,
+        val alt: String,
+        val source: String,
+    ) : GenerativeUiBlock
+
+    data class Cards(
+        override val id: String,
+        override val title: String?,
+        val items: List<CardItem>,
+    ) : GenerativeUiBlock
+
+    data class Tabs(
+        override val id: String,
+        override val title: String?,
+        val items: List<TabItem>,
+    ) : GenerativeUiBlock
+
+    data class Timeline(
+        override val id: String,
+        override val title: String?,
+        val items: List<TimelineItem>,
+    ) : GenerativeUiBlock
+
     data class Diagram(
         override val id: String,
         override val title: String?,
@@ -84,8 +116,22 @@ sealed interface GenerativeUiBlock {
 
 data class DiagramNode(val id: String, val label: String, val description: String?)
 data class DiagramEdge(val from: String, val to: String, val label: String?)
-data class FormField(val id: String, val label: String, val placeholder: String?, val required: Boolean)
-data class ActionOption(val id: String, val label: String, val prompt: String)
+enum class FormFieldKind { TEXT, SELECT, SLIDER, DATE }
+data class FormField(
+    val id: String,
+    val label: String,
+    val placeholder: String?,
+    val required: Boolean,
+    val kind: FormFieldKind = FormFieldKind.TEXT,
+    val options: List<String> = emptyList(),
+    val min: Float? = null,
+    val max: Float? = null,
+    val step: Float? = null,
+)
+data class ActionOption(val id: String, val label: String, val prompt: String, val local: Boolean = false)
+data class CardItem(val id: String, val title: String, val body: String, val actionId: String?)
+data class TabItem(val id: String, val label: String, val body: String)
+data class TimelineItem(val id: String, val label: String, val detail: String?, val status: String?)
 data class RouteStop(val id: String, val label: String, val location: String, val latitude: Double?, val longitude: Double?)
 data class ChecklistItem(val id: String, val label: String, val detail: String?, val initiallyChecked: Boolean)
 data class GenerativeUiAction(
@@ -289,6 +335,9 @@ object GenerativeUiCompiler {
                 is GenerativeUiBlock.Actions -> block.options.forEach { claim(it.id) }
                 is GenerativeUiBlock.Route -> block.stops.forEach { claim(it.id) }
                 is GenerativeUiBlock.Checklist -> block.items.forEach { claim(it.id) }
+                is GenerativeUiBlock.Cards -> block.items.forEach { claim(it.id); it.actionId?.let(::claim) }
+                is GenerativeUiBlock.Tabs -> block.items.forEach { claim(it.id) }
+                is GenerativeUiBlock.Timeline -> block.items.forEach { claim(it.id) }
                 else -> Unit
             }
         }
@@ -330,6 +379,56 @@ object GenerativeUiCompiler {
                 ensure(labels.size == values.size) { "chart labels/values mismatch" }
                 GenerativeUiBlock.LineChart(id, title, labels, values, optionalText(json, "unit"))
             }
+            "pie_chart" -> {
+                requireOnlyKeys(json, setOf("type", "id", "title", "labels", "values"))
+                val labels = json.optJSONArray("labels").boundedStrings()
+                val values = json.optJSONArray("values").boundedNumbers()
+                ensure(labels.size == values.size) { "chart labels/values mismatch" }
+                GenerativeUiBlock.PieChart(id, title, labels, values)
+            }
+            "image" -> {
+                requireOnlyKeys(json, setOf("type", "id", "title", "alt", "source"))
+                GenerativeUiBlock.Image(id, title, requiredText(json, "alt"), requiredText(json, "source"))
+            }
+            "cards" -> {
+                requireOnlyKeys(json, setOf("type", "id", "title", "items"))
+                val itemsJson = json.optJSONArray("items") ?: JSONArray()
+                ensure(itemsJson.length() in 1..GenerativeUiLimits.MAX_ITEMS, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "invalid card count" }
+                val items = buildList {
+                    for (i in 0 until itemsJson.length()) {
+                        val item = objectAt(itemsJson, i)
+                        requireOnlyKeys(item, setOf("id", "title", "body", "actionId"))
+                        add(CardItem(requiredId(item, "id"), requiredText(item, "title"), requiredText(item, "body"), optionalText(item, "actionId")?.let(::safeId)))
+                    }
+                }
+                GenerativeUiBlock.Cards(id, title, items)
+            }
+            "tabs" -> {
+                requireOnlyKeys(json, setOf("type", "id", "title", "items"))
+                val itemsJson = json.optJSONArray("items") ?: JSONArray()
+                ensure(itemsJson.length() in 1..GenerativeUiLimits.MAX_ITEMS, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "invalid tab count" }
+                val items = buildList {
+                    for (i in 0 until itemsJson.length()) {
+                        val item = objectAt(itemsJson, i)
+                        requireOnlyKeys(item, setOf("id", "label", "body"))
+                        add(TabItem(requiredId(item, "id"), requiredText(item, "label"), requiredText(item, "body")))
+                    }
+                }
+                GenerativeUiBlock.Tabs(id, title, items)
+            }
+            "timeline" -> {
+                requireOnlyKeys(json, setOf("type", "id", "title", "items"))
+                val itemsJson = json.optJSONArray("items") ?: JSONArray()
+                ensure(itemsJson.length() in 1..GenerativeUiLimits.MAX_ITEMS, GenerativeUiRejectReason.LIMIT_EXCEEDED) { "invalid timeline count" }
+                val items = buildList {
+                    for (i in 0 until itemsJson.length()) {
+                        val item = objectAt(itemsJson, i)
+                        requireOnlyKeys(item, setOf("id", "label", "detail", "status"))
+                        add(TimelineItem(requiredId(item, "id"), requiredText(item, "label"), optionalText(item, "detail"), optionalText(item, "status")))
+                    }
+                }
+                GenerativeUiBlock.Timeline(id, title, items)
+            }
             "diagram" -> {
                 requireOnlyKeys(json, setOf("type", "id", "title", "nodes", "edges"))
                 val nodesJson = json.optJSONArray("nodes") ?: JSONArray()
@@ -366,8 +465,19 @@ object GenerativeUiCompiler {
                 val fields = buildList {
                     for (i in 0 until fieldsJson.length()) {
                         val field = objectAt(fieldsJson, i)
-                        requireOnlyKeys(field, setOf("id", "label", "placeholder", "required"))
-                        add(FormField(requiredId(field, "id"), requiredText(field, "label"), optionalText(field, "placeholder"), optionalBoolean(field, "required") ?: false))
+                        requireOnlyKeys(field, setOf("id", "label", "placeholder", "required", "kind", "options", "min", "max", "step"))
+                        val kind = when (optionalText(field, "kind")?.lowercase()) {
+                            "select" -> FormFieldKind.SELECT
+                            "slider" -> FormFieldKind.SLIDER
+                            "date" -> FormFieldKind.DATE
+                            else -> FormFieldKind.TEXT
+                        }
+                        val options = field.optJSONArray("options").boundedStringsOrEmpty()
+                        ensure(kind != FormFieldKind.SELECT || options.isNotEmpty()) { "select needs options" }
+                        val min = strictOptionalDouble(field, "min")?.toFloat()
+                        val max = strictOptionalDouble(field, "max")?.toFloat()
+                        ensure(kind != FormFieldKind.SLIDER || (min != null && max != null && max > min)) { "slider needs a valid range" }
+                        add(FormField(requiredId(field, "id"), requiredText(field, "label"), optionalText(field, "placeholder"), optionalBoolean(field, "required") ?: false, kind, options, min, max, strictOptionalDouble(field, "step")?.toFloat()))
                     }
                 }
                 GenerativeUiBlock.Form(id, title, fields, optionalText(json, "submitLabel") ?: "Submit", safeId(optionalText(json, "actionId") ?: id))
@@ -379,11 +489,12 @@ object GenerativeUiCompiler {
                 val options = buildList {
                     for (i in 0 until optionsJson.length()) {
                         val option = objectAt(optionsJson, i)
-                        requireOnlyKeys(option, setOf("id", "label", "prompt"))
+                        requireOnlyKeys(option, setOf("id", "label", "prompt", "local"))
                         add(ActionOption(
                             id = requiredId(option, "id"),
                             label = requiredText(option, "label"),
                             prompt = requiredText(option, "prompt"),
+                            local = optionalBoolean(option, "local") ?: false,
                         ))
                     }
                 }
@@ -539,6 +650,9 @@ object GenerativeUiCompiler {
             }
         }
     }
+
+    private fun JSONArray?.boundedStringsOrEmpty(): List<String> =
+        if (this == null) emptyList() else boundedStrings()
 }
 
 private const val MAX_ACTION_VALUE_CHARS = 400

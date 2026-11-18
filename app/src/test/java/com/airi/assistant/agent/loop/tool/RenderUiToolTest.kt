@@ -1,6 +1,8 @@
 package com.airi.assistant.agent.loop.tool
 
+import com.airi.assistant.ui.generative.GenerativeUiStructuredOutput
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -31,5 +33,24 @@ class RenderUiToolTest {
         val result = RenderUiTool.render("```airi-ui\n{}\n```")
 
         assertTrue(result is RenderUiTool.Result.Rejected)
+    }
+
+    @Test
+    fun nativeProviderJsonIsNormalizedToTheSameFenceContract() {
+        val native = """{"version":1,"blocks":[{"type":"stat","id":"s","value":"7"}]}"""
+        val fence = GenerativeUiStructuredOutput.toFence(native)
+
+        assertTrue(fence?.startsWith("```airi-ui\n") == true)
+        assertTrue(fence?.endsWith("\n```") == true)
+        assertNull(GenerativeUiStructuredOutput.toFence("not json"))
+    }
+
+    @Test
+    fun structuredOutputIsRestrictedToNativeFirstPartyProviders() {
+        assertTrue(GenerativeUiStructuredOutput.supportedProvider("openai"))
+        assertTrue(GenerativeUiStructuredOutput.supportedProvider("gemini"))
+        assertTrue(GenerativeUiStructuredOutput.supportedProvider("anthropic"))
+        assertTrue(!GenerativeUiStructuredOutput.supportedProvider("openrouter"))
+        assertTrue(!GenerativeUiStructuredOutput.supportedProvider("local"))
     }
 }

@@ -31,6 +31,8 @@ cloud providers    Permissions           Attachments       Files / notifications
 
 ## تدفقات التشغيل
 
+المسارات التنفيذية ليست مساراً واحداً: يحدد [Execution Paths and Redacted Telemetry](EXECUTION_PATHS_AND_REDACTED_TELEMETRY.md) ملكية Chat AgentLoop وCoding وExecutionGraph وVoice وScheduled وSub-agent، وعقد correlation/redaction الفعلي بينها.
+
 ### المحادثة
 
 ```text
@@ -42,6 +44,8 @@ Composer → ChatViewModel → AgentLoop → HybridOrchestrator
 `ExecutionGenerationGate` يربط callbacks بجيل التنفيذ النشط. عند الإلغاء أو بدء جيل جديد تُرفض النتيجة أو الخطأ أو صورة من جيل قديم.
 
 ### الذاكرة
+
+يفصل [Memory Extraction and Durable Admission](../memory/MEMORY_EXTRACTION_AND_DURABLE_ADMISSION.md) بين candidate extraction من رسالة المستخدم وبين قرار التخزين الدائم، ولا يعتبر نجاح regex أو وجود embedding دليلاً على durable admission.
 
 ```text
 Message → admission → normalization → persistent transcript

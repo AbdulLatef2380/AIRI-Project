@@ -129,6 +129,61 @@ class UniversalRuntimeTraceTest {
     }
 
     @Test
+    fun redactedTelemetryCorrelatesToolCycleIntoNextModelRequest() {
+        val recorder = UniversalRuntimeTraceRecorder()
+        recorder.begin("exec-cycle", "session-cycle", "model", "provider", "cloud", "private input", emptyList())
+        recorder.modelRequestBuilt("exec-cycle", "session-cycle", "model-a", "provider-a", 10, 1, 1, true, false)
+        recorder.modelResponse("exec-cycle", "session-cycle", "Bearer secret-token", true, "tool_candidate")
+        recorder.parser("exec-cycle", "session-cycle", parsed = true, toolName = "connector_read")
+        recorder.selected("exec-cycle", "session-cycle", "connector_read", valid = true)
+        recorder.dispatched("exec-cycle", "session-cycle", "connector_read", "tool_dispatcher")
+        recorder.executionCompleted("exec-cycle", "session-cycle", "connector_read", true, 12, 24)
+        recorder.resultReturned("exec-cycle", "session-cycle", "connector_read")
+        recorder.continuation("exec-cycle", "session-cycle", continued = true, terminalState = "TOOL_RESULT_RETURNED")
+        recorder.modelRequestBuilt("exec-cycle", "session-cycle", "model-b", "provider-b", 20, 3, 1, true, false)
+
+        val cycleTypes = recorder.events
+            .filter { it.eventType in setOf(
+                UniversalTraceEventType.MODEL_REQUEST_BUILT,
+                UniversalTraceEventType.MODEL_RESPONSE_RECEIVED,
+                UniversalTraceEventType.TOOL_PARSE_COMPLETED,
+                UniversalTraceEventType.TOOL_SELECTED,
+                UniversalTraceEventType.TOOL_DISPATCHED,
+                UniversalTraceEventType.CONNECTOR_EXECUTION_COMPLETED,
+                UniversalTraceEventType.RESULT_RETURNED,
+                UniversalTraceEventType.MODEL_CONTINUATION_COMPLETED,
+            ) }
+            .map { it.eventType }
+        assertEquals(
+            listOf(
+                UniversalTraceEventType.MODEL_REQUEST_BUILT,
+                UniversalTraceEventType.MODEL_RESPONSE_RECEIVED,
+                UniversalTraceEventType.TOOL_PARSE_COMPLETED,
+                UniversalTraceEventType.TOOL_SELECTED,
+                UniversalTraceEventType.TOOL_DISPATCHED,
+                UniversalTraceEventType.CONNECTOR_EXECUTION_COMPLETED,
+                UniversalTraceEventType.RESULT_RETURNED,
+                UniversalTraceEventType.MODEL_CONTINUATION_COMPLETED,
+                UniversalTraceEventType.MODEL_REQUEST_BUILT,
+            ),
+            cycleTypes,
+        )
+        val cycle = recorder.events.filter { it.eventType in setOf(
+            UniversalTraceEventType.MODEL_REQUEST_BUILT,
+            UniversalTraceEventType.MODEL_RESPONSE_RECEIVED,
+            UniversalTraceEventType.TOOL_PARSE_COMPLETED,
+            UniversalTraceEventType.TOOL_SELECTED,
+            UniversalTraceEventType.TOOL_DISPATCHED,
+            UniversalTraceEventType.CONNECTOR_EXECUTION_COMPLETED,
+            UniversalTraceEventType.RESULT_RETURNED,
+            UniversalTraceEventType.MODEL_CONTINUATION_COMPLETED,
+        ) }
+        assertFalse(cycle.flatMap { it.attributes.values }.any { it.contains("secret-token") })
+        assertFalse(cycle.flatMap { it.attributes.values }.any { it.contains("private input") })
+        assertEquals("model-b", cycle.last().attributes["model"])
+    }
+
+    @Test
     fun terminalOutcomePreservesLifecycleClassificationAndRedactsReason() {
         val recorder = UniversalRuntimeTraceRecorder()
         recorder.begin("exec-terminal", "session-1", "model", "provider", "test", "input", emptyList())

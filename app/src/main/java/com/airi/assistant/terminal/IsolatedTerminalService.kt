@@ -181,13 +181,13 @@ class IsolatedTerminalService : Service() {
                 if (read > remaining) {
                     if (remaining > 0) output.write(buffer, 0, remaining.toInt())
                     ProcessTreeTerminator.terminate(process)
-                    return ServiceResult.outputExceeded(output.toString(Charsets.UTF_8))
+                    return ServiceResult.outputExceeded(String(output.toByteArray(), Charsets.UTF_8))
                 }
                 output.write(buffer, 0, read)
             }
         }
         process.waitFor(1, TimeUnit.SECONDS)
-        val text = output.toString(Charsets.UTF_8)
+        val text = String(output.toByteArray(), Charsets.UTF_8)
         val exit = if (process.isAlive) -1 else process.exitValue()
         return if (exit == 0) ServiceResult.success(text, exit) else ServiceResult.failed(text, exit)
     }

@@ -9,6 +9,7 @@ import com.airi.assistant.agent.sandbox.OsSandboxCapability
 import com.airi.assistant.agent.sandbox.SandboxExecutor
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -110,6 +111,7 @@ class IsolatedTerminalClient(context: Context) {
     private suspend fun <T> withService(block: suspend (ISandboxTerminalService, () -> Unit) -> T): T? =
         suspendCancellableCoroutine { continuation ->
             var connection: ServiceConnection? = null
+            var activeJob: Job? = null
             val intent = Intent(appContext, IsolatedTerminalService::class.java)
             connection = object : ServiceConnection {
                 private var unbound = false
@@ -121,12 +123,11 @@ class IsolatedTerminalClient(context: Context) {
 
                 override fun onServiceConnected(name: ComponentName, binder: IBinder) {
                     val service = ISandboxTerminalService.Stub.asInterface(binder)
-                    val job = kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
+                    activeJob = kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
                         runCatching { block(service, ::unbindOnce) }
                             .onSuccess { value -> if (continuation.isActive) continuation.resume(value) }
                             .onFailure { error -> if (continuation.isActive) continuation.resumeWith(Result.failure(error)) }
                     }
-                    continuation.invokeOnCancellation { job.cancel(); unbindOnce() }
                 }
 
                 override fun onServiceDisconnected(name: ComponentName) {
@@ -148,7 +149,13 @@ class IsolatedTerminalClient(context: Context) {
                 continuation.resume(null)
                 return@suspendCancellableCoroutine
             }
-            continuation.invokeOnCancellation { connection?.let { runCatching { appContext.unbindService(it) } } }
+            // A continuation accepts only one cancellation handler. Keep the
+            // job reference mutable so the single handler covers cancellation
+            // both before and after ServiceConnection.onServiceConnected.
+            continuation.invokeOnCancellation {
+                activeJob?.cancel()
+                connection?.let { runCatching { appContext.unbindService(it) } }
+            }
         }
 
     private fun safeRequestId(value: String): String =

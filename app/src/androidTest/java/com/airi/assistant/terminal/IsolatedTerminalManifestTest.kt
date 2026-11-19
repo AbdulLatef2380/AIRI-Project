@@ -1,6 +1,7 @@
 package com.airi.assistant.terminal
 
 import android.content.Context
+import android.content.pm.ServiceInfo
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertFalse
@@ -18,9 +19,7 @@ class IsolatedTerminalManifestTest {
             0,
         )
         assertFalse(info.exported)
-        val isolated = runCatching {
-            info.javaClass.getField("isolatedProcess").getBoolean(info)
-        }.getOrDefault(false)
+        val isolated = info.flags and ServiceInfo.FLAG_ISOLATED_PROCESS != 0
         assertTrue(isolated)
     }
 }

@@ -74,8 +74,11 @@ object MemoryAdmissionPolicy {
     private fun hasExplicitMemoryRequest(content: String): Boolean {
         val unquoted = quoteMarkers.replace(content, " ")
         val request = explicitMemoryRequest.find(unquoted) ?: return false
-        val precedingClause = unquoted.substring(maxOf(0, request.range.first - 48), request.range.first)
-        return !negatedMemoryRequest.containsMatchIn(precedingClause)
+        // Include the matched request phrase itself: in "don't remember this"
+        // the negation marker precedes the regex match, so looking only before
+        // request.range.first can never observe the complete negated phrase.
+        val requestClause = unquoted.substring(maxOf(0, request.range.first - 48), request.range.last + 1)
+        return !negatedMemoryRequest.containsMatchIn(requestClause)
     }
 
     private const val MIN_EMBED_CHARS = 20

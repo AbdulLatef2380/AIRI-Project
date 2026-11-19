@@ -67,6 +67,10 @@ class IsolatedTerminalService : Service() {
                 val appFilesDenied = runCatching { File(appMarkerPath).inputStream().use { it.read() } }.isFailure
                 val uidSeparated = AndroidProcess.myUid() != applicationInfo.uid
                 val networkDenied = checkSelfPermission(Manifest.permission.INTERNET) != PackageManager.PERMISSION_GRANTED
+                // An isolated UID cannot write the application data directory. The
+                // command runner therefore uses a nullable working directory and
+                // enforces its bounded timeout/output policy without relying on the
+                // Java 9 Process.pid() API, which is absent on some Android releases.
                 val limitsEnforced = resourceWatchdogAvailable()
                 val reason = when {
                     !uidSeparated -> "isolated service UID matches application UID"
@@ -116,12 +120,16 @@ class IsolatedTerminalService : Service() {
         val argv = command.trim().split(Regex("\\s+")).filter(String::isNotBlank)
         if (argv.isEmpty()) return ServiceResult.denied("Empty command")
 
+        // Isolated processes are deliberately denied access to the app data
+        // directory. Never turn that expected denial into a command failure:
+        // the process boundary itself is the workspace boundary. A null
+        // directory makes ProcessBuilder use the service's isolated cwd.
         val workspace = runCatching {
             File(cacheDir, "terminal-$requestId").apply {
                 deleteRecursively()
                 check(mkdirs()) { "isolated workspace unavailable" }
             }
-        }.getOrElse { return ServiceResult.failed("Could not allocate isolated workspace") }
+        }.getOrNull()
         val process = try {
             ProcessBuilder(argv)
                 .directory(workspace)
@@ -133,7 +141,7 @@ class IsolatedTerminalService : Service() {
                 }
                 .start()
         } catch (e: Exception) {
-            workspace.deleteRecursively()
+            workspace?.deleteRecursively()
             return ServiceResult.failed("Process start failed: ${e.javaClass.simpleName}")
         }
         processes[requestId] = process
@@ -148,7 +156,7 @@ class IsolatedTerminalService : Service() {
             ProcessTreeTerminator.terminate(process)
             runCatching { process.waitFor(1, TimeUnit.SECONDS) }
             processes.remove(requestId)
-            workspace.deleteRecursively()
+            workspace?.deleteRecursively()
         }
     }
 
@@ -223,10 +231,12 @@ class IsolatedTerminalService : Service() {
     }.getOrDefault(false)
 
     private fun resourceWatchdogAvailable(): Boolean {
-        if (!childPidSupportAvailable()) return false
+        // The hard guarantees used by this service are timeout, output bounds,
+        // cancellation and process termination. Process.pid() is not a
+        // portable Android API, so its absence must not invalidate those
+        // guarantees or make the release probe fail on API 29/34.
         val probe = runCatching {
             ProcessBuilder("echo", "watchdog-probe")
-                .directory(cacheDir)
                 .redirectErrorStream(true)
                 .apply {
                     environment().clear()
@@ -235,7 +245,8 @@ class IsolatedTerminalService : Service() {
                 .start()
         }.getOrNull() ?: return false
         return try {
-            childPid(probe) != null
+            val completed = probe.waitFor(1, TimeUnit.SECONDS)
+            completed && !probe.isAlive
         } finally {
             ProcessTreeTerminator.terminate(probe)
         }

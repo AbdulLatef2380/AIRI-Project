@@ -59,48 +59,24 @@ fun ContentAwareMessageRenderer(
     // generative UI on every token; the final message is rendered normally
     // once isStreaming becomes false.
     if (isStreaming) {
-        // Progressive compile: a closed, validated document can be projected while
-        // the model continues emitting surrounding prose. The compiler cache keeps
-        // repeated token updates bounded and the same state key preserves inputs.
-        val progressiveUi = GenerativeUiCompiler.compile(text)
-        if (progressiveUi != null) {
-            Column(modifier = modifier.fillMaxWidth()) {
-                progressiveUi.surroundingText.takeIf(String::isNotBlank)?.let { surrounding ->
-                    BidiAwareMarkdownRenderer(text = surrounding, modifier = Modifier.fillMaxWidth(), isStreaming = false)
-                }
-                GenerativeUiRenderer(
-                    compiled = progressiveUi,
-                    onAction = onGenerativeUiAction,
-                    sourceExecutionId = generativeUiExecutionId,
-                    sourceMessageId = messageId,
-                    stateStore = generativeUiStateStore,
-                )
-            }
-            return
-        }
-        val split = remember(text) { StreamingMarkdownPolicy.split(text) }
-        Column(modifier = modifier.fillMaxWidth()) {
-            split.stablePrefix.takeIf(String::isNotEmpty)?.let { stable ->
-                BidiAwareMarkdownRenderer(
-                    text = stable,
-                    modifier = Modifier.fillMaxWidth(),
-                    isStreaming = false,
-                )
-            }
-            split.tail.takeIf(String::isNotEmpty)?.let { tail ->
-                Text(
-                    text = tail,
-                    modifier = Modifier.fillMaxWidth(),
-                    style = TextStyle(
-                        color = AiriTheme.onSurface.copy(alpha = 0.93f),
-                        textDirection = TextDirection.ContentOrLtr,
-                    ),
-                )
-            }
-        }
+        // A streaming snapshot may already contain a complete code fence or an
+        // incomplete one. Route it through the adaptive planner so code remains
+        // a real ContentTarget.Block and keeps copy available while streaming.
+        ContentAwareMessageRenderer(
+            text = text,
+            modifier = modifier,
+            isStreaming = false,
+            messageId = messageId,
+            toolOutputs = toolOutputs,
+            conversationContext = conversationContext,
+            onContentAction = onContentAction,
+            onCopyResult = onCopyResult,
+            onGenerativeUiAction = onGenerativeUiAction,
+            generativeUiExecutionId = generativeUiExecutionId,
+            generativeUiStateStore = generativeUiStateStore,
+        )
         return
     }
-
     val resolvedMessageId = messageId.ifBlank {
         remember { "message-${text.hashCode().toUInt().toString(16)}" }
     }
@@ -170,6 +146,7 @@ fun ContentAwareMessageRenderer(
 private fun ToolOutputCard(
     output: AssistantToolOutput,
 ) {
+    var expanded by remember(output.id) { mutableStateOf(false) }
     Surface(
         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
         color = AiriTheme.surfaceVariant,
@@ -181,13 +158,28 @@ private fun ToolOutputCard(
                 color = AiriTheme.onSurfaceVariant,
                 fontSize = 11.sp,
             )
-            SelectionContainer {
-                Text(
-                    text = output.text,
-                    color = AiriTheme.onSurface,
-                    fontSize = 12.sp,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            IconButton(
+                onClick = { expanded = !expanded },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.ContentCopy,
+                    contentDescription = stringResource(
+                        if (expanded) R.string.assistant_tool_output_hide
+                        else R.string.assistant_tool_output_show,
+                    ),
+                    tint = AiriTheme.onSurfaceVariant,
                 )
+            }
+            if (expanded) {
+                SelectionContainer {
+                    Text(
+                        text = output.text,
+                        color = AiriTheme.onSurface,
+                        fontSize = 12.sp,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    )
+                }
             }
         }
     }

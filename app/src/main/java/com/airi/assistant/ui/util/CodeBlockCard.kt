@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -132,6 +133,18 @@ fun CodeBlockCard(
                                     else -> AiriTheme.onSurfaceVariant
                                 },
                             )
+                        }
+                        if (target?.canPerform(ContentUnitAction.SHARE) == true && onContentAction != null) {
+                            IconButton(
+                                onClick = { onContentAction(target, ContentUnitAction.SHARE) },
+                                modifier = Modifier.size(40.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Share,
+                                    contentDescription = context.getString(R.string.artifact_share),
+                                    tint = AiriTheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }

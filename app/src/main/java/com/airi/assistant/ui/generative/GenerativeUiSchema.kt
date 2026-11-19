@@ -338,7 +338,7 @@ object GenerativeUiCompiler {
                     // An explicitly supplied actionId participates in the same
                     // namespace as block and field IDs. The implicit default
                     // keeps the legacy action id equal to the form id.
-                    if ((rawBlock as JSONObject).has("actionId")) claim(block.actionId)
+                    if ((rawBlock as JSONObject).has("actionId") && block.actionId != block.id) claim(block.actionId)
                 }
                 is GenerativeUiBlock.Actions -> block.options.forEach { claim(it.id) }
                 is GenerativeUiBlock.Route -> block.stops.forEach { claim(it.id) }

@@ -121,9 +121,9 @@ class ExecutionTraceArchiveTest {
         try {
             ExecutionTraceArchive.maxMessages = 2
             ExecutionTraceArchive.attach(file)
-            ExecutionTraceArchive.put(1L, listOf(ExecutionTraceEvent("e1", 1, 1L, ExecutionTraceKind.COMPLETED, sessionId = "a")))
-            ExecutionTraceArchive.put(2L, listOf(ExecutionTraceEvent("e2", 1, 2L, ExecutionTraceKind.COMPLETED, sessionId = "b")))
-            ExecutionTraceArchive.put(3L, listOf(ExecutionTraceEvent("e3", 1, 3L, ExecutionTraceKind.COMPLETED, sessionId = "c")))
+            ExecutionTraceArchive.put(1L, listOf(ExecutionTraceEvent("e1", 1, 1L, ExecutionTraceKind.COMPLETED, summary = "one", sessionId = "a")))
+            ExecutionTraceArchive.put(2L, listOf(ExecutionTraceEvent("e2", 1, 2L, ExecutionTraceKind.COMPLETED, summary = "two", sessionId = "b")))
+            ExecutionTraceArchive.put(3L, listOf(ExecutionTraceEvent("e3", 1, 3L, ExecutionTraceKind.COMPLETED, summary = "three", sessionId = "c")))
 
             val retained = ExecutionTraceArchive.getAll(listOf(1L, 2L, 3L))
             assertEquals(setOf(2L, 3L), retained.keys)
@@ -144,7 +144,7 @@ class ExecutionTraceArchiveTest {
             ExecutionTraceArchive.maxMessagesPerSession = 2
             ExecutionTraceArchive.attach(file)
             fun trace(id: Long, session: String) =
-                listOf(ExecutionTraceEvent("e$id", 1, id, ExecutionTraceKind.COMPLETED, sessionId = session))
+                listOf(ExecutionTraceEvent("e$id", 1, id, ExecutionTraceKind.COMPLETED, summary = "event-$id", sessionId = session))
             ExecutionTraceArchive.put(1L, trace(1L, "busy"))
             ExecutionTraceArchive.put(2L, trace(2L, "quiet"))
             ExecutionTraceArchive.put(3L, trace(3L, "busy"))

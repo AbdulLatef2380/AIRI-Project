@@ -656,4 +656,33 @@ class ExecutionStatusBusTest {
         assertEquals(ExecutionTraceKind.WAITING_FOR_APPROVAL, ExecutionStatusBus.trace.value.last().kind)
         ExecutionStatusBus.reset()
     }
+
+    @Test
+    fun stateFlowReSubscriberSeesExactlyOneOrderedTraceAfterRotationAndRestart() {
+        val executionId = "lifecycle-trace-test"
+        ExecutionStatusBus.reset()
+        ExecutionStatusBus.onGraphStarted("Lifecycle task", 1, executionId, sessionId = "session-1")
+        ExecutionStatusBus.onToolStarted(executionId, "tool-1", "read_file")
+        ExecutionStatusBus.onToolCompleted(executionId, "tool-1", "read_file", 3L)
+        ExecutionStatusBus.onGraphCompleted(success = true, executionId = executionId)
+
+        val firstSubscription = ExecutionStatusBus.trace.value
+        val rotatedSubscription = ExecutionStatusBus.trace.value
+        val persistedSnapshot = ExecutionStatusBus.traceSnapshot(executionId)
+        assertEquals(firstSubscription, rotatedSubscription)
+        assertEquals(persistedSnapshot, rotatedSubscription)
+        assertEquals(persistedSnapshot.map { it.sequence }, persistedSnapshot.map { it.sequence }.distinct().sorted())
+        assertEquals(1, persistedSnapshot.count { it.kind == ExecutionTraceKind.COMPLETED })
+
+        // A process recreation starts a new execution identity; the old trace is
+        // not replayed into it, and the new terminal event is emitted once.
+        ExecutionStatusBus.reset()
+        val restartedId = "lifecycle-trace-test-restarted"
+        ExecutionStatusBus.onGraphStarted("Restarted task", 1, restartedId, sessionId = "session-1")
+        ExecutionStatusBus.onGraphCompleted(success = true, executionId = restartedId)
+        assertTrue(ExecutionStatusBus.trace.value.all { it.executionId == restartedId })
+        assertEquals(1, ExecutionStatusBus.trace.value.count { it.kind == ExecutionTraceKind.COMPLETED })
+        assertTrue(ExecutionStatusBus.traceSnapshot(executionId).isEmpty())
+        ExecutionStatusBus.reset()
+    }
 }

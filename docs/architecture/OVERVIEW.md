@@ -75,6 +75,8 @@ Permission → Vosk model check → Listening → partial transcript → final t
 
 ## ملكية البيانات والحالة
 
+حدود semantic RAG وfallback الزمني موثقة في [Semantic RAG and Chronological Fallback](../memory/SEMANTIC_RAG_AND_CHRONOLOGICAL_FALLBACK.md). أما تسمية sandbox وعقد lifecycle للأحداث فمرجعها [Sandbox Naming and Lifecycle Contract](SANDBOX_NAMING_AND_LIFECYCLE_CONTRACT.md). تصنيف الأدلة بين source/runtime/CI والتقارير التاريخية موجود في [P2 Evidence Register](../../reports/P2_EVIDENCE_REGISTER_2026-11-20.md).
+
 | البيانات أو الحالة | المالك | الاستمرارية |
 |---|---|---|
 | جلسات ومحادثات | Room عبر `MemoryManager` و`SessionDao` | دائمة محلياً |

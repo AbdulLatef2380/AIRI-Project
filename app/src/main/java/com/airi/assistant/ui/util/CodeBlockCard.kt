@@ -163,6 +163,11 @@ fun CodeBlockCard(
                             .fillMaxWidth()
                             .combinedClickable(
                                 onClick = {},
+                                onDoubleClick = {
+                                    if (target?.canPerform(ContentUnitAction.FULLSCREEN) == true) {
+                                        onContentAction?.invoke(target, ContentUnitAction.FULLSCREEN)
+                                    }
+                                },
                             )
                             .padding(top = 4.dp, bottom = 4.dp),
                     )

@@ -211,7 +211,10 @@ object AdaptiveContentPolicy {
             complete = complete,
             actions = buildSet {
                 add(ContentUnitAction.COPY)
-                if (complete) add(ContentUnitAction.SHARE)
+                if (complete) {
+                    add(ContentUnitAction.SHARE)
+                    add(ContentUnitAction.FULLSCREEN)
+                }
             },
         )
     }

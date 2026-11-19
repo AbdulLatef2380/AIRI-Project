@@ -131,7 +131,11 @@ class IsolatedTerminalService : Service() {
             }
         }.getOrNull()
         val process = try {
-            ProcessBuilder(argv)
+            // Android toolbox commands such as `echo` are shell built-ins on
+            // some API levels and therefore are not executable files. Start a
+            // fixed system shell while keeping the command admission policy
+            // above as the sole gate; shell metacharacters are rejected there.
+            ProcessBuilder("/system/bin/sh", "-c", command)
                 .directory(workspace)
                 .redirectErrorStream(true)
                 .apply {
@@ -236,7 +240,7 @@ class IsolatedTerminalService : Service() {
         // portable Android API, so its absence must not invalidate those
         // guarantees or make the release probe fail on API 29/34.
         val probe = runCatching {
-            ProcessBuilder("echo", "watchdog-probe")
+            ProcessBuilder("/system/bin/sh", "-c", "printf watchdog-probe")
                 .redirectErrorStream(true)
                 .apply {
                     environment().clear()

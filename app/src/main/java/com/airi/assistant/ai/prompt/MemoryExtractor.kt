@@ -11,9 +11,15 @@ package com.airi.assistant.ai.prompt
  *   - persistent preferences ("I prefer X", "I like Y", "I hate Z")
  *   - persistent intents     ("I'm working on …", "I'm building …")
  *
- * Returns candidate canonical "key=value" strings. Callers must apply the
- * durable-memory admission policy before storing; accepted facts may then be
- * mirrored into MemoryStore as a scoped scratchpad projection.
+ * Returns candidate canonical "key=value" strings only. This object is the
+ * candidate-extraction boundary, not the durable-memory boundary: it does not
+ * inspect explicit memory intent, consent, privacy, scope, expiry, ownership,
+ * or retention, and it never writes Room, embeddings, or MemoryStore. The
+ * caller must first pass the user-authored message through
+ * [com.airi.assistant.agent.memory.AgentMemoryDecision], then apply the
+ * durable-memory admission policy before storing. Accepted facts may then be
+ * mirrored into MemoryStore as a scoped scratchpad projection, which remains a
+ * derived projection rather than proof that extraction itself was durable.
  *
  * Bilingual: matches both English and a small set of common Arabic phrasings
  * since the app targets ar+en users.
@@ -42,9 +48,11 @@ object MemoryExtractor {
     )
 
     /**
-     * Extract facts from a single user message. Returns a list of "key=value"
-     * strings for downstream policy validation. Quietly returns an empty list
-     * when nothing matches — extraction is best-effort.
+     * Extract candidates from one already-selected user message. Returns a
+     * list of "key=value" strings for downstream policy validation. This
+     * method has no persistence side effects and does not grant admission.
+     * Quietly returns an empty list when nothing matches — extraction is
+     * best-effort and a regex match is not a verified fact.
      */
     fun extract(userMessage: String): List<String> {
         if (userMessage.isBlank() || userMessage.length > 4_000) return emptyList()

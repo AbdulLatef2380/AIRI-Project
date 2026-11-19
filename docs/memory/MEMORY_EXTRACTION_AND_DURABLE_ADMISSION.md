@@ -23,6 +23,8 @@ user message
 
 `MemoryExtractor` هو heuristic محلي deterministic. لا يستدعي LLM، ولا يكتب إلى التخزين، ولا يقرر consent أو scope أو retention. يستخرج أنماطاً محدودة للاسم والموقع واللغة والعمل والتفضيلات والمشروع من English وبعض Arabic، ويعيد قيماً bounded distinct.
 
+مصدر التنفيذ هو `app/src/main/java/com/airi/assistant/ai/prompt/MemoryExtractor.kt`. بوابة النية هي `AgentMemoryDecision.shouldExtractFacts`، أما admission والـscope والـexpiry فتملكها طبقة `MemoryManager` وسياسة metadata الخاصة بها. لا يجوز نقل قرار admission إلى regex extractor أو إلى شاشة المحادثة.
+
 ## Candidate extraction contract
 
 - الإدخال رسالة user فقط، bounded إلى 4,000 حرف.
@@ -50,3 +52,5 @@ user message
 ## ما يجب اختباره
 
 اختبارات extractor تثبت bounded candidate output وعدم الكتابة الجانبية. اختبارات admission تثبت role/intent/privacy/scope/expiry والحذف. اختبارات RAG تثبت أن embedding أو retrieval لا يتجاوز owner/session/project/privacy filters. لا يكفي اختبار `MemoryExtractor` وحده لإثبات durable memory.
+
+الاختبارات المرجعية الحالية هي `MemoryExtractorTest` لاختبار candidates و`AgentMemoryDecisionTest` لاختبار role/intent. اختبارات `MemoryMetadataPolicy` وMemory/RAG integration هي الدليل المنفصل على durable admission والـscope؛ يجب إبقاء هذه الطبقات منفصلة عند إضافة pattern جديد.

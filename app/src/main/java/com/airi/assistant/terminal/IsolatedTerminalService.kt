@@ -131,11 +131,12 @@ class IsolatedTerminalService : Service() {
             }
         }.getOrNull()
         val process = try {
-            // Android toolbox commands such as `echo` are shell built-ins on
-            // some API levels and therefore are not executable files. Start a
-            // fixed system shell while keeping the command admission policy
-            // above as the sole gate; shell metacharacters are rejected there.
-            ProcessBuilder("/system/bin/sh", "-c", command)
+            // isolated_app is deliberately forbidden by SELinux from executing
+            // shell_exec (/system/bin/sh). The policy has already rejected every
+            // shell metacharacter, so execute the validated argv directly. This
+            // preserves the isolation boundary on API 29 through 34 without
+            // granting the service shell execution permission.
+            ProcessBuilder(argv)
                 .directory(workspace)
                 .redirectErrorStream(true)
                 .apply {
@@ -240,7 +241,9 @@ class IsolatedTerminalService : Service() {
         // portable Android API, so its absence must not invalidate those
         // guarantees or make the release probe fail on API 29/34.
         val probe = runCatching {
-            ProcessBuilder("/system/bin/sh", "-c", "printf watchdog-probe")
+            // shell_exec is denied to isolated_app; toybox is the supported
+            // direct executable surface for a bounded process probe.
+            ProcessBuilder("/system/bin/toybox", "true")
                 .redirectErrorStream(true)
                 .apply {
                     environment().clear()

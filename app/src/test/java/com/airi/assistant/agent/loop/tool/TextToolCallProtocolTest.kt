@@ -10,32 +10,42 @@ class TextToolCallProtocolTest {
     fun plainTextIsNotMisclassifiedAsToolCall() {
         assertEquals(
             TextToolCallProtocol.ParseResult.NotAToolCall,
-            TextToolCallProtocol.parse("The word tool_call may appear in prose.")
+            TextToolCallProtocol.parse("The word tool_call may appear in prose."),
         )
     }
 
     @Test
     fun parsesWhitespaceCodeFenceAndScalarArguments() {
         val result = TextToolCallProtocol.parse(
-            "```json\n { \"tool_call\" : { \"name\" : \"calendar_read\", \"args\" : { \"days\" : 7 } } }\n```"
+            "```json\n { \"tool_call\" : { \"name\" : \"calendar_read\", \"args\" : { \"days\" : 7 } } }\n```",
         )
 
         assertEquals(
             TextToolCallProtocol.ParseResult.Call("calendar_read", mapOf("days" to "7")),
-            result
+            result,
         )
     }
 
     @Test
-    fun matchingBracesInsideQuotedArgumentDoNotEndTheObjectEarly() {
+    fun proseBeforeEnvelopeIsRejected() {
         val result = TextToolCallProtocol.parse(
-            "prefix {\"tool_call\":{\"name\":\"create_note\",\"args\":{\"content\":\"value } still text\"}}} suffix"
+            "I will call the tool now: {\"tool_call\":{\"name\":\"create_note\",\"args\":{\"content\":\"value\"}}}",
         )
 
-        assertTrue(result is TextToolCallProtocol.ParseResult.Call)
         assertEquals(
-            "value } still text",
-            (result as TextToolCallProtocol.ParseResult.Call).args["content"]
+            TextToolCallProtocol.ParseResult.Invalid(TextToolCallProtocol.ParseFailureReason.MIXED_PROSE),
+            result,
+        )
+    }
+
+    @Test
+    fun proseAfterEnvelopeIsRejected() {
+        val result = TextToolCallProtocol.parse(
+            "{\"tool_call\":{\"name\":\"create_note\",\"args\":{}}} Done.",
+        )
+        assertEquals(
+            TextToolCallProtocol.ParseResult.Invalid(TextToolCallProtocol.ParseFailureReason.MIXED_PROSE),
+            result,
         )
     }
 
@@ -45,19 +55,41 @@ class TextToolCallProtocolTest {
 
         assertEquals(
             TextToolCallProtocol.ParseResult.Invalid(TextToolCallProtocol.ParseFailureReason.UNTERMINATED_JSON),
-            result
+            result,
+        )
+    }
+
+    @Test
+    fun partialEnvelopeIsRejectedWithoutExtractingAUsablePrefix() {
+        val result = TextToolCallProtocol.parse(
+            "{\"tool_call\":{\"name\":\"web_search\",\"args\":{\"query\":\"AIRI\"}}",
+        )
+        assertEquals(
+            TextToolCallProtocol.ParseResult.Invalid(TextToolCallProtocol.ParseFailureReason.INVALID_JSON),
+            result,
+        )
+    }
+
+    @Test
+    fun malformedEnvelopeIsRejected() {
+        val result = TextToolCallProtocol.parse(
+            "{\"tool_call\":{\"name\":\"web_search\",\"args\":{\"query\":\"AIRI}}}",
+        )
+        assertEquals(
+            TextToolCallProtocol.ParseResult.Invalid(TextToolCallProtocol.ParseFailureReason.INVALID_JSON),
+            result,
         )
     }
 
     @Test
     fun invalidShapeDoesNotBecomeExecutableCall() {
         val result = TextToolCallProtocol.parse(
-            "{\"tool_call\":{\"name\":\"web_search\",\"args\":\"query\"}}"
+            "{\"tool_call\":{\"name\":\"web_search\",\"args\":\"query\"}}",
         )
 
         assertEquals(
             TextToolCallProtocol.ParseResult.Invalid(TextToolCallProtocol.ParseFailureReason.INVALID_ARGS_OBJECT),
-            result
+            result,
         )
     }
 
@@ -67,14 +99,14 @@ class TextToolCallProtocolTest {
 
         assertEquals(
             TextToolCallProtocol.ParseResult.Invalid(TextToolCallProtocol.ParseFailureReason.MISSING_TOOL_NAME),
-            result
+            result,
         )
     }
 
     @Test
     fun parsesMultipleCallsInStableOrderWithIds() {
         val result = TextToolCallProtocol.parse(
-            """{"tool_calls":[{"id":"call-1","name":"gmail_list","args":{"max":3}},{"id":"call-2","name":"gmail_read","args":{"id":"m1"}}]}"""
+            """{"tool_calls":[{"id":"call-1","name":"gmail_list","args":{"max":3}},{"id":"call-2","name":"gmail_read","args":{"id":"m1"}}]}""",
         )
         assertTrue(result is TextToolCallProtocol.ParseResult.Calls)
         val calls = (result as TextToolCallProtocol.ParseResult.Calls).calls
@@ -96,13 +128,24 @@ class TextToolCallProtocolTest {
     @Test
     fun envelopeShownInsideACodeBlockIsNotExecuted() {
         val reply = "Here is how the protocol looks:\n```kotlin\nval s = \"\"\"{\"tool_call\":{\"name\":\"web_search\",\"args\":{}}}\"\"\"\n```\nThat is all."
-        assertEquals(TextToolCallProtocol.ParseResult.NotAToolCall, TextToolCallProtocol.parse(reply))
+        assertEquals(TextToolCallProtocol.ParseResult.Invalid(TextToolCallProtocol.ParseFailureReason.MIXED_PROSE), TextToolCallProtocol.parse(reply))
     }
 
     @Test
     fun jsonBlockWithOtherContentFirstIsNotExecuted() {
         val reply = "```json\n{\"example\": true, \"note\": {\"tool_call\":{\"name\":\"x\"}}}\n```"
-        assertEquals(TextToolCallProtocol.ParseResult.NotAToolCall, TextToolCallProtocol.parse(reply))
+        assertEquals(TextToolCallProtocol.ParseResult.Invalid(TextToolCallProtocol.ParseFailureReason.UNEXPECTED_ENVELOPE_CONTENT), TextToolCallProtocol.parse(reply))
+    }
+
+    @Test
+    fun unrelatedTopLevelEnvelopeContentIsRejected() {
+        val result = TextToolCallProtocol.parse(
+            "{\"tool_call\":{\"name\":\"web_search\",\"args\":{}},\"note\":\"not executable\"}",
+        )
+        assertEquals(
+            TextToolCallProtocol.ParseResult.Invalid(TextToolCallProtocol.ParseFailureReason.UNEXPECTED_ENVELOPE_CONTENT),
+            result,
+        )
     }
 
     @Test

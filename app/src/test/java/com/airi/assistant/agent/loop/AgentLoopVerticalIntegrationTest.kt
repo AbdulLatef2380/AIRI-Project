@@ -29,6 +29,9 @@ import com.airi.assistant.execution.ExecutionRequest
 import com.airi.assistant.security.AgentSandbox
 import com.airi.assistant.security.ExecutionFirewall
 import com.airi.assistant.security.ScopedPermissionRegistry
+import com.airi.assistant.ui.generative.GenerativeUiAction
+import com.airi.assistant.ui.generative.GenerativeUiCompiler
+import com.airi.assistant.ui.generative.PendingGenerativeUiActionGate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
@@ -79,6 +82,63 @@ class AgentLoopVerticalIntegrationTest {
         assertTrue(connector.lastInput?.actionId?.startsWith("tool_") == true)
         assertEquals(2, orchestrator.requests.size)
         assertTrue(orchestrator.requests[1].conversationHistory.any { it.kind == "tool_result" })
+    }
+
+    @Test
+    fun generativeUiControlClickClaimRunsAgentLoopFakeConnectorAndPublishesFinalStatus() = runBlocking {
+        ExecutionStatusBus.reset()
+        try {
+            val connector = RecordingConnector()
+            val fixture = fixture(connector)
+            val source = "```airi-ui\n" +
+                "{\"version\":1,\"blocks\":[{\"type\":\"actions\",\"id\":\"controls\",\"options\":[" +
+                "{\"id\":\"read\",\"label\":\"Read\",\"prompt\":\"Read the connected source\"}]}]}\n```"
+            requireNotNull(GenerativeUiCompiler.compile(source))
+            val clicked = GenerativeUiAction(
+                id = "read",
+                fields = mapOf("prompt" to "forged text"),
+                sourceExecutionId = "execution-genui",
+                sourceMessageId = "message-genui",
+            )
+            val verified = requireNotNull(GenerativeUiCompiler.rebuildAction(source, clicked))
+            assertEquals("[AIRI_UI_ACTION:read] prompt=Read the connected source", verified.prompt)
+
+            // This is the renderer callback boundary followed by the same
+            // single-use claim used by ChatViewModel before dispatch.
+            val gate = PendingGenerativeUiActionGate()
+            gate.stage(verified)
+            val claimed = requireNotNull(gate.claim(verified.prompt))
+            assertEquals(verified, claimed)
+            assertTrue(gate.claim(verified.prompt) == null)
+
+            val orchestrator = ScriptedOrchestrator(
+                "{\"tool_call\":{\"name\":\"connector_vertical_read\",\"args\":{}}}",
+                "The connected source was read successfully.",
+            )
+            val result = fixture.loop(orchestrator).run(
+                input = claimed.prompt,
+                systemPrompt = "You are AIRI.",
+                tools = listOf(fixture.readSchema),
+                sessionId = "session-genui",
+                requestedExecutionId = "execution-genui",
+                messageId = "message-genui",
+                onToken = {},
+            )
+
+            assertEquals(AgentLoop.TerminalState.SUCCESS, result.terminalState)
+            assertEquals("The connected source was read successfully.", result.finalAnswer)
+            assertEquals(listOf("connector_vertical_read"), result.toolsInvoked)
+            assertEquals(1, connector.executeCalls)
+            assertEquals("execution-genui", connector.lastInput?.executionId)
+            assertEquals("session-genui", connector.lastInput?.sessionId)
+            assertEquals("message-genui", connector.lastInput?.messageId)
+            assertTrue(connector.lastInput?.actionId?.startsWith("tool_") == true)
+            assertTrue(ExecutionStatusBus.traceSnapshot("execution-genui").any {
+                it.kind == ExecutionTraceKind.COMPLETED
+            })
+        } finally {
+            ExecutionStatusBus.reset()
+        }
     }
 
     @Test

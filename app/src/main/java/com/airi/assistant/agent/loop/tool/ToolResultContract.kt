@@ -17,6 +17,7 @@ object ToolErrorCodes {
     const val SKILL_FAILED = "skill_failed"
     const val CONNECTOR_FAILED = "connector_failed"
     const val DUPLICATE_CALL = "duplicate_call"
+    const val DEPENDENCY_UNRESOLVED = "dependency_unresolved"
 
     fun fromConnector(code: String): String = when (code.lowercase()) {
         NOT_CONNECTED, AUTH_REQUIRED, NETWORK_UNAVAILABLE, TIMEOUT,

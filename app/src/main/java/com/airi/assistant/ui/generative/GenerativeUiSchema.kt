@@ -338,7 +338,10 @@ object GenerativeUiCompiler {
                     // An explicitly supplied actionId participates in the same
                     // namespace as block and field IDs. The implicit default
                     // keeps the legacy action id equal to the form id.
-                    if ((rawBlock as JSONObject).has("actionId") && block.actionId != block.id) claim(block.actionId)
+                    // Explicitly repeating the form id is still a collision: the
+                    // compiler must distinguish an authored action from the
+                    // implicit compatibility default before rebuilding actions.
+                    if ((rawBlock as JSONObject).has("actionId")) claim(block.actionId)
                 }
                 is GenerativeUiBlock.Actions -> block.options.forEach { claim(it.id) }
                 is GenerativeUiBlock.Route -> block.stops.forEach { claim(it.id) }
@@ -601,9 +604,12 @@ object GenerativeUiCompiler {
     }
     private fun safeText(value: String?): String? =
         value?.trim()?.takeIf { it.isNotEmpty() }?.take(GenerativeUiLimits.MAX_TEXT)
-    private fun safeId(value: String): String =
-        value.trim().take(GenerativeUiLimits.MAX_ID_CHARS).takeIf { idPattern.matches(it) }
-            ?: reject(GenerativeUiRejectReason.BAD_ID, "invalid id")
+    private fun safeId(value: String): String {
+        val normalized = value.trim()
+        return normalized.takeIf {
+            it.length in 1..GenerativeUiLimits.MAX_ID_CHARS && idPattern.matches(it)
+        } ?: reject(GenerativeUiRejectReason.BAD_ID, "invalid id")
+    }
 
     private fun requireOnlyKeys(json: JSONObject, allowed: Set<String>) {
         json.keys().forEach { key -> ensure(key in allowed, GenerativeUiRejectReason.UNKNOWN_KEY) { "unknown key" } }

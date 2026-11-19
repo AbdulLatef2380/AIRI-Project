@@ -46,7 +46,9 @@ internal object StructuredOutputJson {
     }
 
     fun anthropic(spec: ExecutionRequest.StructuredOutputSpec): String = buildString {
-        append("\"output_config\":{\"format\":{\"type\":\"json_schema\",\"schema\":")
+        append("\"output_config\":{\"format\":{\"type\":\"json_schema\",\"name\":")
+        append(ToolDefinitionJson.q(spec.name))
+        append(",\"schema\":")
         append(spec.schemaJson)
         append("}}")
     }

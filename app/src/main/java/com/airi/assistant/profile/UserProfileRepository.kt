@@ -19,7 +19,8 @@ import kotlinx.coroutines.withContext
  * ── STORAGE ───────────────────────────────────────────────────────────────
  *
  *   Preferences are persisted as a JSON blob in a regular SharedPreferences
- *   file ("airi_user_profile"). Sensitive fields (keys, tokens) are always
+ *   file ("airi_user_profile"). Signed-in profiles are keyed by Firebase UID;
+ *   there is no cloud avatar backend in this release. Sensitive fields (keys, tokens) are always
  *   kept in SecureStorage — they never appear here.
  *
  * ── THREAD SAFETY ─────────────────────────────────────────────────────────
@@ -36,8 +37,9 @@ import kotlinx.coroutines.withContext
  * ── ACCOUNT OWNERSHIP ─────────────────────────────────────────────────────
  *
  *   Identity fields (displayName, username, localPhotoPath, avatarUrl) are
- *   account-scoped. Call [resetIdentity] on sign-out so that a subsequent
- *   login loads a fresh profile rather than the previous account's identity.
+ *   account-scoped. Call [activateAccount] after authentication and
+ *   [resetIdentity] on sign-out. This prevents account B from ever reading
+ *   account A's local avatar. avatarUrl is intentionally empty/local-only.
  *   Non-identity fields (theme, AI persona, voice, notifications) are device
  *   preferences and persist across account switches by design.
  */
@@ -47,11 +49,22 @@ class UserProfileRepository(private val context: Context) {
     private val gson       = Gson()
     private val repoScope  = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val prefs      = context.getSharedPreferences(PREF_FILE, Context.MODE_PRIVATE)
+    private val stateLock  = Any()
+    @Volatile private var activeAccountId: String? = null
 
-    private val _profile = MutableStateFlow(load())
+    private val _profile = MutableStateFlow(UserPreferences())
     val profile: StateFlow<UserPreferences> = _profile.asStateFlow()
 
     val current: UserPreferences get() = _profile.value
+
+    /** Selects the UID-owned local profile immediately after Firebase sign-in. */
+    fun activateAccount(uid: String?) {
+        val safeUid = uid?.takeIf { it.isNotBlank() && isSafeAccountId(it) }
+        synchronized(stateLock) {
+            activeAccountId = safeUid
+            _profile.value = load(safeUid)
+        }
+    }
 
     /**
      * Update preferences atomically. The supplied [transform] receives the
@@ -59,12 +72,7 @@ class UserProfileRepository(private val context: Context) {
      * and emitted to all observers.
      */
     fun update(transform: UserPreferences.() -> UserPreferences) {
-        repoScope.launch {
-            val updated = _profile.value.transform().copy(lastUpdatedAtMs = System.currentTimeMillis())
-            _profile.value = updated
-            persist(updated)
-            LoggingService.info(TAG, "AIRI PROFILE_UPDATED")
-        }
+        repoScope.launch { updateSuspend(transform) }
     }
 
     /**
@@ -72,9 +80,12 @@ class UserProfileRepository(private val context: Context) {
      */
     suspend fun updateSuspend(transform: UserPreferences.() -> UserPreferences) {
         withContext(Dispatchers.IO) {
-            val updated = _profile.value.transform().copy(lastUpdatedAtMs = System.currentTimeMillis())
-            _profile.value = updated
-            persist(updated)
+            synchronized(stateLock) {
+                val accountId = activeAccountId
+                val updated = _profile.value.transform().copy(lastUpdatedAtMs = System.currentTimeMillis())
+                _profile.value = updated
+                persist(updated, accountId)
+            }
             LoggingService.info(TAG, "AIRI PROFILE_UPDATED_SUSPEND")
         }
     }
@@ -108,7 +119,7 @@ class UserProfileRepository(private val context: Context) {
                 lastUpdatedAtMs      = System.currentTimeMillis()
             )
             _profile.value = merged
-            persist(merged)
+            persist(merged, activeAccountId)
             LoggingService.info(TAG, "AIRI PROFILE_MERGED_FROM_CLOUD")
         }
     }
@@ -120,7 +131,7 @@ class UserProfileRepository(private val context: Context) {
         repoScope.launch {
             val fresh = UserPreferences()
             _profile.value = fresh
-            persist(fresh)
+            persist(fresh, activeAccountId)
             LoggingService.info(TAG, "AIRI PROFILE_RESET")
         }
     }
@@ -149,24 +160,30 @@ class UserProfileRepository(private val context: Context) {
                 lastUpdatedAtMs = System.currentTimeMillis()
             )
             _profile.value = cleared
-            persist(cleared)
+            persist(cleared, activeAccountId)
             LoggingService.info(TAG, "AIRI PROFILE_IDENTITY_CLEARED")
         }
     }
 
-    private fun load(): UserPreferences {
-        val json = prefs.getString(KEY_PROFILE_JSON, null) ?: return UserPreferences()
+    private fun load(accountId: String?): UserPreferences {
+        val key = accountId?.let { profileKey(it) } ?: KEY_PROFILE_JSON
+        val json = prefs.getString(key, null) ?: return UserPreferences()
         return runCatching { gson.fromJson(json, UserPreferences::class.java) }
             .getOrDefault(UserPreferences())
             .also { Log.i(TAG, "Profile loaded from disk") }
     }
 
-    private fun persist(prefs: UserPreferences) {
+    private fun persist(prefs: UserPreferences, accountId: String?) {
         runCatching {
             val json = gson.toJson(prefs)
-            this.prefs.edit().putString(KEY_PROFILE_JSON, json).apply()
+            this.prefs.edit().putString(accountId?.let { profileKey(it) } ?: KEY_PROFILE_JSON, json).apply()
         }.onFailure { Log.e(TAG, "Failed to persist profile: ${it.message}") }
     }
+
+    private fun profileKey(uid: String) = "$KEY_PROFILE_JSON.$uid"
+
+    private fun isSafeAccountId(uid: String): Boolean =
+        uid.length <= 128 && uid.all { it.isLetterOrDigit() || it == '-' || it == '_' }
 
     companion object {
         private const val PREF_FILE        = "airi_user_profile"

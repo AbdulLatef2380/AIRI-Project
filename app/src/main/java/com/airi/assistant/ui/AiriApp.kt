@@ -211,6 +211,10 @@ fun AiriApp() {
     val browserHandoff by BrowserUserTakeoverCoordinator.pending.collectAsStateWithLifecycle()
     var browserHandoffUnavailable by remember { mutableStateOf(false) }
 
+    LaunchedEffect(authService.currentUserId) {
+        ServiceLocator.userProfileRepository.activateAccount(authService.currentUserId)
+    }
+
     // Part 5 §1: airi://agent/run/{id}. A run that no longer exists falls back to the run list.
     val pendingRunId by com.airi.assistant.ui.run.AgentRunDeepLink.pending.collectAsStateWithLifecycle()
     LaunchedEffect(pendingRunId) {

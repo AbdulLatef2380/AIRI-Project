@@ -182,7 +182,9 @@ class EmbeddingService(context: Context) {
         query:         String,
         k:             Int   = 5,
         minSimilarity: Float = 0.25f,
-        halfLifeHours: Float = 24f
+        halfLifeHours: Float = 24f,
+        projectId: String = "",
+        maxPrivacyLevel: Int = 1,
     ): List<RankedMessage> {
         if (!isReady()) {
             Log.i("AIRI", "VECTOR_SEARCH_SKIPPED reason=not_loaded session=$sessionId")
@@ -190,10 +192,16 @@ class EmbeddingService(context: Context) {
         }
         if (query.isBlank() || k <= 0) return emptyList()
         val qVec = computeRaw(query) ?: return emptyList()
-        // Semantic recall is session-scoped by default. This keeps unrelated
-        // conversations out of the prompt and bounds the in-memory cosine scan
-        // to the session transcript cap instead of the whole installation.
-        val rows = dao.getAllForSession(sessionId, qVec.size)
+        // The DAO join applies ownership/privacy/expiry before vectors enter
+        // the candidate pool. RagRetriever performs an independent post-filter
+        // before prompt assembly as a second defensive boundary.
+        val rows = dao.getScopedCandidates(
+            sessionId = sessionId,
+            projectId = projectId,
+            maxPrivacyLevel = maxPrivacyLevel,
+            nowMs = System.currentTimeMillis(),
+            dim = qVec.size,
+        )
         if (rows.isEmpty()) {
             Log.i("AIRI_MEMORY", "VECTOR_SEARCH_NO_INDEX session=$sessionId dim=${qVec.size}")
             return emptyList()

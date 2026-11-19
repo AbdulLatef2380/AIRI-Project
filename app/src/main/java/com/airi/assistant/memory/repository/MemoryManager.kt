@@ -473,13 +473,17 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         maxPrivacyLevel: Int,
         limit: Int,
     ): List<ChatMessage> {
+        val safePrivacyLevel = MemoryMetadataPolicy.normalizePrivacyLevel(maxPrivacyLevel)
+        val nowMs = System.currentTimeMillis()
         val memories = dao.getScopedLongTermMemories(
             sessionId = sessionId,
             projectId = projectId,
-            maxPrivacyLevel = MemoryMetadataPolicy.normalizePrivacyLevel(maxPrivacyLevel),
-            nowMs = System.currentTimeMillis(),
+            maxPrivacyLevel = safePrivacyLevel,
+            nowMs = nowMs,
             limit = limit.coerceIn(1, MAX_RETRIEVAL_LIMIT)
-        )
+        ).filter { memory ->
+            MemoryMetadataPolicy.isVisible(memory, sessionId, projectId, safePrivacyLevel, nowMs)
+        }
         if (memories.isNotEmpty()) {
             dao.markMemoriesAccessed(memories.map(ChatMessage::id), System.currentTimeMillis())
         }
@@ -491,13 +495,17 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         sessionId: String,
         projectId: String,
         maxPrivacyLevel: Int,
-    ): Boolean = dao.isScopedLongTermMemoryVisible(
-        memoryId = memoryId,
-        sessionId = sessionId,
-        projectId = projectId,
-        maxPrivacyLevel = MemoryMetadataPolicy.normalizePrivacyLevel(maxPrivacyLevel),
-        nowMs = System.currentTimeMillis(),
-    )
+    ): Boolean {
+        val nowMs = System.currentTimeMillis()
+        val memory = dao.getMessageById(memoryId) ?: return false
+        return MemoryMetadataPolicy.isVisible(
+            memory = memory,
+            sessionId = sessionId,
+            projectId = projectId,
+            maxPrivacyLevel = maxPrivacyLevel,
+            nowMs = nowMs,
+        )
+    }
 
     suspend fun explainMemory(memoryId: Long): MemoryExplanation? = dao.getMessageById(memoryId)
         ?.takeIf { it.isMemory }
@@ -602,9 +610,19 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
      *
      * Emits AIRI VECTOR_SEARCH_HIT (or _SKIPPED / _EMPTY).
      */
-    override suspend fun semanticSearch(sessionId: String, query: String, k: Int):
-        List<EmbeddingService.RankedMessage> =
-            embeddingService.topKSimilar(sessionId, query, k)
+    override suspend fun semanticSearch(
+        sessionId: String,
+        query: String,
+        k: Int,
+        projectId: String,
+        maxPrivacyLevel: Int,
+    ): List<EmbeddingService.RankedMessage> = embeddingService.topKSimilar(
+        sessionId = sessionId,
+        query = query,
+        k = k,
+        projectId = projectId,
+        maxPrivacyLevel = maxPrivacyLevel,
+    )
 
     /**
      * Build a "Relevant prior context" block for splicing into a system

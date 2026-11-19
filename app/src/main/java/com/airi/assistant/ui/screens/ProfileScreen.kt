@@ -413,6 +413,12 @@ fun ProfileScreen(
                 color    = AiriTheme.onSurfaceVariant,
                 fontSize = 13.sp
             )
+            Text(
+                text = stringResource(R.string.profile_photo_local_only),
+                color = AiriTheme.onSurfaceVariant.copy(alpha = 0.78f),
+                fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            )
 
             Spacer(Modifier.height(24.dp))
 

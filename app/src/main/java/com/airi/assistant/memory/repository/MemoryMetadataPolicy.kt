@@ -1,6 +1,7 @@
 package com.airi.assistant.memory.repository
 
 import com.airi.core.memory.MemoryAdmissionPolicy
+import com.airi.assistant.memory.entity.ChatMessage
 
 /**
  * Pure metadata policy shared by memory persistence and retrieval.
@@ -46,6 +47,24 @@ internal object MemoryMetadataPolicy {
             "Explicit user memory request"
         } else {
             normalized
+        }
+    }
+
+    /** The single ownership, privacy, and expiry rule used by every memory read path. */
+    fun isVisible(
+        memory: ChatMessage,
+        sessionId: String,
+        projectId: String,
+        maxPrivacyLevel: Int,
+        nowMs: Long,
+    ): Boolean {
+        if (!memory.isMemory || memory.privacyLevel > normalizePrivacyLevel(maxPrivacyLevel)) return false
+        if (memory.expiresAtMs >= 0L && memory.expiresAtMs <= nowMs) return false
+        return when (memory.memoryScope) {
+            MemoryScope.USER.name -> true
+            MemoryScope.PROJECT.name -> projectId.isNotBlank() && memory.projectId == projectId
+            MemoryScope.SESSION.name -> memory.sessionId == sessionId
+            else -> false
         }
     }
 }

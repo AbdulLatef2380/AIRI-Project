@@ -9,6 +9,8 @@ import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import com.airi.assistant.domain.logging.LoggingService
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -27,6 +29,7 @@ import kotlin.coroutines.resume
 object BiometricGatekeeper {
 
     private const val TAG = "BiometricGatekeeper"
+    private val authService = BiometricAuthService()
 
     enum class Availability {
         AVAILABLE,
@@ -58,13 +61,22 @@ object BiometricGatekeeper {
         subtitle: String = "AIRI needs to verify your identity",
         negativeButtonText: String = "Cancel"
     ): Boolean = suspendCancellableCoroutine { cont ->
-
+        authService.onForeground()
+        val session = authService.begin(checkAvailability(activity) == Availability.AVAILABLE)
+        if (session == null) {
+            if (cont.isActive) cont.resume(false)
+            return@suspendCancellableCoroutine
+        }
+        lateinit var lifecycleObserver: DefaultLifecycleObserver
         val executor = ContextCompat.getMainExecutor(activity)
         val prompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 Log.i(TAG, "Biometric auth succeeded type=${result.authenticationType}")
                 LoggingService.info(TAG, "AIRI BIOMETRIC_AUTH_SUCCESS")
-                if (cont.isActive) cont.resume(true)
+                activity.lifecycle.removeObserver(lifecycleObserver)
+                if (cont.isActive) {
+                    cont.resume(authService.complete(session, BiometricAuthService.Outcome.SUCCESS) == BiometricAuthService.Result.SUCCESS)
+                }
             }
 
             override fun onAuthenticationFailed() {
@@ -74,7 +86,14 @@ object BiometricGatekeeper {
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 Log.w(TAG, "Biometric auth error code=$errorCode msg=$errString")
                 LoggingService.warn(TAG, "AIRI BIOMETRIC_AUTH_ERROR code=$errorCode")
-                if (cont.isActive) cont.resume(false)
+                activity.lifecycle.removeObserver(lifecycleObserver)
+                val outcome = if (errorCode == BiometricPrompt.ERROR_CANCELED ||
+                    errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
+                    errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON
+                ) BiometricAuthService.Outcome.CANCELLED else BiometricAuthService.Outcome.FAILURE
+                if (cont.isActive) cont.resume(
+                    authService.complete(session, outcome) == BiometricAuthService.Result.SUCCESS
+                )
             }
         })
 
@@ -84,10 +103,43 @@ object BiometricGatekeeper {
             .setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
             .build()
 
-        cont.invokeOnCancellation { prompt.cancelAuthentication() }
+        lifecycleObserver = object : DefaultLifecycleObserver {
+            override fun onStop(owner: LifecycleOwner) {
+                authService.onBackground()
+                prompt.cancelAuthentication()
+            }
+
+            override fun onDestroy(owner: LifecycleOwner) {
+                if ((owner as? FragmentActivity)?.isChangingConfigurations == true) {
+                    authService.onRotation()
+                } else {
+                    authService.onBackground()
+                }
+                owner.lifecycle.removeObserver(this)
+            }
+        }
+        activity.lifecycle.addObserver(lifecycleObserver)
+
+        cont.invokeOnCancellation {
+            activity.lifecycle.removeObserver(lifecycleObserver)
+            authService.complete(session, BiometricAuthService.Outcome.CANCELLED)
+            prompt.cancelAuthentication()
+        }
 
         prompt.authenticate(promptInfo)
     }
+
+    /** Call from the host lifecycle when its window is no longer foreground. */
+    fun onBackground() = authService.onBackground()
+
+    /** Call when the host returns to the foreground; a new auth is required. */
+    fun onForeground() = authService.onForeground()
+
+    /** Invalidates prompt callbacks across an activity configuration change. */
+    fun onRotation() = authService.onRotation()
+
+    /** Invalidates all in-memory auth state after process recreation. */
+    fun onProcessRecreated() = authService.onProcessRecreated()
 
     /**
      * Returns true if biometric is available AND enrolled — useful for gating

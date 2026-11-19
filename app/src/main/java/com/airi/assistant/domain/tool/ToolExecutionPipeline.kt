@@ -2,6 +2,9 @@ package com.airi.assistant.domain.tool
 
 import com.airi.assistant.domain.execution.ExecutionOutcome
 import com.airi.assistant.domain.execution.RequestId
+import com.airi.assistant.domain.execution.TerminalOutcome
+import com.airi.assistant.domain.execution.TerminalOutcomeAdapter
+import com.airi.assistant.domain.execution.TerminalStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import java.util.concurrent.ConcurrentHashMap
@@ -15,6 +18,7 @@ data class ToolRequest(
     val toolId: String,
     val rawArguments: Map<String, String>,
     val approvalToken: String? = null,
+    val executionId: String = requestId.value,
 ) {
     init {
         require(generationId >= 0L)
@@ -121,6 +125,7 @@ class ToolExecutionPipeline(
     private val sandbox: ToolSandbox,
     private val handler: ToolHandler,
     private val invocationLedger: ToolInvocationLedger = InMemoryToolInvocationLedger(),
+    private val terminalObserver: (ToolRequest, TerminalOutcome) -> Unit = { _, _ -> },
 ) {
     private val inFlight = ConcurrentHashMap<RequestId, CompletableDeferred<ExecutionOutcome>>()
 
@@ -129,20 +134,37 @@ class ToolExecutionPipeline(
         val result = CompletableDeferred<ExecutionOutcome>()
         val running = inFlight.putIfAbsent(request.requestId, result)
         if (running != null) return running.await()
+        val terminal = TerminalOutcomeAdapter { outcome -> terminalObserver(request, outcome) }
         try {
             invocationLedger.outcome(request.requestId)?.let {
                 result.complete(it)
                 return it
             }
             val outcome = executeOnce(request)
+            terminal.publish(outcome.terminalStatus(), outcome.reason())
             result.complete(outcome)
             return outcome
         } catch (cancelled: CancellationException) {
+            terminal.publish(TerminalStatus.CANCELLED, cancelled.message)
             result.cancel(cancelled)
             throw cancelled
         } finally {
             inFlight.remove(request.requestId, result)
         }
+    }
+
+    private fun ExecutionOutcome.terminalStatus(): TerminalStatus = when (this) {
+        is ExecutionOutcome.Success, is ExecutionOutcome.Empty -> TerminalStatus.SUCCESS
+        is ExecutionOutcome.Failure -> TerminalStatus.FAILURE
+        is ExecutionOutcome.Timeout -> TerminalStatus.TIMEOUT
+        is ExecutionOutcome.Cancelled -> TerminalStatus.CANCELLED
+        is ExecutionOutcome.Partial -> if (terminalCause == ExecutionOutcome.TerminalCause.TIMEOUT) TerminalStatus.TIMEOUT else TerminalStatus.FAILURE
+    }
+
+    private fun ExecutionOutcome.reason(): String? = when (this) {
+        is ExecutionOutcome.Failure -> reason
+        is ExecutionOutcome.Partial -> text
+        else -> null
     }
 
     private suspend fun executeOnce(request: ToolRequest): ExecutionOutcome {

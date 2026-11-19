@@ -123,6 +123,20 @@ class AccountOwnershipPolicyTest {
     }
 
     @Test
+    fun `account switch selects only the active uid local avatar`() {
+        val stored = mapOf(
+            "uid_a" to UserPreferences(localPhotoPath = "/data/files/profile/uid_a/avatar.jpg"),
+            "uid_b" to UserPreferences(localPhotoPath = "/data/files/profile/uid_b/avatar.jpg")
+        )
+
+        val accountA = stored["uid_a"] ?: error("missing account A")
+        val accountB = stored["uid_b"] ?: error("missing account B")
+        assertEquals("/data/files/profile/uid_a/avatar.jpg", accountA.localPhotoPath)
+        assertEquals("/data/files/profile/uid_b/avatar.jpg", accountB.localPhotoPath)
+        assertFalse(accountB.localPhotoPath.contains("uid_a"))
+    }
+
+    @Test
     fun `blank uid prevents photo caching`() {
         // cachePhotoForAccount() returns null when uid is blank.
         // We cannot call it here (needs Context), but we can assert

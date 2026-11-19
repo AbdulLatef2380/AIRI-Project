@@ -24,8 +24,27 @@ interface EmbeddingDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(embedding: MessageEmbedding)
 
-    @Query("SELECT * FROM message_embedding WHERE sessionId = :sessionId AND dim = :dim")
-    suspend fun getAllForSession(sessionId: String, dim: Int): List<MessageEmbedding>
+    /** Ownership/privacy is authoritative on episodic_memory, not the denormalized vector row. */
+    @Query("""
+        SELECT e.* FROM message_embedding e
+        INNER JOIN episodic_memory m ON m.id = e.messageId
+        WHERE e.sessionId = m.sessionId
+          AND e.dim = :dim
+          AND m.privacyLevel <= :maxPrivacyLevel
+          AND (m.expiresAtMs < 0 OR m.expiresAtMs > :nowMs)
+          AND (
+              m.memoryScope = 'USER'
+              OR (m.memoryScope = 'PROJECT' AND :projectId != '' AND m.projectId = :projectId)
+              OR (m.memoryScope = 'SESSION' AND m.sessionId = :sessionId)
+          )
+    """)
+    suspend fun getScopedCandidates(
+        sessionId: String,
+        projectId: String,
+        maxPrivacyLevel: Int,
+        nowMs: Long,
+        dim: Int,
+    ): List<MessageEmbedding>
 
     @Query("SELECT * FROM message_embedding WHERE messageId = :messageId LIMIT 1")
     suspend fun getByMessage(messageId: Long): MessageEmbedding?

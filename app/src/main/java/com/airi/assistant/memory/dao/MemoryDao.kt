@@ -118,6 +118,8 @@ interface MemoryDao {
               AND privacyLevel <= :maxPrivacyLevel
               AND (expiresAtMs < 0 OR expiresAtMs > :nowMs)
               AND (
+                  memoryScope = 'USER'
+                  OR
                   (memoryScope = 'SESSION' AND sessionId = :sessionId)
                   OR (memoryScope = 'PROJECT' AND :projectId != '' AND projectId = :projectId)
               )

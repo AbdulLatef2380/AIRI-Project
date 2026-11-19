@@ -32,6 +32,8 @@ import com.airi.assistant.execution.stableArgumentsHash
 import com.airi.assistant.execution.ExecOrigin
 import com.airi.assistant.execution.AgentOrchestrator
 import com.airi.assistant.domain.tool.StrictArgumentValidator
+import com.airi.assistant.domain.execution.TerminalOutcomeAdapter
+import com.airi.assistant.domain.execution.TerminalStatus
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 import kotlinx.coroutines.CancellationException
@@ -105,6 +107,7 @@ class AgentLoop(
         /** Absolute ceiling for one request, however much progress it makes. */
         private const val HARD_CAP_MS      = 15 * 60_000L
         private const val MAX_PLATFORM_SNAPSHOT_CHARS = 12_000
+        private const val MAX_TOOL_RESULT_CONTEXT_CHARS = 4_000
         /**
          * : Stable principal registered in [ScopedPermissionRegistry] for the
          * agent loop's tool-dispatch sandbox context. All tool calls on behalf of
@@ -342,6 +345,15 @@ the tool returns an actual error.
         val maxRepairAttempts = 2
         val executionId   = requestedExecutionId?.takeIf(String::isNotBlank) ?: UUID.randomUUID().toString()
         val traceId = "trace-$executionId"
+        val terminal = TerminalOutcomeAdapter { outcome ->
+            runtimeTrace?.terminalOutcome(executionId, sessionId, outcome.status.name, outcome.reason)
+            when (outcome.status) {
+                TerminalStatus.SUCCESS -> ExecutionStatusBus.onGraphCompleted(true, executionId)
+                TerminalStatus.FAILURE -> ExecutionStatusBus.onGraphCompleted(false, executionId)
+                TerminalStatus.TIMEOUT -> ExecutionStatusBus.onGraphTimedOut(executionId, outcome.reason ?: "Agent execution timed out.")
+                TerminalStatus.CANCELLED -> ExecutionStatusBus.onGraphCancelled(executionId)
+            }
+        }
         val requestIdentity = ChatExecutionIdentityContract.create(sessionId, executionId)
         runtimeTrace?.begin(
             executionId = executionId,
@@ -410,6 +422,7 @@ the tool returns an actual error.
             runtimeTrace?.intentStage(executionId, sessionId, "TOOL_ADMITTED", "admitted", capabilityId = tool.name)
         }
         val toolLedger = ToolCallLedger()
+        val dependencyResolver = com.airi.assistant.agent.loop.tool.ToolCallDependencyResolver()
         var isPlanPublished = false
         var durableExecutionContext: AgentLoopExecutionContext? = null
         var activeToolTrace: ActiveToolTrace? = null
@@ -546,7 +559,7 @@ the tool returns an actual error.
                     detail = "Time lookup was cancelled.",
                 )
                 activeToolTrace = null
-                ExecutionStatusBus.onGraphCancelled(executionId)
+                terminal.publish(TerminalStatus.CANCELLED)
                 throw cancelled
             } catch (error: Exception) {
                 ToolDispatcher.ToolResult.Error(
@@ -671,10 +684,10 @@ the tool returns an actual error.
                 )
                 runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = if (response.isBlank()) "NO_RESPONSE" else "SUCCESS")
                 return@withTimeout if (response.isBlank()) {
-                    ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
+                    terminal.publish(TerminalStatus.FAILURE)
                     LoopResult("", 1, emptyList(), terminalState = TerminalState.NO_RESPONSE, completionMetadata = completionMetadata)
                 } else {
-                    ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
+                    terminal.publish(TerminalStatus.SUCCESS)
                     LoopResult(response, 1, emptyList(), terminalState = TerminalState.SUCCESS, completionMetadata = completionMetadata)
                 }
             }
@@ -682,7 +695,7 @@ the tool returns an actual error.
             while (stepsUsed < MAX_STEPS && coroutineContext.isActive) {
                 if (System.currentTimeMillis() - progressMs.get() >= timeoutMs) {
                     LoggingService.warn(TAG, "AgentLoop stalled after ${stepsUsed} steps")
-                    ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
+                    terminal.publish(TerminalStatus.TIMEOUT, "Agent execution stalled.")
                     return@withTimeout LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.TIMEOUT)
                 }
 
@@ -760,7 +773,7 @@ the tool returns an actual error.
                 )
                 if (rawResponse.isBlank()) {
                     runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = "NO_RESPONSE")
-                    ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
+                    terminal.publish(TerminalStatus.FAILURE)
                     return@withTimeout LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.NO_RESPONSE, completionMetadata = completionMetadata)
                 }
 
@@ -843,6 +856,14 @@ the tool returns an actual error.
                         executionId = executionId,
                     )
                     val batchResults = com.airi.assistant.agent.loop.tool.ToolCallBatchExecutor.execute(batchRequests) { request ->
+                        when (val dependency = dependencyResolver.resolve(request.arguments)) {
+                            is com.airi.assistant.agent.loop.tool.ToolCallDependencyResolver.Resolution.Unresolved ->
+                                return@execute ToolDispatcher.ToolResult.Error(
+                                    "Tool dependency '${dependency.reference}' could not be resolved.",
+                                    code = com.airi.assistant.agent.loop.tool.ToolErrorCodes.DEPENDENCY_UNRESOLVED,
+                                )
+                            is com.airi.assistant.agent.loop.tool.ToolCallDependencyResolver.Resolution.Resolved -> Unit
+                        }
                         val actionId = batchActionIds.getValue(request.id)
                         val startedAtMs = System.currentTimeMillis()
                         ExecutionStatusBus.onToolRequested(
@@ -926,14 +947,19 @@ the tool returns an actual error.
                             actionId = actionId,
                             detail = "Checking parallel tool result before completion.",
                         )
-                        val verificationPassed = ToolResultVerifier.isVerified(result)
+                        val verification = ToolResultVerifier.verify(
+                            request.toolName,
+                            request.schema,
+                            result,
+                        )
+                        val verificationPassed = verification.passed
                         ExecutionStatusBus.onVerificationCompleted(
                             executionId = executionId,
                             actionId = actionId,
                             passed = verificationPassed,
                             detail = if (verificationPassed) "Tool result is present." else "Tool result was not verified.",
-                            errorCode = if (verificationPassed) null else (result as? ToolDispatcher.ToolResult.Error)?.code
-                                ?: "verification_failed",
+                            errorCode = if (verificationPassed) null else verification.code
+                                ?: (result as? ToolDispatcher.ToolResult.Error)?.code ?: "verification_failed",
                         )
                         val durationMs = System.currentTimeMillis() - startedAtMs
                         runtimeTrace?.executionCompleted(
@@ -1003,6 +1029,7 @@ the tool returns an actual error.
                                 outcome.request.id,
                             )
                         )
+                        dependencyResolver.registerResult(outcome.request.id, resultText)
                         runtimeTrace?.dispatched(executionId, sessionId, outcome.request.toolName, "parallel_read_batch")
                         runtimeTrace?.executionCompleted(
                             executionId, sessionId, outcome.request.toolName,
@@ -1178,28 +1205,37 @@ the tool returns an actual error.
                     if (gateNotice == null) {
                         runtimeTrace?.continuation(executionId, sessionId, continued = false, terminalState = "SUCCESS")
                     }
-                    ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
+                    terminal.publish(TerminalStatus.SUCCESS)
                     return@withTimeout LoopResult(finalText, stepsUsed, toolsInvoked, completionMetadata = completionMetadata)
                 }
 
                 // Execute the tool
                 val toolName = toolCall.toolName
                 val rawToolArgs = toolCall.params
+                val dependencyResolution = dependencyResolver.resolve(rawToolArgs)
+                val resolvedToolArgs = when (dependencyResolution) {
+                    is com.airi.assistant.agent.loop.tool.ToolCallDependencyResolver.Resolution.Resolved -> dependencyResolution.arguments
+                    is com.airi.assistant.agent.loop.tool.ToolCallDependencyResolver.Resolution.Unresolved -> rawToolArgs
+                }
                 val selectedToolSchema = effectiveTools.firstOrNull { it.name == toolName }
-                val strictValidation = selectedToolSchema?.let { schema ->
+                val strictValidation = if (dependencyResolution is com.airi.assistant.agent.loop.tool.ToolCallDependencyResolver.Resolution.Unresolved) {
+                    null
+                } else selectedToolSchema?.let { schema ->
                     StrictArgumentValidator.validate(
                         spec = ToolSpecAdapter.fromSchema(schema),
-                        raw = rawToolArgs,
+                        raw = resolvedToolArgs,
                     )
                 }
                 val toolValidationError = when {
+                    dependencyResolution is com.airi.assistant.agent.loop.tool.ToolCallDependencyResolver.Resolution.Unresolved ->
+                        "Tool dependency '${dependencyResolution.reference}' could not be resolved."
                     selectedToolSchema == null -> "Tool '$toolName' is not available in this session."
                     strictValidation?.failure != null -> strictValidation.failure?.message ?: "Invalid tool arguments."
                     else -> null
                 }
                 // Handlers receive only canonical values produced by the strict
                 // validator. Raw model arguments never cross this boundary.
-                val toolArgs = strictValidation?.arguments?.canonical ?: rawToolArgs
+                val toolArgs = strictValidation?.arguments?.canonical ?: resolvedToolArgs
                 runtimeTrace?.selected(
                     executionId = executionId,
                     sessionId = sessionId,
@@ -1352,11 +1388,13 @@ the tool returns an actual error.
                 }
                 val refusalResult: ToolDispatcher.ToolResult.Error? = untrustedRefusal
                 var approvalPending = false
-                val toolResult = if (toolValidationError != null) {
+                var toolResult = if (toolValidationError != null) {
                     LoggingService.warn(TAG, "AIRI TOOL_REJECTED_INVALID_SCHEMA tool=$toolName")
                     ToolDispatcher.ToolResult.Error(
                         toolValidationError,
-                        code = if (selectedToolSchema == null) {
+                        code = if (dependencyResolution is com.airi.assistant.agent.loop.tool.ToolCallDependencyResolver.Resolution.Unresolved) {
+                            com.airi.assistant.agent.loop.tool.ToolErrorCodes.DEPENDENCY_UNRESOLVED
+                        } else if (selectedToolSchema == null) {
                             com.airi.assistant.agent.loop.tool.ToolErrorCodes.TOOL_NOT_FOUND
                         } else {
                             com.airi.assistant.agent.loop.tool.ToolErrorCodes.INVALID_ARGUMENT
@@ -1639,7 +1677,7 @@ the tool returns an actual error.
                     )
                 }
 
-                val resultText = if (approvalPending) {
+                var resultText = if (approvalPending) {
                     "Approval is required; the requested action is paused for user review. Do not retry the operation."
                 } else when (toolResult) {
                     is ToolDispatcher.ToolResult.Success -> toolResult.output
@@ -1653,14 +1691,24 @@ the tool returns an actual error.
                         actionId = toolStepId,
                         detail = "Checking tool result before completion.",
                     )
-                    val passed = ToolResultVerifier.isVerified(toolResult)
+                    val verification = ToolResultVerifier.verify(toolName, selectedToolSchema, toolResult)
+                    val passed = verification.passed
+                    if (!passed && toolResult is ToolDispatcher.ToolResult.Success) {
+                        toolResult = ToolDispatcher.ToolResult.Error(
+                            verification.reason ?: "Side-effect result was not semantically verified.",
+                            code = verification.code ?: "verification_failed",
+                            provenance = toolResult.provenance,
+                            evidence = toolResult.evidence,
+                        )
+                        resultText = "Error [${verification.code ?: "verification_failed"}]: ${verification.reason ?: "Side-effect result was not semantically verified."}"
+                    }
                     ExecutionStatusBus.onVerificationCompleted(
                         executionId = executionId,
                         actionId = toolStepId,
                         passed = passed,
                         detail = if (passed) "Tool result is present." else "Tool result was not verified.",
-                        errorCode = if (passed) null else (toolResult as? ToolDispatcher.ToolResult.Error)?.code
-                            ?: "verification_failed",
+                        errorCode = if (passed) null else verification.code
+                            ?: (toolResult as? ToolDispatcher.ToolResult.Error)?.code ?: "verification_failed",
                     )
                     passed
                 } else false
@@ -1733,6 +1781,7 @@ the tool returns an actual error.
                     is ToolDispatcher.ToolResult.Error -> toolResult.provenance.name.lowercase()
                 }
                 LoggingService.info(TAG, "AIRI TOOL_RESULT tool=$toolName success=$verificationPassed code=$resultCode provenance=$resultProvenance len=${resultText.length}")
+                dependencyResolver.registerResult(toolCall.id, resultText)
 
                 ExecutionStatusBus.onNodeCompleted(
                     stepId,
@@ -1841,10 +1890,10 @@ the tool returns an actual error.
                 stallMs = timeoutMs,
             )
             if (summary.isBlank()) {
-                ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
+                terminal.publish(TerminalStatus.FAILURE)
                 return@withTimeout LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.NO_RESPONSE, completionMetadata = completionMetadata)
             }
-            ExecutionStatusBus.onGraphCompleted(true, executionId = executionId)
+            terminal.publish(TerminalStatus.SUCCESS)
             return@withTimeout LoopResult(summary, stepsUsed, toolsInvoked, terminalState = TerminalState.SUCCESS, completionMetadata = completionMetadata)
             }
 
@@ -1858,8 +1907,7 @@ the tool returns an actual error.
                     detail = "Agent execution stalled.",
                 )
             }
-            runtimeTrace?.terminalOutcome(executionId, sessionId, "TIMEOUT", e.message)
-            ExecutionStatusBus.onGraphTimedOut(executionId, e.message ?: "Agent execution stalled.")
+            terminal.publish(TerminalStatus.TIMEOUT, e.message)
             LoggingService.warn(TAG, "AgentLoop stalled: no progress for ${timeoutMs}ms")
             return LoopResult(
                 finalAnswer = "",
@@ -1879,8 +1927,7 @@ the tool returns an actual error.
                     detail = "Agent execution timed out.",
                 )
             }
-            runtimeTrace?.terminalOutcome(executionId, sessionId, "TIMEOUT", e.message)
-            ExecutionStatusBus.onGraphTimedOut(executionId, e.message ?: "Agent execution timed out.")
+            terminal.publish(TerminalStatus.TIMEOUT, e.message)
             LoggingService.warn(TAG, "AgentLoop reached its ${timeoutMs}ms execution deadline")
             return LoopResult(
                 finalAnswer = "",
@@ -1900,12 +1947,10 @@ the tool returns an actual error.
                     detail = "Tool was cancelled.",
                 )
             }
-            runtimeTrace?.terminalOutcome(executionId, sessionId, "CANCELLED", e.message)
-            ExecutionStatusBus.onGraphCancelled(executionId)
+            terminal.publish(TerminalStatus.CANCELLED)
             return LoopResult("", stepsUsed, toolsInvoked, terminalState = TerminalState.CANCELLED, completionMetadata = completionMetadata)
         } catch (e: Exception) {
-            runtimeTrace?.terminalOutcome(executionId, sessionId, "FAILURE", e.message)
-            ExecutionStatusBus.onGraphCompleted(false, executionId = executionId)
+            terminal.publish(TerminalStatus.FAILURE)
             LoggingService.error(TAG, "AgentLoop failed type=${e.javaClass.simpleName}")
             return LoopResult(
                 finalAnswer = "",
@@ -1997,7 +2042,7 @@ the tool returns an actual error.
                 )
                 is ConversationTurn.ToolResult -> ExecutionRequest.ConversationTurn(
                     role = "tool",
-                    content = turn.result.take(4000),
+                    content = boundedToolResultForContext(turn.result),
                     kind = "tool_result",
                     toolName = turn.toolName,
                     toolCallId = turn.toolCallId,
@@ -2128,6 +2173,16 @@ the tool returns an actual error.
         val released = streamGate.releaseIfNotToolCall(finalText)
         if (released.isNotEmpty()) onToken(released)
         return finalText
+    }
+
+    /** Preserve an explicit omission marker instead of silently dropping tool output. */
+    private fun boundedToolResultForContext(result: String): String {
+        if (result.length <= MAX_TOOL_RESULT_CONTEXT_CHARS) return result
+        val marker = "\n[… tool_result_truncated omitted=${result.length - MAX_TOOL_RESULT_CONTEXT_CHARS} chars …]\n"
+        val available = MAX_TOOL_RESULT_CONTEXT_CHARS - marker.length
+        val head = (available * 2 / 3).coerceAtLeast(1)
+        val tail = (available - head).coerceAtLeast(1)
+        return result.take(head) + marker + result.takeLast(tail)
     }
 
     /**

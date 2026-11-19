@@ -124,6 +124,51 @@ class MemoryStoreRagIntegrationTest {
             .any { it.source == "MEMORY_STORE" })
     }
 
+    @Test
+    fun mirroredFactExpiresAndIsRemovedWithItsSourceMemory() = runBlocking {
+        MemoryStore.mergeFacts(
+            ctx = context,
+            sessionId = "mirror-session",
+            newFacts = listOf("preference=temporary"),
+            sourceMemoryId = 456L,
+            expiresAtMs = System.currentTimeMillis() - 1L,
+        )
+        val rag = RagRetriever(EmptyRagMemorySource, scratchpadFactSource = ragSource)
+        assertFalse(rag.retrieve("mirror-session", "temporary")
+            .any { it.source == "MEMORY_STORE" })
+
+        MemoryStore.mergeFacts(
+            ctx = context,
+            sessionId = "mirror-session",
+            newFacts = listOf("preference=durable until delete"),
+            sourceMemoryId = 789L,
+        )
+        MemoryStore.removeSourceMemory(context, "mirror-session", 789L)
+        assertFalse(rag.retrieve("mirror-session", "durable until delete")
+            .any { it.source == "MEMORY_STORE" })
+    }
+
+    @Test
+    fun semanticPostFilterRejectsCrossSessionProjectAndPrivacyHits() = runBlocking {
+        val visible = ChatMessage(
+            id = 1L, sessionId = "session-a", role = "user", content = "visible",
+            memoryScope = "SESSION", privacyLevel = 1,
+        )
+        val crossSession = visible.copy(id = 2L, sessionId = "session-b", content = "cross-session")
+        val crossProject = visible.copy(id = 3L, memoryScope = "PROJECT", projectId = "project-b", content = "cross-project")
+        val tooPrivate = visible.copy(id = 4L, privacyLevel = 3, content = "too-private")
+        val rag = RagRetriever(
+            memoryManager = FixedSemanticMemorySource(
+                listOf(visible, crossSession, crossProject, tooPrivate).map {
+                    EmbeddingService.RankedMessage(it, 0.95f)
+                }
+            )
+        )
+
+        val result = rag.retrieve("session-a", "visible", projectId = "project-a", maxPrivacyLevel = 2)
+        assertEquals(listOf("visible"), result.map { it.content })
+    }
+
     private object EmptyRagMemorySource : RagMemorySource {
         override suspend fun getScopedLongTermMemories(
             sessionId: String,
@@ -145,9 +190,25 @@ class MemoryStoreRagIntegrationTest {
 
         override fun isSemanticMemoryReady() = false
 
-        override suspend fun semanticSearch(sessionId: String, query: String, k: Int) =
+        override suspend fun semanticSearch(
+            sessionId: String,
+            query: String,
+            k: Int,
+            projectId: String,
+            maxPrivacyLevel: Int,
+        ) =
             emptyList<EmbeddingService.RankedMessage>()
 
+        override suspend fun getRecentMessages(sessionId: String, limit: Int) = emptyList<ChatMessage>()
+    }
+
+    private class FixedSemanticMemorySource(
+        private val hits: List<EmbeddingService.RankedMessage>,
+    ) : RagMemorySource {
+        override suspend fun getScopedLongTermMemories(sessionId: String, projectId: String, maxPrivacyLevel: Int, limit: Int) = emptyList<ChatMessage>()
+        override suspend fun isScopedMemoryVisible(memoryId: Long, sessionId: String, projectId: String, maxPrivacyLevel: Int) = false
+        override fun isSemanticMemoryReady() = true
+        override suspend fun semanticSearch(sessionId: String, query: String, k: Int, projectId: String, maxPrivacyLevel: Int) = hits
         override suspend fun getRecentMessages(sessionId: String, limit: Int) = emptyList<ChatMessage>()
     }
 }

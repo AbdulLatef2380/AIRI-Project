@@ -25,6 +25,8 @@ interface RagMemorySource {
         sessionId: String,
         query: String,
         k: Int = 5,
+        projectId: String = "",
+        maxPrivacyLevel: Int = 1,
     ): List<EmbeddingService.RankedMessage>
 
     suspend fun getRecentMessages(sessionId: String, limit: Int = 10): List<ChatMessage>

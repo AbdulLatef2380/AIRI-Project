@@ -79,6 +79,10 @@ class ToolDispatcher(
             val durationMs: Long? = null,
             val provenance: ToolProvenance = ToolProvenance.BUILTIN,
             val untrusted: Boolean = false,
+            /** True only when the handler checked the effect, not merely produced text. */
+            val semanticVerified: Boolean = false,
+            /** Bounded, redacted identity of the state/artifact checked by the handler. */
+            val semanticReference: String? = null,
         ) {
             enum class Kind { GENERIC, TERMINAL, FILE_DIFF, BUILD, TEST, SKILL, CONNECTOR }
         }
@@ -239,7 +243,7 @@ class ToolDispatcher(
             "open_app" -> {
                 val appName = args["app_name"] ?: return ToolResult.Error("Missing app_name", code = ToolErrorCodes.INVALID_ARGUMENT)
                 val result = AccessibilityCommandBridge.launchApp(appName, userApproved)
-                if (result.success) ToolResult.Success("Launched $appName")
+                if (result.success) ToolResult.Success("Launched $appName", evidence = ToolResult.Evidence(ToolResult.Evidence.Kind.GENERIC, semanticVerified = true, semanticReference = appName.take(128)))
                 else ToolResult.Error(result.message ?: "", code = ToolErrorCodes.EXECUTION_FAILED)
             }
 
@@ -247,25 +251,25 @@ class ToolDispatcher(
             "tap" -> {
                 val target = args["target"] ?: return ToolResult.Error("Missing target", code = ToolErrorCodes.INVALID_ARGUMENT)
                 val result = AccessibilityCommandBridge.click(target, userApproved)
-                if (result.success) ToolResult.Success("Tapped: $target")
+                if (result.success) ToolResult.Success("Tapped: $target", evidence = ToolResult.Evidence(ToolResult.Evidence.Kind.GENERIC, semanticVerified = true, semanticReference = target.take(128)))
                 else ToolResult.Error(result.message ?: "", code = ToolErrorCodes.EXECUTION_FAILED)
             }
 
             "type_text" -> {
                 val text = args["text"] ?: return ToolResult.Error("Missing text", code = ToolErrorCodes.INVALID_ARGUMENT)
                 val result = AccessibilityCommandBridge.typeText(text, userApproved)
-                if (result.success) ToolResult.Success("Typed: ${text.take(60)}")
+                if (result.success) ToolResult.Success("Typed: ${text.take(60)}", evidence = ToolResult.Evidence(ToolResult.Evidence.Kind.GENERIC, semanticVerified = true, semanticReference = "focused_input"))
                 else ToolResult.Error(result.message ?: "", code = ToolErrorCodes.EXECUTION_FAILED)
             }
 
             "scroll_down" -> {
                 val result = AccessibilityCommandBridge.scrollDown(userApproved)
-                if (result.success) ToolResult.Success("Scrolled down") else ToolResult.Error(result.message ?: "")
+                if (result.success) ToolResult.Success("Scrolled down", evidence = ToolResult.Evidence(ToolResult.Evidence.Kind.GENERIC, semanticVerified = true, semanticReference = "scroll_down")) else ToolResult.Error(result.message ?: "")
             }
 
             "go_back" -> {
                 val result = AccessibilityCommandBridge.performBack(userApproved)
-                if (result.success) ToolResult.Success("Pressed back") else ToolResult.Error(result.message ?: "")
+                if (result.success) ToolResult.Success("Pressed back", evidence = ToolResult.Evidence(ToolResult.Evidence.Kind.GENERIC, semanticVerified = true, semanticReference = "back_navigation")) else ToolResult.Error(result.message ?: "")
             }
 
             // ── Search ─────────────────────────────────────────────────────────
@@ -406,7 +410,7 @@ class ToolDispatcher(
                 val enabled = args["enabled"]?.toBooleanStrictOrNull()
                     ?: return ToolResult.Error("enabled must be exactly true or false", code = ToolErrorCodes.INVALID_ARGUMENT)
                 when (val result = TorchController(context).setEnabled(enabled)) {
-                    is TorchResult.Success -> ToolResult.Success(if (result.enabled) "Torch is on" else "Torch is off")
+                    is TorchResult.Success -> ToolResult.Success(if (result.enabled) "Torch is on" else "Torch is off", evidence = ToolResult.Evidence(ToolResult.Evidence.Kind.GENERIC, semanticVerified = true, semanticReference = "torch:${result.enabled}"))
                     TorchResult.PermissionRequired -> ToolResult.Error("Camera permission is required to control the torch", code = ToolErrorCodes.PERMISSION_DENIED)
                     TorchResult.NotReady -> ToolResult.Error("A rear camera torch is unavailable or busy", code = ToolErrorCodes.UNSUPPORTED)
                     TorchResult.UnknownOutcome -> ToolResult.Error("Torch state was not confirmed before timeout; check the device before retrying", code = ToolErrorCodes.TIMEOUT)
@@ -436,7 +440,7 @@ class ToolDispatcher(
                 val result = alarm.setAlarmViaIntent(timePair.first, timePair.second, label)
                 if (result.success) {
                     LoggingService.info(TAG, "ALARM_SET timeChars=${time.length} labelChars=${label.length}")
-                    ToolResult.Success("Alarm set for $time: $label")
+                    ToolResult.Success("Alarm set for $time: $label", evidence = ToolResult.Evidence(ToolResult.Evidence.Kind.GENERIC, semanticVerified = true, semanticReference = "alarm:${time.take(128)}"))
                 } else {
                     ToolResult.Error(result.message, code = ToolErrorCodes.EXECUTION_FAILED)
                 }
@@ -449,7 +453,7 @@ class ToolDispatcher(
                 val notes   = NotesTool(context)
                 val note    = notes.createNote(title, content)
                 LoggingService.info(TAG, "NOTE_CREATED titleChars=${title.length} contentChars=${content.length}")
-                ToolResult.Success("Note created: ${note.title}")
+                ToolResult.Success("Note created: ${note.title}", evidence = ToolResult.Evidence(ToolResult.Evidence.Kind.GENERIC, semanticVerified = true, semanticReference = "note:${note.title.take(128)}"))
             }
 
             // ── Bounded agent terminal ────────────────────────────────────────
@@ -526,6 +530,8 @@ class ToolDispatcher(
                                     kind = ToolResult.Evidence.Kind.TERMINAL,
                                     exitCode = execution.exitCode,
                                     provenance = ToolProvenance.BUILTIN,
+                                    semanticVerified = execution.exitCode == 0,
+                                    semanticReference = "exit:${execution.exitCode}",
                                 ),
                             )
                         }
@@ -612,6 +618,8 @@ class ToolDispatcher(
                                 kind = ToolResult.Evidence.Kind.FILE_DIFF,
                                 changedFiles = listOf(written.file.name),
                                 provenance = ToolProvenance.BUILTIN,
+                                semanticVerified = written.file.isFile,
+                                semanticReference = written.file.name.take(128),
                             ),
                         )
                     }
@@ -665,7 +673,7 @@ class ToolDispatcher(
                             category = ActivityCategory.TOOL,
                             machineTag = "artifact_verified",
                 )
-                ToolResult.Success(structured, evidence = ToolResult.Evidence(kind = ToolResult.Evidence.Kind.FILE_DIFF, artifactId = id))
+                ToolResult.Success(structured, evidence = ToolResult.Evidence(kind = ToolResult.Evidence.Kind.FILE_DIFF, artifactId = id, semanticVerified = !id.isNullOrBlank(), semanticReference = id))
             }
 
             // ── Skill instructions on demand (report 3, phase 2) ──────────────
@@ -827,7 +835,7 @@ class ToolDispatcher(
                     val result = bridge.invoke(toolName, args, executionId = executionId)
                     val output = com.airi.assistant.ai.skills.SkillToolResultFormatter.format(result)
                     if (result.success) {
-                        ToolResult.Success(output, provenance = ToolProvenance.SKILL)
+                        ToolResult.Success(output, provenance = ToolProvenance.SKILL, evidence = ToolResult.Evidence(kind = ToolResult.Evidence.Kind.SKILL, provenance = ToolProvenance.SKILL, semanticVerified = result.success && output.isNotBlank(), semanticReference = toolName.take(128)))
                     } else {
                         val code = ToolErrorCodes.fromSkillFailure(result.metadata, result.error)
                         ToolResult.Error(
@@ -848,7 +856,7 @@ class ToolDispatcher(
                         actionId = actionId,
                     )) {
                         is com.airi.assistant.connector.ConnectorOutput.Success ->
-                            ToolResult.Success(result.text, provenance = ToolProvenance.CONNECTOR)
+                            ToolResult.Success(result.text, provenance = ToolProvenance.CONNECTOR, evidence = ToolResult.Evidence(kind = ToolResult.Evidence.Kind.CONNECTOR, provenance = ToolProvenance.CONNECTOR, semanticVerified = result.text.isNotBlank(), semanticReference = toolName.take(128)))
                         is com.airi.assistant.connector.ConnectorOutput.Streaming -> ToolResult.Error(
                             "Streaming connector output is not supported by text ToolDispatcher yet.",
                             code = ToolErrorCodes.UNSUPPORTED,

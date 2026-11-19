@@ -24,46 +24,71 @@ object TextToolCallProtocol {
         NO_CANDIDATE,
         UNTERMINATED_JSON,
         INVALID_JSON,
+        MIXED_PROSE,
         MISSING_TOOL_CALL_OBJECT,
         MISSING_TOOL_NAME,
         INVALID_ARGS_OBJECT,
         EMPTY_TOOL_CALLS,
+        UNEXPECTED_ENVELOPE_CONTENT,
     }
 
-    private val markerRegex = Regex("\\{\\s*\\\"(?:tool_call|tool_calls)\\\"\\s*:")
-    private val fenceRegex = Regex("```([A-Za-z0-9_+\\-]*)[ \\t]*\\r?\\n?(.*?)```", RegexOption.DOT_MATCHES_ALL)
+    private val envelopeFenceRegex = Regex(
+        "^```([A-Za-z0-9_+\\-]*)[ \\t]*\\r?\\n(.*?)\\r?\\n```$",
+        setOf(RegexOption.DOT_MATCHES_ALL),
+    )
 
     /**
-     * A reply that merely *shows* a tool-call envelope (an example inside a
-     * ```kotlin / ```python block, a doc snippet, a JSON block with other
-     * content) must not be executed or sent into a repair loop. Fenced blocks
-     * are therefore kept only when they are a json/untagged block that begins
-     * with the envelope itself; every other fenced block is masked out.
+     * Official extraction contract for the text protocol:
+     *
+     * 1. Accept one complete JSON object whose only top-level member is
+     *    `tool_call` or `tool_calls`.
+     * 2. Also accept that same object in one `json` or untagged fenced block.
+     * 3. Reject every prefix/suffix, including prose, a second JSON value, or
+     *    another fenced block. Native provider payloads are not extracted here;
+     *    callers must keep using their provider adapter first.
      */
-    private fun stripNonEnvelopeFences(response: String): String {
-        val withoutFences = fenceRegex.replace(response) { match ->
-            val lang = match.groupValues[1].lowercase()
-            val body = match.groupValues[2].trim()
-            val isEnvelopeBlock = (lang.isEmpty() || lang == "json") &&
-                markerRegex.find(body)?.range?.first == 0
-            if (isEnvelopeBlock) "\n$body\n" else " "
-        }
-        // Any stray, unmatched fence markers are just noise.
-        return withoutFences.replace("```", "").trim()
+    private fun extractEnvelope(response: String): String? {
+        val trimmed = response.trim()
+        if (!trimmed.contains("```")) return trimmed
+        val match = envelopeFenceRegex.matchEntire(trimmed) ?: return null
+        val language = match.groupValues[1].lowercase()
+        if (language.isNotEmpty() && language != "json") return null
+        return match.groupValues[2].trim()
     }
 
     fun parse(response: String): ParseResult {
-        val cleaned = stripNonEnvelopeFences(response)
-
-        val marker = markerRegex.find(cleaned)
-            ?: return ParseResult.NotAToolCall
-        val start = marker.range.first
-        val end = matchingObjectEnd(cleaned, start)
-            ?: return ParseResult.Invalid(ParseFailureReason.UNTERMINATED_JSON)
-        val jsonStr = cleaned.substring(start, end + 1)
+        val hasEnvelopeMarker = response.contains("\"tool_call\"") || response.contains("\"tool_calls\"")
+        val extracted = extractEnvelope(response)
+            ?: return if (hasEnvelopeMarker) {
+                ParseResult.Invalid(ParseFailureReason.MIXED_PROSE)
+            } else {
+                ParseResult.NotAToolCall
+            }
+        if (extracted.isBlank()) return ParseResult.NotAToolCall
+        if (extracted.startsWith("{") && !extracted.endsWith("}")) {
+            val lastClosedObject = extracted.lastIndexOf('}')
+            return if (hasEnvelopeMarker && lastClosedObject >= 0 && extracted.substring(lastClosedObject + 1).isNotBlank()) {
+                ParseResult.Invalid(ParseFailureReason.MIXED_PROSE)
+            } else if (hasEnvelopeMarker) {
+                ParseResult.Invalid(ParseFailureReason.UNTERMINATED_JSON)
+            } else {
+                ParseResult.Invalid(ParseFailureReason.INVALID_JSON)
+            }
+        }
+        if (!extracted.startsWith("{") || !extracted.endsWith("}")) {
+            return if (hasEnvelopeMarker) {
+                ParseResult.Invalid(ParseFailureReason.MIXED_PROSE)
+            } else {
+                ParseResult.NotAToolCall
+            }
+        }
 
         return try {
-            val root = JSONObject(jsonStr)
+            val root = JSONObject(extracted)
+            val keys = root.keys().asSequence().toSet()
+            if (keys != setOf("tool_call") && keys != setOf("tool_calls")) {
+                return ParseResult.Invalid(ParseFailureReason.UNEXPECTED_ENVELOPE_CONTENT)
+            }
             if (root.has("tool_calls")) {
                 parseCalls(root.optJSONArray("tool_calls"))
             } else {
@@ -135,29 +160,4 @@ object TextToolCallProtocol {
         if (call.id.isNotBlank()) put("id", call.id)
     }
 
-    private fun matchingObjectEnd(text: String, start: Int): Int? {
-        var depth = 0
-        var inString = false
-        var escaped = false
-        for (index in start until text.length) {
-            val char = text[index]
-            if (inString) {
-                when {
-                    escaped -> escaped = false
-                    char == '\\' -> escaped = true
-                    char == '"' -> inString = false
-                }
-                continue
-            }
-            when (char) {
-                '"' -> inString = true
-                '{' -> depth++
-                '}' -> {
-                    depth--
-                    if (depth == 0) return index
-                }
-            }
-        }
-        return null
-    }
 }

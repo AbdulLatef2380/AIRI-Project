@@ -47,7 +47,7 @@ internal object SkillInvocationApprovalPolicy {
  */
 class SkillToolBridge(
     private val context:      Context,
-    private val registry: SkillRegistry,
+    private val registry: SkillRoutingRegistry,
     private val modelBridge: SkillModelBridge? = null,
     private val skillCtx: () -> SkillContext = { SkillContext() },
     // A bridge without an injected connector registry must not assume that
@@ -55,6 +55,7 @@ class SkillToolBridge(
     private val isConnectorHealthy: (String) -> Boolean = { false },
     private val readinessCtx: () -> SkillContext = skillCtx,
     private val approvalGate: SkillApprovalGate? = null,
+    private val executionTimeoutMs: Long = TIMEOUT_MS,
 ) {
     private val permissionService = PermissionService(context.applicationContext)
     companion object {
@@ -163,7 +164,7 @@ class SkillToolBridge(
      */
     suspend fun invoke(
         toolName: String,
-        args: Map<String, String>,
+        args: Map<String, Any?>,
         executionId: String? = null,
     ): SkillResult {
         val invokeStart  = System.currentTimeMillis()
@@ -306,16 +307,22 @@ class SkillToolBridge(
             "memoryActive=${skillCtxInstance.memoryManager != null} " +
             "sessionId=${skillCtxInstance.sessionId.take(12).ifBlank { "NONE" }}")
 
+        val validated = typed.value!!
+        val runtimeValues: Map<String, Any> = buildMap {
+            validated.values.forEach { (name, value) ->
+                value.toRuntimeValue()?.let { put(name, it) }
+            }
+        }
         val params: Map<String, Any> = buildMap {
-            put("input", typed.value!!.canonical["input"] ?: typed.value!!.canonical["query"] ?: typed.value!!.canonical.values.firstOrNull() ?: "")
-            putAll(typed.value!!.canonical)
+            put("input", runtimeValues["input"] ?: runtimeValues["query"] ?: runtimeValues.values.firstOrNull() ?: "")
+            putAll(runtimeValues)
             put("context", skillCtxInstance)
         }
 
         return try {
             val verifiedResult = SkillResultVerifier.verify(
                 skill,
-                withTimeout(TIMEOUT_MS) { skill.execute(params) }
+                withTimeout(executionTimeoutMs) { skill.execute(params) }
             )
             val result = if (!skill.isOfficial) {
                 verifiedResult.copy(
@@ -358,12 +365,12 @@ class SkillToolBridge(
             Log.e(TAG, "AIRI SKILL_TIMEOUT " +
                 "tool=$toolName " +
                 "skillId=${skill.skillId} " +
-                "limitMs=$TIMEOUT_MS " +
+                "limitMs=$executionTimeoutMs " +
                 "elapsedMs=$elapsedMs")
             SkillResult(
                 success = false,
                 data = "",
-                error = "Skill '${skill.name}' timed out after ${TIMEOUT_MS / 1000}s. Try a simpler request.",
+                error = "Skill '${skill.name}' timed out after ${executionTimeoutMs / 1000}s. Try a simpler request.",
                 skillName = skill.skillId,
                 executionMs = elapsedMs,
                 metadata = mapOf("failure_type" to "timeout")
@@ -393,6 +400,19 @@ class SkillToolBridge(
      * Check whether a tool name belongs to this bridge (starts with "skill_").
      */
     fun handles(toolName: String): Boolean = toolName.startsWith(PREFIX)
+
+    private fun TypedArgumentContract.Value?.toRuntimeValue(): Any? = when (this) {
+        null, TypedArgumentContract.Value.NullValue -> null
+        is TypedArgumentContract.Value.Text -> value
+        is TypedArgumentContract.Value.Integer -> value
+        is TypedArgumentContract.Value.Number -> value
+        is TypedArgumentContract.Value.BooleanValue -> value
+        is TypedArgumentContract.Value.Url -> value
+        is TypedArgumentContract.Value.Date -> value
+        is TypedArgumentContract.Value.EnumValue -> value
+        is TypedArgumentContract.Value.ObjectValue -> value.mapValues { (_, child) -> child.toRuntimeValue() }
+        is TypedArgumentContract.Value.ListValue -> value.map { it.toRuntimeValue() }
+    }
 
     private fun modelFacingDescription(skill: AiriSkill, description: String): String =
         if (skill.isOfficial) description

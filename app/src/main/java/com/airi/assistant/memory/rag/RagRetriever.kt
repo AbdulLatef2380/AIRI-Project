@@ -293,7 +293,13 @@ $formatted
         maxPrivacyLevel: Int
     ): List<RetrievedPassage> {
         val hits = runCatching {
-            memoryManager.semanticSearch(sessionId, query, k)
+            memoryManager.semanticSearch(
+                sessionId = sessionId,
+                query = query,
+                k = k,
+                projectId = projectId,
+                maxPrivacyLevel = maxPrivacyLevel,
+            )
         }.getOrElse { e ->
             Log.w(TAG, "Semantic search failed: ${e.message}")
             emptyList()
@@ -302,7 +308,7 @@ $formatted
         val filtered = hits
             .filter { it.score >= MIN_SCORE }
             .filter { ranked -> ranked.message.role in setOf("user", "assistant") }
-            .filter { ranked -> isVisibleInScope(ranked.message, projectId, maxPrivacyLevel) }
+            .filter { ranked -> isVisibleInScope(ranked.message, sessionId, projectId, maxPrivacyLevel) }
             .map { ranked ->
                 RetrievedPassage(
                     citationId = "message-${ranked.message.id}",
@@ -324,6 +330,7 @@ $formatted
 
     private fun isVisibleInScope(
         message: ChatMessage,
+        sessionId: String,
         projectId: String,
         maxPrivacyLevel: Int
     ): Boolean {
@@ -331,7 +338,8 @@ $formatted
         if (message.expiresAtMs >= 0 && message.expiresAtMs <= System.currentTimeMillis()) return false
         return when (message.memoryScope) {
             "PROJECT" -> projectId.isNotBlank() && message.projectId == projectId
-            "USER", "SESSION" -> true
+            "USER" -> true
+            "SESSION" -> message.sessionId == sessionId
             else -> false
         }
     }

@@ -6,10 +6,11 @@ import com.airi.assistant.execution.ExecutionRequest
 object GenerativeUiStructuredOutput {
     val SPEC: ExecutionRequest.StructuredOutputSpec = ExecutionRequest.StructuredOutputSpec(
         name = "airi_ui_document",
-        // The nested block payload is validated authoritatively by AIRI's compiler;
-        // non-strict native JSON mode keeps provider adapters compatible with the
-        // evolving block vocabulary while still guaranteeing a JSON document.
-        strict = false,
+        // Native providers and the canonical compiler must enforce the same
+        // top-level contract. The compiler remains authoritative for the
+        // block-specific payload, while strict mode prevents provider adapters
+        // from silently accepting an unrelated document shape.
+        strict = true,
         schemaJson = """
         {
           "type":"object",
@@ -25,7 +26,7 @@ object GenerativeUiStructuredOutput {
                 "required":["type","id"],
                 "properties":{
                   "type":{"type":"string","enum":["stat","line_chart","bar_chart","pie_chart","image","cards","tabs","timeline","diagram","route","table","checklist","form","actions"]},
-                  "id":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,64}$"}
+                  "id":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,${GenerativeUiLimits.MAX_ID_CHARS}}$"}
                 }
               }
             }

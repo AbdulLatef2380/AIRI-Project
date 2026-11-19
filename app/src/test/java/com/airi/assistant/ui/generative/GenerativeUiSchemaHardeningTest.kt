@@ -62,6 +62,21 @@ class GenerativeUiSchemaHardeningTest {
     }
 
     @Test
+    fun structuredOutputAndCompilerShareStrictIdLimit() {
+        assertTrue(GenerativeUiStructuredOutput.SPEC.strict)
+        assertTrue(
+            GenerativeUiStructuredOutput.SPEC.schemaJson.contains(
+                "{1,${GenerativeUiLimits.MAX_ID_CHARS}}",
+            ),
+        )
+        val oversizedId = "a".repeat(GenerativeUiLimits.MAX_ID_CHARS + 1)
+        assertEquals(
+            GenerativeUiRejectReason.BAD_ID,
+            reasonOf("""{"version":1,"blocks":[{"type":"stat","id":"$oversizedId","value":"1"}]}"""),
+        )
+    }
+
+    @Test
     fun formWithDefaultActionIdStillCompilesAndRebuilds() {
         val text = ui("""{"version":1,"blocks":[{"type":"form","id":"calc","fields":[{"id":"w","label":"W","required":true}]}]}""")
         assertNotNull(GenerativeUiCompiler.compile(text))

@@ -11,6 +11,42 @@ import com.airi.assistant.ai.skills.SkillParamDef
 import com.airi.assistant.tools.execution.SearchTool
 import kotlinx.coroutines.CancellationException
 
+private const val RESEARCH_RESULT_MAX_CHARS = 4000
+
+/** Keeps both ends of a bounded research result and explicitly reports omitted content. */
+internal fun truncateResearchResult(rawSources: String, maxChars: Int = RESEARCH_RESULT_MAX_CHARS): String {
+    require(maxChars > 0) { "maxChars must be positive" }
+    if (rawSources.length <= maxChars) return rawSources
+
+    val markerTemplate = "[TRUNCATED omitted_chars=%d original_chars=%d kept_prefix=%d kept_suffix=%d]"
+    val markerWithoutLengths = markerTemplate.format(0, rawSources.length, 0, 0)
+    val availableForContent = (maxChars - markerWithoutLengths.length - 2).coerceAtLeast(0)
+    val prefixLength = availableForContent / 2
+    val suffixLength = availableForContent - prefixLength
+    val marker = markerTemplate.format(
+        rawSources.length - prefixLength - suffixLength,
+        rawSources.length,
+        prefixLength,
+        suffixLength,
+    )
+    val actualAvailableForContent = (maxChars - marker.length - 2).coerceAtLeast(0)
+    val actualPrefixLength = minOf(prefixLength, actualAvailableForContent / 2)
+    val actualSuffixLength = minOf(suffixLength, actualAvailableForContent - actualPrefixLength)
+    val actualMarker = markerTemplate.format(
+        rawSources.length - actualPrefixLength - actualSuffixLength,
+        rawSources.length,
+        actualPrefixLength,
+        actualSuffixLength,
+    )
+    return buildString(maxChars) {
+        append(rawSources, 0, actualPrefixLength)
+        append('\n')
+        append(actualMarker)
+        append('\n')
+        append(rawSources, rawSources.length - actualSuffixLength, rawSources.length)
+    }
+}
+
 /**
  * ResearchAgentSkill — multi-step research: searches the web, fetches top pages,
  * synthesizes a comprehensive answer using the active model.
@@ -163,7 +199,7 @@ Write a well-structured response with:
             } catch (e: Exception) {
                 SkillResult(
                     success     = true,
-                    data        = "Research results for: $query\n\n${rawSources.take(4000)}",
+                    data        = "Research results for: $query\n\n${truncateResearchResult(rawSources.toString())}",
                     skillName   = skillId,
                     executionMs = System.currentTimeMillis() - start,
                     toolOutputs = toolOutputs
@@ -173,7 +209,7 @@ Write a well-structured response with:
 
         return SkillResult(
             success     = true,
-            data        = "Research results for: $query\n\n${rawSources.take(4000)}\n\n[Note: Load an AI model to get a synthesized summary]",
+            data        = "Research results for: $query\n\n${truncateResearchResult(rawSources.toString())}\n\n[Note: Load an AI model to get a synthesized summary]",
             skillName   = skillId,
             executionMs = System.currentTimeMillis() - start,
             toolOutputs = toolOutputs

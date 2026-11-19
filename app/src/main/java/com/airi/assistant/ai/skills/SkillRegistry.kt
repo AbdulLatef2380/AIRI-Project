@@ -30,7 +30,12 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 
-class SkillRegistry(private val context: Context) {
+/** Runtime routing surface consumed by [SkillToolBridge]. */
+interface SkillRoutingRegistry {
+    fun getRegisteredSkillsForRouting(): List<AiriSkill>
+}
+
+class SkillRegistry(private val context: Context) : SkillRoutingRegistry {
 
     /** Emits whenever a registered connector changes live readiness, including after connection. */
     val connectorAvailability: Flow<List<com.airi.assistant.connector.ConnectorState>> by lazy {
@@ -170,7 +175,7 @@ class SkillRegistry(private val context: Context) {
      * agent can report the exact missing consent/permission instead of claiming
      * that the skill does not exist. SkillToolBridge still denies invocation.
      */
-    fun getRegisteredSkillsForRouting(): List<AiriSkill> {
+    override fun getRegisteredSkillsForRouting(): List<AiriSkill> {
         val skills = OfficialSkillLibrary.ALL
             .filter { SkillCatalog.find(it.manifest.id) != null && isSkillEnabled(it.manifest.id) }
             .mapNotNull { entry -> runCatching { entry.factory(context) }.getOrNull() }

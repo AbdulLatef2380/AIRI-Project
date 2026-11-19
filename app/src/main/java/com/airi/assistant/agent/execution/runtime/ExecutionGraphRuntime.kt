@@ -6,6 +6,9 @@ import com.airi.assistant.agent.orchestrator.ProductionAgentOrchestrator
 import com.airi.core.planning.ActionPlan
 import com.airi.core.planning.PlanStep
 import com.airi.assistant.agent.subagent.SubAgentContext
+import com.airi.assistant.domain.execution.TerminalOutcome
+import com.airi.assistant.domain.execution.TerminalOutcomeAdapter
+import com.airi.assistant.domain.execution.TerminalStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.async
@@ -21,7 +24,8 @@ import java.util.concurrent.ConcurrentHashMap
 class ExecutionGraphRuntime(
     private val orchestrator: ProductionAgentOrchestrator,
     private val durableTaskManager: DurableTaskManager? = null,
-    private val snapshotStore: ExecutionSnapshotStore? = null
+    private val snapshotStore: ExecutionSnapshotStore? = null,
+    private val terminalObserver: (String, TerminalOutcome) -> Unit = { _, _ -> },
 ) {
     /**
      * Serializes resumes of the same deterministic plan, without blocking
@@ -65,11 +69,13 @@ class ExecutionGraphRuntime(
             snapshotStore?.load(runtimePlan.planId)?.let { restore(it) }
             val runJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
             if (runJob != null) activeJobs[runtimePlan.planId] = runJob
+            val terminal = TerminalOutcomeAdapter { outcome -> terminalObserver(runtimePlan.planId, outcome) }
             try {
                 emit(ExecutionGraphEvent.PlanStarted(plan.intent, plan.steps.size))
-                val result = executeGraph(runtimePlan, context) { emit(it) }
+                val result = executeGraph(runtimePlan, context, terminal) { emit(it) }
                 emit(ExecutionGraphEvent.PlanCompleted(result.finalText, result.snapshot))
             } catch (cancelled: CancellationException) {
+                terminal.publish(TerminalStatus.CANCELLED, cancelled.message)
                 markCancelled(runtimePlan.planId)
                 throw cancelled
             } finally {
@@ -92,9 +98,11 @@ class ExecutionGraphRuntime(
             snapshotStore?.load(runtimePlan.planId)?.let { restore(it) }
             val runJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
             if (runJob != null) activeJobs[runtimePlan.planId] = runJob
+            val terminal = TerminalOutcomeAdapter { outcome -> terminalObserver(runtimePlan.planId, outcome) }
             try {
-                executeGraph(runtimePlan, context, emitEvent)
+                executeGraph(runtimePlan, context, terminal, emitEvent)
             } catch (cancelled: CancellationException) {
+                terminal.publish(TerminalStatus.CANCELLED, cancelled.message)
                 markCancelled(runtimePlan.planId)
                 throw cancelled
             } finally {
@@ -111,6 +119,7 @@ class ExecutionGraphRuntime(
     private suspend fun executeGraph(
         runtimePlan: RuntimePlan,
         context: SubAgentContext,
+        terminal: TerminalOutcomeAdapter,
         emitEvent: suspend (ExecutionGraphEvent) -> Unit
     ): ExecutionGraphResult {
         val initial = activeSnapshots[runtimePlan.planId] ?: ExecutionGraphSnapshot(
@@ -188,6 +197,10 @@ class ExecutionGraphRuntime(
         activeSnapshots[runtimePlan.planId] = finalSnapshot
         snapshotStore?.save(finalSnapshot)
         emitEvent(ExecutionGraphEvent.GraphSnapshot(finalSnapshot))
+        terminal.publish(
+            if (finalState == PlanExecutionState.COMPLETED) TerminalStatus.SUCCESS else TerminalStatus.FAILURE,
+            failed.firstOrNull()?.let { nodeResults[it] as? ExecutionNodeResult.Failure }?.reason,
+        )
 
         return ExecutionGraphResult(
             planId = runtimePlan.planId,

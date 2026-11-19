@@ -30,3 +30,14 @@ jobs:
         run: |
           python3 -m unittest discover -s scripts -p 'test_airi_ui_hardcoded_text_lint.py' -v
           python3 -I scripts/airi_ui_hardcoded_text_lint.py
+
+      - name: Verify color inventory and theme contrast
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_airi_color_inventory.py' -v
+          python3 -I scripts/airi_color_inventory.py --check-contrast --output color-inventory.json
+
+      - name: Upload color inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: airi-color-inventory
+          path: color-inventory.json

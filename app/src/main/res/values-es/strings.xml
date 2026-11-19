@@ -1243,6 +1243,7 @@
     <string name="profile_photo_cd">Foto de perfil</string>
     <string name="profile_change_photo">Cambiar foto</string>
     <string name="profile_remove_photo">Eliminar foto</string>
+    <string name="profile_photo_local_only">La foto de perfil se almacena solo en este dispositivo y no se sincroniza con la nube.</string>
     <string name="profile_title">Profile</string>
     <string name="nav_library">Library</string>
     <string name="library_device_storage">Almacenamiento del dispositivo</string>

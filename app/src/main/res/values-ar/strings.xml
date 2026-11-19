@@ -303,6 +303,7 @@
     <string name="profile_photo_cd">صورة الملف الشخصي</string>
     <string name="profile_change_photo">تغيير الصورة</string>
     <string name="profile_remove_photo">إزالة الصورة</string>
+    <string name="profile_photo_local_only">تُخزَّن صورة الملف الشخصي على هذا الجهاز فقط ولا تتم مزامنتها مع السحابة.</string>
     <string name="profile_title">الملف الشخصي</string>
     <string name="report_a_problem">الإبلاغ عن مشكلة</string>
     <string name="report_a_problem_sublabel">اكتب وصف المشكلة داخل AIRI</string>

@@ -1243,6 +1243,7 @@
     <string name="profile_photo_cd">个人资料照片</string>
     <string name="profile_change_photo">更改照片</string>
     <string name="profile_remove_photo">移除照片</string>
+    <string name="profile_photo_local_only">个人资料照片仅存储在此设备上，不会同步到云端。</string>
     <string name="profile_title">Profile</string>
     <string name="nav_library">Library</string>
     <string name="library_device_storage">设备存储</string>

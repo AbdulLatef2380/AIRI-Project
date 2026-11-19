@@ -181,9 +181,11 @@ class GeminiAdapter(
                 )
             }
 
-            if (fullText.isBlank() && nativeCalls.isNotEmpty()) {
+            if (nativeCalls.isNotEmpty()) {
                 val wire = NativeToolCallWire.encode(nativeCalls)
                 onToken(wire)
+                trace?.markProviderResponse(true, attachmentIds)
+                onUsage(promptTokens, completeTokens)
                 return@withContext CloudProviderAdapter.AdapterResult.Success(
                     fullText = wire,
                     latencyMs = System.currentTimeMillis() - startMs,

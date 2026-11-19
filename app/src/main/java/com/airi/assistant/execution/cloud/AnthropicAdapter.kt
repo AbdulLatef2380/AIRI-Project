@@ -215,9 +215,12 @@ class AnthropicAdapter(
                 )
             }
 
-            if (fullText.isBlank() && nativeCalls.isNotEmpty()) {
+            if (nativeCalls.isNotEmpty()) {
                 val wire = NativeToolCallWire.encode(nativeCalls.values.toList())
                 onToken(wire)
+                trace?.mark(AttachmentDeliveryStage.PROVIDER_RESPONSE_RECEIVED, attachmentIds)
+                trace?.markProviderResponse(true, attachmentIds)
+                onUsage(promptTokens, completeTokens)
                 return@withContext CloudProviderAdapter.AdapterResult.Success(
                     fullText = wire,
                     latencyMs = System.currentTimeMillis() - startMs,

@@ -1,6 +1,6 @@
 # AIRI — Final Verification Report
 
-> **Superseded verification note (2026-11-19):** The checklist below records results from an earlier phase; it is not proof of the current checkout's build or runtime status. A source audit on 2026-11-19 found 47 remaining `MaterialTheme.colorScheme` references and numerous hard-coded UI colors, so the “zero references” claim below is historical and must not be read as a current pass. The current Android build/test attempt also stopped during project configuration because no Android SDK is configured. See the follow-up remediation report for verified findings and remaining gates.
+> **Superseded verification note (2026-11-19):** The checklist below records results from an earlier phase; it is not proof of the current checkout's build or runtime status. A later source normalization moved the 47 direct screen references to `AiriTheme.colorScheme` (the active `MaterialTheme.colorScheme` alias); remaining hard-coded UI colors still exist, and no full light/dark/AMOLED visual audit has been completed. Therefore the “zero direct references” check below is only a source-style observation, not evidence of complete color-system unification. The current Android build/test attempt is blocked during project configuration because no Android SDK is configured. See the follow-up remediation report for verified findings and remaining gates.
 
 ## Build Consistency
 
@@ -102,7 +102,7 @@
 | 55 composable routes verified | ✅ PASS | `AiriApp.kt` route constant count vs `composable()` body count |
 | Zero Arabic in Kotlin UI code | ✅ PASS | Unicode U+0600–U+06FF regex scan across all 90 UI `.kt` files |
 | Zero SmartToy / robot icons | ✅ PASS | Full-text search for `SmartToy`, `Robot`, `AdbFilled` in all UI files |
-| Zero `MaterialTheme.colorScheme.` in screens | ⚠️ HISTORICAL / NOT VERIFIED ON CURRENT CHECKOUT | The earlier scan claimed 427 substitutions; the 2026-11-19 source audit still found 47 references and hard-coded UI colors. |
+| Zero direct `MaterialTheme.colorScheme.` references in screens | ⚠️ SOURCE-STYLE ONLY / NOT VISUALLY VERIFIED | The 47 direct references were normalized to `AiriTheme.colorScheme`; hard-coded color literals remain and full theme-mode visual behavior is unverified. |
 | Zero TODO/FIXME in screens | ✅ PASS | Regex scan of all screen files |
 | All `R.string.*` references defined | ✅ PASS | 646 used vs 1,076 defined — zero missing |
 | Zero package name collisions | ✅ PASS | Class-name dedup scan confirmed all collisions are cross-package |

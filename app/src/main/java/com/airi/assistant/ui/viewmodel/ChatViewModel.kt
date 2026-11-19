@@ -3942,7 +3942,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
                 uiAction?.let { action ->
-                    val terminalKind = ExecutionStatusBus.traceSnapshot(traceExecutionId)
+                    val executionEvents = ExecutionStatusBus.traceSnapshot(traceExecutionId)
+                    val terminalKind = executionEvents
                         .lastOrNull { event -> event.kind in setOf(
                             ExecutionTraceKind.COMPLETED,
                             ExecutionTraceKind.FAILED,
@@ -3950,10 +3951,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             ExecutionTraceKind.APPROVAL_CANCELLED,
                             ExecutionTraceKind.APPROVAL_TIMEOUT,
                         ) }?.kind
+                    val actionSucceeded = terminalKind == ExecutionTraceKind.COMPLETED &&
+                        executionEvents.any { event ->
+                            event.kind == ExecutionTraceKind.TOOL_COMPLETED &&
+                                event.status == com.airi.assistant.core.ExecutionTraceStatus.COMPLETED
+                        }
                     generativeUiStateStore.setActionPhase(
                         action.sourceMessageId,
                         action.id,
-                        if (terminalKind == ExecutionTraceKind.COMPLETED) {
+                        if (actionSucceeded) {
                             GenerativeUiStateStore.ActionPhase.SUCCEEDED
                         } else {
                             GenerativeUiStateStore.ActionPhase.FAILED
@@ -3965,7 +3971,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         actionId = action.id,
                         sourceMessageId = action.sourceMessageId,
                         parentExecutionId = action.sourceExecutionId,
-                        accepted = terminalKind == ExecutionTraceKind.COMPLETED,
+                        accepted = actionSucceeded,
                         fieldNames = action.fields.keys,
                     )
                 }

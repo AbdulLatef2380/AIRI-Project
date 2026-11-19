@@ -143,7 +143,7 @@ $formatted
             .orEmpty()
             .filter { fact ->
                 val sourceId = fact.sourceMemoryId
-                sourceId == null || memoryManager.isScopedMemoryVisible(
+                sourceId != null && sourceId > 0L && memoryManager.isScopedMemoryVisible(
                     memoryId = sourceId,
                     sessionId = sessionId,
                     projectId = projectId,

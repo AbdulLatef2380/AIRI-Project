@@ -209,9 +209,10 @@ open class OpenAIAdapter(
                 }
             }
 
-            if (fullText.isBlank() && nativeCalls.isNotEmpty()) {
+            if (nativeCalls.isNotEmpty()) {
                 val wire = NativeToolCallWire.encode(nativeCalls.values.toList())
                 onToken(wire)
+                onUsage(promptTokens, completeTokens)
                 return@withContext CloudProviderAdapter.AdapterResult.Success(
                     fullText = wire,
                     latencyMs = System.currentTimeMillis() - startMs,
@@ -296,6 +297,7 @@ open class OpenAIAdapter(
         var conn: HttpURLConnection? = null
         var connWatcher: kotlinx.coroutines.Job? = null
         val fullText = StringBuilder()
+        val nativeCalls = OpenAIResponsesToolCallAccumulator()
         var promptTokens = 0
         var completeTokens = 0
         var completionReason: String? = null
@@ -335,6 +337,7 @@ open class OpenAIAdapter(
                     val payload = raw.removePrefix("data:").trim()
                     if (payload.isBlank()) continue
                     val eventType = jsonStringField(payload, "type")
+                    nativeCalls.accept(payload)
                     when (eventType) {
                         "response.output_text.delta" -> {
                             val token = jsonStringField(payload, "delta").orEmpty()
@@ -371,6 +374,23 @@ open class OpenAIAdapter(
                     errorType = CloudErrorType.CONNECTION_LOST,
                     retryable = fullText.isEmpty(),
                     httpCode = -2,
+                )
+            }
+            val calls = nativeCalls.calls()
+            if (calls.isNotEmpty()) {
+                val wire = NativeToolCallWire.encode(calls)
+                onToken(wire)
+                trace?.mark(AttachmentDeliveryStage.PROVIDER_RESPONSE_RECEIVED, attachmentIds)
+                trace?.markProviderResponse(true, attachmentIds)
+                val latency = System.currentTimeMillis() - startMs
+                onUsage(promptTokens, completeTokens)
+                return CloudProviderAdapter.AdapterResult.Success(
+                    fullText = wire,
+                    latencyMs = latency,
+                    promptTokens = promptTokens,
+                    completionTokens = completeTokens,
+                    executedModelId = model,
+                    completion = CompletionMetadata.fromProvider(providerId, completionReason),
                 )
             }
             if (fullText.isBlank()) {

@@ -28,7 +28,7 @@ Historical sprint result: 9 tasks reported complete, including 358 color replace
 
 **Intentionally preserved:** `theme/Color.kt` (palette definitions), `StarBackground` (atmospheric dark-only decoration), `DebugScreen`/`DevScreen` (developer-only).
 
-**Why this is better:** Every color now reads from `MaterialTheme.colorScheme`, which means Light, Dark, and AMOLED themes work without any additional per-screen changes.
+**Historical rationale (not a current coverage claim):** Replacing a hardcoded color with a semantic `MaterialTheme.colorScheme` token allows that color to follow the active theme. The replacement list above was the sprint's intended mapping; it does not prove that every UI color was migrated or that every screen is correct in Light, Dark, and AMOLED modes. See the current-checkout caveat at the top of this report.
 
 ---
 

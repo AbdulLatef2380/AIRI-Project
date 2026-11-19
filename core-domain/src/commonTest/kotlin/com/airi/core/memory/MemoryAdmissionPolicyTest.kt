@@ -38,6 +38,26 @@ class MemoryAdmissionPolicyTest {
     }
 
     @Test
+    fun negatedOrQuotedMemoryRequestDoesNotExtractFacts() {
+        val negated = MemoryAdmissionPolicy.decide(
+            "user",
+            "Please don't remember this: I prefer short answers in Arabic every time."
+        )
+        val quoted = MemoryAdmissionPolicy.decide(
+            "user",
+            "The text says \"remember this\", but I am only discussing the wording in this message."
+        )
+        val negatedArabic = MemoryAdmissionPolicy.decide(
+            "user",
+            "لا تحفظ أنني أفضل الإجابات المختصرة باللغة العربية في هذا المشروع."
+        )
+
+        assertFalse(negated.shouldExtractFacts)
+        assertFalse(quoted.shouldExtractFacts)
+        assertFalse(negatedArabic.shouldExtractFacts)
+    }
+
+    @Test
     fun onlySafeDurableMemoryCategoriesAreAccepted() {
         assertTrue(MemoryAdmissionPolicy.allowExtractedFact("preference=dark theme"))
         assertTrue(MemoryAdmissionPolicy.allowExtractedFact("language=Arabic"))

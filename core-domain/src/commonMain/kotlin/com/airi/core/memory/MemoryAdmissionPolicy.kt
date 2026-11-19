@@ -17,8 +17,12 @@ object MemoryAdmissionPolicy {
     )
 
     private val explicitMemoryRequest = Regex(
-        """(?i)\b(remember this|remember that|save this|save it to memory|keep this preference)\b|(?:تذكّر|تذكر|احفظ|خزّن|خزن)\s"""
+        """(?i)\b(remember this|remember that|save this|save it to memory|keep this preference)\b|(?:تذكّر|تذكر|احفظ|تحفظ|خزّن|خزن|تخزّن|تخزن)\s"""
     )
+    private val negatedMemoryRequest = Regex(
+        """(?i)(?:\b(?:do not|don't|dont|never|not)\s+(?:remember|save|store|keep)\b|\b(?:don't|do not) want (?:you to )?(?:remember|save|store)\b|لا\s+(?:تتذكر|تذكّر|تحفظ|احفظ|تخزن|تخزّن))"""
+    )
+    private val quoteMarkers = Regex("[\"'“”‘’]([^\"'“”‘’]*)[\"'“”‘’]")
 
     private val transientMessage = Regex(
         """(?i)^\s*(hi|hello|hey|thanks|thank you|ok|okay|yes|no|مرحبا|السلام عليكم|شكرا|شكرًا|نعم|لا|تمام|حسنا|حسنًا)[!؟?.،\s]*$"""
@@ -41,13 +45,14 @@ object MemoryAdmissionPolicy {
             return MessageDecision(false, false, "sensitive_content")
         }
         val wordCount = normalized.split(Regex("""\s+""")).count { it.isNotBlank() }
-        if (wordCount < MIN_EMBED_WORDS && !explicitMemoryRequest.containsMatchIn(normalized)) {
+        val explicitRequest = hasExplicitMemoryRequest(normalized)
+        if (wordCount < MIN_EMBED_WORDS && !explicitRequest) {
             return MessageDecision(false, false, "insufficient_context")
         }
         return MessageDecision(
             shouldEmbed = true,
-            shouldExtractFacts = role == "user" && explicitMemoryRequest.containsMatchIn(normalized),
-            reason = if (role == "user" && explicitMemoryRequest.containsMatchIn(normalized)) {
+            shouldExtractFacts = role == "user" && explicitRequest,
+            reason = if (role == "user" && explicitRequest) {
                 "explicit_memory_request"
             } else {
                 "session_relevance"
@@ -65,6 +70,13 @@ object MemoryAdmissionPolicy {
 
     fun containsSensitiveData(value: String): Boolean =
         sensitivePatterns.any { it.containsMatchIn(value) }
+
+    private fun hasExplicitMemoryRequest(content: String): Boolean {
+        val unquoted = quoteMarkers.replace(content, " ")
+        val request = explicitMemoryRequest.find(unquoted) ?: return false
+        val precedingClause = unquoted.substring(maxOf(0, request.range.first - 48), request.range.first)
+        return !negatedMemoryRequest.containsMatchIn(precedingClause)
+    }
 
     private const val MIN_EMBED_CHARS = 20
     private const val MAX_EMBED_CHARS = 1_500

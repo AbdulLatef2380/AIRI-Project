@@ -33,6 +33,11 @@ import android.net.Uri
 import com.airi.assistant.attachments.GeneratedArtifactService
 import com.airi.assistant.attachments.MediaArtifactService
 import com.airi.assistant.workspace.ArtifactManager
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withTimeout
 
 /**
  * ToolDispatcher — maps AgentLoop tool_call names to real implementations.
@@ -40,7 +45,7 @@ import com.airi.assistant.workspace.ArtifactManager
  * Every tool here has:
  *   - a real execution body (no placeholders)
  *   - a logged AIRI entry for auditing
- *   - a timeout enforced by the caller (AgentLoop)
+ *   - a cooperative per-tool deadline; caller cancellation remains cancellation
  *
  * Adding a new tool: add it to [BuiltinTools], add dispatch case here.
  *
@@ -61,6 +66,7 @@ class ToolDispatcher(
 ) {
     companion object {
         private const val TAG = "AIRI_ToolDispatcher"
+        private const val TOOL_TIMEOUT_MS = 120_000L
     }
 
     sealed class ToolResult {
@@ -94,6 +100,43 @@ class ToolDispatcher(
     }
 
     suspend fun execute(
+        toolName: String,
+        args: Map<String, String>,
+        context: Context,
+        executionId: String? = null,
+        agentId: String = "terminal",
+        actionId: String? = null,
+        traceId: String? = null,
+        sessionId: String? = null,
+        messageId: String? = null,
+        durableExecutionContext: AgentLoopExecutionContext? = null,
+        userApproved: Boolean = false,
+    ): ToolResult = try {
+        withTimeout(TOOL_TIMEOUT_MS) {
+            executeWithinDeadline(
+                toolName = toolName,
+                args = args,
+                context = context,
+                executionId = executionId,
+                agentId = agentId,
+                actionId = actionId,
+                traceId = traceId,
+                sessionId = sessionId,
+                messageId = messageId,
+                durableExecutionContext = durableExecutionContext,
+                userApproved = userApproved,
+            )
+        }
+    } catch (timeout: TimeoutCancellationException) {
+        currentCoroutineContext().ensureActive()
+        ToolResult.Error(
+            message = "Tool exceeded its ${TOOL_TIMEOUT_MS / 1_000}s execution deadline.",
+            code = ToolErrorCodes.TIMEOUT,
+            retryable = true,
+        )
+    }
+
+    private suspend fun executeWithinDeadline(
         toolName: String,
         args:     Map<String, String>,
         context:  Context,
@@ -599,7 +642,9 @@ class ToolDispatcher(
                         else -> MediaArtifactService(context, manager).processVideo(ownerSession, Uri.parse(args.getValue("uri")), args["filename"] ?: "airi-video.mp4", run, trace)
                             .also { check(manager.verifyArtifact(it.artifactId)) { "Video artifact was not verified on disk" } }
                     }
-                } catch (error: Throwable) {
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
                     return ToolResult.Error(error.message ?: "Artifact generation failed", code = ToolErrorCodes.EXECUTION_FAILED)
                 }
                 val structured = when (result) {
@@ -873,4 +918,5 @@ class ToolDispatcher(
         }
         return null
     }
+
 }

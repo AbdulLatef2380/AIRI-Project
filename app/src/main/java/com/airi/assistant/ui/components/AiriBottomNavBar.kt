@@ -40,9 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airi.assistant.R
 import com.airi.assistant.ui.theme.AiriTheme
-import androidx.compose.material3.MaterialTheme
-import com.airi.assistant.ui.theme.NavIconActive
-import com.airi.assistant.ui.theme.NavIconInactive
 // Fixed invalid import
 import com.airi.assistant.ui.theme.AiriTheme.surfaceVariant
 
@@ -115,8 +112,8 @@ private fun AiriNavTabItem(
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val iconTint = if (isSelected) AiriTheme.onSurface else AiriTheme.onSurfaceVariant
-    val labelColor = if (isSelected) AiriTheme.onSurface else AiriTheme.onSurface.copy(alpha = 0.45f)
+    val iconTint = if (isSelected) AiriTheme.primary else AiriTheme.onSurfaceVariant
+    val labelColor = if (isSelected) AiriTheme.primary else AiriTheme.onSurface.copy(alpha = 0.62f)
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -134,7 +131,7 @@ private fun AiriNavTabItem(
                 .clip(RoundedCornerShape(12.dp))
                 .background(
                     when {
-                        isSelected -> AiriTheme.onSurface.copy(alpha = 0.08f)
+                        isSelected -> AiriTheme.primary.copy(alpha = 0.10f)
                         else -> Color.Transparent
                     }
                 ),

@@ -18,18 +18,22 @@ import androidx.compose.ui.unit.sp
 
 // ── Dark colour scheme ────────────────────────────────────────────────────────
 private val DarkColorScheme = darkColorScheme(
-    primary          = Color(0xFFBDBDBD),
-    secondary        = Color(0xFF9E9E9E),
+    primary          = CosmicAccent,
+    onPrimary        = Color(0xFF071329),
+    primaryContainer = Color(0xFF1B2944),
+    onPrimaryContainer = Color(0xFFD9E5FF),
+    secondary        = CosmicAccentAlt,
+    onSecondary      = Color(0xFF10203B),
+    secondaryContainer = Color(0xFF1B2636),
+    onSecondaryContainer = Color(0xFFDCE9FF),
     tertiary         = SemanticSuccess,
     background       = CosmicBlack,
     surface          = SurfaceBase,
     surfaceVariant   = SurfaceRaised,
-    onPrimary        = Color(0xFF171717),
-    onSecondary      = Color(0xFF171717),
     onBackground     = Color.White,
     onSurface        = Color.White,
-    onSurfaceVariant = Color.White.copy(alpha = 0.65f),
-    outline          = GlassWhiteBorder,
+    onSurfaceVariant = Color.White.copy(alpha = 0.76f),
+    outline          = CosmicAccent.copy(alpha = 0.16f),
     error            = SemanticError,
     onError          = Color.White,
 )
@@ -38,12 +42,12 @@ private val DarkColorScheme = darkColorScheme(
 private val LightColorScheme = lightColorScheme(
     primary            = LightPrimary,
     onPrimary          = Color.White,
-    primaryContainer   = Color(0xFFE0E0E0),
-    onPrimaryContainer = Color(0xFF202020),
+    primaryContainer   = Color(0xFFDCE9FF),
+    onPrimaryContainer = Color(0xFF102A55),
     secondary            = LightSecondary,
     onSecondary          = Color.White,
-    secondaryContainer   = Color(0xFFE5E5E5),
-    onSecondaryContainer = Color(0xFF202020),
+    secondaryContainer   = Color(0xFFE0ECF8),
+    onSecondaryContainer = Color(0xFF102A3D),
     tertiary            = Color(0xFF087A3D),
     onTertiary          = Color.White,
     tertiaryContainer   = Color(0xFFB8F2C9),
@@ -80,18 +84,22 @@ private val AIRITypography = Typography(
 
 // ── AMOLED colour scheme — pure black for OLED power saving () ───────────
 private val AmoledColorScheme = darkColorScheme(
-    primary          = Color(0xFFBDBDBD),
-    secondary        = Color(0xFF9E9E9E),
+    primary          = CosmicAccent,
+    onPrimary        = Color(0xFF071329),
+    primaryContainer = Color(0xFF151F34),
+    onPrimaryContainer = Color(0xFFD9E5FF),
+    secondary        = CosmicAccentAlt,
+    onSecondary      = Color(0xFF10203B),
+    secondaryContainer = Color(0xFF151D2A),
+    onSecondaryContainer = Color(0xFFDCE9FF),
     tertiary         = SemanticSuccess,
     background       = Color.Black,          // pure black — saves OLED power
     surface          = Color(0xFF0A0A0A),    // near-black surface
     surfaceVariant   = Color(0xFF111111),    // slightly raised
-    onPrimary        = Color(0xFF101010),
-    onSecondary      = Color(0xFF101010),
     onBackground     = Color.White,
     onSurface        = Color.White,
-    onSurfaceVariant = Color.White.copy(alpha = 0.65f),
-    outline          = Color.White.copy(alpha = 0.12f),
+    onSurfaceVariant = Color.White.copy(alpha = 0.76f),
+    outline          = CosmicAccent.copy(alpha = 0.18f),
     error            = SemanticError,
     onError          = Color.White,
 )

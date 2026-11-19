@@ -704,6 +704,7 @@ class ToolDispatcher(
                                         com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.DISABLED -> "enable_skill"
                                         com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.CONNECTOR_UNHEALTHY -> "connect_required_service"
                                         com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.MISSING_PERMISSION -> "grant_required_permission"
+                                        com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.APPROVAL_UNAVAILABLE -> "configure_approval_flow"
                                         com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.MEMORY_UNAVAILABLE -> "configure_memory"
                                         com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.MODEL_UNAVAILABLE -> "load_model"
                                         com.airi.assistant.ai.skills.SkillInvocationAccessPolicy.DenyReason.INVALID_MANIFEST -> "inspect_skill_manifest"

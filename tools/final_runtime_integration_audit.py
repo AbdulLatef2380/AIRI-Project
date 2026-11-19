@@ -130,7 +130,7 @@ check("knowledge profiles remain wired to persistence and runtime retrieval", [
     ("profiles support durable update", "fun updateKnowledge" in knowledge_manager and "persistProfiles" in knowledge_manager),
     ("profiles support durable deletion", "fun deleteKnowledge" in knowledge_manager),
     ("active state is explicit", "fun activeKnowledgeProfiles" in knowledge_manager and "profile.active" in knowledge_manager),
-    ("RAG retrieves active profiles", "activeKnowledgeProfiles()" in rag_retriever and 'role = "knowledge_profile"' in rag_retriever),
+    ("RAG retrieves active profiles", re.search(r"\.activeKnowledgeProfiles\s*\(", rag_retriever) is not None and re.search(r'\brole\s*=\s*"knowledge_profile"', rag_retriever) is not None),
     ("profile retrieval is bounded", ".take(3)" in rag_retriever),
     ("knowledge UI exposes details and editor", "KnowledgeProfileDetailDialog" in memory_screen and "KnowledgeProfileEditorDialog" in memory_screen),
 ])

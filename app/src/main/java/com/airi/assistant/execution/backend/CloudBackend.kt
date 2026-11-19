@@ -405,7 +405,70 @@ class CloudBackend(
                     totalCompletionTokens += completion
                 },
             )
-            if (result is CloudProviderAdapter.AdapterResult.Failure) return result
+            if (result is CloudProviderAdapter.AdapterResult.Failure) {
+                val partial = hopText.toString()
+                val canResume = CloudContinuationPolicy.canResumeFailedStream(
+                    errorType = result.errorType,
+                    retryable = result.retryable,
+                    partialText = partial,
+                    structuredOutput = request.requiresStructuredOutput || request.structuredOutput != null,
+                    // Optional tools are safe here: AgentLoop executes them only
+                    // after a complete successful response returns. Forced tool
+                    // turns are excluded because retrying could change the action.
+                    forcedToolCall = request.toolChoice != ExecutionRequest.ToolChoice.AUTO,
+                ) && !request.requiresVision && request.imageParts.isEmpty() &&
+                    request.inlineDataParts.isEmpty()
+                if (!canResume || hop >= CloudContinuationPolicy.MAX_HOPS - 1) return result
+
+                if (hop == 0) {
+                    // The first hop is streamed live, so its partial text is already
+                    // visible. Later hops are buffered to allow overlap removal.
+                    aggregate.append(partial)
+                } else {
+                    val overlap = CloudContinuationPolicy.safeOverlapToDrop(aggregate.toString(), partial)
+                    val suffix = partial.drop(overlap)
+                    aggregate.append(suffix)
+                    if (suffix.isNotEmpty()) onToken(suffix)
+                }
+                val remainingOutputTokens = CloudContinuationPolicy.remainingOutputTokens(
+                    totalRequestedTokens = request.maxTokens,
+                    reportedCompletionTokens = totalCompletionTokens,
+                    aggregateText = aggregate.toString(),
+                )
+                if (remainingOutputTokens <= 0) return result
+
+                val continuationPrompt = CloudContinuationPolicy.CONTINUATION_PROMPT
+                nextRequest = request.copy(
+                    prompt = continuationPrompt,
+                    maxTokens = remainingOutputTokens,
+                    estimatedPromptTokens = CloudContinuationPolicy.continuationPromptEstimate(
+                        basePromptTokens = request.estimatedPromptTokens,
+                        aggregateText = aggregate.toString(),
+                        continuationPrompt = continuationPrompt,
+                    ),
+                    conversationHistory = request.conversationHistory + listOf(
+                        ExecutionRequest.ConversationTurn("user", request.prompt),
+                        ExecutionRequest.ConversationTurn("assistant", aggregate.toString()),
+                    ),
+                    imageParts = emptyList(),
+                    inlineDataParts = emptyList(),
+                    attachmentTrace = null,
+                )
+                if (!capabilities.canFit(nextRequest)) {
+                    RuntimeEventLog.post(
+                        "CLOUD_BACKEND",
+                        EventSeverity.WARN,
+                        "Partial response recovery stopped: accumulated context exceeds provider budget",
+                    )
+                    return result
+                }
+                RuntimeEventLog.post(
+                    "CLOUD_BACKEND",
+                    EventSeverity.WARN,
+                    "Resuming partial response after transient ${result.errorType} provider=${adapter.providerId} hop=${hop + 1}/${CloudContinuationPolicy.MAX_HOPS}",
+                )
+                return@repeat
+            }
 
             val success = result as CloudProviderAdapter.AdapterResult.Success
             val emitted = success.fullText.ifBlank { hopText.toString() }

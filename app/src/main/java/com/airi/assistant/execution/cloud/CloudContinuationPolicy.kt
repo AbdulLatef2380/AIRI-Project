@@ -15,6 +15,33 @@ object CloudContinuationPolicy {
     fun shouldContinue(reason: CompletionReason): Boolean = reason == CompletionReason.LENGTH_LIMIT
 
     /**
+     * Resume only a non-empty text prefix after a retryable transport/server failure.
+     * Cancellation, permanent/configuration errors, structured responses, and tool
+     * envelopes must not be turned into another model turn.
+     */
+    fun canResumeFailedStream(
+        errorType: CloudErrorType,
+        retryable: Boolean,
+        partialText: String,
+        structuredOutput: Boolean,
+        forcedToolCall: Boolean,
+    ): Boolean {
+        if (!retryable || partialText.isBlank() || structuredOutput || forcedToolCall) return false
+        if (errorType !in setOf(
+                CloudErrorType.CONNECTION_LOST,
+                CloudErrorType.TIMEOUT,
+                CloudErrorType.SERVER_ERROR,
+                CloudErrorType.RATE_LIMITED,
+            )
+        ) return false
+        val trimmed = partialText.trimStart()
+        if (trimmed.startsWith("{") &&
+            (trimmed.contains("\"tool_call\"") || trimmed.contains("\"tool_calls\""))
+        ) return false
+        return true
+    }
+
+    /**
      * Remaining response allowance across all hops. Provider usage is preferred,
      * but the existing 4-characters/token estimate prevents unmetered adapters
      * from resetting the full allowance on every hop.

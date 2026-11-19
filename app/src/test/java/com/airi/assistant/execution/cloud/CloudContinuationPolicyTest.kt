@@ -20,6 +20,42 @@ class CloudContinuationPolicyTest {
     }
 
     @Test
+    fun transientPartialTextCanResumeButCancellationAndPermanentErrorsCannot() {
+        assertTrue(CloudContinuationPolicy.canResumeFailedStream(
+            CloudErrorType.CONNECTION_LOST, true, "Partial answer", false, false,
+        ))
+        assertTrue(CloudContinuationPolicy.canResumeFailedStream(
+            CloudErrorType.TIMEOUT, true, "Partial answer", false, false,
+        ))
+        assertFalse(CloudContinuationPolicy.canResumeFailedStream(
+            CloudErrorType.CANCELLED, false, "Partial answer", false, false,
+        ))
+        assertFalse(CloudContinuationPolicy.canResumeFailedStream(
+            CloudErrorType.UNAUTHORIZED, false, "Partial answer", false, false,
+        ))
+        assertFalse(CloudContinuationPolicy.canResumeFailedStream(
+            CloudErrorType.SERVER_ERROR, true, "", false, false,
+        ))
+    }
+
+    @Test
+    fun partialRecoveryNeverReissuesStructuredOrForcedToolRequests() {
+        assertFalse(CloudContinuationPolicy.canResumeFailedStream(
+            CloudErrorType.CONNECTION_LOST, true, "Partial answer", true, false,
+        ))
+        assertFalse(CloudContinuationPolicy.canResumeFailedStream(
+            CloudErrorType.CONNECTION_LOST, true, "Partial answer", false, true,
+        ))
+        assertFalse(CloudContinuationPolicy.canResumeFailedStream(
+            CloudErrorType.CONNECTION_LOST,
+            true,
+            "{\"tool_call\":{\"name\":\"write_file\"}}",
+            false,
+            false,
+        ))
+    }
+
+    @Test
     fun hopCountIsHardBounded() {
         assertEquals(8, CloudContinuationPolicy.MAX_HOPS)
     }

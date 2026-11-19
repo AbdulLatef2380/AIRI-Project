@@ -2090,6 +2090,7 @@
     <string name="generative_ui_edge">%1$s a %2$s%3$s</string>
     <string name="generative_ui_edge_label_suffix"> · %1$s</string>
     <string name="generative_ui_required_fields">Completa los campos obligatorios antes de enviar.</string>
+    <string name="generative_ui_date_placeholder">AAAA-MM-DD</string>
     <string name="generative_ui_accessible_response">Respuesta interactiva de AIRI</string>
     <string name="generative_ui_action_preview_title">Revisar acción</string>
     <string name="generative_ui_action_preview_notice">Este texto se colocará en el redactor. No se enviará nada hasta que pulses Enviar.</string>

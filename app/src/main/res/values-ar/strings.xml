@@ -2456,6 +2456,7 @@
     <string name="generative_ui_edge">%1$s إلى %2$s%3$s</string>
     <string name="generative_ui_edge_label_suffix"> · %1$s</string>
     <string name="generative_ui_required_fields">أكمل الحقول المطلوبة قبل الإرسال.</string>
+    <string name="generative_ui_date_placeholder">YYYY-MM-DD</string>
     <string name="generative_ui_accessible_response">رد AIRI تفاعلي</string>
     <string name="generative_ui_action_preview_title">مراجعة الإجراء</string>
     <string name="generative_ui_action_preview_notice">سيُوضع هذا النص في صندوق الإدخال. لن يُرسل شيء حتى تضغط زر الإرسال.</string>

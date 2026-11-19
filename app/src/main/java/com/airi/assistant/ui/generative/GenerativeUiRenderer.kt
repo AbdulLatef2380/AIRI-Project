@@ -434,7 +434,7 @@ private fun FormBlock(block: GenerativeUiBlock.Form, onAction: (GenerativeUiActi
                     value = values[field.id].orEmpty(),
                     onValueChange = update,
                     label = { Text(label) },
-                    placeholder = field.placeholder?.let { value -> { Text(value) } } ?: if (field.kind == FormFieldKind.DATE) ({ Text("YYYY-MM-DD") }) else null,
+                    placeholder = field.placeholder?.let { value -> { Text(value) } } ?: if (field.kind == FormFieldKind.DATE) ({ Text(stringResource(R.string.generative_ui_date_placeholder)) }) else null,
                     singleLine = true,
                     isError = submitted && field.required && values[field.id].orEmpty().isBlank(),
                     modifier = Modifier.fillMaxWidth(),

@@ -42,7 +42,7 @@ class ContentAwareMessageRendererTest {
     }
 
     @Test
-    fun codeActionsAreDispatchedWithTheExactUnitTargetAndPolicyAction() {
+    fun codeCopyDispatchesExactUnitTargetAndFullscreenIsNotAllowed() {
         var receivedTarget: ContentTarget? = null
         var receivedAction: ContentUnitAction? = null
         composeRule.setContent {
@@ -67,8 +67,9 @@ class ContentAwareMessageRendererTest {
             composeRule.onAllNodesWithContentDescription(context.getString(R.string.artifact_share))
                 .fetchSemanticsNodes().isEmpty(),
         )
+        receivedAction = null
         composeRule.onNodeWithText("val exact = 7").performTouchInput { doubleClick() }
-        assertEquals(ContentUnitAction.FULLSCREEN, receivedAction)
+        assertTrue(receivedAction == null)
     }
 
     @Test

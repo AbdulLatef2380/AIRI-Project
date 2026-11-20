@@ -15,7 +15,6 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,11 +33,12 @@ import com.airi.assistant.domain.background.BackgroundWorkNames
  * PERSISTENCE MODEL
  * ─────────────────────────────────────────────────────────────────────────
  *
- *   Tasks are persisted as JSON in the app's private files directory:
+ *   Tasks are persisted in a versioned JSON envelope in the app's private files directory:
  *   {filesDir}/durable_tasks.json
  *
- *   This avoids Room migration complexity. The file is written atomically
- *   (write-to-temp, rename) to prevent corruption on process kill.
+ *   Legacy root-array JSON remains readable and is rewritten as the versioned
+ *   envelope after load. JSON remains the current store, not a substitute for
+ *   the future transactional Room/SQLite task+outbox store.
  *
  * ─────────────────────────────────────────────────────────────────────────
  * EXECUTION MODEL
@@ -57,14 +57,16 @@ import com.airi.assistant.domain.background.BackgroundWorkNames
  * CHECKPOINT SEMANTICS
  * ─────────────────────────────────────────────────────────────────────────
  *
- *   Sub-agents may call [updateCheckpoint] to write intermediate state.
- *   On retry, DurableTaskWorker passes the checkpoint to the agent so it
- *   can resume from where it left off.
+ *   Sub-agents may call [updateCheckpoint] to write intermediate state. A
+ *   checkpoint is evidence/context, not permission to replay an ambiguous side
+ *   effect. The generic worker claims new work only from QUEUED; safe continuation
+ *   and external-operation scheduling require explicit policies and transitions.
  */
 class DurableTaskManager(private val context: Context) {
 
     private val TAG = "DurableTaskManager"
     private val gson = Gson()
+    private val taskJsonCodec = DurableTaskJsonCodec(gson)
     private val taskFile = File(context.filesDir, "durable_tasks.json")
 
     // ── In-memory cache (source of truth for UI) ──────────────────────────────
@@ -892,7 +894,7 @@ class DurableTaskManager(private val context: Context) {
 
     private fun saveToDisk(): Boolean {
         return runCatching {
-            val json = gson.toJson(taskCache.values.toList())
+            val json = taskJsonCodec.encode(taskCache.values.toList())
             val tmp = File(taskFile.parent, "${taskFile.name}.tmp")
             FileOutputStream(tmp).use { output ->
                 output.write(json.toByteArray(Charsets.UTF_8))
@@ -911,9 +913,7 @@ class DurableTaskManager(private val context: Context) {
         runCatching {
             if (!taskFile.exists()) return
             val json = taskFile.readText(Charsets.UTF_8)
-            val type = object : TypeToken<List<DurableTask>>() {}.type
-            val list: List<DurableTask> = gson.fromJson(json, type) ?: emptyList()
-            list.map { it.withDeserializationDefaults() }
+            taskJsonCodec.decode(json)
                 .map(MissionKernel::normalize)
                 .forEach { normalized ->
                 if (MissionKernel.validate(normalized) is MissionOwnershipValidation.Valid) {

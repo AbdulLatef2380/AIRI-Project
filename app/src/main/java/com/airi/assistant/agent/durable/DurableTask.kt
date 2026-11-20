@@ -55,6 +55,9 @@ data class DurableTask(
     /** Current lifecycle state. */
     val status: DurableTaskStatus = DurableTaskStatus.QUEUED,
 
+    /** Typed reason for a resumable pause; null for non-paused and legacy records. */
+    val pauseReason: TaskPauseReason? = null,
+
     /** Number of retry attempts so far. */
     val attemptCount: Int = 0,
 
@@ -116,7 +119,13 @@ data class DurableTask(
     val executionNode: String? = null,
 
     /** Append-only history of execution runs. */
-    val runs: List<TaskRun> = emptyList()
+    val runs: List<TaskRun> = emptyList(),
+
+    /** Durable external jobs (CI/build/etc.) that outlive an execution run. */
+    val externalOperations: List<ExternalOperation> = emptyList(),
+
+    /** Typed reason when a budget pause is awaiting extension or replenishment. */
+    val budgetPauseReason: BudgetPauseReason? = null
 ) {
     val isTerminal: Boolean
         get() = status == DurableTaskStatus.COMPLETED ||
@@ -131,6 +140,12 @@ data class DurableTask(
         stepId: String? = plan.firstOrNull()?.id,
         nowMs: Long = System.currentTimeMillis()
     ): DurableTask {
+        require(status == DurableTaskStatus.QUEUED) {
+            "A new run may start only from QUEUED, not $status"
+        }
+        require(runId.isNotBlank() && runs.none { it.id == runId }) {
+            "Run ID must be non-blank and unique within the task"
+        }
         val run = TaskRun(
             id = runId,
             taskId = id,
@@ -142,10 +157,12 @@ data class DurableTask(
         )
         return copy(
             status = DurableTaskStatus.RUNNING,
+            pauseReason = null,
             attemptCount = (attemptCount + 1).coerceAtMost(maxAttempts),
             startedAtMs = startedAtMs.takeIf { it > 0 } ?: nowMs,
             updatedAtMs = nowMs,
             currentRunId = runId,
+            budgetPauseReason = null,
             currentStepId = stepId,
             plan = plan.map { step ->
                 if (step.id == stepId && step.status == TaskStepStatus.PENDING) {
@@ -238,6 +255,7 @@ data class DurableTask(
         nowMs: Long = System.currentTimeMillis()
     ): DurableTask = copy(
         status = DurableTaskStatus.COMPLETED,
+        pauseReason = null,
         result = result,
         errorReason = "",
         finishedAtMs = nowMs,
@@ -258,6 +276,7 @@ data class DurableTask(
         nowMs: Long = System.currentTimeMillis()
     ): DurableTask = copy(
         status = DurableTaskStatus.FAILED,
+        pauseReason = null,
         errorReason = reason,
         finishedAtMs = nowMs,
         updatedAtMs = nowMs,
@@ -276,6 +295,7 @@ data class DurableTask(
         nowMs: Long = System.currentTimeMillis()
     ): DurableTask = copy(
         status = DurableTaskStatus.QUEUED,
+        pauseReason = null,
         finishedAtMs = -1L,
         updatedAtMs = nowMs,
         progressMessage = "Waiting for retry",
@@ -286,10 +306,184 @@ data class DurableTask(
         }
     )
 
+    /**
+     * Preserve the checkpoint and pause when the platform stops a worker.
+     * This does not assert that replay/resume is safe; an explicit user cancellation must use [cancel].
+     */
+    fun pauseAfterWorkerStop(
+        reason: String,
+        nowMs: Long = System.currentTimeMillis()
+    ): DurableTask = copy(
+        status = DurableTaskStatus.PAUSED,
+        pauseReason = TaskPauseReason.WORKER_INTERRUPTED,
+        finishedAtMs = -1L,
+        updatedAtMs = nowMs,
+        progressMessage = "Worker stopped; task paused to avoid unsafe replay",
+        plan = plan.map { step ->
+            if (step.id == currentStepId && step.status == TaskStepStatus.RUNNING) {
+                step.copy(status = TaskStepStatus.PAUSED)
+            } else step
+        },
+        runs = runs.map { run ->
+            if (run.id == currentRunId && run.status == TaskRunStatus.RUNNING) {
+                run.copy(status = TaskRunStatus.PAUSED, finishedAtMs = nowMs, error = reason)
+            } else run
+        }
+    )
+
+    /** Pause non-terminally when an extendable execution budget is exhausted. */
+    fun pauseForBudget(
+        reason: BudgetPauseReason,
+        nowMs: Long = System.currentTimeMillis()
+    ): DurableTask? {
+        if (status != DurableTaskStatus.RUNNING) return null
+        val paused = copy(
+            status = DurableTaskStatus.PAUSED_BUDGET,
+            pauseReason = null,
+            budgetPauseReason = reason,
+            finishedAtMs = -1L,
+            updatedAtMs = nowMs,
+            progressMessage = "Paused: ${reason.name.lowercase().replace('_', ' ')}",
+            plan = plan.map { step ->
+                if (step.id == currentStepId && step.status == TaskStepStatus.RUNNING) {
+                    step.copy(status = TaskStepStatus.PAUSED)
+                } else step
+            },
+            runs = runs.map { run ->
+                if (run.id == currentRunId && run.status == TaskRunStatus.RUNNING) {
+                    run.copy(status = TaskRunStatus.PAUSED, finishedAtMs = nowMs, error = reason.name)
+                } else run
+            }
+        )
+        return paused.appendTimeline(
+            TaskTimelineEvent(
+                type = TaskTimelineEventType.TASK_BUDGET_PAUSED,
+                summary = "Task paused at an execution budget boundary",
+                detail = reason.name,
+                runId = currentRunId,
+                stepId = currentStepId,
+                recordedAtMs = nowMs
+            )
+        )
+    }
+
+    /** Yield the current run after an external job is accepted; never replay this run. */
+    fun waitForExternalOperation(
+        operation: ExternalOperation,
+        nowMs: Long = System.currentTimeMillis()
+    ): DurableTask? {
+        if (
+            status != DurableTaskStatus.RUNNING || currentRunId == null ||
+            operation.taskId != id || operation.runId != currentRunId ||
+            operation.stepId != currentStepId ||
+            plan.none { it.id == operation.stepId && it.runId == currentRunId } ||
+            operation.externalProvider.isBlank() || operation.operationId.isBlank() ||
+            externalOperations.any { it.operationId == operation.operationId }
+        ) return null
+
+        val yielded = copy(
+            status = DurableTaskStatus.WAITING_EXTERNAL,
+            pauseReason = null,
+            budgetPauseReason = null,
+            finishedAtMs = -1L,
+            updatedAtMs = nowMs,
+            progressMessage = "Waiting for ${operation.externalProvider} operation",
+            externalOperations = externalOperations + operation,
+            plan = plan.map { step ->
+                if (step.id == operation.stepId && step.runId == operation.runId) {
+                    step.copy(status = TaskStepStatus.WAITING_EXTERNAL)
+                } else step
+            },
+            runs = runs.map { run ->
+                if (run.id == currentRunId && run.status == TaskRunStatus.RUNNING) {
+                    run.copy(status = TaskRunStatus.WAITING_EXTERNAL, finishedAtMs = nowMs)
+                } else run
+            }
+        )
+        return yielded.appendTimeline(
+            TaskTimelineEvent(
+                type = TaskTimelineEventType.EXTERNAL_OPERATION_STARTED,
+                summary = "External operation accepted; current run yielded",
+                detail = operation.externalProvider,
+                runId = operation.runId,
+                stepId = operation.stepId,
+                recordedAtMs = nowMs
+            )
+        )
+    }
+
+    /**
+     * Apply a poll/webhook observation. Pending outcomes persist a next poll time;
+     * terminal outcomes await an explicit safe continuation; they never queue
+     * the generic worker that would replay the original task input.
+     */
+    fun recordExternalOperationCheck(
+        operationId: String,
+        externalStatus: ExternalOperationStatus,
+        nextPollAt: Long? = null,
+        resultReference: String? = null,
+        nowMs: Long = System.currentTimeMillis()
+    ): DurableTask? {
+        if (status !in setOf(DurableTaskStatus.WAITING_EXTERNAL, DurableTaskStatus.WAITING_TIMER)) return null
+        val current = externalOperations.firstOrNull { it.operationId == operationId } ?: return null
+        if (current.externalStatus.isTerminal) return null
+        if (!externalStatus.isTerminal && nextPollAt == null) return null
+
+        val updatedOperation = current.copy(
+            externalStatus = externalStatus,
+            nextPollAt = if (externalStatus.isTerminal) null else nextPollAt,
+            lastCheckedAt = nowMs,
+            resultReference = resultReference ?: current.resultReference,
+            pollAttemptCount = current.pollAttemptCount + 1
+        )
+        val terminal = externalStatus.isTerminal
+        val updated = copy(
+            status = if (terminal) DurableTaskStatus.READY_FOR_CONTINUATION else DurableTaskStatus.WAITING_TIMER,
+            updatedAtMs = nowMs,
+            finishedAtMs = -1L,
+            progressMessage = if (terminal) "External operation finished; awaiting a safe continuation"
+                else "Waiting to check ${current.externalProvider} again",
+            plan = plan.map { step ->
+                if (step.id == current.stepId && step.runId == current.runId) {
+                    when (externalStatus) {
+                        ExternalOperationStatus.SUCCEEDED -> step.copy(
+                            status = TaskStepStatus.COMPLETED,
+                            completedAtMs = nowMs,
+                            error = ""
+                        )
+                        ExternalOperationStatus.FAILED, ExternalOperationStatus.CANCELLED -> step.copy(
+                            status = TaskStepStatus.FAILED,
+                            completedAtMs = nowMs,
+                            error = "External operation ${externalStatus.name.lowercase()}"
+                        )
+                        else -> step.copy(status = TaskStepStatus.WAITING_TIMER)
+                    }
+                } else step
+            },
+            externalOperations = externalOperations.map {
+                if (it.operationId == operationId) updatedOperation else it
+            }
+        )
+        return updated.appendTimeline(
+            TaskTimelineEvent(
+                type = if (terminal) TaskTimelineEventType.EXTERNAL_OPERATION_COMPLETED
+                    else TaskTimelineEventType.EXTERNAL_OPERATION_CHECKED,
+                summary = if (terminal) "External operation completed; task awaits a safe continuation"
+                    else "External operation remains pending",
+                detail = externalStatus.name,
+                runId = current.runId,
+                stepId = current.stepId,
+                recordedAtMs = nowMs
+            )
+        )
+    }
+
     fun cancel(
         nowMs: Long = System.currentTimeMillis()
     ): DurableTask = copy(
         status = DurableTaskStatus.CANCELLED,
+        pauseReason = null,
+        budgetPauseReason = null,
         finishedAtMs = nowMs,
         updatedAtMs = nowMs,
         runs = finishCurrentRun(TaskRunStatus.CANCELLED, nowMs)
@@ -384,6 +578,7 @@ data class DurableTask(
 
         return copy(
             status = DurableTaskStatus.PAUSED,
+            pauseReason = TaskPauseReason.APPROVAL,
             updatedAtMs = nowMs,
             progressMessage = "Waiting for approval",
             approvalContinuations = approvalContinuations.filterNot { it.id == owned.id } + owned,
@@ -425,6 +620,7 @@ data class DurableTask(
         val claimed = continuation.claim(nowMs) ?: return null
         val resumed = copy(
             status = DurableTaskStatus.RUNNING,
+            pauseReason = null,
             updatedAtMs = nowMs,
             progressMessage = "Resuming approved action",
             approvalContinuations = approvalContinuations.map {
@@ -479,6 +675,11 @@ data class DurableTask(
         updatedAtMs = event.recordedAtMs
     )
 
+    /** Gson bypasses Kotlin constructor defaults; normalize fields added after legacy JSON was written. */
+    fun withDeserializationDefaults(): DurableTask = copy(
+        externalOperations = externalOperations.orEmpty()
+    )
+
     private companion object {
         const val MAX_TIMELINE_EVENTS = 400
     }
@@ -500,9 +701,30 @@ enum class DurableTaskStatus {
     QUEUED,
     RUNNING,
     PAUSED,
+    PAUSED_BUDGET,
+    WAITING_EXTERNAL,
+    WAITING_TIMER,
+    READY_FOR_CONTINUATION,
     COMPLETED,
     FAILED,
     CANCELLED
+}
+
+enum class TaskPauseReason {
+    USER,
+    APPROVAL,
+    NETWORK,
+    PROVIDER,
+    SYSTEM,
+    WORKER_INTERRUPTED
+}
+
+enum class BudgetPauseReason {
+    TASK_DEADLINE_REACHED,
+    TASK_TOKEN_BUDGET_EXHAUSTED,
+    TASK_COST_BUDGET_EXHAUSTED,
+    RUN_BUDGET_EXHAUSTED,
+    TOOL_RETRY_BUDGET_EXHAUSTED
 }
 
 enum class TaskScope {
@@ -516,6 +738,8 @@ enum class TaskStepStatus {
     PENDING,
     RUNNING,
     PAUSED,
+    WAITING_EXTERNAL,
+    WAITING_TIMER,
     COMPLETED,
     FAILED,
     SKIPPED
@@ -524,9 +748,66 @@ enum class TaskStepStatus {
 enum class TaskRunStatus {
     RUNNING,
     PAUSED,
+    WAITING_EXTERNAL,
     COMPLETED,
     FAILED,
     CANCELLED
+}
+
+/** Persisted provider operation; completion is analyzed by a subsequent run, never replayed. */
+data class ExternalOperation(
+    val operationId: String,
+    val taskId: String,
+    val runId: String,
+    val stepId: String,
+    val externalProvider: String,
+    val externalReferenceId: String? = null,
+    val externalStatus: ExternalOperationStatus = ExternalOperationStatus.SUBMITTED,
+    val startedAt: Long,
+    val nextPollAt: Long? = null,
+    val lastCheckedAt: Long? = null,
+    val resultReference: String? = null,
+    val timeoutPolicy: ExternalOperationTimeoutPolicy = ExternalOperationTimeoutPolicy(),
+    val retryPolicy: ExternalOperationRetryPolicy = ExternalOperationRetryPolicy(),
+    val cancellationState: ExternalOperationCancellationState = ExternalOperationCancellationState.NONE,
+    val pollAttemptCount: Int = 0
+)
+
+data class ExternalOperationTimeoutPolicy(
+    val deadlineAt: Long = Long.MAX_VALUE,
+    val action: ExternalOperationTimeoutAction = ExternalOperationTimeoutAction.REPORT_FAILURE_TO_TASK
+)
+
+data class ExternalOperationRetryPolicy(
+    val maxAttempts: Int = 40,
+    val initialBackoffMs: Long = 15_000L,
+    val maxBackoffMs: Long = 15 * 60_000L
+)
+
+enum class ExternalOperationTimeoutAction {
+    REPORT_FAILURE_TO_TASK,
+    CANCEL_EXTERNAL,
+    REQUIRE_USER_ACTION
+}
+
+enum class ExternalOperationCancellationState {
+    NONE,
+    REQUESTED,
+    CONFIRMED,
+    REJECTED,
+    UNKNOWN
+}
+
+enum class ExternalOperationStatus {
+    SUBMITTED,
+    RUNNING,
+    SUCCEEDED,
+    FAILED,
+    CANCELLED,
+    UNKNOWN;
+
+    val isTerminal: Boolean
+        get() = this == SUCCEEDED || this == FAILED || this == CANCELLED
 }
 
 data class TaskPlanStep(
@@ -599,8 +880,13 @@ enum class TaskTimelineEventType {
     RECOVERY_ATTEMPTED,
     STEP_COMPLETED,
     STEP_FAILED,
+    EXTERNAL_OPERATION_STARTED,
+    EXTERNAL_OPERATION_CHECKED,
+    EXTERNAL_OPERATION_COMPLETED,
     TASK_COMPLETED,
     TASK_FAILED,
+    TASK_PAUSED,
+    TASK_BUDGET_PAUSED,
     TASK_CANCELLED,
     CONTINUITY_MERGED
 }
@@ -610,6 +896,7 @@ sealed class ContinuityMergeResult {
     data object UnknownTask : ContinuityMergeResult()
     data object LocalNewer : ContinuityMergeResult()
     data object LocalExecutionActive : ContinuityMergeResult()
+    data object RemoteRequiresLocalReconciliation : ContinuityMergeResult()
     data object UnsupportedSchema : ContinuityMergeResult()
 }
 

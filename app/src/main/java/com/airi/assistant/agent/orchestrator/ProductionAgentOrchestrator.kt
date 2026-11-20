@@ -334,11 +334,19 @@ class ProductionAgentOrchestrator(
                 executionNode = plan.executionNode
             )
         )
-        durableTaskManager?.beginRun(
+        val durableRunStarted = durableTaskManager?.beginRun(
             taskId = executionId,
             runId = executionId,
             stepId = plan.tasks.firstOrNull()?.id
         )
+        if (durableTaskManager != null && durableRunStarted != true) {
+            return ExecutionResult.PartialFailure(
+                planId = executionId,
+                taskResults = emptyMap(),
+                taskErrors = mapOf("durable_run" to "A new durable run could not be claimed safely"),
+                durationMs = System.currentTimeMillis() - startMs
+            )
+        }
 
         Log.i(TAG, "AIRI PLAN_START id=$executionId tasks=${plan.tasks.size}")
         ExecutionStatusBus.onGraphStarted(

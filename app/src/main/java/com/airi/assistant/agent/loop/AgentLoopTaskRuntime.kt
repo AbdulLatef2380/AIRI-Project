@@ -65,7 +65,9 @@ class AgentLoopTaskRuntime(
                 )
             )
         )
-        durableTaskManager.beginRun(taskId = taskId, runId = runId, stepId = toolName)
+        if (!durableTaskManager.beginRun(taskId = taskId, runId = runId, stepId = toolName)) {
+            return null
+        }
         return context.takeIf(::ownsRunningStep)
             ?: run {
                 durableTaskManager.markFailed(taskId, "Task context could not be initialized")

@@ -21,7 +21,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.ConcurrentHashMap
+import java.util.UUID
 import com.airi.assistant.R
 import com.airi.assistant.domain.background.BackgroundWorkNames
 
@@ -84,11 +86,15 @@ class DurableTaskManager(private val context: Context) {
      * Queue a new durable task for execution.
      * Returns the task ID (UUID) for tracking.
      */
+    @Synchronized
     fun enqueue(task: DurableTask): String {
-        val queued = task.copy(
-            status = DurableTaskStatus.QUEUED,
-            updatedAtMs = System.currentTimeMillis()
-        )
+        require(task.status == DurableTaskStatus.QUEUED && !task.isTerminal) {
+            "Only a new QUEUED task may be enqueued; use an explicit continuation for existing work"
+        }
+        require(!taskCache.containsKey(task.id)) {
+            "Task ${task.id} already exists; enqueue cannot overwrite or revive it"
+        }
+        val queued = task.copy(updatedAtMs = System.currentTimeMillis())
         putTask(queued)
         submitToWorkManager(queued)
         Log.i(TAG, "AIRI DURABLE_TASK_ENQUEUED id=${task.id} title='${task.title}'")
@@ -115,8 +121,11 @@ class DurableTaskManager(private val context: Context) {
         return task.id
     }
 
-    /** Starts or resumes a durable execution run and records its active plan step. */
-    fun beginRun(taskId: String, runId: String = taskId, stepId: String? = null) {
+    /** Starts one new durable run only from QUEUED; waiting/running runs are never replayed. */
+    @Synchronized
+    fun beginRun(taskId: String, runId: String = taskId, stepId: String? = null): Boolean {
+        val existing = taskCache[taskId] ?: return false
+        if (existing.status != DurableTaskStatus.QUEUED || existing.runs.any { it.id == runId }) return false
         updateTask(taskId) {
             beginRun(runId = runId, stepId = stepId).appendTimeline(
                 TaskTimelineEvent(
@@ -127,6 +136,62 @@ class DurableTaskManager(private val context: Context) {
                 )
             )
         }
+        return taskCache[taskId]?.let { it.status == DurableTaskStatus.RUNNING && it.currentRunId == runId } == true
+    }
+
+    /** Persist a typed budget pause without converting it into a terminal failure. */
+    @Synchronized
+    fun pauseForBudget(
+        taskId: String,
+        reason: BudgetPauseReason,
+        nowMs: Long = System.currentTimeMillis()
+    ): Boolean {
+        val existing = taskCache[taskId] ?: return false
+        val paused = existing.pauseForBudget(reason, nowMs) ?: return false
+        putTask(paused)
+        return taskCache[taskId]?.let {
+            it.status == DurableTaskStatus.PAUSED_BUDGET && it.budgetPauseReason == reason
+        } == true
+    }
+
+    /** Persist an external operation and yield its exact active run/step. */
+    @Synchronized
+    fun beginExternalOperation(
+        taskId: String,
+        operation: ExternalOperation,
+        nowMs: Long = System.currentTimeMillis()
+    ): Boolean {
+        val existing = taskCache[taskId] ?: return false
+        val waiting = existing.waitForExternalOperation(operation, nowMs) ?: return false
+        putTask(waiting)
+        return taskCache[taskId]?.let {
+            it.status == DurableTaskStatus.WAITING_EXTERNAL &&
+                it.externalOperations.any { item -> item.operationId == operation.operationId }
+        } == true
+    }
+
+    /** Persist a provider poll/webhook observation; duplicates after a terminal outcome are rejected. */
+    @Synchronized
+    fun recordExternalOperationCheck(
+        taskId: String,
+        operationId: String,
+        status: ExternalOperationStatus,
+        nextPollAt: Long? = null,
+        resultReference: String? = null,
+        nowMs: Long = System.currentTimeMillis()
+    ): Boolean {
+        val existing = taskCache[taskId] ?: return false
+        val updated = existing.recordExternalOperationCheck(
+            operationId = operationId,
+            externalStatus = status,
+            nextPollAt = nextPollAt,
+            resultReference = resultReference,
+            nowMs = nowMs
+        ) ?: return false
+        putTask(updated)
+        return taskCache[taskId]?.let { task ->
+            task.externalOperations.firstOrNull { it.operationId == operationId }?.externalStatus == status
+        } == true
     }
 
     /** Persists a safe execution checkpoint and the current plan step. */
@@ -292,6 +357,32 @@ class DurableTaskManager(private val context: Context) {
             )
         }
         Log.w(TAG, "AIRI_DURABLE_TASK_RETRYING id=$taskId")
+    }
+
+    /**
+     * Persist a stopped worker as paused. The current worker may have invoked a
+     * side effect before cancellation, so this path must not auto-replay the task.
+     * Explicit cancellation wins: only a task still RUNNING can be paused here.
+     */
+    fun markWorkerInterrupted(taskId: String, reason: String): Boolean {
+        var marked = false
+        updateTask(taskId) {
+            if (status != DurableTaskStatus.RUNNING) return@updateTask this
+            marked = true
+            pauseAfterWorkerStop(reason).appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.TASK_PAUSED,
+                    summary = "Worker stopped; task paused pending safe recovery",
+                    detail = safeTimelineText(reason),
+                    runId = currentRunId,
+                    stepId = currentStepId
+                )
+            )
+        }
+        if (!marked) {
+            Log.i(TAG, "AIRI_DURABLE_TASK_INTERRUPTION_NOT_REQUEUED id=$taskId")
+        }
+        return marked
     }
 
 
@@ -675,6 +766,16 @@ class DurableTaskManager(private val context: Context) {
         val local = getTask(snapshot.taskId) ?: return ContinuityMergeResult.UnknownTask
         if (snapshot.updatedAtMs <= local.updatedAtMs) return ContinuityMergeResult.LocalNewer
         if (local.status == DurableTaskStatus.RUNNING) return ContinuityMergeResult.LocalExecutionActive
+        if (
+            snapshot.status in setOf(
+                DurableTaskStatus.PAUSED_BUDGET,
+                DurableTaskStatus.WAITING_EXTERNAL,
+                DurableTaskStatus.WAITING_TIMER,
+                DurableTaskStatus.READY_FOR_CONTINUATION
+            ) || snapshot.plan.any {
+                it.status == TaskStepStatus.WAITING_EXTERNAL || it.status == TaskStepStatus.WAITING_TIMER
+            }
+        ) return ContinuityMergeResult.RemoteRequiresLocalReconciliation
 
         val remoteSteps = snapshot.plan.associateBy { it.id }
         val remoteStatus = if (snapshot.status == DurableTaskStatus.RUNNING) {
@@ -738,9 +839,14 @@ class DurableTaskManager(private val context: Context) {
         require(MissionKernel.validate(normalized) is MissionOwnershipValidation.Valid) {
             "Durable task ownership invariant rejected for task=${task.id}"
         }
-        taskCache[normalized.id] = normalized
+        val previous = taskCache.put(normalized.id, normalized)
+        if (!saveToDisk()) {
+            if (previous == null) taskCache.remove(normalized.id)
+            else taskCache[normalized.id] = previous
+            emitUpdate()
+            throw IllegalStateException("Failed to persist durable task ${normalized.id}")
+        }
         emitUpdate()
-        saveToDisk()
     }
 
     @Synchronized
@@ -784,16 +890,21 @@ class DurableTaskManager(private val context: Context) {
     // File persistence
     // ─────────────────────────────────────────────────────────────────────────
 
-    private fun saveToDisk() {
-        runCatching {
+    private fun saveToDisk(): Boolean {
+        return runCatching {
             val json = gson.toJson(taskCache.values.toList())
-            // Atomic write: write-to-temp → rename
             val tmp = File(taskFile.parent, "${taskFile.name}.tmp")
-            tmp.writeText(json, Charsets.UTF_8)
-            tmp.renameTo(taskFile)
+            FileOutputStream(tmp).use { output ->
+                output.write(json.toByteArray(Charsets.UTF_8))
+                output.fd.sync()
+            }
+            check(tmp.renameTo(taskFile)) {
+                "Atomic task-file rename failed: ${tmp.name} -> ${taskFile.name}"
+            }
+            true
         }.onFailure {
             Log.e(TAG, "Failed to persist tasks to disk: ${it.message}")
-        }
+        }.getOrDefault(false)
     }
 
     private fun loadFromDisk() {
@@ -802,7 +913,9 @@ class DurableTaskManager(private val context: Context) {
             val json = taskFile.readText(Charsets.UTF_8)
             val type = object : TypeToken<List<DurableTask>>() {}.type
             val list: List<DurableTask> = gson.fromJson(json, type) ?: emptyList()
-            list.map(MissionKernel::normalize).forEach { normalized ->
+            list.map { it.withDeserializationDefaults() }
+                .map(MissionKernel::normalize)
+                .forEach { normalized ->
                 if (MissionKernel.validate(normalized) is MissionOwnershipValidation.Valid) {
                     taskCache[normalized.id] = normalized
                 } else {
@@ -882,9 +995,12 @@ class DurableTaskWorker(
         Log.i(TAG, "DurableTaskWorker starting taskId=$taskId attempt=$runAttemptCount")
         val manager = com.airi.assistant.core.ServiceLocator.durableTaskManager
         val task = manager.getTask(taskId) ?: return Result.failure()
-        if (task.status == DurableTaskStatus.PAUSED || task.isTerminal) return Result.success()
+        if (task.status != DurableTaskStatus.QUEUED || task.isTerminal) return Result.success()
 
-        manager.beginRun(taskId, task.currentRunId ?: taskId, task.currentStepId)
+        if (!manager.beginRun(taskId, UUID.randomUUID().toString(), task.currentStepId)) {
+            Log.w(TAG, "DurableTaskWorker declined non-queued or duplicate run taskId=$taskId")
+            return Result.success()
+        }
         manager.updateCheckpoint(taskId, task.checkpointData, 0, "Starting…")
         var executionId = taskId
         var traceAdapter: com.airi.assistant.agent.subagent.SubAgentTraceAdapter? = null
@@ -937,6 +1053,15 @@ class DurableTaskWorker(
             com.airi.assistant.core.ExecutionStatusBus.onGraphCompleted(success = true, executionId = executionId)
             Result.success()
         } catch (e: CancellationException) {
+            // WorkManager may stop a worker when constraints change or the
+            // platform reclaims execution. Persist a paused state, not an
+            // automatic replay, because prior side effects may be ambiguous.
+            // DurableTaskManager.cancel() writes CANCELLED before cancellation,
+            // so markWorkerInterrupted will not resurrect an explicit cancel.
+            manager.markWorkerInterrupted(
+                taskId = taskId,
+                reason = e.message ?: "Worker execution interrupted"
+            )
             // Preserve a typed cancellation in the execution trace before propagating it.
             traceAdapter?.cancelled()
             com.airi.assistant.core.ExecutionStatusBus.onGraphCancelled(executionId)

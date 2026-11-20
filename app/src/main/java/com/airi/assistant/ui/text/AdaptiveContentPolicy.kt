@@ -49,13 +49,7 @@ object AdaptiveContentPolicy {
         messageId: String = stableMessageId(text),
         toolOutputs: List<AssistantToolOutput> = emptyList(),
     ): AdaptiveContentPlan {
-        // Tool-result expansion is owned by ToolOutputCard, not by response
-        // content actions. Keep the scoped tool-output model intact elsewhere,
-        // but do not leak its card action into this content-unit plan.
-        val contentToolOutputs = toolOutputs.map { output ->
-            output.copy(actions = output.actions - ContentUnitAction.EXPAND)
-        }
-        if (text.isBlank()) return AdaptiveContentPlan(messageId, emptyList(), emptySet(), contentToolOutputs)
+        if (text.isBlank()) return AdaptiveContentPlan(messageId, emptyList(), emptySet(), toolOutputs)
 
         val analysis = AssistantContentClassifier.analyse(text, isStreaming)
         val units = parseUnits(text, analysis, messageId)
@@ -71,7 +65,7 @@ object AdaptiveContentPolicy {
             messageId = messageId,
             units = units,
             messageActions = messageActions,
-            toolOutputs = contentToolOutputs,
+            toolOutputs = toolOutputs,
         )
     }
 

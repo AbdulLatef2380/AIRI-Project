@@ -282,6 +282,7 @@ $existingText""",
             toolName = "search",
             step = 1,
             text = "tool-only result",
+            actions = emptySet(),
         )
         val plan = AdaptiveContentPolicy.plan(
             text = "Agent final answer",

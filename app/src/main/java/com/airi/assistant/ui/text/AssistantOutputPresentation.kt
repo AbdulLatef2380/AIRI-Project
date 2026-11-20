@@ -7,7 +7,7 @@ data class AssistantToolOutput(
     val step: Int,
     val text: String,
     val truncated: Boolean = false,
-    val actions: Set<ContentUnitAction> = emptySet(),
+    val actions: Set<ContentUnitAction> = setOf(ContentUnitAction.EXPAND),
 )
 
 /**

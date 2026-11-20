@@ -229,9 +229,7 @@ data class ChatMessage(
     val outputPresentation: AssistantOutputPresentation
         get() = AssistantOutputPresentation(
             agentOutput = if (isUser) "" else text,
-            toolOutputs = if (isUser) emptyList() else toolOutputs.map { output ->
-                output.copy(actions = output.actions + com.airi.assistant.ui.text.ContentUnitAction.EXPAND)
-            },
+            toolOutputs = if (isUser) emptyList() else toolOutputs,
         )
 }
 

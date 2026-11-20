@@ -59,7 +59,7 @@ class AgentSkillCatalogTest {
     fun loadReturnsManifestInstructionsForOfficialSkills() {
         val loaded = AgentSkillCatalog.load("document_generator")
         assertTrue(loaded.isSuccess)
-        assertTrue(loaded.getOrThrow().contains("stable runtime identity"))
+        assertTrue(loaded.getOrThrow().contains("Stable runtime identity"))
         assertTrue(loaded.getOrThrow().contains("## Tools"))
     }
 

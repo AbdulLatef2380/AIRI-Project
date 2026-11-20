@@ -66,6 +66,7 @@ object ContentActionPolicy {
         is ContentTarget.Block -> action in target.actions && when (action) {
             ContentUnitAction.SHARE,
             ContentUnitAction.SAVE,
+            ContentUnitAction.EXPAND,
             ContentUnitAction.FULLSCREEN -> target.complete
             else -> true
         }

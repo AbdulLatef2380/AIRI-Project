@@ -209,13 +209,10 @@ object AdaptiveContentPolicy {
             source = source,
             language = language,
             complete = complete,
-            actions = buildSet {
-                add(ContentUnitAction.COPY)
-                if (complete) {
-                    add(ContentUnitAction.SHARE)
-                    add(ContentUnitAction.FULLSCREEN)
-                }
-            },
+            // Independent code/table blocks expose only scoped copy. Sharing,
+            // saving, and fullscreen are message-level or explicitly invoked
+            // actions and must not be inferred from a parsed block.
+            actions = setOf(ContentUnitAction.COPY),
         )
     }
 

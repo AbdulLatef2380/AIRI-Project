@@ -199,10 +199,18 @@ object RuntimeToolCatalog {
         intent: CapabilityIntentDetector.Intent,
         requestText: String,
     ): Set<String> = buildSet {
-        if (intent.requires(CapabilityIntentDetector.Capability.DEVICE_ACTION)) {
-            addAll(setOf("open_app", "tap", "type_text", "scroll_down", "go_back", "flashlight", "set_alarm", "create_note"))
-        }
         val normalized = CapabilityIntentDetector.normalize(requestText)
+        if (intent.requires(CapabilityIntentDetector.Capability.DEVICE_ACTION)) {
+            fun requested(vararg phrases: String): Boolean = phrases.any(normalized::contains)
+            if (requested("افتح تطبيق", "افتح برنامج", "open app", "launch app")) add("open_app")
+            if (requested("اضغط", "انقر", "tap", "click")) add("tap")
+            if (requested("اكتب داخل", "اكتب في الحقل", "type text", "type into")) add("type_text")
+            if (requested("مرر للاسفل", "مرر لأسفل", "scroll down")) add("scroll_down")
+            if (requested("ارجع للخلف", "رجوع", "go back", "back button")) add("go_back")
+            if (requested("فلاش", "المصباح", "الكشاف", "flashlight", "torch")) add("flashlight")
+            if (requested("اضبط منبه", "اضبط المنبه", "set alarm", "set an alarm")) add("set_alarm")
+            if (requested("انشئ ملاحظة", "انشاء ملاحظة", "أضف ملاحظة", "اضف ملاحظة", "create a note", "add a note")) add("create_note")
+        }
         if ((intent.requires(CapabilityIntentDetector.Capability.CONNECTOR_WRITE) &&
             requestText.contains("calendar", ignoreCase = true)) ||
             (intent.requires(CapabilityIntentDetector.Capability.DEVICE_ACTION) &&

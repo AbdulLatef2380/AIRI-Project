@@ -189,6 +189,9 @@ jobs:
       uses: reactivecircus/android-emulator-runner@v2
       timeout-minutes: 35
       env:
+        # The hosted runner has no hardware accelerator; emulator-runner passes
+        # -accel off and current emulator releases require explicit TCG opt-in.
+        ANDROID_I_WANT_MY_TCG: "yes"
         EXPECTED_LOCALE: en-US
       with:
         api-level: 29
@@ -380,6 +383,9 @@ jobs:
       uses: reactivecircus/android-emulator-runner@v2
       timeout-minutes: ${{ matrix.step_timeout_minutes }}
       env:
+        # GitHub-hosted runners require explicit opt-in when running the AVD
+        # with software CPU emulation (-accel off).
+        ANDROID_I_WANT_MY_TCG: "yes"
         EXPECTED_API_LEVEL: ${{ matrix.api-level }}
         EXPECTED_LOCALE: ${{ matrix.locale }}
         INSTRUMENTATION_TEST_TIMEOUT_SECONDS: ${{ matrix.test_timeout_seconds }}

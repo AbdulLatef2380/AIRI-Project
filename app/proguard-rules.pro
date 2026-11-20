@@ -86,9 +86,12 @@
 -dontnote kotlin.reflect.**
 -dontnote androidx.compose.**
 
-# Vosk includes JNA for its native bridge. java.awt.Component is a desktop-only
-# method signature that is unreachable on Android and must not block R8.
+# Vosk includes JNA for its native bridge. These AWT types are referenced only
+# by JNA's optional desktop AWT bridge, which is unavailable and unused on Android.
 -dontwarn java.awt.Component
+-dontwarn java.awt.GraphicsEnvironment
+-dontwarn java.awt.HeadlessException
+-dontwarn java.awt.Window
 
 # Do not ship verbose diagnostic logs in production. Warning and error logs
 # remain available for actionable failures, but values must still be sanitized

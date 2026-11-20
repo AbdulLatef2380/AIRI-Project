@@ -87,7 +87,7 @@ class GenerativeUiRendererTest {
         val formSource = "```airi-ui\n{" +
             "\"version\":1,\"blocks\":[{\"type\":\"form\",\"id\":\"review\",\"fields\":[" +
             "{\"id\":\"name\",\"label\":\"Name\",\"required\":true}]," +
-            "\"submitLabel\":\"Review\",\"actionId\":\"review\"}]}\n```"
+            "\"submitLabel\":\"Review\"}]}\n```"
         val compiled = requireNotNull(GenerativeUiCompiler.compile(formSource))
 
         composeRule.setContent {

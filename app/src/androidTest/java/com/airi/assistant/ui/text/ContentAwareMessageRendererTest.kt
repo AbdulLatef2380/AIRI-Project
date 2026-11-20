@@ -63,8 +63,10 @@ class ContentAwareMessageRendererTest {
         assertEquals(ContentUnitAction.COPY, receivedAction)
         assertEquals("val exact = 7", receivedTarget?.source)
 
-        composeRule.onNodeWithContentDescription(context.getString(R.string.artifact_share)).performClick()
-        assertEquals(ContentUnitAction.SHARE, receivedAction)
+        assertTrue(
+            composeRule.onAllNodesWithContentDescription(context.getString(R.string.artifact_share))
+                .fetchSemanticsNodes().isEmpty(),
+        )
         composeRule.onNodeWithText("val exact = 7").performTouchInput { doubleClick() }
         assertEquals(ContentUnitAction.FULLSCREEN, receivedAction)
     }

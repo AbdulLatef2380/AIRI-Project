@@ -20,16 +20,13 @@ class ContentAwareMessageAccessibilityTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun codeActionsExposeLocalizedClickableSemanticsInArabicRtl() {
+    fun codeCopyActionExposesLocalizedClickableSemanticsInArabicRtl() {
         val baseContext = InstrumentationRegistry.getInstrumentation().targetContext
         val arabicConfiguration = android.content.res.Configuration(baseContext.resources.configuration).apply {
             setLocale(Locale.forLanguageTag("ar"))
         }
         val arabicContext = baseContext.createConfigurationContext(arabicConfiguration)
-        val labels = listOf(
-            arabicContext.getString(R.string.copy_code),
-            arabicContext.getString(R.string.artifact_share),
-        )
+        val copyLabel = arabicContext.getString(R.string.copy_code)
 
         composeRule.setContent {
             CompositionLocalProvider(
@@ -46,10 +43,8 @@ class ContentAwareMessageAccessibilityTest {
             }
         }
 
-        labels.forEach { label ->
-            composeRule.onNodeWithContentDescription(label)
-                .assertIsDisplayed()
-                .assertHasClickAction()
-        }
+        composeRule.onNodeWithContentDescription(copyLabel)
+            .assertIsDisplayed()
+            .assertHasClickAction()
     }
 }

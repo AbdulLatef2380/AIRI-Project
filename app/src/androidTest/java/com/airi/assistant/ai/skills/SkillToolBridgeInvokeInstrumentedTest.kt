@@ -53,7 +53,7 @@ class SkillToolBridgeInvokeInstrumentedTest {
         }
         val result = bridge(skill, configValues = mapOf("secret" to "must-not-leak")).invoke(
             "skill_document_generator",
-            mapOf("input" to "run"),
+            emptyMap(),
         )
         assertTrue(result.success)
         assertTrue(result.data.contains("UNTRUSTED_DATA_JSON"))

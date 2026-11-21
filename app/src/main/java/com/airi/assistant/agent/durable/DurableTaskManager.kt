@@ -1096,7 +1096,11 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
             "Durable task ownership invariant rejected for task=${task.id}"
         }
         // Room commit precedes cache publication; a failed commit leaves the cache unchanged.
-        taskStore.persist(normalized, scheduleOutbox)
+        taskStore.persist(
+            task = normalized,
+            scheduleOutbox = scheduleOutbox,
+            expectedStateVersion = previous?.stateVersion,
+        )
         taskCache[normalized.id] = normalized
         emitUpdate()
     }

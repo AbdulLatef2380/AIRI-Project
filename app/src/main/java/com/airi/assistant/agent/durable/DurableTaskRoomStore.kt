@@ -32,6 +32,7 @@ data class DurableTaskEntity(
     val projectId: String?,
     val queuedAtMs: Long,
     val updatedAtMs: Long,
+    val stateVersion: Long,
     val payloadJson: String,
     val payloadSha256: String,
 )
@@ -198,10 +199,13 @@ interface DurableTaskRoomDao {
     @Query("SELECT COUNT(*) FROM durable_tasks")
     fun taskCount(): Int
 
+    @Query("UPDATE durable_tasks SET stateVersion=:stateVersion WHERE taskId=:taskId AND stateVersion=0")
+    fun backfillStateVersion(taskId: String, stateVersion: Long): Int
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     fun insertTask(task: DurableTaskEntity)
 
-    @Query("UPDATE durable_tasks SET status=:status, ownerId=:ownerId, projectId=:projectId, queuedAtMs=:queuedAtMs, updatedAtMs=:updatedAtMs, payloadJson=:payloadJson, payloadSha256=:payloadSha256 WHERE taskId=:taskId")
+    @Query("UPDATE durable_tasks SET status=:status, ownerId=:ownerId, projectId=:projectId, queuedAtMs=:queuedAtMs, updatedAtMs=:updatedAtMs, stateVersion=:newStateVersion, payloadJson=:payloadJson, payloadSha256=:payloadSha256 WHERE taskId=:taskId AND stateVersion=:expectedStateVersion")
     fun updateTask(
         taskId: String,
         status: String,
@@ -209,6 +213,8 @@ interface DurableTaskRoomDao {
         projectId: String?,
         queuedAtMs: Long,
         updatedAtMs: Long,
+        newStateVersion: Long,
+        expectedStateVersion: Long,
         payloadJson: String,
         payloadSha256: String,
     ): Int
@@ -342,7 +348,17 @@ class DurableTaskRoomStore(
                 sha256(retainedBytes) == existingMarker.sourceSha256
             ) { "Retained legacy JSON source changed after import; refusing silent fallback" }
         }
-        val rows = dao.allTasks()
+        val rows = dao.allTasks().map { row ->
+            val decoded = codec.decode(row.payloadJson).single()
+            if (row.stateVersion == 0L && decoded.stateVersion > 0L) {
+                check(dao.backfillStateVersion(row.taskId, decoded.stateVersion) == 1) {
+                    "Could not backfill durable task stateVersion for id=${row.taskId}"
+                }
+                row.copy(stateVersion = decoded.stateVersion)
+            } else {
+                row
+            }
+        }
         verifyRows(rows)
         check(rows.size == existingMarker.importedTaskCount) {
             "Durable task count differs from completed import marker; refusing writes"
@@ -356,7 +372,11 @@ class DurableTaskRoomStore(
         )
     }
 
-    fun persist(task: DurableTask, scheduleOutbox: Boolean = false) = runBlocking {
+    fun persist(
+        task: DurableTask,
+        scheduleOutbox: Boolean = false,
+        expectedStateVersion: Long? = null,
+    ) = runBlocking {
         withContext(Dispatchers.IO) {
             val normalized = MissionKernel.normalize(task)
             require(MissionKernel.validate(normalized) is MissionOwnershipValidation.Valid) {
@@ -364,17 +384,26 @@ class DurableTaskRoomStore(
             }
             val row = toEntity(normalized)
             database.runInTransaction {
-                val updated = dao.updateTask(
-                    taskId = row.taskId,
-                    status = row.status,
-                    ownerId = row.ownerId,
-                    projectId = row.projectId,
-                    queuedAtMs = row.queuedAtMs,
-                    updatedAtMs = row.updatedAtMs,
-                    payloadJson = row.payloadJson,
-                    payloadSha256 = row.payloadSha256,
-                )
-                if (updated == 0) dao.insertTask(row)
+                val existing = dao.task(row.taskId)
+                if (existing == null) {
+                    dao.insertTask(row)
+                } else {
+                    val updated = dao.updateTask(
+                        taskId = row.taskId,
+                        status = row.status,
+                        ownerId = row.ownerId,
+                        projectId = row.projectId,
+                        queuedAtMs = row.queuedAtMs,
+                        updatedAtMs = row.updatedAtMs,
+                        newStateVersion = row.stateVersion,
+                        expectedStateVersion = expectedStateVersion ?: existing.stateVersion,
+                        payloadJson = row.payloadJson,
+                        payloadSha256 = row.payloadSha256,
+                    )
+                    check(updated == 1) {
+                        "Durable task CAS conflict for id=${row.taskId}; refusing stale overwrite"
+                    }
+                }
                 syncChildRows(normalized)
                 verifyChildCounts(normalized)
                 if (scheduleOutbox) {
@@ -425,6 +454,7 @@ class DurableTaskRoomStore(
             projectId = task.projectId,
             queuedAtMs = task.queuedAtMs,
             updatedAtMs = task.updatedAtMs,
+            stateVersion = task.stateVersion,
             payloadJson = payload,
             payloadSha256 = sha256(payload.toByteArray(Charsets.UTF_8)),
         )
@@ -526,7 +556,8 @@ class DurableTaskRoomStore(
             "Durable task payload integrity check failed for id=${row.taskId}"
         }
         val task = codec.decode(row.payloadJson).single()
-        check(task.id == row.taskId && task.status.name == row.status && task.ownerId == row.ownerId && task.projectId == row.projectId) {
+        check(task.id == row.taskId && task.status.name == row.status && task.ownerId == row.ownerId &&
+            task.projectId == row.projectId && task.stateVersion == row.stateVersion) {
             "Durable task indexed metadata does not match payload for id=${row.taskId}"
         }
         val normalized = MissionKernel.normalize(task)

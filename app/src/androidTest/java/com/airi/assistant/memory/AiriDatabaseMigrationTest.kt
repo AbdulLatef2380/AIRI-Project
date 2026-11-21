@@ -33,7 +33,7 @@ class AiriDatabaseMigrationTest {
     }
 
     @Test
-    fun migratesVersionOneDataToVersionTwelveWithoutLossOrIndexDrift() = runBlocking {
+    fun migratesVersionOneDataToVersionThirteenWithoutLossOrIndexDrift() = runBlocking {
         createVersionOneDatabase()
 
         database = Room.databaseBuilder(context, AiriDatabase::class.java, DATABASE_NAME)
@@ -73,7 +73,13 @@ class AiriDatabaseMigrationTest {
         assertTrue("durable_task_events" in tables)
         assertTrue("durable_task_outbox" in tables)
         assertTrue("durable_task_imports" in tables)
-        assertEquals(12, database!!.openHelper.writableDatabase.version)
+        assertEquals(13, database!!.openHelper.writableDatabase.version)
+        val durableTaskColumns = database!!.openHelper.writableDatabase.query(
+            "PRAGMA table_info('durable_tasks')"
+        ).use { cursor ->
+            buildSet { while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("name"))) }
+        }
+        assertTrue("stateVersion" in durableTaskColumns)
         val taskIndices = database!!.openHelper.writableDatabase.query(
             "PRAGMA index_list('durable_tasks')"
         ).use { cursor ->

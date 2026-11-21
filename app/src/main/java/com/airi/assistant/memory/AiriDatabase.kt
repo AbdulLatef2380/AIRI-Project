@@ -52,6 +52,7 @@ import java.io.File
      *   v9 → v10: Normalized episodic-memory index names to match the Room entities.
      *   v10 → v11: Added durable opt-in memory-sync outbox mutations.
      *   v11 → v12: Added durable agent task snapshots, dispatch outbox, and legacy-import marker.
+     *   v12 → v13: Added optimistic stateVersion CAS for durable task writes.
 
  *
  * [exportBackup] copies the live database file to a destination [File] using
@@ -77,7 +78,7 @@ import java.io.File
         DurableExternalOperationEntity::class,
         DurableTaskEventEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 @TypeConverters(AuditLogTypeConverters::class)
@@ -365,6 +366,14 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE durable_tasks ADD COLUMN stateVersion INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
         internal fun migrations(): Array<Migration> = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -376,7 +385,8 @@ abstract class AiriDatabase : RoomDatabase() {
             MIGRATION_8_9,
             MIGRATION_9_10,
             MIGRATION_10_11,
-            MIGRATION_11_12
+            MIGRATION_11_12,
+            MIGRATION_12_13
         )
 
         fun getDatabase(context: Context): AiriDatabase {

@@ -109,6 +109,35 @@ class DurableTaskRoomStoreTest {
     }
 
     @Test
+    fun staleWriterIsRejectedByStateVersionCasWithoutChangingCommittedPayload() {
+        val source = File(directory, "cas-legacy.json")
+        val initial = task("cas-task")
+        source.writeText(DurableTaskJsonCodec().encode(listOf(initial)))
+        val store = DurableTaskRoomStore(database)
+        store.importLegacyJsonAndLoad(source)
+
+        val committed = initial.copy(
+            stateVersion = 1L,
+            progressMessage = "writer-one",
+            updatedAtMs = initial.updatedAtMs + 1L,
+        )
+        store.persist(committed, expectedStateVersion = 0L)
+
+        val stale = initial.copy(
+            stateVersion = 1L,
+            progressMessage = "stale-writer",
+            updatedAtMs = initial.updatedAtMs + 2L,
+        )
+        assertTrue(runCatching {
+            store.persist(stale, expectedStateVersion = 0L)
+        }.isFailure)
+
+        val loaded = store.importLegacyJsonAndLoad(source).tasks.single()
+        assertEquals(1L, loaded.stateVersion)
+        assertEquals("writer-one", loaded.progressMessage)
+    }
+
+    @Test
     fun corruptOrFutureJsonIsRejectedWithoutMarkerOrSourceMutation() {
         listOf("{broken", "{\"schemaVersion\":999,\"tasks\":[]}").forEachIndexed { index, contents ->
             val isolatedDatabase = Room.inMemoryDatabaseBuilder(context, AiriDatabase::class.java)

@@ -53,6 +53,7 @@ import java.io.File
      *   v10 → v11: Added durable opt-in memory-sync outbox mutations.
      *   v11 → v12: Added durable agent task snapshots, dispatch outbox, and legacy-import marker.
      *   v12 → v13: Added optimistic stateVersion CAS for durable task writes.
+     *   v13 → v14: Added durable event source and idempotency keys.
 
  *
  * [exportBackup] copies the live database file to a destination [File] using
@@ -78,7 +79,7 @@ import java.io.File
         DurableExternalOperationEntity::class,
         DurableTaskEventEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 @TypeConverters(AuditLogTypeConverters::class)
@@ -374,6 +375,15 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE durable_task_events ADD COLUMN source TEXT NOT NULL DEFAULT 'TASK_TIMELINE'")
+                db.execSQL("ALTER TABLE durable_task_events ADD COLUMN idempotencyKey TEXT NOT NULL DEFAULT ''")
+                db.execSQL("UPDATE durable_task_events SET idempotencyKey=eventId WHERE idempotencyKey='' ")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_durable_task_events_taskId_idempotencyKey ON durable_task_events(taskId, idempotencyKey)")
+            }
+        }
+
         internal fun migrations(): Array<Migration> = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -386,7 +396,8 @@ abstract class AiriDatabase : RoomDatabase() {
             MIGRATION_9_10,
             MIGRATION_10_11,
             MIGRATION_11_12,
-            MIGRATION_12_13
+            MIGRATION_12_13,
+            MIGRATION_13_14
         )
 
         fun getDatabase(context: Context): AiriDatabase {

@@ -174,6 +174,7 @@ data class DurableExternalOperationEntity(
     indices = [
         Index(value = ["taskId", "sequence"], name = "index_durable_task_events_taskId_sequence"),
         Index(value = ["taskId", "type", "recordedAtMs"], name = "index_durable_task_events_taskId_type_recordedAtMs"),
+        Index(value = ["taskId", "idempotencyKey"], name = "index_durable_task_events_taskId_idempotencyKey", unique = true),
     ],
 )
 data class DurableTaskEventEntity(
@@ -186,8 +187,13 @@ data class DurableTaskEventEntity(
     val runId: String?,
     val stepId: String?,
     val recordedAtMs: Long,
-)
-
+    val source: String = "TASK_TIMELINE",
+    val idempotencyKey: String = eventId,
+) {
+    companion object {
+        const val SOURCE_TASK_TIMELINE = "TASK_TIMELINE"
+    }
+}
 @Dao
 interface DurableTaskRoomDao {
     @Query("SELECT * FROM durable_tasks ORDER BY queuedAtMs DESC")
@@ -231,9 +237,6 @@ interface DurableTaskRoomDao {
     @Query("DELETE FROM durable_external_operations WHERE taskId=:taskId")
     fun deleteExternalOperations(taskId: String)
 
-    @Query("DELETE FROM durable_task_events WHERE taskId=:taskId")
-    fun deleteEvents(taskId: String)
-
     @Insert(onConflict = OnConflictStrategy.ABORT)
     fun insertRuns(rows: List<DurableTaskRunEntity>)
 
@@ -243,8 +246,11 @@ interface DurableTaskRoomDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     fun insertExternalOperations(rows: List<DurableExternalOperationEntity>)
 
-    @Insert(onConflict = OnConflictStrategy.ABORT)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertEvents(rows: List<DurableTaskEventEntity>)
+
+    @Query("SELECT * FROM durable_task_events WHERE taskId=:taskId ORDER BY sequence, eventId")
+    fun events(taskId: String): List<DurableTaskEventEntity>
 
     @Query("SELECT COUNT(*) FROM durable_task_runs WHERE taskId=:taskId")
     fun runCount(taskId: String): Int
@@ -254,9 +260,6 @@ interface DurableTaskRoomDao {
 
     @Query("SELECT COUNT(*) FROM durable_external_operations WHERE taskId=:taskId")
     fun externalOperationCount(taskId: String): Int
-
-    @Query("SELECT COUNT(*) FROM durable_task_events WHERE taskId=:taskId")
-    fun eventCount(taskId: String): Int
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertOutbox(event: DurableTaskOutboxEntity): Long
@@ -465,7 +468,6 @@ class DurableTaskRoomStore(
         dao.deleteRuns(task.id)
         dao.deleteSteps(task.id)
         dao.deleteExternalOperations(task.id)
-        dao.deleteEvents(task.id)
         if (task.runs.isNotEmpty()) {
             dao.insertRuns(task.runs.map { run ->
                 DurableTaskRunEntity(
@@ -532,6 +534,8 @@ class DurableTaskRoomStore(
                     runId = event.runId,
                     stepId = event.stepId,
                     recordedAtMs = event.recordedAtMs,
+                    source = DurableTaskEventEntity.SOURCE_TASK_TIMELINE,
+                    idempotencyKey = "${task.id}:$index",
                 )
             })
         }
@@ -543,7 +547,12 @@ class DurableTaskRoomStore(
         check(dao.externalOperationCount(task.id) == task.externalOperations.size) {
             "External operation projection count mismatch for task=${task.id}"
         }
-        check(dao.eventCount(task.id) == task.timeline.size) { "Event projection count mismatch for task=${task.id}" }
+        val journal = dao.events(task.id)
+        check(journal.size == task.timeline.size) { "Event journal count mismatch for task=${task.id}" }
+        val projectedTypes = DurableTaskEventProjection.rebuild(journal).map { it.type }
+        check(projectedTypes == task.timeline.map { it.type }) {
+            "Event journal projection diverged for task=${task.id}"
+        }
     }
 
     private fun safeProjectionText(value: String): String {

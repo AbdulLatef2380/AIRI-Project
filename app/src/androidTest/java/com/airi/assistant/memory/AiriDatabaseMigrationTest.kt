@@ -33,7 +33,7 @@ class AiriDatabaseMigrationTest {
     }
 
     @Test
-    fun migratesVersionOneDataToVersionThirteenWithoutLossOrIndexDrift() = runBlocking {
+    fun migratesVersionOneDataToVersionFourteenWithoutLossOrIndexDrift() = runBlocking {
         createVersionOneDatabase()
 
         database = Room.databaseBuilder(context, AiriDatabase::class.java, DATABASE_NAME)
@@ -73,13 +73,24 @@ class AiriDatabaseMigrationTest {
         assertTrue("durable_task_events" in tables)
         assertTrue("durable_task_outbox" in tables)
         assertTrue("durable_task_imports" in tables)
-        assertEquals(13, database!!.openHelper.writableDatabase.version)
+        assertEquals(14, database!!.openHelper.writableDatabase.version)
         val durableTaskColumns = database!!.openHelper.writableDatabase.query(
             "PRAGMA table_info('durable_tasks')"
         ).use { cursor ->
             buildSet { while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("name"))) }
         }
         assertTrue("stateVersion" in durableTaskColumns)
+        val eventColumns = database!!.openHelper.writableDatabase.query(
+            "PRAGMA table_info('durable_task_events')"
+        ).use { cursor ->
+            buildSet { while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("name"))) }
+        }
+        assertTrue("source" in eventColumns)
+        assertTrue("idempotencyKey" in eventColumns)
+        val eventIndices = database!!.openHelper.writableDatabase.query(
+            "PRAGMA index_list('durable_task_events')"
+        ).use { cursor -> buildSet { while (cursor.moveToNext()) add(cursor.getString(1)) } }
+        assertTrue("index_durable_task_events_taskId_idempotencyKey" in eventIndices)
         val taskIndices = database!!.openHelper.writableDatabase.query(
             "PRAGMA index_list('durable_tasks')"
         ).use { cursor ->

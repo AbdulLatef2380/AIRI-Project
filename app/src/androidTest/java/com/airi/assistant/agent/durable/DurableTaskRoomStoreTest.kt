@@ -90,7 +90,10 @@ class DurableTaskRoomStoreTest {
         assertEquals(1, database.durableTaskDao().runCount(imported.id))
         assertEquals(1, database.durableTaskDao().stepCount(imported.id))
         assertEquals(1, database.durableTaskDao().externalOperationCount(imported.id))
-        assertEquals(1, database.durableTaskDao().eventCount(imported.id))
+        val journal = database.durableTaskDao().events(imported.id)
+        assertEquals(1, journal.size)
+        assertEquals(DurableTaskEventEntity.SOURCE_TASK_TIMELINE, journal.single().source)
+        assertEquals("${imported.id}:0", journal.single().idempotencyKey)
     }
 
     @Test

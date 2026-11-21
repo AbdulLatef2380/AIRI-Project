@@ -90,6 +90,7 @@ class DurableTaskRoomStoreTest {
         assertEquals(1, database.durableTaskDao().runCount(imported.id))
         assertEquals(1, database.durableTaskDao().stepCount(imported.id))
         assertEquals(1, database.durableTaskDao().externalOperationCount(imported.id))
+        assertEquals(1, database.durableTaskDao().operationCount(imported.id))
         val journal = database.durableTaskDao().events(imported.id)
         assertEquals(1, journal.size)
         assertEquals(DurableTaskEventEntity.SOURCE_TASK_TIMELINE, journal.single().source)
@@ -246,6 +247,19 @@ class DurableTaskRoomStoreTest {
                     externalReferenceId = "job-123",
                     startedAt = 1_700_000_000_000L,
                     nextPollAt = 1_700_000_060_000L,
+                )
+            ),
+            operations = listOf(
+                DurableOperation(
+                    operationId = "operation-$id",
+                    taskId = id,
+                    runId = runId,
+                    stepId = stepId,
+                    actionId = "calendar.create",
+                    idempotencyKey = "$id:$runId:calendar.create",
+                    payloadSha256 = "payload-sha256",
+                    provider = "calendar",
+                    preparedAtMs = 1_700_000_000_000L,
                 )
             ),
             timeline = listOf(

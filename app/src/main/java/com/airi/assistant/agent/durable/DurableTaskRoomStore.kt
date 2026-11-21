@@ -163,6 +163,37 @@ data class DurableExternalOperationEntity(
 )
 
 @Entity(
+    tableName = "durable_operations",
+    primaryKeys = ["taskId", "operationId"],
+    foreignKeys = [ForeignKey(
+        entity = DurableTaskEntity::class,
+        parentColumns = ["taskId"],
+        childColumns = ["taskId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [
+        Index(value = ["taskId", "status"], name = "index_durable_operations_taskId_status"),
+        Index(value = ["taskId", "idempotencyKey"], name = "index_durable_operations_taskId_idempotencyKey", unique = true),
+    ],
+)
+data class DurableOperationEntity(
+    val taskId: String,
+    val operationId: String,
+    val runId: String,
+    val stepId: String,
+    val actionId: String,
+    val idempotencyKey: String,
+    val payloadSha256: String,
+    val provider: String,
+    val status: String,
+    val providerReference: String?,
+    val safeError: String,
+    val preparedAtMs: Long,
+    val completedAtMs: Long,
+    val updatedAtMs: Long,
+)
+
+@Entity(
     tableName = "durable_task_events",
     primaryKeys = ["taskId", "eventId"],
     foreignKeys = [ForeignKey(
@@ -246,6 +277,12 @@ interface DurableTaskRoomDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     fun insertExternalOperations(rows: List<DurableExternalOperationEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    fun insertOperations(rows: List<DurableOperationEntity>)
+
+    @Query("DELETE FROM durable_operations WHERE taskId=:taskId")
+    fun deleteOperations(taskId: String)
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertEvents(rows: List<DurableTaskEventEntity>)
 
@@ -263,6 +300,9 @@ interface DurableTaskRoomDao {
 
     @Query("SELECT COUNT(*) FROM durable_external_operations WHERE taskId=:taskId")
     fun externalOperationCount(taskId: String): Int
+
+    @Query("SELECT COUNT(*) FROM durable_operations WHERE taskId=:taskId")
+    fun operationCount(taskId: String): Int
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertOutbox(event: DurableTaskOutboxEntity): Long
@@ -471,6 +511,7 @@ class DurableTaskRoomStore(
         dao.deleteRuns(task.id)
         dao.deleteSteps(task.id)
         dao.deleteExternalOperations(task.id)
+        dao.deleteOperations(task.id)
         if (task.runs.isNotEmpty()) {
             dao.insertRuns(task.runs.map { run ->
                 DurableTaskRunEntity(
@@ -525,6 +566,26 @@ class DurableTaskRoomStore(
                 )
             })
         }
+        if (task.operations.isNotEmpty()) {
+            dao.insertOperations(task.operations.map { operation ->
+                DurableOperationEntity(
+                    taskId = task.id,
+                    operationId = operation.operationId,
+                    runId = operation.runId,
+                    stepId = operation.stepId,
+                    actionId = operation.actionId,
+                    idempotencyKey = operation.idempotencyKey,
+                    payloadSha256 = operation.payloadSha256,
+                    provider = safeProjectionText(operation.provider),
+                    status = operation.status.name,
+                    providerReference = safeProjectionText(operation.providerReference.orEmpty()).ifBlank { null },
+                    safeError = safeProjectionText(operation.safeError),
+                    preparedAtMs = operation.preparedAtMs,
+                    completedAtMs = operation.completedAtMs,
+                    updatedAtMs = operation.updatedAtMs,
+                )
+            })
+        }
         val expectedEvents = task.timeline.mapIndexed { index, event ->
             toEventEntity(task.id, index, event)
         }
@@ -567,6 +628,9 @@ class DurableTaskRoomStore(
         check(dao.stepCount(task.id) == task.plan.size) { "Step projection count mismatch for task=${task.id}" }
         check(dao.externalOperationCount(task.id) == task.externalOperations.size) {
             "External operation projection count mismatch for task=${task.id}"
+        }
+        check(dao.operationCount(task.id) == task.operations.size) {
+            "Operation ledger projection count mismatch for task=${task.id}"
         }
         val journal = dao.events(task.id)
         check(journal.size == task.timeline.size) { "Event journal count mismatch for task=${task.id}" }

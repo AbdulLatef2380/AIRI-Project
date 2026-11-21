@@ -35,6 +35,7 @@ import com.airi.assistant.agent.durable.DurableTaskRunEntity
 import com.airi.assistant.agent.durable.DurableTaskStepEntity
 import com.airi.assistant.agent.durable.DurableExternalOperationEntity
 import com.airi.assistant.agent.durable.DurableTaskEventEntity
+import com.airi.assistant.agent.durable.DurableOperationEntity
 import java.io.File
 
 /**
@@ -53,7 +54,8 @@ import java.io.File
      *   v10 → v11: Added durable opt-in memory-sync outbox mutations.
      *   v11 → v12: Added durable agent task snapshots, dispatch outbox, and legacy-import marker.
      *   v12 → v13: Added optimistic stateVersion CAS for durable task writes.
-     *   v13 → v14: Added durable event source and idempotency keys.
+ *   v13 → v14: Added durable event source and idempotency keys.
+ *   v14 → v15: Added durable side-effect operation ledger projection.
 
  *
  * [exportBackup] copies the live database file to a destination [File] using
@@ -77,9 +79,10 @@ import java.io.File
         DurableTaskRunEntity::class,
         DurableTaskStepEntity::class,
         DurableExternalOperationEntity::class,
-        DurableTaskEventEntity::class
+        DurableTaskEventEntity::class,
+        DurableOperationEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = true
 )
 @TypeConverters(AuditLogTypeConverters::class)
@@ -384,6 +387,33 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS durable_operations (
+                        taskId TEXT NOT NULL,
+                        operationId TEXT NOT NULL,
+                        runId TEXT NOT NULL,
+                        stepId TEXT NOT NULL,
+                        actionId TEXT NOT NULL,
+                        idempotencyKey TEXT NOT NULL,
+                        payloadSha256 TEXT NOT NULL,
+                        provider TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        providerReference TEXT,
+                        safeError TEXT NOT NULL,
+                        preparedAtMs INTEGER NOT NULL,
+                        completedAtMs INTEGER NOT NULL,
+                        updatedAtMs INTEGER NOT NULL,
+                        PRIMARY KEY(taskId, operationId),
+                        FOREIGN KEY(taskId) REFERENCES durable_tasks(taskId) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_durable_operations_taskId_status ON durable_operations(taskId, status)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_durable_operations_taskId_idempotencyKey ON durable_operations(taskId, idempotencyKey)")
+            }
+        }
+
         internal fun migrations(): Array<Migration> = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -397,7 +427,8 @@ abstract class AiriDatabase : RoomDatabase() {
             MIGRATION_10_11,
             MIGRATION_11_12,
             MIGRATION_12_13,
-            MIGRATION_13_14
+            MIGRATION_13_14,
+            MIGRATION_14_15
         )
 
         fun getDatabase(context: Context): AiriDatabase {

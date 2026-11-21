@@ -23,11 +23,15 @@ package com.airi.assistant.execution.cloud
 enum class CloudErrorType {
     RATE_LIMITED,       // 429 — requests-per-minute exceeded, retry after delay
     QUOTA_EXCEEDED,     // 429 with billing signal or 402 — daily/monthly limit
+    CREDIT_EXHAUSTED,   // Provider credits are exhausted
+    SPEND_LIMIT,        // Provider hard spend/budget limit
     UNAUTHORIZED,       // 401 / 403 — invalid or missing API key
     MODEL_NOT_FOUND,    // 404 — model or endpoint does not exist
     SERVER_ERROR,       // 5xx — transient provider failure
+    TEMPORARY_OVERLOAD, // Provider is overloaded/unavailable
     TIMEOUT,            // Network or read timeout
     CONNECTION_LOST,    // Mid-stream TCP disconnect (httpCode = -2)
+    NETWORK_INTERRUPTION, // Structured transport/network interruption
     CONTENT_FILTERED,   // Provider refused generation (safety policy)
     INVALID_REQUEST,    // 400 — malformed request body
     TOOL_SCHEMA_INVALID, // 400 — provider rejected a serialized tool schema

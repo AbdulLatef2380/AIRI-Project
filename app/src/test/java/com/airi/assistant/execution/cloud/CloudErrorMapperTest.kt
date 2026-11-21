@@ -91,4 +91,48 @@ class CloudErrorMapperTest {
         assertEquals(CloudErrorType.CONTENT_FILTERED, filtered.type)
         assertFalse(filtered.message.contains("private"))
     }
+
+    @Test
+    fun normalizedResultCarriesSafeProviderCodeAndRetryAfter() {
+        val mapped = CloudErrorMapper.map(
+            httpCode = 429,
+            body = "rate limit exceeded",
+            retryAfterHeader = "7",
+            provider = "openai",
+            nowMs = 10_000L,
+        )
+
+        assertEquals(CloudErrorType.RATE_LIMITED, mapped.type)
+        assertEquals(7_000L, mapped.retryAfterMs)
+        assertEquals("openai", mapped.provider)
+        assertEquals("RATE_LIMITED", mapped.safeCode)
+        assertFalse(mapped.needsUserAction)
+    }
+
+    @Test
+    fun ambiguous429DoesNotBecomeQuotaAndFinancialLimitsNeedUserAction() {
+        val rate = CloudErrorMapper.map(429, "request throttled")
+        val spend = CloudErrorMapper.mapStructuredProviderError(code = "spend_limit")
+        val credit = CloudErrorMapper.mapStructuredProviderError(code = "credit_exhausted")
+
+        assertEquals(CloudErrorType.RATE_LIMITED, rate.type)
+        assertEquals(CloudErrorType.SPEND_LIMIT, spend.type)
+        assertEquals(CloudErrorType.CREDIT_EXHAUSTED, credit.type)
+        assertTrue(spend.needsUserAction)
+        assertTrue(credit.needsUserAction)
+        assertFalse(rate.needsUserAction)
+    }
+
+    @Test
+    fun retryAfterHttpDateIsConvertedToBoundedDelay() {
+        val mapped = CloudErrorMapper.map(
+            httpCode = 503,
+            body = "overloaded",
+            retryAfterHeader = "Thu, 01 Jan 1970 00:00:12 GMT",
+            nowMs = 10_000L,
+        )
+
+        assertEquals(2_000L, mapped.retryAfterMs)
+        assertEquals(CloudErrorType.TEMPORARY_OVERLOAD, mapped.type)
+    }
 }

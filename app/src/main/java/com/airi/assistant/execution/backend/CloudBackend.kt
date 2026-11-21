@@ -663,14 +663,18 @@ class CloudBackend(
         when (type) {
             CloudErrorType.UNAUTHORIZED     -> "Invalid API key for ${provider.displayName}. Check Settings → API Keys."
             CloudErrorType.MODEL_NOT_FOUND  -> "The selected model is not available at ${provider.displayName}. Choose another model."
-            CloudErrorType.QUOTA_EXCEEDED   -> "${provider.displayName} quota exhausted. Check your billing dashboard."
+            CloudErrorType.QUOTA_EXCEEDED,
+            CloudErrorType.CREDIT_EXHAUSTED -> "${provider.displayName} quota or credits exhausted. Check your billing dashboard."
+            CloudErrorType.SPEND_LIMIT     -> "${provider.displayName} spending limit reached. Review the provider budget."
             CloudErrorType.RATE_LIMITED     -> "${provider.displayName} is rate-limiting requests. Please wait a moment."
             CloudErrorType.CONTEXT_LENGTH   -> "Prompt too long for ${provider.displayName}. Try a shorter message."
             CloudErrorType.CONTENT_FILTERED -> "Your message was filtered by ${provider.displayName}'s safety policy."
             CloudErrorType.TIMEOUT          -> "${provider.displayName} timed out. Check your internet connection."
-            CloudErrorType.CONNECTION_LOST  -> "Connection to ${provider.displayName} was lost mid-stream."
+            CloudErrorType.CONNECTION_LOST,
+            CloudErrorType.NETWORK_INTERRUPTION -> "Connection to ${provider.displayName} was interrupted."
             CloudErrorType.CANCELLED        -> "Request cancelled."
-            CloudErrorType.SERVER_ERROR     -> "${provider.displayName} is experiencing issues (server error). Try again."
+            CloudErrorType.SERVER_ERROR,
+            CloudErrorType.TEMPORARY_OVERLOAD -> "${provider.displayName} is experiencing temporary issues. Try again."
             CloudErrorType.INVALID_REQUEST  -> "The cloud provider rejected this request. Review the model settings and try again."
             CloudErrorType.TOOL_SCHEMA_INVALID -> "${provider.displayName} rejected AIRI's tool schema. Update AIRI or disable tools for this request."
             CloudErrorType.UNKNOWN          -> "The cloud provider returned an unexpected error. Please try again."

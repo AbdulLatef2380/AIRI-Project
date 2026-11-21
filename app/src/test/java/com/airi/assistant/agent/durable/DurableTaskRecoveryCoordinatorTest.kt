@@ -123,4 +123,72 @@ class DurableTaskRecoveryCoordinatorTest {
         assertTrue(plan.queuedTaskIds.isEmpty())
         assertEquals(listOf("timer"), plan.waitingExternalTaskIds)
     }
+
+    @Test
+    fun recoveryPersistsInterruptedRunBeforeSchedulingAndRepeatedKeepEnqueueIsIdempotent() {
+        val interrupted = task("running").beginRun("run-1", nowMs = 1_000L)
+        val queued = task("queued")
+        val persisted = mutableMapOf(interrupted.id to interrupted, queued.id to queued)
+        val operations = mutableListOf<String>()
+        val acceptedUniqueWork = mutableSetOf<String>()
+        val runner = DurableTaskRecoveryRunner(
+            persistInterrupted = { recovered ->
+                persisted[recovered.id] = recovered
+                operations += "persist:${recovered.id}"
+            },
+            scheduleQueued = { candidate ->
+                assertEquals(DurableTaskStatus.PAUSED, persisted[interrupted.id]?.status)
+                operations += "enqueue:${candidate.id}"
+                acceptedUniqueWork.add(candidate.id) // Models WorkManager ExistingWorkPolicy.KEEP.
+            },
+        )
+
+        val first = runner.reconcile(persisted.values.toList(), nowMs = 2_000L)
+        val second = runner.reconcile(persisted.values.toList(), nowMs = 3_000L)
+
+        assertEquals(listOf("persist:running", "enqueue:queued", "enqueue:queued"), operations)
+        assertEquals(DurableTaskStatus.PAUSED, persisted.getValue("running").status)
+        assertEquals(listOf("running"), first.pausedInterruptedTaskIds)
+        assertTrue(second.pausedInterruptedTaskIds.isEmpty())
+        assertEquals(listOf("queued"), first.scheduledQueuedTaskIds)
+        assertEquals(listOf("queued"), second.scheduledQueuedTaskIds)
+        assertEquals(setOf("queued"), acceptedUniqueWork)
+    }
+
+    @Test
+    fun failedQueueSubmissionLeavesTaskQueuedForAnotherRecoveryPass() {
+        val queued = task("retry-schedule")
+        var shouldFail = true
+        val runner = DurableTaskRecoveryRunner(
+            persistInterrupted = {},
+            scheduleQueued = {
+                if (shouldFail) error("simulated WorkManager enqueue failure")
+            },
+        )
+
+        val failed = runner.reconcile(listOf(queued), nowMs = 1_000L)
+        shouldFail = false
+        val recovered = runner.reconcile(listOf(queued), nowMs = 2_000L)
+
+        assertTrue(failed.scheduledQueuedTaskIds.isEmpty())
+        assertEquals(listOf("retry-schedule"), failed.eligibleQueuedTaskIds)
+        assertEquals(listOf("retry-schedule"), recovered.scheduledQueuedTaskIds)
+        assertEquals(DurableTaskStatus.QUEUED, queued.status)
+    }
+
+    @Test
+    fun failedInterruptedStateCommitAbortsBeforeAnyQueuedWorkIsScheduled() {
+        val running = task("running").beginRun("run-1", nowMs = 1_000L)
+        val queued = task("queued")
+        var scheduled = false
+        val runner = DurableTaskRecoveryRunner(
+            persistInterrupted = { error("simulated database commit failure") },
+            scheduleQueued = { scheduled = true },
+        )
+
+        val result = runCatching { runner.reconcile(listOf(running, queued), nowMs = 2_000L) }
+
+        assertTrue(result.isFailure)
+        assertFalse(scheduled)
+    }
 }

@@ -72,3 +72,36 @@ data class DurableTaskRecoverySummary(
     val scheduledQueuedTaskIds: List<String>,
     val waitingExternalTaskIds: List<String>
 )
+
+/**
+ * Executes a pure recovery plan through injected persistence and scheduling boundaries.
+ * Interrupted RUNNING state must be committed before any queued work is submitted;
+ * scheduling failures leave QUEUED state unchanged for a later reconciliation pass.
+ */
+class DurableTaskRecoveryRunner(
+    private val persistInterrupted: (DurableTask) -> Unit,
+    private val scheduleQueued: (DurableTask) -> Unit,
+) {
+    fun reconcile(tasks: List<DurableTask>, nowMs: Long = System.currentTimeMillis()): DurableTaskRecoverySummary {
+        val plan = DurableTaskRecoveryCoordinator.plan(tasks, nowMs)
+
+        // Fail closed if pausing an interrupted run cannot be persisted: do not start
+        // any other work while durable recovery state is uncertain.
+        plan.interruptedTasks.forEach(persistInterrupted)
+
+        val byId = tasks.associateBy { it.id }
+        val scheduled = mutableListOf<String>()
+        plan.queuedTaskIds.forEach { taskId ->
+            val task = byId[taskId] ?: return@forEach
+            runCatching { scheduleQueued(task) }
+                .onSuccess { scheduled += taskId }
+        }
+
+        return DurableTaskRecoverySummary(
+            pausedInterruptedTaskIds = plan.interruptedTasks.map { it.id },
+            eligibleQueuedTaskIds = plan.queuedTaskIds,
+            scheduledQueuedTaskIds = scheduled,
+            waitingExternalTaskIds = plan.waitingExternalTaskIds,
+        )
+    }
+}

@@ -117,27 +117,16 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
     @Synchronized
     private fun reconcileAfterProcessRestart(
         nowMs: Long = System.currentTimeMillis()
-    ): DurableTaskRecoverySummary {
-        val plan = DurableTaskRecoveryCoordinator.plan(taskCache.values.toList(), nowMs)
-        plan.interruptedTasks.forEach(::putTask)
-
-        val scheduledIds = mutableListOf<String>()
-        plan.queuedTaskIds.forEach { taskId ->
-            val queued = taskCache[taskId] ?: return@forEach
-            runCatching { submitToWorkManager(queued) }
-                .onSuccess { scheduledIds += taskId }
+    ): DurableTaskRecoverySummary = DurableTaskRecoveryRunner(
+        persistInterrupted = { putTask(it) },
+        scheduleQueued = { task ->
+            runCatching { submitToWorkManager(task) }
                 .onFailure { error ->
-                    Log.e(TAG, "Failed to reconcile queued task id=$taskId: ${error.javaClass.simpleName}")
+                    Log.e(TAG, "Failed to reconcile queued task id=${task.id}: ${error.javaClass.simpleName}")
+                    throw error
                 }
-        }
-
-        return DurableTaskRecoverySummary(
-            pausedInterruptedTaskIds = plan.interruptedTasks.map { it.id },
-            eligibleQueuedTaskIds = plan.queuedTaskIds,
-            scheduledQueuedTaskIds = scheduledIds,
-            waitingExternalTaskIds = plan.waitingExternalTaskIds
-        )
-    }
+        },
+    ).reconcile(taskCache.values.toList(), nowMs)
 
     // ─────────────────────────────────────────────────────────────────────────
     // Public API

@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
-import java.io.FileOutputStream
 import java.util.concurrent.ConcurrentHashMap
 import java.util.UUID
 import com.airi.assistant.R
@@ -68,6 +67,7 @@ class DurableTaskManager(private val context: Context) {
     private val gson = Gson()
     private val taskJsonCodec = DurableTaskJsonCodec(gson)
     private val taskFile = File(context.filesDir, "durable_tasks.json")
+    private val taskFileStore = DurableTaskFileStore(taskFile, taskJsonCodec)
 
     // ── In-memory cache (source of truth for UI) ──────────────────────────────
 
@@ -936,39 +936,53 @@ class DurableTaskManager(private val context: Context) {
 
     private fun saveToDisk(): Boolean {
         return runCatching {
-            val json = taskJsonCodec.encode(taskCache.values.toList())
-            val tmp = File(taskFile.parent, "${taskFile.name}.tmp")
-            FileOutputStream(tmp).use { output ->
-                output.write(json.toByteArray(Charsets.UTF_8))
-                output.fd.sync()
-            }
-            check(tmp.renameTo(taskFile)) {
-                "Atomic task-file rename failed: ${tmp.name} -> ${taskFile.name}"
-            }
+            taskFileStore.write(taskCache.values.toList())
             true
         }.onFailure {
-            Log.e(TAG, "Failed to persist tasks to disk: ${it.message}")
+            Log.e(TAG, "Failed to persist tasks to disk: ${it.javaClass.simpleName}")
         }.getOrDefault(false)
     }
 
     private fun loadFromDisk() {
-        runCatching {
-            if (!taskFile.exists()) return
-            val json = taskFile.readText(Charsets.UTF_8)
-            taskJsonCodec.decode(json)
-                .map(MissionKernel::normalize)
-                .forEach { normalized ->
-                if (MissionKernel.validate(normalized) is MissionOwnershipValidation.Valid) {
-                    taskCache[normalized.id] = normalized
-                } else {
-                    Log.w(TAG, "Rejected durable task with invalid mission ownership id=${normalized.id}")
-                }
+        when (val result = taskFileStore.read()) {
+            DurableTaskFileReadResult.Missing -> return
+            is DurableTaskFileReadResult.Invalid -> {
+                Log.e(
+                    TAG,
+                    "Failed to read durable tasks; writes are blocked to preserve the existing file " +
+                        "(${result.cause.javaClass.simpleName})"
+                )
+                return
             }
-            emitUpdate()
-            saveToDisk()
-            Log.i(TAG, "Loaded ${taskCache.size} durable tasks from disk")
-        }.onFailure {
-            Log.e(TAG, "Failed to load tasks from disk: ${it.message}")
+            is DurableTaskFileReadResult.Loaded -> {
+                val normalizedTasks = try {
+                    result.tasks.map(MissionKernel::normalize)
+                } catch (error: Exception) {
+                    taskFileStore.blockWrites("task-normalization-failed")
+                    Log.e(TAG, "Failed to normalize durable task records; writes are blocked", error)
+                    return
+                }
+
+                var rejectedOwnershipRecord = false
+                normalizedTasks.forEach { normalized ->
+                    if (MissionKernel.validate(normalized) is MissionOwnershipValidation.Valid) {
+                        taskCache[normalized.id] = normalized
+                    } else {
+                        rejectedOwnershipRecord = true
+                        Log.w(TAG, "Rejected durable task with invalid mission ownership id=${normalized.id}")
+                    }
+                }
+                if (rejectedOwnershipRecord) {
+                    taskFileStore.blockWrites("invalid-task-ownership-record")
+                }
+                emitUpdate()
+                if (rejectedOwnershipRecord) {
+                    Log.e(TAG, "Durable task file was not rewritten because a record failed ownership validation")
+                } else {
+                    saveToDisk()
+                }
+                Log.i(TAG, "Loaded ${taskCache.size} durable tasks from disk")
+            }
         }
     }
 

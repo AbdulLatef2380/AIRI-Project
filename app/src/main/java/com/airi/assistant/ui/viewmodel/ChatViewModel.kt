@@ -3565,10 +3565,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     },
                     executionContextFactory = com.airi.assistant.agent.loop.AgentLoopExecutionContextFactory { toolName ->
+                        val parentTask = activeDurableTaskId?.let { taskId ->
+                            ServiceLocator.durableTaskManager.getTask(taskId)
+                        }
                         com.airi.assistant.agent.loop.AgentLoopTaskRuntime(
                             durableTaskManager = ServiceLocator.durableTaskManager,
                             projectId = activeProjectId.takeIf { it.isNotBlank() },
-                            sourceSessionId = sessionId
+                            sourceSessionId = sessionId,
+                            parentTaskId = parentTask?.id,
+                            parentRunId = parentTask?.currentRunId,
+                            sourceMessageId = userMessage.id,
                         ).createFor(toolName)
                     },
                     runtimeCapabilities = runtimeInventory.traceEntries(),

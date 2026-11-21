@@ -295,4 +295,24 @@ class DurableTaskLifecycleContractTest {
         assertNull(legacy.budgetPauseReason)
         assertEquals(DurableTaskStatus.QUEUED, legacy.status)
     }
+
+    @Test
+    fun childTaskPreservesParentRunAndSourceMessageIdentity() {
+        val child = DurableTask(
+            id = "child-task",
+            title = "Typed child operation",
+            description = "test",
+            agentId = "agent_loop",
+            input = "",
+            sourceMessageId = 42L,
+            parentTaskId = "chat-task",
+            parentRunId = "chat-run",
+        )
+
+        val restored = gson.fromJson(gson.toJson(child), DurableTask::class.java)
+
+        assertEquals(42L, restored.sourceMessageId)
+        assertEquals("chat-task", restored.parentTaskId)
+        assertEquals("chat-run", restored.parentRunId)
+    }
 }

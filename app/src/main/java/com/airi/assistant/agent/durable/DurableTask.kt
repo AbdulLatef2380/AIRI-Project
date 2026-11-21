@@ -22,6 +22,10 @@ data class DurableTask(
     /** User message that explicitly created this execution task. */
     val sourceMessageId: Long? = null,
 
+    /** Parent durable task/run when this record represents a typed child operation. */
+    val parentTaskId: String? = null,
+    val parentRunId: String? = null,
+
     /** Firebase UID or local identity that owns the task. */
     val ownerId: String = "anonymous",
 

@@ -20,13 +20,20 @@ import java.util.UUID
 class AgentLoopTaskRuntime(
     private val durableTaskManager: DurableTaskManager,
     private val projectId: String?,
-    private val sourceSessionId: String
+    private val sourceSessionId: String,
+    private val parentTaskId: String? = null,
+    private val parentRunId: String? = null,
+    private val sourceMessageId: Long? = null,
 ) : AgentLoopExecutionContextFactory {
 
     override fun createFor(toolName: String): AgentLoopExecutionContext? {
         if (toolName !in DURABLE_TOOLS) return null
         val resolvedProjectId = projectId?.trim()?.takeIf { it.isNotEmpty() }
+        val resolvedParentTaskId = parentTaskId?.trim()?.takeIf { it.isNotEmpty() }
+        val resolvedParentRunId = parentRunId?.trim()?.takeIf { it.isNotEmpty() }
         if (!sourceSessionId.matches(SAFE_IDENTIFIER) ||
+            (resolvedParentTaskId != null && !resolvedParentTaskId.matches(SAFE_IDENTIFIER)) ||
+            (resolvedParentRunId != null && !resolvedParentRunId.matches(SAFE_IDENTIFIER)) ||
             (resolvedProjectId != null && !resolvedProjectId.matches(SAFE_IDENTIFIER))) {
             return null
         }
@@ -48,6 +55,9 @@ class AgentLoopTaskRuntime(
             DurableTask(
                 id = taskId,
                 missionId = taskId,
+                sourceMessageId = sourceMessageId,
+                parentTaskId = resolvedParentTaskId,
+                parentRunId = resolvedParentRunId,
                 projectId = resolvedProjectId,
                 title = "AIRI ${toolName.replace('_', ' ')} approval",
                 description = "One reviewed device or resource action for the source session",

@@ -120,11 +120,9 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
     ): DurableTaskRecoverySummary = DurableTaskRecoveryRunner(
         persistInterrupted = { putTask(it) },
         scheduleQueued = { task ->
-            runCatching { submitToWorkManager(task) }
-                .onFailure { error ->
-                    Log.e(TAG, "Failed to reconcile queued task id=${task.id}: ${error.javaClass.simpleName}")
-                    throw error
-                }
+            if (!scheduleQueuedTask(task.id)) {
+                error("Queued task ${task.id} could not be scheduled")
+            }
         },
     ).reconcile(taskCache.values.toList(), nowMs)
 
@@ -169,6 +167,25 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
         )
         Log.i(TAG, "AIRI DURABLE_TASK_REGISTERED_IN_PROCESS id=${task.id}")
         return task.id
+    }
+
+    /**
+     * Reconciles one already-persisted QUEUED task with WorkManager.
+     *
+     * This is intentionally separate from [registerInProcess]: foreground chat
+     * execution must not create a second worker for the same intent. Recovery
+     * callers may use this seam to retry a failed outbox dispatch; only QUEUED
+     * tasks are accepted and unique KEEP semantics remain authoritative.
+     */
+    @Synchronized
+    fun scheduleQueuedTask(taskId: String): Boolean {
+        val task = taskCache[taskId] ?: return false
+        if (task.status != DurableTaskStatus.QUEUED || task.isTerminal) return false
+        return runCatching { submitToWorkManager(task) }
+            .onFailure { error ->
+                Log.e(TAG, "Failed to schedule queued task id=$taskId", error)
+            }
+            .isSuccess
     }
 
     /** Starts one new durable run only from QUEUED; waiting/running runs are never replayed. */

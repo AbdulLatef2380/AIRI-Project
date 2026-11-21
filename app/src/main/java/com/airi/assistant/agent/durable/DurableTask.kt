@@ -709,11 +709,21 @@ data class DurableTask(
         scope: ApprovalGrantScope,
         reason: String = "",
         nowMs: Long = System.currentTimeMillis()
-    ): DurableTask = copy(
+    ): DurableTask {
+        val effectiveStatus = approvals.firstOrNull { it.id == approvalId }
+            ?.let { approval ->
+                if (approval.status == TaskApprovalStatus.PENDING && approval.expiresAtMs <= nowMs) {
+                    TaskApprovalStatus.EXPIRED
+                } else {
+                    status
+                }
+            }
+            ?: status
+        return copy(
         approvals = approvals.map { approval ->
             if (approval.id == approvalId) {
                 approval.copy(
-                    status = status,
+                    status = effectiveStatus,
                     grantScope = scope,
                     decisionReason = reason,
                     decidedAtMs = nowMs
@@ -725,15 +735,16 @@ data class DurableTask(
         approvalContinuations = approvalContinuations.map { continuation ->
             if (
                 continuation.approvalId == approvalId &&
-                status != TaskApprovalStatus.APPROVED
+                effectiveStatus != TaskApprovalStatus.APPROVED
             ) {
-                continuation.reject(reason.ifBlank { "Approval ${status.name.lowercase()}" }, nowMs)
+                continuation.reject(reason.ifBlank { "Approval ${effectiveStatus.name.lowercase()}" }, nowMs)
             } else {
                 continuation
             }
         },
         updatedAtMs = nowMs
-    )
+        )
+    }
 
     /**
      * Stops the currently running exact step before its side effect is invoked.
@@ -792,6 +803,7 @@ data class DurableTask(
      */
     fun claimApprovedContinuation(
         approvalId: String,
+        resumedRunId: String = UUID.randomUUID().toString(),
         nowMs: Long = System.currentTimeMillis()
     ): Pair<DurableTask, ApprovalContinuation>? {
         val approval = approvals.firstOrNull { it.id == approvalId }
@@ -808,27 +820,41 @@ data class DurableTask(
             approval.stepId != continuation.stepId ||
             continuation.taskId != id ||
             continuation.missionId != (missionId ?: id) ||
-            continuation.projectId != projectId
+            continuation.projectId != projectId ||
+            resumedRunId.isBlank() ||
+            runs.any { it.id == resumedRunId }
         ) return null
         val claimed = continuation.claim(nowMs) ?: return null
-        val resumed = copy(
+        val claimedForExecution = claimed.copy(runId = resumedRunId)
+        val resumedTask = copy(
             status = DurableTaskStatus.RUNNING,
             pauseReason = null,
             updatedAtMs = nowMs,
             progressMessage = "Resuming approved action",
+            currentRunId = resumedRunId,
+            currentStepId = claimed.stepId,
+            approvals = approvals.map {
+                if (it.id == approvalId) it.copy(runId = resumedRunId, stepId = claimed.stepId) else it
+            },
             approvalContinuations = approvalContinuations.map {
-                if (it.id == claimed.id) claimed else it
+                if (it.id == claimed.id) claimedForExecution else it
             },
             plan = plan.map { step ->
                 if (step.id == claimed.stepId && step.runId == claimed.runId) {
-                    step.copy(status = TaskStepStatus.RUNNING)
+                    step.copy(runId = resumedRunId, status = TaskStepStatus.RUNNING, startedAtMs = nowMs)
                 } else step
             },
-            runs = runs.map { run ->
-                if (run.id == claimed.runId) run.copy(status = TaskRunStatus.RUNNING) else run
-            }
+            runs = runs + TaskRun(
+                id = resumedRunId,
+                taskId = id,
+                missionId = missionId ?: id,
+                projectId = projectId,
+                startedAtMs = nowMs,
+                currentStepId = claimed.stepId,
+                status = TaskRunStatus.RUNNING
+            )
         )
-        return resumed to claimed
+        return resumedTask to claimedForExecution
     }
 
     fun finishContinuation(

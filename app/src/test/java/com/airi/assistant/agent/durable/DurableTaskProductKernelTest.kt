@@ -155,14 +155,22 @@ class DurableTaskProductKernelTest {
             scope = ApprovalGrantScope.ONCE,
             nowMs = 2_200L
         )
-        val claimedPair = approved.claimApprovedContinuation(approval.id, nowMs = 2_300L)
+        val claimedPair = approved.claimApprovedContinuation(
+            approval.id,
+            resumedRunId = "run-resume-approved",
+            nowMs = 2_300L
+        )
             ?: throw AssertionError("Expected approved continuation to claim once")
         val resumed = claimedPair.first
         val claimed = claimedPair.second
 
         assertEquals(ApprovalContinuationStatus.CLAIMED, claimed.status)
+        assertEquals("run-resume-approved", claimed.runId)
         assertEquals(DurableTaskStatus.RUNNING, resumed.status)
-        assertEquals(TaskRunStatus.RUNNING, resumed.runs.single().status)
+        assertEquals("run-resume", resumed.runs.first { it.id == "run-resume" }.id)
+        assertEquals(TaskRunStatus.PAUSED, resumed.runs.first { it.id == "run-resume" }.status)
+        assertEquals(TaskRunStatus.RUNNING, resumed.runs.first { it.id == "run-resume-approved" }.status)
+        assertEquals("run-resume-approved", resumed.plan.single().runId)
         assertEquals(TaskStepStatus.RUNNING, resumed.plan.single().status)
         assertEquals(null, resumed.claimApprovedContinuation(approval.id, nowMs = 2_301L))
     }
@@ -271,7 +279,11 @@ class DurableTaskProductKernelTest {
             ApprovalGrantScope.ONCE,
             nowMs = 2_100L
         )
-        val claimed = approved.claimApprovedContinuation(approval.id, nowMs = 2_200L)?.second
+        val claimed = approved.claimApprovedContinuation(
+            approval.id,
+            resumedRunId = "run-file-write-approved",
+            nowMs = 2_200L
+        )?.second
             ?: throw AssertionError("Expected typed project-file write to claim once")
 
         assertEquals(ApprovalContinuationStatus.CLAIMED, claimed.status)
@@ -318,12 +330,17 @@ class DurableTaskProductKernelTest {
             ApprovalGrantScope.ONCE,
             nowMs = 2_100L
         )
-        val claimedPair = approved.claimApprovedContinuation(approval.id, nowMs = 2_200L)
+        val claimedPair = approved.claimApprovedContinuation(
+            approval.id,
+            resumedRunId = "run-calendar-approved",
+            nowMs = 2_200L
+        )
             ?: throw AssertionError("Expected typed calendar create to claim once")
         val resumed = claimedPair.first
         val claimed = claimedPair.second
 
         assertEquals(ApprovalContinuationStatus.CLAIMED, claimed.status)
+        assertEquals("run-calendar-approved", claimed.runId)
         assertEquals("calendar-proposal-1", claimed.calendarCreate?.proposalId)
         assertEquals(null, claimed.invocation)
         assertEquals(null, claimed.projectFileWrite)

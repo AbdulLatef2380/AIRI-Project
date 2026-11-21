@@ -184,7 +184,7 @@ data class DurableTask(
             budgetPauseReason = null,
             currentStepId = stepId,
             plan = plan.map { step ->
-                if (step.id == stepId && step.status == TaskStepStatus.PENDING) {
+                if (step.id == stepId && step.status in setOf(TaskStepStatus.PENDING, TaskStepStatus.PAUSED)) {
                     step.copy(runId = runId, status = TaskStepStatus.RUNNING, startedAtMs = nowMs)
                 } else {
                     step

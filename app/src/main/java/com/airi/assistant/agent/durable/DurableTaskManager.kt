@@ -1123,9 +1123,14 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
             if (task.requiresCharging)  setRequiresCharging(true)
         }.build()
 
-        val inputData = Data.Builder()
+        val inputBuilder = Data.Builder()
             .putString(DurableTaskWorker.KEY_TASK_ID, task.id)
-            .build()
+        (task.currentStepId ?: task.plan.firstOrNull {
+            it.status == TaskStepStatus.PENDING || it.status == TaskStepStatus.PAUSED
+        }?.id)?.let { stepId ->
+            inputBuilder.putString(DurableTaskWorker.KEY_STEP_ID, stepId)
+        }
+        val inputData = inputBuilder.build()
 
         val request = OneTimeWorkRequestBuilder<DurableTaskWorker>()
             .setConstraints(constraints)
@@ -1249,16 +1254,28 @@ class DurableTaskWorker(
 
     override suspend fun doWork(): Result {
         val taskId = inputData.getString(KEY_TASK_ID) ?: return Result.failure()
+        val requestedStepId = inputData.getString(KEY_STEP_ID)
         Log.i(TAG, "DurableTaskWorker starting taskId=$taskId attempt=$runAttemptCount")
         val manager = com.airi.assistant.core.ServiceLocator.durableTaskManager
         val task = manager.getTask(taskId) ?: return Result.failure()
         if (task.status != DurableTaskStatus.QUEUED || task.isTerminal) return Result.success()
 
-        if (!manager.beginRun(taskId, UUID.randomUUID().toString(), task.currentStepId)) {
+        val runId = UUID.randomUUID().toString()
+        val lease = runCatching {
+            DurableTaskExecutionBoundary.claim(
+                task = if (requestedStepId == null || requestedStepId == task.currentStepId) task
+                else task.copy(currentStepId = requestedStepId),
+                runId = runId,
+            )
+        }.getOrElse { error ->
+            Log.w(TAG, "DurableTaskWorker rejected unsafe step claim taskId=$taskId: ${error.message}")
+            return Result.failure()
+        }
+        if (!manager.beginRun(taskId, lease.runId, lease.stepId)) {
             Log.w(TAG, "DurableTaskWorker declined non-queued or duplicate run taskId=$taskId")
             return Result.success()
         }
-        manager.updateCheckpoint(taskId, task.checkpointData, 0, "Starting…")
+        manager.updateCheckpoint(taskId, lease.checkpointData, 0, "Starting step ${lease.stepId}…")
         var executionId = taskId
         var traceAdapter: com.airi.assistant.agent.subagent.SubAgentTraceAdapter? = null
         return try {
@@ -1345,6 +1362,7 @@ class DurableTaskWorker(
 
     companion object {
         const val KEY_TASK_ID  = "task_id"
+        const val KEY_STEP_ID  = "step_id"
         private const val TAG  = "DurableTaskWorker"
         private const val MAX_RETRIES = 2
     }

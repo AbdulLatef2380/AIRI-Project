@@ -176,7 +176,9 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
         content: String,
         emotion: String? = null,
         attachmentJson: String? = null,
-        projectId: String = ""
+        projectId: String = "",
+        taskId: String? = null,
+        taskRunId: String? = null,
     ): ChatMessage {
         val draft = ChatMessage(
             sessionId = sessionId,
@@ -185,6 +187,8 @@ class MemoryManager(context: Context, private val applicationScope: CoroutineSco
             emotionState = emotion,
             isMemory = false,
             attachmentJson = attachmentJson,
+            taskId = taskId,
+            taskRunId = taskRunId,
             projectId = projectId,
             memorySource = "CHAT_CONTEXT",
             provenance = "Conversation context",

@@ -1350,6 +1350,17 @@ class DurableTaskWorker(
             )
             com.airi.assistant.core.ExecutionStatusBus.onGraphCompleted(success = false, executionId = executionId)
             com.airi.assistant.core.ServiceLocator.crashReporter.reportDurableTaskCrash(taskId, task.agentId, e)
+            // A provider/connector may have accepted an effect before the
+            // coroutine observed the failure. Retrying the opaque agent prompt
+            // would replay that effect. Reconciliation must decide first.
+            val latest = manager.getTask(taskId)
+            if (latest != null && !DurableTaskRetryPolicy.mayReplayAgent(latest)) {
+                manager.markWorkerInterrupted(
+                    taskId = taskId,
+                    reason = "Execution outcome is unknown; reconciliation required before retry",
+                )
+                return Result.failure()
+            }
             if (runAttemptCount < MAX_RETRIES) {
                 manager.markRetrying(taskId, e.message ?: "transient task failure")
                 Result.retry()

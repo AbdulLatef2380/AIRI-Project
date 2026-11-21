@@ -43,7 +43,11 @@ data class ChatMessage(
     /** Epoch ms of the last successful retrieval. */
     val lastAccessedAtMs: Long = 0L,
     /** Epoch ms of the last edit or lifecycle mutation. */
-    val updatedAtMs: Long = timestamp
+    val updatedAtMs: Long = timestamp,
+    /** Durable execution owner for messages that start or continue an agent task. */
+    val taskId: String? = null,
+    /** Run created for this message; null for legacy/non-executing messages. */
+    val taskRunId: String? = null
 ) {
     @Ignore
     val sender: String = role

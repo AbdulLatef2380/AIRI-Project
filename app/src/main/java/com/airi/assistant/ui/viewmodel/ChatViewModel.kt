@@ -2691,18 +2691,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val history    = ResponseOptimizer.smartTrim(rawHistory, isAgentMode = true)
             Log.d("AIRI_TRIM", "before=${rawHistory.size} after=${history.size}")
             preTimeline.mark("history_load")
+            // Allocate the durable identity before inserting the message so the
+            // message row and its execution owner can be recovered together.
+            // A fresh accepted composer turn is explicitly a New Mission; a
+            // continuation uses TaskContinuityCommand and never reuses this path.
+            val chatTaskId = java.util.UUID.randomUUID().toString()
+            val chatRunId = java.util.UUID.randomUUID().toString()
             val userMessage = memoryManager.recordChatMessage(
                 sessionId = sessionId,
                 role = "user",
                 content = trimmedInput,
                 attachmentJson = attachmentJson,
-                projectId = activeProjectId
+                projectId = activeProjectId,
+                taskId = chatTaskId,
+                taskRunId = chatRunId,
             )
             // Every accepted chat generation owns one durable task. Tool-specific
             // runtimes may create child tasks, but the chat task remains the
             // stable identity used by Continue/New Mission and recovery UI.
-            val chatTaskId = java.util.UUID.randomUUID().toString()
-            val chatRunId = java.util.UUID.randomUUID().toString()
             val chatStepId = "agent-loop"
             val chatTask = DurableTask(
                 id = chatTaskId,

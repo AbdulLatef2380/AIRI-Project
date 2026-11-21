@@ -31,6 +31,13 @@ interface MemoryDao {
     @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 0 ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getRecentMessages(sessionId: String, limit: Int): List<ChatMessage>
 
+    /** Durable execution messages are recovered by task identity, not UI state. */
+    @Query("SELECT * FROM episodic_memory WHERE taskId = :taskId AND isMemory = 0 ORDER BY timestamp ASC, id ASC")
+    suspend fun getMessagesForTask(taskId: String): List<ChatMessage>
+
+    @Query("SELECT * FROM episodic_memory WHERE taskId = :taskId AND taskRunId = :taskRunId AND isMemory = 0 ORDER BY timestamp ASC, id ASC")
+    suspend fun getMessagesForTaskRun(taskId: String, taskRunId: String): List<ChatMessage>
+
     /** Explicitly accepted long-term memories for a single session. */
     @Query("SELECT * FROM episodic_memory WHERE sessionId = :sessionId AND isMemory = 1 ORDER BY timestamp DESC, id DESC LIMIT :limit")
     suspend fun getRecentLongTermMemories(sessionId: String, limit: Int): List<ChatMessage>

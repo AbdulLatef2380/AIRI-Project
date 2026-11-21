@@ -82,7 +82,7 @@ import java.io.File
         DurableTaskEventEntity::class,
         DurableOperationEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = true
 )
 @TypeConverters(AuditLogTypeConverters::class)
@@ -414,6 +414,15 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE episodic_memory ADD COLUMN taskId TEXT")
+                db.execSQL("ALTER TABLE episodic_memory ADD COLUMN taskRunId TEXT")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_episodic_memory_taskId ON episodic_memory(taskId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_episodic_memory_taskRunId ON episodic_memory(taskRunId)")
+            }
+        }
+
         internal fun migrations(): Array<Migration> = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -428,7 +437,8 @@ abstract class AiriDatabase : RoomDatabase() {
             MIGRATION_11_12,
             MIGRATION_12_13,
             MIGRATION_13_14,
-            MIGRATION_14_15
+            MIGRATION_14_15,
+            MIGRATION_15_16
         )
 
         fun getDatabase(context: Context): AiriDatabase {

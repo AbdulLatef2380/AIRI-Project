@@ -78,6 +78,48 @@ class DurableTaskManager(private val context: Context) {
     init {
         loadFromDisk()
         createNotificationChannel()
+        runCatching { reconcileAfterProcessRestart() }
+            .onSuccess { recovery ->
+                Log.i(
+                    TAG,
+                    "Startup recovery paused=${recovery.pausedInterruptedTaskIds.size} " +
+                        "queued=${recovery.scheduledQueuedTaskIds.size}/${recovery.eligibleQueuedTaskIds.size} " +
+                        "external_waits=${recovery.waitingExternalTaskIds.size}"
+                )
+            }
+            .onFailure { error ->
+                Log.e(TAG, "Startup task recovery failed; no interrupted task was replayed", error)
+            }
+    }
+
+    /**
+     * Reconcile persisted work once per process startup. Interrupted RUNNING
+     * tasks are durably paused before any queue is scheduled; only QUEUED tasks
+     * are eligible for the generic worker, using its unique KEEP work name.
+     */
+    @Synchronized
+    private fun reconcileAfterProcessRestart(
+        nowMs: Long = System.currentTimeMillis()
+    ): DurableTaskRecoverySummary {
+        val plan = DurableTaskRecoveryCoordinator.plan(taskCache.values.toList(), nowMs)
+        plan.interruptedTasks.forEach(::putTask)
+
+        val scheduledIds = mutableListOf<String>()
+        plan.queuedTaskIds.forEach { taskId ->
+            val queued = taskCache[taskId] ?: return@forEach
+            runCatching { submitToWorkManager(queued) }
+                .onSuccess { scheduledIds += taskId }
+                .onFailure { error ->
+                    Log.e(TAG, "Failed to reconcile queued task id=$taskId: ${error.javaClass.simpleName}")
+                }
+        }
+
+        return DurableTaskRecoverySummary(
+            pausedInterruptedTaskIds = plan.interruptedTasks.map { it.id },
+            eligibleQueuedTaskIds = plan.queuedTaskIds,
+            scheduledQueuedTaskIds = scheduledIds,
+            waitingExternalTaskIds = plan.waitingExternalTaskIds
+        )
     }
 
     // ─────────────────────────────────────────────────────────────────────────

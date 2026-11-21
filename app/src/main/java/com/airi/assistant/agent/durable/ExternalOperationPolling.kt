@@ -119,7 +119,12 @@ class ExternalOperationPollWorker(
         }
 
         val decision = ExternalOperationRecoveryCoordinator.plan(listOf(task), System.currentTimeMillis())
-            .actions.firstOrNull { it.operationId == operationId }
+            .actions.firstOrNull { action ->
+                when (action) {
+                    is ExternalOperationRecoveryAction.NeedsReconciliation -> action.operationId == operationId
+                    is ExternalOperationRecoveryAction.ScheduleStatusCheck -> action.operationId == operationId
+                }
+            }
         if (decision is ExternalOperationRecoveryAction.NeedsReconciliation) {
             Log.w(TAG, "External operation requires reconciliation; taskId=$taskId operationId=$operationId")
             manager.pauseExternalOperationForReconciliation(taskId, operationId, decision.reason)

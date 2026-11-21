@@ -33,7 +33,7 @@ class AiriDatabaseMigrationTest {
     }
 
     @Test
-    fun migratesVersionOneDataToVersionTenWithoutLossOrIndexDrift() = runBlocking {
+    fun migratesVersionOneDataToVersionTwelveWithoutLossOrIndexDrift() = runBlocking {
         createVersionOneDatabase()
 
         database = Room.databaseBuilder(context, AiriDatabase::class.java, DATABASE_NAME)
@@ -65,6 +65,39 @@ class AiriDatabaseMigrationTest {
         assertTrue("message_embedding" in tables)
         assertTrue("audit_log" in tables)
         assertTrue("workspace_artifact" in tables)
+        assertTrue("memory_sync_mutations" in tables)
+        assertTrue("durable_tasks" in tables)
+        assertTrue("durable_task_runs" in tables)
+        assertTrue("durable_task_steps" in tables)
+        assertTrue("durable_external_operations" in tables)
+        assertTrue("durable_task_events" in tables)
+        assertTrue("durable_task_outbox" in tables)
+        assertTrue("durable_task_imports" in tables)
+        assertEquals(12, database!!.openHelper.writableDatabase.version)
+        val taskIndices = database!!.openHelper.writableDatabase.query(
+            "PRAGMA index_list('durable_tasks')"
+        ).use { cursor ->
+            buildSet { while (cursor.moveToNext()) add(cursor.getString(1)) }
+        }
+        assertTrue("index_durable_tasks_status_updatedAtMs" in taskIndices)
+        assertTrue("index_durable_tasks_projectId_updatedAtMs" in taskIndices)
+        assertTrue("index_durable_tasks_ownerId_updatedAtMs" in taskIndices)
+        val outboxIndices = database!!.openHelper.writableDatabase.query(
+            "PRAGMA index_list('durable_task_outbox')"
+        ).use { cursor ->
+            buildSet { while (cursor.moveToNext()) add(cursor.getString(1)) }
+        }
+        assertTrue("index_durable_task_outbox_state_createdAtMs" in outboxIndices)
+        assertTrue("index_durable_task_outbox_taskId_command" in outboxIndices)
+        val runIndices = database!!.openHelper.writableDatabase.query(
+            "PRAGMA index_list('durable_task_runs')"
+        ).use { cursor -> buildSet { while (cursor.moveToNext()) add(cursor.getString(1)) } }
+        assertTrue("index_durable_task_runs_taskId_startedAtMs" in runIndices)
+        val stepIndices = database!!.openHelper.writableDatabase.query(
+            "PRAGMA index_list('durable_task_steps')"
+        ).use { cursor -> buildSet { while (cursor.moveToNext()) add(cursor.getString(1)) } }
+        assertTrue("index_durable_task_steps_taskId_runId" in stepIndices)
+        assertTrue("index_durable_task_steps_taskId_status" in stepIndices)
         val artifactColumns = database!!.openHelper.writableDatabase.query(
             "PRAGMA table_info('workspace_artifact')"
         ).use { cursor ->

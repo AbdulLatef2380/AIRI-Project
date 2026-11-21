@@ -19,11 +19,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.UUID
 import com.airi.assistant.R
 import com.airi.assistant.domain.background.BackgroundWorkNames
+import com.airi.assistant.memory.AiriDatabase
 
 /**
  * Manager for durable long-running tasks that survive app closure.
@@ -32,12 +32,12 @@ import com.airi.assistant.domain.background.BackgroundWorkNames
  * PERSISTENCE MODEL
  * ─────────────────────────────────────────────────────────────────────────
  *
- *   Tasks are persisted in a versioned JSON envelope in the app's private files directory:
- *   {filesDir}/durable_tasks.json
+ *   Tasks are persisted in the task tables of AiriDatabase (Room). The former
+ *   {filesDir}/durable_tasks.json is imported once through a verified transaction
+ *   and retained unchanged as a recovery source; it is no longer a write target.
  *
- *   Legacy root-array JSON remains readable and is rewritten as the versioned
- *   envelope after load. JSON remains the current store, not a substitute for
- *   the future transactional Room/SQLite task+outbox store.
+ *   The transactional outbox records schedule intent with the task row. WorkManager
+ *   dispatch is outside the SQLite transaction and uses unique KEEP work names.
  *
  * ─────────────────────────────────────────────────────────────────────────
  * EXECUTION MODEL
@@ -49,8 +49,8 @@ import com.airi.assistant.domain.background.BackgroundWorkNames
  *     - Constraint satisfaction (network, charging)
  *     - Persistence across process kills
  *
- *   The DurableTaskWorker reads the task from the JSON file, executes it,
- *   and writes the result back.
+ *   The DurableTaskWorker reads the task from Room, executes it, and commits
+ *   state changes back to the same database.
  *
  * ─────────────────────────────────────────────────────────────────────────
  * CHECKPOINT SEMANTICS
@@ -66,8 +66,7 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
     private val TAG = "DurableTaskManager"
     private val gson = Gson()
     private val taskJsonCodec = DurableTaskJsonCodec(gson)
-    private val taskFile = File(context.filesDir, "durable_tasks.json")
-    private val taskFileStore = DurableTaskFileStore(taskFile, taskJsonCodec)
+    private val taskStore = DurableTaskRoomStore(AiriDatabase.getDatabase(context), taskJsonCodec)
     private val externalOperationWorkScheduler = ExternalOperationWorkScheduler(context)
 
     // ── In-memory cache (source of truth for UI) ──────────────────────────────
@@ -75,6 +74,7 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
     private val taskCache = ConcurrentHashMap<String, DurableTask>()
     private val _tasks = MutableStateFlow<List<DurableTask>>(emptyList())
     private var externalPollerChangeListener: AutoCloseable? = null
+    private var persistenceBlockedReason: String? = null
     val tasks: StateFlow<List<DurableTask>> = _tasks.asStateFlow()
 
     init {
@@ -85,6 +85,7 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
                 .onFailure { error -> Log.e(TAG, "External operation work reconciliation failed", error) }
         }
         runCatching {
+            drainTaskOutbox()
             reconcileAfterProcessRestart() to reconcileExternalOperationWork()
         }
             .onSuccess { (recovery, external) ->
@@ -155,8 +156,8 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
             "Task ${task.id} already exists; enqueue cannot overwrite or revive it"
         }
         val queued = task.copy(updatedAtMs = System.currentTimeMillis())
-        putTask(queued)
-        submitToWorkManager(queued)
+        putTask(queued, scheduleOutbox = true)
+        drainTaskOutbox()
         Log.i(TAG, "AIRI DURABLE_TASK_ENQUEUED id=${task.id} title='${task.title}'")
         return task.id
     }
@@ -979,18 +980,17 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
     }
 
     @Synchronized
-    private fun putTask(task: DurableTask) {
+    private fun putTask(task: DurableTask, scheduleOutbox: Boolean = false) {
+        persistenceBlockedReason?.let { reason ->
+            throw IllegalStateException("Durable task persistence is blocked: $reason")
+        }
         val normalized = MissionKernel.normalize(task)
         require(MissionKernel.validate(normalized) is MissionOwnershipValidation.Valid) {
             "Durable task ownership invariant rejected for task=${task.id}"
         }
-        val previous = taskCache.put(normalized.id, normalized)
-        if (!saveToDisk()) {
-            if (previous == null) taskCache.remove(normalized.id)
-            else taskCache[normalized.id] = previous
-            emitUpdate()
-            throw IllegalStateException("Failed to persist durable task ${normalized.id}")
-        }
+        // Room commit precedes cache publication; a failed commit leaves the cache unchanged.
+        taskStore.persist(normalized, scheduleOutbox)
+        taskCache[normalized.id] = normalized
         emitUpdate()
     }
 
@@ -1032,58 +1032,47 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // File persistence
+    // Room persistence and conservative legacy import
     // ─────────────────────────────────────────────────────────────────────────
 
-    private fun saveToDisk(): Boolean {
-        return runCatching {
-            taskFileStore.write(taskCache.values.toList())
-            true
-        }.onFailure {
-            Log.e(TAG, "Failed to persist tasks to disk: ${it.javaClass.simpleName}")
-        }.getOrDefault(false)
+    private fun loadFromDisk() {
+        try {
+            val source = java.io.File(context.filesDir, "durable_tasks.json")
+            val result = taskStore.importLegacyJsonAndLoad(source)
+            result.tasks.forEach { taskCache[it.id] = it }
+            emitUpdate()
+            Log.i(
+                TAG,
+                "Loaded ${taskCache.size} tasks from Room; imported=${result.importedNow} " +
+                    "source_retained=${result.sourceJsonRetained} source_sha256=${result.sourceSha256.take(12)}"
+            )
+        } catch (error: Exception) {
+            persistenceBlockedReason = "legacy-import-or-room-verification-failed"
+            Log.e(
+                TAG,
+                "Task import/Room verification failed; JSON is preserved and mutations are blocked " +
+                    "(${error.javaClass.simpleName})",
+                error
+            )
+        }
     }
 
-    private fun loadFromDisk() {
-        when (val result = taskFileStore.read()) {
-            DurableTaskFileReadResult.Missing -> return
-            is DurableTaskFileReadResult.Invalid -> {
-                Log.e(
-                    TAG,
-                    "Failed to read durable tasks; writes are blocked to preserve the existing file " +
-                        "(${result.cause.javaClass.simpleName})"
-                )
-                return
+    /** Dispatch committed enqueue intents idempotently; WorkManager stays outside the DB transaction. */
+    @Synchronized
+    private fun drainTaskOutbox() {
+        taskStore.pendingOutbox().forEach { event ->
+            if (event.command != DurableTaskOutboxEntity.COMMAND_SCHEDULE_TASK) return@forEach
+            val task = taskCache[event.taskId]
+            if (task == null || task.status != DurableTaskStatus.QUEUED) {
+                taskStore.recordOutboxAttempt(event.eventId)
+                return@forEach
             }
-            is DurableTaskFileReadResult.Loaded -> {
-                val normalizedTasks = try {
-                    result.tasks.map(MissionKernel::normalize)
-                } catch (error: Exception) {
-                    taskFileStore.blockWrites("task-normalization-failed")
-                    Log.e(TAG, "Failed to normalize durable task records; writes are blocked", error)
-                    return
+            runCatching { submitToWorkManager(task) }
+                .onSuccess { taskStore.markOutboxDispatched(event.eventId) }
+                .onFailure { error ->
+                    taskStore.recordOutboxAttempt(event.eventId)
+                    Log.e(TAG, "Task outbox dispatch deferred id=${event.eventId}", error)
                 }
-
-                var rejectedOwnershipRecord = false
-                normalizedTasks.forEach { normalized ->
-                    if (MissionKernel.validate(normalized) is MissionOwnershipValidation.Valid) {
-                        taskCache[normalized.id] = normalized
-                    } else {
-                        rejectedOwnershipRecord = true
-                        Log.w(TAG, "Rejected durable task with invalid mission ownership id=${normalized.id}")
-                    }
-                }
-                if (rejectedOwnershipRecord) {
-                    taskFileStore.blockWrites("invalid-task-ownership-record")
-                }
-                emitUpdate()
-                if (rejectedOwnershipRecord) {
-                    Log.e(TAG, "Durable task file was not rewritten because a record failed ownership validation")
-                } else {
-                    saveToDisk()
-                }
-                Log.i(TAG, "Loaded ${taskCache.size} durable tasks from disk")
-            }
         }
     }
 

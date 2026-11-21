@@ -27,6 +27,14 @@ import com.airi.assistant.memory.entity.MessageEmbedding
 import com.airi.assistant.memory.entity.UsageStatEntity
 import com.airi.assistant.memory.entity.UserPreference
 import com.airi.assistant.memory.entity.MemorySyncMutationEntity
+import com.airi.assistant.agent.durable.DurableTaskEntity
+import com.airi.assistant.agent.durable.DurableTaskOutboxEntity
+import com.airi.assistant.agent.durable.DurableTaskImportEntity
+import com.airi.assistant.agent.durable.DurableTaskRoomDao
+import com.airi.assistant.agent.durable.DurableTaskRunEntity
+import com.airi.assistant.agent.durable.DurableTaskStepEntity
+import com.airi.assistant.agent.durable.DurableExternalOperationEntity
+import com.airi.assistant.agent.durable.DurableTaskEventEntity
 import java.io.File
 
 /**
@@ -43,6 +51,7 @@ import java.io.File
      *   v8 → v9: Added project/task/run/step/tool/model provenance to workspace artifacts.
      *   v9 → v10: Normalized episodic-memory index names to match the Room entities.
      *   v10 → v11: Added durable opt-in memory-sync outbox mutations.
+     *   v11 → v12: Added durable agent task snapshots, dispatch outbox, and legacy-import marker.
 
  *
  * [exportBackup] copies the live database file to a destination [File] using
@@ -59,9 +68,16 @@ import java.io.File
         MessageEmbedding::class,
         AuditLogEntity::class,
         ArtifactEntity::class,
-        MemorySyncMutationEntity::class
+        MemorySyncMutationEntity::class,
+        DurableTaskEntity::class,
+        DurableTaskOutboxEntity::class,
+        DurableTaskImportEntity::class,
+        DurableTaskRunEntity::class,
+        DurableTaskStepEntity::class,
+        DurableExternalOperationEntity::class,
+        DurableTaskEventEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 @TypeConverters(AuditLogTypeConverters::class)
@@ -75,6 +91,7 @@ abstract class AiriDatabase : RoomDatabase() {
     abstract fun embeddingDao():    EmbeddingDao
     abstract fun auditLogDao():     AuditLogDao
     abstract fun artifactDao():     ArtifactDao
+    abstract fun durableTaskDao(): DurableTaskRoomDao
 
     companion object {
         private const val TAG = "AiriDatabase"
@@ -228,6 +245,126 @@ abstract class AiriDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS durable_tasks (
+                        taskId TEXT NOT NULL PRIMARY KEY,
+                        status TEXT NOT NULL,
+                        ownerId TEXT NOT NULL,
+                        projectId TEXT,
+                        queuedAtMs INTEGER NOT NULL,
+                        updatedAtMs INTEGER NOT NULL,
+                        payloadJson TEXT NOT NULL,
+                        payloadSha256 TEXT NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_durable_tasks_status_updatedAtMs ON durable_tasks(status, updatedAtMs)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_durable_tasks_projectId_updatedAtMs ON durable_tasks(projectId, updatedAtMs)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_durable_tasks_ownerId_updatedAtMs ON durable_tasks(ownerId, updatedAtMs)")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS durable_task_runs (
+                        taskId TEXT NOT NULL,
+                        runId TEXT NOT NULL,
+                        missionId TEXT NOT NULL,
+                        projectId TEXT,
+                        status TEXT NOT NULL,
+                        startedAtMs INTEGER NOT NULL,
+                        finishedAtMs INTEGER NOT NULL,
+                        currentStepId TEXT,
+                        PRIMARY KEY(taskId, runId),
+                        FOREIGN KEY(taskId) REFERENCES durable_tasks(taskId) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_durable_task_runs_taskId_startedAtMs ON durable_task_runs(taskId, startedAtMs)")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS durable_task_steps (
+                        taskId TEXT NOT NULL,
+                        stepId TEXT NOT NULL,
+                        runId TEXT,
+                        status TEXT NOT NULL,
+                        startedAtMs INTEGER NOT NULL,
+                        completedAtMs INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        toolSummary TEXT NOT NULL,
+                        error TEXT NOT NULL,
+                        PRIMARY KEY(taskId, stepId),
+                        FOREIGN KEY(taskId) REFERENCES durable_tasks(taskId) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_durable_task_steps_taskId_runId ON durable_task_steps(taskId, runId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_durable_task_steps_taskId_status ON durable_task_steps(taskId, status)")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS durable_external_operations (
+                        taskId TEXT NOT NULL,
+                        operationId TEXT NOT NULL,
+                        runId TEXT NOT NULL,
+                        stepId TEXT NOT NULL,
+                        externalProvider TEXT NOT NULL,
+                        externalReferenceId TEXT,
+                        externalStatus TEXT NOT NULL,
+                        startedAt INTEGER NOT NULL,
+                        nextPollAt INTEGER,
+                        lastCheckedAt INTEGER,
+                        resultReference TEXT,
+                        deadlineAt INTEGER NOT NULL,
+                        timeoutAction TEXT NOT NULL,
+                        maxAttempts INTEGER NOT NULL,
+                        initialBackoffMs INTEGER NOT NULL,
+                        maxBackoffMs INTEGER NOT NULL,
+                        cancellationState TEXT NOT NULL,
+                        pollAttemptCount INTEGER NOT NULL,
+                        reconciliationRequiredReason TEXT,
+                        PRIMARY KEY(taskId, operationId),
+                        FOREIGN KEY(taskId) REFERENCES durable_tasks(taskId) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_durable_external_operations_externalStatus_nextPollAt ON durable_external_operations(externalStatus, nextPollAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_durable_external_operations_taskId_runId_stepId ON durable_external_operations(taskId, runId, stepId)")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS durable_task_events (
+                        taskId TEXT NOT NULL,
+                        eventId TEXT NOT NULL,
+                        sequence INTEGER NOT NULL,
+                        type TEXT NOT NULL,
+                        summary TEXT NOT NULL,
+                        detail TEXT NOT NULL,
+                        runId TEXT,
+                        stepId TEXT,
+                        recordedAtMs INTEGER NOT NULL,
+                        PRIMARY KEY(taskId, eventId),
+                        FOREIGN KEY(taskId) REFERENCES durable_tasks(taskId) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_durable_task_events_taskId_sequence ON durable_task_events(taskId, sequence)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_durable_task_events_taskId_type_recordedAtMs ON durable_task_events(taskId, type, recordedAtMs)")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS durable_task_outbox (
+                        eventId TEXT NOT NULL PRIMARY KEY,
+                        taskId TEXT NOT NULL,
+                        command TEXT NOT NULL,
+                        state TEXT NOT NULL,
+                        createdAtMs INTEGER NOT NULL,
+                        attemptCount INTEGER NOT NULL,
+                        lastAttemptAtMs INTEGER,
+                        FOREIGN KEY(taskId) REFERENCES durable_tasks(taskId) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_durable_task_outbox_state_createdAtMs ON durable_task_outbox(state, createdAtMs)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_durable_task_outbox_taskId_command ON durable_task_outbox(taskId, command)")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS durable_task_imports (
+                        importId TEXT NOT NULL PRIMARY KEY,
+                        sourceSha256 TEXT NOT NULL,
+                        sourceSchemaVersion INTEGER NOT NULL,
+                        sourceByteCount INTEGER NOT NULL,
+                        importedTaskCount INTEGER NOT NULL,
+                        importedAtMs INTEGER NOT NULL
+                    )
+                """.trimIndent())
+            }
+        }
+
         internal fun migrations(): Array<Migration> = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
@@ -238,7 +375,8 @@ abstract class AiriDatabase : RoomDatabase() {
             MIGRATION_7_8,
             MIGRATION_8_9,
             MIGRATION_9_10,
-            MIGRATION_10_11
+            MIGRATION_10_11,
+            MIGRATION_11_12
         )
 
         fun getDatabase(context: Context): AiriDatabase {

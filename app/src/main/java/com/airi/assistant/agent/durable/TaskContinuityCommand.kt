@@ -32,7 +32,8 @@ enum class RejectionReason {
     STALE_STATE_VERSION,
     TASK_NOT_RESUMABLE,
     UNKNOWN_EXTERNAL_OUTCOME,
-    INVALID_NEW_MISSION
+    INVALID_NEW_MISSION,
+    PERSISTENCE_FAILED
 }
 
 /** Pure command gate used by UI/use-cases before calling DurableTaskManager. */

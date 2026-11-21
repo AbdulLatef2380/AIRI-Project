@@ -86,4 +86,80 @@ class TaskContinuityCommandTest {
 
         assertEquals(RejectionReason.UNKNOWN_EXTERNAL_OUTCOME, (decision as TaskContinuityDecision.Rejected).reason)
     }
+
+    @Test
+    fun executorCreatesNewMissionWithoutTouchingPausedTask() {
+        val paused = pausedTask()
+        val newTask = DurableTask(
+            id = "task-b",
+            title = "New task",
+            description = "independent",
+            agentId = "agent",
+            input = "start new",
+            sourceMessageId = 22L,
+        )
+        val created = mutableListOf<String>()
+
+        val result = TaskContinuityCommandExecutor.execute(
+            command = TaskContinuityCommand.NewMission("message-b", newTask),
+            tasks = mapOf(paused.id to paused),
+            createNewMission = { created += it.id; true },
+            resumeExistingTask = { _, _, _ -> error("new mission must not resume") },
+        )
+
+        assertEquals(TaskContinuityCommandExecutor.Result.Created("task-b"), result)
+        assertEquals(listOf("task-b"), created)
+        assertEquals(DurableTaskStatus.PAUSED, paused.status)
+    }
+
+    @Test
+    fun executorResumesSameTaskWithFreshRunAndInstruction() {
+        val paused = pausedTask()
+        var receivedTaskId = ""
+        var receivedVersion = -1L
+        var receivedInstruction = ""
+
+        val result = TaskContinuityCommandExecutor.execute(
+            command = TaskContinuityCommand.ContinueExistingTask(
+                messageId = "message-a",
+                taskId = paused.id,
+                expectedStateVersion = paused.stateVersion,
+                userInstruction = "use the saved checkpoint",
+            ),
+            tasks = mapOf(paused.id to paused),
+            createNewMission = { error("continuation must not create a mission") },
+            resumeExistingTask = { taskId, expectedStateVersion, userInstruction ->
+                receivedTaskId = taskId
+                receivedVersion = expectedStateVersion
+                receivedInstruction = userInstruction
+                "run-2"
+            },
+        )
+
+        assertEquals(TaskContinuityCommandExecutor.Result.Resumed("task-a", "run-2"), result)
+        assertEquals("task-a", receivedTaskId)
+        assertEquals(paused.stateVersion, receivedVersion)
+        assertEquals("use the saved checkpoint", receivedInstruction)
+    }
+
+    @Test
+    fun executorReportsPersistenceFailureWithoutClaimingAcceptance() {
+        val paused = pausedTask()
+
+        val result = TaskContinuityCommandExecutor.execute(
+            command = TaskContinuityCommand.ContinueExistingTask(
+                messageId = "message-a",
+                taskId = paused.id,
+                expectedStateVersion = paused.stateVersion,
+            ),
+            tasks = mapOf(paused.id to paused),
+            createNewMission = { error("continuation must not create a mission") },
+            resumeExistingTask = { _, _, _ -> null },
+        )
+
+        assertEquals(
+            TaskContinuityCommandExecutor.Result.Rejected(RejectionReason.PERSISTENCE_FAILED),
+            result,
+        )
+    }
 }

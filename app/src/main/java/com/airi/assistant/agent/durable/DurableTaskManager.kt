@@ -236,6 +236,29 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
         return taskCache[taskId]?.let { it.status == DurableTaskStatus.RUNNING && it.currentRunId == runId } == true
     }
 
+    /**
+     * Apply an explicit New Mission or Continue Existing Task command.
+     *
+     * The command gate reads the same synchronized cache that is used by the
+     * write handlers. Continuation then performs a second state-version check
+     * in [resumeTask], so a command that races another update cannot revive a
+     * stale task or accidentally create a second run.
+     */
+    @Synchronized
+    fun executeContinuityCommand(
+        command: TaskContinuityCommand,
+        runId: String = UUID.randomUUID().toString(),
+    ): TaskContinuityCommandExecutor.Result = TaskContinuityCommandExecutor.execute(
+        command = command,
+        tasks = taskCache.toMap(),
+        createNewMission = { task ->
+            runCatching { enqueue(task) }.isSuccess
+        },
+        resumeExistingTask = { taskId, expectedStateVersion, userInstruction ->
+            if (resumeTask(taskId, expectedStateVersion, userInstruction, runId)) runId else null
+        },
+    )
+
     /** Persist a typed budget pause without converting it into a terminal failure. */
     @Synchronized
     fun pauseForBudget(

@@ -15,6 +15,8 @@ import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.airi.assistant.agent.subagent.SubAgentContext
+import com.airi.assistant.agent.durable.DurableTask
+import com.airi.assistant.agent.durable.TaskPlanStep
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.airi.assistant.ai.CatalogEntry
@@ -1328,6 +1330,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     @Volatile private var activeGenerationId: Long = 0L
     @Volatile private var activeGenerationSessionId: String? = null
     @Volatile private var activeGenerationJob: Job? = null
+    /** Durable task identity owned by the current chat generation. */
+    @Volatile private var activeDurableTaskId: String? = null
     /** A replacement composer request waits for the old owner to reach terminal cleanup. */
     @Volatile private var queuedComposerRequest: QueuedComposerRequest? = null
     private val pendingGenerativeUiActions = com.airi.assistant.ui.generative.PendingGenerativeUiActionGate()
@@ -2694,6 +2698,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 attachmentJson = attachmentJson,
                 projectId = activeProjectId
             )
+            // Every accepted chat generation owns one durable task. Tool-specific
+            // runtimes may create child tasks, but the chat task remains the
+            // stable identity used by Continue/New Mission and recovery UI.
+            val chatTaskId = java.util.UUID.randomUUID().toString()
+            val chatRunId = java.util.UUID.randomUUID().toString()
+            val chatStepId = "agent-loop"
+            val chatTask = DurableTask(
+                id = chatTaskId,
+                missionId = chatTaskId,
+                sourceMessageId = userMessage.id,
+                projectId = activeProjectId.takeIf { it.isNotBlank() },
+                ownerId = "anonymous",
+                title = trimmedInput.replace(Regex("\\s+"), " ").take(120),
+                description = "Chat execution for message ${userMessage.id}",
+                agentId = "agent-loop",
+                input = trimmedInput,
+                showNotification = false,
+                plan = listOf(TaskPlanStep(id = chatStepId, title = "AgentLoop execution")),
+            )
+            ServiceLocator.durableTaskManager.registerInProcess(chatTask)
+            check(ServiceLocator.durableTaskManager.beginRun(chatTaskId, chatRunId, chatStepId)) {
+                "Chat durable task could not start its run"
+            }
+            activeDurableTaskId = chatTaskId
             // Re-check after every accepted user turn: the first turn may be
             // only a greeting, so title generation can legitimately happen on
             // the second or third turn.
@@ -3940,6 +3968,31 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         summary = "Execution ended without a terminal result",
                         answer = streamAccumulator.toString().take(MAX_TOOL_OUTPUT_TRACE_CHARS),
                     )
+                }
+                activeDurableTaskId?.let { taskId ->
+                    val terminalKind = ExecutionStatusBus.traceSnapshot(traceExecutionId)
+                        .lastOrNull { event -> event.kind in setOf(
+                            ExecutionTraceKind.COMPLETED,
+                            ExecutionTraceKind.FAILED,
+                            ExecutionTraceKind.CANCELLED,
+                            ExecutionTraceKind.APPROVAL_CANCELLED,
+                            ExecutionTraceKind.APPROVAL_TIMEOUT,
+                        ) }?.kind
+                    runCatching {
+                        when (terminalKind) {
+                            ExecutionTraceKind.COMPLETED ->
+                                ServiceLocator.durableTaskManager.markCompleted(taskId, streamAccumulator.toString().take(4_000))
+                            ExecutionTraceKind.CANCELLED,
+                            ExecutionTraceKind.APPROVAL_CANCELLED,
+                            ExecutionTraceKind.APPROVAL_TIMEOUT ->
+                                ServiceLocator.durableTaskManager.markWorkerInterrupted(taskId, "Chat generation cancelled")
+                            else ->
+                                ServiceLocator.durableTaskManager.markFailed(taskId, "Chat generation ended without a successful result")
+                        }
+                    }.onFailure { error ->
+                        Log.e("AIRI_DURABLE_CHAT", "Could not finalize chat task=$taskId", error)
+                    }
+                    activeDurableTaskId = null
                 }
                 uiAction?.let { action ->
                     val executionEvents = ExecutionStatusBus.traceSnapshot(traceExecutionId)

@@ -19,6 +19,9 @@ data class DurableTask(
     /** Stable mission aggregate. Legacy tasks normalize to their own task ID. */
     val missionId: String? = null,
 
+    /** User message that explicitly created this execution task. */
+    val sourceMessageId: Long? = null,
+
     /** Firebase UID or local identity that owns the task. */
     val ownerId: String = "anonymous",
 

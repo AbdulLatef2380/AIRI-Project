@@ -38,6 +38,9 @@ run_step() {
 
 run_step compile :app:compileDebugKotlin
 run_step unit :app:testDebugUnitTest
+run_step p0_h1_acceptance \
+  :app:testDebugUnitTest \
+  --tests 'com.airi.assistant.agent.durable.P0H1CentralAcceptanceTest'
 run_step vertical \
   :app:testDebugUnitTest \
   --tests 'com.airi.assistant.agent.loop.AgentLoopVerticalIntegrationTest' \

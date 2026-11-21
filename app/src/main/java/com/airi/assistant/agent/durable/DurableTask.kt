@@ -124,6 +124,9 @@ data class DurableTask(
     /** Durable external jobs (CI/build/etc.) that outlive an execution run. */
     val externalOperations: List<ExternalOperation> = emptyList(),
 
+    /** Side-effect intents persisted before a connector is invoked. */
+    val operations: List<DurableOperation> = emptyList(),
+
     /** Typed reason when a budget pause is awaiting extension or replenishment. */
     val budgetPauseReason: BudgetPauseReason? = null,
 
@@ -237,6 +240,63 @@ data class DurableTask(
                 stepId = stepId,
                 recordedAtMs = nowMs
             )
+        )
+    }
+
+    /** Persist an idempotent side-effect intent before calling an external connector. */
+    fun prepareOperation(operation: DurableOperation, nowMs: Long = System.currentTimeMillis()): DurableTask? {
+        if (
+            operation.taskId != id || operation.operationId.isBlank() ||
+            operation.actionId.isBlank() || operation.idempotencyKey.isBlank() ||
+            operation.payloadSha256.isBlank() ||
+            operations.any { it.operationId == operation.operationId || it.idempotencyKey == operation.idempotencyKey }
+        ) return null
+        return copy(
+            operations = operations + operation.copy(
+                status = DurableOperationStatus.PREPARED,
+                preparedAtMs = nowMs,
+                updatedAtMs = nowMs
+            ),
+            updatedAtMs = nowMs
+        )
+    }
+
+    /** Claim a prepared intent exactly once; stale or terminal claims are rejected. */
+    fun claimOperation(operationId: String, nowMs: Long = System.currentTimeMillis()): DurableTask? {
+        val current = operations.firstOrNull { it.operationId == operationId } ?: return null
+        if (current.status != DurableOperationStatus.PREPARED) return null
+        return copy(
+            operations = operations.map {
+                if (it.operationId == operationId) it.copy(status = DurableOperationStatus.CLAIMED, updatedAtMs = nowMs) else it
+            },
+            updatedAtMs = nowMs
+        )
+    }
+
+    /** Record a definitive connector result. An UNKNOWN result is never auto-replayed. */
+    fun completeOperation(
+        operationId: String,
+        status: DurableOperationStatus,
+        providerReference: String? = null,
+        safeError: String = "",
+        nowMs: Long = System.currentTimeMillis()
+    ): DurableTask? {
+        require(status in setOf(DurableOperationStatus.SUCCEEDED, DurableOperationStatus.FAILED, DurableOperationStatus.UNKNOWN)) {
+            "Operation completion must be terminal"
+        }
+        val current = operations.firstOrNull { it.operationId == operationId } ?: return null
+        if (current.status != DurableOperationStatus.CLAIMED) return null
+        return copy(
+            operations = operations.map {
+                if (it.operationId == operationId) it.copy(
+                    status = status,
+                    providerReference = providerReference ?: it.providerReference,
+                    safeError = safeError.take(200),
+                    completedAtMs = nowMs,
+                    updatedAtMs = nowMs
+                ) else it
+            },
+            updatedAtMs = nowMs
         )
     }
 
@@ -943,6 +1003,35 @@ enum class ExternalOperationStatus {
 
     val isTerminal: Boolean
         get() = this == SUCCEEDED || this == FAILED || this == CANCELLED
+}
+
+/** A single connector side-effect intent with a stable replay key and payload hash. */
+data class DurableOperation(
+    val operationId: String,
+    val taskId: String,
+    val runId: String,
+    val stepId: String,
+    val actionId: String,
+    val idempotencyKey: String,
+    val payloadSha256: String,
+    val provider: String,
+    val status: DurableOperationStatus = DurableOperationStatus.PREPARED,
+    val providerReference: String? = null,
+    val safeError: String = "",
+    val preparedAtMs: Long = -1L,
+    val completedAtMs: Long = -1L,
+    val updatedAtMs: Long = preparedAtMs,
+)
+
+enum class DurableOperationStatus {
+    PREPARED,
+    CLAIMED,
+    SUCCEEDED,
+    FAILED,
+    UNKNOWN;
+
+    val isTerminal: Boolean
+        get() = this in setOf(SUCCEEDED, FAILED, UNKNOWN)
 }
 
 data class TaskPlanStep(

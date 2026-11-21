@@ -250,6 +250,46 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
         return true
     }
 
+    /** Commit a side-effect intent before invoking a connector. */
+    @Synchronized
+    fun prepareOperation(taskId: String, operation: DurableOperation, nowMs: Long = System.currentTimeMillis()): Boolean {
+        val existing = taskCache[taskId] ?: return false
+        val prepared = existing.prepareOperation(operation, nowMs) ?: return false
+        putTask(prepared)
+        return taskCache[taskId]?.operations?.any {
+            it.operationId == operation.operationId && it.status == DurableOperationStatus.PREPARED
+        } == true
+    }
+
+    /** Claim a prepared operation; repeated claims are rejected rather than replayed. */
+    @Synchronized
+    fun claimOperation(taskId: String, operationId: String, nowMs: Long = System.currentTimeMillis()): Boolean {
+        val existing = taskCache[taskId] ?: return false
+        val claimed = existing.claimOperation(operationId, nowMs) ?: return false
+        putTask(claimed)
+        return taskCache[taskId]?.operations?.any {
+            it.operationId == operationId && it.status == DurableOperationStatus.CLAIMED
+        } == true
+    }
+
+    /** Complete an operation; UNKNOWN is durable evidence that automatic replay is unsafe. */
+    @Synchronized
+    fun completeOperation(
+        taskId: String,
+        operationId: String,
+        status: DurableOperationStatus,
+        providerReference: String? = null,
+        safeError: String = "",
+        nowMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val existing = taskCache[taskId] ?: return false
+        val completed = existing.completeOperation(operationId, status, providerReference, safeError, nowMs) ?: return false
+        putTask(completed)
+        return taskCache[taskId]?.operations?.any {
+            it.operationId == operationId && it.status == status
+        } == true
+    }
+
     /** Persist an observation with a due-time CAS; true confirms persistence, false means stale or rejected. */
     @Synchronized
     fun recordExternalOperationCheck(

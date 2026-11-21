@@ -83,6 +83,39 @@ class DurableTaskLifecycleContractTest {
     }
 
     @Test
+    fun operationLedgerRequiresPrepareThenSingleClaimAndPreservesUnknown() {
+        val task = runningTask()
+        val operation = DurableOperation(
+            operationId = "operation-1",
+            taskId = task.id,
+            runId = "run-1",
+            stepId = "step-1",
+            actionId = "action-1",
+            idempotencyKey = "task-lifecycle:run-1:action-1",
+            payloadSha256 = "sha256-payload",
+            provider = "calendar",
+        )
+
+        val prepared = task.prepareOperation(operation, nowMs = 2_000L)!!
+        assertEquals(DurableOperationStatus.PREPARED, prepared.operations.single().status)
+        assertTrue(prepared.prepareOperation(operation, nowMs = 2_100L) == null)
+
+        val claimed = prepared.claimOperation("operation-1", nowMs = 2_200L)!!
+        assertEquals(DurableOperationStatus.CLAIMED, claimed.operations.single().status)
+        assertTrue(claimed.claimOperation("operation-1", nowMs = 2_300L) == null)
+
+        val unknown = claimed.completeOperation(
+            operationId = "operation-1",
+            status = DurableOperationStatus.UNKNOWN,
+            safeError = "response lost after provider accepted request",
+            nowMs = 2_400L,
+        )!!
+        assertEquals(DurableOperationStatus.UNKNOWN, unknown.operations.single().status)
+        assertTrue(unknown.operations.single().safeError.contains("response lost"))
+        assertTrue(unknown.completeOperation("operation-1", DurableOperationStatus.SUCCEEDED, nowMs = 2_500L) == null)
+    }
+
+    @Test
     fun externalOperationYieldsRunWaitsDurablyThenRequiresSafeContinuation() {
         val operation = ExternalOperation(
             operationId = "op-1",

@@ -249,6 +249,9 @@ interface DurableTaskRoomDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertEvents(rows: List<DurableTaskEventEntity>)
 
+    @Query("DELETE FROM durable_task_events WHERE taskId=:taskId")
+    fun deleteEvents(taskId: String)
+
     @Query("SELECT * FROM durable_task_events WHERE taskId=:taskId ORDER BY sequence, eventId")
     fun events(taskId: String): List<DurableTaskEventEntity>
 
@@ -522,24 +525,42 @@ class DurableTaskRoomStore(
                 )
             })
         }
-        if (task.timeline.isNotEmpty()) {
-            dao.insertEvents(task.timeline.mapIndexed { index, event ->
-                DurableTaskEventEntity(
-                    taskId = task.id,
-                    eventId = "${task.id}:$index",
-                    sequence = index.toLong(),
-                    type = event.type.name,
-                    summary = safeProjectionText(event.summary),
-                    detail = safeProjectionText(event.detail),
-                    runId = event.runId,
-                    stepId = event.stepId,
-                    recordedAtMs = event.recordedAtMs,
-                    source = DurableTaskEventEntity.SOURCE_TASK_TIMELINE,
-                    idempotencyKey = "${task.id}:$index",
-                )
-            })
+        val expectedEvents = task.timeline.mapIndexed { index, event ->
+            toEventEntity(task.id, index, event)
+        }
+        val existingEvents = dao.events(task.id)
+        if (existingEvents.size > expectedEvents.size ||
+            existingEvents.zip(expectedEvents).any { (existing, expected) -> existing != expected }
+        ) {
+            // The domain timeline is bounded (currently 400 entries). Once the
+            // head is evicted, compact the journal to the new window atomically
+            // with the aggregate snapshot instead of leaving stale rows behind.
+            dao.deleteEvents(task.id)
+            if (expectedEvents.isNotEmpty()) dao.insertEvents(expectedEvents)
+        } else if (expectedEvents.size > existingEvents.size) {
+            // Normal updates append only the suffix, preserving stable event
+            // identities and making retries of the same write idempotent.
+            dao.insertEvents(expectedEvents.drop(existingEvents.size))
         }
     }
+
+    private fun toEventEntity(
+        taskId: String,
+        index: Int,
+        event: TaskTimelineEvent,
+    ): DurableTaskEventEntity = DurableTaskEventEntity(
+        taskId = taskId,
+        eventId = "$taskId:$index",
+        sequence = index.toLong(),
+        type = event.type.name,
+        summary = safeProjectionText(event.summary),
+        detail = safeProjectionText(event.detail),
+        runId = event.runId,
+        stepId = event.stepId,
+        recordedAtMs = event.recordedAtMs,
+        source = DurableTaskEventEntity.SOURCE_TASK_TIMELINE,
+        idempotencyKey = "$taskId:$index",
+    )
 
     private fun verifyChildCounts(task: DurableTask) {
         check(dao.runCount(task.id) == task.runs.size) { "Run projection count mismatch for task=${task.id}" }

@@ -141,6 +141,44 @@ class DurableTaskRoomStoreTest {
     }
 
     @Test
+    fun eventJournalAppendsIdempotentlyAndCompactsAfterTimelineWindowEviction() {
+        val store = DurableTaskRoomStore(database)
+        val id = "journal-window"
+        val initial = task(id).copy(
+            timeline = (0 until 400).map { index ->
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.STEP_PROGRESS,
+                    summary = "event-$index",
+                    recordedAtMs = index.toLong(),
+                )
+            }
+        )
+
+        store.persist(initial)
+        store.persist(initial)
+        assertEquals(400, database.durableTaskDao().events(id).size)
+
+        val compacted = initial.appendTimeline(
+            TaskTimelineEvent(
+                type = TaskTimelineEventType.TASK_COMPLETED,
+                summary = "event-400",
+                recordedAtMs = 400L,
+            )
+        )
+        store.persist(compacted)
+
+        val journal = database.durableTaskDao().events(id)
+        assertEquals(400, journal.size)
+        assertEquals("event-1", journal.first().summary)
+        assertEquals("event-400", journal.last().summary)
+        assertEquals((0 until 400).toList(), journal.map { it.sequence })
+
+        // Retrying the compacted snapshot must not duplicate or corrupt rows.
+        store.persist(compacted)
+        assertEquals(journal, database.durableTaskDao().events(id))
+    }
+
+    @Test
     fun corruptOrFutureJsonIsRejectedWithoutMarkerOrSourceMutation() {
         listOf("{broken", "{\"schemaVersion\":999,\"tasks\":[]}").forEachIndexed { index, contents ->
             val isolatedDatabase = Room.inMemoryDatabaseBuilder(context, AiriDatabase::class.java)

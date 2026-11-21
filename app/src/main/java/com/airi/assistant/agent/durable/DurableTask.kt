@@ -125,7 +125,16 @@ data class DurableTask(
     val externalOperations: List<ExternalOperation> = emptyList(),
 
     /** Typed reason when a budget pause is awaiting extension or replenishment. */
-    val budgetPauseReason: BudgetPauseReason? = null
+    val budgetPauseReason: BudgetPauseReason? = null,
+
+    /** Monotonic aggregate version used to reject stale task commands. */
+    val stateVersion: Long = 0L,
+
+    /** Version of the execution checkpoint format, independent from the task schema. */
+    val checkpointSchemaVersion: Int = CURRENT_CHECKPOINT_SCHEMA_VERSION,
+
+    /** Optional user instruction attached to the next explicit continuation. */
+    val continuationInstruction: String = ""
 ) {
     val isTerminal: Boolean
         get() = status == DurableTaskStatus.COMPLETED ||
@@ -172,6 +181,62 @@ data class DurableTask(
                 }
             },
             runs = runs.filterNot { it.id == runId } + run
+        )
+    }
+
+    /**
+     * Start a new run only after an explicit continuation command.
+     * Unknown external operations block continuation until reconciliation.
+     */
+    fun resume(
+        runId: String,
+        userInstruction: String = "",
+        stepId: String? = currentStepId ?: plan.firstOrNull { it.status == TaskStepStatus.PENDING }?.id,
+        nowMs: Long = System.currentTimeMillis()
+    ): DurableTask {
+        require(status in RESUMABLE_STATUSES) { "Task is not resumable from $status" }
+        require(runId.isNotBlank() && runs.none { it.id == runId }) {
+            "Continuation run ID must be non-blank and unique within the task"
+        }
+        require(externalOperations.none { it.externalStatus == ExternalOperationStatus.UNKNOWN }) {
+            "Cannot resume while an external operation has an unknown outcome"
+        }
+        require(checkpointSchemaVersion == CURRENT_CHECKPOINT_SCHEMA_VERSION) {
+            "Unsupported checkpoint schema version $checkpointSchemaVersion"
+        }
+        val resumed = copy(
+            status = DurableTaskStatus.RUNNING,
+            pauseReason = null,
+            budgetPauseReason = null,
+            finishedAtMs = -1L,
+            updatedAtMs = nowMs,
+            currentRunId = runId,
+            currentStepId = stepId,
+            continuationInstruction = userInstruction.take(MAX_CONTINUATION_INSTRUCTION_CHARS),
+            runs = runs + TaskRun(
+                id = runId,
+                taskId = id,
+                missionId = missionId ?: id,
+                projectId = projectId,
+                startedAtMs = nowMs,
+                currentStepId = stepId,
+                status = TaskRunStatus.RUNNING
+            ),
+            plan = plan.map { step ->
+                if (step.id == stepId && step.status in setOf(TaskStepStatus.PENDING, TaskStepStatus.PAUSED)) {
+                    step.copy(runId = runId, status = TaskStepStatus.RUNNING, startedAtMs = step.startedAtMs.takeIf { it > 0 } ?: nowMs)
+                } else step
+            }
+        )
+        return resumed.appendTimeline(
+            TaskTimelineEvent(
+                type = TaskTimelineEventType.RUN_STARTED,
+                summary = "Explicit continuation run started",
+                detail = if (userInstruction.isBlank()) "checkpoint-resume" else "user-guided-resume",
+                runId = runId,
+                stepId = stepId,
+                recordedAtMs = nowMs
+            )
         )
     }
 
@@ -738,11 +803,19 @@ data class DurableTask(
 
     /** Gson bypasses Kotlin constructor defaults; normalize fields added after legacy JSON was written. */
     fun withDeserializationDefaults(): DurableTask = copy(
-        externalOperations = externalOperations.orEmpty()
+        externalOperations = externalOperations.orEmpty(),
+        checkpointSchemaVersion = checkpointSchemaVersion.takeIf { it > 0 } ?: CURRENT_CHECKPOINT_SCHEMA_VERSION
     )
 
     private companion object {
         const val MAX_TIMELINE_EVENTS = 400
+        const val MAX_CONTINUATION_INSTRUCTION_CHARS = 2_000
+        const val CURRENT_CHECKPOINT_SCHEMA_VERSION = 1
+        val RESUMABLE_STATUSES = setOf(
+            DurableTaskStatus.PAUSED,
+            DurableTaskStatus.PAUSED_BUDGET,
+            DurableTaskStatus.READY_FOR_CONTINUATION
+        )
     }
 
     private fun finishCurrentRun(

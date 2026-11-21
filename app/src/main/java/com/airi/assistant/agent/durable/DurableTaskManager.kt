@@ -189,6 +189,36 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
         return taskCache[taskId]?.let { it.status == DurableTaskStatus.RUNNING && it.currentRunId == runId } == true
     }
 
+    /**
+     * Explicitly continue a paused task on a fresh run. A stale UI command is
+     * rejected when expectedStateVersion does not match the durable aggregate.
+     */
+    @Synchronized
+    fun resumeTask(
+        taskId: String,
+        expectedStateVersion: Long,
+        userInstruction: String = "",
+        runId: String = UUID.randomUUID().toString(),
+        nowMs: Long = System.currentTimeMillis()
+    ): Boolean {
+        val existing = taskCache[taskId] ?: return false
+        if (existing.stateVersion != expectedStateVersion) return false
+        val resumed = runCatching {
+            existing.resume(runId = runId, userInstruction = userInstruction, nowMs = nowMs)
+                .appendTimeline(
+                    TaskTimelineEvent(
+                        type = TaskTimelineEventType.RECOVERY_ATTEMPTED,
+                        summary = "Task explicitly resumed from a durable checkpoint",
+                        runId = runId,
+                        stepId = existing.currentStepId,
+                        recordedAtMs = nowMs
+                    )
+                )
+        }.getOrNull() ?: return false
+        putTask(resumed)
+        return taskCache[taskId]?.let { it.status == DurableTaskStatus.RUNNING && it.currentRunId == runId } == true
+    }
+
     /** Persist a typed budget pause without converting it into a terminal failure. */
     @Synchronized
     fun pauseForBudget(
@@ -973,7 +1003,15 @@ class DurableTaskManager(private val context: Context) : AutoCloseable {
         persistenceBlockedReason?.let { reason ->
             throw IllegalStateException("Durable task persistence is blocked: $reason")
         }
-        val normalized = MissionKernel.normalize(task)
+        val previous = taskCache[task.id]
+        val versioned = task.copy(
+            stateVersion = when {
+                previous == null -> task.stateVersion.coerceAtLeast(1L)
+                task.stateVersion <= previous.stateVersion -> previous.stateVersion + 1L
+                else -> task.stateVersion
+            }
+        )
+        val normalized = MissionKernel.normalize(versioned)
         require(MissionKernel.validate(normalized) is MissionOwnershipValidation.Valid) {
             "Durable task ownership invariant rejected for task=${task.id}"
         }

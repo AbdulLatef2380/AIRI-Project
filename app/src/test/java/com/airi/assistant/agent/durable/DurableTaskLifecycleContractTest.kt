@@ -37,6 +37,52 @@ class DurableTaskLifecycleContractTest {
     }
 
     @Test
+    fun explicitResumeCreatesExactlyOneFreshRunAndPreservesCheckpoint() {
+        val paused = runningTask()
+            .updateStep("step-1", checkpointData = "checkpoint-v1", nowMs = 1_500L)
+            .pauseAfterWorkerStop("process-death", nowMs = 2_000L)
+
+        val resumed = paused.resume(
+            runId = "run-2",
+            userInstruction = "continue from the checkpoint",
+            nowMs = 3_000L
+        )
+
+        assertEquals(DurableTaskStatus.RUNNING, resumed.status)
+        assertEquals("checkpoint-v1", resumed.checkpointData)
+        assertEquals("run-2", resumed.currentRunId)
+        assertEquals(2, resumed.runs.size)
+        assertEquals(TaskRunStatus.PAUSED, resumed.runs.first().status)
+        assertEquals(TaskRunStatus.RUNNING, resumed.runs.last().status)
+        assertEquals("continue from the checkpoint", resumed.continuationInstruction)
+        assertTrue(runCatching { resumed.resume("run-3", nowMs = 4_000L) }.isFailure)
+    }
+
+    @Test
+    fun unknownExternalOutcomeCannotBeResumedAutomatically() {
+        val waiting = runningTask().waitForExternalOperation(
+            ExternalOperation(
+                operationId = "op-unknown",
+                taskId = "task-lifecycle",
+                runId = "run-1",
+                stepId = "step-1",
+                externalProvider = "ci-provider",
+                externalReferenceId = "job-unknown",
+                startedAt = 1_500L,
+                nextPollAt = 2_000L
+            ),
+            nowMs = 1_600L
+        )!!
+        val paused = waiting.pauseForExternalOperationReconciliation(
+            operationId = "op-unknown",
+            reason = "REMOTE_RESULT_UNAVAILABLE",
+            nowMs = 2_500L
+        )!!
+
+        assertTrue(runCatching { paused.resume("run-2", nowMs = 3_000L) }.isFailure)
+    }
+
+    @Test
     fun externalOperationYieldsRunWaitsDurablyThenRequiresSafeContinuation() {
         val operation = ExternalOperation(
             operationId = "op-1",

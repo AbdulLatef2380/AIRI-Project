@@ -412,6 +412,64 @@ data class DurableTask(
         )
     }
 
+    /** Pause an external wait when it can no longer be polled safely or within policy. */
+    fun pauseForExternalOperationReconciliation(
+        operationId: String,
+        reason: String,
+        nowMs: Long = System.currentTimeMillis()
+    ): DurableTask? {
+        if (status !in setOf(DurableTaskStatus.WAITING_EXTERNAL, DurableTaskStatus.WAITING_TIMER)) return null
+        val current = externalOperations.firstOrNull { it.operationId == operationId } ?: return null
+        if (current.externalStatus.isTerminal) return null
+
+        val safeReason = reason.take(120).ifBlank { "reconciliation-required" }
+        val paused = copy(
+            status = DurableTaskStatus.PAUSED,
+            pauseReason = TaskPauseReason.SYSTEM,
+            updatedAtMs = nowMs,
+            finishedAtMs = -1L,
+            progressMessage = "External operation requires reconciliation: $safeReason",
+            plan = plan.map { step ->
+                if (step.id == current.stepId && step.runId == current.runId &&
+                    step.status in setOf(TaskStepStatus.WAITING_EXTERNAL, TaskStepStatus.WAITING_TIMER)
+                ) step.copy(status = TaskStepStatus.PAUSED) else step
+            },
+            runs = runs.map { run ->
+                if (run.id == current.runId && run.status == TaskRunStatus.WAITING_EXTERNAL) {
+                    run.copy(status = TaskRunStatus.PAUSED, finishedAtMs = nowMs, error = safeReason)
+                } else run
+            },
+            externalOperations = externalOperations.map { operation ->
+                if (operation.operationId == operationId) operation.copy(
+                    externalStatus = ExternalOperationStatus.UNKNOWN,
+                    nextPollAt = null,
+                    reconciliationRequiredReason = safeReason
+                ) else operation
+            }
+        )
+        return paused
+            .appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.EXTERNAL_OPERATION_CHECKED,
+                    summary = "External operation requires safe reconciliation",
+                    detail = safeReason,
+                    runId = current.runId,
+                    stepId = current.stepId,
+                    recordedAtMs = nowMs
+                )
+            )
+            .appendTimeline(
+                TaskTimelineEvent(
+                    type = TaskTimelineEventType.TASK_PAUSED,
+                    summary = "Task paused until the external result is reconciled",
+                    detail = safeReason,
+                    runId = current.runId,
+                    stepId = current.stepId,
+                    recordedAtMs = nowMs
+                )
+            )
+    }
+
     /**
      * Apply a poll/webhook observation. Pending outcomes persist a next poll time;
      * terminal outcomes await an explicit safe continuation; they never queue
@@ -422,11 +480,13 @@ data class DurableTask(
         externalStatus: ExternalOperationStatus,
         nextPollAt: Long? = null,
         resultReference: String? = null,
+        expectedNextPollAt: Long?,
         nowMs: Long = System.currentTimeMillis()
     ): DurableTask? {
         if (status !in setOf(DurableTaskStatus.WAITING_EXTERNAL, DurableTaskStatus.WAITING_TIMER)) return null
         val current = externalOperations.firstOrNull { it.operationId == operationId } ?: return null
         if (current.externalStatus.isTerminal) return null
+        if (current.nextPollAt != expectedNextPollAt) return null
         if (!externalStatus.isTerminal && nextPollAt == null) return null
 
         val updatedOperation = current.copy(
@@ -434,7 +494,8 @@ data class DurableTask(
             nextPollAt = if (externalStatus.isTerminal) null else nextPollAt,
             lastCheckedAt = nowMs,
             resultReference = resultReference ?: current.resultReference,
-            pollAttemptCount = current.pollAttemptCount + 1
+            pollAttemptCount = current.pollAttemptCount + 1,
+            reconciliationRequiredReason = null
         )
         val terminal = externalStatus.isTerminal
         val updated = copy(
@@ -770,7 +831,8 @@ data class ExternalOperation(
     val timeoutPolicy: ExternalOperationTimeoutPolicy = ExternalOperationTimeoutPolicy(),
     val retryPolicy: ExternalOperationRetryPolicy = ExternalOperationRetryPolicy(),
     val cancellationState: ExternalOperationCancellationState = ExternalOperationCancellationState.NONE,
-    val pollAttemptCount: Int = 0
+    val pollAttemptCount: Int = 0,
+    val reconciliationRequiredReason: String? = null
 )
 
 data class ExternalOperationTimeoutPolicy(

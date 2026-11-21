@@ -59,10 +59,21 @@ class DurableTaskLifecycleContractTest {
         assertEquals(operation, waiting.externalOperations.single())
         assertNull(waiting.waitForExternalOperation(operation, nowMs = 1_700L))
 
+        assertNull(
+            waiting.recordExternalOperationCheck(
+                operationId = "op-1",
+                externalStatus = ExternalOperationStatus.RUNNING,
+                nextPollAt = 4_000L,
+                expectedNextPollAt = 1_900L,
+                nowMs = 2_000L
+            )
+        )
+
         val delayed = waiting.recordExternalOperationCheck(
             operationId = "op-1",
             externalStatus = ExternalOperationStatus.RUNNING,
             nextPollAt = 5_000L,
+            expectedNextPollAt = 2_000L,
             nowMs = 2_000L
         )!!
         assertEquals(DurableTaskStatus.WAITING_TIMER, delayed.status)
@@ -71,11 +82,23 @@ class DurableTaskLifecycleContractTest {
         assertEquals(1, delayed.externalOperations.single().pollAttemptCount)
         assertEquals(TaskRunStatus.WAITING_EXTERNAL, delayed.runs.single().status)
         assertEquals(TaskStepStatus.WAITING_TIMER, delayed.plan.single().status)
+        assertNull(
+            delayed.recordExternalOperationCheck(
+                operationId = "op-1",
+                externalStatus = ExternalOperationStatus.SUCCEEDED,
+                resultReference = "stale-result",
+                expectedNextPollAt = 2_000L,
+                nowMs = 4_000L
+            )
+        )
+        assertEquals(ExternalOperationStatus.RUNNING, delayed.externalOperations.single().externalStatus)
+        assertEquals(5_000L, delayed.externalOperations.single().nextPollAt)
 
         val ready = delayed.recordExternalOperationCheck(
             operationId = "op-1",
             externalStatus = ExternalOperationStatus.SUCCEEDED,
             resultReference = "artifact://ci/job-42",
+            expectedNextPollAt = 5_000L,
             nowMs = 5_100L
         )!!
         assertEquals(DurableTaskStatus.READY_FOR_CONTINUATION, ready.status)
@@ -89,6 +112,7 @@ class DurableTaskLifecycleContractTest {
             ready.recordExternalOperationCheck(
                 operationId = "op-1",
                 externalStatus = ExternalOperationStatus.FAILED,
+                expectedNextPollAt = null,
                 nowMs = 6_000L
             )
         )
@@ -114,10 +138,42 @@ class DurableTaskLifecycleContractTest {
             operationId = "op-invalid",
             externalStatus = ExternalOperationStatus.UNKNOWN,
             nextPollAt = 3_000L,
+            expectedNextPollAt = null,
             nowMs = 2_000L
         )!!
         assertEquals(DurableTaskStatus.WAITING_TIMER, ambiguousStatus.status)
         assertFalse(ambiguousStatus.externalOperations.single().externalStatus.isTerminal)
+    }
+
+    @Test
+    fun exhaustedExternalWaitPausesWithUnknownOutcomeAndNeverQueuesReplay() {
+        val waiting = runningTask().waitForExternalOperation(
+            ExternalOperation(
+                operationId = "op-pause",
+                taskId = "task-lifecycle",
+                runId = "run-1",
+                stepId = "step-1",
+                externalProvider = "ci-provider",
+                externalReferenceId = "job-43",
+                startedAt = 1_500L,
+                nextPollAt = 2_000L
+            ),
+            nowMs = 1_600L
+        )!!
+
+        val paused = waiting.pauseForExternalOperationReconciliation(
+            operationId = "op-pause",
+            reason = "POLL_ATTEMPTS_EXHAUSTED",
+            nowMs = 3_000L
+        )!!
+
+        assertEquals(DurableTaskStatus.PAUSED, paused.status)
+        assertEquals(TaskPauseReason.SYSTEM, paused.pauseReason)
+        assertEquals(ExternalOperationStatus.UNKNOWN, paused.externalOperations.single().externalStatus)
+        assertNull(paused.externalOperations.single().nextPollAt)
+        assertEquals("POLL_ATTEMPTS_EXHAUSTED", paused.externalOperations.single().reconciliationRequiredReason)
+        assertEquals(TaskRunStatus.PAUSED, paused.runs.single().status)
+        assertEquals(TaskStepStatus.PAUSED, paused.plan.single().status)
     }
 
     @Test

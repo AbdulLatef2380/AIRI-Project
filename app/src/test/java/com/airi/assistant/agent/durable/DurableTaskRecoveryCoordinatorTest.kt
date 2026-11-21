@@ -69,6 +69,7 @@ class DurableTaskRecoveryCoordinatorTest {
             operationId = "op-1",
             externalStatus = ExternalOperationStatus.SUCCEEDED,
             resultReference = "artifact://build-42",
+            expectedNextPollAt = 5_000L,
             nowMs = 5_100L
         )!!
         val completed = task("completed").beginRun("done-run", nowMs = 1_000L)
@@ -112,6 +113,7 @@ class DurableTaskRecoveryCoordinatorTest {
                 operationId = "op-timer",
                 externalStatus = ExternalOperationStatus.RUNNING,
                 nextPollAt = 20_000L,
+                expectedNextPollAt = 10_000L,
                 nowMs = 10_000L
             )!!
 

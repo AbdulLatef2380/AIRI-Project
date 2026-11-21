@@ -61,35 +61,51 @@ import com.airi.assistant.domain.background.BackgroundWorkNames
  *   effect. The generic worker claims new work only from QUEUED; safe continuation
  *   and external-operation scheduling require explicit policies and transitions.
  */
-class DurableTaskManager(private val context: Context) {
+class DurableTaskManager(private val context: Context) : AutoCloseable {
 
     private val TAG = "DurableTaskManager"
     private val gson = Gson()
     private val taskJsonCodec = DurableTaskJsonCodec(gson)
     private val taskFile = File(context.filesDir, "durable_tasks.json")
     private val taskFileStore = DurableTaskFileStore(taskFile, taskJsonCodec)
+    private val externalOperationWorkScheduler = ExternalOperationWorkScheduler(context)
 
     // ── In-memory cache (source of truth for UI) ──────────────────────────────
 
     private val taskCache = ConcurrentHashMap<String, DurableTask>()
     private val _tasks = MutableStateFlow<List<DurableTask>>(emptyList())
+    private var externalPollerChangeListener: AutoCloseable? = null
     val tasks: StateFlow<List<DurableTask>> = _tasks.asStateFlow()
 
     init {
         loadFromDisk()
         createNotificationChannel()
-        runCatching { reconcileAfterProcessRestart() }
-            .onSuccess { recovery ->
+        externalPollerChangeListener = ExternalOperationPollerRegistry.addChangeListener {
+            runCatching { reconcileExternalOperationWork() }
+                .onFailure { error -> Log.e(TAG, "External operation work reconciliation failed", error) }
+        }
+        runCatching {
+            reconcileAfterProcessRestart() to reconcileExternalOperationWork()
+        }
+            .onSuccess { (recovery, external) ->
                 Log.i(
                     TAG,
                     "Startup recovery paused=${recovery.pausedInterruptedTaskIds.size} " +
                         "queued=${recovery.scheduledQueuedTaskIds.size}/${recovery.eligibleQueuedTaskIds.size} " +
-                        "external_waits=${recovery.waitingExternalTaskIds.size}"
+                        "external_waits=${recovery.waitingExternalTaskIds.size} " +
+                        "external_polls=${external.scheduled} missing_adapter=${external.missingAdapter} " +
+                        "reconciliation=${external.needsReconciliation} enqueue_failures=${external.scheduleFailures}"
                 )
             }
             .onFailure { error ->
                 Log.e(TAG, "Startup task recovery failed; no interrupted task was replayed", error)
             }
+    }
+
+    @Synchronized
+    override fun close() {
+        externalPollerChangeListener?.close()
+        externalPollerChangeListener = null
     }
 
     /**
@@ -198,7 +214,7 @@ class DurableTaskManager(private val context: Context) {
         } == true
     }
 
-    /** Persist an external operation and yield its exact active run/step. */
+    /** Persist an external operation and yield its exact active run/step; true means the intent is durable. */
     @Synchronized
     fun beginExternalOperation(
         taskId: String,
@@ -208,13 +224,13 @@ class DurableTaskManager(private val context: Context) {
         val existing = taskCache[taskId] ?: return false
         val waiting = existing.waitForExternalOperation(operation, nowMs) ?: return false
         putTask(waiting)
-        return taskCache[taskId]?.let {
-            it.status == DurableTaskStatus.WAITING_EXTERNAL &&
-                it.externalOperations.any { item -> item.operationId == operation.operationId }
-        } == true
+        reconcileExternalOperationWork(nowMs)
+        // True means the external intent is durably recorded, even if recovery
+        // immediately pauses it for manual reconciliation. Callers must not resubmit.
+        return true
     }
 
-    /** Persist a provider poll/webhook observation; duplicates after a terminal outcome are rejected. */
+    /** Persist an observation with a due-time CAS; true confirms persistence, false means stale or rejected. */
     @Synchronized
     fun recordExternalOperationCheck(
         taskId: String,
@@ -222,6 +238,7 @@ class DurableTaskManager(private val context: Context) {
         status: ExternalOperationStatus,
         nextPollAt: Long? = null,
         resultReference: String? = null,
+        expectedNextPollAt: Long?,
         nowMs: Long = System.currentTimeMillis()
     ): Boolean {
         val existing = taskCache[taskId] ?: return false
@@ -230,11 +247,34 @@ class DurableTaskManager(private val context: Context) {
             externalStatus = status,
             nextPollAt = nextPollAt,
             resultReference = resultReference,
+            expectedNextPollAt = expectedNextPollAt,
             nowMs = nowMs
         ) ?: return false
         putTask(updated)
-        return taskCache[taskId]?.let { task ->
-            task.externalOperations.firstOrNull { it.operationId == operationId }?.externalStatus == status
+        reconcileExternalOperationWork(nowMs)
+        return true
+    }
+
+    /** Stop automatic polling and persist a nonterminal system pause for manual recovery. */
+    @Synchronized
+    fun pauseExternalOperationForReconciliation(
+        taskId: String,
+        operationId: String,
+        reason: ExternalOperationRecoveryIssue,
+        nowMs: Long = System.currentTimeMillis()
+    ): Boolean {
+        val existing = taskCache[taskId] ?: return false
+        val paused = existing.pauseForExternalOperationReconciliation(
+            operationId = operationId,
+            reason = reason.name,
+            nowMs = nowMs
+        ) ?: return false
+        putTask(paused)
+        return taskCache[taskId]?.let {
+            it.status == DurableTaskStatus.PAUSED &&
+                it.externalOperations.any { operation ->
+                    operation.operationId == operationId && operation.reconciliationRequiredReason == reason.name
+                }
         } == true
     }
 
@@ -867,6 +907,67 @@ class DurableTaskManager(private val context: Context) {
     fun completedTasks(): List<DurableTask> =
         taskCache.values.filter { it.isTerminal }
             .sortedByDescending { it.finishedAtMs }
+
+    /**
+     * Rebuilds due external status checks from persisted task state. WorkManager
+     * names include the saved due time, so repeated startup reconciliation is
+     * idempotent; provider adapters that are not registered are left untouched.
+     */
+    @Synchronized
+    fun reconcileExternalOperationWork(nowMs: Long = System.currentTimeMillis()): ExternalOperationSchedulingSummary {
+        val plan = ExternalOperationRecoveryCoordinator.plan(taskCache.values.toList(), nowMs)
+        var scheduled = 0
+        var missingAdapter = 0
+        var needsReconciliation = 0
+        var scheduleFailures = 0
+        plan.actions.forEach { action ->
+            when (action) {
+                is ExternalOperationRecoveryAction.ScheduleStatusCheck -> {
+                    val currentTask = taskCache[action.taskId]
+                    if (currentTask == null || currentTask.status !in setOf(
+                            DurableTaskStatus.WAITING_EXTERNAL,
+                            DurableTaskStatus.WAITING_TIMER
+                        )
+                    ) {
+                        return@forEach
+                    }
+                    val operation = currentTask.externalOperations
+                        .firstOrNull { it.operationId == action.operationId }
+                    if (operation == null || ExternalOperationPollerRegistry.get(operation.externalProvider) == null) {
+                        missingAdapter++
+                    } else {
+                        runCatching {
+                            externalOperationWorkScheduler.schedule(
+                                taskId = action.taskId,
+                                operationId = action.operationId,
+                                runAtMs = action.runAtMs,
+                                nowMs = nowMs
+                            )
+                        }.onSuccess { scheduled++ }
+                            .onFailure { error ->
+                                scheduleFailures++
+                                Log.e(TAG, "Could not enqueue external status check operationId=${action.operationId}", error)
+                            }
+                    }
+                }
+                is ExternalOperationRecoveryAction.NeedsReconciliation -> {
+                    if (pauseExternalOperationForReconciliation(
+                            action.taskId,
+                            action.operationId,
+                            action.reason,
+                            nowMs
+                        )
+                    ) needsReconciliation++
+                }
+            }
+        }
+        return ExternalOperationSchedulingSummary(
+            scheduled = scheduled,
+            missingAdapter = missingAdapter,
+            needsReconciliation = needsReconciliation,
+            scheduleFailures = scheduleFailures
+        )
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Internal

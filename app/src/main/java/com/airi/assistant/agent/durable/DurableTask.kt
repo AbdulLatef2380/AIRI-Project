@@ -137,6 +137,10 @@ data class DurableTask(
     /** Typed reason when a budget pause is awaiting extension or replenishment. */
     val budgetPauseReason: BudgetPauseReason? = null,
 
+    /** Independent task/run/tool budget and persisted usage counters. */
+    val executionBudget: ExecutionBudget = ExecutionBudget(),
+    val executionUsage: ExecutionUsage = ExecutionUsage(),
+
     /** Monotonic aggregate version used to reject stale task commands. */
     val stateVersion: Long = 0L,
 
@@ -710,15 +714,11 @@ data class DurableTask(
         reason: String = "",
         nowMs: Long = System.currentTimeMillis()
     ): DurableTask {
-        val effectiveStatus = approvals.firstOrNull { it.id == approvalId }
-            ?.let { approval ->
-                if (approval.status == TaskApprovalStatus.PENDING && approval.expiresAtMs <= nowMs) {
-                    TaskApprovalStatus.EXPIRED
-                } else {
-                    status
-                }
-            }
-            ?: status
+        val existing = approvals.firstOrNull { it.id == approvalId } ?: return this
+        // One-way CAS: stale callbacks and double taps cannot mutate a decision.
+        if (existing.status != TaskApprovalStatus.PENDING) return this
+        val effectiveStatus = if (existing.expiresAtMs <= nowMs) TaskApprovalStatus.EXPIRED else status
+        if (effectiveStatus == TaskApprovalStatus.PENDING) return this
         return copy(
         approvals = approvals.map { approval ->
             if (approval.id == approvalId) {
@@ -745,6 +745,13 @@ data class DurableTask(
         updatedAtMs = nowMs
         )
     }
+
+    /** Explicitly revoke a pending approval; it cannot be resumed afterwards. */
+    fun revokeApproval(
+        approvalId: String,
+        reason: String = "approval revoked",
+        nowMs: Long = System.currentTimeMillis()
+    ): DurableTask = decideApproval(approvalId, TaskApprovalStatus.REVOKED, ApprovalGrantScope.ONCE, reason, nowMs)
 
     /**
      * Stops the currently running exact step before its side effect is invoked.
@@ -1095,7 +1102,9 @@ enum class TaskApprovalStatus {
     PENDING,
     APPROVED,
     DENIED,
-    EXPIRED
+    EXPIRED,
+    DECLINED,
+    REVOKED
 }
 
 enum class ApprovalGrantScope {

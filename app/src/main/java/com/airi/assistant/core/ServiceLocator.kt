@@ -315,8 +315,17 @@ object ServiceLocator {
         )
     }
 
+    /** Process-scoped ledger for connector writes; durable task-owned writes also use the Room ledger. */
+    private val connectorOperationLedger: com.airi.assistant.agent.durable.OperationLedger by lazy {
+        com.airi.assistant.agent.durable.OperationLedger()
+    }
+
     val connectorRuntimeManager: com.airi.assistant.connector.ConnectorRuntimeManager by lazy {
-        com.airi.assistant.connector.ConnectorRuntimeManager(connectorRegistry, connectorAccessProfileStore)
+        com.airi.assistant.connector.ConnectorRuntimeManager(
+            registry = connectorRegistry,
+            accessProfiles = connectorAccessProfileStore,
+            operationLedger = connectorOperationLedger,
+        )
     }
 
     val approvalContinuationRuntime: com.airi.assistant.connector.ApprovalContinuationRuntime by lazy {

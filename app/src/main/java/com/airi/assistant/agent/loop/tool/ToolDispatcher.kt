@@ -854,6 +854,14 @@ class ToolDispatcher(
                         sessionId = sessionId,
                         messageId = messageId,
                         actionId = actionId,
+                        execution = durableExecutionContext?.let { execution ->
+                            com.airi.assistant.connector.ConnectorExecutionContext(
+                                projectId = null, taskId = execution.taskId, missionId = execution.missionId,
+                                runId = execution.runId, stepId = execution.stepId,
+                                idempotencyKey = com.airi.assistant.agent.durable.OperationIdentity.idempotencyKey(
+                                    execution.taskId, execution.runId, execution.stepId, actionId ?: toolName),
+                            )
+                        },
                     )) {
                         is com.airi.assistant.connector.ConnectorOutput.Success ->
                             ToolResult.Success(result.text, provenance = ToolProvenance.CONNECTOR, evidence = ToolResult.Evidence(kind = ToolResult.Evidence.Kind.CONNECTOR, provenance = ToolProvenance.CONNECTOR, semanticVerified = result.text.isNotBlank(), semanticReference = toolName.take(128)))

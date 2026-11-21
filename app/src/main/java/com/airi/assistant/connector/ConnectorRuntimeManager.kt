@@ -1,6 +1,10 @@
 package com.airi.assistant.connector
 
 import com.airi.assistant.core.ExecutionTraceGateway
+import com.airi.assistant.agent.durable.LedgerRecord
+import com.airi.assistant.agent.durable.OperationIdentity
+import com.airi.assistant.agent.durable.OperationLedger
+import com.airi.assistant.agent.durable.DurableOperationStatus
 import com.airi.assistant.domain.logging.LoggingService
 import com.airi.assistant.ui.activity.ActivityCategory
 import com.airi.assistant.ui.activity.ActivitySeverity
@@ -24,6 +28,7 @@ class ConnectorRuntimeManager(
     private val registry: ConnectorRegistry,
     private val accessProfiles: ConnectorAccessProfileStore = InMemoryConnectorAccessProfileStore(),
     private val diagnosticsStore: ConnectorDiagnosticsStore = ConnectorDiagnosticsStore(),
+    private val operationLedger: OperationLedger? = null,
 ) {
     private val TAG = "ConnectorRuntimeManager"
 
@@ -101,6 +106,28 @@ class ConnectorRuntimeManager(
         validateInput(governedAction, input)?.let { (code, message) ->
             return ConnectorOutput.Failure(code, message, retryable = false)
         }
+        val writeLedger = operationLedger != null && governedAction.permission != ConnectorPermissionLevel.READ
+        var ledgerClaimVersion: Long? = null
+        val ledgerOperationId = "connector:$connectorId:${input.execution?.idempotencyKey ?: input.actionId ?: input.executionId ?: input.action}"
+        if (writeLedger) {
+            val execution = input.execution
+            val taskId = execution?.taskId ?: input.executionId.orEmpty().ifBlank { connectorId }
+            val runId = execution?.runId ?: input.messageId.orEmpty().ifBlank { "unscoped" }
+            val stepId = execution?.stepId ?: input.action
+            val actionId = input.actionId ?: governedAction.id
+            val key = execution?.idempotencyKey ?: OperationIdentity.idempotencyKey(taskId, runId, stepId, actionId)
+            val payloadHash = OperationIdentity.payloadHash(input.params + mapOf("_action" to input.action, "_text" to input.text))
+            val prepared = operationLedger!!.prepare(LedgerRecord(ledgerOperationId, taskId, runId, stepId, actionId, key, payloadHash, connectorId))
+            if (prepared == null) return ConnectorOutput.Failure("unknown_outcome", "This connector write was already claimed and was not replayed.", retryable = false)
+            ledgerClaimVersion = operationLedger.cas(
+                ledgerOperationId,
+                prepared.version,
+                DurableOperationStatus.PREPARED,
+                DurableOperationStatus.CLAIMED,
+            )?.version
+            if (ledgerClaimVersion == null)
+                return ConnectorOutput.Failure("operation_claim_failed", "Connector write could not be claimed safely", retryable = false)
+        }
         val operationId = invocationSequence.incrementAndGet()
         val key = "${connectorId}::${input.action}#$operationId"
         val requestStartedMs = System.currentTimeMillis()
@@ -149,6 +176,9 @@ class ConnectorRuntimeManager(
                 }
                 executeWithRetry(connector, input, retryBudget)
             }.also { output ->
+                if (writeLedger) operationLedger!!.cas(ledgerOperationId, ledgerClaimVersion!!, DurableOperationStatus.CLAIMED,
+                    when (output) { is ConnectorOutput.Success, is ConnectorOutput.Streaming -> DurableOperationStatus.SUCCEEDED else -> DurableOperationStatus.FAILED },
+                    safeError = (output as? ConnectorOutput.Failure)?.message.orEmpty())
                 diagnosticsStore.record(connectorId, output, System.currentTimeMillis() - requestStartedMs)
                 setOperationState(operationId, when (output) {
                     is ConnectorOutput.Success, is ConnectorOutput.Streaming -> ConnectorOperationState.Success(operationId)
@@ -168,6 +198,7 @@ class ConnectorRuntimeManager(
             // A timeout has an unknown outcome. Retrying blindly can duplicate a
             // mutation, so callers must opt into a contract-specific retry.
             setOperationState(operationId, ConnectorOperationState.TimedOut(operationId, timeoutMs))
+            if (writeLedger) operationLedger!!.cas(ledgerOperationId, ledgerClaimVersion!!, DurableOperationStatus.CLAIMED, DurableOperationStatus.UNKNOWN, safeError = "timeout")
             ConnectorOutput.Failure("timeout", "Timed out after ${timeoutMs}ms; outcome is unknown", retryable = false).also {
                 diagnosticsStore.record(connectorId, it, System.currentTimeMillis() - requestStartedMs)
             }
@@ -176,6 +207,13 @@ class ConnectorRuntimeManager(
             // failure. Re-throw it so ViewModel/agent cancellation reaches the
             // transport and the inflight action is cleaned up by finally.
             setOperationState(operationId, ConnectorOperationState.Cancelled(operationId))
+            if (writeLedger) operationLedger!!.cas(
+                ledgerOperationId,
+                ledgerClaimVersion!!,
+                DurableOperationStatus.CLAIMED,
+                DurableOperationStatus.UNKNOWN,
+                safeError = "cancelled",
+            )
             throw e
         } catch (e: Exception) {
             // Exception text can contain provider URLs, request data, or other
@@ -184,6 +222,13 @@ class ConnectorRuntimeManager(
             LoggingService.error(TAG, "Connector execution failed connector=$connectorId action=${input.action}", e)
             val safeMessage = "Connector execution failed before a confirmed result was received"
             setOperationState(operationId, ConnectorOperationState.Failed(operationId, "runtime_error", safeMessage, false))
+            if (writeLedger) operationLedger!!.cas(
+                ledgerOperationId,
+                ledgerClaimVersion!!,
+                DurableOperationStatus.CLAIMED,
+                DurableOperationStatus.UNKNOWN,
+                safeError = "runtime_error",
+            )
             ConnectorOutput.Failure("runtime_error", safeMessage).also {
                 diagnosticsStore.record(connectorId, it, System.currentTimeMillis() - requestStartedMs)
             }

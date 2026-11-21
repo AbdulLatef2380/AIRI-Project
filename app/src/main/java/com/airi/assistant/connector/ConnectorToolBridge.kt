@@ -68,6 +68,7 @@ class ConnectorToolBridge(
         sessionId: String? = null,
         messageId: String? = null,
         actionId: String? = null,
+        execution: ConnectorExecutionContext? = null,
     ): ConnectorOutput {
         val canonicalToolName = resolveToolName(toolName)
         val binding = bindings(onlyExecutable = false, onlyGranted = false)[canonicalToolName]
@@ -105,6 +106,7 @@ class ConnectorToolBridge(
             input = ConnectorInput(
                 action = binding.action.runtimeAction,
                 text = text,
+                execution = execution,
                 params = typed.value!!.canonical.filterKeys { it != "text" || it in binding.action.parameters } + binding.action.fixedParams,
                 executionId = executionId?.takeIf(String::isNotBlank),
                 traceId = traceId?.takeIf(String::isNotBlank),

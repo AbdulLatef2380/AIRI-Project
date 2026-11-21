@@ -34,6 +34,12 @@ import com.airi.assistant.execution.AgentOrchestrator
 import com.airi.assistant.domain.tool.StrictArgumentValidator
 import com.airi.assistant.domain.execution.TerminalOutcomeAdapter
 import com.airi.assistant.domain.execution.TerminalStatus
+import com.airi.assistant.agent.durable.BudgetPauseReason
+import com.airi.assistant.agent.durable.ExecutionBudget
+import com.airi.assistant.agent.durable.ExecutionBudgetTracker
+import com.airi.assistant.agent.durable.ExecutionClock
+import com.airi.assistant.agent.durable.ExecutionUsage
+import com.airi.assistant.agent.durable.SystemExecutionClock
 import com.airi.assistant.ui.viewmodel.AgentState
 import com.airi.assistant.ui.viewmodel.ExecutionStage
 import kotlinx.coroutines.CancellationException
@@ -89,11 +95,16 @@ class AgentLoop(
     private val runtimeTrace: UniversalRuntimeTraceRecorder? = null,
     /** Generic runtime capability provider; it is diagnostic-only and connector-agnostic. */
     private val capabilitySnapshotProvider: () -> List<com.airi.assistant.core.CapabilitySnapshotEntry> = { emptyList() },
-    private val timeoutMs: Long = TIMEOUT_MS
+    private val timeoutMs: Long = TIMEOUT_MS,
+    executionBudget: ExecutionBudget = ExecutionBudget(),
+    executionUsage: ExecutionUsage = ExecutionUsage(),
+    executionClock: ExecutionClock = SystemExecutionClock
 ) {
+    private val budgetTracker = ExecutionBudgetTracker(executionBudget, executionClock, executionUsage)
     companion object {
         private const val TAG              = "AIRI_AgentLoop"
-        private const val MAX_STEPS        = 16
+        /** Model decision-cycle ceiling; tool operations have an independent budget. */
+        private const val MAX_STEPS        = 128
         // Timeout increased from 60s to 120s. Agent loops with tool calls
         // (file ops, web search, code execution) can easily exceed 60s on
         // local inference, especially with retries and multi-step reasoning.
@@ -154,7 +165,10 @@ the tool returns an actual error.
         val completionMetadata: CompletionMetadata = CompletionMetadata(),
     )
 
-    enum class TerminalState { SUCCESS, FAILURE, TIMEOUT, CANCELLED, NO_RESPONSE }
+    enum class TerminalState { SUCCESS, FAILURE, TIMEOUT, CANCELLED, NO_RESPONSE, PAUSED_BUDGET }
+
+    private class BudgetPauseException(val reason: BudgetPauseReason) :
+        CancellationException("Execution budget paused: $reason")
 
     /** Raised inside a model call that produced no progress for too long. */
     private class StallTimeoutException(stallMs: Long) :
@@ -1070,6 +1084,7 @@ the tool returns an actual error.
                 if (parseResult is com.airi.assistant.agent.loop.tool.TextToolCallProtocol.ParseResult.Invalid &&
                     rawResponse.contains("tool_call") && stepsUsed < MAX_STEPS
                 ) {
+                    budgetTracker.beforeRetry()?.let { throw BudgetPauseException(it) }
                     LoggingService.warn(TAG, "AIRI TOOL_CALL_PARSE_RETRY step=$stepsUsed — response had 'tool_call' text but parse failed; retrying")
                     val retryPrompt = "[SYSTEM] Your previous response contained a tool_call but the JSON was malformed. " +
                         "Reply with ONLY a valid JSON object in this exact format, no other text:\n" +
@@ -1388,6 +1403,9 @@ the tool returns an actual error.
                 }
                 val refusalResult: ToolDispatcher.ToolResult.Error? = untrustedRefusal
                 var approvalPending = false
+                if (toolValidationError == null && !duplicateToolCall && refusalResult == null) {
+                    budgetTracker.beforeTool()?.let { throw BudgetPauseException(it) }
+                }
                 var toolResult = if (toolValidationError != null) {
                     LoggingService.warn(TAG, "AIRI TOOL_REJECTED_INVALID_SCHEMA tool=$toolName")
                     ToolDispatcher.ToolResult.Error(
@@ -1897,6 +1915,16 @@ the tool returns an actual error.
             return@withTimeout LoopResult(summary, stepsUsed, toolsInvoked, terminalState = TerminalState.SUCCESS, completionMetadata = completionMetadata)
             }
 
+        } catch (e: BudgetPauseException) {
+            terminal.publish(TerminalStatus.FAILURE, e.reason.name)
+            return LoopResult(
+                finalAnswer = "",
+                stepsUsed = stepsUsed,
+                toolsInvoked = toolsInvoked,
+                terminalState = TerminalState.PAUSED_BUDGET,
+                failureMessage = e.reason.name,
+                completionMetadata = completionMetadata,
+            )
         } catch (e: StallTimeoutException) {
             activeToolTrace?.let { active ->
                 ExecutionStatusBus.onToolCancelled(
@@ -2032,6 +2060,7 @@ the tool returns an actual error.
         progress: AtomicLong? = null,
         stallMs: Long = 0L,
     ): String {
+        budgetTracker.beforeDecision()?.let { throw BudgetPauseException(it) }
         val requestTurns = history.map { turn ->
             when (turn) {
                 is ConversationTurn.User -> ExecutionRequest.ConversationTurn("user", turn.content)
